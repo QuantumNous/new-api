@@ -27,7 +27,7 @@ import {
   Tag,
   Popover,
   Input,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { MousePointerClick } from 'lucide-react';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
@@ -322,3 +322,4 @@ const UpstreamConflictModal = ({
 };
 
 export default UpstreamConflictModal;
+

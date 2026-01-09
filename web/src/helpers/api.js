@@ -324,3 +324,4 @@ export function getChannelModels(type) {
   }
   return [];
 }
+

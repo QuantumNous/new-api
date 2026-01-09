@@ -38,9 +38,9 @@ import {
   isPasskeySupported,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
-import Title from '@douyinfe/semi-ui/lib/es/typography/title';
-import Text from '@douyinfe/semi-ui/lib/es/typography/text';
+import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui-19';
+import Title from '@douyinfe/semi-ui-19/lib/es/typography/title';
+import Text from '@douyinfe/semi-ui-19/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
 
 import {
@@ -919,3 +919,4 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+

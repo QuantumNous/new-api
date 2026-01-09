@@ -24,7 +24,7 @@ import {
   REDEMPTION_ACTIONS,
   REDEMPTION_STATUS,
 } from '../../constants/redemption.constants';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
@@ -358,3 +358,4 @@ export const useRedemptionsData = () => {
     t,
   };
 };
+

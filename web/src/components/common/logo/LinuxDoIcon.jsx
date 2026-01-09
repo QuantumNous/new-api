@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Icon } from '@douyinfe/semi-ui';
+import { Icon } from '@douyinfe/semi-ui-19';
 
 const LinuxDoIcon = (props) => {
   function CustomIcon() {
@@ -54,3 +54,4 @@ const LinuxDoIcon = (props) => {
 };
 
 export default LinuxDoIcon;
+

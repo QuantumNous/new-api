@@ -204,3 +204,4 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     t,
   };
 };
+

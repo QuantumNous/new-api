@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo } from 'react';
-import { Card, Skeleton } from '@douyinfe/semi-ui';
+import { Card, Skeleton } from '@douyinfe/semi-ui-19';
 
 const THEME_COLORS = {
   allVendors: {
@@ -210,3 +210,4 @@ const PricingVendorIntroSkeleton = memo(
 PricingVendorIntroSkeleton.displayName = 'PricingVendorIntroSkeleton';
 
 export default PricingVendorIntroSkeleton;
+

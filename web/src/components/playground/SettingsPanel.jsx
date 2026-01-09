@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
+import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui-19';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
@@ -243,3 +243,4 @@ const SettingsPanel = ({
 };
 
 export default SettingsPanel;
+

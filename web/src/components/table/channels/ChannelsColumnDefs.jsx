@@ -28,7 +28,7 @@ import {
   Tag,
   Tooltip,
   Typography,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   timestamp2string,
   renderGroup,
@@ -760,3 +760,4 @@ export const getChannelsColumns = ({
     },
   ];
 };
+

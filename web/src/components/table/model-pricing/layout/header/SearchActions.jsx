@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { memo, useCallback } from 'react';
-import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
+import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui-19';
 import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
 
 const SearchActions = memo(
@@ -156,3 +156,4 @@ const SearchActions = memo(
 SearchActions.displayName = 'SearchActions';
 
 export default SearchActions;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Typography, Input } from '@douyinfe/semi-ui';
+import { Modal, Typography, Input } from '@douyinfe/semi-ui-19';
 
 const { Text } = Typography;
 
@@ -97,3 +97,4 @@ const ConfirmationDialog = ({
 };
 
 export default ConfirmationDialog;
+

@@ -119,3 +119,4 @@ const PricingTopSection = memo(
 PricingTopSection.displayName = 'PricingTopSection';
 
 export default PricingTopSection;
+

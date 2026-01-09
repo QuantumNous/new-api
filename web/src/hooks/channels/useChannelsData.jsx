@@ -35,7 +35,7 @@ import {
 } from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
-import { Modal, Button } from '@douyinfe/semi-ui';
+import { Modal, Button } from '@douyinfe/semi-ui-19';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -1214,3 +1214,4 @@ export const useChannelsData = () => {
     setActivePage,
   };
 };
+

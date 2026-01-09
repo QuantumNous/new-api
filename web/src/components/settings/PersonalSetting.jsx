@@ -32,7 +32,7 @@ import {
   setUserData,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 
 // 导入子组件
@@ -549,3 +549,4 @@ const PersonalSetting = () => {
 };
 
 export default PersonalSetting;
+

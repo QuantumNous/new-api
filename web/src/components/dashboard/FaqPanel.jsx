@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Collapse, Empty } from '@douyinfe/semi-ui';
+import { Card, Collapse, Empty } from '@douyinfe/semi-ui-19';
 import { HelpCircle } from 'lucide-react';
 import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
 import { marked } from 'marked';
@@ -86,3 +86,4 @@ const FaqPanel = ({
 };
 
 export default FaqPanel;
+

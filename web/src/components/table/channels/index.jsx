@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner } from '@douyinfe/semi-ui';
+import { Banner } from '@douyinfe/semi-ui-19';
 import { IconAlertTriangle } from '@douyinfe/semi-icons';
 import CardPro from '../../common/ui/CardPro';
 import ChannelsTable from './ChannelsTable';
@@ -104,3 +104,4 @@ const ChannelsPage = () => {
 };
 
 export default ChannelsPage;
+

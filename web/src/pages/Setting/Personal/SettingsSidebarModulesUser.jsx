@@ -27,7 +27,7 @@ import {
   Row,
   Col,
   Avatar,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
 import { UserContext } from '../../../context/User';
@@ -480,3 +480,4 @@ export default function SettingsSidebarModulesUser() {
     </Card>
   );
 }
+

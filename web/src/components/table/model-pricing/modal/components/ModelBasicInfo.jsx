@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui-19';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../../../helpers';
 
@@ -87,3 +87,4 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
 };
 
 export default ModelBasicInfo;
+

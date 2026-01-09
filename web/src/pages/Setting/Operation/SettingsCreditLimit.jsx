@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -194,3 +194,4 @@ export default function SettingsCreditLimit(props) {
     </>
   );
 }
+

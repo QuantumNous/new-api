@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Button, Tooltip, Toast, Collapse, Badge, Typography } from '@douyinfe/semi-ui';
+import { Button, Tooltip, Toast, Collapse, Badge, Typography } from '@douyinfe/semi-ui-19';
 import { Copy, ChevronDown, ChevronUp, Zap, CheckCircle, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { copy } from '../../helpers';
@@ -264,3 +264,4 @@ const SSEViewer = ({ sseData }) => {
 };
 
 export default SSEViewer;
+

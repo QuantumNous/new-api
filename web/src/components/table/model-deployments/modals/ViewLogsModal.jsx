@@ -33,7 +33,7 @@ import {
   Divider,
   Tooltip,
   Radio,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   FaCopy,
   FaSearch,
@@ -721,3 +721,4 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 };
 
 export default ViewLogsModal;
+

@@ -25,7 +25,7 @@ import {
   TabPane,
   Button,
   Dropdown,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { Code, Zap, Clock, X, Eye, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CodeViewer from './CodeViewer';
@@ -225,3 +225,4 @@ const DebugPanel = ({
 };
 
 export default DebugPanel;
+

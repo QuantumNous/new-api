@@ -26,7 +26,7 @@ import {
   Row,
   Space,
   Spin,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   compareObjects,
   API,
@@ -321,3 +321,4 @@ export default function ModelRatioSettings(props) {
     </Spin>
   );
 }
+

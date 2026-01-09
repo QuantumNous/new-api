@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner } from '@douyinfe/semi-ui';
+import { Banner } from '@douyinfe/semi-ui-19';
 
 /**
  * 数据库检查步骤组件
@@ -128,3 +128,4 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
 };
 
 export default DatabaseStep;
+

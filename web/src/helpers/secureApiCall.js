@@ -60,3 +60,4 @@ export function extractVerificationInfo(error) {
     required: true,
   };
 }
+

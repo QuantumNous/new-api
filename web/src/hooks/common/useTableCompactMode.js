@@ -56,3 +56,4 @@ export function useTableCompactMode(tableKey = 'global') {
 
   return [compactMode, setCompactMode];
 }
+

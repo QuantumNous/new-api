@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Input, Typography } from '@douyinfe/semi-ui';
+import { Modal, Input, Typography } from '@douyinfe/semi-ui-19';
 
 const BatchTagModal = ({
   showBatchSetTag,
@@ -61,3 +61,4 @@ const BatchTagModal = ({
 };
 
 export default BatchTagModal;
+

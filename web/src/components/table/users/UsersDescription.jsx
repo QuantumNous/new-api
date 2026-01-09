@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Typography } from '@douyinfe/semi-ui';
+import { Typography } from '@douyinfe/semi-ui-19';
 import { IconUserAdd } from '@douyinfe/semi-icons';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
@@ -41,3 +41,4 @@ const UsersDescription = ({ compactMode, setCompactMode, t }) => {
 };
 
 export default UsersDescription;
+

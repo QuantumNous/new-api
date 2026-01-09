@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Dropdown } from '@douyinfe/semi-ui';
+import { Button, Dropdown } from '@douyinfe/semi-ui-19';
 import { Languages } from 'lucide-react';
 import { CN, GB, FR, RU, JP, VN } from 'country-flag-icons/react/3x2';
 
@@ -87,3 +87,4 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
 };
 
 export default LanguageSelector;
+

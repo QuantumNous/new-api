@@ -35,7 +35,7 @@ import {
   Col,
   Progress,
   Checkbox,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IconDownload,
   IconDelete,
@@ -776,3 +776,4 @@ const OllamaModelModal = ({
 };
 
 export default OllamaModelModal;
+

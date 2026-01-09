@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Typography, Toast, Avatar } from '@douyinfe/semi-ui';
+import { Typography, Toast, Avatar } from '@douyinfe/semi-ui-19';
 import { getLobeHubIcon } from '../../../../../helpers';
 
 const { Paragraph } = Typography;
@@ -94,3 +94,4 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
 };
 
 export default ModelHeader;
+

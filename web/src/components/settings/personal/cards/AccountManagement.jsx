@@ -29,7 +29,7 @@ import {
   TabPane,
   Popover,
   Modal,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IconMail,
   IconShield,
@@ -645,3 +645,4 @@ const AccountManagement = ({
 };
 
 export default AccountManagement;
+

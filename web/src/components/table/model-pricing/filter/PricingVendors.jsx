@@ -127,3 +127,4 @@ const PricingVendors = ({
 };
 
 export default PricingVendors;
+

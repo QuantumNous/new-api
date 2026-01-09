@@ -187,3 +187,4 @@ export const CHANNEL_OPTIONS = [
 ];
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
+

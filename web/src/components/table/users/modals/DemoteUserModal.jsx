@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui-19';
 
 const DemoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
   return (
@@ -35,3 +35,4 @@ const DemoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
 };
 
 export default DemoteUserModal;
+

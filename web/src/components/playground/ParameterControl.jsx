@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Input, Slider, Typography, Button, Tag } from '@douyinfe/semi-ui';
+import { Input, Slider, Typography, Button, Tag } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 import {
   Hash,
@@ -295,3 +295,4 @@ const ParameterControl = ({
 };
 
 export default ParameterControl;
+

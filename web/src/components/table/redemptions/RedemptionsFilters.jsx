@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Form, Button } from '@douyinfe/semi-ui';
+import { Form, Button } from '@douyinfe/semi-ui-19';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 const RedemptionsFilters = ({
@@ -91,3 +91,4 @@ const RedemptionsFilters = ({
 };
 
 export default RedemptionsFilters;
+

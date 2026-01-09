@@ -27,7 +27,7 @@ import {
   Empty,
   Button,
   Collapsible,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
@@ -240,3 +240,4 @@ CardTable.propTypes = {
 };
 
 export default CardTable;
+

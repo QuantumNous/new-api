@@ -29,7 +29,7 @@ import {
   Tooltip,
   Select,
   Modal,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { IconSearch } from '@douyinfe/semi-icons';
 import {
   RefreshCcw,
@@ -867,3 +867,4 @@ export default function UpstreamRatioSync(props) {
     </>
   );
 }
+

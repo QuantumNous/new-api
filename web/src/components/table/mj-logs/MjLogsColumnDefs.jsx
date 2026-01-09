@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Progress, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Progress, Tag, Typography } from '@douyinfe/semi-ui-19';
 import {
   Palette,
   ZoomIn,
@@ -509,3 +509,4 @@ export const getMjLogsColumns = ({
     },
   ];
 };
+

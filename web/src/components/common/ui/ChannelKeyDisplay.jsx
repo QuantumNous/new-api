@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Button, Typography, Tag } from '@douyinfe/semi-ui';
+import { Card, Button, Typography, Tag } from '@douyinfe/semi-ui-19';
 import { copy, showSuccess } from '../../../helpers';
 
 /**
@@ -278,3 +278,4 @@ const ChannelKeyDisplay = ({
 };
 
 export default ChannelKeyDisplay;
+

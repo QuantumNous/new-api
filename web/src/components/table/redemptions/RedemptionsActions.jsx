@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui-19';
 
 const RedemptionsActions = ({
   selectedKeys,
@@ -69,3 +69,4 @@ const RedemptionsActions = ({
 };
 
 export default RedemptionsActions;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Divider, Empty } from '@douyinfe/semi-ui';
+import { Progress, Divider, Empty } from '@douyinfe/semi-ui-19';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
@@ -379,3 +379,4 @@ export const generateChartTimePoints = (
 
   return chartTimePoints;
 };
+

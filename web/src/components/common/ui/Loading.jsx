@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Spin } from '@douyinfe/semi-ui';
+import { Spin } from '@douyinfe/semi-ui-19';
 
 const Loading = ({ size = 'small' }) => {
   return (
@@ -29,3 +29,4 @@ const Loading = ({ size = 'small' }) => {
 };
 
 export default Loading;
+

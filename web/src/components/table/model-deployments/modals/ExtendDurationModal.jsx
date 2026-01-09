@@ -30,7 +30,7 @@ import {
   Tag,
   Banner,
   Spin,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   FaClock,
   FaCalculator,
@@ -546,3 +546,4 @@ const ExtendDurationModal = ({
 };
 
 export default ExtendDurationModal;
+

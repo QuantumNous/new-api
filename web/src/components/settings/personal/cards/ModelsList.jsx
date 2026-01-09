@@ -28,7 +28,7 @@ import {
   TabPane,
   Typography,
   Avatar,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoContent,
   IllustrationNoContentDark,
@@ -278,3 +278,4 @@ const ModelsList = ({ t, models, modelsLoading, copyText }) => {
 };
 
 export default ModelsList;
+

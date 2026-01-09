@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Card, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Card, Typography } from '@douyinfe/semi-ui-19';
 import {
   compareObjects,
   API,
@@ -318,3 +318,4 @@ export default function SettingModelDeployment(props) {
     </>
   );
 }
+

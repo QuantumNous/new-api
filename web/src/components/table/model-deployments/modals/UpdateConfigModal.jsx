@@ -33,7 +33,7 @@ import {
   Collapse,
   TextArea,
   Switch,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   FaCog,
   FaDocker,
@@ -495,3 +495,4 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
 };
 
 export default UpdateConfigModal;
+

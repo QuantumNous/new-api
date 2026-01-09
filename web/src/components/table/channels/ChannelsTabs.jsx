@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui-19';
 import { CHANNEL_OPTIONS } from '../../../constants';
 import { getChannelIcon } from '../../../helpers';
 
@@ -95,3 +95,4 @@ const ChannelsTabs = ({
 };
 
 export default ChannelsTabs;
+

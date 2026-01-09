@@ -30,9 +30,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       // Fix for Semi UI CSS resolution in strict ESM/Vite 7 environment
-      '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
+      '@douyinfe/semi-ui-19/dist/css/semi.css': path.resolve(
         __dirname,
-        './node_modules/@douyinfe/semi-ui/dist/css/semi.css'
+        './node_modules/@douyinfe/semi-ui-19/dist/css/semi.css'
       ),
     },
   },
@@ -75,7 +75,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-core': ['react', 'react-dom', 'react-router-dom'],
-          'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
+          'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui-19'],
           tools: ['axios', 'history', 'marked'],
           'react-components': [
             'react-dropzone',

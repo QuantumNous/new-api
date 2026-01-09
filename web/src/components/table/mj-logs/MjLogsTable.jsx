@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Empty } from '@douyinfe/semi-ui';
+import { Empty } from '@douyinfe/semi-ui-19';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
@@ -106,3 +106,4 @@ const MjLogsTable = (mjLogsData) => {
 };
 
 export default MjLogsTable;
+

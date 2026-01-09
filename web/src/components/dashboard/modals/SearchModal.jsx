@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Modal, Form } from '@douyinfe/semi-ui';
+import { Modal, Form } from '@douyinfe/semi-ui-19';
 
 const SearchModal = ({
   searchModalVisible,
@@ -101,3 +101,4 @@ const SearchModal = ({
 };
 
 export default SearchModal;
+

@@ -41,3 +41,4 @@ export const useSidebarCollapsed = () => {
 
   return [collapsed, toggle, set];
 };
+

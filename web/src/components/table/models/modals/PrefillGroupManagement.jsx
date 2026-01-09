@@ -29,7 +29,7 @@ import {
   Avatar,
   Spin,
   Empty,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { IconPlus, IconLayers } from '@douyinfe/semi-icons';
 import {
   IllustrationNoResult,
@@ -306,3 +306,4 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
 };
 
 export default PrefillGroupManagement;
+

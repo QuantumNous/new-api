@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui';
+import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui-19';
 import { IconMore } from '@douyinfe/semi-icons';
 import { renderQuota, timestamp2string } from '../../../helpers';
 import {
@@ -220,3 +220,4 @@ export const getRedemptionsColumns = ({
     },
   ];
 };
+

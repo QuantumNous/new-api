@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Icon } from '@douyinfe/semi-ui';
+import { Icon } from '@douyinfe/semi-ui-19';
 
 const WeChatIcon = () => {
   function CustomIcon() {
@@ -53,3 +53,4 @@ const WeChatIcon = () => {
 };
 
 export default WeChatIcon;
+

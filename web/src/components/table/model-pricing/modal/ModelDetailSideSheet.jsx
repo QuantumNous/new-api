@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { SideSheet, Typography, Button } from '@douyinfe/semi-ui';
+import { SideSheet, Typography, Button } from '@douyinfe/semi-ui-19';
 import { IconClose } from '@douyinfe/semi-icons';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -107,3 +107,4 @@ const ModelDetailSideSheet = ({
 };
 
 export default ModelDetailSideSheet;
+

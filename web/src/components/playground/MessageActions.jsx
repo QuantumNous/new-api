@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Tooltip } from '@douyinfe/semi-ui';
+import { Button, Tooltip } from '@douyinfe/semi-ui-19';
 import { RefreshCw, Copy, Trash2, UserCheck, Edit } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -150,3 +150,4 @@ const MessageActions = ({
 };
 
 export default MessageActions;
+

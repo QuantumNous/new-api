@@ -28,7 +28,7 @@ import {
   Tooltip,
   Collapsible,
   Modal,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   CalendarCheck,
   Gift,
@@ -382,3 +382,4 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 };
 
 export default CheckinCalendar;
+

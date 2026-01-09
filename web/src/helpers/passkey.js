@@ -175,3 +175,4 @@ export async function isPasskeySupported() {
   }
   return true;
 }
+

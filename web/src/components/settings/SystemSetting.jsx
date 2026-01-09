@@ -31,7 +31,7 @@ import {
   Card,
   Radio,
   Select,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 const { Text } = Typography;
 import {
   API,
@@ -1654,3 +1654,4 @@ const SystemSetting = () => {
 };
 
 export default SystemSetting;
+

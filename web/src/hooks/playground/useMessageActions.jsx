@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback } from 'react';
-import { Toast, Modal } from '@douyinfe/semi-ui';
+import { Toast, Modal } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 import { getTextContent } from '../../helpers';
 import { ERROR_MESSAGES } from '../../constants/playground.constants';
@@ -289,3 +289,4 @@ export const useMessageActions = (
     handleRoleToggle,
   };
 };
+

@@ -136,3 +136,4 @@ const FilterModalContent = ({ sidebarProps, t }) => {
 };
 
 export default FilterModalContent;
+

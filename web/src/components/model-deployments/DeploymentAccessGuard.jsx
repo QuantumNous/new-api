@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Button, Typography } from '@douyinfe/semi-ui';
+import { Card, Button, Typography } from '@douyinfe/semi-ui-19';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Server, AlertCircle, WifiOff } from 'lucide-react';
@@ -410,3 +410,4 @@ const DeploymentAccessGuard = ({
 };
 
 export default DeploymentAccessGuard;
+

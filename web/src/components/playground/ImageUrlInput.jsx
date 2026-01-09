@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Input, Typography, Button, Switch } from '@douyinfe/semi-ui';
+import { Input, Typography, Button, Switch } from '@douyinfe/semi-ui-19';
 import { IconFile } from '@douyinfe/semi-icons';
 import { FileText, Plus, X, Image } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -140,3 +140,4 @@ const ImageUrlInput = ({
 };
 
 export default ImageUrlInput;
+

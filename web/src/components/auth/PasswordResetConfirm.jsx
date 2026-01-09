@@ -27,7 +27,7 @@ import {
   getSystemName,
 } from '../../helpers';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Button, Card, Form, Typography, Banner } from '@douyinfe/semi-ui';
+import { Button, Card, Form, Typography, Banner } from '@douyinfe/semi-ui-19';
 import { IconMail, IconLock, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -218,3 +218,4 @@ const PasswordResetConfirm = () => {
 };
 
 export default PasswordResetConfirm;
+

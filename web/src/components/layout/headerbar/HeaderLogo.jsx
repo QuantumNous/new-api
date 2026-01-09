@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Typography, Tag } from '@douyinfe/semi-ui';
+import { Typography, Tag } from '@douyinfe/semi-ui-19';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const HeaderLogo = ({
@@ -79,3 +79,4 @@ const HeaderLogo = ({
 };
 
 export default HeaderLogo;
+

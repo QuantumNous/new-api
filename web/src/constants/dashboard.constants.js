@@ -147,3 +147,4 @@ export const DEFAULTS = {
   MODEL_TABLE_PAGE_SIZE: 10,
   MAX_TREND_POINTS: 7,
 };
+

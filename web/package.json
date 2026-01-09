@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@douyinfe/semi-icons": "^2.90.10",
-    "@douyinfe/semi-ui": "^2.90.10",
+    "@douyinfe/semi-ui-19": "^2.90.10",
     "@lobehub/icons": "^2.48.0",
     "@visactor/react-vchart": "~1.13.22",
     "@visactor/vchart": "~1.13.22",
@@ -22,8 +22,8 @@
     "marked": "^4.3.0",
     "mermaid": "^11.12.2",
     "qrcode.react": "^4.2.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-dropzone": "^14.3.8",
     "react-fireworks": "^1.0.4",
     "react-i18next": "^13.5.0",
@@ -55,11 +55,9 @@
     "i18n:sync": "bunx i18next-cli sync",
     "i18n:lint": "bunx i18next-cli lint"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+  "resolutions": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "browserslist": {
     "production": [

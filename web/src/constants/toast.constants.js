@@ -24,3 +24,4 @@ export const toastConstants = {
   WARNING_TIMEOUT: 10000,
   NOTICE_TIMEOUT: 20000,
 };
+

@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import { Layout, Toast, Modal } from '@douyinfe/semi-ui-19';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -560,3 +560,4 @@ const Playground = () => {
 };
 
 export default Playground;
+

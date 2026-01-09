@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui-19';
 
 const UsersActions = ({ setShowAddUser, t }) => {
   // Add new user
@@ -36,3 +36,4 @@ const UsersActions = ({ setShowAddUser, t }) => {
 };
 
 export default UsersActions;
+

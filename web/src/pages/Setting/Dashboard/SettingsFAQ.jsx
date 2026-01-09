@@ -29,7 +29,7 @@ import {
   Modal,
   Switch,
   Tooltip,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -488,3 +488,4 @@ const SettingsFAQ = ({ options, refresh }) => {
 };
 
 export default SettingsFAQ;
+

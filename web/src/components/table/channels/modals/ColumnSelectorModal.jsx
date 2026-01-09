@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Button, Checkbox } from '@douyinfe/semi-ui';
+import { Modal, Button, Checkbox } from '@douyinfe/semi-ui-19';
 import { getChannelsColumns } from '../ChannelsColumnDefs';
 
 const ColumnSelectorModal = ({
@@ -126,3 +126,4 @@ const ColumnSelectorModal = ({
 };
 
 export default ColumnSelectorModal;
+

@@ -38,3 +38,4 @@ const SetupCheck = ({ children }) => {
 };
 
 export default SetupCheck;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Empty } from '@douyinfe/semi-ui';
+import { Empty } from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoAccess,
   IllustrationNoAccessDark,
@@ -41,3 +41,4 @@ const Forbidden = () => {
 };
 
 export default Forbidden;
+

@@ -30,7 +30,7 @@ import {
   Modal,
   Tag,
   Switch,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -512,3 +512,4 @@ const SettingsAPIInfo = ({ options, refresh }) => {
 };
 
 export default SettingsAPIInfo;
+

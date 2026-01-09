@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui-19';
 import {
   API,
   getTodayStartTimestamp,
@@ -661,3 +661,4 @@ export const useLogsData = () => {
     t,
   };
 };
+

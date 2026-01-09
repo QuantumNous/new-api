@@ -445,3 +445,4 @@ export const useDashboardCharts = (
     generateModelColors,
   };
 };
+

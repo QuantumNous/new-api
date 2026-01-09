@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Avatar, Typography, Badge } from '@douyinfe/semi-ui';
+import { Card, Avatar, Typography, Badge } from '@douyinfe/semi-ui-19';
 import { IconLink } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
@@ -80,3 +80,4 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
 };
 
 export default ModelEndpoints;
+

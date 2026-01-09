@@ -31,7 +31,7 @@ import {
   Card,
   Avatar,
   Spin,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { IconLayers, IconSave, IconClose } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -272,3 +272,4 @@ const EditPrefillGroupModal = ({
 };
 
 export default EditPrefillGroupModal;
+

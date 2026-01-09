@@ -30,7 +30,7 @@ import {
   Modal,
   Input,
   Divider,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IconPlus,
   IconEdit,
@@ -505,3 +505,4 @@ export default function SettingsChats(props) {
     </Spin>
   );
 }
+

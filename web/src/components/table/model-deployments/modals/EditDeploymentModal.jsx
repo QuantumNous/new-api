@@ -33,7 +33,7 @@ import {
   Col,
   Divider,
   Tag,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { Save, X, Server } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -239,3 +239,4 @@ const EditDeploymentModal = ({
 };
 
 export default EditDeploymentModal;
+

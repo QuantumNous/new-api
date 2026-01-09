@@ -30,3 +30,4 @@ const PricingView = ({ viewMode = 'table', ...props }) => {
 };
 
 export default PricingView;
+

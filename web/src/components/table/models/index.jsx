@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Banner, Button, Modal } from '@douyinfe/semi-ui';
+import { Banner, Button, Modal } from '@douyinfe/semi-ui-19';
 import { IconAlertTriangle, IconClose } from '@douyinfe/semi-icons';
 import CardPro from '../../common/ui/CardPro';
 import ModelsTable from './ModelsTable';
@@ -208,3 +208,4 @@ const ModelsPage = () => {
 };
 
 export default ModelsPage;
+

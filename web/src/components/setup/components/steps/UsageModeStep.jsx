@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { RadioGroup, Radio } from '@douyinfe/semi-ui-19';
 
 /**
  * 使用模式选择步骤组件
@@ -69,3 +69,4 @@ const UsageModeStep = ({
 };
 
 export default UsageModeStep;
+

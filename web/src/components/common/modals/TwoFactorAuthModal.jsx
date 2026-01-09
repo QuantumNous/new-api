@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Button, Input, Typography } from '@douyinfe/semi-ui';
+import { Modal, Button, Input, Typography } from '@douyinfe/semi-ui-19';
 
 /**
  * 可复用的两步验证模态框组件
@@ -146,3 +146,4 @@ const TwoFactorAuthModal = ({
 };
 
 export default TwoFactorAuthModal;
+

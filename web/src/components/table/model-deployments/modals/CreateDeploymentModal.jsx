@@ -37,7 +37,7 @@ import {
   Col,
   Tooltip,
   Radio,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IconPlus,
   IconMinus,
@@ -1509,3 +1509,4 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 };
 
 export default CreateDeploymentModal;
+

@@ -42,3 +42,4 @@ const PricingVendorIntroWithSkeleton = memo(
 PricingVendorIntroWithSkeleton.displayName = 'PricingVendorIntroWithSkeleton';
 
 export default PricingVendorIntroWithSkeleton;
+

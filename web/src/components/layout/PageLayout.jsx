@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
-import { Layout } from '@douyinfe/semi-ui';
+import { Layout } from '@douyinfe/semi-ui-19';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
@@ -212,3 +212,4 @@ const PageLayout = () => {
 };
 
 export default PageLayout;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
+import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui-19';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -171,3 +171,4 @@ const ContentModal = ({
 };
 
 export default ContentModal;
+

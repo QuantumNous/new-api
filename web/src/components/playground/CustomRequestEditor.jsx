@@ -24,7 +24,7 @@ import {
   Button,
   Switch,
   Banner,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { Code, Edit, Check, X, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -211,3 +211,4 @@ const CustomRequestEditor = ({
 };
 
 export default CustomRequestEditor;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Skeleton } from '@douyinfe/semi-ui';
+import { Card, Skeleton } from '@douyinfe/semi-ui-19';
 
 const PricingCardSkeleton = ({
   skeletonCount = 100,
@@ -142,3 +142,4 @@ const PricingCardSkeleton = ({
 };
 
 export default PricingCardSkeleton;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Avatar, Typography, Descriptions } from '@douyinfe/semi-ui';
+import { Avatar, Typography, Descriptions } from '@douyinfe/semi-ui-19';
 import { CheckCircle } from 'lucide-react';
 
 const { Text, Title } = Typography;
@@ -73,3 +73,4 @@ const CompleteStep = ({
 };
 
 export default CompleteStep;
+

@@ -322,3 +322,4 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     isMobile,
   };
 };
+

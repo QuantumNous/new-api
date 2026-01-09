@@ -46,7 +46,7 @@ import {
   Col,
   Highlight,
   Input,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   getChannelModels,
   copy,
@@ -3195,3 +3195,4 @@ const EditChannelModal = (props) => {
 };
 
 export default EditChannelModal;
+

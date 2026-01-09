@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui';
+import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui-19';
 import { Bell } from 'lucide-react';
 import { marked } from 'marked';
 import {
@@ -124,3 +124,4 @@ const AnnouncementsPanel = ({
 };
 
 export default AnnouncementsPanel;
+

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
-import { Spin } from '@douyinfe/semi-ui';
+import { Spin } from '@douyinfe/semi-ui-19';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -81,3 +81,4 @@ const ChatPage = () => {
 };
 
 export default ChatPage;
+

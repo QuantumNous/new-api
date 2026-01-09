@@ -29,7 +29,7 @@ import {
   Tabs,
   Collapse,
   Tooltip,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -415,3 +415,4 @@ const ModelSelectModal = ({
 };
 
 export default ModelSelectModal;
+

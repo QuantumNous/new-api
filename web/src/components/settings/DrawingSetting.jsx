@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spin } from '@douyinfe/semi-ui-19';
 import SettingsDrawing from '../../pages/Setting/Drawing/SettingsDrawing';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -82,3 +82,4 @@ const DrawingSetting = () => {
 };
 
 export default DrawingSetting;
+

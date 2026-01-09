@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Form } from '@douyinfe/semi-ui-19';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 const ChannelsFilters = ({
@@ -157,3 +157,4 @@ const ChannelsFilters = ({
 };
 
 export default ChannelsFilters;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Card, Table, Empty } from '@douyinfe/semi-ui';
+import { Card, Table, Empty } from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -142,3 +142,4 @@ const PricingTable = ({
 };
 
 export default PricingTable;
+

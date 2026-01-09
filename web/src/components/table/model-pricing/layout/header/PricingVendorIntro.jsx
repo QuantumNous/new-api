@@ -25,7 +25,7 @@ import {
   Typography,
   Tooltip,
   Modal,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { getLobeHubIcon } from '../../../../../helpers';
 import SearchActions from './SearchActions';
 
@@ -417,3 +417,4 @@ const PricingVendorIntro = memo(
 PricingVendorIntro.displayName = 'PricingVendorIntro';
 
 export default PricingVendorIntro;
+

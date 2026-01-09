@@ -36,7 +36,7 @@ import {
   Badge,
   Progress,
   Card,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -740,3 +740,4 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
 };
 
 export default MultiKeyManageModal;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Popconfirm } from '@douyinfe/semi-ui';
+import { Button, Popconfirm } from '@douyinfe/semi-ui-19';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
 const DeploymentsActions = ({
@@ -107,3 +107,4 @@ const DeploymentsActions = ({
 };
 
 export default DeploymentsActions;
+

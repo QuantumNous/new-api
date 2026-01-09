@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Modal, RadioGroup, Radio, Steps, Button } from '@douyinfe/semi-ui';
+import { Modal, RadioGroup, Radio, Steps, Button } from '@douyinfe/semi-ui-19';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
@@ -130,3 +130,4 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
 };
 
 export default SyncWizardModal;
+

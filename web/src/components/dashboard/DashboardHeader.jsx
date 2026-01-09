@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui-19';
 import { RefreshCw, Search } from 'lucide-react';
 
 const DashboardHeader = ({
@@ -59,3 +59,4 @@ const DashboardHeader = ({
 };
 
 export default DashboardHeader;
+

@@ -32,7 +32,7 @@ import {
   Col,
   Spin,
   Tooltip,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import {
   CreditCard,
@@ -582,3 +582,4 @@ const RechargeCard = ({
 };
 
 export default RechargeCard;
+

@@ -26,7 +26,7 @@ import {
   Row,
   Switch,
   Typography,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
@@ -354,3 +354,4 @@ export default function SettingsHeaderNavModules(props) {
     </Card>
   );
 }
+

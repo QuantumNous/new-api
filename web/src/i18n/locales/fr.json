@@ -2602,3 +2602,4 @@
     "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Remarque : la correspondance des endpoints sert uniquement à l’affichage dans la place de marché des modèles et n’affecte pas l’invocation réelle. Pour configurer l’invocation réelle, veuillez aller dans « Gestion des canaux »."
   }
 }
+

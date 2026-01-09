@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { Card, Spin } from '@douyinfe/semi-ui';
+import { Card, Spin } from '@douyinfe/semi-ui-19';
 import SettingsChats from '../../pages/Setting/Chat/SettingsChats';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -80,3 +80,4 @@ const ChatsSetting = () => {
 };
 
 export default ChatsSetting;
+

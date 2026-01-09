@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Modal } from '@douyinfe/semi-ui';
+import { Button, Modal } from '@douyinfe/semi-ui-19';
 import { useSecureVerification } from '../../../hooks/common/useSecureVerification';
 import { createApiCalls } from '../../../services/secureVerification';
 import SecureVerificationModal from '../modals/SecureVerificationModal';
@@ -111,3 +111,4 @@ const ChannelKeyViewExample = ({ channelId }) => {
 };
 
 export default ChannelKeyViewExample;
+

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@douyinfe/semi-ui-19';
 import { IconClose, IconMenu } from '@douyinfe/semi-icons';
 
 const MobileMenuButton = ({
@@ -54,3 +54,4 @@ const MobileMenuButton = ({
 };
 
 export default MobileMenuButton;
+

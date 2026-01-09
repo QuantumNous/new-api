@@ -43,3 +43,4 @@ const chat2page = () => {
 };
 
 export default chat2page;
+

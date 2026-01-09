@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Skeleton, Typography } from '@douyinfe/semi-ui';
+import { Skeleton, Typography } from '@douyinfe/semi-ui-19';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
 import { IconEyeOpened } from '@douyinfe/semi-icons';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
@@ -67,3 +67,4 @@ const MjLogsActions = ({
 };
 
 export default MjLogsActions;
+

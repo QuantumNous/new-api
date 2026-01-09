@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal } from '@douyinfe/semi-ui-19';
 
 const DeleteTokensModal = ({
   visible,
@@ -45,3 +45,4 @@ const DeleteTokensModal = ({
 };
 
 export default DeleteTokensModal;
+

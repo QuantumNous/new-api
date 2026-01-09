@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Button, Typography, Toast, Modal, Dropdown } from '@douyinfe/semi-ui';
+import { Button, Typography, Toast, Modal, Dropdown } from '@douyinfe/semi-ui-19';
 import { Download, Upload, RotateCcw, Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -279,3 +279,4 @@ const ConfigManager = ({
 };
 
 export default ConfigManager;
+

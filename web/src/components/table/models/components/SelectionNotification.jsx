@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect } from 'react';
-import { Notification, Button, Space, Typography } from '@douyinfe/semi-ui';
+import { Notification, Button, Space, Typography } from '@douyinfe/semi-ui-19';
 
 // 固定通知 ID，保持同一个实例即可避免闪烁
 const NOTICE_ID = 'models-batch-actions';
@@ -98,3 +98,4 @@ const SelectionNotification = ({
 };
 
 export default SelectionNotification;
+

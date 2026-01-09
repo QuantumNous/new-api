@@ -32,7 +32,7 @@ import {
   Col,
   Row,
   Tooltip,
-} from '@douyinfe/semi-ui';
+} from '@douyinfe/semi-ui-19';
 import { Save, X, FileText } from 'lucide-react';
 import { IconInfoCircle, IconLink } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
@@ -552,3 +552,4 @@ const EditModelModal = (props) => {
 };
 
 export default EditModelModal;
+

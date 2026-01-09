@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Button, Tooltip, Toast } from '@douyinfe/semi-ui';
+import { Button, Tooltip, Toast } from '@douyinfe/semi-ui-19';
 import { Copy, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { copy } from '../../helpers';
@@ -355,3 +355,4 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 };
 
 export default CodeViewer;
+
