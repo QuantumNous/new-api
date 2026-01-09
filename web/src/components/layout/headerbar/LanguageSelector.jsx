@@ -25,7 +25,6 @@ import { CN, GB, FR, RU, JP, VN } from 'country-flag-icons/react/3x2';
 const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
   return (
     <Dropdown
-      trigger='click'
       position='bottomRight'
       render={
         <Dropdown.Menu className='!bg-semi-color-bg-overlay border-semi-color-border! shadow-lg! rounded-lg! dark:bg-gray-700! dark:border-gray-600!'>
