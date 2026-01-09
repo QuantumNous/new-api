@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,7 @@ func oaiImageGen2QwenImageGen(c *gin.Context, _ *relaycommon.RelayInfo, request 
 		return nil, err
 	}
 
+	logger.LogInfo(c, fmt.Sprintf("oaiImageGen2QwenImageGen %s", request.Model))
 	return &imageRequest, nil
 }
 
@@ -61,6 +63,7 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 	imageRequest.Input = wanInput
 	imageRequest.Parameters = wanParams
+	logger.LogInfo(c, fmt.Sprintf("oaiFormEdit2WanxImageEdit %s", request.Model))
 	return &imageRequest, nil
 }
 
