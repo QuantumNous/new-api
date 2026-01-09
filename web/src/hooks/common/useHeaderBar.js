@@ -146,8 +146,8 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   }, [navigate, t, userDispatch]);
 
   const handleLanguageChange = useCallback(
-    (lang) => {
-      i18n.changeLanguage(lang);
+    async (lang) => {
+      await i18n.changeLanguage(lang);
     },
     [i18n],
   );
