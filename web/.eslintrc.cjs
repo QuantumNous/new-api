@@ -6,6 +6,7 @@ module.exports = {
     sourceType: 'module',
     ecmaFeatures: { jsx: true },
   },
+  extends: ['react-app', 'react-app/jest'],
   plugins: ['header', 'react-hooks'],
   overrides: [
     {
