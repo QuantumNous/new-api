@@ -243,6 +243,7 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 
 	if setting.StripeManagedPaymentsEnabled {
 		params.AddExtra("managed_payments[enabled]", "true")
+		params.AddMetadata("preview_feature", "true")
 	}
 
 	if setting.StripeAutoTaxEnabled {
