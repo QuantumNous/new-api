@@ -241,10 +241,9 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		params.Customer = stripe.String(customerId)
 	}
 
-	//if setting.StripeManagedPaymentsEnabled {
-	//	// TODO：add Managed Payments parameters
-	//	params.AddExtra("managed_payments", `{"enabled": true}`)
-	//}
+	if setting.StripeManagedPaymentsEnabled {
+		params.AddExtra("managed_payments[enabled]", "true")
+	}
 
 	if setting.StripeAutoTaxEnabled {
 		params.AutomaticTax = &stripe.CheckoutSessionAutomaticTaxParams{

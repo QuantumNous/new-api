@@ -113,9 +113,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info.RelayMode == constant.RelayModeImagesGenerations {
 		if isQWENImageModel(info.OriginModelName) {
-			if isWanModel(info.OriginModelName) {
-				return oaiImageGen2QwenImageGen(c, info, request)
-			}
+			return oaiImageGen2QwenImageGen(c, info, request)
 		} else {
 			aliRequest, err := oaiImage2Ali(request)
 			if err != nil {
