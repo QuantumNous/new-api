@@ -125,6 +125,33 @@ type WanImageParameters struct {
 	Strength  float64 `json:"strength,omitempty"`  // 修改幅度 0.0-1.0，默认0.5（部分模型支持）
 }
 
+type QwenImageRequest struct {
+	Model      string              `json:"model"`
+	Input      QwenImageInput      `json:"input"`
+	Parameters QwenImageParameters `json:"parameters"`
+}
+
+type QwenImageInput struct {
+	Messages []QwenImageInputMessage `json:"messages"`
+}
+
+type QwenImageInputMessage struct {
+	Role    string                         `json:"role"`
+	Content []QwenImageInputMessageContent `json:"content"`
+}
+
+type QwenImageInputMessageContent struct {
+	Text string `json:"text"`
+}
+
+type QwenImageParameters struct {
+	NegativePrompt string `json:"negative_prompt,omitempty"` // 可选：反向提示词，描述不希望在画面中看到的内容
+	PromptExtend   bool   `json:"prompt_extend,omitempty"`
+	Watermark      bool   `json:"watermark,omitempty"`
+	Size           string `json:"size,omitempty"`
+	N              int    `json:"n,omitempty"` // 此参数当前固定为1，设置其他值将导致报错。
+}
+
 type AliRerankParameters struct {
 	TopN            *int  `json:"top_n,omitempty"`
 	ReturnDocuments *bool `json:"return_documents,omitempty"`

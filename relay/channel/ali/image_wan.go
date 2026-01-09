@@ -11,6 +11,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func oaiImageGen2QwenImageGen(c *gin.Context, _ *relaycommon.RelayInfo, request dto.ImageRequest) (*QwenImageRequest, error) {
+	imageRequest := QwenImageRequest{
+		Model: request.Model,
+		Input: QwenImageInput{
+			Messages: []QwenImageInputMessage{
+				{
+					Role: "user",
+					Content: []QwenImageInputMessageContent{
+						{
+							Text: request.Prompt,
+						},
+					},
+				},
+			},
+		},
+		Parameters: QwenImageParameters{
+			NegativePrompt: "低分辨率，低画质，肢体畸形，手指畸形，画面过饱和，蜡像感，人脸无细节，过度光滑，画面具有AI感。构图混乱。文字模糊，扭曲。",
+			PromptExtend:   true,
+			Watermark:      false,
+			Size:           request.Size,
+		},
+	}
+
+	if err := common.UnmarshalBodyReusable(c, &imageRequest); err != nil {
+		return nil, err
+	}
+
+	return &imageRequest, nil
+}
+
 func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (*AliImageRequest, error) {
 	var err error
 	var imageRequest AliImageRequest
@@ -36,4 +66,8 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 func isWanModel(modelName string) bool {
 	return strings.Contains(modelName, "wan")
+}
+
+func isQWENImageModel(modelName string) bool {
+	return strings.Contains(modelName, "qwen-image")
 }

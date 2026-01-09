@@ -305,6 +305,47 @@ func aliImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rela
 	return nil, &dto.Usage{}
 }
 
+func aliQwenImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
+	var aliResponse AliResponse
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError), nil
+	}
+
+	service.CloseResponseBodyGracefully(resp)
+	err = common.Unmarshal(responseBody, &aliResponse)
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError), nil
+	}
+
+	if aliResponse.Message != "" {
+		logger.LogError(c, "ali_task_failed: "+aliResponse.Message)
+		return types.NewError(errors.New(aliResponse.Message), types.ErrorCodeBadResponse), nil
+	}
+	var fullTextResponse dto.ImageResponse
+	if len(aliResponse.Output.Choices) > 0 {
+		fullTextResponse = dto.ImageResponse{
+			Created: info.StartTime.Unix(),
+			Data: []dto.ImageData{
+				{
+					Url:     aliResponse.Output.Choices[0]["message"].(map[string]any)["content"].([]any)[0].(map[string]any)["image"].(string),
+					B64Json: "",
+				},
+			},
+		}
+	}
+
+	var mapResponse map[string]any
+	_ = common.Unmarshal(responseBody, &mapResponse)
+	fullTextResponse.Extra = mapResponse
+	jsonResponse, err := common.Marshal(fullTextResponse)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
+	}
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return nil, &dto.Usage{}
+}
+
 func aliImageEditHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
 	var aliResponse AliResponse
 	responseBody, err := io.ReadAll(resp.Body)

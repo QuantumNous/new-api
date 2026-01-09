@@ -16,9 +16,9 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/checkout/session"
-	"github.com/stripe/stripe-go/v81/webhook"
+	"github.com/stripe/stripe-go/v83"
+	"github.com/stripe/stripe-go/v83/checkout/session"
+	"github.com/stripe/stripe-go/v83/webhook"
 	"github.com/thanhpk/randstr"
 )
 
@@ -239,6 +239,17 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
 	} else {
 		params.Customer = stripe.String(customerId)
+	}
+
+	//if setting.StripeManagedPaymentsEnabled {
+	//	// TODO：add Managed Payments parameters
+	//	params.AddExtra("managed_payments", `{"enabled": true}`)
+	//}
+
+	if setting.StripeAutoTaxEnabled {
+		params.AutomaticTax = &stripe.CheckoutSessionAutomaticTaxParams{
+			Enabled: stripe.Bool(true),
+		}
 	}
 
 	result, err := session.New(params)
