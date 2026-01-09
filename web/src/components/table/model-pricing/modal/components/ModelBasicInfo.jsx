@@ -88,3 +88,4 @@ const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
 
 export default ModelBasicInfo;
 
+

@@ -381,3 +381,4 @@ const PricingCardView = ({
 
 export default PricingCardView;
 
+

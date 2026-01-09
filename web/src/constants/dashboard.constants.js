@@ -148,3 +148,4 @@ export const DEFAULTS = {
   MAX_TREND_POINTS: 7,
 };
 
+

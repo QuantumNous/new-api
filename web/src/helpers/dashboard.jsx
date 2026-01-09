@@ -380,3 +380,4 @@ export const generateChartTimePoints = (
   return chartTimePoints;
 };
 
+

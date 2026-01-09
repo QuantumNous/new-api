@@ -35,3 +35,4 @@ const UserAgreement = () => {
 };
 
 export default UserAgreement;
+

@@ -95,3 +95,4 @@ const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
 
 export default ModelHeader;
 
+

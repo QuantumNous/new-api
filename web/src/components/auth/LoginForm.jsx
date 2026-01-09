@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { UserContext } from '../../context/User';
 import {
   API,
@@ -919,4 +919,5 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
+
 

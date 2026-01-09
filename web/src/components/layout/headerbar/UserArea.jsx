@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Avatar, Button, Dropdown, Typography } from '@douyinfe/semi-ui-19';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -198,4 +198,5 @@ const UserArea = ({
 };
 
 export default UserArea;
+
 

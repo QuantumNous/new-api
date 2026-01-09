@@ -246,3 +246,4 @@ const DeploymentsTable = (deploymentsData) => {
 
 export default DeploymentsTable;
 
+

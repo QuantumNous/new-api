@@ -263,3 +263,4 @@ export const getPricingTableColumns = ({
   return columns;
 };
 
+

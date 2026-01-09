@@ -29,7 +29,7 @@ import {
 import Turnstile from 'react-turnstile';
 import { Button, Card, Form, Typography } from '@douyinfe/semi-ui-19';
 import { IconMail } from '@douyinfe/semi-icons';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
@@ -191,4 +191,5 @@ const PasswordResetForm = () => {
 };
 
 export default PasswordResetForm;
+
 

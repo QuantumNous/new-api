@@ -143,3 +143,4 @@ const PricingTable = ({
 
 export default PricingTable;
 
+

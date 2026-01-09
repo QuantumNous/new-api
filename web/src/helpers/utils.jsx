@@ -820,3 +820,4 @@ export const resetPricingFilters = ({
   setCurrentPage?.(DEFAULT_PRICING_FILTERS.currentPage);
 };
 
+

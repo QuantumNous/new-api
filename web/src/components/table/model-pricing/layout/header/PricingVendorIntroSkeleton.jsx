@@ -211,3 +211,4 @@ PricingVendorIntroSkeleton.displayName = 'PricingVendorIntroSkeleton';
 
 export default PricingVendorIntroSkeleton;
 
+

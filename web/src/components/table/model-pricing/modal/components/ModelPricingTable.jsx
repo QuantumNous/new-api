@@ -216,3 +216,4 @@ const ModelPricingTable = ({
 
 export default ModelPricingTable;
 
+

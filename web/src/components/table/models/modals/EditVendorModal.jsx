@@ -185,3 +185,4 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
 
 export default EditVendorModal;
 
+

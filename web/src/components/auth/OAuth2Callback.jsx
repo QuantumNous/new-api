@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -93,4 +93,5 @@ const OAuth2Callback = (props) => {
 };
 
 export default OAuth2Callback;
+
 

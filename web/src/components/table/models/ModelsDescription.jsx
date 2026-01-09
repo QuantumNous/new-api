@@ -43,3 +43,4 @@ const ModelsDescription = ({ compactMode, setCompactMode, t }) => {
 
 export default ModelsDescription;
 
+

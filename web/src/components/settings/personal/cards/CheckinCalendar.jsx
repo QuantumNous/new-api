@@ -383,3 +383,4 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
 export default CheckinCalendar;
 
+

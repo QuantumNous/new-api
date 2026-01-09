@@ -143,3 +143,4 @@ const RedemptionsTable = (redemptionsData) => {
 
 export default RedemptionsTable;
 
+

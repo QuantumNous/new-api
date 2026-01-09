@@ -43,3 +43,4 @@ const RedemptionsDescription = ({ compactMode, setCompactMode, t }) => {
 
 export default RedemptionsDescription;
 
+

@@ -41,3 +41,4 @@ const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
 
 export default ResetTwoFAModal;
 
+

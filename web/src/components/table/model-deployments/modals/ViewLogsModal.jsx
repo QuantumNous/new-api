@@ -722,3 +722,4 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
 
 export default ViewLogsModal;
 
+

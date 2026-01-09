@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router';
 import { StatusContext } from '../../context/Status';
 
 const SetupCheck = ({ children }) => {
@@ -38,4 +38,5 @@ const SetupCheck = ({ children }) => {
 };
 
 export default SetupCheck;
+
 

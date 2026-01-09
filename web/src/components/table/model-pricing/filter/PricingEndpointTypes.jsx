@@ -103,3 +103,4 @@ const PricingEndpointTypes = ({
 
 export default PricingEndpointTypes;
 
+

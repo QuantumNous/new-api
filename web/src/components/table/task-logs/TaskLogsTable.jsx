@@ -107,3 +107,4 @@ const TaskLogsTable = (taskLogsData) => {
 
 export default TaskLogsTable;
 
+

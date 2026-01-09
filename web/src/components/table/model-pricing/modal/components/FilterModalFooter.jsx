@@ -35,3 +35,4 @@ const FilterModalFooter = ({ onReset, onConfirm, t }) => {
 
 export default FilterModalFooter;
 
+

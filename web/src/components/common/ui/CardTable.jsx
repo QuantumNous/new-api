@@ -241,3 +241,4 @@ CardTable.propTypes = {
 
 export default CardTable;
 
+

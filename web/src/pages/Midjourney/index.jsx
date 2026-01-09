@@ -28,3 +28,4 @@ const Midjourney = () => (
 
 export default Midjourney;
 
+

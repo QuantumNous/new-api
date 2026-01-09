@@ -36,3 +36,4 @@ const DemoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
 
 export default DemoteUserModal;
 
+

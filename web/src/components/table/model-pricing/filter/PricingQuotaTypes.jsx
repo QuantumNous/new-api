@@ -59,3 +59,4 @@ const PricingQuotaTypes = ({
 
 export default PricingQuotaTypes;
 
+

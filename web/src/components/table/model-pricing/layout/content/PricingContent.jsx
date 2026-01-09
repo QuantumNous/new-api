@@ -59,3 +59,4 @@ const PricingContent = ({ isMobile, sidebarProps, ...props }) => {
 
 export default PricingContent;
 
+

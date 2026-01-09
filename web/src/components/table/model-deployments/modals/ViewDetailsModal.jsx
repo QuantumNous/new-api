@@ -600,3 +600,4 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
 
 export default ViewDetailsModal;
 
+

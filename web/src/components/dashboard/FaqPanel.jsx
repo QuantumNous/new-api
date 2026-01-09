@@ -87,3 +87,4 @@ const FaqPanel = ({
 
 export default FaqPanel;
 
+

@@ -489,3 +489,4 @@ const SettingsFAQ = ({ options, refresh }) => {
 
 export default SettingsFAQ;
 
+

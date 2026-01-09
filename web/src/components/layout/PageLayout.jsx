@@ -36,7 +36,7 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
@@ -212,4 +212,5 @@ const PageLayout = () => {
 };
 
 export default PageLayout;
+
 

@@ -36,3 +36,4 @@ const PromoteUserModal = ({ visible, onCancel, onConfirm, user, t }) => {
 
 export default PromoteUserModal;
 
+

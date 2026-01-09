@@ -81,3 +81,4 @@ const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
 
 export default ModelEndpoints;
 
+

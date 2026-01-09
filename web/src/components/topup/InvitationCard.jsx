@@ -228,3 +228,4 @@ const InvitationCard = ({
 
 export default InvitationCard;
 
+

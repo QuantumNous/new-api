@@ -79,3 +79,4 @@ const WeChatBindModal = ({
 
 export default WeChatBindModal;
 
+

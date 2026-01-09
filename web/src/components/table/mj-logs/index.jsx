@@ -64,3 +64,4 @@ const MjLogsPage = () => {
 
 export default MjLogsPage;
 
+

@@ -119,3 +119,4 @@ const LogsTable = (logsData) => {
 
 export default LogsTable;
 
+

@@ -66,3 +66,4 @@ const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
 
 export default PricingFilterModal;
 
+

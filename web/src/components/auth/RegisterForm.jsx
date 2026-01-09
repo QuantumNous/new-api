@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import {
   API,
   getLogo,
@@ -749,4 +749,5 @@ const RegisterForm = () => {
 };
 
 export default RegisterForm;
+
 

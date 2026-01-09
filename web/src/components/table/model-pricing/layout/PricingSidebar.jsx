@@ -154,3 +154,4 @@ const PricingSidebar = ({
 
 export default PricingSidebar;
 
+

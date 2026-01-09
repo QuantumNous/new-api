@@ -67,3 +67,4 @@ CompactModeToggle.propTypes = {
 
 export default CompactModeToggle;
 
+

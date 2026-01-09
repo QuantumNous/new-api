@@ -131,3 +131,4 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
 export default HeaderBar;
 
+

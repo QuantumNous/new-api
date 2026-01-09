@@ -241,3 +241,4 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
 };
 
 export default DocumentRenderer;
+

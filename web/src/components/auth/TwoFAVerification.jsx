@@ -243,3 +243,4 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
 
 export default TwoFAVerification;
 
+

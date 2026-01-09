@@ -247,3 +247,4 @@ const FooterBar = () => {
 
 export default FooterBar;
 
+

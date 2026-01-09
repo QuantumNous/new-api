@@ -107,3 +107,4 @@ const MjLogsTable = (mjLogsData) => {
 
 export default MjLogsTable;
 
+

@@ -30,3 +30,4 @@ const Loading = ({ size = 'small' }) => {
 
 export default Loading;
 
+

@@ -38,7 +38,7 @@ import {
   IconFile,
   IconCopy,
 } from '@douyinfe/semi-icons';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import NoticeModal from '../../components/layout/NoticeModal';
 import {
   Moonshot,
@@ -354,4 +354,5 @@ const Home = () => {
 };
 
 export default Home;
+
 

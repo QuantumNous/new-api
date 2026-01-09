@@ -42,3 +42,4 @@ const TaskLogsActions = ({ compactMode, setCompactMode, t }) => {
 
 export default TaskLogsActions;
 
+
