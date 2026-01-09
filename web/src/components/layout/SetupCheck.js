@@ -21,6 +21,8 @@ import React, { useContext, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { StatusContext } from '../../context/Status';
 
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+
 const SetupCheck = ({ children }) => {
   const [statusState] = useContext(StatusContext);
   const location = useLocation();
@@ -30,7 +32,7 @@ const SetupCheck = ({ children }) => {
       statusState?.status?.setup === false &&
       location.pathname !== '/setup'
     ) {
-      window.location.href = '/setup';
+      window.location.href = `${BASE_PATH}/setup`;
     }
   }, [statusState?.status?.setup, location.pathname]);
 

@@ -1,12 +1,15 @@
 FROM oven/bun:latest AS builder
 
+# 支持子路径部署，构建时传入 --build-arg BASE_PATH=/your-path
+ARG BASE_PATH=""
+
 WORKDIR /build
 COPY web/package.json .
 COPY web/bun.lock .
 RUN bun install
 COPY ./web .
 COPY ./VERSION .
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
+RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) VITE_BASE_PATH=${BASE_PATH} bun run build
 
 FROM golang:alpine AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0

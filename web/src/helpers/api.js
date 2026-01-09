@@ -26,10 +26,13 @@ import {
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
+// 获取 base path，用于子路径部署
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
     ? import.meta.env.VITE_REACT_APP_SERVER_URL
-    : '',
+    : BASE_PATH,
   headers: {
     'New-API-User': getUserIdFromLocalStorage(),
     'Cache-Control': 'no-store',
@@ -70,7 +73,7 @@ export function updateAPI() {
   API = axios.create({
     baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
       ? import.meta.env.VITE_REACT_APP_SERVER_URL
-      : '',
+      : BASE_PATH,
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
       'Cache-Control': 'no-store',
@@ -248,7 +251,7 @@ async function prepareOAuthState(options = {}) {
 export async function onDiscordOAuthClicked(client_id, options = {}) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  const redirect_uri = `${window.location.origin}/oauth/discord`;
+  const redirect_uri = `${window.location.origin}${BASE_PATH}/oauth/discord`;
   const response_type = 'code';
   const scope = 'identify+openid';
   window.open(
@@ -266,7 +269,7 @@ export async function onOIDCClicked(
   if (!state) return;
   const url = new URL(auth_url);
   url.searchParams.set('client_id', client_id);
-  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/oidc`);
+  url.searchParams.set('redirect_uri', `${window.location.origin}${BASE_PATH}/oauth/oidc`);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid profile email');
   url.searchParams.set('state', state);

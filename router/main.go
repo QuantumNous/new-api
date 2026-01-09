@@ -13,6 +13,20 @@ import (
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	// BASE_PATH 支持子路径部署，如 /api-server
+	basePath := strings.TrimSuffix(os.Getenv("BASE_PATH"), "/")
+	if basePath != "" {
+		router.Use(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, basePath) {
+				c.Request.URL.Path = strings.TrimPrefix(c.Request.URL.Path, basePath)
+				if c.Request.URL.Path == "" {
+					c.Request.URL.Path = "/"
+				}
+			}
+			c.Next()
+		})
+	}
+
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
