@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState } from 'react';
 import { API, showError } from '../../helpers';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { Empty } from '@douyinfe/semi-ui-19';
 import {
   IllustrationConstruction,
@@ -40,7 +41,7 @@ const About = () => {
     if (success) {
       let aboutContent = data;
       if (!data.startsWith('https://')) {
-        aboutContent = marked.parse(data);
+        aboutContent = DOMPurify.sanitize(marked.parse(data));
       }
       setAbout(aboutContent);
       localStorage.setItem('about', aboutContent);

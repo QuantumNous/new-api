@@ -22,6 +22,7 @@ import { Card, Collapse, Empty } from '@douyinfe/semi-ui-19';
 import { HelpCircle } from 'lucide-react';
 import { IconPlus, IconMinus } from '@douyinfe/semi-icons';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
@@ -62,7 +63,7 @@ const FaqPanel = ({
               >
                 <div
                   dangerouslySetInnerHTML={{
-                    __html: marked.parse(item.answer || ''),
+                    __html: DOMPurify.sanitize(marked.parse(item.answer || '')),
                   }}
                 />
               </Collapse.Panel>

@@ -31,6 +31,7 @@ import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import {
   IconGithubLogo,
@@ -88,7 +89,7 @@ const Home = () => {
     if (success) {
       let content = data;
       if (!data.startsWith('https://')) {
-        content = marked.parse(data);
+        content = DOMPurify.sanitize(marked.parse(data));
       }
       setHomePageContent(content);
       localStorage.setItem('home_page_content', content);

@@ -30,6 +30,7 @@ import {
 } from '@douyinfe/semi-ui-19';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui-19/lib/es/typography/text';
@@ -264,7 +265,7 @@ const OtherSetting = () => {
       } else {
         setUpdateData({
           tag_name: tag_name,
-          content: marked.parse(body),
+          content: DOMPurify.sanitize(marked.parse(body)),
         });
         setShowUpdateModal(true);
       }

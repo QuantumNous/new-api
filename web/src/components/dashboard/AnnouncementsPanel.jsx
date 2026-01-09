@@ -21,6 +21,7 @@ import React from 'react';
 import { Card, Tag, Timeline, Empty } from '@douyinfe/semi-ui-19';
 import { Bell } from 'lucide-react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
@@ -80,7 +81,7 @@ const AnnouncementsPanel = ({
         {announcementData.length > 0 ? (
           <Timeline mode='left'>
             {announcementData.map((item, idx) => {
-              const htmlExtra = item.extra ? marked.parse(item.extra) : '';
+              const htmlExtra = item.extra ? DOMPurify.sanitize(marked.parse(item.extra)) : '';
               return (
                 <Timeline.Item
                   key={idx}
@@ -98,7 +99,7 @@ const AnnouncementsPanel = ({
                   <div>
                     <div
                       dangerouslySetInnerHTML={{
-                        __html: marked.parse(item.content || ''),
+                        __html: DOMPurify.sanitize(marked.parse(item.content || '')),
                       }}
                     />
                   </div>

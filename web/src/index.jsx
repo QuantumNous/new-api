@@ -22,7 +22,6 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import '@douyinfe/semi-ui-19/dist/css/semi.css';
 import { UserProvider } from './context/User';
-import 'react-toastify/dist/ReactToastify.css';
 import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
 import PageLayout from './components/layout/PageLayout';
