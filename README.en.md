@@ -213,9 +213,11 @@ docker run --name new-api -d --restart always \
 - 🚦 User-level model rate limiting
 
 **Format Conversion:**
-- 🔄 OpenAI ⇄ Claude Messages
-- 🔄 OpenAI ⇄ Gemini Chat
-- 🔄 Thinking-to-content functionality
+- 🔄 **OpenAI Compatible ⇄ Claude Messages**
+- 🔄 **OpenAI Compatible → Google Gemini**
+- 🔄 **Google Gemini → OpenAI Compatible** - Text only, function calling not supported yet
+- 🚧 **OpenAI Compatible ⇄ OpenAI Responses** - In development
+- 🔄 **Thinking-to-content functionality**
 
 **Reasoning Effort Support:**
 

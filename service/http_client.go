@@ -82,6 +82,9 @@ func ResetProxyClientCache() {
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 	if proxyURL == "" {
+		if client := GetHttpClient(); client != nil {
+			return client, nil
+		}
 		return http.DefaultClient, nil
 	}
 
