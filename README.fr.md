@@ -212,9 +212,11 @@ docker run --name new-api -d --restart always \
 - 🚦 Limitation du débit du modèle pour les utilisateurs
 
 **Conversion de format:**
-- 🔄 OpenAI ⇄ Claude Messages
-- 🔄 OpenAI ⇄ Gemini Chat
-- 🔄 Fonctionnalité de la pensée au contenu
+- 🔄 **OpenAI Compatible ⇄ Claude Messages**
+- 🔄 **OpenAI Compatible → Google Gemini**
+- 🔄 **Google Gemini → OpenAI Compatible** - Texte uniquement, les appels de fonction ne sont pas encore pris en charge
+- 🚧 **OpenAI Compatible ⇄ OpenAI Responses** - En développement
+- 🔄 **Fonctionnalité de la pensée au contenu**
 
 **Prise en charge de l'effort de raisonnement:**
 
