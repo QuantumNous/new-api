@@ -35,9 +35,31 @@ const thinkingExample = JSON.stringify(
   2,
 );
 
+const chatCompletionsToResponsesPolicyExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: false,
+    channel_ids: [1, 2],
+    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+  },
+  null,
+  2,
+);
+
+const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: true,
+    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+  },
+  null,
+  2,
+);
+
 const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
+  'global.chat_completions_to_responses_policy': '{}',
   'general_setting.ping_interval_enabled': false,
   'general_setting.ping_interval_seconds': 60,
 };
@@ -54,6 +76,10 @@ export default function SettingGlobalModel(props) {
     if (key === 'global.thinking_model_blacklist') {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '[]' : value;
+    }
+    if (key === 'global.chat_completions_to_responses_policy') {
+      const text = typeof value === 'string' ? value.trim() : '';
+      return text === '' ? '{}' : value;
     }
     return value;
   };
@@ -99,6 +125,16 @@ export default function SettingGlobalModel(props) {
       if (props.options[key] !== undefined) {
         let value = props.options[key];
         if (key === 'global.thinking_model_blacklist') {
+          try {
+            value =
+              value && String(value).trim() !== ''
+                ? JSON.stringify(JSON.parse(value), null, 2)
+                : defaultGlobalSettingInputs[key];
+          } catch (error) {
+            value = defaultGlobalSettingInputs[key];
+          }
+        }
+        if (key === 'global.chat_completions_to_responses_policy') {
           try {
             value =
               value && String(value).trim() !== ''
@@ -174,6 +210,43 @@ export default function SettingGlobalModel(props) {
                     setInputs({
                       ...inputs,
                       'global.thinking_model_blacklist': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+
+            <Row>
+              <Col span={24}>
+                <Form.TextArea
+                  label={t('ChatCompletions→Responses 兼容配置')}
+                  field={'global.chat_completions_to_responses_policy'}
+                  placeholder={
+                    t('例如（指定渠道）：') +
+                    '\n' +
+                    chatCompletionsToResponsesPolicyExample +
+                    '\n\n' +
+                    t('例如（全渠道）：') +
+                    '\n' +
+                    chatCompletionsToResponsesPolicyAllChannelsExample
+                  }
+                  rows={8}
+                  rules={[
+                    {
+                      validator: (rule, value) => {
+                        if (!value || value.trim() === '') return true;
+                        return verifyJSON(value);
+                      },
+                      message: t('不是合法的 JSON 字符串'),
+                    },
+                  ]}
+                  extraText={t(
+                    '当客户端调用 /v1/chat/completions 且 model 命中 model_patterns 时，自动改走上游 /v1/responses，并把响应转换回 /v1/chat/completions 结构',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'global.chat_completions_to_responses_policy': value,
                     })
                   }
                 />
