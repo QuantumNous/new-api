@@ -27,3 +27,41 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+<<<<<<< HEAD
+=======
+.cache
+web/bun.lock
+plans
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+web/dist
+web/bun.lock
+electron/node_modules
+electron/dist
+
+# Application Data
+*.db
+*.db-journal
+data/
+upload/
+logs/
+*.log
+.env
+tiktoken_cache
+/__debug_bin*
+
+# Build
+build/
+dist/
+.cache
+
+# Temp
+temp/
+tmp/
+>>>>>>> 9e89df3a17366ad72ac4bd6f960afaff920d6e87
