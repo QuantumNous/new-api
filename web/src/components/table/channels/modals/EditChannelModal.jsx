@@ -199,17 +199,11 @@ const EditChannelModal = (props) => {
     if (!trimmed) return [];
     try {
       const parsed = JSON.parse(trimmed);
-      if (
-        !parsed ||
-        typeof parsed !== 'object' ||
-        Array.isArray(parsed)
-      ) {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return [];
       }
       const values = Object.values(parsed)
-        .map((value) =>
-          typeof value === 'string' ? value.trim() : undefined,
-        )
+        .map((value) => (typeof value === 'string' ? value.trim() : undefined))
         .filter((value) => value);
       return Array.from(new Set(values));
     } catch (error) {
@@ -507,6 +501,18 @@ const EditChannelModal = (props) => {
       setUseManualInput(false);
     }
     //setAutoBan
+  };
+
+  const formatJsonField = (fieldName) => {
+    const rawValue = (inputs?.[fieldName] ?? '').trim();
+    if (!rawValue) return;
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      handleInputChange(fieldName, JSON.stringify(parsed, null, 2));
+    } catch (error) {
+      showError(`${t('JSON格式错误')}: ${error.message}`);
+    }
   };
 
   const loadChannel = async () => {
@@ -2812,6 +2818,12 @@ const EditChannelModal = (props) => {
                           >
                             {t('新格式模板')}
                           </Text>
+                          <Text
+                            className='!text-semi-color-primary cursor-pointer'
+                            onClick={() => formatJsonField('param_override')}
+                          >
+                            {t('格式化')}
+                          </Text>
                         </div>
                       }
                       showClear
@@ -2851,6 +2863,12 @@ const EditChannelModal = (props) => {
                               }
                             >
                               {t('填入模板')}
+                            </Text>
+                            <Text
+                              className='!text-semi-color-primary cursor-pointer'
+                              onClick={() => formatJsonField('header_override')}
+                            >
+                              {t('格式化')}
                             </Text>
                           </div>
                           <div>
@@ -3181,7 +3199,9 @@ const EditChannelModal = (props) => {
             ? inputs.models.map(String)
             : [];
           const incoming = modelIds.map(String);
-          const nextModels = Array.from(new Set([...existingModels, ...incoming]));
+          const nextModels = Array.from(
+            new Set([...existingModels, ...incoming]),
+          );
 
           handleInputChange('models', nextModels);
           if (formApiRef.current) {
