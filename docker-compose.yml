@@ -42,6 +42,7 @@ services:
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true
       - BATCH_UPDATE_ENABLED=true
+      - CRITICAL_RATE_LIMIT_ENABLE=false
     depends_on:
       - redis
       - postgres

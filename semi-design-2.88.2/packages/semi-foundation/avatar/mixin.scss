@@ -1,4 +1,0 @@
-@mixin avatar-style($color) {
-    background-color: rgba(var(--semi-#{$color}-3), 1);
-    color: rgba(var(--semi-white), 1);
-}

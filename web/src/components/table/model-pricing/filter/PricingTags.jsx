@@ -18,11 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Typography } from '@douyinfe/semi-ui';
+import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 
 /**
- * PricingTags Component
- * Refactored to match OpenRouter's tag cloud/list style
+ * 模型标签筛选组件
+ * @param {string|'all'} filterTag 当前选中的标签
+ * @param {Function} setFilterTag setter
+ * @param {Array} models 当前过滤后模型列表（用于计数）
+ * @param {Array} allModels 所有模型列表（用于获取所有标签）
+ * @param {boolean} loading 是否加载中
+ * @param {Function} t i18n
  */
 const PricingTags = ({
   filterTag,
@@ -32,25 +37,28 @@ const PricingTags = ({
   loading = false,
   t,
 }) => {
-  // Extract all tags
+  // 提取系统所有标签
   const getAllTags = React.useMemo(() => {
     const tagSet = new Set();
+
     (allModels.length > 0 ? allModels : models).forEach((model) => {
       if (model.tags) {
         model.tags
-          .split(/[,;|]+/)
+          .split(/[,;|]+/) // 逗号、分号或竖线（保留空格，允许多词标签如 "open weights"）
           .map((tag) => tag.trim())
           .filter(Boolean)
           .forEach((tag) => tagSet.add(tag.toLowerCase()));
       }
     });
+
     return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
   }, [allModels, models]);
 
-  // Count models per tag
+  // 计算标签对应的模型数量
   const getTagCount = React.useCallback(
     (tag) => {
       if (tag === 'all') return models.length;
+
       const tagLower = tag.toLowerCase();
       return models.filter((model) => {
         if (!model.tags) return false;
@@ -68,7 +76,7 @@ const PricingTags = ({
     const result = [
       {
         value: 'all',
-        label: t('All Models'),
+        label: t('全部标签'),
         tagCount: getTagCount('all'),
         disabled: models.length === 0,
       },
@@ -88,43 +96,14 @@ const PricingTags = ({
   }, [getAllTags, getTagCount, t, models.length]);
 
   return (
-    <div className="w-full">
-      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1">
-        {t('Modality')}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => {
-            const isActive = filterTag === item.value;
-            return (
-                <Tag
-                    key={item.value}
-                    onClick={() => !item.disabled && setFilterTag(item.value)}
-                    type={isActive ? 'solid' : 'ghost'}
-                    color={isActive ? 'blue' : 'secondary'}
-                    size="large"
-                    style={{ 
-                        cursor: item.disabled ? 'not-allowed' : 'pointer', 
-                        opacity: item.disabled ? 0.5 : 1,
-                        userSelect: 'none'
-                    }}
-                >
-                    <span className="font-medium">{item.label}</span>
-                    {item.tagCount > 0 && (
-                        <span className={`
-                            ml-2 text-xs px-1.5 py-0.5 rounded-md
-                            ${isActive 
-                                ? 'bg-white bg-opacity-20 text-white' 
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                            }
-                        `}>
-                            {item.tagCount}
-                        </span>
-                    )}
-                </Tag>
-            )
-        })}
-      </div>
-    </div>
+    <SelectableButtonGroup
+      title={t('标签')}
+      items={items}
+      activeValue={filterTag}
+      onChange={setFilterTag}
+      loading={loading}
+      t={t}
+    />
   );
 };
 

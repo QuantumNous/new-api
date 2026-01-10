@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
-import OpenRouterHeader from './OpenRouterHeader';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
@@ -49,22 +48,6 @@ const PageLayout = () => {
   const { i18n } = useTranslation();
   const location = useLocation();
 
-  const publicPages = [
-    '/',
-    '/pricing',
-    '/about',
-    '/rankings',
-    '/enterprise',
-    '/docs',
-    '/login',
-    '/register',
-    '/reset',
-    '/user/reset'
-  ];
-
-  const isPublicPage = publicPages.includes(location.pathname) || publicPages.some(p => location.pathname.startsWith(p) && p !== '/');
-  const isPlayground = location.pathname === '/console/playground';
-
   const cardProPages = [
     '/console/channel',
     '/console/log',
@@ -77,7 +60,7 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname) || isPlayground;
+  const shouldHideFooter = cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -85,7 +68,7 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
-  const showSider = isConsoleRoute && !isPlayground && (!isMobile || drawerOpen);
+  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -135,48 +118,6 @@ const PageLayout = () => {
       i18n.changeLanguage(savedLang);
     }
   }, [i18n]);
-
-  if (isPlayground) {
-    return (
-      <Layout style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-        <Content style={{ flex: 1, overflow: 'hidden' }}>
-          <App />
-        </Content>
-        <ToastContainer />
-      </Layout>
-    );
-  }
-
-  if (isPublicPage) {
-    return (
-      <Layout
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: 'var(--semi-color-bg-0)',
-        }}
-      >
-        <OpenRouterHeader />
-        <Content
-          style={{
-            flex: '1 0 auto',
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <App />
-        </Content>
-        {!shouldHideFooter && (
-          <Layout.Footer>
-            <FooterBar />
-          </Layout.Footer>
-        )}
-        <ToastContainer />
-      </Layout>
-    );
-  }
 
   return (
     <Layout

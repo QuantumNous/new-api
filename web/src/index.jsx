@@ -21,10 +21,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import '@douyinfe/semi-ui/dist/css/semi.css';
-import './styles/theme.css'; // AI-First Design System Theme
-import './styles/components.css'; // Component-specific overrides
-import './styles/ai-effects.css'; // AI animations and effects
-import './styles/markdown.css'; // Markdown rendering enhancements
 import { UserProvider } from './context/User';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusProvider } from './context/Status';
@@ -53,29 +49,29 @@ function SemiLocaleWrapper({ children }) {
     () => ({ zh: zh_CN, en: en_GB })[i18n.language] || zh_CN,
     [i18n.language],
   );
-
-  return (
-    <LocaleProvider locale={semiLocale}>
-      {children}
-    </LocaleProvider>
-  );
+  return <LocaleProvider locale={semiLocale}>{children}</LocaleProvider>;
 }
 
-function App() {
-  return (
-    <BrowserRouter>
+// initialization
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <StatusProvider>
       <UserProvider>
-        <StatusProvider>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <ThemeProvider>
             <SemiLocaleWrapper>
               <PageLayout />
             </SemiLocaleWrapper>
           </ThemeProvider>
-        </StatusProvider>
+        </BrowserRouter>
       </UserProvider>
-    </BrowserRouter>
-  );
-}
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+    </StatusProvider>
+  </React.StrictMode>,
+);

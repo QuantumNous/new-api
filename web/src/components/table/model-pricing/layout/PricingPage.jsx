@@ -40,8 +40,8 @@ const PricingPage = () => {
   };
 
   return (
-    <div style={{ backgroundColor: 'var(--semi-color-bg-0)', flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <Layout className='pricing-layout' style={{ flex: 1 }}>
+    <div className='bg-white'>
+      <Layout className='pricing-layout'>
         {!isMobile && (
           <Sider className='pricing-scroll-hide pricing-sidebar'>
             <PricingSidebar {...allProps} />

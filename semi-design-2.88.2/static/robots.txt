@@ -1,4 +1,0 @@
-User-agent: *
-Disallow:
-
-Sitemap: https://semi.design/sitemap.xml

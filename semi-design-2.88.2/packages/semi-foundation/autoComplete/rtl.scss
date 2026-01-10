@@ -1,8 +1,0 @@
-$module: #{$prefix}-autocomplete;
-
-.#{$prefix}-rtl, 
-.#{$prefix}-portal-rtl {
-    .#{$module} {
-        direction: rtl;
-    }
-}

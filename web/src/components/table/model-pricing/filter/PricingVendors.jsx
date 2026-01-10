@@ -18,12 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { IconSearch } from '@douyinfe/semi-icons';
+import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 import { getLobeHubIcon } from '../../../../helpers';
 
 /**
  * 供应商筛选组件
- * Refactored to match OpenRouter style
+ * @param {string|'all'} filterVendor 当前值
+ * @param {Function} setFilterVendor setter
+ * @param {Array} models 模型列表
+ * @param {Array} allModels 所有模型列表（用于获取全部供应商）
+ * @param {boolean} loading 是否加载中
+ * @param {Function} t i18n
  */
 const PricingVendors = ({
   filterVendor,
@@ -33,10 +38,7 @@ const PricingVendors = ({
   loading = false,
   t,
 }) => {
-  const [search, setSearch] = React.useState('');
-  const [showAll, setShowAll] = React.useState(false);
-
-  // 获取系统中所有供应商
+  // 获取系统中所有供应商（基于 allModels，如果未提供则退化为 models）
   const getAllVendors = React.useMemo(() => {
     const vendors = new Set();
     const vendorIcons = new Map();
@@ -60,25 +62,33 @@ const PricingVendors = ({
     };
   }, [allModels, models]);
 
-  // 计算每个供应商的模型数量
+  // 计算每个供应商的模型数量（基于当前过滤后的 models）
   const getVendorCount = React.useCallback(
     (vendor) => {
-      if (vendor === 'all') return models.length;
-      if (vendor === 'unknown') return models.filter((model) => !model.vendor_name).length;
+      if (vendor === 'all') {
+        return models.length;
+      }
+      if (vendor === 'unknown') {
+        return models.filter((model) => !model.vendor_name).length;
+      }
       return models.filter((model) => model.vendor_name === vendor).length;
     },
     [models],
   );
 
+  // 生成供应商选项
   const items = React.useMemo(() => {
-    const result = [];
-    
-    // Filter vendors by search
-    const filteredVendors = getAllVendors.vendors.filter(v => 
-      v.toLowerCase().includes(search.toLowerCase())
-    );
+    const result = [
+      {
+        value: 'all',
+        label: t('全部供应商'),
+        tagCount: getVendorCount('all'),
+        disabled: models.length === 0,
+      },
+    ];
 
-    filteredVendors.forEach((vendor) => {
+    // 添加所有已知供应商
+    getAllVendors.vendors.forEach((vendor) => {
       const count = getVendorCount(vendor);
       const icon = getAllVendors.vendorIcons.get(vendor);
       result.push({
@@ -90,7 +100,8 @@ const PricingVendors = ({
       });
     });
 
-    if (getAllVendors.hasUnknownVendor && 'unknown'.includes(search.toLowerCase())) {
+    // 如果系统中存在未知供应商，添加"未知供应商"选项
+    if (getAllVendors.hasUnknownVendor) {
       const count = getVendorCount('unknown');
       result.push({
         value: 'unknown',
@@ -101,83 +112,17 @@ const PricingVendors = ({
     }
 
     return result;
-  }, [getAllVendors, getVendorCount, t, search]);
-
-  const displayedItems = showAll ? items : items.slice(0, 10);
+  }, [getAllVendors, getVendorCount, t]);
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-between mb-3 px-1">
-        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-          {t('Providers')}
-        </div>
-      </div>
-
-      <div className="relative mb-3">
-        <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-xs" />
-        <input 
-          type="text" 
-          placeholder={t('Search providers...')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-gray-100 dark:bg-[#1a1a1a] border-none rounded-md py-1.5 pl-8 pr-3 text-xs text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-blue-500 outline-none"
-        />
-      </div>
-
-      <div className="space-y-1">
-        <button
-            onClick={() => setFilterVendor('all')}
-            className={`
-                w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors
-                ${filterVendor === 'all' 
-                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-medium' 
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1a1a]'
-                }
-            `}
-        >
-            <span>{t('All Providers')}</span>
-            <span className="text-xs opacity-60">{getVendorCount('all')}</span>
-        </button>
-
-        {displayedItems.map((item) => {
-            const isActive = filterVendor === item.value;
-            return (
-                <button
-                    key={item.value}
-                    onClick={() => setFilterVendor(item.value)}
-                    disabled={item.disabled}
-                    className={`
-                        w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors group
-                        ${isActive 
-                            ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 font-medium' 
-                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#1a1a1a]'
-                        }
-                        ${item.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    `}
-                >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                        {item.icon && <span className="flex-shrink-0 opacity-80">{item.icon}</span>}
-                        <span className="truncate">{item.label}</span>
-                    </div>
-                    {item.tagCount > 0 && (
-                        <span className={`text-xs ${isActive ? 'opacity-80' : 'opacity-40 group-hover:opacity-60'}`}>
-                            {item.tagCount}
-                        </span>
-                    )}
-                </button>
-            )
-        })}
-      </div>
-      
-      {items.length > 10 && (
-        <button 
-            onClick={() => setShowAll(!showAll)}
-            className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:underline px-2"
-        >
-            {showAll ? t('Show Less') : t('Show More') + ` (${items.length - 10})`}
-        </button>
-      )}
-    </div>
+    <SelectableButtonGroup
+      title={t('供应商')}
+      items={items}
+      activeValue={filterVendor}
+      onChange={setFilterVendor}
+      loading={loading}
+      t={t}
+    />
   );
 };
 

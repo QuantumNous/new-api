@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Collapse } from '@douyinfe/semi-ui';
-import { IconFilter } from '@douyinfe/semi-icons';
+import { Button } from '@douyinfe/semi-ui';
 import PricingGroups from '../filter/PricingGroups';
 import PricingQuotaTypes from '../filter/PricingQuotaTypes';
 import PricingEndpointTypes from '../filter/PricingEndpointTypes';
@@ -92,77 +91,63 @@ const PricingSidebar = ({
     });
 
   return (
-    <div className='h-full overflow-y-auto bg-gray-50 dark:bg-black border-r border-gray-200 dark:border-gray-800 p-4 w-full'>
+    <div className='p-2'>
       <div className='flex items-center justify-between mb-6'>
-        <div className='text-lg font-bold text-gray-900 dark:text-white'>
-          {t('Filters')}
-        </div>
-        <button
+        <div className='text-lg font-semibold text-gray-800'>{t('筛选')}</div>
+        <Button
+          theme='outline'
+          type='tertiary'
           onClick={handleResetFilters}
-          className='text-xs text-gray-500 hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-300 transition-colors'
+          className='text-gray-500 hover:text-gray-700'
         >
-          {t('Reset')}
-        </button>
+          {t('重置')}
+        </Button>
       </div>
 
-      <div className='space-y-8'>
-        {/* Modality / Tags */}
-        <section>
-          <PricingTags
-            filterTag={filterTag}
-            setFilterTag={setFilterTag}
-            models={tagModels}
-            allModels={categoryProps.models}
-            loading={loading}
-            t={t}
-          />
-        </section>
+      <PricingVendors
+        filterVendor={filterVendor}
+        setFilterVendor={setFilterVendor}
+        models={vendorModels}
+        allModels={categoryProps.models}
+        loading={loading}
+        t={t}
+      />
 
-        {/* Providers / Vendors */}
-        <section>
-          <PricingVendors
-            filterVendor={filterVendor}
-            setFilterVendor={setFilterVendor}
-            models={vendorModels}
-            allModels={categoryProps.models}
-            loading={loading}
-            t={t}
-          />
-        </section>
+      <PricingTags
+        filterTag={filterTag}
+        setFilterTag={setFilterTag}
+        models={tagModels}
+        allModels={categoryProps.models}
+        loading={loading}
+        t={t}
+      />
 
-        {/* Groups */}
-        <section className="border-t border-gray-200 dark:border-gray-800 pt-6">
-          <PricingGroups
-            filterGroup={filterGroup}
-            setFilterGroup={handleGroupClick}
-            usableGroup={categoryProps.usableGroup}
-            groupRatio={categoryProps.groupRatio}
-            models={groupCountModels}
-            loading={loading}
-            t={t}
-          />
-        </section>
+      <PricingGroups
+        filterGroup={filterGroup}
+        setFilterGroup={handleGroupClick}
+        usableGroup={categoryProps.usableGroup}
+        groupRatio={categoryProps.groupRatio}
+        models={groupCountModels}
+        loading={loading}
+        t={t}
+      />
 
-        {/* Other Filters - Collapsed or Secondary */}
-        <section className="border-t border-gray-200 dark:border-gray-800 pt-6 space-y-6">
-          <PricingQuotaTypes
-            filterQuotaType={filterQuotaType}
-            setFilterQuotaType={setFilterQuotaType}
-            models={quotaTypeModels}
-            loading={loading}
-            t={t}
-          />
-          
-          <PricingEndpointTypes
-            filterEndpointType={filterEndpointType}
-            setFilterEndpointType={setFilterEndpointType}
-            models={endpointTypeModels}
-            allModels={categoryProps.models}
-            loading={loading}
-            t={t}
-          />
-        </section>
-      </div>
+      <PricingQuotaTypes
+        filterQuotaType={filterQuotaType}
+        setFilterQuotaType={setFilterQuotaType}
+        models={quotaTypeModels}
+        loading={loading}
+        t={t}
+      />
+
+      <PricingEndpointTypes
+        filterEndpointType={filterEndpointType}
+        setFilterEndpointType={setFilterEndpointType}
+        models={endpointTypeModels}
+        allModels={categoryProps.models}
+        loading={loading}
+        t={t}
+      />
     </div>
   );
 };

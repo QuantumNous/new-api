@@ -1,8 +1,0 @@
-$module: #{$prefix}-badge;
-
-.#{$prefix}-rtl,
-.#{$prefix}-portal-rtl {
-    .#{$module} {
-        direction: rtl;
-    }
-}
