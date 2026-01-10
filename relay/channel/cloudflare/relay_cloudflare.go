@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -35,6 +37,7 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	helper.SetEventStreamHeaders(c)
 	id := helper.GetResponseID(c)
 	var responseText string
+	var lastStreamData string
 	isFirst := true
 
 	for scanner.Scan() {
@@ -61,13 +64,13 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		}
 		response.Id = id
 		response.Model = info.UpstreamModelName
-		err = helper.ObjectData(c, response)
+		if jsonData, err := common.Marshal(response); err == nil {
+			lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, lastStreamData, false, false)
+		}
 		if isFirst {
 			isFirst = false
 			info.FirstResponseTime = time.Now()
-		}
-		if err != nil {
-			logger.LogError(c, "error_rendering_stream_response: "+err.Error())
 		}
 	}
 
@@ -75,14 +78,9 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		logger.LogError(c, "error_scanning_stream_response: "+err.Error())
 	}
 	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
-	if info.ShouldIncludeUsage {
-		response := helper.GenerateFinalUsageResponse(id, info.StartTime.Unix(), info.UpstreamModelName, *usage)
-		err := helper.ObjectData(c, response)
-		if err != nil {
-			logger.LogError(c, "error_rendering_final_usage_response: "+err.Error())
-		}
-	}
-	helper.Done(c)
+
+	// Handle final response based on format
+	openai.HandleFinalResponse(c, info, lastStreamData, id, info.StartTime.Unix(), info.UpstreamModelName, "", usage, false)
 
 	service.CloseResponseBodyGracefully(resp)
 
