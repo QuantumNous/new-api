@@ -64,7 +64,12 @@ const ModelSetting = () => {
           item.key === 'global.chat_completions_to_responses_policy'
         ) {
           if (item.value !== '') {
-            item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+            try {
+              item.value = JSON.stringify(JSON.parse(item.value), null, 2);
+            } catch (e) {
+              // Keep raw value so user can fix it, and avoid crashing the page.
+              console.error(`Invalid JSON for option ${item.key}:`, e);
+            }
           }
         }
         // Keep boolean config keys ending with enabled/Enabled so UI parses correctly.

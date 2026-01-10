@@ -2597,6 +2597,11 @@
     "提示：此处配置仅用于控制「模型广场」对用户的展示效果，不会影响模型的实际调用与路由。若需配置真实调用行为，请前往「渠道管理」进行设置。": "Remarque : cette configuration n'affecte que l'affichage des modèles dans la place de marché des modèles et n'a aucun impact sur l'invocation ou le routage réels. Pour configurer le comportement réel des appels, veuillez aller dans « Gestion des canaux ».",
     "确认关闭提示": "Confirmer la fermeture",
     "关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？": "Après fermeture, cet avertissement ne sera plus affiché (uniquement pour ce navigateur). Voulez-vous vraiment le fermer ?",
+    "ChatCompletions→Responses 兼容配置（Beta）": "Compatibilité ChatCompletions→Responses (bêta)",
+    "提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。": "Remarque : cette fonctionnalité est en version bêta. La structure de configuration et le comportement peuvent changer à l’avenir. Ne l’utilisez pas en production.",
+    "填充模板（指定渠道）": "Remplir le modèle (canaux sélectionnés)",
+    "填充模板（全渠道）": "Remplir le modèle (tous les canaux)",
+    "格式化 JSON": "Formater le JSON",
     "关闭提示": "Fermer l’avertissement",
     "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Remarque : les tests sur cette page utilisent des requêtes non-streaming. Si un canal ne prend en charge que les réponses en streaming, les tests peuvent échouer. Veuillez vous référer à l’usage réel.",
     "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Remarque : la correspondance des endpoints sert uniquement à l’affichage dans la place de marché des modèles et n’affecte pas l’invocation réelle. Pour configurer l’invocation réelle, veuillez aller dans « Gestion des canaux »."

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Banner } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Banner, Tag } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -216,42 +216,128 @@ export default function SettingGlobalModel(props) {
               </Col>
             </Row>
 
-            <Row>
-              <Col span={24}>
-                <Form.TextArea
-                  label={t('ChatCompletions→Responses 兼容配置')}
-                  field={'global.chat_completions_to_responses_policy'}
-                  placeholder={
-                    t('例如（指定渠道）：') +
-                    '\n' +
-                    chatCompletionsToResponsesPolicyExample +
-                    '\n\n' +
-                    t('例如（全渠道）：') +
-                    '\n' +
-                    chatCompletionsToResponsesPolicyAllChannelsExample
-                  }
-                  rows={8}
-                  rules={[
-                    {
-                      validator: (rule, value) => {
-                        if (!value || value.trim() === '') return true;
-                        return verifyJSON(value);
+            <Form.Section text={t('ChatCompletions→Responses 兼容配置')}>
+              <Row style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <Banner
+                    type='warning'
+                    title={
+                      <span>
+                        {t('ChatCompletions→Responses 兼容配置')}{' '}
+                        <Tag color='red' size='small'>
+                          Alpha
+                        </Tag>
+                      </span>
+                    }
+                    description={t(
+                      '提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。',
+                    )}
+                  />
+                </Col>
+              </Row>
+
+              <Row style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setInputs({
+                          ...inputs,
+                          'global.chat_completions_to_responses_policy':
+                            chatCompletionsToResponsesPolicyExample,
+                        })
+                      }
+                    >
+                      {t('填充模板（指定渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setInputs({
+                          ...inputs,
+                          'global.chat_completions_to_responses_policy':
+                            chatCompletionsToResponsesPolicyAllChannelsExample,
+                        })
+                      }
+                    >
+                      {t('填充模板（全渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() => {
+                        const raw =
+                          inputs['global.chat_completions_to_responses_policy'];
+                        if (!raw || String(raw).trim() === '') return;
+                        try {
+                          const formatted = JSON.stringify(
+                            JSON.parse(raw),
+                            null,
+                            2,
+                          );
+                          setInputs({
+                            ...inputs,
+                            'global.chat_completions_to_responses_policy':
+                              formatted,
+                          });
+                        } catch (error) {
+                          showError(t('不是合法的 JSON 字符串'));
+                        }
+                      }}
+                    >
+                      {t('格式化 JSON')}
+                    </Button>
+                  </div>
+                </Col>
+              </Row>
+
+              <Row style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <Form.TextArea
+                    label={t('配置 JSON')}
+                    field={'global.chat_completions_to_responses_policy'}
+                    placeholder={
+                      t('例如（指定渠道）：') +
+                      '\n' +
+                      chatCompletionsToResponsesPolicyExample +
+                      '\n\n' +
+                      t('例如（全渠道）：') +
+                      '\n' +
+                      chatCompletionsToResponsesPolicyAllChannelsExample
+                    }
+                    rows={8}
+                    rules={[
+                      {
+                        validator: (rule, value) => {
+                          if (!value || value.trim() === '') return true;
+                          return verifyJSON(value);
+                        },
+                        message: t('不是合法的 JSON 字符串'),
                       },
-                      message: t('不是合法的 JSON 字符串'),
-                    },
-                  ]}
-                  extraText={t(
-                    '当客户端调用 /v1/chat/completions 且 model 命中 model_patterns 时，自动改走上游 /v1/responses，并把响应转换回 /v1/chat/completions 结构',
-                  )}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      'global.chat_completions_to_responses_policy': value,
-                    })
-                  }
-                />
-              </Col>
-            </Row>
+                    ]}
+                    extraText={t(
+                      '当客户端调用 /v1/chat/completions 且 model 命中 model_patterns 时，自动改走上游 /v1/responses，并把响应转换回 /v1/chat/completions 结构',
+                    )}
+                    onChange={(value) =>
+                      setInputs({
+                        ...inputs,
+                        'global.chat_completions_to_responses_policy': value,
+                      })
+                    }
+                  />
+                </Col>
+              </Row>
+            </Form.Section>
 
             <Form.Section text={t('连接保活设置')}>
               <Row style={{ marginTop: 10 }}>
