@@ -1,45 +1,10 @@
-# Git
-.git
-.gitignore
 .github
-
-# IDE
-.idea
-.vscode
-.zed
-.DS_Store
-
-# Docs
+.git
 *.md
-docs/
-
-# Build & Dependencies
-node_modules/
-new_frontend/node_modules/
-web/node_modules/
-dist/
-build/
-web/dist/
-
-# Go
-.gocache
-.gomodcache
-*.exe
-*.test
-*.out
-vendor/
-
-# Logs
-logs/
-*.log
-
-# Env (Secrets should be passed at runtime)
-.env
-.env.*
-
-# Misc
+.vscode
+.gitignore
 Makefile
+docs
 .eslintcache
-.dockerignore
-Dockerfile
-docker-compose.yml
+.gocache
+/web/node_modules

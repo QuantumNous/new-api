@@ -290,16 +290,5 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
-
-		// Playground History
-		playgroundRoute := apiRouter.Group("/playground")
-		playgroundRoute.Use(middleware.UserAuth())
-		{
-			playgroundRoute.GET("/chats", controller.GetPlaygroundHistories)
-			playgroundRoute.GET("/chats/:id", controller.GetPlaygroundHistory)
-			playgroundRoute.POST("/chats", controller.CreatePlaygroundHistory)
-			playgroundRoute.PUT("/chats/:id", controller.UpdatePlaygroundHistory)
-			playgroundRoute.DELETE("/chats/:id", controller.DeletePlaygroundHistory)
-		}
 	}
 }

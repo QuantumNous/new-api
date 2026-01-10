@@ -1,67 +1,29 @@
-# IDEs
 .idea
 .vscode
 .zed
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Go
+upload
+*.exe
+*.db
+build
+*.db-journal
+logs
+web/dist
+.env
 one-api
 new-api
-*.exe
-*.test
-*.out
-*.o
-*.a
-*.so
-*.dylib
-*.dll
-vendor/
-go.work
-go.work.sum
-
-# Go Cache
+/__debug_bin*
+.DS_Store
+tiktoken_cache
+.eslintcache
 .gocache
+.gomodcache/
+.cache
+web/bun.lock
+plans
+
+electron/node_modules
+electron/dist
+data/
 .gomodcache/
 .gocache-temp
 .gopath
-
-# Node / Frontend
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.eslintcache
-web/dist
-web/bun.lock
-electron/node_modules
-electron/dist
-
-# Application Data
-*.db
-*.db-journal
-data/
-upload/
-logs/
-*.log
-.env
-tiktoken_cache
-/__debug_bin*
-
-# Build
-build/
-dist/
-.cache
-
-# Temp
-temp/
-tmp/
