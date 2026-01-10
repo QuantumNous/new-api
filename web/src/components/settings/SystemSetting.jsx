@@ -62,6 +62,7 @@ const SystemSetting = () => {
     'oidc.authorization_endpoint': '',
     'oidc.token_endpoint': '',
     'oidc.user_info_endpoint': '',
+    'oidc.use_backend_proxy': true,
     Notice: '',
     SMTPServer: '',
     SMTPPort: '',
@@ -184,6 +185,7 @@ const SystemSetting = () => {
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
+          case 'oidc.use_backend_proxy':
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
@@ -508,11 +510,21 @@ const SystemSetting = () => {
         return;
       }
       try {
-        const res = await axios.create().get(inputs['oidc.well_known']);
-        inputs['oidc.authorization_endpoint'] =
-          res.data['authorization_endpoint'];
-        inputs['oidc.token_endpoint'] = res.data['token_endpoint'];
-        inputs['oidc.user_info_endpoint'] = res.data['userinfo_endpoint'];
+        let res;
+        // 根据用户选择决定使用哪种方式获取 OIDC 配置
+        if (inputs['oidc.use_backend_proxy']) {
+          // 使用后端代理（推荐，更安全）
+          res = await API.get('/api/oidc/discovery', {
+            params: { well_known_url: inputs['oidc.well_known'] },
+          }).then((response => response.data.data));
+        } else {
+          // 前端直接请求（可能受到 CORS 限制）
+          res = await axios.create().get(inputs['oidc.well_known']).then(response => response.data);
+        }
+        console.log(res);
+        inputs['oidc.authorization_endpoint'] = res['authorization_endpoint'];
+        inputs['oidc.token_endpoint'] = res['token_endpoint'];
+        inputs['oidc.user_info_endpoint'] = res['userinfo_endpoint'];
         showSuccess(t('获取 OIDC 配置成功！'));
       } catch (err) {
         console.error(err);
@@ -565,6 +577,14 @@ const SystemSetting = () => {
       options.push({
         key: 'oidc.user_info_endpoint',
         value: inputs['oidc.user_info_endpoint'],
+      });
+    }
+    if (
+      originInputs['oidc.use_backend_proxy'] !== inputs['oidc.use_backend_proxy']
+    ) {
+      options.push({
+        key: 'oidc.use_backend_proxy',
+        value: inputs['oidc.use_backend_proxy'],
       });
     }
 
@@ -1352,6 +1372,22 @@ const SystemSetting = () => {
                       '若你的 OIDC Provider 支持 Discovery Endpoint，你可以仅填写 OIDC Well-Known URL，系统会自动获取 OIDC 配置',
                     )}
                   </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={24} lg={24} xl={24}>
+                      <Form.Checkbox
+                        field="['oidc.use_backend_proxy']"
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('oidc.use_backend_proxy', e)
+                        }
+                      >
+                        {t('使用后端反向代理请求 OIDC 服务发现地址（避免CORS问题）')}
+                      </Form.Checkbox>
+                    </Col>
+                  </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
