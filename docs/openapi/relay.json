@@ -285,6 +285,46 @@
         ]
       }
     },
+	    "/v1/responses/compact": {
+	      "post": {
+	        "summary": "压缩对话 (OpenAI Responses API)",
+	        "deprecated": false,
+	        "description": "OpenAI Responses API，用于对长对话进行 compaction。",
+	        "operationId": "compactResponse",
+        "tags": [
+          "OpenAI格式(Responses)"
+        ],
+        "parameters": [],
+	        "requestBody": {
+	          "content": {
+	            "application/json": {
+	              "schema": {
+	                "$ref": "#/components/schemas/ResponsesCompactionRequest"
+	              }
+	            }
+	          },
+	          "required": true
+	        },
+        "responses": {
+          "200": {
+            "description": "成功压缩对话",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesCompactionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/images/generations": {
       "post": {
         "summary": "生成图像(qwen-image)",
@@ -3130,10 +3170,71 @@
           }
         }
       },
-      "ResponsesStreamResponse": {
-        "type": "object",
-        "properties": {
-          "type": {
+	      "ResponsesCompactionResponse": {
+	        "type": "object",
+	        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "response.compaction"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "error": {
+            "type": "object",
+            "properties": {}
+          }
+	        }
+	      },
+	      "ResponsesCompactionRequest": {
+	        "type": "object",
+	        "required": [
+	          "model"
+	        ],
+	        "properties": {
+	          "model": {
+	            "type": "string"
+	          },
+	          "input": {
+	            "description": "输入内容，可以是字符串或消息数组",
+	            "oneOf": [
+	              {
+	                "type": "string"
+	              },
+	              {
+	                "type": "array",
+	                "items": {
+	                  "type": "object",
+	                  "properties": {}
+	                }
+	              }
+	            ]
+	          },
+	          "instructions": {
+	            "type": "string"
+	          },
+	          "previous_response_id": {
+	            "type": "string"
+	          }
+	        }
+	      },
+	      "ResponsesStreamResponse": {
+	        "type": "object",
+	        "properties": {
+	          "type": {
             "type": "string"
           },
           "response": {
