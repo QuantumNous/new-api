@@ -102,10 +102,18 @@ func (channel *Channel) GetKeys() []string {
 	return keys
 }
 
+func (channel *Channel) GetKey() string {
+	if channel.Type == constant.ChannelTypeAli {
+		parts := strings.Split(channel.Key, "|")
+		return strings.TrimSpace(parts[0])
+	}
+	return channel.Key
+}
+
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
-		return channel.Key, 0, nil
+		return channel.GetKey(), 0, nil
 	}
 
 	// Obtain all keys (split by \n)
