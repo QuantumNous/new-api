@@ -271,11 +271,12 @@ export default function SettingGlobalModel(props) {
 
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
-                  <Form.TextArea
-                    field={chatCompletionsToResponsesPolicyKey}
-                    placeholder={
-                      t('例如（指定渠道）：') +
-                      '\n' +
+	                  <Form.TextArea
+	                    label={null}
+	                    field={chatCompletionsToResponsesPolicyKey}
+	                    placeholder={
+	                      t('例如（指定渠道）：') +
+	                      '\n' +
                       chatCompletionsToResponsesPolicyExample +
                       '\n\n' +
                       t('例如（全渠道）：') +
