@@ -256,8 +256,6 @@ export default function SettingGlobalModel(props) {
                 </span>
               }
             >
-              <Divider margin='12px 0' />
-
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
                   <Banner
@@ -272,7 +270,7 @@ export default function SettingGlobalModel(props) {
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
 	                  <Form.TextArea
-	                    label={null}
+	                    label={t('参数配置')}
 	                    field={chatCompletionsToResponsesPolicyKey}
 	                    placeholder={
 	                      t('例如（指定渠道）：') +
