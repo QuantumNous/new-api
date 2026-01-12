@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -1005,4 +1006,97 @@ func CountChannelsGroupByType() (map[int64]int64, error) {
 		counts[r.Type] = r.Count
 	}
 	return counts, nil
+}
+
+// ChannelStatistics represents statistics for a channel
+type ChannelStatistics struct {
+	ChannelId     int     `json:"channel_id"`
+	ChannelName   string  `json:"channel_name"`
+	TotalRequests int64   `json:"total_requests"`
+	SuccessCount  int64   `json:"success_count"`
+	ErrorCount    int64   `json:"error_count"`
+	SuccessRate   float64 `json:"success_rate"`
+}
+
+// GetAllChannelsStatistics returns statistics for all channels
+func GetAllChannelsStatistics() ([]*ChannelStatistics, error) {
+	var stats []*ChannelStatistics
+
+	// Use optimized SQL query with JOIN to get all statistics in one query
+	err := DB.Table("channels").
+		Select(`
+			channels.id as channel_id,
+			channels.name as channel_name,
+			COALESCE(SUM(CASE WHEN logs.type = ? THEN 1 ELSE 0 END), 0) as success_count,
+			COALESCE(SUM(CASE WHEN logs.type = ? THEN 1 ELSE 0 END), 0) as error_count
+		`, LogTypeConsume, LogTypeError).
+		Joins("LEFT JOIN logs ON logs.channel_id = channels.id").
+		Group("channels.id, channels.name").
+		Order("channels.id").
+		Scan(&stats).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate total requests and success rate
+	for i := range stats {
+		stats[i].TotalRequests = stats[i].SuccessCount + stats[i].ErrorCount
+		if stats[i].TotalRequests > 0 {
+			stats[i].SuccessRate = float64(stats[i].SuccessCount) / float64(stats[i].TotalRequests) * 100
+		} else {
+			stats[i].SuccessRate = 0
+		}
+	}
+
+	return stats, nil
+}
+
+// DailyChannelStatistics represents daily statistics for a channel
+type DailyChannelStatistics struct {
+	Date         string  `json:"date"`          // Date in YYYY-MM-DD format
+	TotalCount   int64   `json:"total_count"`   // Total requests for the day
+	SuccessCount int64   `json:"success_count"` // Successful requests
+	ErrorCount   int64   `json:"error_count"`   // Failed requests
+	SuccessRate  float64 `json:"success_rate"`  // Success rate percentage
+}
+
+// GetSingleChannelStatistics returns daily statistics for a single channel over the specified number of days
+func GetSingleChannelStatistics(channelId int, days int) ([]DailyChannelStatistics, error) {
+	if days <= 0 {
+		days = 7 // Default to 7 days
+	}
+
+	var stats []DailyChannelStatistics
+
+	// Calculate start timestamp (days ago from now)
+	startTime := time.Now().AddDate(0, 0, -days).Unix()
+
+	// Query logs grouped by date
+	err := LOG_DB.Table("logs").
+		Select(`
+			DATE(FROM_UNIXTIME(created_at)) as date,
+			SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as success_count,
+			SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) as error_count
+		`, LogTypeConsume, LogTypeError).
+		Where("channel_id = ? AND created_at >= ?", channelId, startTime).
+		Group("DATE(FROM_UNIXTIME(created_at))").
+		Order("date ASC").
+		Scan(&stats).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate total count and success rate for each day
+	for i := range stats {
+		stats[i].TotalCount = stats[i].SuccessCount + stats[i].ErrorCount
+		if stats[i].TotalCount > 0 {
+			stats[i].SuccessRate = float64(stats[i].SuccessCount) / float64(stats[i].TotalCount) * 100
+		} else {
+			stats[i].SuccessRate = 0
+		}
+	}
+
+	return stats, nil
 }

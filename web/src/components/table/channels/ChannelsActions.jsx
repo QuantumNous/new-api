@@ -52,6 +52,7 @@ const ChannelsActions = ({
   activePage,
   pageSize,
   setActivePage,
+  setShowChannelStatistics,
   t,
 }) => {
   return (
@@ -91,6 +92,16 @@ const ChannelsActions = ({
             trigger='click'
             render={
               <Dropdown.Menu>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='primary'
+                    className='w-full'
+                    onClick={() => setShowChannelStatistics(true)}
+                  >
+                    {t('渠道统计')}
+                  </Button>
+                </Dropdown.Item>
                 <Dropdown.Item>
                   <Button
                     size='small'
