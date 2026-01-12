@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -20,10 +22,37 @@ import (
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		switch info.ApiType {
+		case appconstant.APITypeOpenAI:
+		default:
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
+		}
+	}
 
-	responsesReq, ok := info.Request.(*dto.OpenAIResponsesRequest)
-	if !ok {
-		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	var responsesReq *dto.OpenAIResponsesRequest
+	switch req := info.Request.(type) {
+	case *dto.OpenAIResponsesRequest:
+		responsesReq = req
+	case *dto.OpenAIResponsesCompactionRequest:
+		responsesReq = &dto.OpenAIResponsesRequest{
+			Model:              req.Model,
+			Input:              req.Input,
+			Instructions:       req.Instructions,
+			PreviousResponseID: req.PreviousResponseID,
+		}
+	default:
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", info.Request),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
 	request, err := common.DeepCopy(responsesReq)
@@ -104,10 +133,55 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return newAPIError
 	}
 
+	usageDto := usage.(*dto.Usage)
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		originModelName := info.OriginModelName
+		originPriceData := info.PriceData
+
+		billingModelName := originModelName
+		if !strings.HasSuffix(billingModelName, "-compact") {
+			billingModelName += "-compact"
+		}
+
+		info.OriginModelName = billingModelName
+
+		if helper.ContainPriceOrRatio(billingModelName) {
+			_, err := helper.ModelPriceHelper(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+			if err != nil {
+				info.OriginModelName = originModelName
+				info.PriceData = originPriceData
+				return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+			}
+			postConsumeQuota(c, info, usageDto)
+		} else {
+			// Default free for compaction unless <model>-compact is configured.
+			if info.FinalPreConsumedQuota != 0 {
+				relayInfoCopy := *info
+				_ = service.PostConsumeQuota(&relayInfoCopy, -relayInfoCopy.FinalPreConsumedQuota, 0, false)
+				info.FinalPreConsumedQuota = 0
+			}
+
+			info.PriceData = types.PriceData{
+				FreeModel:          true,
+				ModelRatio:         0,
+				CompletionRatio:    0,
+				CacheRatio:         0,
+				ImageRatio:         0,
+				CacheCreationRatio: 0,
+				GroupRatioInfo:     originPriceData.GroupRatioInfo,
+			}
+			postConsumeQuota(c, info, usageDto, "Compaction free: no <model>-compact pricing configured")
+		}
+
+		info.OriginModelName = originModelName
+		info.PriceData = originPriceData
+		return nil
+	}
+
 	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
+		service.PostAudioConsumeQuota(c, info, usageDto, "")
 	} else {
-		postConsumeQuota(c, info, usage.(*dto.Usage))
+		postConsumeQuota(c, info, usageDto)
 	}
 	return nil
 }
