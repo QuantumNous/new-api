@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getSelf } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 import { getNormalizedDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -60,18 +60,9 @@ const SectionDivider = ({ label }: { label: string }) => (
 
 export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
   const { t } = useTranslation()
-  const [self, setSelf] = useState<any>(null)
-
-  // Load user data to check if admin
-  useEffect(() => {
-    getSelf()
-      .then((res) => {
-        setSelf(res?.data || null)
-      })
-      .catch(() => {})
-  }, [])
-
-  const isAdmin = self?.role && self.role >= 10
+  // 使用已缓存的用户数据，避免重复调用 API
+  const user = useAuthStore((state) => state.auth.user)
+  const isAdmin = user?.role && user.role >= 10
 
   const [open, setOpen] = useState(false)
   const [filters, setFilters] = useState<DashboardFilters>(() => {
