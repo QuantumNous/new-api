@@ -5,12 +5,14 @@ import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd())
+export default defineConfig((config) => {
+  const env = loadEnv(config.mode, process.cwd())
   const serverUrl =
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
+
+  const isProd = config.mode === 'production'
 
   return {
     plugins: [
@@ -42,6 +44,33 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
       },
+    },
+    build: {
+      // 生产环境移除 console 和 debugger
+      minify: 'esbuild',
+      target: 'esnext',
+      rollupOptions: {
+        output: {
+          // 优化代码分割
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('react-dom') || id.includes('/react/')) {
+                return 'vendor-react'
+              }
+              if (id.includes('@radix-ui')) {
+                return 'vendor-radix'
+              }
+              if (id.includes('@tanstack')) {
+                return 'vendor-tanstack'
+              }
+            }
+          },
+        },
+      },
+    },
+    esbuild: {
+      // 生产环境移除 console 和 debugger
+      drop: isProd ? ['console', 'debugger'] : [],
     },
   }
 })
