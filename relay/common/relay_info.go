@@ -115,6 +115,7 @@ type RelayInfo struct {
 	SendResponseCount      int
 	FinalPreConsumedQuota  int  // 最终预消耗的配额
 	IsClaudeBetaQuery      bool // /v1/messages?beta=true
+	IsChannelTest          bool // channel test request
 
 	PriceData types.PriceData
 
