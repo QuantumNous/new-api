@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -37,34 +39,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
-func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
-}
-
-func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
-	channel.SetupApiRequestHeader(info, c, req)
-	key := strings.TrimSpace(info.ApiKey)
-	if strings.HasPrefix(key, "{") {
-		oauthKey, err := ParseOAuthKey(key)
-		if err != nil {
-			return err
-		}
-		if oauthKey.AccessToken == "" {
-			return errors.New("codex channel: access_token is required")
-		}
-		req.Set("Authorization", "Bearer "+oauthKey.AccessToken)
-		return nil
-	}
-
-	req.Set("Authorization", "Bearer "+info.ApiKey)
-	return nil
-}
-
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
-	if request == nil {
-		return nil, errors.New("request is nil")
-	}
-	return request, nil
+	return nil, errors.New("codex channel: endpoint not supported")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -76,7 +52,42 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	if info != nil && info.ChannelSetting.SystemPrompt != "" {
+		systemPrompt := info.ChannelSetting.SystemPrompt
+
+		if len(request.Instructions) == 0 {
+			if b, err := common.Marshal(systemPrompt); err == nil {
+				request.Instructions = b
+			} else {
+				return nil, err
+			}
+		} else if info.ChannelSetting.SystemPromptOverride {
+			var existing string
+			if err := common.Unmarshal(request.Instructions, &existing); err == nil {
+				existing = strings.TrimSpace(existing)
+				if existing == "" {
+					if b, err := common.Marshal(systemPrompt); err == nil {
+						request.Instructions = b
+					} else {
+						return nil, err
+					}
+				} else {
+					if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
+						request.Instructions = b
+					} else {
+						return nil, err
+					}
+				}
+			} else {
+				if b, err := common.Marshal(systemPrompt); err == nil {
+					request.Instructions = b
+				} else {
+					return nil, err
+				}
+			}
+		}
+	}
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -84,12 +95,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.IsStream {
-		usage, err = openai.OaiStreamHandler(c, info, resp)
-	} else {
-		usage, err = openai.OpenaiHandler(c, info, resp)
+	if info.RelayMode != relayconstant.RelayModeResponses {
+		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
 	}
-	return
+
+	if info.IsStream {
+		return openai.OaiResponsesStreamHandler(c, info, resp)
+	}
+	return openai.OaiResponsesHandler(c, info, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {
@@ -98,4 +111,47 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.RelayMode != relayconstant.RelayModeResponses {
+		return "", errors.New("codex channel: only /v1/responses is supported")
+	}
+	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
+}
+
+func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	channel.SetupApiRequestHeader(info, c, req)
+
+	key := strings.TrimSpace(info.ApiKey)
+	if !strings.HasPrefix(key, "{") {
+		return errors.New("codex channel: key must be a JSON object")
+	}
+
+	oauthKey, err := ParseOAuthKey(key)
+	if err != nil {
+		return err
+	}
+
+	accessToken := strings.TrimSpace(oauthKey.AccessToken)
+	accountID := strings.TrimSpace(oauthKey.AccountID)
+
+	if accessToken == "" {
+		return errors.New("codex channel: access_token is required")
+	}
+	if accountID == "" {
+		return errors.New("codex channel: account_id is required")
+	}
+
+	req.Set("Authorization", "Bearer "+accessToken)
+	req.Set("chatgpt-account-id", accountID)
+
+	if req.Get("OpenAI-Beta") == "" {
+		req.Set("OpenAI-Beta", "responses=experimental")
+	}
+	if req.Get("originator") == "" {
+		req.Set("originator", "codex_cli_rs")
+	}
+
+	return nil
 }
