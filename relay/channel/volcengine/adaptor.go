@@ -262,6 +262,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 		case constant.RelayModeEmbeddings:
+			if strings.Contains(strings.ToLower(info.OriginModelName), "vision") {
+				return fmt.Sprintf("%s/api/v3/embeddings/multimodal", baseUrl), nil
+			}
 			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
@@ -321,6 +324,34 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	// Vision embedding models require different request format
+	if strings.Contains(strings.ToLower(info.OriginModelName), "vision") {
+		// Convert input to array format for vision embedding
+		inputs := request.ParseInput()
+		visionInputs := make([]map[string]interface{}, 0, len(inputs))
+		for _, text := range inputs {
+			visionInputs = append(visionInputs, map[string]interface{}{
+				"type": "text",
+				"text": text,
+			})
+		}
+		
+		// Build vision embedding request
+		visionRequest := map[string]interface{}{
+			"model": request.Model,
+			"input": visionInputs,
+		}
+		
+		// Add optional parameters if present
+		if request.Dimensions > 0 {
+			visionRequest["dimensions"] = request.Dimensions
+		}
+		if request.EncodingFormat != "" {
+			visionRequest["encoding_format"] = request.EncodingFormat
+		}
+		
+		return visionRequest, nil
+	}
 	return request, nil
 }
 
