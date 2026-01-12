@@ -56,6 +56,7 @@ import {
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
+import CodexOAuthModal from './CodexOAuthModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
@@ -214,6 +215,7 @@ const EditChannelModal = (props) => {
   }, [inputs.model_mapping]);
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
+  const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -834,6 +836,11 @@ const EditChannelModal = (props) => {
       console.error('Failed to view channel key:', error);
       showError(error.message || t('获取密钥失败'));
     }
+  };
+
+  const handleCodexOAuthGenerated = (key) => {
+    handleInputChange('key', key);
+    formatJsonField('key');
   };
 
   useEffect(() => {
@@ -1940,53 +1947,70 @@ const EditChannelModal = (props) => {
                   ) : (
                     <>
                       {inputs.type === 57 ? (
-                        <Form.TextArea
-                          field='key'
-                          label={
-                            isEdit
-                              ? t('密钥（编辑模式下，保存的密钥不会显示）')
-                              : t('密钥')
-                          }
-                          placeholder={t(
-                            '请输入 JSON 格式的 OAuth 凭据，例如：\n{\n  "access_token": "...",\n  "account_id": "..." \n}',
-                          )}
-                          rules={
-                            isEdit
-                              ? []
-                              : [{ required: true, message: t('请输入密钥') }]
-                          }
-                          autoComplete='new-password'
-                          onChange={(value) => handleInputChange('key', value)}
-                          disabled={isIonetLocked}
-                          extraText={
-                            <div className='flex items-center gap-2 flex-wrap'>
-                              <Text type='tertiary' size='small'>
-                                {t(
-                                  '仅支持 JSON 对象，必须包含 access_token 与 account_id',
-                                )}
-                              </Text>
-                              <Text
-                                className='!text-semi-color-primary cursor-pointer'
-                                onClick={() => formatJsonField('key')}
-                              >
-                                {t('格式化')}
-                              </Text>
-                              {isEdit && (
+                        <>
+                          <Form.TextArea
+                            field='key'
+                            label={
+                              isEdit
+                                ? t('密钥（编辑模式下，保存的密钥不会显示）')
+                                : t('密钥')
+                            }
+                            placeholder={t(
+                              '请输入 JSON 格式的 OAuth 凭据，例如：\n{\n  "access_token": "...",\n  "account_id": "..." \n}',
+                            )}
+                            rules={
+                              isEdit
+                                ? []
+                                : [{ required: true, message: t('请输入密钥') }]
+                            }
+                            autoComplete='new-password'
+                            onChange={(value) => handleInputChange('key', value)}
+                            disabled={isIonetLocked}
+                            extraText={
+                              <div className='flex items-center gap-2 flex-wrap'>
+                                <Text type='tertiary' size='small'>
+                                  {t(
+                                    '仅支持 JSON 对象，必须包含 access_token 与 account_id',
+                                  )}
+                                </Text>
                                 <Button
                                   size='small'
                                   type='primary'
                                   theme='outline'
-                                  onClick={handleShow2FAModal}
+                                  onClick={() => setCodexOAuthModalVisible(true)}
+                                  disabled={isIonetLocked}
                                 >
-                                  {t('查看密钥')}
+                                  {t('Codex OAuth 授权')}
                                 </Button>
-                              )}
-                              {batchExtra}
-                            </div>
-                          }
-                          autosize
-                          showClear
-                        />
+                                <Text
+                                  className='!text-semi-color-primary cursor-pointer'
+                                  onClick={() => formatJsonField('key')}
+                                >
+                                  {t('格式化')}
+                                </Text>
+                                {isEdit && (
+                                  <Button
+                                    size='small'
+                                    type='primary'
+                                    theme='outline'
+                                    onClick={handleShow2FAModal}
+                                  >
+                                    {t('查看密钥')}
+                                  </Button>
+                                )}
+                                {batchExtra}
+                              </div>
+                            }
+                            autosize
+                            showClear
+                          />
+
+                          <CodexOAuthModal
+                            visible={codexOAuthModalVisible}
+                            onCancel={() => setCodexOAuthModalVisible(false)}
+                            onSuccess={handleCodexOAuthGenerated}
+                          />
+                        </>
                       ) : inputs.type === 41 &&
                         (inputs.vertex_key_type || 'json') === 'json' ? (
                         <>
