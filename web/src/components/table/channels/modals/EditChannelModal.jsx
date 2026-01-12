@@ -216,6 +216,8 @@ const EditChannelModal = (props) => {
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
   const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
+  const [codexCredentialRefreshing, setCodexCredentialRefreshing] =
+    useState(false);
 
   // 密钥显示状态
   const [keyDisplayState, setKeyDisplayState] = useState({
@@ -841,6 +843,27 @@ const EditChannelModal = (props) => {
   const handleCodexOAuthGenerated = (key) => {
     handleInputChange('key', key);
     formatJsonField('key');
+  };
+
+  const handleRefreshCodexCredential = async () => {
+    if (!isEdit) return;
+
+    setCodexCredentialRefreshing(true);
+    try {
+      const res = await API.post(
+        `/api/channel/${channelId}/codex/refresh`,
+        {},
+        { skipErrorHandler: true },
+      );
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || 'Failed to refresh credential');
+      }
+      showSuccess(t('凭证已刷新'));
+    } catch (error) {
+      showError(error.message || t('刷新失败'));
+    } finally {
+      setCodexCredentialRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -1982,6 +2005,17 @@ const EditChannelModal = (props) => {
                                 >
                                   {t('Codex OAuth 授权')}
                                 </Button>
+                                {isEdit && (
+                                  <Button
+                                    size='small'
+                                    type='primary'
+                                    theme='outline'
+                                    onClick={handleRefreshCodexCredential}
+                                    loading={codexCredentialRefreshing}
+                                  >
+                                    {t('刷新凭证')}
+                                  </Button>
+                                )}
                                 <Text
                                   className='!text-semi-color-primary cursor-pointer'
                                   onClick={() => formatJsonField('key')}
