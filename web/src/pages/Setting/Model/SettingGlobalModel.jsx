@@ -18,7 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Banner, Tag } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Col,
+  Form,
+  Row,
+  Spin,
+  Banner,
+  Tag,
+  Divider,
+} from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -71,6 +80,18 @@ export default function SettingGlobalModel(props) {
   const [inputs, setInputs] = useState(defaultGlobalSettingInputs);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(defaultGlobalSettingInputs);
+  const chatCompletionsToResponsesPolicyKey =
+    'global.chat_completions_to_responses_policy';
+
+  const setChatCompletionsToResponsesPolicyValue = (value) => {
+    setInputs((prev) => ({
+      ...prev,
+      [chatCompletionsToResponsesPolicyKey]: value,
+    }));
+    if (refForm.current) {
+      refForm.current.setValue(chatCompletionsToResponsesPolicyKey, value);
+    }
+  };
 
   const normalizeValueBeforeSave = (key, value) => {
     if (key === 'global.thinking_model_blacklist') {
@@ -216,19 +237,29 @@ export default function SettingGlobalModel(props) {
               </Col>
             </Row>
 
-            <Form.Section text={t('ChatCompletions→Responses 兼容配置')}>
+            <Form.Section
+              text={
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {t('ChatCompletions→Responses 兼容配置')}
+                  <Tag color='orange' size='small'>
+                    测试版
+                  </Tag>
+                </span>
+              }
+            >
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
                   <Banner
                     type='warning'
-                    title={
-                      <span>
-                        {t('ChatCompletions→Responses 兼容配置')}{' '}
-                        <Tag color='red' size='small'>
-                          Alpha
-                        </Tag>
-                      </span>
-                    }
                     description={t(
                       '提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。',
                     )}
@@ -238,77 +269,12 @@ export default function SettingGlobalModel(props) {
 
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setInputs({
-                          ...inputs,
-                          'global.chat_completions_to_responses_policy':
-                            chatCompletionsToResponsesPolicyExample,
-                        })
-                      }
-                    >
-                      {t('填充模板（指定渠道）')}
-                    </Button>
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setInputs({
-                          ...inputs,
-                          'global.chat_completions_to_responses_policy':
-                            chatCompletionsToResponsesPolicyAllChannelsExample,
-                        })
-                      }
-                    >
-                      {t('填充模板（全渠道）')}
-                    </Button>
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() => {
-                        const raw =
-                          inputs['global.chat_completions_to_responses_policy'];
-                        if (!raw || String(raw).trim() === '') return;
-                        try {
-                          const formatted = JSON.stringify(
-                            JSON.parse(raw),
-                            null,
-                            2,
-                          );
-                          setInputs({
-                            ...inputs,
-                            'global.chat_completions_to_responses_policy':
-                              formatted,
-                          });
-                        } catch (error) {
-                          showError(t('不是合法的 JSON 字符串'));
-                        }
-                      }}
-                    >
-                      {t('格式化 JSON')}
-                    </Button>
-                  </div>
-                </Col>
-              </Row>
-
-              <Row style={{ marginTop: 10 }}>
-                <Col span={24}>
-                  <Form.TextArea
-                    label={t('配置 JSON')}
-                    field={'global.chat_completions_to_responses_policy'}
-                    placeholder={
-                      t('例如（指定渠道）：') +
-                      '\n' +
+	                  <Form.TextArea
+	                    label={t('参数配置')}
+	                    field={chatCompletionsToResponsesPolicyKey}
+	                    placeholder={
+	                      t('例如（指定渠道）：') +
+	                      '\n' +
                       chatCompletionsToResponsesPolicyExample +
                       '\n\n' +
                       t('例如（全渠道）：') +
@@ -325,21 +291,80 @@ export default function SettingGlobalModel(props) {
                         message: t('不是合法的 JSON 字符串'),
                       },
                     ]}
-                    extraText={t(
-                      '当客户端调用 /v1/chat/completions 且 model 命中 model_patterns 时，自动改走上游 /v1/responses，并把响应转换回 /v1/chat/completions 结构',
-                    )}
                     onChange={(value) =>
-                      setInputs({
-                        ...inputs,
-                        'global.chat_completions_to_responses_policy': value,
-                      })
+                      setInputs((prev) => ({
+                        ...prev,
+                        [chatCompletionsToResponsesPolicyKey]: value,
+                      }))
                     }
                   />
                 </Col>
               </Row>
+
+              <Row style={{ marginTop: 10, marginBottom: 16 }}>
+                <Col span={24}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setChatCompletionsToResponsesPolicyValue(
+                          chatCompletionsToResponsesPolicyExample,
+                        )
+                      }
+                    >
+                      {t('填充模板（指定渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() =>
+                        setChatCompletionsToResponsesPolicyValue(
+                          chatCompletionsToResponsesPolicyAllChannelsExample,
+                        )
+                      }
+                    >
+                      {t('填充模板（全渠道）')}
+                    </Button>
+                    <Button
+                      type='secondary'
+                      size='small'
+                      onClick={() => {
+                        const raw = inputs[chatCompletionsToResponsesPolicyKey];
+                        if (!raw || String(raw).trim() === '') return;
+                        try {
+                          const formatted = JSON.stringify(
+                            JSON.parse(raw),
+                            null,
+                            2,
+                          );
+                          setChatCompletionsToResponsesPolicyValue(formatted);
+                        } catch (error) {
+                          showError(t('不是合法的 JSON 字符串'));
+                        }
+                      }}
+                    >
+                      {t('格式化 JSON')}
+                    </Button>
+                  </div>
+                </Col>
+              </Row>
             </Form.Section>
 
-            <Form.Section text={t('连接保活设置')}>
+            <Form.Section
+              text={
+                <span style={{ fontSize: 14, fontWeight: 600 }}>
+                  {t('连接保活设置')}
+                </span>
+              }
+            >
               <Row style={{ marginTop: 10 }}>
                 <Col span={24}>
                   <Banner
