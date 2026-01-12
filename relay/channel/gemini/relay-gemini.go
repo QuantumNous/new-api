@@ -675,6 +675,7 @@ func cleanFunctionParameters(params interface{}) interface{} {
 		delete(cleanedMap, "exclusiveMinimum")
 		delete(cleanedMap, "$schema")
 		delete(cleanedMap, "additionalProperties")
+		delete(cleanedMap, "propertyNames")
 
 		// Check and clean 'format' for string types
 		if propType, typeExists := cleanedMap["type"].(string); typeExists && propType == "string" {
