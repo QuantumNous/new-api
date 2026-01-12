@@ -133,10 +133,55 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return newAPIError
 	}
 
+	usageDto := usage.(*dto.Usage)
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		originModelName := info.OriginModelName
+		originPriceData := info.PriceData
+
+		billingModelName := originModelName
+		if !strings.HasSuffix(billingModelName, "-compact") {
+			billingModelName += "-compact"
+		}
+
+		info.OriginModelName = billingModelName
+
+		if helper.ContainPriceOrRatio(billingModelName) {
+			_, err := helper.ModelPriceHelper(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+			if err != nil {
+				info.OriginModelName = originModelName
+				info.PriceData = originPriceData
+				return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+			}
+			postConsumeQuota(c, info, usageDto)
+		} else {
+			// Default free for compaction unless <model>-compact is configured.
+			if info.FinalPreConsumedQuota != 0 {
+				relayInfoCopy := *info
+				_ = service.PostConsumeQuota(&relayInfoCopy, -relayInfoCopy.FinalPreConsumedQuota, 0, false)
+				info.FinalPreConsumedQuota = 0
+			}
+
+			info.PriceData = types.PriceData{
+				FreeModel:          true,
+				ModelRatio:         0,
+				CompletionRatio:    0,
+				CacheRatio:         0,
+				ImageRatio:         0,
+				CacheCreationRatio: 0,
+				GroupRatioInfo:     originPriceData.GroupRatioInfo,
+			}
+			postConsumeQuota(c, info, usageDto, "Compaction free: no <model>-compact pricing configured")
+		}
+
+		info.OriginModelName = originModelName
+		info.PriceData = originPriceData
+		return nil
+	}
+
 	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
+		service.PostAudioConsumeQuota(c, info, usageDto, "")
 	} else {
-		postConsumeQuota(c, info, usage.(*dto.Usage))
+		postConsumeQuota(c, info, usageDto)
 	}
 	return nil
 }
