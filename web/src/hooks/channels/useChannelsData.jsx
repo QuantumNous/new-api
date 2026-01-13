@@ -36,6 +36,7 @@ import {
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { Modal, Button } from '@douyinfe/semi-ui';
+import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -745,6 +746,30 @@ export const useChannelsData = () => {
   };
 
   const updateChannelBalance = async (record) => {
+    if (record?.type === 57) {
+      try {
+        const res = await API.get(`/api/channel/${record.id}/codex/usage`, {
+          skipErrorHandler: true,
+        });
+        if (!res?.data?.success) {
+          showError(res?.data?.message || t('Failed to fetch usage'));
+        }
+        openCodexUsageModal({
+          t,
+          record,
+          payload: res?.data,
+          onCopy: async (text) => {
+            const ok = await copy(text);
+            if (ok) showSuccess(t('Copied'));
+            else showError(t('Copy failed'));
+          },
+        });
+      } catch (error) {
+        showError(error?.message || t('Failed to fetch usage'));
+      }
+      return;
+    }
+
     const res = await API.get(`/api/channel/update_balance/${record.id}/`);
     const { success, message, balance } = res.data;
     if (success) {
