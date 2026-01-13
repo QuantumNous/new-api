@@ -6,22 +6,35 @@ import { useEffect, useState } from 'react'
  * @returns boolean indicating if the query matches
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false)
+  const getMatches = (query: string): boolean => {
+    // Check if window is available (not SSR)
+    if (typeof window !== 'undefined') {
+      return window.matchMedia(query).matches
+    }
+    return false
+  }
+
+  const [matches, setMatches] = useState<boolean>(() => getMatches(query))
 
   useEffect(() => {
-    const media = window.matchMedia(query)
-
-    // Set initial value
-    if (media.matches !== matches) {
-      setMatches(media.matches)
+    // Return early if window is not available
+    if (typeof window === 'undefined') {
+      return
     }
 
-    // Listen for changes
-    const listener = () => setMatches(media.matches)
-    media.addEventListener('change', listener)
+    const media = window.matchMedia(query)
 
-    return () => media.removeEventListener('change', listener)
-  }, [matches, query])
+    // Update state if initial value is different
+    const handleChange = () => setMatches(media.matches)
+
+    // Set initial value
+    handleChange()
+
+    // Listen for changes
+    media.addEventListener('change', handleChange)
+
+    return () => media.removeEventListener('change', handleChange)
+  }, [query])
 
   return matches
 }
