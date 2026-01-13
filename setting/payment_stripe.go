@@ -13,5 +13,5 @@ var StripePromotionCodesEnabled = false
 var StripeManagedPaymentsEnabled = false
 
 func init() {
-	StripeManagedPaymentsEnabled = common.GetEnvOrDefaultBool("STRIPE_MANAGED_PAYMENTS_ENABLED", false)
+	StripeManagedPaymentsEnabled = common.GetEnvOrDefaultBool("STRIPE_MANAGED_PAYMENTS_ENABLED", true)
 }
