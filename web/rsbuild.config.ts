@@ -7,10 +7,10 @@ import { tanstackRouter } from '@tanstack/router-plugin/rspack'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ envMode }) => {
-  const env = loadEnv({ mode: envMode })
+  const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
   const serverUrl =
     process.env.VITE_REACT_APP_SERVER_URL ||
-    env.public.VITE_REACT_APP_SERVER_URL ||
+    env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
 
   const isProd = envMode === 'production'
@@ -66,7 +66,7 @@ export default defineConfig(({ envMode }) => {
         },
       },
       // Remove console in production
-      removeConsole: isProd ? ['log', 'debug'] : false,
+      removeConsole: isProd ? ['log'] : false,
     },
     tools: {
       rspack: {
