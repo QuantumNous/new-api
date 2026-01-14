@@ -752,7 +752,8 @@ export const useChannelsData = () => {
           skipErrorHandler: true,
         });
         if (!res?.data?.success) {
-          showError(res?.data?.message || t('Failed to fetch usage'));
+          console.error('Codex usage fetch failed:', res?.data?.message);
+          showError(t('获取用量失败'));
         }
         openCodexUsageModal({
           t,
@@ -760,12 +761,13 @@ export const useChannelsData = () => {
           payload: res?.data,
           onCopy: async (text) => {
             const ok = await copy(text);
-            if (ok) showSuccess(t('Copied'));
-            else showError(t('Copy failed'));
+            if (ok) showSuccess(t('已复制'));
+            else showError(t('复制失败'));
           },
         });
       } catch (error) {
-        showError(error?.message || t('Failed to fetch usage'));
+        console.error('Codex usage fetch error:', error);
+        showError(t('获取用量失败'));
       }
       return;
     }

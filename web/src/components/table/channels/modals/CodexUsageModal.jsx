@@ -35,16 +35,17 @@ const pickStrokeColor = (percent) => {
   return '#3b82f6';
 };
 
-const formatDurationSeconds = (seconds) => {
+const formatDurationSeconds = (seconds, t) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
   const s = Number(seconds);
   if (!Number.isFinite(s) || s <= 0) return '-';
   const total = Math.floor(s);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${secs}s`;
-  return `${secs}s`;
+  if (hours > 0) return `${hours}${tt('小时')} ${minutes}${tt('分钟')}`;
+  if (minutes > 0) return `${minutes}${tt('分钟')} ${secs}${tt('秒')}`;
+  return `${secs}${tt('秒')}`;
 };
 
 const formatUnixSeconds = (unixSeconds) => {
@@ -57,7 +58,8 @@ const formatUnixSeconds = (unixSeconds) => {
   }
 };
 
-const RateLimitWindowCard = ({ title, windowData }) => {
+const RateLimitWindowCard = ({ t, title, windowData }) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
   const percent = clampPercent(windowData?.used_percent ?? 0);
   const resetAt = windowData?.reset_at;
   const resetAfterSeconds = windowData?.reset_after_seconds;
@@ -68,7 +70,8 @@ const RateLimitWindowCard = ({ title, windowData }) => {
       <div className='flex items-center justify-between gap-2'>
         <div className='font-medium'>{title}</div>
         <Text type='tertiary' size='small'>
-          Reset at: {formatUnixSeconds(resetAt)}
+          {tt('重置时间：')}
+          {formatUnixSeconds(resetAt)}
         </Text>
       </div>
 
@@ -81,15 +84,25 @@ const RateLimitWindowCard = ({ title, windowData }) => {
       </div>
 
       <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
-        <div>Used: {percent}%</div>
-        <div>Time to reset: {formatDurationSeconds(resetAfterSeconds)}</div>
-        <div>Window: {formatDurationSeconds(limitWindowSeconds)}</div>
+        <div>
+          {tt('已使用：')}
+          {percent}%
+        </div>
+        <div>
+          {tt('距离重置：')}
+          {formatDurationSeconds(resetAfterSeconds, tt)}
+        </div>
+        <div>
+          {tt('窗口：')}
+          {formatDurationSeconds(limitWindowSeconds, tt)}
+        </div>
       </div>
     </div>
   );
 };
 
 export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
+  const tt = typeof t === 'function' ? t : (v) => v;
   const data = payload?.data ?? null;
   const rateLimit = data?.rate_limit ?? {};
 
@@ -102,9 +115,9 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
 
   const statusTag =
     allowed && !limitReached ? (
-      <Tag color='green'>{t('Available')}</Tag>
+      <Tag color='green'>{tt('可用')}</Tag>
     ) : (
-      <Tag color='red'>{t('Limited')}</Tag>
+      <Tag color='red'>{tt('受限')}</Tag>
     );
 
   const rawText =
@@ -113,7 +126,7 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
   Modal.info({
     title: (
       <div className='flex items-center gap-2'>
-        <span>{t('Codex Usage')}</span>
+        <span>{tt('Codex 用量')}</span>
         {statusTag}
       </div>
     ),
@@ -124,24 +137,32 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
       <div className='flex flex-col gap-3'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <Text type='tertiary' size='small'>
-            Channel: {record?.name || '-'} (ID: {record?.id || '-'})
+            {tt('渠道：')}
+            {record?.name || '-'} ({tt('编号：')}
+            {record?.id || '-'})
           </Text>
           <Text type='tertiary' size='small'>
-            Upstream status: {upstreamStatus ?? '-'}
+            {tt('上游状态码：')}
+            {upstreamStatus ?? '-'}
           </Text>
         </div>
 
         <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-          <RateLimitWindowCard title={t('5-hour window')} windowData={primary} />
           <RateLimitWindowCard
-            title={t('Weekly window')}
+            t={tt}
+            title={tt('5小时窗口')}
+            windowData={primary}
+          />
+          <RateLimitWindowCard
+            t={tt}
+            title={tt('每周窗口')}
             windowData={secondary}
           />
         </div>
 
         <div>
           <div className='mb-1 flex items-center justify-between gap-2'>
-            <div className='text-sm font-medium'>{t('Raw JSON')}</div>
+            <div className='text-sm font-medium'>{tt('原始 JSON')}</div>
             <Button
               size='small'
               type='primary'
@@ -149,7 +170,7 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
               onClick={() => onCopy?.(rawText)}
               disabled={!rawText}
             >
-              {t('Copy')}
+              {tt('复制')}
             </Button>
           </div>
           <pre className='max-h-[50vh] overflow-auto rounded-lg bg-semi-color-fill-0 p-3 text-xs text-semi-color-text-0'>
@@ -161,10 +182,9 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
     footer: (
       <div className='flex justify-end gap-2'>
         <Button type='primary' theme='solid' onClick={() => Modal.destroyAll()}>
-          {t('Close')}
+          {tt('关闭')}
         </Button>
       </div>
     ),
   });
 };
-

@@ -26,13 +26,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var responsesResp dto.OpenAIResponsesResponse
-	const maxResponseBodyBytes = 10 << 20 // 10MB
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyBytes+1))
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
-	}
-	if int64(len(body)) > maxResponseBodyBytes {
-		return nil, types.NewOpenAIError(fmt.Errorf("response body exceeds %d bytes", maxResponseBodyBytes), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	if err := common.Unmarshal(body, &responsesResp); err != nil {

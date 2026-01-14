@@ -1990,49 +1990,59 @@ const EditChannelModal = (props) => {
                             onChange={(value) => handleInputChange('key', value)}
                             disabled={isIonetLocked}
                             extraText={
-                              <div className='flex items-center gap-2 flex-wrap'>
+                              <div className='flex flex-col gap-2'>
                                 <Text type='tertiary' size='small'>
                                   {t(
                                     '仅支持 JSON 对象，必须包含 access_token 与 account_id',
                                   )}
                                 </Text>
-                                <Button
-                                  size='small'
-                                  type='primary'
-                                  theme='outline'
-                                  onClick={() => setCodexOAuthModalVisible(true)}
-                                  disabled={isIonetLocked}
-                                >
-                                  {t('Codex OAuth 授权')}
-                                </Button>
-                                {isEdit && (
+
+                                <Space wrap spacing='tight'>
                                   <Button
                                     size='small'
                                     type='primary'
                                     theme='outline'
-                                    onClick={handleRefreshCodexCredential}
-                                    loading={codexCredentialRefreshing}
+                                    onClick={() =>
+                                      setCodexOAuthModalVisible(true)
+                                    }
+                                    disabled={isIonetLocked}
                                   >
-                                    {t('刷新凭证')}
+                                    {t('Codex 授权')}
                                   </Button>
-                                )}
-                                <Text
-                                  className='!text-semi-color-primary cursor-pointer'
-                                  onClick={() => formatJsonField('key')}
-                                >
-                                  {t('格式化')}
-                                </Text>
-                                {isEdit && (
+                                  {isEdit && (
+                                    <Button
+                                      size='small'
+                                      type='primary'
+                                      theme='outline'
+                                      onClick={handleRefreshCodexCredential}
+                                      loading={codexCredentialRefreshing}
+                                      disabled={isIonetLocked}
+                                    >
+                                      {t('刷新凭证')}
+                                    </Button>
+                                  )}
                                   <Button
                                     size='small'
                                     type='primary'
                                     theme='outline'
-                                    onClick={handleShow2FAModal}
+                                    onClick={() => formatJsonField('key')}
+                                    disabled={isIonetLocked}
                                   >
-                                    {t('查看密钥')}
+                                    {t('格式化')}
                                   </Button>
-                                )}
-                                {batchExtra}
+                                  {isEdit && (
+                                    <Button
+                                      size='small'
+                                      type='primary'
+                                      theme='outline'
+                                      onClick={handleShow2FAModal}
+                                      disabled={isIonetLocked}
+                                    >
+                                      {t('查看密钥')}
+                                    </Button>
+                                  )}
+                                  {batchExtra}
+                                </Space>
                               </div>
                             }
                             autosize

@@ -35,17 +35,19 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
     try {
       const res = await API.post('/api/channel/codex/oauth/start', {}, { skipErrorHandler: true });
       if (!res?.data?.success) {
-        throw new Error(res?.data?.message || 'Failed to start OAuth');
+        console.error('Codex OAuth start failed:', res?.data?.message);
+        throw new Error(t('启动授权失败'));
       }
       const url = res?.data?.data?.authorize_url || '';
       if (!url) {
-        throw new Error('Missing authorize_url');
+        console.error('Codex OAuth start response missing authorize_url:', res?.data);
+        throw new Error(t('响应缺少授权链接'));
       }
       setAuthorizeUrl(url);
       window.open(url, '_blank', 'noopener,noreferrer');
       showSuccess(t('已打开授权页面'));
     } catch (error) {
-      showError(error.message || t('启动授权失败'));
+      showError(error?.message || t('启动授权失败'));
     } finally {
       setLoading(false);
     }
@@ -65,19 +67,21 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         { skipErrorHandler: true },
       );
       if (!res?.data?.success) {
-        throw new Error(res?.data?.message || 'Failed to complete OAuth');
+        console.error('Codex OAuth complete failed:', res?.data?.message);
+        throw new Error(t('授权失败'));
       }
 
       const key = res?.data?.data?.key || '';
       if (!key) {
-        throw new Error('Missing key in response');
+        console.error('Codex OAuth complete response missing key:', res?.data);
+        throw new Error(t('响应缺少凭据'));
       }
 
       onSuccess && onSuccess(key);
-      showSuccess(t('已生成 OAuth 凭据'));
+      showSuccess(t('已生成授权凭据'));
       onCancel && onCancel();
     } catch (error) {
-      showError(error.message || t('授权失败'));
+      showError(error?.message || t('授权失败'));
     } finally {
       setLoading(false);
     }
@@ -91,7 +95,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
 
   return (
     <Modal
-      title={t('Codex OAuth 授权')}
+      title={t('Codex 授权')}
       visible={visible}
       onCancel={onCancel}
       maskClosable={false}
@@ -145,4 +149,3 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
 };
 
 export default CodexOAuthModal;
-
