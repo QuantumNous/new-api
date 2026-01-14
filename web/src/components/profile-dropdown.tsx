@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { User, Wallet, LogOut } from 'lucide-react'
+import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
+import { ROLE } from '@/lib/roles'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +24,7 @@ export function ProfileDropdown() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, initials, roleLabel } = useUserDisplay(user)
+  const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
 
   return (
     <>
@@ -87,6 +89,19 @@ export function ProfileDropdown() {
                 {t('Wallet')}
               </Link>
             </SheetClose>
+
+            {/* System Settings - only for super admin */}
+            {isSuperAdmin && (
+              <SheetClose asChild>
+                <Link
+                  to='/system-settings'
+                  className='text-primary/60 hover:text-primary/80 border-b flex items-center gap-2.5 p-2.5 transition-colors'
+                >
+                  <Settings className='size-4' />
+                  {t('System Settings')}
+                </Link>
+              </SheetClose>
+            )}
 
             {/* Sign out */}
             <button

@@ -6,7 +6,6 @@ import {
   Box,
   Users,
   Ticket,
-  Settings,
   User,
   Command,
   Radio,
@@ -27,12 +26,6 @@ export function useSidebarData(): SidebarData {
         name: '', // Dynamically fetches system name
         logo: Command,
         plan: '', // Dynamically fetches system version
-      },
-      {
-        id: WORKSPACE_IDS.SYSTEM_SETTINGS,
-        name: t('System Settings'),
-        logo: Settings,
-        plan: t('Manage and configure'),
       },
     ],
     navGroups: [
