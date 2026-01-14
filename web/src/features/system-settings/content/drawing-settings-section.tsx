@@ -63,39 +63,45 @@ export function DrawingSettingsSection({
   }> = [
     {
       name: 'DrawingEnabled',
-      label: 'Enable drawing features',
-      description:
-        'Required to expose Midjourney-style image generation to end users.',
+      label: t('Enable drawing features'),
+      description: t(
+        'Required to expose Midjourney-style image generation to end users.'
+      ),
     },
     {
       name: 'MjNotifyEnabled',
-      label: 'Allow upstream callbacks',
-      description:
-        'When enabled, Midjourney callbacks are accepted (reveals server IP).',
+      label: t('Allow upstream callbacks'),
+      description: t(
+        'When enabled, Midjourney callbacks are accepted (reveals server IP).'
+      ),
     },
     {
       name: 'MjAccountFilterEnabled',
-      label: 'Allow accountFilter parameter',
-      description:
-        'Keep enabled if you need to proxy requests for different upstream accounts.',
+      label: t('Allow accountFilter parameter'),
+      description: t(
+        'Keep enabled if you need to proxy requests for different upstream accounts.'
+      ),
     },
     {
       name: 'MjForwardUrlEnabled',
-      label: 'Rewrite callback URLs to the local server',
-      description:
-        'Automatically replaces upstream callback URLs with the server address.',
+      label: t('Rewrite callback URLs to the local server'),
+      description: t(
+        'Automatically replaces upstream callback URLs with the server address.'
+      ),
     },
     {
       name: 'MjModeClearEnabled',
-      label: 'Clear mode flags in prompts',
-      description:
-        'Removes Midjourney flags such as --fast, --relax, and --turbo from user prompts.',
+      label: t('Clear mode flags in prompts'),
+      description: t(
+        'Removes Midjourney flags such as --fast, --relax, and --turbo from user prompts.'
+      ),
     },
     {
       name: 'MjActionCheckSuccessEnabled',
-      label: 'Require job success before follow-up actions',
-      description:
-        'Users must wait for a successful drawing before upscales or variations.',
+      label: t('Require job success before follow-up actions'),
+      description: t(
+        'Users must wait for a successful drawing before upscales or variations.'
+      ),
     },
   ]
 
@@ -116,10 +122,8 @@ export function DrawingSettingsSection({
                 render={({ field }) => (
                   <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5 pe-4'>
-                      <FormLabel className='text-base'>
-                        {t(item.label)}
-                      </FormLabel>
-                      <FormDescription>{t(item.description)}</FormDescription>
+                      <FormLabel className='text-base'>{item.label}</FormLabel>
+                      <FormDescription>{item.description}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch

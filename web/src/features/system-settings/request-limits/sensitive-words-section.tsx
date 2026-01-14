@@ -139,7 +139,9 @@ export function SensitiveWordsSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save sensitive words'}
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save sensitive words')}
           </Button>
         </form>
       </Form>

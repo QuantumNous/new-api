@@ -127,8 +127,10 @@ export function RateLimitVisualEditor({
       {filteredRateLimits.length === 0 ? (
         <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
           {searchText
-            ? 'No groups match your search'
-            : 'No group-based rate limits configured. Click "Add group" to get started.'}
+            ? t('No groups match your search')
+            : t(
+                'No group-based rate limits configured. Click "Add group" to get started.'
+              )}
         </div>
       ) : (
         <div className='rounded-md border'>
@@ -152,7 +154,7 @@ export function RateLimitVisualEditor({
                   <TableCell className='text-right'>
                     <span className='font-mono'>
                       {limit.maxRequests === 0
-                        ? 'Unlimited'
+                        ? t('Unlimited')
                         : limit.maxRequests.toLocaleString()}
                     </span>
                   </TableCell>

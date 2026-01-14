@@ -26,95 +26,6 @@ type SidebarModulesSectionProps = {
 
 type SidebarFormValues = SidebarModulesAdminConfig
 
-const sectionMeta: Record<string, { title: string; description: string }> = {
-  chat: {
-    title: 'Chat area',
-    description: 'Playground experiments and live conversations.',
-  },
-  console: {
-    title: 'Console area',
-    description: 'Dashboards, tokens, and usage analytics.',
-  },
-  personal: {
-    title: 'Personal area',
-    description: 'Wallet management and personal preferences.',
-  },
-  admin: {
-    title: 'Admin area',
-    description: 'Global configuration and administrative tools.',
-  },
-}
-
-const moduleMeta: Record<
-  string,
-  Record<string, { title: string; description: string }>
-> = {
-  chat: {
-    playground: {
-      title: 'Playground',
-      description: 'Experiment with prompts and models in real time.',
-    },
-    chat: {
-      title: 'Chat',
-      description: 'Access previous conversations and start new ones.',
-    },
-  },
-  console: {
-    detail: {
-      title: 'Dashboard',
-      description: 'Aggregated usage metrics and trend charts.',
-    },
-    token: {
-      title: 'Token management',
-      description: 'Create, revoke, and audit API tokens.',
-    },
-    log: {
-      title: 'Usage logs',
-      description: 'Detailed request logs for investigations.',
-    },
-    midjourney: {
-      title: 'Drawing logs',
-      description: 'History of Midjourney-style image tasks.',
-    },
-    task: {
-      title: 'Task logs',
-      description: 'Background job tracker for queued work.',
-    },
-  },
-  personal: {
-    topup: {
-      title: 'Wallet',
-      description: 'Top up balance and view billing history.',
-    },
-    personal: {
-      title: 'Profile',
-      description: 'Personal settings and profile management.',
-    },
-  },
-  admin: {
-    channel: {
-      title: 'Channels',
-      description: 'Configure upstream providers and routing.',
-    },
-    models: {
-      title: 'Models',
-      description: 'Manage catalog visibility and pricing.',
-    },
-    redemption: {
-      title: 'Redeem codes',
-      description: 'Create and review invite or credit codes.',
-    },
-    user: {
-      title: 'Users',
-      description: 'Administer user accounts and roles.',
-    },
-    setting: {
-      title: 'System settings',
-      description: 'Advanced platform configuration.',
-    },
-  },
-}
-
 const toTitleCase = (value: string) =>
   value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
 
@@ -124,6 +35,95 @@ export function SidebarModulesSection({
 }: SidebarModulesSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+
+  const sectionMeta: Record<string, { title: string; description: string }> = {
+    chat: {
+      title: t('Chat area'),
+      description: t('Playground experiments and live conversations.'),
+    },
+    console: {
+      title: t('Console area'),
+      description: t('Dashboards, tokens, and usage analytics.'),
+    },
+    personal: {
+      title: t('Personal area'),
+      description: t('Wallet management and personal preferences.'),
+    },
+    admin: {
+      title: t('Admin area'),
+      description: t('Global configuration and administrative tools.'),
+    },
+  }
+
+  const moduleMeta: Record<
+    string,
+    Record<string, { title: string; description: string }>
+  > = {
+    chat: {
+      playground: {
+        title: t('Playground'),
+        description: t('Experiment with prompts and models in real time.'),
+      },
+      chat: {
+        title: t('Chat'),
+        description: t('Access previous conversations and start new ones.'),
+      },
+    },
+    console: {
+      detail: {
+        title: t('Dashboard'),
+        description: t('Aggregated usage metrics and trend charts.'),
+      },
+      token: {
+        title: t('Token management'),
+        description: t('Create, revoke, and audit API tokens.'),
+      },
+      log: {
+        title: t('Usage logs'),
+        description: t('Detailed request logs for investigations.'),
+      },
+      midjourney: {
+        title: t('Drawing logs'),
+        description: t('History of Midjourney-style image tasks.'),
+      },
+      task: {
+        title: t('Task logs'),
+        description: t('Background job tracker for queued work.'),
+      },
+    },
+    personal: {
+      topup: {
+        title: t('Wallet'),
+        description: t('Top up balance and view billing history.'),
+      },
+      personal: {
+        title: t('Profile'),
+        description: t('Personal settings and profile management.'),
+      },
+    },
+    admin: {
+      channel: {
+        title: t('Channels'),
+        description: t('Configure upstream providers and routing.'),
+      },
+      models: {
+        title: t('Models'),
+        description: t('Manage catalog visibility and pricing.'),
+      },
+      redemption: {
+        title: t('Redeem codes'),
+        description: t('Create and review invite or credit codes.'),
+      },
+      user: {
+        title: t('Users'),
+        description: t('Administer user accounts and roles.'),
+      },
+      setting: {
+        title: t('System settings'),
+        description: t('Advanced platform configuration.'),
+      },
+    },
+  }
   const formDefaults = useMemo(() => config, [config])
 
   const form = useForm<SidebarFormValues>({
@@ -165,7 +165,7 @@ export function SidebarModulesSection({
           {sections.map(([sectionKey, sectionConfig]) => {
             const sectionInfo = sectionMeta[sectionKey] ?? {
               title: toTitleCase(sectionKey),
-              description: 'Custom sidebar section',
+              description: t('Custom sidebar section'),
             }
             const modules = Object.entries(sectionConfig).filter(
               ([moduleKey]) => moduleKey !== 'enabled'
@@ -180,10 +180,10 @@ export function SidebarModulesSection({
                     <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                       <div className='space-y-0.5 pe-4'>
                         <FormLabel className='text-base'>
-                          {t(sectionInfo.title)}
+                          {sectionInfo.title}
                         </FormLabel>
                         <FormDescription>
-                          {t(sectionInfo.description)}
+                          {sectionInfo.description}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -200,7 +200,7 @@ export function SidebarModulesSection({
                   {modules.map(([moduleKey]) => {
                     const moduleInfo = moduleMeta[sectionKey]?.[moduleKey] ?? {
                       title: toTitleCase(moduleKey),
-                      description: 'Custom module',
+                      description: t('Custom module'),
                     }
                     return (
                       <FormField
@@ -211,10 +211,10 @@ export function SidebarModulesSection({
                           <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                             <div className='space-y-0.5 pe-4'>
                               <FormLabel className='text-base'>
-                                {t(moduleInfo.title)}
+                                {moduleInfo.title}
                               </FormLabel>
                               <FormDescription>
-                                {t(moduleInfo.description)}
+                                {moduleInfo.description}
                               </FormDescription>
                             </div>
                             <FormControl>
@@ -241,7 +241,9 @@ export function SidebarModulesSection({
               {t('Reset to default')}
             </Button>
             <Button type='submit' disabled={updateOption.isPending}>
-              {updateOption.isPending ? 'Saving...' : 'Save sidebar modules'}
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save sidebar modules')}
             </Button>
           </div>
         </form>

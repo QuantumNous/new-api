@@ -114,23 +114,23 @@ export function HeaderNavigationSection({
   }> = [
     {
       key: 'home',
-      title: 'Home',
-      description: 'Landing page with system overview.',
+      title: t('Home'),
+      description: t('Landing page with system overview.'),
     },
     {
       key: 'console',
-      title: 'Console',
-      description: 'User dashboard and quota controls.',
+      title: t('Console'),
+      description: t('User dashboard and quota controls.'),
     },
     {
       key: 'docs',
-      title: 'Docs',
-      description: 'Documentation or external knowledge base.',
+      title: t('Docs'),
+      description: t('Documentation or external knowledge base.'),
     },
     {
       key: 'about',
-      title: 'About',
-      description: 'Static page describing the platform.',
+      title: t('About'),
+      description: t('Static page describing the platform.'),
     },
   ]
 
@@ -152,9 +152,9 @@ export function HeaderNavigationSection({
                   <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
                     <div className='space-y-0.5 pe-4'>
                       <FormLabel className='text-base'>
-                        {t(module.title)}
+                        {module.title}
                       </FormLabel>
-                      <FormDescription>{t(module.description)}</FormDescription>
+                      <FormDescription>{module.description}</FormDescription>
                     </div>
                     <FormControl>
                       <Switch
@@ -229,7 +229,7 @@ export function HeaderNavigationSection({
               {t('Reset to default')}
             </Button>
             <Button type='submit' disabled={updateOption.isPending}>
-              {updateOption.isPending ? 'Saving...' : 'Save navigation'}
+              {updateOption.isPending ? t('Saving...') : t('Save navigation')}
             </Button>
           </div>
         </form>
