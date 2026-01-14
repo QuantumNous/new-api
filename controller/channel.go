@@ -588,6 +588,45 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.Type == constant.ChannelTypeMultiEndpoint {
+		if channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "" {
+			return fmt.Errorf("多端点渠道的 base_url 不能为空")
+		}
+
+		raw := strings.TrimSpace(*channel.BaseURL)
+		if strings.HasPrefix(raw, "{") {
+			m, err := common.StrToMap(raw)
+			if err != nil {
+				return fmt.Errorf("多端点渠道的 base_url 必须是合法的 JSON 对象：%w", err)
+			}
+			for _, v := range m {
+				s, ok := v.(string)
+				if !ok {
+					continue
+				}
+				s = strings.TrimSpace(s)
+				if s == "" {
+					continue
+				}
+				if !(strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "ws://") || strings.HasPrefix(s, "wss://")) {
+					return fmt.Errorf("多端点渠道的 URL 必须以 http://、https://、ws:// 或 wss:// 开头")
+				}
+			}
+		} else {
+			if !(strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "ws://") || strings.HasPrefix(raw, "wss://")) {
+				return fmt.Errorf("多端点渠道的 base_url 必须以 http://、https://、ws:// 或 wss:// 开头")
+			}
+		}
+
+		resolved, err := common.ResolveMultiEndpointRequestURL(raw, "/v1/chat/completions", "")
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(resolved) == "" {
+			return fmt.Errorf("多端点渠道的 base_url 至少需要配置 default 或 openai")
+		}
+	}
+
 	// VertexAI 特殊校验
 	if channel.Type == constant.ChannelTypeVertexAi {
 		if channel.Other == "" {
@@ -1071,6 +1110,13 @@ func FetchModels(c *gin.Context) {
 	baseURL := req.BaseURL
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[req.Type]
+	}
+	if req.Type == constant.ChannelTypeMultiEndpoint {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "多端点渠道不支持获取模型列表",
+		})
+		return
 	}
 
 	// remove line breaks and extra spaces.

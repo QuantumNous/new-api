@@ -56,6 +56,7 @@ import {
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
+import MultiEndpointBaseUrlEditor from './MultiEndpointBaseUrlEditor';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
@@ -488,6 +489,24 @@ const EditChannelModal = (props) => {
             base_url: 'https://ark.cn-beijing.volces.com',
           }));
           break;
+        case 57: {
+          localModels = getChannelModels(value);
+          const template = JSON.stringify(
+            {
+              openai: 'https://api.openai.com/v1/chat/completions',
+              openai_responses: 'https://api.openai.com/v1/responses',
+            },
+            null,
+            2,
+          );
+          if (!inputs.base_url || String(inputs.base_url).trim() === '') {
+            setInputs((prevInputs) => ({
+              ...prevInputs,
+              base_url: template,
+            }));
+          }
+          break;
+        }
         default:
           localModels = getChannelModels(value);
           break;
@@ -2359,6 +2378,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
+                        inputs.type !== 57 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
@@ -2376,6 +2396,27 @@ const EditChannelModal = (props) => {
                               '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
                             )}
                           />
+                        </div>
+                      )}
+
+                      {inputs.type === 57 && (
+                        <div>
+                          <Form.Slot
+                            label={t('API地址')}
+                          >
+                            <div className='mb-2 text-xs text-gray-600'>
+                              {t(
+                                '使用 JSON 配置：key -> 最终请求地址；左侧端点类型固定；支持变量 {model}。',
+                              )}
+                            </div>
+                            <MultiEndpointBaseUrlEditor
+                              disabled={isIonetLocked}
+                              value={inputs.base_url || ''}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                            />
+                          </Form.Slot>
                         </div>
                       )}
 
