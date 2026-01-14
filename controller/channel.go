@@ -637,71 +637,14 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 		return
 	}
 
-	ch, err := model.GetChannelById(channelId, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if ch == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
-		return
-	}
-	if ch.Type != constant.ChannelTypeCodex {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
-		return
-	}
-
-	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
-		return
-	}
-	if strings.TrimSpace(oauthKey.RefreshToken) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "codex channel: refresh_token is required to refresh credential"})
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 	defer cancel()
 
-	res, err := service.RefreshCodexOAuthToken(ctx, oauthKey.RefreshToken)
+	oauthKey, ch, err := service.RefreshCodexChannelCredential(ctx, channelId, service.CodexCredentialRefreshOptions{ResetCaches: true})
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-
-	oauthKey.AccessToken = res.AccessToken
-	oauthKey.RefreshToken = res.RefreshToken
-	oauthKey.LastRefresh = time.Now().Format(time.RFC3339)
-	oauthKey.Expired = res.ExpiresAt.Format(time.RFC3339)
-	if strings.TrimSpace(oauthKey.Type) == "" {
-		oauthKey.Type = "codex"
-	}
-
-	if strings.TrimSpace(oauthKey.AccountID) == "" {
-		if accountID, ok := service.ExtractCodexAccountIDFromJWT(oauthKey.AccessToken); ok {
-			oauthKey.AccountID = accountID
-		}
-	}
-	if strings.TrimSpace(oauthKey.Email) == "" {
-		if email, ok := service.ExtractEmailFromJWT(oauthKey.AccessToken); ok {
-			oauthKey.Email = email
-		}
-	}
-
-	encoded, err := common.Marshal(oauthKey)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error; err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	model.InitChannelCache()
-	service.ResetProxyClientCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
