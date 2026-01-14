@@ -372,6 +372,10 @@ type ResponsesStreamResponse struct {
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
+	// - response.function_call_arguments.delta
+	// - response.function_call_arguments.done
+	OutputIndex *int   `json:"output_index,omitempty"`
+	ItemID      string `json:"item_id,omitempty"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
