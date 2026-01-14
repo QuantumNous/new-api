@@ -33,7 +33,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   IconAlertTriangle,
-  IconCheckCircle,
+  IconInfoCircle,
   IconCopy,
   IconRefresh,
 } from '@douyinfe/semi-icons';
@@ -469,7 +469,7 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                     <Tag color={selectedStatus.ok ? 'green' : 'red'} size='small'>
                       {selectedStatus.ok ? (
                         <span className='inline-flex items-center gap-1'>
-                          <IconCheckCircle size={12} />
+                          <IconInfoCircle size={12} />
                           {selectedStatus.text}
                         </span>
                       ) : (
