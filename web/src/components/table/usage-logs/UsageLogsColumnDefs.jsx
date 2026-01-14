@@ -498,6 +498,7 @@ export const getLogsColumns = ({
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;
+        let affinity = null;
         if (record.other !== '') {
           let other = JSON.parse(record.other);
           if (other === null) {
@@ -513,9 +514,34 @@ export const getLogsColumns = ({
               let useChannelStr = useChannel.join('->');
               content = t('渠道') + `：${useChannelStr}`;
             }
+            if (other.admin_info.channel_affinity) {
+              affinity = other.admin_info.channel_affinity;
+            }
           }
         }
-        return isAdminUser ? <div>{content}</div> : <></>;
+        return isAdminUser ? (
+          <Space>
+            <div>{content}</div>
+            {affinity ? (
+              <Tooltip
+                content={
+                  `reason=${affinity.reason || 'affinity'}, ` +
+                  `rule=${affinity.rule_name || ''}, ` +
+                  `group=${affinity.selected_group || ''}, ` +
+                  `key=${affinity.key_source || ''}:${affinity.key_path || affinity.key_key || ''}#${affinity.key_fp || ''}`
+                }
+              >
+                <span>
+                  <Tag color='cyan' shape='circle'>
+                    affinity
+                  </Tag>
+                </span>
+              </Tooltip>
+            ) : null}
+          </Space>
+        ) : (
+          <></>
+        );
       },
     },
     {
@@ -552,9 +578,13 @@ export const getLogsColumns = ({
               other.cache_creation_tokens || 0,
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
               other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
               false,
               1.0,
               other?.is_system_prompt_overwritten,

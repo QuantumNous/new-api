@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChannelAffinity';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -76,6 +77,12 @@ const OperationSetting = () => {
     'checkin_setting.enabled': false,
     'checkin_setting.min_quota': 1000,
     'checkin_setting.max_quota': 10000,
+
+    /* Channel affinity */
+    'channel_affinity_setting.enabled': false,
+    'channel_affinity_setting.max_entries': 100000,
+    'channel_affinity_setting.default_ttl_seconds': 3600,
+    'channel_affinity_setting.rules': '[]',
   });
 
   let [loading, setLoading] = useState(false);
@@ -148,6 +155,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* Channel affinity */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
