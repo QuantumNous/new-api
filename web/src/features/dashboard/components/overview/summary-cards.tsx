@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CreditCard } from 'lucide-react'
-import { getSelf, getStatus } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
+import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -9,38 +10,22 @@ import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-
 import { StatCard } from '../ui/stat-card'
 
 export function SummaryCards() {
-  const [self, setSelf] = useState<any>(null)
-  const [status, setStatus] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-    setLoading(true)
-    Promise.all([getSelf().catch(() => null), getStatus().catch(() => null)])
-      .then(([s, st]) => {
-        if (!mounted) return
-        setSelf(s?.data || null)
-        setStatus(st || null)
-      })
-      .catch(() => {})
-      .finally(() => mounted && setLoading(false))
-
-    return () => {
-      mounted = false
-    }
-  }, [])
+  // 使用已缓存的用户数据，避免重复调用 API
+  const user = useAuthStore((state) => state.auth.user)
+  // 使用 React Query 缓存的 status 数据
+  const { status, loading } = useStatus()
 
   const summaryValues = useMemo(() => {
-    const remainQuota = Number(self?.quota ?? 0)
-    const usedQuota = Number(self?.used_quota ?? 0)
-    const requestCount = Number(self?.request_count ?? 0)
+    const remainQuota = Number(user?.quota ?? 0)
+    const usedQuota = Number(user?.used_quota ?? 0)
+    const requestCount = Number(user?.request_count ?? 0)
 
     return {
       remainDisplay: formatQuota(remainQuota),
       usedDisplay: formatQuota(usedQuota),
       requestCountDisplay: formatNumber(requestCount),
     }
-  }, [self])
+  }, [user])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =

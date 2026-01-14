@@ -3,22 +3,31 @@ import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import { AuthenticatedLayout } from '@/components/layout'
 
+// 内存中的验证标记，避免同一会话中重复验证
+let sessionVerified = false
+
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
     const { auth } = useAuthStore.getState()
 
-    // 如果没有用户信息，尝试从 session 获取
-    // 注意：根路由已经在启动时验证过，这里主要处理直接访问受保护路由的情况
+    // 如果本地没有用户信息，直接跳转登录页
     if (!auth.user) {
-      try {
-        const res = await getSelf()
-        if (!res?.success) {
-          throw new Error('unauthorized')
-        }
+      throw redirect({
+        to: '/sign-in',
+        search: { redirect: location.href },
+      })
+    }
+
+    // 本地有用户信息，但需要验证 session 是否有效（每个会话只验证一次）
+    if (!sessionVerified) {
+      const res = await getSelf().catch(() => null)
+      if (res?.success && res.data) {
+        // 验证成功，更新用户信息（可能有变化）
         auth.setUser(res.data)
-      } catch {
-        // Session 无效或未登录，重定向到登录页
-        // 保存当前 URL 以便登录后返回
+        sessionVerified = true
+      } else {
+        // 验证失败或 API 调用失败，清除本地缓存并跳转登录页
+        auth.reset()
         throw redirect({
           to: '/sign-in',
           search: { redirect: location.href },

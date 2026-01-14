@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 
 /**
  * React hook for responsive media queries
@@ -6,22 +6,27 @@ import { useEffect, useState } from 'react'
  * @returns boolean indicating if the query matches
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false)
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      // Return early if window is not available (SSR)
+      if (typeof window === 'undefined') {
+        return () => {}
+      }
 
-  useEffect(() => {
-    const media = window.matchMedia(query)
-
-    // Set initial value
-    if (media.matches !== matches) {
-      setMatches(media.matches)
+      const media = window.matchMedia(query)
+      media.addEventListener('change', onStoreChange)
+      return () => media.removeEventListener('change', onStoreChange)
+    },
+    () => {
+      // Client-side: return the current match state
+      if (typeof window !== 'undefined') {
+        return window.matchMedia(query).matches
+      }
+      return false
+    },
+    () => {
+      // Server-side: return false as fallback
+      return false
     }
-
-    // Listen for changes
-    const listener = () => setMatches(media.matches)
-    media.addEventListener('change', listener)
-
-    return () => media.removeEventListener('change', listener)
-  }, [matches, query])
-
-  return matches
+  )
 }

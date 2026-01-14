@@ -16,7 +16,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,

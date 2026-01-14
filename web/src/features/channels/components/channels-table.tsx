@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table'
 import { useDebounce } from '@/hooks'
 import { useTranslation } from 'react-i18next'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
 import {
