@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -87,6 +88,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			}
 		}
 	}
+
+	// codex: store must be false
+	request.Store = json.RawMessage("false")
 	return request, nil
 }
 
