@@ -2550,6 +2550,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
                         inputs.type !== 57 &&
+                        inputs.type !== 58 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
@@ -2570,7 +2571,7 @@ const EditChannelModal = (props) => {
                         </div>
                       )}
 
-                      {inputs.type === 57 && (
+                      {inputs.type === 58 && (
                         <div>
                           <Form.Slot
                             label={t('API地址')}
