@@ -287,11 +287,37 @@ func GetAllUsers(c *gin.Context) {
 	return
 }
 
+// SearchUsers handles a request to find users by keyword, group, or external identifier filters and returns paginated results.
+// It requires at least one search parameter (keyword, group, or any of the external ID/email filters) and responds with an error if none are provided.
+// On success it populates the page query with matching users and total count and returns that page info.
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	filters := map[string]string{
+		"github_id":   c.Query("github_id"),
+		"discord_id":  c.Query("discord_id"),
+		"oidc_id":     c.Query("oidc_id"),
+		"wechat_id":   c.Query("wechat_id"),
+		"email":       c.Query("email"),
+		"telegram_id": c.Query("telegram_id"),
+		"linux_do_id": c.Query("linux_do_id"),
+	}
+
+	// 检查是否至少有一个搜索条件
+	hasFilter := keyword != "" || group != ""
+	for _, v := range filters {
+		if v != "" {
+			hasFilter = true
+			break
+		}
+	}
+	if !hasFilter {
+		common.ApiErrorMsg(c, "at least one search parameter is required")
+		return
+	}
+
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
