@@ -31,7 +31,7 @@ type GeneralOpenAIRequest struct {
 	Prompt              any               `json:"prompt,omitempty"`
 	Prefix              any               `json:"prefix,omitempty"`
 	Suffix              any               `json:"suffix,omitempty"`
-	Stream              bool              `json:"stream,omitempty"`
+	Stream              bool              `json:"stream"`
 	StreamOptions       *StreamOptions    `json:"stream_options,omitempty"`
 	MaxTokens           uint              `json:"max_tokens,omitempty"`
 	MaxCompletionTokens uint              `json:"max_completion_tokens,omitempty"`
