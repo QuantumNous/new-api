@@ -1,4 +1,4 @@
-import z from 'zod'
+import * as z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { GeneralSettings } from '@/features/system-settings/general'
 import {
