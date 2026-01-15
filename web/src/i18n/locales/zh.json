@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "% off": "折",
     "(Leave empty to dissolve tag)": "（留空以删除标签）",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. 复制应用程序令牌",
     "20 / page": "20 条/页",
     "3. Enter your Gotify server URL and token above": "3. 在上方输入您的 Gotify 服务器 URL 和令牌",
+    "360": "360",
     "50 / page": "50 条/页",
     "? This action cannot be undone.": "？此操作无法撤销。",
     "@lobehub/icons key": "@lobehub/icons 键",
@@ -2255,6 +2255,7 @@
     "User ID:": "用户 ID：",
     "User Info Endpoint (Optional)": "用户信息端点（可选）",
     "User Information": "用户信息",
+    "User Menu": "用户菜单",
     "User Verification": "用户验证",
     "User group name": "用户分组名称",
     "User groups that can access channels with this tag": "可以访问带有此标签的渠道的用户分组",

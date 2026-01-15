@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "% off": "скидка",
     "(Leave empty to dissolve tag)": "(Оставьте пустым, чтобы удалить тег)",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. Скопируйте токен приложения",
     "20 / page": "20 / страница",
     "3. Enter your Gotify server URL and token above": "3. Введите URL вашего сервера Gotify и токен выше",
+    "360": "360",
     "50 / page": "50 / страница",
     "? This action cannot be undone.": "? Это действие невозможно отменить.",
     "@lobehub/icons key": "Ключ @lobehub/icons",
@@ -2255,6 +2255,7 @@
     "User ID:": "ID пользователя:",
     "User Info Endpoint (Optional)": "Конечная точка информации о пользователе (необязательно)",
     "User Information": "Информация о пользователе",
+    "User Menu": "Меню пользователя",
     "User Verification": "Проверка пользователя",
     "User group name": "Название группы пользователей",
     "User groups that can access channels with this tag": "Группы пользователей, которые могут получить доступ к каналам с этим тегом",

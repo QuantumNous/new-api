@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default \":\" us - central 1 \", \"claude -3 -5 - sonnet -20240620 \":\" europe - west 1 \"",
     "% off": "% OFF",
     "(Leave empty to dissolve tag)": "(タグを解除するには空欄のままにしてください)",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. アプリケーショントークンをコピーします",
     "20 / page": "20 / ページ",
     "3. Enter your Gotify server URL and token above": "3. 上記にGotifyサーバーのURLとトークンを入力します",
+    "360": "360",
     "50 / page": "50 / ページ",
     "? This action cannot be undone.": "? この操作は元に戻せません。",
     "@lobehub/icons key": "@lobehub/icons キー",
@@ -2255,6 +2255,7 @@
     "User ID:": "ユーザーID:",
     "User Info Endpoint (Optional)": "ユーザー情報エンドポイント（オプション）",
     "User Information": "ユーザー情報",
+    "User Menu": "ユーザーメニュー",
     "User Verification": "ユーザー認証",
     "User group name": "ユーザーグループ名",
     "User groups that can access channels with this tag": "このタグを持つチャンネルにアクセスできるユーザーグループ",

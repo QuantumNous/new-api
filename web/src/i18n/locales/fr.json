@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "% off": "% de réduction",
     "(Leave empty to dissolve tag)": "(Laisser vide pour dissoudre le tag)",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. Copiez le jeton de l'application",
     "20 / page": "20 / page",
     "3. Enter your Gotify server URL and token above": "3. Saisissez l'URL de votre serveur Gotify et le jeton ci-dessus",
+    "360": "360",
     "50 / page": "50 / page",
     "? This action cannot be undone.": "? Cette action ne peut pas être annulée.",
     "@lobehub/icons key": "@lobehub/icons clé",
@@ -2255,6 +2255,7 @@
     "User ID:": "ID utilisateur :",
     "User Info Endpoint (Optional)": "Point de terminaison d'informations utilisateur (Facultatif)",
     "User Information": "Informations utilisateur",
+    "User Menu": "Menu utilisateur",
     "User Verification": "Vérification de l'utilisateur",
     "User group name": "Nom du groupe d'utilisateurs",
     "User groups that can access channels with this tag": "Groupes d'utilisateurs pouvant accéder aux canaux avec cette balise",

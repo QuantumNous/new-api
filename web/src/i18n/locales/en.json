@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "% off": "% off",
     "(Leave empty to dissolve tag)": "(Leave empty to dissolve tag)",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. Copy the application token",
     "20 / page": "20 / page",
     "3. Enter your Gotify server URL and token above": "3. Enter your Gotify server URL and token above",
+    "360": "360",
     "50 / page": "50 / page",
     "? This action cannot be undone.": "? This action cannot be undone.",
     "@lobehub/icons key": "@lobehub/icons key",
@@ -2255,6 +2255,7 @@
     "User ID:": "User ID:",
     "User Info Endpoint (Optional)": "User Info Endpoint (Optional)",
     "User Information": "User Information",
+    "User Menu": "User Menu",
     "User Verification": "User Verification",
     "User group name": "User group name",
     "User groups that can access channels with this tag": "User groups that can access channels with this tag",
