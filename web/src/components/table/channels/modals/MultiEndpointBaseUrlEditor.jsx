@@ -221,20 +221,6 @@ function stableStringify(mapping) {
   return JSON.stringify(ordered, null, 2);
 }
 
-function applyModelTemplate(value, model) {
-  if (!value) return '';
-  if (!model) return value;
-  return String(value).replaceAll('{model}', model);
-}
-
-function previewRealtimeScheme(value) {
-  if (value.startsWith('https://'))
-    return `wss://${value.slice('https://'.length)}`;
-  if (value.startsWith('http://'))
-    return `ws://${value.slice('http://'.length)}`;
-  return value;
-}
-
 const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
   const { t } = useTranslation();
 
@@ -243,8 +229,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
   const [parseError, setParseError] = useState(parsed.error);
   const [selectedKey, setSelectedKey] = useState('openai');
   const [mode, setMode] = useState('visual');
-  const [rawText, setRawText] = useState(() => (typeof value === 'string' ? value : ''));
-  const [sampleModel, setSampleModel] = useState('gpt-4o-mini');
+  const [rawText, setRawText] = useState(() =>
+    typeof value === 'string' ? value : '',
+  );
   const [quickBase, setQuickBase] = useState('');
 
   useEffect(() => {
@@ -303,7 +290,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
   }, [emit]);
 
   const fillMissingWithBase = useCallback(() => {
-    const base = String(quickBase || '').trim().replace(/\/+$/g, '');
+    const base = String(quickBase || '')
+      .trim()
+      .replace(/\/+$/g, '');
     if (!base) return;
     const next = { ...local };
     ENDPOINTS.forEach((e) => {
@@ -339,13 +328,6 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
   }, [selectedKey]);
 
   const selectedValue = local[selected.key] || '';
-  const selectedPreview = useMemo(() => {
-    const v = applyModelTemplate(selectedValue, sampleModel);
-    if (!v) return '';
-    if (selected.key === 'openai_realtime') return previewRealtimeScheme(v);
-    return v;
-  }, [selected.key, selectedValue, sampleModel]);
-
   const selectedStatus = useMemo(() => {
     if (selectedValue) return { ok: true, text: t('已配置') };
     if (selected.key === 'openai' || selected.key === 'default') {
@@ -359,7 +341,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
       <Space vertical align='start' style={{ width: '100%' }}>
         <Banner
           type='info'
-          description={t('base_url 里填写“最终请求地址”，支持 JSON 按端点拆分；支持变量 {model}。')}
+          description={t(
+            'base_url 里填写“最终请求地址”，支持 JSON 按端点拆分；支持变量 {model}。',
+          )}
           className='!rounded-lg'
         />
 
@@ -443,13 +427,24 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                 >
                   {ENDPOINTS.map((e) => {
                     const configured = Boolean(local[e.key]);
-                    const isRequired = e.key === 'openai' || e.key === 'default';
-                    const tagColor = configured ? 'green' : isRequired ? 'red' : 'grey';
-                    const tagText = configured ? t('已配置') : isRequired ? t('必填') : t('未配置');
+                    const isRequired =
+                      e.key === 'openai' || e.key === 'default';
+                    const tagColor = configured
+                      ? 'green'
+                      : isRequired
+                        ? 'red'
+                        : 'grey';
+                    const tagText = configured
+                      ? t('已配置')
+                      : isRequired
+                        ? t('必填')
+                        : t('未配置');
                     return (
                       <Nav.Item itemKey={e.key} key={e.key}>
                         <div className='flex items-center justify-between w-full'>
-                          <span className='font-mono text-xs'>{e.navLabel || e.titleKey}</span>
+                          <span className='font-mono text-xs'>
+                            {e.navLabel || e.titleKey}
+                          </span>
                           <Tag color={tagColor} size='small'>
                             {tagText}
                           </Tag>
@@ -466,7 +461,10 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                     <Text strong className='font-mono'>
                       {selected.titleKey}
                     </Text>
-                    <Tag color={selectedStatus.ok ? 'green' : 'red'} size='small'>
+                    <Tag
+                      color={selectedStatus.ok ? 'green' : 'red'}
+                      size='small'
+                    >
                       {selectedStatus.ok ? (
                         <span className='inline-flex items-center gap-1'>
                           <IconInfoCircle size={12} />
@@ -489,7 +487,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                     {t('清空')}
                   </Button>
                 </div>
-                <div className='text-xs text-gray-500 mt-1'>{t(selected.descriptionKey)}</div>
+                <div className='text-xs text-gray-500 mt-1'>
+                  {t(selected.descriptionKey)}
+                </div>
 
                 <div className='mt-3'>
                   <Input
@@ -500,44 +500,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                     onChange={(v) => updateKey(selected.key, v)}
                   />
                   <div className='text-xs text-gray-500 mt-1'>
-                    {t('提示：这里填写最终请求地址，不是 Base URL；如需按模型拆分可使用 {model}。')}
-                  </div>
-                </div>
-
-                <Divider margin='12px' />
-
-                <div className='flex items-center justify-between'>
-                  <Text strong>{t('预览')}</Text>
-                </div>
-
-                <div className='mt-2 grid grid-cols-1 gap-3'>
-                  <div>
-                    <div className='text-xs text-gray-500'>{t('示例模型')}</div>
-                    <Input
-                      disabled={disabled}
-                      value={sampleModel}
-                      onChange={(v) => setSampleModel(v)}
-                      showClear
-                    />
-                  </div>
-
-                  <div className='rounded-xl border border-gray-200 p-3'>
-                    <div className='text-xs text-gray-500'>{t('最终请求地址（渲染 {model} 后）')}</div>
-                    <div className='mt-1 break-all font-mono text-xs'>
-                      {selectedPreview || '-'}
-                    </div>
-                    {selected.key === 'openai_realtime' && selectedPreview && (
-                      <div className='text-xs text-gray-500 mt-2'>
-                        {t('Realtime 端点会自动使用 ws/wss 协议；如果你填的是 http/https，这里会自动转换。')}
-                      </div>
+                    {t(
+                      '提示：这里填写最终请求地址，不是 Base URL；如需按模型拆分可使用 {model}。',
                     )}
-                  </div>
-
-                  <div className='rounded-xl border border-gray-200 p-3'>
-                    <div className='text-xs text-gray-500'>{t('当前配置（实际存储）')}</div>
-                    <div className='mt-1 break-all font-mono text-xs'>
-                      {stableStringify(local) || '-'}
-                    </div>
                   </div>
                 </div>
 
@@ -546,7 +511,9 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                 <div className='rounded-xl border border-gray-200 p-3'>
                   <Text strong>{t('快速填充')}</Text>
                   <div className='text-xs text-gray-500 mt-1'>
-                    {t('填一个通用 base（例如 https://api.openai.com），自动补齐缺失端点的标准路径。')}
+                    {t(
+                      '填一个通用 base（例如 https://api.openai.com），自动补齐缺失端点的标准路径。',
+                    )}
                   </div>
                   <div className='mt-2 flex items-center gap-2'>
                     <Input
@@ -556,7 +523,10 @@ const MultiEndpointBaseUrlEditor = ({ value, onChange, disabled = false }) => {
                       showClear
                       onChange={(v) => setQuickBase(v)}
                     />
-                    <Button disabled={disabled || !quickBase.trim()} onClick={fillMissingWithBase}>
+                    <Button
+                      disabled={disabled || !quickBase.trim()}
+                      onClick={fillMissingWithBase}
+                    >
                       {t('补齐缺失')}
                     </Button>
                   </div>

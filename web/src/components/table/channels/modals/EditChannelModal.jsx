@@ -2572,25 +2572,39 @@ const EditChannelModal = (props) => {
                       )}
 
                       {inputs.type === 58 && (
-                        <div>
-                          <Form.Slot
-                            label={t('API地址')}
-                          >
-                            <div className='mb-2 text-xs text-gray-600'>
-                              {t(
-                                '使用 JSON 配置：key -> 最终请求地址；左侧端点类型固定；支持变量 {model}。',
-                              )}
-                            </div>
-                            <MultiEndpointBaseUrlEditor
-                              disabled={isIonetLocked}
-                              value={inputs.base_url || ''}
-                              onChange={(value) =>
-                                handleInputChange('base_url', value)
-                              }
-                            />
-                          </Form.Slot>
-                        </div>
+                          <div>
+                            <Form.Slot label={t('API地址')}>
+                              <div className='flex items-center justify-between gap-3'>
+                                <Space>
+                                  <Tag
+                                      color={
+                                        (inputs.base_url || '').trim()
+                                            ? 'green'
+                                            : 'grey'
+                                      }
+                                  >
+                                    {(inputs.base_url || '').trim()
+                                        ? t('已配置')
+                                        : t('未配置')}
+                                  </Tag>
+                                </Space>
+                                <Button
+                                    icon={<IconSetting />}
+                                    disabled={isIonetLocked}
+                                    onClick={() => {
+                                      setMultiEndpointDraftBaseUrl(
+                                          inputs.base_url || '',
+                                      );
+                                      setMultiEndpointEditorVisible(true);
+                                    }}
+                                >
+                                  {t('编辑端点映射')}
+                                </Button>
+                              </div>
+                            </Form.Slot>
+                          </div>
                       )}
+
 
                     {inputs.type === 22 && (
                       <div>
