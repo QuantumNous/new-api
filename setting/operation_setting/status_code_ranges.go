@@ -14,19 +14,20 @@ type StatusCodeRange struct {
 
 var AutomaticDisableStatusCodeRanges = []StatusCodeRange{{Start: 401, End: 401}}
 
+// Default behavior matches legacy hardcoded retry rules in controller/relay.go shouldRetry:
+// retry for 1xx, 3xx, 4xx(except 400/408), 5xx(except 504/524), and no retry for 2xx.
+var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
+	{Start: 100, End: 199},
+	{Start: 300, End: 399},
+	{Start: 401, End: 407},
+	{Start: 409, End: 499},
+	{Start: 500, End: 503},
+	{Start: 505, End: 523},
+	{Start: 525, End: 599},
+}
+
 func AutomaticDisableStatusCodesToString() string {
-	if len(AutomaticDisableStatusCodeRanges) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, len(AutomaticDisableStatusCodeRanges))
-	for _, r := range AutomaticDisableStatusCodeRanges {
-		if r.Start == r.End {
-			parts = append(parts, strconv.Itoa(r.Start))
-			continue
-		}
-		parts = append(parts, fmt.Sprintf("%d-%d", r.Start, r.End))
-	}
-	return strings.Join(parts, ",")
+	return statusCodeRangesToString(AutomaticDisableStatusCodeRanges)
 }
 
 func AutomaticDisableStatusCodesFromString(s string) error {
@@ -39,10 +40,46 @@ func AutomaticDisableStatusCodesFromString(s string) error {
 }
 
 func ShouldDisableByStatusCode(code int) bool {
+	return shouldMatchStatusCodeRanges(AutomaticDisableStatusCodeRanges, code)
+}
+
+func AutomaticRetryStatusCodesToString() string {
+	return statusCodeRangesToString(AutomaticRetryStatusCodeRanges)
+}
+
+func AutomaticRetryStatusCodesFromString(s string) error {
+	ranges, err := ParseHTTPStatusCodeRanges(s)
+	if err != nil {
+		return err
+	}
+	AutomaticRetryStatusCodeRanges = ranges
+	return nil
+}
+
+func ShouldRetryByStatusCode(code int) bool {
+	return shouldMatchStatusCodeRanges(AutomaticRetryStatusCodeRanges, code)
+}
+
+func statusCodeRangesToString(ranges []StatusCodeRange) string {
+	if len(ranges) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(ranges))
+	for _, r := range ranges {
+		if r.Start == r.End {
+			parts = append(parts, strconv.Itoa(r.Start))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%d-%d", r.Start, r.End))
+	}
+	return strings.Join(parts, ",")
+}
+
+func shouldMatchStatusCodeRanges(ranges []StatusCodeRange, code int) bool {
 	if code < 100 || code > 599 {
 		return false
 	}
-	for _, r := range AutomaticDisableStatusCodeRanges {
+	for _, r := range ranges {
 		if code < r.Start {
 			return false
 		}

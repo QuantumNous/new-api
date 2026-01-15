@@ -1925,6 +1925,8 @@
     "自动禁用关键词": "Automatic disable keywords",
     "自动禁用状态码": "Auto-disable status codes",
     "自动禁用状态码格式不正确": "Invalid auto-disable status code format",
+    "自动重试状态码": "Auto-retry status codes",
+    "自动重试状态码格式不正确": "Invalid auto-retry status code format",
     "支持填写单个状态码或范围（含首尾），使用逗号分隔": "Supports single status codes or inclusive ranges; separate with commas",
     "例如：401, 403, 429, 500-599": "e.g. 401,403,429,500-599",
     "自动选择": "Auto Select",
