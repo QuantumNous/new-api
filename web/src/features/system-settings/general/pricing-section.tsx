@@ -24,7 +24,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -110,8 +110,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <SettingsAccordion
-        value='pricing'
+      <SettingsSection
         title={t('Pricing & Display')}
         description={t('Configure pricing model and display options')}
       >
@@ -337,7 +336,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
             </div>
           </form>
         </Form>
-      </SettingsAccordion>
+      </SettingsSection>
     </>
   )
 }

@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -61,8 +61,7 @@ export function QuotaSettingsSection({
     })
 
   return (
-    <SettingsAccordion
-      value='quota-settings'
+    <SettingsSection
       title={t('Quota Settings')}
       description={t('Configure user quota allocation and rewards')}
     >
@@ -241,6 +240,6 @@ export function QuotaSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

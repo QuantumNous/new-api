@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -84,8 +84,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     <>
       <FormNavigationGuard when={isDirty} />
 
-      <SettingsAccordion
-        value='system-info'
+      <SettingsSection
         title={t('System Information')}
         description={t('Configure basic system information and branding')}
       >
@@ -293,7 +292,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
             </div>
           </form>
         </Form>
-      </SettingsAccordion>
+      </SettingsSection>
     </>
   )
 }
