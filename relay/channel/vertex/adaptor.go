@@ -27,6 +27,7 @@ const (
 	RequestModeClaude = 1
 	RequestModeGemini = 2
 	RequestModeLlama  = 3
+	RequestModeMaas   = 4
 )
 
 var claudeModelMap = map[string]string{
@@ -112,10 +113,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	if strings.HasPrefix(info.UpstreamModelName, "claude") {
 		a.RequestMode = RequestModeClaude
-	} else if strings.Contains(info.UpstreamModelName, "llama") ||
-		// open source models
-		strings.Contains(info.UpstreamModelName, "-maas") {
+	} else if strings.Contains(info.UpstreamModelName, "llama") {
 		a.RequestMode = RequestModeLlama
+	} else if strings.Contains(info.UpstreamModelName, "-maas") {
+		a.RequestMode = RequestModeMaas
 	} else {
 		a.RequestMode = RequestModeGemini
 	}
@@ -169,6 +170,13 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else if a.RequestMode == RequestModeLlama {
 			return fmt.Sprintf(
 				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
+				region,
+				adc.ProjectID,
+				region,
+			), nil
+		} else if a.RequestMode == RequestModeMaas {
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
 				region,
 				adc.ProjectID,
 				region,
@@ -242,7 +250,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			model = v
 		}
 		return a.getRequestUrl(info, model, suffix)
-	} else if a.RequestMode == RequestModeLlama {
+	} else if a.RequestMode == RequestModeLlama || a.RequestMode == RequestModeMaas {
 		return a.getRequestUrl(info, "", "")
 	}
 	return "", errors.New("unsupported request mode")
@@ -340,7 +348,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 		c.Set("request_model", request.Model)
 		return geminiRequest, nil
-	} else if a.RequestMode == RequestModeLlama {
+	} else if a.RequestMode == RequestModeLlama || a.RequestMode == RequestModeMaas {
 		return request, nil
 	}
 	return nil, errors.New("unsupported request mode")
@@ -377,6 +385,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			}
 		case RequestModeLlama:
 			return openai.OaiStreamHandler(c, info, resp)
+		case RequestModeMaas:
+			return openai.OaiStreamHandler(c, info, resp)
 		}
 	} else {
 		switch a.RequestMode {
@@ -392,6 +402,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 				return gemini.GeminiChatHandler(c, info, resp)
 			}
 		case RequestModeLlama:
+			return openai.OpenaiHandler(c, info, resp)
+		case RequestModeMaas:
 			return openai.OpenaiHandler(c, info, resp)
 		}
 	}
