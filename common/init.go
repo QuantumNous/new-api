@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -81,6 +82,16 @@ func InitEnv() {
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
+	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
+	if TLSInsecureSkipVerify {
+		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
+			if tr.TLSClientConfig != nil {
+				tr.TLSClientConfig.InsecureSkipVerify = true
+			} else {
+				tr.TLSClientConfig = InsecureTLSConfig
+			}
+		}
+	}
 
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
