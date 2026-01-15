@@ -1,6 +1,5 @@
 {
   "translation": {
-    "360": "360",
     "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"": "\"default\": \"us-central1\", \"claude-3-5-sonnet-20240620\": \"europe-west1\"",
     "% off": "% off",
     "(Leave empty to dissolve tag)": "Để trống để xóa thẻ.",
@@ -31,6 +30,7 @@
     "2. Copy the application token": "2. Sao chép token ứng dụng",
     "20 / page": "20 / trang",
     "3. Enter your Gotify server URL and token above": "3. Nhập URL máy chủ Gotify và mã thông báo của bạn ở trên",
+    "360": "360",
     "50 / page": "50 / trang",
     "? This action cannot be undone.": "? Hành động này không thể hoàn tác.",
     "@lobehub/icons key": "@lobehub/icons khóa",
@@ -2302,6 +2302,7 @@
     "User ID:": "ID người dùng:",
     "User Info Endpoint (Optional)": "Điểm cuối Thông tin Người dùng (Tùy chọn)",
     "User Information": "Thông tin người dùng",
+    "User Menu": "Menu người dùng",
     "User Verification": "Xác minh người dùng",
     "User dashboard and quota controls.": "Bảng điều khiển người dùng và kiểm soát hạn ngạch.",
     "User group name": "Tên nhóm người dùng",
