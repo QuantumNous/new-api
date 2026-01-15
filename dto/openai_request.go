@@ -896,6 +896,43 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 	return toolsMap
 }
 
+// RemoveReasoningFromInput filters out reasoning-related items from the input array.
+// This is useful when using multiple Azure accounts in round-robin mode, as reasoning
+// items (with rs_ prefixed IDs) are tied to specific account sessions.
+func (r *OpenAIResponsesRequest) RemoveReasoningFromInput() {
+	if len(r.Input) == 0 {
+		return
+	}
+
+	// Check if input is an array
+	if common.GetJsonType(r.Input) != "array" {
+		return
+	}
+
+	var inputArray []map[string]any
+	if err := common.Unmarshal(r.Input, &inputArray); err != nil {
+		return
+	}
+
+	// Filter out reasoning items
+	filteredInput := make([]map[string]any, 0, len(inputArray))
+	for _, item := range inputArray {
+		// Check item type - filter out reasoning types
+		if itemType, ok := item["type"].(string); ok {
+			if strings.HasPrefix(itemType, "reasoning") {
+				continue
+			}
+		}
+
+		filteredInput = append(filteredInput, item)
+	}
+
+	// Re-marshal the filtered input
+	if filteredData, err := common.Marshal(filteredInput); err == nil {
+		r.Input = filteredData
+	}
+}
+
 type Reasoning struct {
 	Effort  string `json:"effort,omitempty"`
 	Summary string `json:"summary,omitempty"`
