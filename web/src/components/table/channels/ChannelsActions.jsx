@@ -52,6 +52,7 @@ const ChannelsActions = ({
   activePage,
   pageSize,
   setActivePage,
+  openChannelAffinitySetting,
   t,
 }) => {
   return (
@@ -162,6 +163,16 @@ const ChannelsActions = ({
                     }}
                   >
                     {t('删除禁用通道')}
+                  </Button>
+                </Dropdown.Item>
+                <Dropdown.Item>
+                  <Button
+                    size='small'
+                    type='tertiary'
+                    className='w-full'
+                    onClick={() => openChannelAffinitySetting?.()}
+                  >
+                    {t('渠道亲和性')}
                   </Button>
                 </Dropdown.Item>
               </Dropdown.Menu>

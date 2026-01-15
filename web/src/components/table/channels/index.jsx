@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Banner } from '@douyinfe/semi-ui';
 import { IconAlertTriangle } from '@douyinfe/semi-icons';
 import CardPro from '../../common/ui/CardPro';
@@ -33,11 +33,14 @@ import ColumnSelectorModal from './modals/ColumnSelectorModal';
 import EditChannelModal from './modals/EditChannelModal';
 import EditTagModal from './modals/EditTagModal';
 import MultiKeyManageModal from './modals/MultiKeyManageModal';
+import ChannelAffinitySettingModal from './modals/ChannelAffinitySettingModal';
 import { createCardProPagination } from '../../../helpers/utils';
 
 const ChannelsPage = () => {
   const channelsData = useChannelsData();
   const isMobile = useIsMobile();
+  const [showChannelAffinitySetting, setShowChannelAffinitySetting] =
+    useState(false);
 
   return (
     <>
@@ -63,6 +66,10 @@ const ChannelsPage = () => {
         channel={channelsData.currentMultiKeyChannel}
         onRefresh={channelsData.refresh}
       />
+      <ChannelAffinitySettingModal
+        visible={showChannelAffinitySetting}
+        onCancel={() => setShowChannelAffinitySetting(false)}
+      />
 
       {/* Main Content */}
       {channelsData.globalPassThroughEnabled ? (
@@ -84,7 +91,14 @@ const ChannelsPage = () => {
       <CardPro
         type='type3'
         tabsArea={<ChannelsTabs {...channelsData} />}
-        actionsArea={<ChannelsActions {...channelsData} />}
+        actionsArea={
+          <ChannelsActions
+            {...channelsData}
+            openChannelAffinitySetting={() =>
+              setShowChannelAffinitySetting(true)
+            }
+          />
+        }
         searchArea={<ChannelsFilters {...channelsData} />}
         paginationArea={createCardProPagination({
           currentPage: channelsData.activePage,
