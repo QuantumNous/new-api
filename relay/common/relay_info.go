@@ -473,6 +473,11 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoResponses(c, request), nil
 		}
 		return nil, errors.New("request is not a OpenAIResponsesRequest")
+	case types.RelayFormatOpenAIResponsesCompaction:
+		if request, ok := request.(*dto.OpenAIResponsesCompactionRequest); ok {
+			return GenRelayInfoResponsesCompaction(c, request), nil
+		}
+		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
 	case types.RelayFormatTask:
 		return genBaseRelayInfo(c, nil), nil
 	case types.RelayFormatMjProxy:
@@ -480,6 +485,15 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	default:
 		return nil, errors.New("invalid relay format")
 	}
+}
+
+func GenRelayInfoResponsesCompaction(c *gin.Context, request *dto.OpenAIResponsesCompactionRequest) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeResponsesCompact
+	}
+	info.RelayFormat = types.RelayFormatOpenAIResponsesCompaction
+	return info
 }
 
 //func (info *RelayInfo) SetPromptTokens(promptTokens int) {
