@@ -55,7 +55,13 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 		return false, nil
 	}
 	var cnt int64
-	err := DB.Model(&Model{}).Where("model_name = ? AND id <> ?", name, id).Count(&cnt).Error
+	var err error
+	// Use case-sensitive comparison for MySQL, PostgreSQL and SQLite are case-sensitive by default
+	if common.UsingMySQL {
+		err = DB.Model(&Model{}).Where("BINARY model_name = ? AND id <> ?", name, id).Count(&cnt).Error
+	} else {
+		err = DB.Model(&Model{}).Where("model_name = ? AND id <> ?", name, id).Count(&cnt).Error
+	}
 	return cnt > 0, err
 }
 
