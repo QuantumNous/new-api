@@ -56,6 +56,7 @@ import {
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
+import MultiEndpointBaseUrlEditor from './MultiEndpointBaseUrlEditor';
 import CodexOAuthModal from './CodexOAuthModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
@@ -185,6 +186,10 @@ const EditChannelModal = (props) => {
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [fetchedModels, setFetchedModels] = useState([]);
   const [ollamaModalVisible, setOllamaModalVisible] = useState(false);
+  const [multiEndpointEditorVisible, setMultiEndpointEditorVisible] =
+    useState(false);
+  const [multiEndpointDraftBaseUrl, setMultiEndpointDraftBaseUrl] =
+    useState('');
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
   const [vertexFileList, setVertexFileList] = useState([]);
@@ -494,6 +499,24 @@ const EditChannelModal = (props) => {
             base_url: 'https://ark.cn-beijing.volces.com',
           }));
           break;
+        case 57: {
+          localModels = getChannelModels(value);
+          const template = JSON.stringify(
+            {
+              openai: 'https://api.openai.com/v1/chat/completions',
+              openai_responses: 'https://api.openai.com/v1/responses',
+            },
+            null,
+            2,
+          );
+          if (!inputs.base_url || String(inputs.base_url).trim() === '') {
+            setInputs((prevInputs) => ({
+              ...prevInputs,
+              base_url: template,
+            }));
+          }
+          break;
+        }
         default:
           localModels = getChannelModels(value);
           break;
@@ -2530,6 +2553,8 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
+                        inputs.type !== 57 &&
+                        inputs.type !== 58 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
@@ -2549,6 +2574,41 @@ const EditChannelModal = (props) => {
                           />
                         </div>
                       )}
+
+                      {inputs.type === 58 && (
+                          <div>
+                            <Form.Slot label={t('API地址')}>
+                              <div className='flex items-center justify-between gap-3'>
+                                <Space>
+                                  <Tag
+                                      color={
+                                        (inputs.base_url || '').trim()
+                                            ? 'green'
+                                            : 'grey'
+                                      }
+                                  >
+                                    {(inputs.base_url || '').trim()
+                                        ? t('已配置')
+                                        : t('未配置')}
+                                  </Tag>
+                                </Space>
+                                <Button
+                                    icon={<IconSetting />}
+                                    disabled={isIonetLocked}
+                                    onClick={() => {
+                                      setMultiEndpointDraftBaseUrl(
+                                          inputs.base_url || '',
+                                      );
+                                      setMultiEndpointEditorVisible(true);
+                                    }}
+                                >
+                                  {t('编辑端点映射')}
+                                </Button>
+                              </div>
+                            </Form.Slot>
+                          </div>
+                      )}
+
 
                     {inputs.type === 22 && (
                       <div>
@@ -3337,6 +3397,38 @@ const EditChannelModal = (props) => {
           warningText={t(
             '请妥善保管密钥信息，不要泄露给他人。如有安全疑虑，请及时更换密钥。',
           )}
+        />
+      </Modal>
+
+      <Modal
+        title={t('编辑端点映射')}
+        visible={multiEndpointEditorVisible}
+        onCancel={() => setMultiEndpointEditorVisible(false)}
+        footer={
+          <Space>
+            <Button onClick={() => setMultiEndpointEditorVisible(false)}>
+              {t('取消')}
+            </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              disabled={isIonetLocked}
+              onClick={() => {
+                handleInputChange('base_url', multiEndpointDraftBaseUrl);
+                setMultiEndpointEditorVisible(false);
+              }}
+            >
+              {t('保存')}
+            </Button>
+          </Space>
+        }
+        width={900}
+        style={{ maxWidth: '90vw' }}
+      >
+        <MultiEndpointBaseUrlEditor
+          disabled={isIonetLocked}
+          value={multiEndpointDraftBaseUrl}
+          onChange={(value) => setMultiEndpointDraftBaseUrl(value)}
         />
       </Modal>
 
