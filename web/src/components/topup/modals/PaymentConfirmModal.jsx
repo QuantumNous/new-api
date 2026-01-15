@@ -122,7 +122,8 @@ const PaymentConfirmModal = ({
                   if (payMethod) {
                     return (
                       <>
-                        {payMethod.type === 'alipay' ? (
+                        {payMethod.type === 'alipay' ||
+                        payMethod.type === 'alipay_f2f' ? (
                           <SiAlipay
                             className='mr-2'
                             size={16}
@@ -156,7 +157,7 @@ const PaymentConfirmModal = ({
                     );
                   } else {
                     // 默认充值方式
-                    if (payWay === 'alipay') {
+                    if (payWay === 'alipay' || payWay === 'alipay_f2f') {
                       return (
                         <>
                           <SiAlipay
