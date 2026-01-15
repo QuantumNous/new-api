@@ -61,7 +61,7 @@ export function GeneralSettings() {
   const sectionContent = getGeneralSectionContent(
     activeSection,
     settings,
-    quotaDisplayType as 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
+    quotaDisplayType
   )
 
   return (
