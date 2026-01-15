@@ -2089,3 +2089,53 @@ func OllamaVersion(c *gin.Context) {
 		},
 	})
 }
+
+// GetChannelStatistics returns statistics for all channels
+func GetChannelStatistics(c *gin.Context) {
+	stats, err := model.GetAllChannelsStatistics()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    stats,
+	})
+}
+
+// GetSingleChannelStatistics returns daily statistics for a single channel
+func GetSingleChannelStatistics(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Invalid channel ID",
+		})
+		return
+	}
+
+	// Get days parameter (default 7 days)
+	days := 7
+	if daysStr := c.Query("days"); daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil && d > 0 {
+			days = d
+		}
+	}
+
+	stats, err := model.GetSingleChannelStatistics(id, days)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    stats,
+	})
+}
