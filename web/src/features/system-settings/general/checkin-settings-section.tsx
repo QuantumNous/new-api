@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
@@ -87,8 +87,7 @@ export function CheckinSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='checkin-settings'
+    <SettingsSection
       title={t('Check-in Settings')}
       description={t('Configure daily check-in rewards for users')}
     >
@@ -182,6 +181,6 @@ export function CheckinSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

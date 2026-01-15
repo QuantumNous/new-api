@@ -9,6 +9,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { type NavGroup } from '../types'
+import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -24,8 +25,8 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
       items: [
         {
           title: t('General'),
-          url: '/system-settings/general',
           icon: Settings,
+          items: getGeneralSectionNavItems(t),
         },
         {
           title: t('Authentication'),

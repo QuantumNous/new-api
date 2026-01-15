@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -55,8 +55,7 @@ export function SystemBehaviorSection({
   }
 
   return (
-    <SettingsAccordion
-      value='system-behavior'
+    <SettingsSection
       title={t('System Behavior')}
       description={t('Configure system-wide behavior and defaults')}
     >
@@ -162,6 +161,6 @@ export function SystemBehaviorSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

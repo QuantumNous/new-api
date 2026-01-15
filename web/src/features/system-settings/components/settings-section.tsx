@@ -1,6 +1,3 @@
-import { memo } from 'react'
-import { Separator } from '@/components/ui/separator'
-
 type SettingsSectionProps = {
   title: string
   description?: string
@@ -8,22 +5,26 @@ type SettingsSectionProps = {
   className?: string
 }
 
-export const SettingsSection = memo(function SettingsSection({
+export function SettingsSection({
   title,
   description,
   children,
   className,
 }: SettingsSectionProps) {
+  const baseClassName = 'space-y-4'
+  const sectionClassName = className
+    ? `${baseClassName} ${className}`
+    : baseClassName
+
   return (
-    <div className={className}>
-      <div className='mb-4'>
-        <h3 className='text-lg font-medium'>{title}</h3>
+    <section className={sectionClassName}>
+      <div className='space-y-1'>
+        <h3 className='text-base font-semibold'>{title}</h3>
         {description && (
-          <p className='text-muted-foreground mt-1 text-sm'>{description}</p>
+          <p className='text-muted-foreground text-sm'>{description}</p>
         )}
       </div>
-      <Separator className='my-4' />
-      <div className='space-y-4'>{children}</div>
-    </div>
+      {children}
+    </section>
   )
-})
+}
