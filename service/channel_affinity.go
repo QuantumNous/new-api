@@ -42,6 +42,15 @@ type channelAffinityMeta struct {
 	RequestPath    string
 }
 
+type ChannelAffinityCacheStats struct {
+	Enabled       bool           `json:"enabled"`
+	Total         int            `json:"total"`
+	Unknown       int            `json:"unknown"`
+	ByRuleName    map[string]int `json:"by_rule_name"`
+	CacheCapacity int            `json:"cache_capacity"`
+	CacheAlgo     string         `json:"cache_algo"`
+}
+
 func getChannelAffinityCache() *hot.HotCache[string, int] {
 	channelAffinityCacheOnce.Do(func() {
 		setting := operation_setting.GetChannelAffinitySetting()
@@ -59,6 +68,134 @@ func getChannelAffinityCache() *hot.HotCache[string, int] {
 			Build()
 	})
 	return channelAffinityCache
+}
+
+func GetChannelAffinityCacheStats() ChannelAffinityCacheStats {
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return ChannelAffinityCacheStats{
+			Enabled:    false,
+			Total:      0,
+			Unknown:    0,
+			ByRuleName: map[string]int{},
+		}
+	}
+
+	cache := getChannelAffinityCache()
+	mainCap, _ := cache.Capacity()
+	mainAlgo, _ := cache.Algorithm()
+
+	rules := setting.Rules
+	ruleByName := make(map[string]operation_setting.ChannelAffinityRule, len(rules))
+	for _, r := range rules {
+		name := strings.TrimSpace(r.Name)
+		if name == "" {
+			continue
+		}
+		if !r.IncludeRuleName {
+			continue
+		}
+		ruleByName[name] = r
+	}
+
+	byRuleName := make(map[string]int, len(ruleByName))
+	for name := range ruleByName {
+		byRuleName[name] = 0
+	}
+
+	all := cache.All()
+	total := len(all)
+	unknown := 0
+	for k := range all {
+		parts := strings.Split(k, ":")
+		if len(parts) < 4 {
+			unknown++
+			continue
+		}
+		if parts[0] != "channel_affinity" || parts[1] != "v1" {
+			unknown++
+			continue
+		}
+		ruleName := parts[2]
+		rule, ok := ruleByName[ruleName]
+		if !ok {
+			unknown++
+			continue
+		}
+		if rule.IncludeUsingGroup {
+			if len(parts) < 5 {
+				unknown++
+				continue
+			}
+		}
+		byRuleName[ruleName]++
+	}
+
+	return ChannelAffinityCacheStats{
+		Enabled:       setting.Enabled,
+		Total:         total,
+		Unknown:       unknown,
+		ByRuleName:    byRuleName,
+		CacheCapacity: mainCap,
+		CacheAlgo:     mainAlgo,
+	}
+}
+
+func ClearChannelAffinityCacheAll() int {
+	cache := getChannelAffinityCache()
+	keys := cache.Keys()
+	cache.Purge()
+	return len(keys)
+}
+
+func ClearChannelAffinityCacheByRuleName(ruleName string) (int, error) {
+	ruleName = strings.TrimSpace(ruleName)
+	if ruleName == "" {
+		return 0, fmt.Errorf("rule_name 不能为空")
+	}
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil {
+		return 0, fmt.Errorf("channel_affinity_setting 未初始化")
+	}
+
+	var matchedRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		r := &setting.Rules[i]
+		if strings.TrimSpace(r.Name) != ruleName {
+			continue
+		}
+		matchedRule = r
+		break
+	}
+	if matchedRule == nil {
+		return 0, fmt.Errorf("未知规则名称")
+	}
+	if !matchedRule.IncludeRuleName {
+		return 0, fmt.Errorf("该规则未启用 include_rule_name，无法按规则清空缓存")
+	}
+
+	prefix := "channel_affinity:v1:" + ruleName + ":"
+	cache := getChannelAffinityCache()
+	keys := cache.Keys()
+	toDelete := make([]string, 0, 128)
+	for _, k := range keys {
+		if strings.HasPrefix(k, prefix) {
+			toDelete = append(toDelete, k)
+		}
+	}
+	if len(toDelete) == 0 {
+		return 0, nil
+	}
+
+	res := cache.DeleteMany(toDelete)
+	deleted := 0
+	for _, ok := range res {
+		if ok {
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 func matchAnyRegexCached(patterns []string, s string) bool {
@@ -79,6 +216,23 @@ func matchAnyRegexCached(patterns []string, s string) bool {
 			channelAffinityRegexCache.Store(pattern, re)
 		}
 		if re.(*regexp.Regexp).MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchAnyIncludeFold(patterns []string, s string) bool {
+	if len(patterns) == 0 || s == "" {
+		return false
+	}
+	sLower := strings.ToLower(s)
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if strings.Contains(sLower, strings.ToLower(p)) {
 			return true
 		}
 	}
@@ -192,12 +346,19 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 	if c != nil && c.Request != nil && c.Request.URL != nil {
 		path = c.Request.URL.Path
 	}
+	userAgent := ""
+	if c != nil && c.Request != nil {
+		userAgent = c.Request.UserAgent()
+	}
 
 	for _, rule := range setting.Rules {
 		if !matchAnyRegexCached(rule.ModelRegex, modelName) {
 			continue
 		}
 		if len(rule.PathRegex) > 0 && !matchAnyRegexCached(rule.PathRegex, path) {
+			continue
+		}
+		if len(rule.UserAgentInclude) > 0 && !matchAnyIncludeFold(rule.UserAgentInclude, userAgent) {
 			continue
 		}
 		var affinityValue string
@@ -257,7 +418,7 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 		return
 	}
 	info := map[string]interface{}{
-		"reason":         "affinity",
+		"reason":         meta.RuleName,
 		"rule_name":      meta.RuleName,
 		"using_group":    meta.UsingGroup,
 		"selected_group": selectedGroup,

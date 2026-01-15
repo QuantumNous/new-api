@@ -32,7 +32,13 @@ import {
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconDelete, IconEdit, IconPlus } from '@douyinfe/semi-icons';
+import {
+  IconClose,
+  IconDelete,
+  IconEdit,
+  IconPlus,
+  IconRefresh,
+} from '@douyinfe/semi-icons';
 import {
   API,
   compareObjects,
@@ -54,6 +60,35 @@ const KEY_SOURCE_TYPES = [
   { label: 'context_string', value: 'context_string' },
   { label: 'gjson', value: 'gjson' },
 ];
+
+const CONTEXT_KEY_PRESETS = [
+  { key: 'id', label: 'id（用户 ID）' },
+  { key: 'token_id', label: 'token_id' },
+  { key: 'token_key', label: 'token_key' },
+  { key: 'token_group', label: 'token_group' },
+  { key: 'group', label: 'group（using_group）' },
+  { key: 'username', label: 'username' },
+  { key: 'user_group', label: 'user_group' },
+  { key: 'user_email', label: 'user_email' },
+  { key: 'specific_channel_id', label: 'specific_channel_id' },
+];
+
+const RULES_JSON_PLACEHOLDER = `[
+  {
+    "name": "prefer-by-conversation-id",
+    "model_regex": ["^gpt-.*$"],
+    "path_regex": ["/v1/chat/completions"],
+    "user_agent_include": ["curl", "PostmanRuntime"],
+    "key_sources": [
+      { "type": "gjson", "path": "metadata.conversation_id" },
+      { "type": "context_string", "key": "conversation_id" }
+    ],
+    "value_regex": "^[-0-9A-Za-z._:]{1,128}$",
+    "ttl_seconds": 600,
+    "include_using_group": true,
+    "include_rule_name": true
+  }
+]`;
 
 const normalizeStringList = (text) => {
   if (!text) return [];
@@ -94,10 +129,33 @@ const normalizeKeySource = (src) => {
   return { type, key, path };
 };
 
+const tryParseRulesJsonArray = (jsonString) => {
+  const raw = jsonString || '[]';
+  if (!verifyJSON(raw)) return { ok: false, message: 'Rules JSON is invalid' };
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed))
+      return { ok: false, message: 'Rules JSON must be an array' };
+    return { ok: true, value: parsed };
+  } catch (e) {
+    return { ok: false, message: 'Rules JSON is invalid' };
+  }
+};
+
 export default function SettingsChannelAffinity(props) {
   const { t } = useTranslation();
   const { Text } = Typography;
   const [loading, setLoading] = useState(false);
+
+  const [cacheLoading, setCacheLoading] = useState(false);
+  const [cacheStats, setCacheStats] = useState({
+    enabled: false,
+    total: 0,
+    unknown: 0,
+    by_rule_name: {},
+    cache_capacity: 0,
+    cache_algo: '',
+  });
 
   const [inputs, setInputs] = useState({
     [KEY_ENABLED]: false,
@@ -114,6 +172,93 @@ export default function SettingsChannelAffinity(props) {
   const [editingRule, setEditingRule] = useState(null);
   const [isEdit, setIsEdit] = useState(false);
   const modalFormRef = useRef();
+
+  const refreshCacheStats = async () => {
+    try {
+      setCacheLoading(true);
+      const res = await API.get('/api/option/channel_affinity_cache', {
+        disableDuplicate: true,
+      });
+      const { success, message, data } = res.data;
+      if (!success) return showError(t(message));
+      setCacheStats(data || {});
+    } catch (e) {
+      showError(t('刷新缓存统计失败'));
+    } finally {
+      setCacheLoading(false);
+    }
+  };
+
+  const confirmClearAllCache = () => {
+    Modal.confirm({
+      title: t('确认清空全部渠道亲和性缓存'),
+      content: (
+        <div style={{ lineHeight: '1.6' }}>
+          <Text>{t('将删除所有仍在内存中的渠道亲和性缓存条目。')}</Text>
+        </div>
+      ),
+      onOk: async () => {
+        const res = await API.delete('/api/option/channel_affinity_cache', {
+          params: { all: true },
+        });
+        const { success, message } = res.data;
+        if (!success) {
+          showError(t(message));
+          return;
+        }
+        showSuccess(t('已清空'));
+        await refreshCacheStats();
+      },
+    });
+  };
+
+  const confirmClearRuleCache = (rule) => {
+    const name = (rule?.name || '').trim();
+    if (!name) return;
+    if (!rule?.include_rule_name) {
+      showWarning(t('该规则未启用“作用域：包含规则名称”，无法按规则清空缓存。'));
+      return;
+    }
+    Modal.confirm({
+      title: t('确认清空该规则缓存'),
+      content: (
+        <div style={{ lineHeight: '1.6' }}>
+          <Text>{t('规则')}：</Text> <Text strong>{name}</Text>
+        </div>
+      ),
+      onOk: async () => {
+        const res = await API.delete('/api/option/channel_affinity_cache', {
+          params: { rule_name: name },
+        });
+        const { success, message } = res.data;
+        if (!success) {
+          showError(t(message));
+          return;
+        }
+        showSuccess(t('已清空'));
+        await refreshCacheStats();
+      },
+    });
+  };
+
+  const setRulesJsonToForm = (jsonString) => {
+    if (!refForm.current) return;
+    refForm.current.setValues({ [KEY_RULES]: jsonString || '[]' });
+  };
+
+  const switchToJsonMode = () => {
+    setRulesJsonToForm(inputs[KEY_RULES]);
+    setEditMode('json');
+  };
+
+  const switchToVisualMode = () => {
+    const validation = tryParseRulesJsonArray(inputs[KEY_RULES] || '[]');
+    if (!validation.ok) {
+      showError(t(validation.message));
+      return;
+    }
+    setEditMode('visual');
+  };
 
   const updateRulesState = (nextRules) => {
     setRules(nextRules);
@@ -155,6 +300,18 @@ export default function SettingsChannelAffinity(props) {
           : '-',
     },
     {
+      title: t('User-Agent include'),
+      dataIndex: 'user_agent_include',
+      render: (list) =>
+        (list || []).length > 0
+          ? (list || []).slice(0, 2).map((v, idx) => (
+              <Tag key={`${v}-${idx}`} style={{ marginRight: 4 }}>
+                {v}
+              </Tag>
+            ))
+          : '-',
+    },
+    {
       title: t('Key 来源'),
       dataIndex: 'key_sources',
       render: (list) => {
@@ -177,6 +334,17 @@ export default function SettingsChannelAffinity(props) {
       render: (v) => <Text>{Number(v || 0) || '-'}</Text>,
     },
     {
+      title: t('缓存条目数'),
+      render: (_, record) => {
+        const name = (record?.name || '').trim();
+        if (!name || !record?.include_rule_name) {
+          return <Text type='tertiary'>N/A</Text>;
+        }
+        const n = Number(cacheStats?.by_rule_name?.[name] || 0);
+        return <Text>{n}</Text>;
+      },
+    },
+    {
       title: t('作用域'),
       render: (_, record) => {
         const tags = [];
@@ -194,6 +362,14 @@ export default function SettingsChannelAffinity(props) {
       title: t('操作'),
       render: (_, record) => (
         <Space>
+          <Button
+            icon={<IconClose />}
+            theme='borderless'
+            type='warning'
+            disabled={!record?.include_rule_name}
+            title={t('清空该规则缓存')}
+            onClick={() => confirmClearRuleCache(record)}
+          />
           <Button
             icon={<IconEdit />}
             theme='borderless'
@@ -230,6 +406,7 @@ export default function SettingsChannelAffinity(props) {
       name: '',
       model_regex: [],
       path_regex: [],
+      user_agent_include: [],
       key_sources: [{ type: 'gjson', path: '' }],
       value_regex: '',
       ttl_seconds: 0,
@@ -244,6 +421,7 @@ export default function SettingsChannelAffinity(props) {
         name: '',
         model_regex_text: '',
         path_regex_text: '',
+        user_agent_include_text: '',
         value_regex: '',
         ttl_seconds: 0,
         include_using_group: true,
@@ -256,6 +434,9 @@ export default function SettingsChannelAffinity(props) {
     const r = rule || {};
     setEditingRule({
       ...r,
+      user_agent_include: Array.isArray(r.user_agent_include)
+        ? r.user_agent_include
+        : [],
       key_sources: (r.key_sources || []).map(normalizeKeySource),
     });
     setIsEdit(true);
@@ -266,6 +447,7 @@ export default function SettingsChannelAffinity(props) {
         name: r.name || '',
         model_regex_text: (r.model_regex || []).join('\n'),
         path_regex_text: (r.path_regex || []).join('\n'),
+        user_agent_include_text: (r.user_agent_include || []).join('\n'),
         value_regex: r.value_regex || '',
         ttl_seconds: Number(r.ttl_seconds || 0),
         include_using_group: !!r.include_using_group,
@@ -295,6 +477,7 @@ export default function SettingsChannelAffinity(props) {
         name: (values.name || '').trim(),
         model_regex: modelRegex,
         path_regex: normalizeStringList(values.path_regex_text),
+        user_agent_include: normalizeStringList(values.user_agent_include_text),
         key_sources: keySourcesValidation.value,
         value_regex: (values.value_regex || '').trim(),
         ttl_seconds: Number(values.ttl_seconds || 0),
@@ -411,6 +594,7 @@ export default function SettingsChannelAffinity(props) {
     setInputsRow(structuredClone(currentInputs));
     if (refForm.current) refForm.current.setValues(currentInputs);
     setRules(parseRulesJson(currentInputs[KEY_RULES]));
+    refreshCacheStats();
   }, [props.options]);
 
   useEffect(() => {
@@ -451,12 +635,19 @@ export default function SettingsChannelAffinity(props) {
                     setInputs({ ...inputs, [KEY_ENABLED]: value })
                   }
                 />
+                <Text type='tertiary' size='small'>
+                  {t('启用后将优先复用上一次成功的渠道（粘滞选路）。')}
+                </Text>
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   field={KEY_MAX_ENTRIES}
                   label={t('最大条目数')}
                   min={0}
+                  placeholder='例如 100000'
+                  extraText={t(
+                    '内存缓存最大条目数，0 表示使用默认容量。',
+                  )}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -470,6 +661,10 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_DEFAULT_TTL}
                   label={t('默认 TTL（秒）')}
                   min={0}
+                  placeholder='例如 3600'
+                  extraText={t(
+                    '当规则 ttl_seconds 为 0（或未设置）时使用该默认 TTL。',
+                  )}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -485,13 +680,13 @@ export default function SettingsChannelAffinity(props) {
             <Space style={{ marginBottom: 10 }}>
               <Button
                 type={editMode === 'visual' ? 'primary' : 'tertiary'}
-                onClick={() => setEditMode('visual')}
+                onClick={switchToVisualMode}
               >
                 {t('可视化')}
               </Button>
               <Button
                 type={editMode === 'json' ? 'primary' : 'tertiary'}
-                onClick={() => setEditMode('json')}
+                onClick={switchToJsonMode}
               >
                 {t('JSON 模式')}
               </Button>
@@ -501,6 +696,31 @@ export default function SettingsChannelAffinity(props) {
               <Button theme='solid' onClick={onSubmit}>
                 {t('保存')}
               </Button>
+              <Button
+                icon={<IconRefresh />}
+                loading={cacheLoading}
+                onClick={refreshCacheStats}
+              >
+                {t('刷新缓存统计')}
+              </Button>
+              <Button type='danger' onClick={confirmClearAllCache}>
+                {t('清空全部缓存')}
+              </Button>
+            </Space>
+
+            <Space style={{ marginBottom: 10 }}>
+              <Tag color='blue'>
+                {t('缓存总数')}：{Number(cacheStats?.total || 0)}
+              </Tag>
+              <Tag color='orange'>
+                {t('无法归属')}：{Number(cacheStats?.unknown || 0)}
+              </Tag>
+              <Tag>
+                {t('算法')}：{cacheStats?.cache_algo || '-'}
+              </Tag>
+              <Tag>
+                {t('容量')}：{Number(cacheStats?.cache_capacity || 0)}
+              </Tag>
             </Space>
 
             {editMode === 'visual' ? (
@@ -515,6 +735,10 @@ export default function SettingsChannelAffinity(props) {
               <Form.TextArea
                 field={KEY_RULES}
                 label={t('规则 JSON')}
+                extraText={t(
+                  '规则为 JSON 数组；可视化与 JSON 模式共用同一份数据。',
+                )}
+                placeholder={RULES_JSON_PLACEHOLDER}
                 style={{ width: '100%' }}
                 autosize={{ minRows: 10, maxRows: 28 }}
                 rules={[
@@ -544,6 +768,8 @@ export default function SettingsChannelAffinity(props) {
           <Form.Input
             field='name'
             label={t('名称')}
+            extraText={t('规则名称（可读性更好，也会出现在管理侧日志中）。')}
+            placeholder='例如 prefer-by-conversation-id'
             rules={[{ required: true }]}
             onChange={(value) =>
               setEditingRule((prev) => ({ ...(prev || {}), name: value }))
@@ -555,6 +781,10 @@ export default function SettingsChannelAffinity(props) {
               <Form.TextArea
                 field='model_regex_text'
                 label={t('模型正则（每行一个）')}
+                extraText={t(
+                  '必填。对请求的 model 名称进行匹配，任意一条匹配即命中该规则。',
+                )}
+                placeholder={'^gpt-4o.*$\n^claude-3.*$'}
                 autosize={{ minRows: 4, maxRows: 10 }}
                 rules={[{ required: true }]}
               />
@@ -563,7 +793,25 @@ export default function SettingsChannelAffinity(props) {
               <Form.TextArea
                 field='path_regex_text'
                 label={t('路径正则（每行一个）')}
+                extraText={t(
+                  '可选。对请求路径进行匹配；不填表示匹配所有路径。',
+                )}
+                placeholder={'/v1/chat/completions\n/v1/responses'}
                 autosize={{ minRows: 4, maxRows: 10 }}
+              />
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24}>
+              <Form.TextArea
+                field='user_agent_include_text'
+                label={t('User-Agent include（每行一个，可不写）')}
+                extraText={t(
+                  '可选。根据入口请求的 User-Agent 判断；任意一行作为子串匹配（忽略大小写）即命中。',
+                )}
+                placeholder={'curl\nPostmanRuntime\nMyApp/'}
+                autosize={{ minRows: 3, maxRows: 8 }}
               />
             </Col>
           </Row>
@@ -574,12 +822,19 @@ export default function SettingsChannelAffinity(props) {
                 field='value_regex'
                 label={t('Value 正则')}
                 placeholder='^[-0-9A-Za-z._:]{1,128}$'
+                extraText={t(
+                  '可选。对提取到的亲和 Key 做正则校验；不填表示不校验。',
+                )}
               />
             </Col>
             <Col xs={24} sm={12}>
               <Form.InputNumber
                 field='ttl_seconds'
                 label={t('TTL（秒，0 表示默认）')}
+                extraText={t(
+                  '该规则的缓存保留时长；0 表示使用默认 TTL。',
+                )}
+                placeholder='例如 600'
                 min={0}
               />
             </Col>
@@ -591,12 +846,18 @@ export default function SettingsChannelAffinity(props) {
                 field='include_using_group'
                 label={t('作用域：包含分组')}
               />
+              <Text type='tertiary' size='small'>
+                {t('开启后，using_group 会参与 cache key（不同分组隔离）。')}
+              </Text>
             </Col>
             <Col xs={24} sm={12}>
               <Form.Switch
                 field='include_rule_name'
                 label={t('作用域：包含规则名称')}
               />
+              <Text type='tertiary' size='small'>
+                {t('开启后，规则名称会参与 cache key（不同规则隔离）。')}
+              </Text>
             </Col>
           </Row>
 
@@ -607,6 +868,23 @@ export default function SettingsChannelAffinity(props) {
               {t('新增 Key 来源')}
             </Button>
           </Space>
+          <Text type='tertiary' size='small'>
+            {t(
+              'context_int/context_string 从请求上下文读取；gjson 从入口请求的 JSON body 按 gjson path 读取。',
+            )}
+          </Text>
+          <div style={{ marginTop: 8, marginBottom: 8 }}>
+            <Text type='tertiary' size='small'>
+              {t('常用上下文 Key（用于 context_*）')}：
+            </Text>
+            <div style={{ marginTop: 6 }}>
+              {(CONTEXT_KEY_PRESETS || []).map((x) => (
+                <Tag key={x.key} style={{ marginRight: 6, marginBottom: 6 }}>
+                  {x.label}
+                </Tag>
+              ))}
+            </div>
+          </div>
 
           <Table
             columns={[
@@ -634,7 +912,9 @@ export default function SettingsChannelAffinity(props) {
                   return (
                     <Form.Input
                       field={`ks_value_${idx}`}
-                      placeholder={isGjson ? 'metadata.conversation_id' : 'id'}
+                      placeholder={
+                        isGjson ? 'metadata.conversation_id' : 'user_id'
+                      }
                       value={isGjson ? src.path : src.key}
                       onChange={(value) =>
                         updateKeySource(

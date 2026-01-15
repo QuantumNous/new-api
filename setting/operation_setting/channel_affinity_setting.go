@@ -9,10 +9,11 @@ type ChannelAffinityKeySource struct {
 }
 
 type ChannelAffinityRule struct {
-	Name       string                     `json:"name"`
-	ModelRegex []string                   `json:"model_regex"`
-	PathRegex  []string                   `json:"path_regex"`
-	KeySources []ChannelAffinityKeySource `json:"key_sources"`
+	Name             string                     `json:"name"`
+	ModelRegex       []string                   `json:"model_regex"`
+	PathRegex        []string                   `json:"path_regex"`
+	UserAgentInclude []string                   `json:"user_agent_include,omitempty"`
+	KeySources       []ChannelAffinityKeySource `json:"key_sources"`
 
 	ValueRegex string `json:"value_regex"`
 	TTLSeconds int    `json:"ttl_seconds"`
