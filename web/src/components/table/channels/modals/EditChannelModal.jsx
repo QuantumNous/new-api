@@ -186,6 +186,10 @@ const EditChannelModal = (props) => {
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [fetchedModels, setFetchedModels] = useState([]);
   const [ollamaModalVisible, setOllamaModalVisible] = useState(false);
+  const [multiEndpointEditorVisible, setMultiEndpointEditorVisible] =
+    useState(false);
+  const [multiEndpointDraftBaseUrl, setMultiEndpointDraftBaseUrl] =
+    useState('');
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
   const [vertexFileList, setVertexFileList] = useState([]);
@@ -3393,6 +3397,38 @@ const EditChannelModal = (props) => {
           warningText={t(
             '请妥善保管密钥信息，不要泄露给他人。如有安全疑虑，请及时更换密钥。',
           )}
+        />
+      </Modal>
+
+      <Modal
+        title={t('编辑端点映射')}
+        visible={multiEndpointEditorVisible}
+        onCancel={() => setMultiEndpointEditorVisible(false)}
+        footer={
+          <Space>
+            <Button onClick={() => setMultiEndpointEditorVisible(false)}>
+              {t('取消')}
+            </Button>
+            <Button
+              type='primary'
+              theme='solid'
+              disabled={isIonetLocked}
+              onClick={() => {
+                handleInputChange('base_url', multiEndpointDraftBaseUrl);
+                setMultiEndpointEditorVisible(false);
+              }}
+            >
+              {t('保存')}
+            </Button>
+          </Space>
+        }
+        width={900}
+        style={{ maxWidth: '90vw' }}
+      >
+        <MultiEndpointBaseUrlEditor
+          disabled={isIonetLocked}
+          value={multiEndpointDraftBaseUrl}
+          onChange={(value) => setMultiEndpointDraftBaseUrl(value)}
         />
       </Modal>
 
