@@ -1,4 +1,23 @@
 import type { NavItem, NavCollapsible } from '../types'
+import type { LinkProps } from '@tanstack/react-router'
+
+/**
+ * Convert LinkProps['to'] to string
+ * Handles both string URLs and object URLs (e.g., { pathname, search })
+ */
+function urlToString(url: LinkProps['to'] | (string & {})): string | null {
+  if (typeof url === 'string') {
+    return url
+  }
+  if (url && typeof url === 'object' && !Array.isArray(url)) {
+    // Handle object URLs like { pathname: string, search?: string }
+    const urlObj = url as Record<string, unknown>
+    const pathname = typeof urlObj.pathname === 'string' ? urlObj.pathname : ''
+    const search = typeof urlObj.search === 'string' ? urlObj.search : ''
+    return pathname + search
+  }
+  return null
+}
 
 /**
  * Normalize URL by removing query parameters and trailing slashes
@@ -32,14 +51,16 @@ export function checkIsActive(
     if (
       items.some((i) => {
         if (!i?.url) return false
-        if (href === i.url) return true
-        const subItemUrlWithoutQuery = i.url.split('?')[0]
-        const subItemUrlHasQuery = i.url.includes('?')
+        const subItemUrl = urlToString(i.url)
+        if (!subItemUrl) return false
+        if (href === subItemUrl) return true
+        const subItemUrlWithoutQuery = subItemUrl.split('?')[0]
+        const subItemUrlHasQuery = subItemUrl.includes('?')
         if (subItemUrlWithoutQuery === hrefWithoutQuery) {
           // If sub-item URL has no query params, only match if href also has no query params
           if (!subItemUrlHasQuery && !hrefHasQuery) return true
           // If sub-item URL has query params, they must match exactly
-          if (subItemUrlHasQuery && href === i.url) return true
+          if (subItemUrlHasQuery && href === subItemUrl) return true
         }
         return false
       })
@@ -50,13 +71,16 @@ export function checkIsActive(
   // For regular link items, check the item's URL
   if (!item.url) return false
 
+  const itemUrl = urlToString(item.url)
+  if (!itemUrl) return false
+
   // Exact match
-  if (href === item.url) return true
+  if (href === itemUrl) return true
 
   const hrefWithoutQuery = href.split('?')[0]
-  const itemUrlWithoutQuery = item.url.split('?')[0]
+  const itemUrlWithoutQuery = itemUrl.split('?')[0]
   const hrefHasQuery = href.includes('?')
-  const itemUrlHasQuery = item.url.includes('?')
+  const itemUrlHasQuery = itemUrl.includes('?')
 
   // If both URLs have the same base path
   if (hrefWithoutQuery === itemUrlWithoutQuery) {
@@ -64,13 +88,13 @@ export function checkIsActive(
     // This prevents /system-settings/auth from matching /system-settings/auth?section=xxx
     if (!itemUrlHasQuery && !hrefHasQuery) return true
     // If item.url has query params, they must match exactly
-    if (itemUrlHasQuery && href === item.url) return true
+    if (itemUrlHasQuery && href === itemUrl) return true
   }
 
   // Main navigation match (matches first-level path)
-  if (mainNav && href.split('/')[1] && item.url) {
+  if (mainNav && href.split('/')[1] && itemUrl) {
     const hrefFirstPath = href.split('/')[1]
-    const itemFirstPath = item.url.split('/')[1]
+    const itemFirstPath = itemUrl.split('/')[1]
     return hrefFirstPath === itemFirstPath
   }
 
