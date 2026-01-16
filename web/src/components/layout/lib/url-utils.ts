@@ -21,6 +21,33 @@ export function checkIsActive(
   item: NavItem,
   mainNav = false
 ): boolean {
+  // For collapsible items (NavCollapsible), check sub-items first
+  if ('items' in item && item.items) {
+    const collapsibleItem = item as NavCollapsible
+    const items = collapsibleItem.items
+    const hrefWithoutQuery = href.split('?')[0]
+    const hrefHasQuery = href.includes('?')
+    
+    // Check if any sub-item matches
+    if (
+      items.some((i) => {
+        if (!i?.url) return false
+        if (href === i.url) return true
+        const subItemUrlWithoutQuery = i.url.split('?')[0]
+        const subItemUrlHasQuery = i.url.includes('?')
+        if (subItemUrlWithoutQuery === hrefWithoutQuery) {
+          // If sub-item URL has no query params, only match if href also has no query params
+          if (!subItemUrlHasQuery && !hrefHasQuery) return true
+          // If sub-item URL has query params, they must match exactly
+          if (subItemUrlHasQuery && href === i.url) return true
+        }
+        return false
+      })
+    )
+      return true
+  }
+
+  // For regular link items, check the item's URL
   if (!item.url) return false
 
   // Exact match
@@ -38,28 +65,6 @@ export function checkIsActive(
     if (!itemUrlHasQuery && !hrefHasQuery) return true
     // If item.url has query params, they must match exactly
     if (itemUrlHasQuery && href === item.url) return true
-  }
-
-  // Sub-item is active - check with same logic as above
-  if ('items' in item && item.items) {
-    const collapsibleItem = item as NavCollapsible
-    const items = collapsibleItem.items
-    if (
-      items.some((i) => {
-        if (!i?.url) return false
-        if (href === i.url) return true
-        const subItemUrlWithoutQuery = i.url.split('?')[0]
-        const subItemUrlHasQuery = i.url.includes('?')
-        if (subItemUrlWithoutQuery === hrefWithoutQuery) {
-          // If sub-item URL has no query params, only match if href also has no query params
-          if (!subItemUrlHasQuery && !hrefHasQuery) return true
-          // If sub-item URL has query params, they must match exactly
-          if (subItemUrlHasQuery && href === i.url) return true
-        }
-        return false
-      })
-    )
-      return true
   }
 
   // Main navigation match (matches first-level path)
