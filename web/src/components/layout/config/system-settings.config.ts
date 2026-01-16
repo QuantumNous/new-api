@@ -12,6 +12,7 @@ import { type NavGroup } from '../types'
 import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
 import { getRequestLimitsSectionNavItems } from '@/features/system-settings/request-limits/section-registry.tsx'
+import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -42,8 +43,8 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         },
         {
           title: t('Content'),
-          url: '/system-settings/content',
           icon: Layout,
+          items: getContentSectionNavItems(t),
         },
         {
           title: t('Integrations'),

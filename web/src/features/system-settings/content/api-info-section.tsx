@@ -52,7 +52,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 type ApiInfo = {
@@ -256,8 +256,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='api-info'
+    <SettingsSection
       title={t('API Addresses')}
       description={t('Curate quick links to your different Domains')}
     >
@@ -519,6 +518,6 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

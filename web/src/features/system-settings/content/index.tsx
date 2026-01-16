@@ -1,16 +1,12 @@
 import { useMemo } from 'react'
+import { useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { Accordion } from '@/components/ui/accordion'
-import { useAccordionState } from '../hooks/use-accordion-state'
 import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
 import type { ContentSettings } from '../types'
-import { AnnouncementsSection } from './announcements-section'
-import { ApiInfoSection } from './api-info-section'
-import { ChatSettingsSection } from './chat-settings-section'
-import { DashboardSection } from './dashboard-section'
-import { DrawingSettingsSection } from './drawing-settings-section'
-import { FAQSection } from './faq-section'
-import { UptimeKumaSection } from './uptime-kuma-section'
+import {
+  CONTENT_DEFAULT_SECTION,
+  getContentSectionContent,
+} from './section-registry.tsx'
 
 const defaultContentSettings: ContentSettings = {
   'console_setting.api_info': '[]',
@@ -36,7 +32,7 @@ const defaultContentSettings: ContentSettings = {
 export function ContentSettings() {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
-  const { openItems, handleAccordionChange } = useAccordionState('content')
+  const search = useSearch({ from: '/_authenticated/system-settings/content' })
 
   const settings = useMemo(() => {
     const resolved = getOptionValue(data?.data, defaultContentSettings)
@@ -94,59 +90,13 @@ export function ContentSettings() {
     )
   }
 
+  const activeSection = search.section ?? CONTENT_DEFAULT_SECTION
+  const sectionContent = getContentSectionContent(activeSection, settings)
+
   return (
     <div className='flex h-full w-full flex-1 flex-col'>
       <div className='faded-bottom h-full w-full overflow-y-auto scroll-smooth pe-4 pb-12'>
-        <Accordion
-          type='multiple'
-          value={openItems}
-          onValueChange={handleAccordionChange}
-          className='space-y-2'
-        >
-          <DashboardSection
-            defaultValues={{
-              DataExportEnabled: settings.DataExportEnabled,
-              DataExportInterval: settings.DataExportInterval,
-              DataExportDefaultTime: settings.DataExportDefaultTime as
-                | 'week'
-                | 'hour'
-                | 'day',
-            }}
-          />
-
-          <AnnouncementsSection
-            enabled={settings['console_setting.announcements_enabled']}
-            data={settings['console_setting.announcements']}
-          />
-
-          <ApiInfoSection
-            enabled={settings['console_setting.api_info_enabled']}
-            data={settings['console_setting.api_info']}
-          />
-
-          <FAQSection
-            enabled={settings['console_setting.faq_enabled']}
-            data={settings['console_setting.faq']}
-          />
-
-          <UptimeKumaSection
-            enabled={settings['console_setting.uptime_kuma_enabled']}
-            data={settings['console_setting.uptime_kuma_groups']}
-          />
-
-          <ChatSettingsSection defaultValue={settings.Chats} />
-
-          <DrawingSettingsSection
-            defaultValues={{
-              DrawingEnabled: settings.DrawingEnabled,
-              MjNotifyEnabled: settings.MjNotifyEnabled,
-              MjAccountFilterEnabled: settings.MjAccountFilterEnabled,
-              MjForwardUrlEnabled: settings.MjForwardUrlEnabled,
-              MjModeClearEnabled: settings.MjModeClearEnabled,
-              MjActionCheckSuccessEnabled: settings.MjActionCheckSuccessEnabled,
-            }}
-          />
-        </Accordion>
+        <div className='space-y-4'>{sectionContent}</div>
       </div>
     </div>
   )

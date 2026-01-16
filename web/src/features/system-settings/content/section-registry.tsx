@@ -1,0 +1,114 @@
+import type { ContentSettings } from '../types'
+import { createSectionRegistry } from '../utils/section-registry'
+import { AnnouncementsSection } from './announcements-section'
+import { ApiInfoSection } from './api-info-section'
+import { ChatSettingsSection } from './chat-settings-section'
+import { DashboardSection } from './dashboard-section'
+import { DrawingSettingsSection } from './drawing-settings-section'
+import { FAQSection } from './faq-section'
+import { UptimeKumaSection } from './uptime-kuma-section'
+
+const CONTENT_SECTIONS = [
+  {
+    id: 'dashboard',
+    titleKey: 'Dashboard',
+    descriptionKey: 'Configure data export settings for dashboard',
+    build: (settings: ContentSettings) => (
+      <DashboardSection
+        defaultValues={{
+          DataExportEnabled: settings.DataExportEnabled,
+          DataExportInterval: settings.DataExportInterval,
+          DataExportDefaultTime: settings.DataExportDefaultTime as
+            | 'week'
+            | 'hour'
+            | 'day',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'announcements',
+    titleKey: 'Announcements',
+    descriptionKey: 'Configure system announcements',
+    build: (settings: ContentSettings) => (
+      <AnnouncementsSection
+        enabled={settings['console_setting.announcements_enabled']}
+        data={settings['console_setting.announcements']}
+      />
+    ),
+  },
+  {
+    id: 'api-info',
+    titleKey: 'API Info',
+    descriptionKey: 'Configure API information display',
+    build: (settings: ContentSettings) => (
+      <ApiInfoSection
+        enabled={settings['console_setting.api_info_enabled']}
+        data={settings['console_setting.api_info']}
+      />
+    ),
+  },
+  {
+    id: 'faq',
+    titleKey: 'FAQ',
+    descriptionKey: 'Configure frequently asked questions',
+    build: (settings: ContentSettings) => (
+      <FAQSection
+        enabled={settings['console_setting.faq_enabled']}
+        data={settings['console_setting.faq']}
+      />
+    ),
+  },
+  {
+    id: 'uptime-kuma',
+    titleKey: 'Uptime Kuma',
+    descriptionKey: 'Configure Uptime Kuma monitoring integration',
+    build: (settings: ContentSettings) => (
+      <UptimeKumaSection
+        enabled={settings['console_setting.uptime_kuma_enabled']}
+        data={settings['console_setting.uptime_kuma_groups']}
+      />
+    ),
+  },
+  {
+    id: 'chat',
+    titleKey: 'Chat Settings',
+    descriptionKey: 'Configure chat-related settings',
+    build: (settings: ContentSettings) => (
+      <ChatSettingsSection defaultValue={settings.Chats} />
+    ),
+  },
+  {
+    id: 'drawing',
+    titleKey: 'Drawing Settings',
+    descriptionKey: 'Configure drawing and Midjourney settings',
+    build: (settings: ContentSettings) => (
+      <DrawingSettingsSection
+        defaultValues={{
+          DrawingEnabled: settings.DrawingEnabled,
+          MjNotifyEnabled: settings.MjNotifyEnabled,
+          MjAccountFilterEnabled: settings.MjAccountFilterEnabled,
+          MjForwardUrlEnabled: settings.MjForwardUrlEnabled,
+          MjModeClearEnabled: settings.MjModeClearEnabled,
+          MjActionCheckSuccessEnabled: settings.MjActionCheckSuccessEnabled,
+        }}
+      />
+    ),
+  },
+] as const
+
+export type ContentSectionId = (typeof CONTENT_SECTIONS)[number]['id']
+
+const contentRegistry = createSectionRegistry<
+  ContentSectionId,
+  ContentSettings
+>({
+  sections: CONTENT_SECTIONS,
+  defaultSection: 'dashboard',
+  basePath: '/system-settings/content',
+})
+
+export const CONTENT_SECTION_IDS = contentRegistry.sectionIds
+export const CONTENT_DEFAULT_SECTION = contentRegistry.defaultSection
+export const getContentSectionNavItems = contentRegistry.getSectionNavItems
+export const getContentSectionContent = contentRegistry.getSectionContent

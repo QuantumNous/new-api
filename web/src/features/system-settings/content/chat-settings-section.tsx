@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { ChatSettingsVisualEditor } from './chat-settings-visual-editor'
 import { formatJsonForEditor, normalizeJsonString } from './utils'
@@ -100,8 +100,7 @@ export function ChatSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='chat-settings'
+    <SettingsSection
       title={t('Chat Presets')}
       description={t('Configure predefined chat links surfaced to end users.')}
     >
@@ -167,6 +166,6 @@ export function ChatSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
