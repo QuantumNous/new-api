@@ -64,7 +64,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
 
   const systemInfoSchemaWithI18n = z.object({
     Notice: z.string().optional(),
-    SystemName: z.string().min(1, t('System name is required')),
+    SystemName: z.string().min(1, {
+      error: () => t('System name is required'),
+    }),
     Logo: z.string().url().optional().or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
