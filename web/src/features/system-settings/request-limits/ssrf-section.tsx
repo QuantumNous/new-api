@@ -272,7 +272,8 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  {t('Domain')} {domainFilterMode ? 'Whitelist' : 'Blacklist'}
+                  {t('Domain')}{' '}
+                  {domainFilterMode ? t('Whitelist') : t('Blacklist')}
                 </FormLabel>
                 <FormControl>
                   <Textarea
@@ -324,11 +325,11 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  {t('IP')} {ipFilterMode ? 'Whitelist' : 'Blacklist'}
+                  {t('IP')} {ipFilterMode ? t('Whitelist') : t('Blacklist')}
                 </FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder='192.168.1.1&#10;10.0.0.0/8'
+                    placeholder={t('192.168.1.1&#10;10.0.0.0/8')}
                     rows={4}
                     {...field}
                   />
@@ -348,7 +349,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem>
                 <FormLabel>{t('Allowed Ports')}</FormLabel>
                 <FormControl>
-                  <Input placeholder='80,443,8080' {...field} />
+                  <Input placeholder={t('80,443,8080')} {...field} />
                 </FormControl>
                 <FormDescription>
                   {t(

@@ -23,18 +23,21 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
-const amountDiscountDialogSchema = z.object({
-  amount: z
-    .number()
-    .positive('Amount must be greater than 0')
-    .int('Amount must be a whole number'),
-  discountRate: z
-    .number()
-    .positive('Discount rate must be greater than 0')
-    .max(1, 'Discount rate must be ≤ 1'),
-})
+const createAmountDiscountDialogSchema = (t: (key: string) => string) =>
+  z.object({
+    amount: z
+      .number()
+      .positive(t('Amount must be greater than 0'))
+      .int(t('Amount must be a whole number')),
+    discountRate: z
+      .number()
+      .positive(t('Discount rate must be greater than 0'))
+      .max(1, t('Discount rate must be ≤ 1')),
+  })
 
-type AmountDiscountDialogFormValues = z.infer<typeof amountDiscountDialogSchema>
+type AmountDiscountDialogFormValues = z.infer<
+  ReturnType<typeof createAmountDiscountDialogSchema>
+>
 
 export type AmountDiscountData = {
   amount: number
@@ -56,6 +59,7 @@ export function AmountDiscountDialog({
 }: AmountDiscountDialogProps) {
   const { t } = useTranslation()
   const isEditMode = !!editData
+  const amountDiscountDialogSchema = createAmountDiscountDialogSchema(t)
 
   const form = useForm<AmountDiscountDialogFormValues>({
     resolver: zodResolver(amountDiscountDialogSchema),
@@ -97,7 +101,7 @@ export function AmountDiscountDialog({
       <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
-            {isEditMode ? 'Edit discount tier' : 'Add discount tier'}
+            {isEditMode ? t('Edit discount tier') : t('Add discount tier')}
           </DialogTitle>
           <DialogDescription>
             {t('Set a discount rate for a specific recharge amount threshold.')}
@@ -182,7 +186,7 @@ export function AmountDiscountDialog({
               >
                 {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+              <Button type='submit'>{isEditMode ? t('Update') : t('Add')}</Button>
             </DialogFooter>
           </form>
         </Form>

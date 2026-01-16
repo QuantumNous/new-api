@@ -31,8 +31,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 
-const modelDialogSchema = z.object({
-  name: z.string().min(1, 'Model name is required'),
+const createModelDialogSchema = (t: (key: string) => string) => z.object({
+  name: z.string().min(1, t('Model name is required')),
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
@@ -42,7 +42,7 @@ const modelDialogSchema = z.object({
   audioCompletionRatio: z.string().optional(),
 })
 
-type ModelDialogFormValues = z.infer<typeof modelDialogSchema>
+type ModelDialogFormValues = z.infer<ReturnType<typeof createModelDialogSchema>>
 
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
@@ -80,7 +80,7 @@ export function ModelRatioDialog({
   const isEditMode = !!editData
 
   const form = useForm<ModelDialogFormValues>({
-    resolver: zodResolver(modelDialogSchema),
+    resolver: zodResolver(createModelDialogSchema(t)),
     defaultValues: {
       name: '',
       price: '',
@@ -186,7 +186,7 @@ export function ModelRatioDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-[500px]'>
         <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Edit model' : 'Add model'}</DialogTitle>
+          <DialogTitle>{isEditMode ? t('Edit model') : t('Add model')}</DialogTitle>
           <DialogDescription>
             {t('Configure pricing ratios for a specific model.')}
           </DialogDescription>
@@ -322,8 +322,8 @@ export function ModelRatioDialog({
                           </FormControl>
                           <FormDescription>
                             {field.value && !isNaN(parseFloat(field.value))
-                              ? `Calculated price: $${(parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
-                              : 'Multiplier for prompt tokens.'}
+                              ? t('Calculated price: ${{price}} per 1M tokens', { price: (parseFloat(field.value) * 2).toFixed(4) })
+                              : t('Multiplier for prompt tokens.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -362,8 +362,8 @@ export function ModelRatioDialog({
                             !isNaN(parseFloat(field.value)) &&
                             promptPrice &&
                             !isNaN(parseFloat(promptPrice))
-                              ? `Calculated price: $${(parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4)} per 1M tokens`
-                              : 'Multiplier for completion tokens.'}
+                              ? t('Calculated price: ${{price}} per 1M tokens', { price: (parseFloat(promptPrice) * parseFloat(field.value)).toFixed(4) })
+                              : t('Multiplier for completion tokens.')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -385,8 +385,8 @@ export function ModelRatioDialog({
                         />
                         <p className='text-muted-foreground text-sm'>
                           {promptPrice && !isNaN(parseFloat(promptPrice))
-                            ? `Calculated ratio: ${(parseFloat(promptPrice) / 2).toFixed(4)}`
-                            : 'Enter Input price to calculate ratio'}
+                            ? t('Calculated ratio: {{ratio}}', { ratio: (parseFloat(promptPrice) / 2).toFixed(4) })
+                            : t('Enter Input price to calculate ratio')}
                         </p>
                       </div>
 
@@ -406,8 +406,8 @@ export function ModelRatioDialog({
                           promptPrice &&
                           !isNaN(parseFloat(promptPrice)) &&
                           parseFloat(promptPrice) > 0
-                            ? `Calculated ratio: ${(parseFloat(completionPrice) / parseFloat(promptPrice)).toFixed(4)}`
-                            : 'Enter Completion price to calculate ratio'}
+                            ? t('Calculated ratio: {{ratio}}', { ratio: (parseFloat(completionPrice) / parseFloat(promptPrice)).toFixed(4) })
+                            : t('Enter Completion price to calculate ratio')}
                         </p>
                       </div>
                     </div>
@@ -550,7 +550,7 @@ export function ModelRatioDialog({
               >
                 {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+              <Button type='submit'>{isEditMode ? t('Update') : t('Add')}</Button>
             </DialogFooter>
           </form>
         </Form>

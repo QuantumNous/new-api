@@ -40,7 +40,7 @@ export function CreemProductsVisualEditor({
     const parsed = safeJsonParseWithValidation<unknown[]>(value, {
       fallback: [],
       validator: isArray,
-      validatorMessage: 'Creem products must be a JSON array',
+      validatorMessage: t('Creem products must be a JSON array'),
       context: 'creem products',
     })
 

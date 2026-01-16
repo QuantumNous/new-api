@@ -23,7 +23,7 @@ export function AmountOptionsVisualEditor({
     const parsed = safeJsonParseWithValidation<unknown[]>(value, {
       fallback: [],
       validator: isArray,
-      validatorMessage: 'Amount options must be a JSON array',
+      validatorMessage: t('Amount options must be a JSON array'),
       context: 'amount options',
     })
 
@@ -97,7 +97,7 @@ export function AmountOptionsVisualEditor({
                     handleRemove(amount)
                   }}
                   className='hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors'
-                  aria-label={`Remove $${amount}`}
+                  aria-label={t('Remove ${{amount}}', { amount })}
                 >
                   <X className='h-3.5 w-3.5' />
                 </button>

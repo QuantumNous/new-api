@@ -28,44 +28,45 @@ import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const pricingSchema = z
-  .object({
-    QuotaPerUnit: z.coerce.number().min(0),
-    USDExchangeRate: z.coerce.number().min(0.0001),
-    DisplayInCurrencyEnabled: z.boolean(),
-    DisplayTokenStatEnabled: z.boolean(),
-    general_setting: z.object({
-      quota_display_type: z.enum(['USD', 'CNY', 'TOKENS', 'CUSTOM']),
-      custom_currency_symbol: z.string().max(8).optional(),
-      custom_currency_exchange_rate: z.coerce.number().min(0.0001).optional(),
-    }),
-  })
-  .superRefine((data, ctx) => {
-    const displayType = data.general_setting.quota_display_type
+const createPricingSchema = (t: (key: string) => string) =>
+  z
+    .object({
+      QuotaPerUnit: z.coerce.number().min(0),
+      USDExchangeRate: z.coerce.number().min(0.0001),
+      DisplayInCurrencyEnabled: z.boolean(),
+      DisplayTokenStatEnabled: z.boolean(),
+      general_setting: z.object({
+        quota_display_type: z.enum(['USD', 'CNY', 'TOKENS', 'CUSTOM']),
+        custom_currency_symbol: z.string().max(8).optional(),
+        custom_currency_exchange_rate: z.coerce.number().min(0.0001).optional(),
+      }),
+    })
+    .superRefine((data, ctx) => {
+      const displayType = data.general_setting.quota_display_type
 
-    if (displayType === 'CUSTOM') {
-      if (!data.general_setting.custom_currency_symbol?.trim()) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['general_setting', 'custom_currency_symbol'],
-          message: 'Custom currency symbol is required',
-        })
+      if (displayType === 'CUSTOM') {
+        if (!data.general_setting.custom_currency_symbol?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['general_setting', 'custom_currency_symbol'],
+            message: t('Custom currency symbol is required'),
+          })
+        }
+
+        if (
+          data.general_setting.custom_currency_exchange_rate == null ||
+          data.general_setting.custom_currency_exchange_rate <= 0
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['general_setting', 'custom_currency_exchange_rate'],
+            message: t('Exchange rate must be greater than 0'),
+          })
+        }
       }
+    })
 
-      if (
-        data.general_setting.custom_currency_exchange_rate == null ||
-        data.general_setting.custom_currency_exchange_rate <= 0
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['general_setting', 'custom_currency_exchange_rate'],
-          message: 'Exchange rate must be greater than 0',
-        })
-      }
-    }
-  })
-
-type PricingFormValues = z.infer<typeof pricingSchema>
+type PricingFormValues = z.infer<ReturnType<typeof createPricingSchema>>
 
 type PricingSectionProps = {
   defaultValues: PricingFormValues
@@ -74,6 +75,8 @@ type PricingSectionProps = {
 export function PricingSection({ defaultValues }: PricingSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+
+  const pricingSchema = createPricingSchema(t)
 
   const { form, handleSubmit, handleReset, isDirty, isSubmitting } =
     useSettingsForm<PricingFormValues>({
@@ -179,10 +182,10 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
                   <FormItem>
                     <FormLabel>
                       {displayType === 'CNY'
-                        ? 'CNY per USD'
+                        ? t('CNY per USD')
                         : displayType === 'USD'
-                          ? 'USD Exchange Rate'
-                          : 'USD Exchange Rate'}
+                          ? t('USD Exchange Rate')
+                          : t('USD Exchange Rate')}
                     </FormLabel>
                     <FormControl>
                       <Input

@@ -23,7 +23,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const systemInfoSchema = z.object({
   Notice: z.string().optional(),
-  SystemName: z.string().min(1, 'System name is required'),
+  SystemName: z.string().min(1),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
   About: z.string().optional(),
@@ -62,9 +62,22 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     },
   }
 
+  const systemInfoSchemaWithI18n = z.object({
+    Notice: z.string().optional(),
+    SystemName: z.string().min(1, t('System name is required')),
+    Logo: z.string().url().optional().or(z.literal('')),
+    Footer: z.string().optional(),
+    About: z.string().optional(),
+    HomePageContent: z.string().optional(),
+    legal: z.object({
+      user_agreement: z.string().optional(),
+      privacy_policy: z.string().optional(),
+    }),
+  })
+
   const { form, handleSubmit, handleReset, isDirty, isSubmitting } =
     useSettingsForm<SystemInfoFormValues>({
-      resolver: zodResolver(systemInfoSchema) as Resolver<
+      resolver: zodResolver(systemInfoSchemaWithI18n) as Resolver<
         SystemInfoFormValues,
         any,
         SystemInfoFormValues

@@ -263,8 +263,8 @@ export function PaymentMethodsVisualEditor({
       {filteredMethods.length === 0 ? (
         <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm'>
           {searchText
-            ? 'No payment methods match your search'
-            : 'No payment methods configured. Click "Add method" or use templates to get started.'}
+            ? t('No payment methods match your search')
+            : t('No payment methods configured. Click "Add method" or use templates to get started.')}
         </div>
       ) : (
         <div className='rounded-md border'>

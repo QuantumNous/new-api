@@ -68,12 +68,13 @@ type ApiInfoSectionProps = {
   data: string
 }
 
-const apiInfoSchema = z.object({
-  url: z.string().url('Must be a valid URL'),
-  route: z.string().min(1, 'Route is required'),
-  description: z.string().min(1, 'Description is required'),
-  color: z.string().min(1, 'Color is required'),
-})
+const createApiInfoSchema = (t: (key: string) => string) =>
+  z.object({
+    url: z.string().url(t('Must be a valid URL')),
+    route: z.string().min(1, t('Route is required')),
+    description: z.string().min(1, t('Description is required')),
+    color: z.string().min(1, t('Color is required')),
+  })
 
 type ApiInfoFormValues = z.infer<typeof apiInfoSchema>
 
@@ -97,6 +98,7 @@ const colorOptions = [
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const apiInfoSchema = createApiInfoSchema(t)
   const [apiInfoList, setApiInfoList] = useState<ApiInfo[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
   const [hasChanges, setHasChanges] = useState(false)
@@ -284,7 +286,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               disabled={!hasChanges || updateOption.isPending}
             >
               <Save className='mr-2 h-4 w-4' />
-              {updateOption.isPending ? 'Saving...' : 'Save Settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
           <div className='flex items-center gap-2'>
@@ -393,7 +395,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingApiInfo ? 'Edit API Shortcut' : 'Add API Shortcut'}
+              {editingApiInfo ? t('Edit API Shortcut') : t('Add API Shortcut')}
             </DialogTitle>
             <DialogDescription>
               {t('Configure API documentation links for the dashboard')}
@@ -492,7 +494,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                   {t('Cancel')}
                 </Button>
                 <Button type='submit'>
-                  {editingApiInfo ? 'Update' : 'Add'}
+                  {editingApiInfo ? t('Update') : t('Add')}
                 </Button>
               </DialogFooter>
             </form>

@@ -40,17 +40,18 @@ const isValidJSON = (value: string | undefined) => {
   }
 }
 
-const rateLimitSchema = z.object({
-  ModelRequestRateLimitEnabled: z.boolean(),
-  ModelRequestRateLimitDurationMinutes: z.number().min(0),
-  ModelRequestRateLimitCount: z.number().min(0).max(100000000),
-  ModelRequestRateLimitSuccessCount: z.number().min(1).max(100000000),
-  ModelRequestRateLimitGroup: z.string().optional().refine(isValidJSON, {
-    message: 'Invalid JSON format or values out of allowed range',
-  }),
-})
+const createRateLimitSchema = (t: (key: string) => string) =>
+  z.object({
+    ModelRequestRateLimitEnabled: z.boolean(),
+    ModelRequestRateLimitDurationMinutes: z.number().min(0),
+    ModelRequestRateLimitCount: z.number().min(0).max(100000000),
+    ModelRequestRateLimitSuccessCount: z.number().min(1).max(100000000),
+    ModelRequestRateLimitGroup: z.string().optional().refine(isValidJSON, {
+      message: t('Invalid JSON format or values out of allowed range'),
+    }),
+  })
 
-type RateLimitFormValues = z.infer<typeof rateLimitSchema>
+type RateLimitFormValues = z.infer<ReturnType<typeof createRateLimitSchema>>
 
 type RateLimitSectionProps = {
   defaultValues: RateLimitFormValues
@@ -60,6 +61,8 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [useVisualEditor, setUseVisualEditor] = useState(true)
+
+  const rateLimitSchema = createRateLimitSchema(t)
 
   const form = useForm<RateLimitFormValues>({
     resolver: zodResolver(rateLimitSchema),
@@ -284,7 +287,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save rate limits'}
+            {updateOption.isPending ? t('Saving...') : t('Save rate limits')}
           </Button>
         </form>
       </Form>

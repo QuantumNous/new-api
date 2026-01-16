@@ -23,12 +23,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
-const chatDialogSchema = z.object({
-  name: z.string().min(1, 'Chat client name is required'),
-  url: z.string().min(1, 'URL is required'),
-})
+const createChatDialogSchema = (t: (key: string) => string) =>
+  z.object({
+    name: z.string().min(1, t('Chat client name is required')),
+    url: z.string().min(1, t('URL is required')),
+  })
 
-type ChatDialogFormValues = z.infer<typeof chatDialogSchema>
+type ChatDialogFormValues = z.infer<ReturnType<typeof createChatDialogSchema>>
 
 export type ChatEntryData = {
   name: string
@@ -50,6 +51,7 @@ export function ChatDialog({
 }: ChatDialogProps) {
   const { t } = useTranslation()
   const isEditMode = !!editData
+  const chatDialogSchema = createChatDialogSchema(t)
 
   const form = useForm<ChatDialogFormValues>({
     resolver: zodResolver(chatDialogSchema),
@@ -81,7 +83,7 @@ export function ChatDialog({
       <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
-            {isEditMode ? 'Edit chat preset' : 'Add chat preset'}
+            {isEditMode ? t('Edit chat preset') : t('Add chat preset')}
           </DialogTitle>
           <DialogDescription>
             {t('Configure a predefined chat link for end users.')}
@@ -138,7 +140,7 @@ export function ChatDialog({
               >
                 {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+              <Button type='submit'>{isEditMode ? t('Update') : t('Add')}</Button>
             </DialogFooter>
           </form>
         </Form>

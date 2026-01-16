@@ -139,7 +139,7 @@ export function ChannelSelectorDialog({
       },
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: t('Name'),
         cell: ({ row }) => {
           const name = row.getValue('name') as string
           const channel = row.original
@@ -162,7 +162,7 @@ export function ChannelSelectorDialog({
       },
       {
         accessorKey: 'base_url',
-        header: 'Base URL',
+        header: t('Base URL'),
         cell: ({ row }) => {
           const url = row.getValue('base_url') as string
           return (
@@ -177,7 +177,7 @@ export function ChannelSelectorDialog({
       },
       {
         accessorKey: 'status',
-        header: 'Status',
+        header: t('Status'),
         cell: ({ row }) => {
           const status = row.getValue('status') as number
           const config =
@@ -206,7 +206,7 @@ export function ChannelSelectorDialog({
       },
       {
         id: 'endpoint',
-        header: 'Sync Endpoint',
+        header: t('Sync Endpoint'),
         cell: ({ row }) => {
           const channel = row.original
           const currentEndpoint =

@@ -19,17 +19,18 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { removeTrailingSlash } from './utils'
 
-const workerSchema = z.object({
-  WorkerUrl: z.string().refine((value) => {
-    const trimmed = value.trim()
-    if (!trimmed) return true
-    return /^https?:\/\//.test(trimmed)
-  }, 'Provide a valid URL starting with http:// or https://'),
-  WorkerValidKey: z.string(),
-  WorkerAllowHttpImageRequestEnabled: z.boolean(),
-})
+const createWorkerSchema = (t: (key: string) => string) =>
+  z.object({
+    WorkerUrl: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^https?:\/\//.test(trimmed)
+    }, t('Provide a valid URL starting with http:// or https://')),
+    WorkerValidKey: z.string(),
+    WorkerAllowHttpImageRequestEnabled: z.boolean(),
+  })
 
-type WorkerFormValues = z.infer<typeof workerSchema>
+type WorkerFormValues = z.infer<ReturnType<typeof createWorkerSchema>>
 
 type WorkerSettingsSectionProps = {
   defaultValues: WorkerFormValues
@@ -40,6 +41,7 @@ export function WorkerSettingsSection({
 }: WorkerSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const workerSchema = createWorkerSchema(t)
 
   const form = useForm<WorkerFormValues>({
     resolver: zodResolver(workerSchema),
@@ -169,7 +171,7 @@ export function WorkerSettingsSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save worker settings'}
+            {updateOption.isPending ? t('Saving...') : t('Save Worker settings')}
           </Button>
         </form>
       </Form>

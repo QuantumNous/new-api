@@ -18,24 +18,25 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const emailSchema = z.object({
-  SMTPServer: z.string(),
-  SMTPPort: z.string().refine((value) => {
-    const trimmed = value.trim()
-    if (!trimmed) return true
-    return /^\d+$/.test(trimmed)
-  }, 'Port must be a positive integer'),
-  SMTPAccount: z.string(),
-  SMTPFrom: z.string().refine((value) => {
-    const trimmed = value.trim()
-    if (!trimmed) return true
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
-  }, 'Enter a valid email or leave blank'),
-  SMTPToken: z.string(),
-  SMTPSSLEnabled: z.boolean(),
-})
+const createEmailSchema = (t: (key: string) => string) =>
+  z.object({
+    SMTPServer: z.string(),
+    SMTPPort: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^\d+$/.test(trimmed)
+    }, t('Port must be a positive integer')),
+    SMTPAccount: z.string(),
+    SMTPFrom: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+    }, t('Enter a valid email or leave blank')),
+    SMTPToken: z.string(),
+    SMTPSSLEnabled: z.boolean(),
+  })
 
-type EmailFormValues = z.infer<typeof emailSchema>
+type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
 
 type EmailSettingsSectionProps = {
   defaultValues: EmailFormValues
@@ -46,6 +47,7 @@ export function EmailSettingsSection({
 }: EmailSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const emailSchema = createEmailSchema(t)
 
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
@@ -256,7 +258,7 @@ export function EmailSettingsSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save SMTP settings'}
+            {updateOption.isPending ? t('Saving...') : t('Save SMTP settings')}
           </Button>
         </form>
       </Form>

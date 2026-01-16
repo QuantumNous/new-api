@@ -24,14 +24,17 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 
-const paymentMethodDialogSchema = z.object({
-  name: z.string().min(1, 'Payment method name is required'),
-  type: z.string().min(1, 'Payment method type is required'),
-  color: z.string().min(1, 'Color is required'),
-  min_topup: z.string().optional(),
-})
+const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
+  z.object({
+    name: z.string().min(1, t('Payment method name is required')),
+    type: z.string().min(1, t('Payment method type is required')),
+    color: z.string().min(1, t('Color is required')),
+    min_topup: z.string().optional(),
+  })
 
-type PaymentMethodDialogFormValues = z.infer<typeof paymentMethodDialogSchema>
+type PaymentMethodDialogFormValues = z.infer<
+  ReturnType<typeof createPaymentMethodDialogSchema>
+>
 
 export type PaymentMethodData = {
   name: string
@@ -103,6 +106,7 @@ export function PaymentMethodDialog({
 }: PaymentMethodDialogProps) {
   const { t } = useTranslation()
   const isEditMode = !!editData
+  const paymentMethodDialogSchema = createPaymentMethodDialogSchema(t)
 
   const form = useForm<PaymentMethodDialogFormValues>({
     resolver: zodResolver(paymentMethodDialogSchema),
@@ -162,7 +166,7 @@ export function PaymentMethodDialog({
       <DialogContent className='sm:max-w-[500px]'>
         <DialogHeader>
           <DialogTitle>
-            {isEditMode ? 'Edit payment method' : 'Add payment method'}
+            {isEditMode ? t('Edit payment method') : t('Add payment method')}
           </DialogTitle>
           <DialogDescription>
             {t('Configure a payment method for user recharge options.')}
@@ -203,7 +207,7 @@ export function PaymentMethodDialog({
                       value={field.value}
                       onValueChange={field.onChange}
                       placeholder={t('Select or enter payment type')}
-                      searchPlaceholder='Search payment types...'
+                      searchPlaceholder={t('Search payment types...')}
                       allowCustomValue
                     />
                   </FormControl>
@@ -228,7 +232,7 @@ export function PaymentMethodDialog({
                         value={field.value}
                         onValueChange={field.onChange}
                         placeholder={t('Select or enter color value')}
-                        searchPlaceholder='Search colors...'
+                        searchPlaceholder={t('Search colors...')}
                         allowCustomValue
                         className='flex-1'
                       />
@@ -279,7 +283,7 @@ export function PaymentMethodDialog({
               >
                 {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? 'Update' : 'Add'}</Button>
+              <Button type='submit'>{isEditMode ? t('Update') : t('Add')}</Button>
             </DialogFooter>
           </form>
         </Form>

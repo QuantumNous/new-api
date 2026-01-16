@@ -37,8 +37,8 @@ export function UpdateCheckerSection({
   const [dialogOpen, setDialogOpen] = useState(false)
   const [release, setRelease] = useState<ReleaseInfo | null>(null)
 
-  const uptime = startTime ? formatTimestamp(startTime) : 'Unknown'
-  const version = currentVersion || 'Unknown'
+  const uptime = startTime ? formatTimestamp(startTime) : t('Unknown')
+  const version = currentVersion || t('Unknown')
 
   const handleCheckUpdates = async () => {
     setChecking(true)
@@ -54,16 +54,20 @@ export function UpdateCheckerSection({
       )
 
       if (!response.ok) {
-        throw new Error('Failed to contact GitHub releases API')
+        throw new Error(t('Failed to contact GitHub releases API'))
       }
 
       const data = (await response.json()) as ReleaseInfo
       if (!data?.tag_name) {
-        throw new Error('Unexpected release payload')
+        throw new Error(t('Unexpected release payload'))
       }
 
       if (currentVersion && data.tag_name === currentVersion) {
-        toast.success(`You are running the latest version (${data.tag_name}).`)
+        toast.success(
+          t('You are running the latest version ({{version}}).', {
+            version: data.tag_name,
+          })
+        )
         return
       }
 
@@ -71,7 +75,9 @@ export function UpdateCheckerSection({
       setDialogOpen(true)
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to check for updates'
+        error instanceof Error
+          ? error.message
+          : t('Failed to check for updates')
       toast.error(message)
     } finally {
       setChecking(false)
@@ -108,7 +114,7 @@ export function UpdateCheckerSection({
 
           <Button onClick={handleCheckUpdates} disabled={checking}>
             {checking ? (
-              'Checking updates...'
+              t('Checking updates...')
             ) : (
               <>
                 <RefreshCcwIcon className='me-2 h-4 w-4' />
@@ -124,8 +130,10 @@ export function UpdateCheckerSection({
           <DialogHeader>
             <DialogTitle>
               {release?.tag_name
-                ? `New version available: ${release.tag_name}`
-                : 'Release details'}
+                ? t('New version available: {{version}}', {
+                    version: release.tag_name,
+                  })
+                : t('Release details')}
             </DialogTitle>
             {release?.published_at && (
               <DialogDescription>

@@ -135,7 +135,7 @@ export function CheckinSettingsSection({
                       <Input
                         type='number'
                         min={0}
-                        placeholder='1000'
+                        placeholder={t('1000')}
                         {...field}
                       />
                     </FormControl>
@@ -157,7 +157,7 @@ export function CheckinSettingsSection({
                       <Input
                         type='number'
                         min={0}
-                        placeholder='10000'
+                        placeholder={t('10000')}
                         {...field}
                       />
                     </FormControl>

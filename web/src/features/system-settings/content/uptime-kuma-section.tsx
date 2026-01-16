@@ -59,27 +59,29 @@ type UptimeKumaSectionProps = {
   data: string
 }
 
-const uptimeKumaSchema = z.object({
-  categoryName: z
-    .string()
-    .min(1, 'Category name is required')
-    .max(50, 'Category name must be less than 50 characters'),
-  url: z.string().url('Must be a valid URL'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .max(100, 'Slug must be less than 100 characters')
-    .regex(
-      /^[a-zA-Z0-9_-]+$/,
-      'Slug can only contain letters, numbers, hyphens, and underscores'
-    ),
-})
+const createUptimeKumaSchema = (t: (key: string) => string) =>
+  z.object({
+    categoryName: z
+      .string()
+      .min(1, t('Category name is required'))
+      .max(50, t('Category name must be less than 50 characters')),
+    url: z.string().url(t('Must be a valid URL')),
+    slug: z
+      .string()
+      .min(1, t('Slug is required'))
+      .max(100, t('Slug must be less than 100 characters'))
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        t('Slug can only contain letters, numbers, hyphens, and underscores')
+      ),
+  })
 
-type UptimeKumaFormValues = z.infer<typeof uptimeKumaSchema>
+type UptimeKumaFormValues = z.infer<ReturnType<typeof createUptimeKumaSchema>>
 
 export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const uptimeKumaSchema = createUptimeKumaSchema(t)
   const [groups, setGroups] = useState<UptimeKumaGroup[]>([])
   const [isEnabled, setIsEnabled] = useState(enabled)
   const [hasChanges, setHasChanges] = useState(false)
@@ -349,7 +351,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
             <DialogTitle>
               {editingGroup
                 ? 'Edit Uptime Kuma Group'
-                : 'Add Uptime Kuma Group'}
+                : t('Add Uptime Kuma Group')}
             </DialogTitle>
             <DialogDescription>
               {t('Configure monitoring status page groups for the dashboard')}
@@ -426,7 +428,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 >
                   {t('Cancel')}
                 </Button>
-                <Button type='submit'>{editingGroup ? 'Update' : 'Add'}</Button>
+                <Button type='submit'>{editingGroup ? t('Update') : t('Add')}</Button>
               </DialogFooter>
             </form>
           </Form>
