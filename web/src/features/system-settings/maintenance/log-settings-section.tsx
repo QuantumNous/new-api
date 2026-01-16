@@ -28,7 +28,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { deleteLogsBefore } from '../api'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
@@ -143,8 +143,7 @@ export function LogSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='log-settings'
+    <SettingsSection
       title={t('Log Maintenance')}
       description={t('Control log retention and clean historical data.')}
     >
@@ -234,6 +233,6 @@ export function LogSettingsSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

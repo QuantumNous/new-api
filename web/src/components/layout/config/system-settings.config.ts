@@ -15,6 +15,7 @@ import { getRequestLimitsSectionNavItems } from '@/features/system-settings/requ
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
 import { getIntegrationsSectionNavItems } from '@/features/system-settings/integrations/section-registry.tsx'
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
+import { getMaintenanceSectionNavItems } from '@/features/system-settings/maintenance/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -60,8 +61,8 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         },
         {
           title: t('Maintenance'),
-          url: '/system-settings/maintenance',
           icon: Wrench,
+          items: getMaintenanceSectionNavItems(t),
         },
       ],
     },

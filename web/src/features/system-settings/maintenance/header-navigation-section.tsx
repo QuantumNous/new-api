@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   HEADER_NAV_DEFAULT,
@@ -135,8 +135,7 @@ export function HeaderNavigationSection({
   ]
 
   return (
-    <SettingsAccordion
-      value='header-navigation'
+    <SettingsSection
       title={t('Header navigation')}
       description={t('Enable or disable top navigation modules globally.')}
     >
@@ -234,6 +233,6 @@ export function HeaderNavigationSection({
           </div>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

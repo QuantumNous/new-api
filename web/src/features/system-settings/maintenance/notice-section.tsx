@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const noticeSchema = z.object({
@@ -52,8 +52,7 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='notice'
+    <SettingsSection
       title={t('System Notice')}
       description={t(
         'Broadcast a global banner to users. Markdown is supported.'
@@ -86,6 +85,6 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
