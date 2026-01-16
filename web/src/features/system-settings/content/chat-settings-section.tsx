@@ -33,7 +33,7 @@ const createChatSchema = (t: (key: string) => string) =>
           return
         }
         for (const item of parsed) {
-          if (typeof item !== 'object' || Array.isArray(item)) {
+          if (item === null || typeof item !== 'object' || Array.isArray(item)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               message: t('Each item must be an object with a single key-value pair.'),
@@ -49,10 +49,10 @@ const createChatSchema = (t: (key: string) => string) =>
             return
           }
         }
-      } catch (error: any) {
+      } catch {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: error?.message || t('Invalid JSON string.'),
+          message: t('Invalid JSON string.'),
         })
       }
     }),
