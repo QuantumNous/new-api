@@ -11,6 +11,7 @@ import {
 import { type NavGroup } from '../types'
 import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
+import { getRequestLimitsSectionNavItems } from '@/features/system-settings/request-limits/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -36,8 +37,8 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         },
         {
           title: t('Request Limits'),
-          url: '/system-settings/request-limits',
           icon: ShieldAlert,
+          items: getRequestLimitsSectionNavItems(t),
         },
         {
           title: t('Content'),

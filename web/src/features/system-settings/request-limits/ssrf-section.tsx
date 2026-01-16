@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const ssrfSchema = z.object({
@@ -179,8 +179,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
   const ipFilterMode = form.watch('fetch_setting.ip_filter_mode')
 
   return (
-    <SettingsAccordion
-      value='ssrf-protection'
+    <SettingsSection
       title={t('SSRF Protection')}
       description={t(
         'Prevent server-side request forgery attacks by controlling outbound requests.'
@@ -391,6 +390,6 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
