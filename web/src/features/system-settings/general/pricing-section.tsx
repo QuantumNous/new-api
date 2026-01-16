@@ -31,14 +31,19 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const createPricingSchema = (t: (key: string) => string) =>
   z
     .object({
-      QuotaPerUnit: z.coerce.number().min(0),
-      USDExchangeRate: z.coerce.number().min(0.0001),
+      QuotaPerUnit: z.coerce.number().min(0, t('Value must be at least 0')),
+      USDExchangeRate: z.coerce
+        .number()
+        .min(0.0001, t('Exchange rate must be greater than 0')),
       DisplayInCurrencyEnabled: z.boolean(),
       DisplayTokenStatEnabled: z.boolean(),
       general_setting: z.object({
         quota_display_type: z.enum(['USD', 'CNY', 'TOKENS', 'CUSTOM']),
         custom_currency_symbol: z.string().max(8).optional(),
-        custom_currency_exchange_rate: z.coerce.number().min(0.0001).optional(),
+        custom_currency_exchange_rate: z.coerce
+          .number()
+          .min(0.0001, t('Exchange rate must be greater than 0'))
+          .optional(),
       }),
     })
     .superRefine((data, ctx) => {
@@ -53,14 +58,11 @@ const createPricingSchema = (t: (key: string) => string) =>
           })
         }
 
-        if (
-          data.general_setting.custom_currency_exchange_rate == null ||
-          data.general_setting.custom_currency_exchange_rate <= 0
-        ) {
+        if (data.general_setting.custom_currency_exchange_rate == null) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['general_setting', 'custom_currency_exchange_rate'],
-            message: t('Exchange rate must be greater than 0'),
+            message: t('Exchange rate is required'),
           })
         }
       }
