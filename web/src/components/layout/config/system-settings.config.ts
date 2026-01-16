@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { type NavGroup } from '../types'
 import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
+import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -30,8 +31,8 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         },
         {
           title: t('Authentication'),
-          url: '/system-settings/auth',
           icon: Shield,
+          items: getAuthSectionNavItems(t),
         },
         {
           title: t('Request Limits'),

@@ -1,4 +1,4 @@
-import type { NavItem } from '../types'
+import type { NavItem, NavCollapsible } from '../types'
 
 /**
  * Normalize URL by removing query parameters and trailing slashes
@@ -21,14 +21,46 @@ export function checkIsActive(
   item: NavItem,
   mainNav = false
 ): boolean {
+  if (!item.url) return false
+
   // Exact match
   if (href === item.url) return true
 
-  // Match ignoring query parameters
-  if (href.split('?')[0] === item.url) return true
+  const hrefWithoutQuery = href.split('?')[0]
+  const itemUrlWithoutQuery = item.url.split('?')[0]
+  const hrefHasQuery = href.includes('?')
+  const itemUrlHasQuery = item.url.includes('?')
 
-  // Sub-item is active
-  if (item.items?.some((i) => i.url === href)) return true
+  // If both URLs have the same base path
+  if (hrefWithoutQuery === itemUrlWithoutQuery) {
+    // If item.url has no query params, only match if href also has no query params
+    // This prevents /system-settings/auth from matching /system-settings/auth?section=xxx
+    if (!itemUrlHasQuery && !hrefHasQuery) return true
+    // If item.url has query params, they must match exactly
+    if (itemUrlHasQuery && href === item.url) return true
+  }
+
+  // Sub-item is active - check with same logic as above
+  if ('items' in item && item.items) {
+    const collapsibleItem = item as NavCollapsible
+    const items = collapsibleItem.items
+    if (
+      items.some((i) => {
+        if (!i?.url) return false
+        if (href === i.url) return true
+        const subItemUrlWithoutQuery = i.url.split('?')[0]
+        const subItemUrlHasQuery = i.url.includes('?')
+        if (subItemUrlWithoutQuery === hrefWithoutQuery) {
+          // If sub-item URL has no query params, only match if href also has no query params
+          if (!subItemUrlHasQuery && !hrefHasQuery) return true
+          // If sub-item URL has query params, they must match exactly
+          if (subItemUrlHasQuery && href === i.url) return true
+        }
+        return false
+      })
+    )
+      return true
+  }
 
   // Main navigation match (matches first-level path)
   if (mainNav && href.split('/')[1] && item.url) {
