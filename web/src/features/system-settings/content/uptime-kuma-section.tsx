@@ -63,17 +63,16 @@ const createUptimeKumaSchema = (t: (key: string) => string) =>
   z.object({
     categoryName: z
       .string()
-      .min(1, t('Category name is required'))
-      .max(50, t('Category name must be less than 50 characters')),
-    url: z.string().url(t('Must be a valid URL')),
+      .min(1, { error: t('Category name is required') })
+      .max(50, { error: t('Category name must be less than 50 characters') }),
+    url: z.string().url({ error: t('Must be a valid URL') }),
     slug: z
       .string()
-      .min(1, t('Slug is required'))
-      .max(100, t('Slug must be less than 100 characters'))
-      .regex(
-        /^[a-zA-Z0-9_-]+$/,
-        t('Slug can only contain letters, numbers, hyphens, and underscores')
-      ),
+      .min(1, { error: t('Slug is required') })
+      .max(100, { error: t('Slug must be less than 100 characters') })
+      .regex(/^[a-zA-Z0-9_-]+$/, {
+        error: t('Slug can only contain letters, numbers, hyphens, and underscores'),
+      }),
   })
 
 type UptimeKumaFormValues = z.infer<ReturnType<typeof createUptimeKumaSchema>>
