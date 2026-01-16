@@ -1119,6 +1119,7 @@
     "Internal Server Error!": "Внутренняя ошибка сервера!",
     "Internal notes (not shown to users)": "Внутренние заметки (не показываются пользователям)",
     "Invalid JSON format": "Неверный формат JSON",
+    "Invalid JSON format or values out of allowed range": "Неверный формат JSON или значения вне допустимого диапазона",
     "Invalid Passkey registration response": "Неверный ответ на регистрацию Passkey",
     "Invalid Passkey response": "Недопустимый ответ Passkey",
     "Invalid chat link. Please contact the administrator.": "Неверная ссылка на чат. Пожалуйста, обратитесь к администратору.",

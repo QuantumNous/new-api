@@ -1120,6 +1120,7 @@
     "Internal Server Error!": "Erreur interne du serveur !",
     "Internal notes (not shown to users)": "Notes internes (non visibles par les utilisateurs)",
     "Invalid JSON format": "Format JSON invalide",
+    "Invalid JSON format or values out of allowed range": "Format JSON invalide ou valeurs hors plage autorisée",
     "Invalid Passkey registration response": "Réponse d'enregistrement de passe-clé invalide",
     "Invalid Passkey response": "Réponse Passkey invalide",
     "Invalid chat link. Please contact the administrator.": "Lien de chat invalide. Veuillez contacter l'administrateur.",

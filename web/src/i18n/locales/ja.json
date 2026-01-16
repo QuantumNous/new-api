@@ -1120,6 +1120,7 @@
     "Internal Server Error!": "内部サーバーエラー！",
     "Internal notes (not shown to users)": ":内部メモ（ユーザーには表示されません）",
     "Invalid JSON format": "無効な JSON 形式",
+    "Invalid JSON format or values out of allowed range": "無効な JSON 形式または値が許可された範囲外です",
     "Invalid Passkey registration response": "無効なパスキー登録応答",
     "Invalid Passkey response": "無効なパスキー応答",
     "Invalid chat link. Please contact the administrator.": "無効なチャットリンクです。管理者に連絡してください。",

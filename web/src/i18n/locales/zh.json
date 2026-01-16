@@ -1121,6 +1121,7 @@
     "Internal Server Error!": "内部服务器错误！",
     "Internal notes (not shown to users)": "内部备注（不显示给用户）",
     "Invalid JSON format": "无效的 JSON 格式",
+    "Invalid JSON format or values out of allowed range": "无效的 JSON 格式或值超出允许范围",
     "Invalid Passkey registration response": "无效的 Passkey 注册响应",
     "Invalid Passkey response": "无效的 Passkey 响应",
     "Invalid chat link. Please contact the administrator.": "无效的聊天链接。请联系管理员。",

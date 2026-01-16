@@ -1119,6 +1119,7 @@
     "Internal Server Error!": "Lỗi máy chủ nội bộ!",
     "Internal notes (not shown to users)": "Ghi chú nội bộ (không hiển thị cho người dùng)",
     "Invalid JSON format": "Định dạng JSON không hợp lệ",
+    "Invalid JSON format or values out of allowed range": "Định dạng JSON không hợp lệ hoặc giá trị ngoài phạm vi cho phép",
     "Invalid Passkey registration response": "Phản hồi đăng ký Passkey không hợp lệ",
     "Invalid Passkey response": "Phản hồi Passkey không hợp lệ",
     "Invalid chat link. Please contact the administrator.": "Liên kết trò chuyện không hợp lệ. Vui lòng liên hệ quản trị viên.",
