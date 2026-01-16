@@ -76,7 +76,7 @@ const createApiInfoSchema = (t: (key: string) => string) =>
     color: z.string().min(1, t('Color is required')),
   })
 
-type ApiInfoFormValues = z.infer<typeof apiInfoSchema>
+type ApiInfoFormValues = z.infer<ReturnType<typeof createApiInfoSchema>>
 
 const colorOptions = [
   { value: 'blue', label: 'Blue', bgClass: 'bg-blue-500' },
