@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const sensitiveSchema = z.object({
@@ -56,8 +56,7 @@ export function SensitiveWordsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='sensitive-words'
+    <SettingsSection
       title={t('Sensitive Words')}
       description={t('Configure keyword filtering for prompts and responses.')}
     >
@@ -145,6 +144,6 @@ export function SensitiveWordsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

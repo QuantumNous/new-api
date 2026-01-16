@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -82,8 +82,7 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='basic-auth'
+    <SettingsSection
       title={t('Basic Authentication')}
       description={t('Configure password-based login and registration')}
     >
@@ -255,6 +254,6 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

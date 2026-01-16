@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 type UptimeKumaGroup = {
@@ -226,8 +226,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='uptime-kuma'
+    <SettingsSection
       title={t('Uptime Kuma')}
       description={t(
         'Expose grouped Uptime Kuma status pages directly on the dashboard'
@@ -452,6 +451,6 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

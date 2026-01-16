@@ -45,7 +45,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 type FAQ = {
@@ -220,8 +220,7 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='faq'
+    <SettingsSection
       title={t('FAQ')}
       description={t(
         'Maintain a list of common questions for the dashboard help panel'
@@ -425,6 +424,6 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

@@ -54,7 +54,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 type Announcement = {
@@ -278,8 +278,7 @@ export function AnnouncementsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='announcements'
+    <SettingsSection
       title={t('Announcements')}
       description={t('Broadcast short system notices on the dashboard')}
     >
@@ -563,6 +562,6 @@ export function AnnouncementsSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

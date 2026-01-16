@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -137,8 +137,7 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='passkey'
+    <SettingsSection
       title={t('Passkey Authentication')}
       description={t('Configure Passkey (WebAuthn) login settings')}
     >
@@ -331,6 +330,6 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
           <Button type='submit'>{t('Save changes')}</Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

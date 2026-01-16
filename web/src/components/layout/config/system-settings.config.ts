@@ -10,6 +10,12 @@ import {
 } from 'lucide-react'
 import { type NavGroup } from '../types'
 import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
+import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
+import { getRequestLimitsSectionNavItems } from '@/features/system-settings/request-limits/section-registry.tsx'
+import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
+import { getIntegrationsSectionNavItems } from '@/features/system-settings/integrations/section-registry.tsx'
+import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
+import { getMaintenanceSectionNavItems } from '@/features/system-settings/maintenance/section-registry.tsx'
 
 /**
  * System settings sidebar configuration
@@ -30,33 +36,33 @@ export function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
         },
         {
           title: t('Authentication'),
-          url: '/system-settings/auth',
           icon: Shield,
+          items: getAuthSectionNavItems(t),
         },
         {
           title: t('Request Limits'),
-          url: '/system-settings/request-limits',
           icon: ShieldAlert,
+          items: getRequestLimitsSectionNavItems(t),
         },
         {
           title: t('Content'),
-          url: '/system-settings/content',
           icon: Layout,
+          items: getContentSectionNavItems(t),
         },
         {
           title: t('Integrations'),
-          url: '/system-settings/integrations',
           icon: Plug,
+          items: getIntegrationsSectionNavItems(t),
         },
         {
           title: t('Models'),
-          url: '/system-settings/models',
           icon: Box,
+          items: getModelsSectionNavItems(t),
         },
         {
           title: t('Maintenance'),
-          url: '/system-settings/maintenance',
           icon: Wrench,
+          items: getMaintenanceSectionNavItems(t),
         },
       ],
     },

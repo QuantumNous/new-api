@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/ui/markdown'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 
 type ReleaseInfo = {
   tag_name: string
@@ -86,8 +86,7 @@ export function UpdateCheckerSection({
 
   return (
     <>
-      <SettingsAccordion
-        value='update-checker'
+      <SettingsSection
         title={t('System maintenance')}
         description={t('Review current version and fetch release notes.')}
       >
@@ -118,7 +117,7 @@ export function UpdateCheckerSection({
             )}
           </Button>
         </div>
-      </SettingsAccordion>
+      </SettingsSection>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className='max-h-[80vh] overflow-y-auto'>

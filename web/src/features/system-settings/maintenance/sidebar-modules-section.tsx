@@ -11,7 +11,7 @@ import {
   FormLabel,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   SIDEBAR_MODULES_DEFAULT,
@@ -153,8 +153,7 @@ export function SidebarModulesSection({
   const sections = Object.entries(config)
 
   return (
-    <SettingsAccordion
-      value='sidebar-modules'
+    <SettingsSection
       title={t('Sidebar modules')}
       description={t(
         'Control which sidebar areas and modules are available to all users.'
@@ -248,6 +247,6 @@ export function SidebarModulesSection({
           </div>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

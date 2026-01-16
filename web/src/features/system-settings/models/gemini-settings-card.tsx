@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   formatJsonForTextarea,
@@ -204,8 +204,7 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
   )
 
   return (
-    <SettingsAccordion
-      value='gemini-settings'
+    <SettingsSection
       title={t('Gemini')}
       description={t(
         'Configure Gemini safety behavior, version overrides, and thinking adapter'
@@ -389,6 +388,6 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

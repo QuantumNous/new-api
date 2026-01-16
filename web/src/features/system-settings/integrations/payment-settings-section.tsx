@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
@@ -526,8 +526,7 @@ export function PaymentSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='payment-settings'
+    <SettingsSection
       title={t('Payment Gateway')}
       description={t(
         'Configure recharge pricing and payment gateway integrations'
@@ -1263,6 +1262,6 @@ export function PaymentSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

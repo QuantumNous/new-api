@@ -21,7 +21,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const oauthSchema = z.object({
@@ -222,8 +222,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     <>
       <FormNavigationGuard when={form.formState.isDirty} />
 
-      <SettingsAccordion
-        value='oauth-integrations'
+      <SettingsSection
         title={t('OAuth Integrations')}
         description={t('Configure third-party authentication providers')}
       >
@@ -746,7 +745,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             </div>
           </form>
         </Form>
-      </SettingsAccordion>
+      </SettingsSection>
     </>
   )
 }

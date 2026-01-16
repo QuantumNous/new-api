@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const dataDashboardSchema = z.object({
@@ -70,8 +70,7 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
   const isEnabled = form.watch('DataExportEnabled')
 
   return (
-    <SettingsAccordion
-      value='dashboard'
+    <SettingsSection
       title={t('Data Dashboard')}
       description={t('Configure experimental data export for the dashboard')}
     >
@@ -163,6 +162,6 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

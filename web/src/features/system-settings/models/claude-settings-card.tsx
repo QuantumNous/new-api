@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   formatJsonForTextarea,
@@ -151,8 +151,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='claude-settings'
+    <SettingsSection
       title={t('Claude')}
       description={t(
         'Override Anthropic headers, defaults, and thinking adapter behavior'
@@ -252,6 +251,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

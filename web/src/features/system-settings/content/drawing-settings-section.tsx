@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const drawingSchema = z.object({
@@ -106,8 +106,7 @@ export function DrawingSettingsSection({
   ]
 
   return (
-    <SettingsAccordion
-      value='drawing-settings'
+    <SettingsSection
       title={t('Drawing')}
       description={t('Fine-tune Midjourney integration and guardrails.')}
     >
@@ -145,6 +144,6 @@ export function DrawingSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

@@ -1,5 +1,5 @@
-import type { TFunction } from 'i18next'
 import type { GeneralSettings } from '../types'
+import { createSectionRegistry } from '../utils/section-registry'
 import { CheckinSettingsSection } from './checkin-settings-section'
 import { PricingSection } from './pricing-section'
 import { QuotaSettingsSection } from './quota-settings-section'
@@ -105,30 +105,17 @@ const GENERAL_SECTIONS = [
 
 export type GeneralSectionId = (typeof GENERAL_SECTIONS)[number]['id']
 
-export const GENERAL_SECTION_IDS = GENERAL_SECTIONS.map((section) => section.id) as [
+const generalRegistry = createSectionRegistry<
   GeneralSectionId,
-  ...GeneralSectionId[]
-]
+  GeneralSettings,
+  ['USD' | 'CNY' | 'TOKENS' | 'CUSTOM']
+>({
+  sections: GENERAL_SECTIONS,
+  defaultSection: 'system-info',
+  basePath: '/system-settings/general',
+})
 
-export const GENERAL_DEFAULT_SECTION: GeneralSectionId = 'system-info'
-
-export function getGeneralSectionNavItems(t: TFunction) {
-  return GENERAL_SECTIONS.map((section) => ({
-    title: t(section.titleKey),
-    url:
-      section.id === GENERAL_DEFAULT_SECTION
-        ? '/system-settings/general'
-        : `/system-settings/general?section=${section.id}`,
-  }))
-}
-
-export function getGeneralSectionContent(
-  sectionId: GeneralSectionId,
-  settings: GeneralSettings,
-  quotaDisplayType: 'USD' | 'CNY' | 'TOKENS' | 'CUSTOM'
-) {
-  const section =
-    GENERAL_SECTIONS.find((item) => item.id === sectionId) ??
-    GENERAL_SECTIONS[0]
-  return section.build(settings, quotaDisplayType)
-}
+export const GENERAL_SECTION_IDS = generalRegistry.sectionIds
+export const GENERAL_DEFAULT_SECTION = generalRegistry.defaultSection
+export const getGeneralSectionNavItems = generalRegistry.getSectionNavItems
+export const getGeneralSectionContent = generalRegistry.getSectionContent

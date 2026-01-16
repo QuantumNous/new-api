@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { RateLimitVisualEditor } from './rate-limit-visual-editor'
 
@@ -83,8 +83,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='rate-limit'
+    <SettingsSection
       title={t('Rate Limiting')}
       description={t(
         'Control request frequency to prevent abuse and manage system load.'
@@ -289,6 +288,6 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

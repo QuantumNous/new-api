@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { resetModelRatios } from '../api'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
@@ -332,8 +332,7 @@ export function RatioSettingsCard({
   }, [resetMutation.mutate])
 
   return (
-    <SettingsAccordion
-      value='ratio-settings'
+    <SettingsSection
       title={t('Pricing Ratios')}
       description={t(
         'Configure model, caching, and group ratios used for billing'
@@ -388,6 +387,6 @@ export function RatioSettingsCard({
         handleConfirm={handleConfirmReset}
         confirmText={t('Reset')}
       />
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

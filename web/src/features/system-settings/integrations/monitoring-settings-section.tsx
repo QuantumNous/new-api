@@ -17,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -165,8 +165,7 @@ export function MonitoringSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='monitoring-settings'
+    <SettingsSection
       title={t('Monitoring & Alerts')}
       description={t(
         'Automatically test channels and notify users when limits are hit'
@@ -361,6 +360,6 @@ export function MonitoringSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
