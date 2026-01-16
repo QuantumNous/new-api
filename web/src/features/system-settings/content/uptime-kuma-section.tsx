@@ -349,7 +349,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
           <DialogHeader>
             <DialogTitle>
               {editingGroup
-                ? 'Edit Uptime Kuma Group'
+                ? t('Edit Uptime Kuma Group')
                 : t('Add Uptime Kuma Group')}
             </DialogTitle>
             <DialogDescription>
