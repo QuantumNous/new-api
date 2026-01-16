@@ -8,6 +8,19 @@ import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 
+/**
+ * Validate and coerce DataExportDefaultTime to a safe value
+ */
+function validateDataExportDefaultTime(
+  value: string
+): 'week' | 'hour' | 'day' {
+  if (value === 'week' || value === 'hour' || value === 'day') {
+    return value
+  }
+  // Default to 'hour' if value is unexpected
+  return 'hour'
+}
+
 const CONTENT_SECTIONS = [
   {
     id: 'dashboard',
@@ -18,10 +31,9 @@ const CONTENT_SECTIONS = [
         defaultValues={{
           DataExportEnabled: settings.DataExportEnabled,
           DataExportInterval: settings.DataExportInterval,
-          DataExportDefaultTime: settings.DataExportDefaultTime as
-            | 'week'
-            | 'hour'
-            | 'day',
+          DataExportDefaultTime: validateDataExportDefaultTime(
+            settings.DataExportDefaultTime
+          ),
         }}
       />
     ),
