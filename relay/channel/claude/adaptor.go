@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -31,6 +33,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	logger.LogInfo(context.Background(), fmt.Sprintf("ConvertClaudeRequest: %v", request.Model))
 	return request, nil
 }
 
@@ -62,6 +65,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.IsClaudeBetaQuery {
 		baseURL = baseURL + "?beta=true"
 	}
+	logger.LogInfo(context.Background(), fmt.Sprintf("GetRequestURL: %v", baseURL))
 	return baseURL, nil
 }
 
