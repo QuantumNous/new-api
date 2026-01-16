@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
@@ -94,8 +94,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   }
 
   return (
-    <SettingsAccordion
-      value='global-settings'
+    <SettingsSection
       title={t('Global Model Configuration')}
       description={t(
         'Control passthrough behavior and connection keep-alive settings'
@@ -191,6 +190,6 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
