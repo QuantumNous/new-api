@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { removeTrailingSlash } from './utils'
@@ -80,8 +80,7 @@ export function WorkerSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='worker-settings'
+    <SettingsSection
       title={t('Worker Proxy')}
       description={t(
         'Configure upstream worker or proxy service for outbound requests'
@@ -174,6 +173,6 @@ export function WorkerSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

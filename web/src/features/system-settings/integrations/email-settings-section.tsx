@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -108,8 +108,7 @@ export function EmailSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='email-settings'
+    <SettingsSection
       title={t('SMTP Email')}
       description={t('Configure outgoing email server for notifications')}
     >
@@ -261,6 +260,6 @@ export function EmailSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }

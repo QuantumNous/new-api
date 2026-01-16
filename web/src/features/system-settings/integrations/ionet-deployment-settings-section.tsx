@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { testDeploymentConnectionWithKey } from '@/features/models/api'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
@@ -111,8 +111,7 @@ export function IoNetDeploymentSettingsSection({
   }
 
   return (
-    <SettingsAccordion
-      value='ionet-deployments'
+    <SettingsSection
       title={t('io.net Deployments')}
       description={t('Configure io.net API key for model deployments')}
     >
@@ -247,6 +246,6 @@ export function IoNetDeploymentSettingsSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
