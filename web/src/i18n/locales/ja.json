@@ -1893,7 +1893,7 @@
     "No chat presets configured. Click \"Add chat preset\" to get started.": "チャットプリセットが設定されていません。「チャットプリセットを追加」をクリックして開始してください。",
     "Remove ${{amount}}": "${{amount}}を削除",
     "No payment methods match your search": "検索に一致する支払い方法がありません",
-    "No payment methods configured. Click \"Add method\" or use templates to get started.": "支払い方法が設定されていません。「方法を追加」をクリックするか、テンプレートを使用して開始してください。",
+    "No payment methods configured. Click \"Add method\" or use templates to get started.": "支払い方法が設定されていません。「メソッドを追加」をクリックするか、テンプレートを使用して開始してください。",
     "Save these backup codes in a safe place. Each code can only be used once.": "これらのバックアップコードを安全な場所に保存してください。各コードは一度だけ使用できます。",
     "Save these codes in a safe place. Each code can only be used once.": "これらのコードを安全な場所に保存してください。各コードは一度だけ使用できます。",
     "Saving...": "保存中...",
