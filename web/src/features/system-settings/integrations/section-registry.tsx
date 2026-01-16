@@ -9,7 +9,7 @@ import { WorkerSettingsSection } from './worker-settings-section'
 const INTEGRATIONS_SECTIONS = [
   {
     id: 'payment',
-    titleKey: 'Payment',
+    titleKey: 'Payment Gateway',
     descriptionKey: 'Configure payment gateway integrations',
     build: (settings: IntegrationSettings) => (
       <PaymentSettingsSection
@@ -39,7 +39,7 @@ const INTEGRATIONS_SECTIONS = [
   },
   {
     id: 'email',
-    titleKey: 'Email',
+    titleKey: 'SMTP Email',
     descriptionKey: 'Configure SMTP email settings',
     build: (settings: IntegrationSettings) => (
       <EmailSettingsSection
@@ -56,7 +56,7 @@ const INTEGRATIONS_SECTIONS = [
   },
   {
     id: 'worker',
-    titleKey: 'Worker',
+    titleKey: 'Worker Proxy',
     descriptionKey: 'Configure worker service settings',
     build: (settings: IntegrationSettings) => (
       <WorkerSettingsSection
@@ -71,7 +71,7 @@ const INTEGRATIONS_SECTIONS = [
   },
   {
     id: 'ionet',
-    titleKey: 'IoNet Deployment',
+    titleKey: 'io.net Deployments',
     descriptionKey: 'Configure IoNet model deployment settings',
     build: (settings: IntegrationSettings) => (
       <IoNetDeploymentSettingsSection
@@ -84,7 +84,7 @@ const INTEGRATIONS_SECTIONS = [
   },
   {
     id: 'monitoring',
-    titleKey: 'Monitoring',
+    titleKey: 'Monitoring & Alerts',
     descriptionKey: 'Configure channel monitoring and automation',
     build: (settings: IntegrationSettings) => (
       <MonitoringSettingsSection

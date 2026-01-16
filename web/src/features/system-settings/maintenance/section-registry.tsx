@@ -15,7 +15,7 @@ import { UpdateCheckerSection } from './update-checker-section'
 const MAINTENANCE_SECTIONS = [
   {
     id: 'update-checker',
-    titleKey: 'Update Checker',
+    titleKey: 'System maintenance',
     descriptionKey: 'Check for system updates',
     build: (
       settings: MaintenanceSettings,
@@ -30,7 +30,7 @@ const MAINTENANCE_SECTIONS = [
   },
   {
     id: 'notice',
-    titleKey: 'Notice',
+    titleKey: 'System Notice',
     descriptionKey: 'Configure system maintenance notice',
     build: (settings: MaintenanceSettings) => (
       <NoticeSection defaultValue={settings.Notice ?? ''} />
@@ -38,7 +38,7 @@ const MAINTENANCE_SECTIONS = [
   },
   {
     id: 'logs',
-    titleKey: 'Log Settings',
+    titleKey: 'Log Maintenance',
     descriptionKey: 'Configure log consumption settings',
     build: (settings: MaintenanceSettings) => (
       <LogSettingsSection
@@ -48,7 +48,7 @@ const MAINTENANCE_SECTIONS = [
   },
   {
     id: 'header-navigation',
-    titleKey: 'Header Navigation',
+    titleKey: 'Header navigation',
     descriptionKey: 'Configure header navigation modules',
     build: (settings: MaintenanceSettings) => {
       const headerNavConfig = parseHeaderNavModules(settings.HeaderNavModules)
@@ -63,7 +63,7 @@ const MAINTENANCE_SECTIONS = [
   },
   {
     id: 'sidebar-modules',
-    titleKey: 'Sidebar Modules',
+    titleKey: 'Sidebar modules',
     descriptionKey: 'Configure sidebar modules for admin',
     build: (settings: MaintenanceSettings) => {
       const sidebarConfig = parseSidebarModulesAdmin(

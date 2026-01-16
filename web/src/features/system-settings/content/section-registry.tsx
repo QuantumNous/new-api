@@ -11,7 +11,7 @@ import { UptimeKumaSection } from './uptime-kuma-section'
 const CONTENT_SECTIONS = [
   {
     id: 'dashboard',
-    titleKey: 'Dashboard',
+    titleKey: 'Data Dashboard',
     descriptionKey: 'Configure data export settings for dashboard',
     build: (settings: ContentSettings) => (
       <DashboardSection
@@ -39,7 +39,7 @@ const CONTENT_SECTIONS = [
   },
   {
     id: 'api-info',
-    titleKey: 'API Info',
+    titleKey: 'API Addresses',
     descriptionKey: 'Configure API information display',
     build: (settings: ContentSettings) => (
       <ApiInfoSection
@@ -72,7 +72,7 @@ const CONTENT_SECTIONS = [
   },
   {
     id: 'chat',
-    titleKey: 'Chat Settings',
+    titleKey: 'Chat Presets',
     descriptionKey: 'Configure chat-related settings',
     build: (settings: ContentSettings) => (
       <ChatSettingsSection defaultValue={settings.Chats} />
@@ -80,7 +80,7 @@ const CONTENT_SECTIONS = [
   },
   {
     id: 'drawing',
-    titleKey: 'Drawing Settings',
+    titleKey: 'Drawing',
     descriptionKey: 'Configure drawing and Midjourney settings',
     build: (settings: ContentSettings) => (
       <DrawingSettingsSection

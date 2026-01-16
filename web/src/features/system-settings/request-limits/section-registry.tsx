@@ -7,7 +7,7 @@ import { SSRFSection } from './ssrf-section'
 const REQUEST_LIMITS_SECTIONS = [
   {
     id: 'rate-limit',
-    titleKey: 'Rate Limit',
+    titleKey: 'Rate Limiting',
     descriptionKey: 'Configure model request rate limiting',
     build: (settings: RequestLimitsSettings) => (
       <RateLimitSection

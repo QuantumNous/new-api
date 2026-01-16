@@ -8,7 +8,7 @@ import { RatioSettingsCard } from './ratio-settings-card'
 const MODELS_SECTIONS = [
   {
     id: 'global',
-    titleKey: 'Global Settings',
+    titleKey: 'Global Model Configuration',
     descriptionKey: 'Configure global model settings',
     build: (settings: ModelSettings) => (
       <GlobalSettingsCard
@@ -29,7 +29,7 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'gemini',
-    titleKey: 'Gemini Settings',
+    titleKey: 'Gemini',
     descriptionKey: 'Configure Gemini model settings',
     build: (settings: ModelSettings) => (
       <GeminiSettingsCard
@@ -54,7 +54,7 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'claude',
-    titleKey: 'Claude Settings',
+    titleKey: 'Claude',
     descriptionKey: 'Configure Claude model settings',
     build: (settings: ModelSettings) => (
       <ClaudeSettingsCard
@@ -74,7 +74,7 @@ const MODELS_SECTIONS = [
   },
   {
     id: 'ratio',
-    titleKey: 'Ratio Settings',
+    titleKey: 'Pricing Ratios',
     descriptionKey: 'Configure model pricing and ratio settings',
     build: (settings: ModelSettings) => (
       <RatioSettingsCard
