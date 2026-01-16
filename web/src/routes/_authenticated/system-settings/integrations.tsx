@@ -4,16 +4,15 @@ import {
   INTEGRATIONS_DEFAULT_SECTION,
   INTEGRATIONS_SECTION_IDS,
 } from '@/features/system-settings/integrations/section-registry.tsx'
-import { createSectionSearchSchema } from '@/features/system-settings/utils/route-config'
-
-const integrationsSearchSchema = createSectionSearchSchema(
-  INTEGRATIONS_SECTION_IDS,
-  INTEGRATIONS_DEFAULT_SECTION
-)
+import { createSettingsRouteConfig } from '@/features/system-settings/utils/route-config'
 
 export const Route = createFileRoute(
   '/_authenticated/system-settings/integrations'
-)({
-  validateSearch: integrationsSearchSchema,
-  component: IntegrationSettings,
-})
+)(
+  createSettingsRouteConfig({
+    sectionIds: INTEGRATIONS_SECTION_IDS,
+    defaultSection: INTEGRATIONS_DEFAULT_SECTION,
+    component: IntegrationSettings,
+    routePath: '/system-settings/integrations',
+  })
+)

@@ -4,16 +4,15 @@ import {
   REQUEST_LIMITS_DEFAULT_SECTION,
   REQUEST_LIMITS_SECTION_IDS,
 } from '@/features/system-settings/request-limits/section-registry.tsx'
-import { createSectionSearchSchema } from '@/features/system-settings/utils/route-config'
-
-const requestLimitsSearchSchema = createSectionSearchSchema(
-  REQUEST_LIMITS_SECTION_IDS,
-  REQUEST_LIMITS_DEFAULT_SECTION
-)
+import { createSettingsRouteConfig } from '@/features/system-settings/utils/route-config'
 
 export const Route = createFileRoute(
   '/_authenticated/system-settings/request-limits'
-)({
-  validateSearch: requestLimitsSearchSchema,
-  component: RequestLimitsSettings,
-})
+)(
+  createSettingsRouteConfig({
+    sectionIds: REQUEST_LIMITS_SECTION_IDS,
+    defaultSection: REQUEST_LIMITS_DEFAULT_SECTION,
+    component: RequestLimitsSettings,
+    routePath: '/system-settings/request-limits',
+  })
+)

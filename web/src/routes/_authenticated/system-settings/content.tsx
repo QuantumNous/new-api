@@ -4,16 +4,13 @@ import {
   CONTENT_DEFAULT_SECTION,
   CONTENT_SECTION_IDS,
 } from '@/features/system-settings/content/section-registry.tsx'
-import { createSectionSearchSchema } from '@/features/system-settings/utils/route-config'
-
-const contentSearchSchema = createSectionSearchSchema(
-  CONTENT_SECTION_IDS,
-  CONTENT_DEFAULT_SECTION
-)
+import { createSettingsRouteConfig } from '@/features/system-settings/utils/route-config'
 
 export const Route = createFileRoute('/_authenticated/system-settings/content')(
-  {
-    validateSearch: contentSearchSchema,
+  createSettingsRouteConfig({
+    sectionIds: CONTENT_SECTION_IDS,
+    defaultSection: CONTENT_DEFAULT_SECTION,
     component: ContentSettings,
-  }
+    routePath: '/system-settings/content',
+  })
 )
