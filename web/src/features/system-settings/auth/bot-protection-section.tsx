@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { SettingsAccordion } from '../components/settings-accordion'
+import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z.object({
@@ -57,8 +57,7 @@ export function BotProtectionSection({
   }
 
   return (
-    <SettingsAccordion
-      value='bot-protection'
+    <SettingsSection
       title={t('Bot Protection')}
       description={t(
         'Protect login and registration with Cloudflare Turnstile'
@@ -137,6 +136,6 @@ export function BotProtectionSection({
           </Button>
         </form>
       </Form>
-    </SettingsAccordion>
+    </SettingsSection>
   )
 }
