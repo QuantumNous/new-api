@@ -94,7 +94,8 @@ export function ProfileDropdown() {
             {isSuperAdmin && (
               <SheetClose asChild>
                 <Link
-                  to='/system-settings'
+                  to='/system-settings/general'
+                  search={{ section: 'system-info' }}
                   className='text-primary/60 hover:text-primary/80 border-b flex items-center gap-2.5 p-2.5 transition-colors'
                 >
                   <Settings className='size-4' />
