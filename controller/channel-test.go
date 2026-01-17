@@ -604,6 +604,11 @@ func testAllChannels(notify bool) error {
 		}()
 
 		for _, channel := range channels {
+			// 跳过关闭自动禁用的渠道（用户选择手动管理）
+			if !channel.GetAutoBan() {
+				continue
+			}
+
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
 			result := testChannel(channel, "", "")
@@ -626,8 +631,8 @@ func testAllChannels(notify bool) error {
 				}
 			}
 
-			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
+			// disable channel (移除了 channel.GetAutoBan() 检查，因为前面已经过滤过了)
+			if isChannelEnabled && shouldBanChannel {
 				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 			}
 

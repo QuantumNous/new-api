@@ -46,7 +46,9 @@ import {
   Col,
   Highlight,
   Input,
+  Tooltip,
 } from '@douyinfe/semi-ui';
+import { IconHelpCircle } from '@douyinfe/semi-icons';
 import {
   getChannelModels,
   copy,
@@ -2892,7 +2894,14 @@ const EditChannelModal = (props) => {
                       <Col span={12}>
                         <Form.InputNumber
                           field='priority'
-                          label={t('渠道优先级')}
+                          label={
+                            <span>
+                              {t('渠道优先级')}
+                              <Tooltip content='优先级决定渠道选择顺序。数值越高越优先，重试时依次降低优先级（retry=0选最高组）'>
+                                <IconHelpCircle className='text-gray-400 cursor-help' style={{ marginLeft: 4 }} />
+                              </Tooltip>
+                            </span>
+                          }
                           placeholder={t('渠道优先级')}
                           min={0}
                           onNumberChange={(value) =>
@@ -2904,7 +2913,14 @@ const EditChannelModal = (props) => {
                       <Col span={12}>
                         <Form.InputNumber
                           field='weight'
-                          label={t('渠道权重')}
+                          label={
+                            <span>
+                              {t('渠道权重')}
+                              <Tooltip content='权重决定同优先级内的流量分配。数值越高流量越多，weight=0也会分配流量（实际权重+10）'>
+                                <IconHelpCircle className='text-gray-400 cursor-help' style={{ marginLeft: 4 }} />
+                              </Tooltip>
+                            </span>
+                          }
                           placeholder={t('渠道权重')}
                           min={0}
                           onNumberChange={(value) =>
