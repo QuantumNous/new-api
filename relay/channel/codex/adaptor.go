@@ -91,6 +91,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	// rm max_output_tokens
+	request.MaxOutputTokens = 0
 	return request, nil
 }
 
