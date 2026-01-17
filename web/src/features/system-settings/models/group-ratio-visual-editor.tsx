@@ -535,8 +535,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                             {userGroupData.userGroup}
                           </span>
                           <span className='text-muted-foreground text-sm'>
-                            ({userGroupData.overrides.length} {t('override')}
-                            {userGroupData.overrides.length !== 1 ? 's' : ''})
+                            {t('{{count}} override', { count: userGroupData.overrides.length })}
                           </span>
                         </div>
                         <div className='flex gap-2'>
@@ -854,7 +853,7 @@ function SimpleGroupDialog({
   const [name, setName] = useState('')
   const [value, setValue] = useState('')
 
-  const title = type === 'groupRatio' ? 'group ratio' : 'top-up ratio'
+  const title = type === 'groupRatio' ? t('group ratio') : t('top-up ratio')
 
   const handleSave = () => {
     if (!name.trim() || !value.trim()) return
@@ -880,7 +879,7 @@ function SimpleGroupDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {editData ? `Edit ${title}` : `Add ${title}`}
+            {editData ? t('Edit {{title}}', { title }) : t('Add {{title}}', { title })}
           </DialogTitle>
           <DialogDescription>
             {t('Configure the ratio for this group.')}
@@ -914,7 +913,7 @@ function SimpleGroupDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
+          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -963,7 +962,7 @@ function UsableGroupDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {editData ? 'Edit selectable group' : 'Add selectable group'}
+            {editData ? t('Edit selectable group') : t('Add selectable group')}
           </DialogTitle>
           <DialogDescription>
             {t(
@@ -994,7 +993,7 @@ function UsableGroupDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
+          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1048,12 +1047,12 @@ function GroupOverrideDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {editData ? 'Edit ratio override' : 'Add ratio override'}
+            {editData ? t('Edit ratio override') : t('Add ratio override')}
           </DialogTitle>
           <DialogDescription>
             {userGroup
-              ? `Configure a custom ratio for "${userGroup}" users when using a specific token group.`
-              : 'Configure a custom ratio for when users use a specific token group.'}
+              ? t('Configure a custom ratio for "{{userGroup}}" users when using a specific token group.', { userGroup })
+              : t('Configure a custom ratio for when users use a specific token group.')}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4 py-4'>
@@ -1082,8 +1081,10 @@ function GroupOverrideDialog({
               placeholder='0.9'
             />
             <p className='text-muted-foreground text-xs'>
-              {t('Multiplier applied when')} {userGroup || 'this user group'}{' '}
-              {t('uses')} {targetGroup || 'this token group'}
+              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', { 
+                userGroup: userGroup || t('this user group'),
+                targetGroup: targetGroup || t('this token group')
+              })}
             </p>
           </div>
         </div>
@@ -1091,7 +1092,7 @@ function GroupOverrideDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? 'Update' : 'Add'}</Button>
+          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

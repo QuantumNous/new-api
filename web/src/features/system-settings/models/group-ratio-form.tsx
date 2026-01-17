@@ -111,7 +111,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             />
 
             <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
-              {isSaving ? 'Saving…' : 'Save group ratios'}
+              {isSaving ? t('Saving...') : t('Save group ratios')}
             </Button>
           </div>
         ) : (
@@ -240,7 +240,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             />
 
             <Button type='submit' disabled={isSaving}>
-              {isSaving ? 'Saving…' : 'Save group ratios'}
+              {isSaving ? t('Saving...') : t('Save group ratios')}
             </Button>
           </form>
         )}

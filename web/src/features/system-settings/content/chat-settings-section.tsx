@@ -20,45 +20,45 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import { ChatSettingsVisualEditor } from './chat-settings-visual-editor'
 import { formatJsonForEditor, normalizeJsonString } from './utils'
 
-const chatSchema = z.object({
-  Chats: z.string().superRefine((value, ctx) => {
-    try {
-      const parsed = JSON.parse(value || '[]')
-      if (!Array.isArray(parsed)) {
+const createChatSchema = (t: (key: string) => string) =>
+  z.object({
+    Chats: z.string().superRefine((value, ctx) => {
+      try {
+        const parsed = JSON.parse(value || '[]')
+        if (!Array.isArray(parsed)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('Expected a JSON array.'),
+          })
+          return
+        }
+        for (const item of parsed) {
+          if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('Each item must be an object with a single key-value pair.'),
+            })
+            return
+          }
+          const entries = Object.entries(item)
+          if (entries.length !== 1) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: t('Each item must have exactly one key-value pair.'),
+            })
+            return
+          }
+        }
+      } catch {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Expected a JSON array.',
+          message: t('Invalid JSON string.'),
         })
-        return
       }
-      for (const item of parsed) {
-        if (typeof item !== 'object' || Array.isArray(item)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'Each item must be an object with a single key-value pair.',
-          })
-          return
-        }
-        const entries = Object.entries(item)
-        if (entries.length !== 1) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Each item must have exactly one key-value pair.',
-          })
-          return
-        }
-      }
-    } catch (error: any) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: error?.message || 'Invalid JSON string.',
-      })
-    }
-  }),
-})
+    }),
+  })
 
-type ChatSettingsFormValues = z.infer<typeof chatSchema>
+type ChatSettingsFormValues = z.infer<ReturnType<typeof createChatSchema>>
 
 type ChatSettingsSectionProps = {
   defaultValue: string
@@ -71,6 +71,7 @@ export function ChatSettingsSection({
   const updateOption = useUpdateOption()
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
 
+  const chatSchema = createChatSchema(t)
   const formatted = formatJsonForEditor(defaultValue, '[]')
   const form = useForm<ChatSettingsFormValues>({
     resolver: zodResolver(chatSchema),
@@ -162,7 +163,7 @@ export function ChatSettingsSection({
           </Tabs>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save chat settings'}
+            {updateOption.isPending ? t('Saving...') : t('Save chat settings')}
           </Button>
         </form>
       </Form>

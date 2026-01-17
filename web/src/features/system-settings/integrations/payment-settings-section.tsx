@@ -775,7 +775,7 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? 'Saving...' : 'Save general settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save general settings')}
             </Button>
           </div>
 
@@ -888,7 +888,7 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? 'Saving...' : 'Save Epay settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Epay settings')}
             </Button>
           </div>
 
@@ -1092,7 +1092,7 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? 'Saving...' : 'Save Stripe settings'}
+              {updateOption.isPending ? t('Saving...') : t('Save Stripe settings')}
             </Button>
           </div>
 
@@ -1253,12 +1253,12 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? 'Saving...' : t('Save Creem settings')}
+              {updateOption.isPending ? t('Saving...') : t('Save Creem settings')}
             </Button>
           </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : t('Save all settings')}
+            {updateOption.isPending ? t('Saving...') : t('Save all settings')}
           </Button>
         </form>
       </Form>

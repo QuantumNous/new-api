@@ -499,7 +499,7 @@ export const ModelRatioVisualEditor = memo(
         <div className='flex items-center justify-between gap-4'>
           <DataTableToolbar
             table={table}
-            searchPlaceholder='Search models...'
+            searchPlaceholder={t('Search models...')}
           />
           <Button onClick={handleAdd}>
             <Plus className='mr-2 h-4 w-4' />
@@ -510,8 +510,8 @@ export const ModelRatioVisualEditor = memo(
         {table.getRowModel().rows.length === 0 ? (
           <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
             {table.getState().globalFilter
-              ? 'No models match your search'
-              : 'No models configured. Click "Add model" to get started.'}
+              ? t('No models match your search')
+              : t('No models configured. Click "Add model" to get started.')}
           </div>
         ) : (
           <div className='overflow-hidden rounded-md border'>

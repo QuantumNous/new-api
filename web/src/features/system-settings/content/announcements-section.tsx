@@ -420,7 +420,7 @@ export function AnnouncementsSection({
         <DialogContent className='max-w-2xl'>
           <DialogHeader>
             <DialogTitle>
-              {editingAnnouncement ? 'Edit Announcement' : 'Add Announcement'}
+              {editingAnnouncement ? t('Edit Announcement') : t('Add Announcement')}
             </DialogTitle>
             <DialogDescription>
               {t('Create or update system announcements for the dashboard')}
@@ -536,7 +536,7 @@ export function AnnouncementsSection({
                   {t('Cancel')}
                 </Button>
                 <Button type='submit'>
-                  {editingAnnouncement ? 'Update' : 'Add'}
+                  {editingAnnouncement ? t('Update') : t('Add')}
                 </Button>
               </DialogFooter>
             </form>

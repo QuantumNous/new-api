@@ -93,7 +93,7 @@ export function ConflictConfirmDialog({
             {t('Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
-            {isLoading ? 'Applying...' : 'Confirm Changes'}
+            {isLoading ? t('Applying...') : t('Confirm Changes')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

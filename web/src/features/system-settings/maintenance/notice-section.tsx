@@ -81,7 +81,7 @@ export function NoticeSection({ defaultValue }: NoticeSectionProps) {
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? 'Saving...' : 'Save notice'}
+            {updateOption.isPending ? t('Saving...') : t('Save notice')}
           </Button>
         </form>
       </Form>

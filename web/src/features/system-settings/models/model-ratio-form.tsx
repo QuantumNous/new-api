@@ -120,7 +120,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
             <div className='flex flex-wrap gap-4'>
               <Button onClick={form.handleSubmit(onSave)} disabled={isSaving}>
-                {isSaving ? 'Saving…' : 'Save model ratios'}
+                {isSaving ? t('Saving...') : t('Save model ratios')}
               </Button>
               <Button
                 type='button'
@@ -292,7 +292,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
             <div className='flex flex-wrap gap-4'>
               <Button type='submit' disabled={isSaving}>
-                {isSaving ? 'Saving…' : 'Save model ratios'}
+                {isSaving ? t('Saving...') : t('Save model ratios')}
               </Button>
               <Button
                 type='button'

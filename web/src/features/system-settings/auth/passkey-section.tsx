@@ -327,7 +327,7 @@ export function PasskeySection({ defaultValues }: PasskeySectionProps) {
             )}
           />
 
-          <Button type='submit'>{t('Save changes')}</Button>
+          <Button type='submit'>{t('Save Changes')}</Button>
         </form>
       </Form>
     </SettingsSection>
