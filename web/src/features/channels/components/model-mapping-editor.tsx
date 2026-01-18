@@ -30,10 +30,8 @@ export function ModelMappingEditor({
 
   // Parse JSON to rows when value changes externally
   useEffect(() => {
-    if (value !== jsonValue) {
-      setJsonValue(value)
-      parseJsonToRows(value)
-    }
+    setJsonValue(value)
+    parseJsonToRows(value)
   }, [value])
 
   const parseJsonToRows = (json: string) => {
