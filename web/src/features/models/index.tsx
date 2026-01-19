@@ -6,7 +6,7 @@ import { AppHeader, Main } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
-import { CreateDeploymentDialog } from './components/dialogs/create-deployment-dialog'
+import { CreateDeploymentDrawer } from './components/dialogs/create-deployment-drawer'
 import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
@@ -94,7 +94,7 @@ function ModelsContent() {
       </Main>
 
       <ModelsDialogs />
-      <CreateDeploymentDialog
+      <CreateDeploymentDrawer
         open={createDeploymentOpen}
         onOpenChange={setCreateDeploymentOpen}
       />
