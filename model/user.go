@@ -44,6 +44,7 @@ type User struct {
 	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	NodeLocId        string         `json:"nodeloc_id" gorm:"column:nodeloc_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
@@ -918,6 +919,20 @@ func (user *User) FillUserByLinuxDOId() error {
 		return errors.New("linux do id is empty")
 	}
 	err := DB.Where("linux_do_id = ?", user.LinuxDOId).First(user).Error
+	return err
+}
+
+func IsNodeLocIdAlreadyTaken(nodelocId string) bool {
+	var user User
+	err := DB.Unscoped().Where("nodeloc_id = ?", nodelocId).First(&user).Error
+	return !errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func (user *User) FillUserByNodeLocId() error {
+	if user.NodeLocId == "" {
+		return errors.New("nodeloc id is empty")
+	}
+	err := DB.Where("nodeloc_id = ?", user.NodeLocId).First(user).Error
 	return err
 }
 

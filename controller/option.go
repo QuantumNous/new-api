@@ -100,6 +100,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "NodeLocOAuthEnabled":
+		if option.Value == "true" && common.NodeLocClientId == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 NodeLoc OAuth，请先填入 NodeLoc Client Id 以及 NodeLoc Client Secret！",
+			})
+			return
+		}
 	case "EmailDomainRestrictionEnabled":
 		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
 			c.JSON(http.StatusOK, gin.H{
