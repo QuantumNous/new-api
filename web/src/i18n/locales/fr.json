@@ -1231,6 +1231,8 @@
     "Manage and configure": "Gérer et configurer",
     "Manage catalog visibility and pricing.": "Gérer la visibilité du catalogue et les prix.",
     "Manage local models for:": "Manage local models for:",
+    "Manage model deployments": "Gérer les déploiements de modèles",
+    "Manage model metadata and configuration": "Gérer les métadonnées et la configuration des modèles",
     "Manage model metadata and deployments": "Gérer les métadonnées des modèles et les déploiements",
     "Manage multi-key status and configuration for this channel": "Gérer le statut multi-clés et la configuration pour ce canal",
     "Manage redemption codes for quota top-up": "Gérer les codes d'échange pour la recharge de quota",

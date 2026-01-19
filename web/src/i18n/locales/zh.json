@@ -1231,6 +1231,8 @@
     "Manage and configure": "管理和配置",
     "Manage catalog visibility and pricing.": "管理目录可见性和定价。",
     "Manage local models for:": "管理本地模型：",
+    "Manage model deployments": "管理模型部署",
+    "Manage model metadata and configuration": "管理模型元信息和配置",
     "Manage model metadata and deployments": "管理模型元信息与模型部署",
     "Manage multi-key status and configuration for this channel": "管理此渠道的多密钥状态和配置",
     "Manage redemption codes for quota top-up": "管理用于配额充值的兑换码",

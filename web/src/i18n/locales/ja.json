@@ -1231,6 +1231,8 @@
     "Manage and configure": "管理と設定",
     "Manage catalog visibility and pricing.": "カタログの表示と価格設定を管理。",
     "Manage local models for:": "次のローカルモデルを管理します。",
+    "Manage model deployments": "モデルデプロイを管理する",
+    "Manage model metadata and configuration": "モデルのメタデータと設定を管理する",
     "Manage model metadata and deployments": "モデルのメタデータとデプロイを管理する",
     "Manage multi-key status and configuration for this channel": "このチャネルのマルチキーのステータスと構成を管理する",
     "Manage redemption codes for quota top-up": "クォータのチャージ用の引き換えコードを管理する",

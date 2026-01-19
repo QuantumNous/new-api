@@ -1229,6 +1229,8 @@
     "Manage and configure": "Управление и настройка",
     "Manage catalog visibility and pricing.": "Управление видимостью каталога и ценообразованием.",
     "Manage local models for:": "Управление локальными моделями для:",
+    "Manage model deployments": "Управление развёртываниями моделей",
+    "Manage model metadata and configuration": "Управление метаданными и конфигурацией моделей",
     "Manage model metadata and deployments": "Управление метаданными моделей и развертываниями",
     "Manage multi-key status and configuration for this channel": "Управление статусом и конфигурацией нескольких ключей для этого канала",
     "Manage redemption codes for quota top-up": "Управление кодами активации для пополнения квоты",

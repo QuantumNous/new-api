@@ -1229,6 +1229,8 @@
     "Manage and configure": "Quản lý và cấu hình",
     "Manage catalog visibility and pricing.": "Quản lý hiển thị danh mục và giá cả.",
     "Manage local models for:": "Quản lý mô hình cục bộ cho:",
+    "Manage model deployments": "Quản lý triển khai mô hình",
+    "Manage model metadata and configuration": "Quản lý siêu dữ liệu và cấu hình mô hình",
     "Manage model metadata and deployments": "Quản lý siêu dữ liệu mô hình và triển khai",
     "Manage multi-key status and configuration for this channel": "Quản lý trạng thái và cấu hình đa khóa cho kênh này",
     "Manage redemption codes for quota top-up": "Quản lý mã quy đổi để nạp thêm hạn mức",
