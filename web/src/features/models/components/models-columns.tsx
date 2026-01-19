@@ -508,7 +508,7 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         const syncOfficial = row.getValue('sync_official') as number
         return (
           <StatusBadge
-            label={syncOfficial === 1 ? 'Yes' : 'No'}
+            label={syncOfficial === 1 ? t('Official Sync') : t('No Sync')}
             variant={syncOfficial === 1 ? 'success' : 'warning'}
             size='sm'
             copyable={false}
