@@ -110,6 +110,10 @@ const ModelSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <SettingGlobalModel options={inputs} refresh={onRefresh} />
         </Card>
+        {/* Channel affinity */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
+        </Card>
         {/* Gemini */}
         <Card style={{ marginTop: '10px' }}>
           <SettingGeminiModel options={inputs} refresh={onRefresh} />
@@ -117,10 +121,6 @@ const ModelSetting = () => {
         {/* Claude */}
         <Card style={{ marginTop: '10px' }}>
           <SettingClaudeModel options={inputs} refresh={onRefresh} />
-        </Card>
-        {/* Channel affinity */}
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
