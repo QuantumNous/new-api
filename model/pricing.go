@@ -49,6 +49,13 @@ var (
 	modelEnableGroupsLock = sync.RWMutex{}
 )
 
+// InvalidatePricingCache forces the pricing cache to refresh on next request
+func InvalidatePricingCache() {
+	updatePricingLock.Lock()
+	defer updatePricingLock.Unlock()
+	lastGetPricingTime = time.Time{}
+}
+
 var (
 	modelSupportEndpointTypes = make(map[string][]constant.EndpointType)
 	modelSupportEndpointsLock = sync.RWMutex{}
