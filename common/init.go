@@ -3,7 +3,7 @@ package common
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -48,9 +48,10 @@ func InitEnv() {
 	if os.Getenv("SESSION_SECRET") != "" {
 		ss := os.Getenv("SESSION_SECRET")
 		if ss == "random_string" {
-			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
-			log.Println("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
-			log.Fatal("Please set SESSION_SECRET to a random string.")
+			slog.Warn("SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
+			slog.Warn("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
+			slog.Error("Please set SESSION_SECRET to a random string.")
+			os.Exit(1)
 		} else {
 			SessionSecret = ss
 		}
@@ -67,12 +68,14 @@ func InitEnv() {
 		var err error
 		*LogDir, err = filepath.Abs(*LogDir)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("failed to get absolute path for log directory", "error", err)
+			os.Exit(1)
 		}
 		if _, err := os.Stat(*LogDir); os.IsNotExist(err) {
 			err = os.Mkdir(*LogDir, 0777)
 			if err != nil {
-				log.Fatal(err)
+				slog.Error("failed to create log directory", "error", err)
+				os.Exit(1)
 			}
 		}
 	}
