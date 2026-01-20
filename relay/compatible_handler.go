@@ -217,16 +217,6 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	return nil
 }
 
-func shouldChatCompletionsViaResponses(info *relaycommon.RelayInfo) bool {
-	if info == nil {
-		return false
-	}
-	if info.RelayMode != relayconstant.RelayModeChatCompletions {
-		return false
-	}
-	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.OriginModelName)
-}
-
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {
 	if usage == nil {
 		usage = &dto.Usage{
