@@ -440,7 +440,7 @@ const NotificationSettings = ({
                   data={[
                     { value: 100000, label: '0.2$' },
                     { value: 500000, label: '1$' },
-                    { value: 1000000, label: '5$' },
+                    { value: 1000000, label: '2$' },
                     { value: 5000000, label: '10$' },
                   ]}
                   onChange={(val) => handleFormChange('warningThreshold', val)}
