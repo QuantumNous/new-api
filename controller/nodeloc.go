@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -85,12 +86,8 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 	// Get access token
 	tokenEndpoint := common.GetEnvOrDefaultString("NODELOC_TOKEN_ENDPOINT", "https://www.nodeloc.com/oauth-provider/token")
 
-	// Get redirect URI from request
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/nodeloc", scheme, c.Request.Host)
+	// Get redirect URI from ServerAddress config
+	redirectURI := strings.TrimSuffix(system_setting.ServerAddress, "/") + "/oauth/nodeloc"
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -232,7 +229,12 @@ func NodeLocOAuth(c *gin.Context) {
 	} else {
 		if common.RegisterEnabled {
 			if nodelocUser.TrustLevel >= common.NodeLocMinimumTrustLevel {
-				user.Username = "nodeloc_" + strconv.Itoa(model.GetMaxUserId()+1)
+				// 使用 NodeLoc 用户名，如果已存在则添加后缀
+				username := nodelocUser.Username
+				if model.IsUsernameExist(username) {
+					username = username + "_" + strconv.Itoa(model.GetMaxUserId()+1)
+				}
+				user.Username = username
 				user.DisplayName = nodelocUser.Name
 				user.Role = common.RoleCommonUser
 				user.Status = common.UserStatusEnabled
@@ -250,6 +252,7 @@ func NodeLocOAuth(c *gin.Context) {
 					})
 					return
 				}
+				common.SysLog(fmt.Sprintf("NodeLoc user created: id=%d, username=%s, nodeloc_id=%s", user.Id, user.Username, user.NodeLocId))
 			} else {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,

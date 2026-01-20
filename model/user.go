@@ -580,6 +580,10 @@ func IsEmailAlreadyTaken(email string) bool {
 	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
 }
 
+func IsUsernameExist(username string) bool {
+	return DB.Unscoped().Where("username = ?", username).Find(&User{}).RowsAffected == 1
+}
+
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
 	return DB.Unscoped().Where("wechat_id = ?", wechatId).Find(&User{}).RowsAffected == 1
 }
@@ -924,7 +928,7 @@ func (user *User) FillUserByLinuxDOId() error {
 
 func IsNodeLocIdAlreadyTaken(nodelocId string) bool {
 	var user User
-	err := DB.Unscoped().Where("nodeloc_id = ?", nodelocId).First(&user).Error
+	err := DB.Where("nodeloc_id = ?", nodelocId).First(&user).Error
 	return !errors.Is(err, gorm.ErrRecordNotFound)
 }
 
