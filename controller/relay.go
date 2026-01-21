@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -219,6 +220,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
+		}
+		if delayMs := common.GetContextKeyInt(c, constant.ContextKeyEmptyStreamRetryDelayMs); delayMs > 0 {
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			common.SetContextKey(c, constant.ContextKeyEmptyStreamRetryDelayMs, 0)
 		}
 	}
 

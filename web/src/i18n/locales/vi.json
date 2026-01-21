@@ -3168,6 +3168,8 @@
     "关闭提示": "Đóng thông báo",
     "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Lưu ý: Bài kiểm tra trên trang này sử dụng yêu cầu không streaming. Nếu kênh chỉ hỗ trợ phản hồi streaming, bài kiểm tra có thể thất bại. Vui lòng dựa vào sử dụng thực tế.",
     "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Lưu ý: Ánh xạ endpoint chỉ dùng để hiển thị trong \"Chợ mô hình\" và không ảnh hưởng đến việc gọi thực tế. Để cấu hình gọi thực tế, vui lòng vào \"Quản lý kênh\".",
-    "空流重试（输出为空且 Token=0）": "Thử lại khi luồng rỗng (đầu ra rỗng và token=0)"
+    "空流重试（输出为空且 Token=0）": "Thử lại khi luồng rỗng (đầu ra rỗng và token=0)",
+    "空流重试延迟（ms）": "Độ trễ thử lại khi luồng rỗng (ms)",
+    "例如 100 / 500 / 1000": "ví dụ 100 / 500 / 1000"
   }
 }

@@ -2605,6 +2605,8 @@
     "关闭提示": "Fermer l’avertissement",
     "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Remarque : les tests sur cette page utilisent des requêtes non-streaming. Si un canal ne prend en charge que les réponses en streaming, les tests peuvent échouer. Veuillez vous référer à l’usage réel.",
     "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Remarque : la correspondance des endpoints sert uniquement à l’affichage dans la place de marché des modèles et n’affecte pas l’invocation réelle. Pour configurer l’invocation réelle, veuillez aller dans « Gestion des canaux ».",
-    "空流重试（输出为空且 Token=0）": "Nouvelle tentative en cas de flux vide (sortie vide et token=0)"
+    "空流重试（输出为空且 Token=0）": "Nouvelle tentative en cas de flux vide (sortie vide et jeton=0)",
+    "空流重试延迟（ms）": "Délai de nouvelle tentative en cas de flux vide (ms)",
+    "例如 100 / 500 / 1000": "ex. 100 / 500 / 1000"
   }
 }

@@ -50,6 +50,7 @@ export default function GeneralSettings(props) {
     'general_setting.custom_currency_symbol': '¤',
     'general_setting.custom_currency_exchange_rate': '',
     'general_setting.empty_stream_retry_enabled': true,
+    'general_setting.empty_stream_retry_delay_ms': 100,
     QuotaPerUnit: '',
     RetryTimes: '',
     USDExchangeRate: '',
@@ -266,6 +267,19 @@ export default function GeneralSettings(props) {
                   onChange={handleFieldChange(
                     'general_setting.empty_stream_retry_enabled',
                   )}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'general_setting.empty_stream_retry_delay_ms'}
+                  label={t('空流重试延迟（ms）')}
+                  initValue={100}
+                  placeholder={t('例如 100 / 500 / 1000')}
+                  onChange={handleFieldChange(
+                    'general_setting.empty_stream_retry_delay_ms',
+                  )}
+                  showClear
+                  disabled={!inputs['general_setting.empty_stream_retry_enabled']}
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

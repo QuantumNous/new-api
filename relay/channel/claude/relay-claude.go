@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
@@ -722,6 +722,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	}
 }
 
+// ClaudeStreamHandler handles Claude streaming responses and returns usage or error.
 func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*dto.Usage, *types.NewAPIError) {
 	claudeInfo := &ClaudeResponseInfo{
 		ResponseId:   helper.GetResponseID(c),
@@ -742,9 +743,11 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 
-	emptyStreamRetryEnabled := operation_setting.GetGeneralSetting().EmptyStreamRetryEnabled
-	if emptyStreamRetryEnabled && strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
-		time.Sleep(1 * time.Second)
+	generalSetting := operation_setting.GetGeneralSetting()
+	if generalSetting.EmptyStreamRetryEnabled && strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		if generalSetting.EmptyStreamRetryDelayMs > 0 {
+			common.SetContextKey(c, constant.ContextKeyEmptyStreamRetryDelayMs, generalSetting.EmptyStreamRetryDelayMs)
+		}
 		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("响应流为空，使用率为零，可能存在流中断"),
 			types.ErrorCodeBadResponseBody,
@@ -756,6 +759,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	return claudeInfo.Usage, nil
 }
 
+// HandleClaudeResponseData processes a Claude non-stream response payload and writes back the mapped response.
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte, requestMode int) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
@@ -776,9 +780,11 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 	}
-	emptyStreamRetryEnabled := operation_setting.GetGeneralSetting().EmptyStreamRetryEnabled
-	if emptyStreamRetryEnabled && claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
-		time.Sleep(1 * time.Second)
+	generalSetting := operation_setting.GetGeneralSetting()
+	if generalSetting.EmptyStreamRetryEnabled && claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		if generalSetting.EmptyStreamRetryDelayMs > 0 {
+			common.SetContextKey(c, constant.ContextKeyEmptyStreamRetryDelayMs, generalSetting.EmptyStreamRetryDelayMs)
+		}
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("响应为空，使用率为零，可能存在流中断"),
 			types.ErrorCodeBadResponseBody,

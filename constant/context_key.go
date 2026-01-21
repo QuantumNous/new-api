@@ -54,5 +54,6 @@ const (
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 
-	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"
+	ContextKeySystemPromptOverride    ContextKey = "system_prompt_override"
+	ContextKeyEmptyStreamRetryDelayMs ContextKey = "empty_stream_retry_delay_ms"
 )

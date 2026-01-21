@@ -46,6 +46,7 @@ const OperationSetting = () => {
     RetryTimes: 0,
     'general_setting.quota_display_type': 'USD',
     'general_setting.empty_stream_retry_enabled': true,
+    'general_setting.empty_stream_retry_delay_ms': 100,
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
