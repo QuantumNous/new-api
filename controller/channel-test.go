@@ -478,9 +478,10 @@ func buildTestRequest(model string, endpointType string) dto.Request {
 
 	// 自动检测逻辑（保持原有行为）
 	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
+	modelName := strings.ToLower(model)
+	if !strings.Contains(modelName, "rerank") && (strings.Contains(modelName, "embedding") ||
+		strings.HasPrefix(modelName, "m3e") ||
+		strings.Contains(modelName, "bge-")) {
 		// 返回 EmbeddingRequest
 		return &dto.EmbeddingRequest{
 			Model: model,
