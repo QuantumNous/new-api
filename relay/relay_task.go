@@ -422,6 +422,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				if strings.HasPrefix(ti.Url, "data:") {
 				} else {
 					originTask.FailReason = ti.Url
+					originTask.Url = ti.Url
 				}
 			}
 			_ = originTask.Update()
