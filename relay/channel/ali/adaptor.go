@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,11 @@ import (
 
 type Adaptor struct {
 	IsSyncImageModel bool
+}
+
+func supportsAliAnthropicMessages(modelName string) bool {
+	// Only models with the "qwen" designation can use the Claude-compatible interface; others require conversion.
+	return strings.Contains(strings.ToLower(modelName), "qwen")
 }
 
 var syncModels = []string{
@@ -43,7 +49,18 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	return req, nil
+	if supportsAliAnthropicMessages(info.UpstreamModelName) {
+		return req, nil
+	}
+
+	oaiReq, err := service.ClaudeToOpenAIRequest(*req, info)
+	if err != nil {
+		return nil, err
+	}
+	if info.SupportStreamOptions && info.IsStream {
+		oaiReq.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	}
+	return a.ConvertOpenAIRequest(c, info, oaiReq)
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -53,7 +70,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	var fullRequestURL string
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		fullRequestURL = fmt.Sprintf("%s/api/v2/apps/claude-code-proxy/v1/messages", info.ChannelBaseUrl)
+		if supportsAliAnthropicMessages(info.UpstreamModelName) {
+			fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", info.ChannelBaseUrl)
+		} else {
+			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
+		}
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeEmbeddings:
@@ -197,11 +218,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if info.IsStream {
-			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
-		} else {
+		if supportsAliAnthropicMessages(info.UpstreamModelName) {
+			if info.IsStream {
+				return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
+			}
+
 			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
 		}
+
+		adaptor := openai.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeImagesGenerations:

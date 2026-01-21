@@ -121,6 +121,10 @@ type RelayInfo struct {
 
 	Request dto.Request
 
+	// RequestConversionChain records request format conversions in order, e.g.
+	// ["openai", "openai_responses"] or ["openai", "claude"].
+	RequestConversionChain []types.RelayFormat
+
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo
@@ -448,38 +452,83 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 }
 
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
+	var info *RelayInfo
+	var err error
 	switch relayFormat {
 	case types.RelayFormatOpenAI:
-		return GenRelayInfoOpenAI(c, request), nil
+		info = GenRelayInfoOpenAI(c, request)
 	case types.RelayFormatOpenAIAudio:
-		return GenRelayInfoOpenAIAudio(c, request), nil
+		info = GenRelayInfoOpenAIAudio(c, request)
 	case types.RelayFormatOpenAIImage:
-		return GenRelayInfoImage(c, request), nil
+		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:
-		return GenRelayInfoWs(c, ws), nil
+		info = GenRelayInfoWs(c, ws)
 	case types.RelayFormatClaude:
-		return GenRelayInfoClaude(c, request), nil
+		info = GenRelayInfoClaude(c, request)
 	case types.RelayFormatRerank:
 		if request, ok := request.(*dto.RerankRequest); ok {
-			return GenRelayInfoRerank(c, request), nil
+			info = GenRelayInfoRerank(c, request)
+			break
 		}
-		return nil, errors.New("request is not a RerankRequest")
+		err = errors.New("request is not a RerankRequest")
 	case types.RelayFormatGemini:
-		return GenRelayInfoGemini(c, request), nil
+		info = GenRelayInfoGemini(c, request)
 	case types.RelayFormatEmbedding:
-		return GenRelayInfoEmbedding(c, request), nil
+		info = GenRelayInfoEmbedding(c, request)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
-			return GenRelayInfoResponses(c, request), nil
+			info = GenRelayInfoResponses(c, request)
+			break
 		}
-		return nil, errors.New("request is not a OpenAIResponsesRequest")
+		err = errors.New("request is not a OpenAIResponsesRequest")
 	case types.RelayFormatTask:
-		return genBaseRelayInfo(c, nil), nil
+		info = genBaseRelayInfo(c, nil)
 	case types.RelayFormatMjProxy:
-		return genBaseRelayInfo(c, nil), nil
+		info = genBaseRelayInfo(c, nil)
 	default:
-		return nil, errors.New("invalid relay format")
+		err = errors.New("invalid relay format")
 	}
+
+	if err != nil {
+		return nil, err
+	}
+	if info == nil {
+		return nil, errors.New("failed to build relay info")
+	}
+
+	info.InitRequestConversionChain()
+	return info, nil
+}
+
+func (info *RelayInfo) InitRequestConversionChain() {
+	if info == nil {
+		return
+	}
+	if len(info.RequestConversionChain) > 0 {
+		return
+	}
+	if info.RelayFormat == "" {
+		return
+	}
+	info.RequestConversionChain = []types.RelayFormat{info.RelayFormat}
+}
+
+func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
+	if info == nil {
+		return
+	}
+	if format == "" {
+		return
+	}
+	if len(info.RequestConversionChain) == 0 {
+		info.RequestConversionChain = []types.RelayFormat{format}
+		return
+	}
+	last := info.RequestConversionChain[len(info.RequestConversionChain)-1]
+	if last == format {
+		return
+	}
+	info.RequestConversionChain = append(info.RequestConversionChain, format)
 }
 
 //func (info *RelayInfo) SetPromptTokens(promptTokens int) {

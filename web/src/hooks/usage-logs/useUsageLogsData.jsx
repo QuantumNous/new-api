@@ -306,6 +306,16 @@ export const useLogsData = () => {
 
   // Format logs data
   const setLogsFormat = (logs) => {
+    const requestConversionDisplayValue = (conversionChain) => {
+      const chain = Array.isArray(conversionChain)
+        ? conversionChain.filter(Boolean)
+        : [];
+      if (chain.length <= 1) {
+        return t('原生格式');
+      }
+      return `${chain.join(' -> ')}`;
+    };
+
     let expandDatesLocal = {};
     for (let i = 0; i < logs.length; i++) {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
@@ -480,6 +490,12 @@ export const useLogsData = () => {
         expandDataLocal.push({
           key: t('请求路径'),
           value: other.request_path,
+        });
+      }
+      if (isAdminUser) {
+        expandDataLocal.push({
+          key: t('请求转换'),
+          value: requestConversionDisplayValue(other?.request_conversion),
         });
       }
       if (isAdminUser) {

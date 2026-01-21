@@ -70,7 +70,36 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
+	appendRequestConversionChain(relayInfo, other)
 	return other
+}
+
+func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	if len(relayInfo.RequestConversionChain) == 0 {
+		return
+	}
+	chain := make([]string, 0, len(relayInfo.RequestConversionChain))
+	for _, f := range relayInfo.RequestConversionChain {
+		switch f {
+		case types.RelayFormatOpenAI:
+			chain = append(chain, "OpenAI Compatible")
+		case types.RelayFormatClaude:
+			chain = append(chain, "Claude Messages")
+		case types.RelayFormatGemini:
+			chain = append(chain, "Google Gemini")
+		case types.RelayFormatOpenAIResponses:
+			chain = append(chain, "OpenAI Responses")
+		default:
+			chain = append(chain, string(f))
+		}
+	}
+	if len(chain) == 0 {
+		return
+	}
+	other["request_conversion"] = chain
 }
 
 func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {
