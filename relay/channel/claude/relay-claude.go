@@ -588,6 +588,23 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+func claudeResponseText(requestMode int, claudeResponse *dto.ClaudeResponse) string {
+	if claudeResponse == nil {
+		return ""
+	}
+	if requestMode == RequestModeCompletion {
+		return strings.TrimSpace(claudeResponse.Completion)
+	}
+
+	var builder strings.Builder
+	for _, item := range claudeResponse.Content {
+		if item.Type == "text" {
+			builder.WriteString(item.GetText())
+		}
+	}
+	return strings.TrimSpace(builder.String())
+}
+
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	if requestMode == RequestModeCompletion {
 		claudeInfo.ResponseText.WriteString(claudeResponse.Completion)
@@ -722,6 +739,14 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 
+	if strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("响应流为空，使用率为零，可能存在流中断"),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+		)
+	}
+
 	HandleStreamFinalResponse(c, info, claudeInfo, requestMode)
 	return claudeInfo.Usage, nil
 }
@@ -745,6 +770,13 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+	}
+	if claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("响应为空，使用率为零，可能存在流中断"),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+		)
 	}
 	var responseData []byte
 	switch info.RelayFormat {
