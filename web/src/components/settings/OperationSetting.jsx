@@ -45,6 +45,7 @@ const OperationSetting = () => {
     USDExchangeRate: 0,
     RetryTimes: 0,
     'general_setting.quota_display_type': 'USD',
+    'general_setting.empty_stream_retry_enabled': true,
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,

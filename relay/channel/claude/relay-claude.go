@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -588,6 +590,7 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+// claudeResponseText extracts visible text for empty-stream retry checks.
 func claudeResponseText(requestMode int, claudeResponse *dto.ClaudeResponse) string {
 	if claudeResponse == nil {
 		return ""
@@ -739,7 +742,9 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 
-	if strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
+	emptyStreamRetryEnabled := operation_setting.GetGeneralSetting().EmptyStreamRetryEnabled
+	if emptyStreamRetryEnabled && strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		time.Sleep(1 * time.Second)
 		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("响应流为空，使用率为零，可能存在流中断"),
 			types.ErrorCodeBadResponseBody,
@@ -771,7 +776,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 	}
-	if claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
+	emptyStreamRetryEnabled := operation_setting.GetGeneralSetting().EmptyStreamRetryEnabled
+	if emptyStreamRetryEnabled && claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		time.Sleep(1 * time.Second)
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("响应为空，使用率为零，可能存在流中断"),
 			types.ErrorCodeBadResponseBody,
