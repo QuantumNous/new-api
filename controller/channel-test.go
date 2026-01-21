@@ -79,7 +79,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 
 	// 如果指定了端点类型，使用指定的端点类型
 	if endpointType != "" {
-		if endpointInfo, ok := common.GetDefaultEndpointInfo(constant.EndpointType(endpointType)); ok {
+		if endpointInfo, ok := common.GetTestDefaultEndpointInfo(constant.EndpointType(endpointType)); ok {
 			requestPath = endpointInfo.Path
 		}
 	} else {
