@@ -1065,6 +1065,8 @@
     "成功": "Success",
     "成功兑换额度：": "Successful redemption amount:",
     "成功时自动启用通道": "Enable channel when successful",
+    "重试时避开已尝试渠道": "Avoid used channels on retry",
+    "启用后，重试时不会再次选择已失败的渠道。注意：渠道数量较少时可能更早失败。": "When enabled, retries will not select channels that have already failed. Note: May fail earlier when there are fewer channels.",
     "我已了解禁用两步验证将永久删除所有相关设置和备用码，此操作不可撤销": "I have understood that disabling two-factor authentication will permanently delete all related settings and backup codes, this operation cannot be undone",
     "我已阅读并同意": "I have read and agree to",
     "或": "or",

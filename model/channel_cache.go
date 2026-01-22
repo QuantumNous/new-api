@@ -93,10 +93,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, excludeIds map[int]struct{}) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, excludeIds)
 	}
 
 	channelSyncLock.RLock()
@@ -117,6 +117,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
+			// 检查是否需要排除
+			if len(excludeIds) > 0 {
+				if _, excluded := excludeIds[channels[0]]; excluded {
+					return nil, nil // 唯一渠道已被排除
+				}
+			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
@@ -147,6 +153,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				// 如果需要排除且渠道在排除列表中，则跳过
+				if len(excludeIds) > 0 {
+					if _, excluded := excludeIds[channelId]; excluded {
+						continue
+					}
+				}
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
