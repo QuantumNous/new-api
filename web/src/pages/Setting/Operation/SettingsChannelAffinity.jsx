@@ -208,7 +208,7 @@ export default function SettingsChannelAffinity(props) {
   const [isEdit, setIsEdit] = useState(false);
   const modalFormRef = useRef();
   const [modalInitValues, setModalInitValues] = useState(null);
-  const modalInitValuesRef = useRef(null);
+  const [modalFormKey, setModalFormKey] = useState(0);
   const [modalAdvancedActiveKey, setModalAdvancedActiveKey] = useState([]);
 
   const effectiveDefaultTTLSeconds =
@@ -228,11 +228,6 @@ export default function SettingsChannelAffinity(props) {
       include_using_group: r.include_using_group ?? true,
       include_rule_name: r.include_rule_name ?? true,
     };
-  };
-
-  const setModalInitValuesSafe = (next) => {
-    modalInitValuesRef.current = next;
-    setModalInitValues(next);
   };
 
   const refreshCacheStats = async () => {
@@ -530,9 +525,10 @@ export default function SettingsChannelAffinity(props) {
     setEditingRule(nextRule);
     setIsEdit(false);
     modalFormRef.current = null;
-    setModalVisible(true);
-    setModalInitValuesSafe(buildModalFormValues(nextRule));
+    setModalInitValues(buildModalFormValues(nextRule));
     setModalAdvancedActiveKey([]);
+    setModalFormKey((k) => k + 1);
+    setModalVisible(true);
   };
 
   const handleEditRule = (rule) => {
@@ -547,9 +543,10 @@ export default function SettingsChannelAffinity(props) {
     setEditingRule(nextRule);
     setIsEdit(true);
     modalFormRef.current = null;
-    setModalVisible(true);
-    setModalInitValuesSafe(buildModalFormValues(nextRule));
+    setModalInitValues(buildModalFormValues(nextRule));
     setModalAdvancedActiveKey(['advanced']);
+    setModalFormKey((k) => k + 1);
+    setModalVisible(true);
   };
 
   const handleDeleteRule = (id) => {
@@ -605,7 +602,7 @@ export default function SettingsChannelAffinity(props) {
       updateRulesState(next.map((r, idx) => ({ ...r, id: idx })));
       setModalVisible(false);
       setEditingRule(null);
-      setModalInitValuesSafe(null);
+      setModalInitValues(null);
       showSuccess(t('保存成功'));
     } catch (e) {
       showError(t('请检查输入'));
@@ -878,7 +875,7 @@ export default function SettingsChannelAffinity(props) {
         onCancel={() => {
           setModalVisible(false);
           setEditingRule(null);
-          setModalInitValuesSafe(null);
+          setModalInitValues(null);
           setModalAdvancedActiveKey([]);
         }}
         onOk={handleModalSave}
@@ -887,15 +884,10 @@ export default function SettingsChannelAffinity(props) {
         width={720}
       >
         <Form
-          key={
-            isEdit ? `edit-rule-${editingRule?.id ?? ''}` : 'create-new-rule'
-          }
+          key={`channel-affinity-rule-form-${modalFormKey}`}
+          initValues={modalInitValues || {}}
           getFormApi={(formAPI) => {
             modalFormRef.current = formAPI;
-            const init = modalInitValuesRef.current;
-            if (init) {
-              formAPI.setValues(init);
-            }
           }}
         >
           <Form.Input
