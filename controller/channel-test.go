@@ -478,6 +478,17 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		}
 	}
 
+	// VolcEngine 图像生成模型（seedream）
+	// 保持与 testChannel 中的 requestPath/relayFormat 自动检测逻辑一致
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(model, "seedream") {
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      1,
+			Size:   "1024x1024",
+		}
+	}
+
 	// 自动检测逻辑（保持原有行为）
 	// 先判断是否为 Embedding 模型
 	if strings.Contains(strings.ToLower(model), "embedding") ||
