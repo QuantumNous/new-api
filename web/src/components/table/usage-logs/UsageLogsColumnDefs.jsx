@@ -522,42 +522,42 @@ export const getLogsColumns = ({
         return isAdminUser ? (
           <Space>
             <div>{content}</div>
-            {affinity ? (
-              <Tooltip
-                content={
-                  <div style={{ lineHeight: 1.6 }}>
-                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
-                    <div>
-                      <Typography.Text type='tertiary'>
-                        {t('规则')}：{affinity.rule_name || '-'}
-                      </Typography.Text>
-                    </div>
-                    <div>
-                      <Typography.Text type='tertiary'>
-                        {t('分组')}：{affinity.selected_group || '-'}
-                      </Typography.Text>
-                    </div>
-                    <div>
-                      <Typography.Text type='tertiary'>
-                        {t('Key')}：
-                        {(affinity.key_source || '-') +
-                          ':' +
-                          (affinity.key_path || affinity.key_key || '-') +
+	            {affinity ? (
+	              <Tooltip
+	                content={
+	                  <div style={{ lineHeight: 1.6 }}>
+	                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('规则')}：{affinity.rule_name || '-'}
+	                      </Typography.Text>
+	                    </div>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('分组')}：{affinity.selected_group || '-'}
+	                      </Typography.Text>
+	                    </div>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('Key')}：
+	                        {(affinity.key_source || '-') +
+	                          ':' +
+	                          (affinity.key_path || affinity.key_key || '-') +
                           (affinity.key_fp ? `#${affinity.key_fp}` : '')}
                       </Typography.Text>
                     </div>
-                  </div>
-                }
-              >
-                <span>
-                  <Tag color='cyan' shape='circle'>
-                    <span className='inline-flex items-center gap-1'>
-                      <IconStarStroked />
-                      {t('优选')}
-                    </span>
-                  </Tag>
-                </span>
-              </Tooltip>
+	                  </div>
+	                }
+	              >
+	                <span>
+	                  <Tag className='channel-affinity-tag' color='cyan' shape='circle'>
+	                    <span className='channel-affinity-tag-content'>
+	                      <IconStarStroked style={{ fontSize: 13 }} />
+	                      {t('优选')}
+	                    </span>
+	                  </Tag>
+	                </span>
+	              </Tooltip>
             ) : null}
           </Space>
         ) : (
