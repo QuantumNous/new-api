@@ -1,6 +1,8 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
@@ -15,6 +17,23 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.StatsMiddleware())
 	// https://platform.openai.com/docs/api-reference/introduction
+
+	// 兼容旧crs的请求路由
+	crsRouter := router.Group("")
+	crsRouter.Use(middleware.TokenAuth(), middleware.ModelRequestRateLimit(), middleware.Distribute())
+	crsRouter.POST("/api/v1/messages", func(c *gin.Context) {
+		c.Request.URL.Path = strings.TrimPrefix(c.Request.URL.Path, "/api")
+		controller.Relay(c, types.RelayFormatClaude)
+	})
+	crsRouter.POST("/gemini/v1beta/models/*path", func(c *gin.Context) {
+		c.Request.URL.Path = strings.TrimPrefix(c.Request.URL.Path, "/gemini")
+		controller.Relay(c, types.RelayFormatGemini)
+	})
+	crsRouter.POST("/openai/responses", func(c *gin.Context) {
+		c.Request.URL.Path = strings.Replace(c.Request.URL.Path, "/openai", "/v1", 1)
+		controller.Relay(c, types.RelayFormatOpenAIResponses)
+	})
+
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.TokenAuth())
 	{
