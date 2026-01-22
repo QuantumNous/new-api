@@ -26,8 +26,17 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 	err = common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("openai.OaiResponsesHandler status=%d", resp.StatusCode),
+			err,
+			responseBody,
+		)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
@@ -78,8 +87,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var hasStreamData bool
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		hasStreamData = true
+		if strings.TrimSpace(data) == "" {
+			streamErr = types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			return false
+		}
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
@@ -125,10 +141,18 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				}
 			}
 		} else {
-			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
+			logger.LogJSONUnmarshalError(c, "openai.OaiResponsesStreamHandler", err, []byte(data))
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		return true
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if !hasStreamData {
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

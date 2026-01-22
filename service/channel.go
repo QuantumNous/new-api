@@ -57,6 +57,9 @@ func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 	if types.IsSkipRetryError(err) {
 		return false
 	}
+	if common.AutomaticDisableOnEmptyResponseEnabled && types.IsEmptyResponseError(err) {
+		return true
+	}
 	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
 		return true
 	}

@@ -44,6 +44,8 @@ export default function SettingsMonitoring(props) {
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
+    AutomaticDisableOnEmptyResponseEnabled: false,
+    AutomaticRetryOnEmptyResponseEnabled: false,
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     AutomaticRetryStatusCodes: '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
@@ -242,6 +244,24 @@ export default function SettingsMonitoring(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={16}>
+                {inputs.AutomaticDisableChannelEnabled && (
+                  <div style={{ paddingLeft: 24 }}>
+                    <Form.Switch
+                      field={'AutomaticDisableOnEmptyResponseEnabled'}
+                      label={t('空响应时自动禁用通道')}
+                      size='default'
+                      checkedText='｜'
+                      uncheckedText='〇'
+                      extraText={t('当上游返回空响应（无响应体）时，自动禁用通道')}
+                      onChange={(value) =>
+                        setInputs({
+                          ...inputs,
+                          AutomaticDisableOnEmptyResponseEnabled: value,
+                        })
+                      }
+                    />
+                  </div>
+                )}
                 <HttpStatusCodeRulesInput
                   label={t('自动禁用状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
@@ -254,6 +274,20 @@ export default function SettingsMonitoring(props) {
                   }
                   parsed={parsedAutoDisableStatusCodes}
                   invalidText={t('自动禁用状态码格式不正确')}
+                />
+                <Form.Switch
+                  field={'AutomaticRetryOnEmptyResponseEnabled'}
+                  label={t('空响应时自动重试')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t('当上游返回空响应（无响应体）时，允许触发重试')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutomaticRetryOnEmptyResponseEnabled: value,
+                    })
+                  }
                 />
                 <HttpStatusCodeRulesInput
                   label={t('自动重试状态码')}
