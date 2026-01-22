@@ -40,7 +40,7 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
 } from '../../../helpers';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconHelpCircle, IconStarStroked } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
 
 const colors = [
@@ -525,15 +525,36 @@ export const getLogsColumns = ({
             {affinity ? (
               <Tooltip
                 content={
-                  `reason=${affinity.reason || 'affinity'}, ` +
-                  `rule=${affinity.rule_name || ''}, ` +
-                  `group=${affinity.selected_group || ''}, ` +
-                  `key=${affinity.key_source || ''}:${affinity.key_path || affinity.key_key || ''}#${affinity.key_fp || ''}`
+                  <div style={{ lineHeight: 1.6 }}>
+                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
+                    <div>
+                      <Typography.Text type='tertiary'>
+                        {t('规则')}：{affinity.rule_name || '-'}
+                      </Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text type='tertiary'>
+                        {t('分组')}：{affinity.selected_group || '-'}
+                      </Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text type='tertiary'>
+                        {t('Key')}：
+                        {(affinity.key_source || '-') +
+                          ':' +
+                          (affinity.key_path || affinity.key_key || '-') +
+                          (affinity.key_fp ? `#${affinity.key_fp}` : '')}
+                      </Typography.Text>
+                    </div>
+                  </div>
                 }
               >
                 <span>
                   <Tag color='cyan' shape='circle'>
-                    affinity
+                    <span className='inline-flex items-center gap-1'>
+                      <IconStarStroked />
+                      {t('优选')}
+                    </span>
                   </Tag>
                 </span>
               </Tooltip>

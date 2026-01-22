@@ -22,6 +22,7 @@ import {
   Banner,
   Button,
   Col,
+  Collapse,
   Divider,
   Form,
   Modal,
@@ -60,6 +61,31 @@ const KEY_SOURCE_TYPES = [
   { label: 'context_string', value: 'context_string' },
   { label: 'gjson', value: 'gjson' },
 ];
+
+const RULE_TEMPLATES = {
+  codex: {
+    name: 'codex优选',
+    model_regex: ['^gpt-.*$'],
+    path_regex: ['/v1/responses'],
+    user_agent_include: ['codex'],
+    key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
+    value_regex: '',
+    ttl_seconds: 0,
+    include_using_group: true,
+    include_rule_name: true,
+  },
+  claudeCode: {
+    name: 'claude-code优选',
+    model_regex: ['^claude-.*$'],
+    path_regex: ['/v1/messages'],
+    user_agent_include: ['claude-code'],
+    key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
+    value_regex: '',
+    ttl_seconds: 0,
+    include_using_group: true,
+    include_rule_name: true,
+  },
+};
 
 const CONTEXT_KEY_PRESETS = [
   { key: 'id', label: 'id（用户 ID）' },
@@ -129,6 +155,16 @@ const normalizeKeySource = (src) => {
   return { type, key, path };
 };
 
+const makeUniqueName = (existingNames, baseName) => {
+  const base = (baseName || '').trim() || 'rule';
+  if (!existingNames.has(base)) return base;
+  for (let i = 2; i < 1000; i++) {
+    const n = `${base}-${i}`;
+    if (!existingNames.has(n)) return n;
+  }
+  return `${base}-${Date.now()}`;
+};
+
 const tryParseRulesJsonArray = (jsonString) => {
   const raw = jsonString || '[]';
   if (!verifyJSON(raw)) return { ok: false, message: 'Rules JSON is invalid' };
@@ -166,12 +202,18 @@ export default function SettingsChannelAffinity(props) {
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   const [editMode, setEditMode] = useState('visual');
+  const prevEditModeRef = useRef(editMode);
 
   const [rules, setRules] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [isEdit, setIsEdit] = useState(false);
   const modalFormRef = useRef();
+
+  const effectiveDefaultTTLSeconds =
+    Number(inputs?.[KEY_DEFAULT_TTL] || 0) > 0
+      ? Number(inputs?.[KEY_DEFAULT_TTL] || 0)
+      : 3600;
 
   const refreshCacheStats = async () => {
     try {
@@ -216,7 +258,9 @@ export default function SettingsChannelAffinity(props) {
     const name = (rule?.name || '').trim();
     if (!name) return;
     if (!rule?.include_rule_name) {
-      showWarning(t('该规则未启用“作用域：包含规则名称”，无法按规则清空缓存。'));
+      showWarning(
+        t('该规则未启用“作用域：包含规则名称”，无法按规则清空缓存。'),
+      );
       return;
     }
     Modal.confirm({
@@ -247,7 +291,10 @@ export default function SettingsChannelAffinity(props) {
   };
 
   const switchToJsonMode = () => {
-    setRulesJsonToForm(inputs[KEY_RULES]);
+    // Ensure a stable source of truth when entering JSON mode.
+    // Semi Form may ignore setValues() for an unmounted field, so we seed state first.
+    const jsonString = rulesToJson(rules);
+    setInputs((prev) => ({ ...(prev || {}), [KEY_RULES]: jsonString }));
     setEditMode('json');
   };
 
@@ -267,6 +314,46 @@ export default function SettingsChannelAffinity(props) {
     if (refForm.current && editMode === 'json') {
       refForm.current.setValues({ [KEY_RULES]: jsonString });
     }
+  };
+
+  const appendCodexAndClaudeCodeTemplates = () => {
+    const doAppend = () => {
+      const existingNames = new Set(
+        (rules || [])
+          .map((r) => (r?.name || '').trim())
+          .filter((x) => x.length > 0),
+      );
+
+      const templates = [RULE_TEMPLATES.codex, RULE_TEMPLATES.claudeCode].map(
+        (tpl) => {
+          const name = makeUniqueName(existingNames, tpl.name);
+          existingNames.add(name);
+          return { ...tpl, name };
+        },
+      );
+
+      const next = [...(rules || []), ...templates].map((r, idx) => ({
+        ...(r || {}),
+        id: idx,
+      }));
+      updateRulesState(next);
+      showSuccess(t('已填充模版'));
+    };
+
+    if ((rules || []).length === 0) {
+      doAppend();
+      return;
+    }
+
+    Modal.confirm({
+      title: t('填充 Codex / Claude Code 模版'),
+      content: (
+        <div style={{ lineHeight: '1.6' }}>
+          <Text type='tertiary'>{t('将追加 2 条规则到现有规则列表。')}</Text>
+        </div>
+      ),
+      onOk: doAppend,
+    });
   };
 
   const ruleColumns = [
@@ -368,17 +455,22 @@ export default function SettingsChannelAffinity(props) {
             type='warning'
             disabled={!record?.include_rule_name}
             title={t('清空该规则缓存')}
+            aria-label={t('清空该规则缓存')}
             onClick={() => confirmClearRuleCache(record)}
           />
           <Button
             icon={<IconEdit />}
             theme='borderless'
+            title={t('编辑规则')}
+            aria-label={t('编辑规则')}
             onClick={() => handleEditRule(record)}
           />
           <Button
             icon={<IconDelete />}
             theme='borderless'
             type='danger'
+            title={t('删除规则')}
+            aria-label={t('删除规则')}
             onClick={() => handleDeleteRule(record.id)}
           />
         </Space>
@@ -598,6 +690,18 @@ export default function SettingsChannelAffinity(props) {
   }, [props.options]);
 
   useEffect(() => {
+    const prevEditMode = prevEditModeRef.current;
+    prevEditModeRef.current = editMode;
+
+    // On switching from visual -> json, ensure the JSON editor is seeded.
+    // Semi Form may ignore setValues() for an unmounted field.
+    if (prevEditMode === editMode) return;
+    if (editMode !== 'json') return;
+    if (!refForm.current) return;
+    refForm.current.setValues({ [KEY_RULES]: inputs[KEY_RULES] || '[]' });
+  }, [editMode, inputs]);
+
+  useEffect(() => {
     if (editMode === 'visual') {
       setRules(parseRulesJson(inputs[KEY_RULES]));
     }
@@ -644,10 +748,14 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_MAX_ENTRIES}
                   label={t('最大条目数')}
                   min={0}
-                  placeholder='例如 100000'
-                  extraText={t(
-                    '内存缓存最大条目数，0 表示使用默认容量。',
-                  )}
+                  placeholder='例如 100000…'
+                  extraText={
+                    <Text type='tertiary' size='small'>
+                      {t(
+                        '内存缓存最大条目数。0 表示使用后端默认容量：100000。',
+                      )}
+                    </Text>
+                  }
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -661,10 +769,14 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_DEFAULT_TTL}
                   label={t('默认 TTL（秒）')}
                   min={0}
-                  placeholder='例如 3600'
-                  extraText={t(
-                    '当规则 ttl_seconds 为 0（或未设置）时使用该默认 TTL。',
-                  )}
+                  placeholder='例如 3600…'
+                  extraText={
+                    <Text type='tertiary' size='small'>
+                      {t(
+                        '规则 ttl_seconds 为 0 时使用。0 表示使用后端默认 TTL：3600 秒。',
+                      )}
+                    </Text>
+                  }
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -690,6 +802,9 @@ export default function SettingsChannelAffinity(props) {
               >
                 {t('JSON 模式')}
               </Button>
+              <Button onClick={appendCodexAndClaudeCodeTemplates}>
+                {t('填充 Codex / Claude Code 模版')}
+              </Button>
               <Button icon={<IconPlus />} onClick={openAddModal}>
                 {t('新增规则')}
               </Button>
@@ -706,21 +821,6 @@ export default function SettingsChannelAffinity(props) {
               <Button type='danger' onClick={confirmClearAllCache}>
                 {t('清空全部缓存')}
               </Button>
-            </Space>
-
-            <Space style={{ marginBottom: 10 }}>
-              <Tag color='blue'>
-                {t('缓存总数')}：{Number(cacheStats?.total || 0)}
-              </Tag>
-              <Tag color='orange'>
-                {t('无法归属')}：{Number(cacheStats?.unknown || 0)}
-              </Tag>
-              <Tag>
-                {t('算法')}：{cacheStats?.cache_algo || '-'}
-              </Tag>
-              <Tag>
-                {t('容量')}：{Number(cacheStats?.cache_capacity || 0)}
-              </Tag>
             </Space>
 
             {editMode === 'visual' ? (
@@ -769,7 +869,7 @@ export default function SettingsChannelAffinity(props) {
             field='name'
             label={t('名称')}
             extraText={t('规则名称（可读性更好，也会出现在管理侧日志中）。')}
-            placeholder='例如 prefer-by-conversation-id'
+            placeholder='例如 prefer-by-conversation-id…'
             rules={[{ required: true }]}
             onChange={(value) =>
               setEditingRule((prev) => ({ ...(prev || {}), name: value }))
@@ -784,7 +884,7 @@ export default function SettingsChannelAffinity(props) {
                 extraText={t(
                   '必填。对请求的 model 名称进行匹配，任意一条匹配即命中该规则。',
                 )}
-                placeholder={'^gpt-4o.*$\n^claude-3.*$'}
+                placeholder={'^gpt-4o.*$\n^claude-3.*$…'}
                 autosize={{ minRows: 4, maxRows: 10 }}
                 rules={[{ required: true }]}
               />
@@ -796,70 +896,80 @@ export default function SettingsChannelAffinity(props) {
                 extraText={t(
                   '可选。对请求路径进行匹配；不填表示匹配所有路径。',
                 )}
-                placeholder={'/v1/chat/completions\n/v1/responses'}
+                placeholder={'/v1/chat/completions\n/v1/responses…'}
                 autosize={{ minRows: 4, maxRows: 10 }}
               />
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col xs={24}>
-              <Form.TextArea
-                field='user_agent_include_text'
-                label={t('User-Agent include（每行一个，可不写）')}
-                extraText={t(
-                  '可选。根据入口请求的 User-Agent 判断；任意一行作为子串匹配（忽略大小写）即命中。',
-                )}
-                placeholder={'curl\nPostmanRuntime\nMyApp/'}
-                autosize={{ minRows: 3, maxRows: 8 }}
-              />
-            </Col>
-          </Row>
+          <Collapse keepDOM defaultActiveKey={[]}>
+            <Collapse.Panel header={t('高级设置')} itemKey='advanced'>
+              <Row gutter={16}>
+                <Col xs={24}>
+                  <Form.TextArea
+                    field='user_agent_include_text'
+                    label={t('User-Agent include（每行一个，可不写）')}
+                    extraText={t(
+                      '可选。根据入口请求的 User-Agent 判断；任意一行作为子串匹配（忽略大小写）即命中。',
+                    )}
+                    placeholder={'curl\nPostmanRuntime\nMyApp/…'}
+                    autosize={{ minRows: 3, maxRows: 8 }}
+                  />
+                </Col>
+              </Row>
 
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Input
-                field='value_regex'
-                label={t('Value 正则')}
-                placeholder='^[-0-9A-Za-z._:]{1,128}$'
-                extraText={t(
-                  '可选。对提取到的亲和 Key 做正则校验；不填表示不校验。',
-                )}
-              />
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.InputNumber
-                field='ttl_seconds'
-                label={t('TTL（秒，0 表示默认）')}
-                extraText={t(
-                  '该规则的缓存保留时长；0 表示使用默认 TTL。',
-                )}
-                placeholder='例如 600'
-                min={0}
-              />
-            </Col>
-          </Row>
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Input
+                    field='value_regex'
+                    label={t('Value 正则')}
+                    placeholder='^[-0-9A-Za-z._:]{1,128}$'
+                    extraText={t(
+                      '可选。对提取到的亲和 Key 做正则校验；不填表示不校验。',
+                    )}
+                  />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.InputNumber
+                    field='ttl_seconds'
+                    label={t('TTL（秒，0 表示默认）')}
+                    placeholder='例如 600…'
+                    min={0}
+                    extraText={
+                      <Text type='tertiary' size='small'>
+                        {t('该规则的缓存保留时长；0 表示使用默认 TTL：')}
+                        {effectiveDefaultTTLSeconds}
+                        {t(' 秒。')}
+                      </Text>
+                    }
+                  />
+                </Col>
+              </Row>
 
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Switch
-                field='include_using_group'
-                label={t('作用域：包含分组')}
-              />
-              <Text type='tertiary' size='small'>
-                {t('开启后，using_group 会参与 cache key（不同分组隔离）。')}
-              </Text>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Switch
-                field='include_rule_name'
-                label={t('作用域：包含规则名称')}
-              />
-              <Text type='tertiary' size='small'>
-                {t('开启后，规则名称会参与 cache key（不同规则隔离）。')}
-              </Text>
-            </Col>
-          </Row>
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Switch
+                    field='include_using_group'
+                    label={t('作用域：包含分组')}
+                  />
+                  <Text type='tertiary' size='small'>
+                    {t(
+                      '开启后，using_group 会参与 cache key（不同分组隔离）。',
+                    )}
+                  </Text>
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Form.Switch
+                    field='include_rule_name'
+                    label={t('作用域：包含规则名称')}
+                  />
+                  <Text type='tertiary' size='small'>
+                    {t('开启后，规则名称会参与 cache key（不同规则隔离）。')}
+                  </Text>
+                </Col>
+              </Row>
+            </Collapse.Panel>
+          </Collapse>
 
           <Divider style={{ marginTop: 12, marginBottom: 12 }} />
           <Space style={{ marginBottom: 10 }}>
@@ -898,6 +1008,7 @@ export default function SettingsChannelAffinity(props) {
                     value={(
                       editingRule?.key_sources?.[idx]?.type || 'gjson'
                     ).trim()}
+                    aria-label={t('Key 来源类型')}
                     onChange={(value) => updateKeySource(idx, { type: value })}
                   />
                 ),
@@ -915,6 +1026,7 @@ export default function SettingsChannelAffinity(props) {
                       placeholder={
                         isGjson ? 'metadata.conversation_id' : 'user_id'
                       }
+                      aria-label={t('Key 或 Path')}
                       value={isGjson ? src.path : src.key}
                       onChange={(value) =>
                         updateKeySource(
@@ -934,6 +1046,8 @@ export default function SettingsChannelAffinity(props) {
                     icon={<IconDelete />}
                     theme='borderless'
                     type='danger'
+                    title={t('删除 Key 来源')}
+                    aria-label={t('删除 Key 来源')}
                     onClick={() => removeKeySource(idx)}
                   />
                 ),
