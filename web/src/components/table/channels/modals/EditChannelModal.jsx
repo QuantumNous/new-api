@@ -491,7 +491,7 @@ const EditChannelModal = (props) => {
           localModels = getChannelModels(value);
           setInputs((prevInputs) => ({
             ...prevInputs,
-            base_url: 'https://ark.cn-beijing.volces.com',
+            base_url: 'https://ark.cn-beijing.volces.com/api/v3',
           }));
           break;
         default:
@@ -645,7 +645,7 @@ const EditChannelModal = (props) => {
         (!data.base_url ||
           (typeof data.base_url === 'string' && data.base_url.trim() === ''))
       ) {
-        data.base_url = 'https://ark.cn-beijing.volces.com';
+        data.base_url = 'https://ark.cn-beijing.volces.com/api/v3';
       }
 
       setInputs(data);
@@ -2597,18 +2597,18 @@ const EditChannelModal = (props) => {
                           }
                           optionList={[
                             {
-                              value: 'https://ark.cn-beijing.volces.com',
-                              label: 'https://ark.cn-beijing.volces.com',
+                              value: 'https://ark.cn-beijing.volces.com/api/v3',
+                              label: 'https://ark.cn-beijing.volces.com/api/v3',
                             },
                             {
-                              value: 'https://ark.ap-southeast.bytepluses.com',
-                              label: 'https://ark.ap-southeast.bytepluses.com',
+                              value: 'https://ark.ap-southeast.bytepluses.com/api/v3',
+                              label: 'https://ark.ap-southeast.bytepluses.com/api/v3',
                             },
                           {
                           value: 'doubao-coding-plan',
                                     label: 'Doubao Coding Plan',
                                 },
-                            ]}defaultValue='https://ark.cn-beijing.volces.com'
+                            ]}defaultValue='https://ark.cn-beijing.volces.com/api/v3'
                           disabled={isIonetLocked}
                       />
                     </div>
