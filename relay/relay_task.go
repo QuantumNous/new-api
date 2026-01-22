@@ -158,6 +158,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		}
 	}
 
+	// build body
+	requestBody, err := adaptor.BuildRequestBody(c, info)
+	if err != nil {
+		taskErr = service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
+		return
+	}
 	// 预扣
 	groupRatio := ratio_setting.GetGroupRatio(info.UsingGroup)
 	var ratio float64
@@ -189,12 +195,6 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 		return
 	}
 
-	// build body
-	requestBody, err := adaptor.BuildRequestBody(c, info)
-	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
-		return
-	}
 	// do request
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
