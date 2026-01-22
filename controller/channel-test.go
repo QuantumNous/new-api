@@ -455,8 +455,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
-				Model: model,
-				Input: json.RawMessage("\"hi\""),
+				Model:  model,
+				Stream: false,
+				Input:  json.RawMessage("[{\"role\":\"user\",\"content\":\"hi\"}]"),
 			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
@@ -493,8 +494,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 	// Responses-only models (e.g. codex series)
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
-			Model: model,
-			Input: json.RawMessage("\"hi\""),
+			Model:  model,
+			Stream: false,
+			Input:  json.RawMessage("[{\"role\":\"user\",\"content\":\"hi\"}]"),
 		}
 	}
 
