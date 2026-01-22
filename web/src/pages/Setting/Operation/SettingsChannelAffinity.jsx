@@ -67,7 +67,6 @@ const RULE_TEMPLATES = {
     name: 'codex优选',
     model_regex: ['^gpt-.*$'],
     path_regex: ['/v1/responses'],
-    user_agent_include: ['codex'],
     key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
     value_regex: '',
     ttl_seconds: 0,
@@ -78,7 +77,6 @@ const RULE_TEMPLATES = {
     name: 'claude-code优选',
     model_regex: ['^claude-.*$'],
     path_regex: ['/v1/messages'],
-    user_agent_include: ['claude-code'],
     key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
     value_regex: '',
     ttl_seconds: 0,
@@ -209,11 +207,33 @@ export default function SettingsChannelAffinity(props) {
   const [editingRule, setEditingRule] = useState(null);
   const [isEdit, setIsEdit] = useState(false);
   const modalFormRef = useRef();
+  const [modalInitValues, setModalInitValues] = useState(null);
+  const modalInitValuesRef = useRef(null);
+  const [modalAdvancedActiveKey, setModalAdvancedActiveKey] = useState([]);
 
   const effectiveDefaultTTLSeconds =
     Number(inputs?.[KEY_DEFAULT_TTL] || 0) > 0
       ? Number(inputs?.[KEY_DEFAULT_TTL] || 0)
       : 3600;
+
+  const buildModalFormValues = (rule) => {
+    const r = rule || {};
+    return {
+      name: r.name || '',
+      model_regex_text: (r.model_regex || []).join('\n'),
+      path_regex_text: (r.path_regex || []).join('\n'),
+      user_agent_include_text: (r.user_agent_include || []).join('\n'),
+      value_regex: r.value_regex || '',
+      ttl_seconds: Number(r.ttl_seconds || 0),
+      include_using_group: r.include_using_group ?? true,
+      include_rule_name: r.include_rule_name ?? true,
+    };
+  };
+
+  const setModalInitValuesSafe = (next) => {
+    modalInitValuesRef.current = next;
+    setModalInitValues(next);
+  };
 
   const refreshCacheStats = async () => {
     try {
@@ -287,7 +307,9 @@ export default function SettingsChannelAffinity(props) {
 
   const setRulesJsonToForm = (jsonString) => {
     if (!refForm.current) return;
-    refForm.current.setValues({ [KEY_RULES]: jsonString || '[]' });
+    // Use setValue instead of setValues. Semi Form's setValues assigns undefined
+    // to every registered field not included in the payload, which can wipe other inputs.
+    refForm.current.setValue(KEY_RULES, jsonString || '[]');
   };
 
   const switchToJsonMode = () => {
@@ -312,7 +334,7 @@ export default function SettingsChannelAffinity(props) {
     const jsonString = rulesToJson(nextRules);
     setInputs((prev) => ({ ...prev, [KEY_RULES]: jsonString }));
     if (refForm.current && editMode === 'json') {
-      refForm.current.setValues({ [KEY_RULES]: jsonString });
+      refForm.current.setValue(KEY_RULES, jsonString);
     }
   };
 
@@ -494,7 +516,7 @@ export default function SettingsChannelAffinity(props) {
   };
 
   const openAddModal = () => {
-    setEditingRule({
+    const nextRule = {
       name: '',
       model_regex: [],
       path_regex: [],
@@ -504,48 +526,30 @@ export default function SettingsChannelAffinity(props) {
       ttl_seconds: 0,
       include_using_group: true,
       include_rule_name: true,
-    });
+    };
+    setEditingRule(nextRule);
     setIsEdit(false);
+    modalFormRef.current = null;
     setModalVisible(true);
-    setTimeout(() => {
-      if (!modalFormRef.current) return;
-      modalFormRef.current.setValues({
-        name: '',
-        model_regex_text: '',
-        path_regex_text: '',
-        user_agent_include_text: '',
-        value_regex: '',
-        ttl_seconds: 0,
-        include_using_group: true,
-        include_rule_name: true,
-      });
-    }, 80);
+    setModalInitValuesSafe(buildModalFormValues(nextRule));
+    setModalAdvancedActiveKey([]);
   };
 
   const handleEditRule = (rule) => {
     const r = rule || {};
-    setEditingRule({
+    const nextRule = {
       ...r,
       user_agent_include: Array.isArray(r.user_agent_include)
         ? r.user_agent_include
         : [],
       key_sources: (r.key_sources || []).map(normalizeKeySource),
-    });
+    };
+    setEditingRule(nextRule);
     setIsEdit(true);
+    modalFormRef.current = null;
     setModalVisible(true);
-    setTimeout(() => {
-      if (!modalFormRef.current) return;
-      modalFormRef.current.setValues({
-        name: r.name || '',
-        model_regex_text: (r.model_regex || []).join('\n'),
-        path_regex_text: (r.path_regex || []).join('\n'),
-        user_agent_include_text: (r.user_agent_include || []).join('\n'),
-        value_regex: r.value_regex || '',
-        ttl_seconds: Number(r.ttl_seconds || 0),
-        include_using_group: !!r.include_using_group,
-        include_rule_name: !!r.include_rule_name,
-      });
-    }, 80);
+    setModalInitValuesSafe(buildModalFormValues(nextRule));
+    setModalAdvancedActiveKey(['advanced']);
   };
 
   const handleDeleteRule = (id) => {
@@ -564,31 +568,44 @@ export default function SettingsChannelAffinity(props) {
       if (!keySourcesValidation.ok)
         return showError(t(keySourcesValidation.message));
 
+      const userAgentInclude = normalizeStringList(
+        values.user_agent_include_text,
+      );
+
       const rulePayload = {
         id: isEdit ? editingRule.id : rules.length,
         name: (values.name || '').trim(),
         model_regex: modelRegex,
         path_regex: normalizeStringList(values.path_regex_text),
-        user_agent_include: normalizeStringList(values.user_agent_include_text),
         key_sources: keySourcesValidation.value,
         value_regex: (values.value_regex || '').trim(),
         ttl_seconds: Number(values.ttl_seconds || 0),
         include_using_group: !!values.include_using_group,
         include_rule_name: !!values.include_rule_name,
+        ...(userAgentInclude.length > 0
+          ? { user_agent_include: userAgentInclude }
+          : {}),
       };
 
       if (!rulePayload.name) return showError(t('名称不能为空'));
 
       const next = [...(rules || [])];
       if (isEdit) {
-        const idx = next.findIndex((r) => r.id === editingRule.id);
-        if (idx >= 0) next[idx] = rulePayload;
+        let idx = next.findIndex((r) => r.id === editingRule?.id);
+        if (idx < 0 && editingRule?.name) {
+          idx = next.findIndex(
+            (r) => (r?.name || '').trim() === (editingRule?.name || '').trim(),
+          );
+        }
+        if (idx < 0) return showError(t('规则未找到，请刷新后重试'));
+        next[idx] = rulePayload;
       } else {
         next.push(rulePayload);
       }
       updateRulesState(next.map((r, idx) => ({ ...r, id: idx })));
       setModalVisible(false);
       setEditingRule(null);
+      setModalInitValuesSafe(null);
       showSuccess(t('保存成功'));
     } catch (e) {
       showError(t('请检查输入'));
@@ -698,7 +715,7 @@ export default function SettingsChannelAffinity(props) {
     if (prevEditMode === editMode) return;
     if (editMode !== 'json') return;
     if (!refForm.current) return;
-    refForm.current.setValues({ [KEY_RULES]: inputs[KEY_RULES] || '[]' });
+    refForm.current.setValue(KEY_RULES, inputs[KEY_RULES] || '[]');
   }, [editMode, inputs]);
 
   useEffect(() => {
@@ -858,13 +875,29 @@ export default function SettingsChannelAffinity(props) {
       <Modal
         title={isEdit ? t('编辑规则') : t('新增规则')}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingRule(null);
+          setModalInitValuesSafe(null);
+          setModalAdvancedActiveKey([]);
+        }}
         onOk={handleModalSave}
         okText={t('保存')}
         cancelText={t('取消')}
         width={720}
       >
-        <Form getFormApi={(formAPI) => (modalFormRef.current = formAPI)}>
+        <Form
+          key={
+            isEdit ? `edit-rule-${editingRule?.id ?? ''}` : 'create-new-rule'
+          }
+          getFormApi={(formAPI) => {
+            modalFormRef.current = formAPI;
+            const init = modalInitValuesRef.current;
+            if (init) {
+              formAPI.setValues(init);
+            }
+          }}
+        >
           <Form.Input
             field='name'
             label={t('名称')}
@@ -902,16 +935,35 @@ export default function SettingsChannelAffinity(props) {
             </Col>
           </Row>
 
-          <Collapse keepDOM defaultActiveKey={[]}>
+          <Collapse
+            keepDOM
+            activeKey={modalAdvancedActiveKey}
+            onChange={(activeKey) => {
+              const keys = Array.isArray(activeKey) ? activeKey : [activeKey];
+              setModalAdvancedActiveKey(keys.filter(Boolean));
+            }}
+          >
             <Collapse.Panel header={t('高级设置')} itemKey='advanced'>
               <Row gutter={16}>
                 <Col xs={24}>
                   <Form.TextArea
                     field='user_agent_include_text'
                     label={t('User-Agent include（每行一个，可不写）')}
-                    extraText={t(
-                      '可选。根据入口请求的 User-Agent 判断；任意一行作为子串匹配（忽略大小写）即命中。',
-                    )}
+                    extraText={
+                      <Text type='tertiary' size='small'>
+                        {t(
+                          '可选。匹配入口请求的 User-Agent；任意一行作为子串匹配（忽略大小写）即命中。',
+                        )}
+                        <br />
+                        {t(
+                          'NewAPI 默认不会将入口请求的 User-Agent 透传到上游渠道；该条件仅用于识别访问本站点的客户端。',
+                        )}
+                        <br />
+                        {t(
+                          '为保证匹配准确，请确保客户端直连本站点（避免反向代理/网关改写 User-Agent）。',
+                        )}
+                      </Text>
+                    }
                     placeholder={'curl\nPostmanRuntime\nMyApp/…'}
                     autosize={{ minRows: 3, maxRows: 8 }}
                   />
