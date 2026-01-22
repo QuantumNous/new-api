@@ -25,8 +25,10 @@ import {
   Collapse,
   Divider,
   Form,
+  Input,
   Modal,
   Row,
+  Select,
   Space,
   Spin,
   Table,
@@ -544,7 +546,7 @@ export default function SettingsChannelAffinity(props) {
     setIsEdit(true);
     modalFormRef.current = null;
     setModalInitValues(buildModalFormValues(nextRule));
-    setModalAdvancedActiveKey(['advanced']);
+    setModalAdvancedActiveKey([]);
     setModalFormKey((k) => k + 1);
     setModalVisible(true);
   };
@@ -1045,8 +1047,7 @@ export default function SettingsChannelAffinity(props) {
               {
                 title: t('类型'),
                 render: (_, __, idx) => (
-                  <Form.Select
-                    field={`ks_type_${idx}`}
+                  <Select
                     style={{ width: 160 }}
                     optionList={KEY_SOURCE_TYPES}
                     value={(
@@ -1065,8 +1066,7 @@ export default function SettingsChannelAffinity(props) {
                   );
                   const isGjson = src.type === 'gjson';
                   return (
-                    <Form.Input
-                      field={`ks_value_${idx}`}
+                    <Input
                       placeholder={
                         isGjson ? 'metadata.conversation_id' : 'user_id'
                       }
