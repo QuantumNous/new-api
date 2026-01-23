@@ -12,12 +12,13 @@ import (
 )
 
 type RetryParam struct {
-	Ctx            *gin.Context
-	TokenGroup     string
-	ModelName      string
-	Retry          *int
-	resetNextTry   bool
-	UsedChannelIds map[int]struct{} // 已使用的渠道ID集合
+	Ctx                  *gin.Context
+	TokenGroup           string
+	ModelName            string
+	Retry                *int
+	resetNextTry         bool
+	UsedChannelIds       map[int]struct{} // 已使用的渠道ID集合
+	CurrentPriorityIndex int              // 当前使用的优先级索引
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -61,6 +62,16 @@ func (p *RetryParam) IsChannelUsed(channelId int) bool {
 	}
 	_, used := p.UsedChannelIds[channelId]
 	return used
+}
+
+// IncreasePriorityIndex 增加优先级索引（切换到下一个优先级）
+func (p *RetryParam) IncreasePriorityIndex() {
+	p.CurrentPriorityIndex++
+}
+
+// GetPriorityIndex 获取当前优先级索引
+func (p *RetryParam) GetPriorityIndex() int {
+	return p.CurrentPriorityIndex
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -171,10 +182,22 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.UsedChannelIds)
+		// 在 round-robin 模式下，使用 retry 参数（会在 GetRandomSatisfiedChannel 中进行模运算）
+		// 在 sequential 模式下，使用 priorityIndex（只有当前优先级用尽时才会增加）
+		// In round-robin mode, use retry parameter (modulo operation in GetRandomSatisfiedChannel)
+		// In sequential mode, use priorityIndex (only increases when current priority is exhausted)
+		retryOrPriority := param.GetPriorityIndex()
+		if common.RetryPriorityMode == "round-robin" {
+			retryOrPriority = param.GetRetry()
+		}
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, retryOrPriority, param.UsedChannelIds)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
+		// 如果 channel 为 nil 但没有错误，说明该优先级的所有渠道都被排除了
+		// 返回 nil 以便外层循环继续尝试下一个优先级
+		// If channel is nil but no error, it means all channels at this priority have been excluded
+		// Return nil to allow outer loop to try next priority
 	}
 	return channel, selectGroup, nil
 }

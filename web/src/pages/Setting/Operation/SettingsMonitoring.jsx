@@ -48,6 +48,7 @@ export default function SettingsMonitoring(props) {
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
     RetryAvoidUsedChannelEnabled: false,
+    RetryPriorityMode: 'sequential',
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     'monitor_setting.auto_test_channel_enabled': false,
@@ -246,6 +247,27 @@ export default function SettingsMonitoring(props) {
                     })
                   }
                 />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  field={'RetryPriorityMode'}
+                  label={t('重试优先级模式')}
+                  placeholder={t('选择重试模式')}
+                  extraText={t('顺序：同一优先级内尝试所有渠道后才降级；轮询：每个优先级轮流尝试')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      RetryPriorityMode: value,
+                    })
+                  }
+                >
+                  <Form.Select.Option value='sequential'>
+                    {t('分组顺序重试')} (A1→A2→A3→B1→B2→B3)
+                  </Form.Select.Option>
+                  <Form.Select.Option value='round-robin'>
+                    {t('分组轮询重试')} (A1→B1→C1→A2→B2→C2)
+                  </Form.Select.Option>
+                </Form.Select>
               </Col>
             </Row>
             <Row gutter={16}>

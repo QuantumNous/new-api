@@ -70,6 +70,7 @@ const OperationSetting = () => {
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
     RetryAvoidUsedChannelEnabled: false,
+    RetryPriorityMode: 'sequential',
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     'monitor_setting.auto_test_channel_enabled': false,
