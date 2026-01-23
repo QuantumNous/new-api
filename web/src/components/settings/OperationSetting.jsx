@@ -37,6 +37,8 @@ const OperationSetting = () => {
     QuotaForInviter: 0,
     QuotaForInvitee: 0,
     'quota_setting.enable_free_model_pre_consume': true,
+    'oidc_quota_reset.enabled': false,
+    'oidc_quota_reset.amount': 500000,
 
     /* 通用设置 */
     TopUpLink: '',

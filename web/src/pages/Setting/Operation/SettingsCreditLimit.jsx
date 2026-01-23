@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Popconfirm } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -27,6 +27,8 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+
+const SYNC_SERVICE_URL = '/api/sync';
 
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
@@ -37,9 +39,12 @@ export default function SettingsCreditLimit(props) {
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
+    'oidc_quota_reset.enabled': false,
+    'oidc_quota_reset.amount': 500000,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+  const [resetting, setResetting] = useState(false);
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -76,10 +81,44 @@ export default function SettingsCreditLimit(props) {
       });
   }
 
+  async function handleManualReset() {
+    setResetting(true);
+    try {
+      const response = await fetch(`${SYNC_SERVICE_URL}/reset-oidc-quota`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        showSuccess(t('重置成功，已重置 {{count}} 个用户的额度为 {{quota}}', {
+          count: data.affected,
+          quota: data.quota,
+        }));
+      } else {
+        showError(data.message || t('重置失败'));
+      }
+    } catch (error) {
+      showError(t('重置失败：') + error.message);
+    } finally {
+      setResetting(false);
+    }
+  }
+
   useEffect(() => {
-    const currentInputs = {};
+    const defaultInputs = {
+      QuotaForNewUser: '',
+      PreConsumedQuota: '',
+      QuotaForInviter: '',
+      QuotaForInvitee: '',
+      'quota_setting.enable_free_model_pre_consume': true,
+      'oidc_quota_reset.enabled': false,
+      'oidc_quota_reset.amount': 500000,
+    };
+    const currentInputs = { ...defaultInputs };
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.keys(defaultInputs).includes(key)) {
         currentInputs[key] = props.options[key];
       }
     }
@@ -187,6 +226,63 @@ export default function SettingsCreditLimit(props) {
               <Button size='default' onClick={onSubmit}>
                 {t('保存额度设置')}
               </Button>
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('OIDC 用户月度额度重置')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  label={t('启用月度自动重置')}
+                  field={'oidc_quota_reset.enabled'}
+                  extraText={t('每月 1 日自动重置所有 OIDC 用户额度')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'oidc_quota_reset.enabled': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('重置额度')}
+                  field={'oidc_quota_reset.amount'}
+                  step={10000}
+                  min={0}
+                  suffix={'Token'}
+                  extraText={t('每次重置时设置的额度值')}
+                  placeholder={'500000'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'oidc_quota_reset.amount': String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16} style={{ marginTop: 16 }}>
+              <Col>
+                <Button size='default' onClick={onSubmit}>
+                  {t('保存设置')}
+                </Button>
+              </Col>
+              <Col>
+                <Popconfirm
+                  title={t('确认重置')}
+                  content={t('确定要立即重置所有 OIDC 用户的额度吗？')}
+                  onConfirm={handleManualReset}
+                >
+                  <Button
+                    size='default'
+                    type='warning'
+                    loading={resetting}
+                  >
+                    {t('立即重置所有 OIDC 用户额度')}
+                  </Button>
+                </Popconfirm>
+              </Col>
             </Row>
           </Form.Section>
         </Form>
