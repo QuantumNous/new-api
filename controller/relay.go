@@ -317,17 +317,20 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	if common.AutomaticRetryOnEmptyResponseEnabled && types.IsEmptyResponseError(openaiErr) {
-		return true
-	}
 	code := openaiErr.StatusCode
-	if code >= 200 && code < 300 {
-		return false
-	}
 	if code < 100 || code > 599 {
 		return true
 	}
-	return operation_setting.ShouldRetryByStatusCode(code)
+	if code >= 200 && code < 300 {
+		return false
+	}
+	if operation_setting.ShouldRetryByStatusCode(code) {
+		return true
+	}
+	if common.AutomaticRetryOnEmptyResponseEnabled && types.IsEmptyResponseError(openaiErr) {
+		return true
+	}
+	return false
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
