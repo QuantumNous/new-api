@@ -79,8 +79,13 @@ func getPriority(group string, model string, retry int) (int, error) {
 
 	// 确定要使用的优先级
 	var priorityToUse int
-	if retry >= len(priorities) {
-		// 如果重试次数大于优先级数，则使用最小的优先级
+	if common.RetryPriorityMode == "round-robin" && len(priorities) > 0 {
+		// 轮询模式：始终使用模运算循环
+		// Round-robin mode: always use modulo operation to cycle through priorities
+		priorityToUse = priorities[retry%len(priorities)]
+	} else if retry >= len(priorities) {
+		// 顺序模式：如果重试次数大于优先级数，则使用最小的优先级
+		// Sequential mode: if retry exceeds priority count, use lowest priority
 		priorityToUse = priorities[len(priorities)-1]
 	} else {
 		priorityToUse = priorities[retry]
