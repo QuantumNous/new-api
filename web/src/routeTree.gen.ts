@@ -302,9 +302,9 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/oauth/$provider': typeof OauthProviderRoute
-  '/about': typeof AboutIndexRoute
-  '/pricing': typeof PricingIndexRoute
-  '/setup': typeof SetupIndexRoute
+  '/about/': typeof AboutIndexRoute
+  '/pricing/': typeof PricingIndexRoute
+  '/setup/': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -315,18 +315,18 @@ export interface FileRoutesByFullPath {
   '/system-settings/maintenance': typeof AuthenticatedSystemSettingsMaintenanceRoute
   '/system-settings/models': typeof AuthenticatedSystemSettingsModelsRoute
   '/system-settings/request-limits': typeof AuthenticatedSystemSettingsRequestLimitsRoute
-  '/channels': typeof AuthenticatedChannelsIndexRoute
-  '/dashboard': typeof AuthenticatedDashboardIndexRoute
-  '/keys': typeof AuthenticatedKeysIndexRoute
-  '/models': typeof AuthenticatedModelsIndexRoute
-  '/playground': typeof AuthenticatedPlaygroundIndexRoute
-  '/profile': typeof AuthenticatedProfileIndexRoute
-  '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/keys/': typeof AuthenticatedKeysIndexRoute
+  '/models/': typeof AuthenticatedModelsIndexRoute
+  '/playground/': typeof AuthenticatedPlaygroundIndexRoute
+  '/profile/': typeof AuthenticatedProfileIndexRoute
+  '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
-  '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
-  '/users': typeof AuthenticatedUsersIndexRoute
-  '/wallet': typeof AuthenticatedWalletIndexRoute
-  '/pricing/$modelId': typeof PricingModelIdIndexRoute
+  '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
+  '/users/': typeof AuthenticatedUsersIndexRoute
+  '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/pricing/$modelId/': typeof PricingModelIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -435,9 +435,9 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/oauth/$provider'
-    | '/about'
-    | '/pricing'
-    | '/setup'
+    | '/about/'
+    | '/pricing/'
+    | '/setup/'
     | '/user/reset'
     | '/chat/$chatId'
     | '/errors/$error'
@@ -448,18 +448,18 @@ export interface FileRouteTypes {
     | '/system-settings/maintenance'
     | '/system-settings/models'
     | '/system-settings/request-limits'
-    | '/channels'
-    | '/dashboard'
-    | '/keys'
-    | '/models'
-    | '/playground'
-    | '/profile'
-    | '/redemption-codes'
+    | '/channels/'
+    | '/dashboard/'
+    | '/keys/'
+    | '/models/'
+    | '/playground/'
+    | '/profile/'
+    | '/redemption-codes/'
     | '/system-settings/'
-    | '/usage-logs'
-    | '/users'
-    | '/wallet'
-    | '/pricing/$modelId'
+    | '/usage-logs/'
+    | '/users/'
+    | '/wallet/'
+    | '/pricing/$modelId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -586,7 +586,7 @@ declare module '@tanstack/react-router' {
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -607,21 +607,21 @@ declare module '@tanstack/react-router' {
     '/setup/': {
       id: '/setup/'
       path: '/setup'
-      fullPath: '/setup'
+      fullPath: '/setup/'
       preLoaderRoute: typeof SetupIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing/': {
       id: '/pricing/'
       path: '/pricing'
-      fullPath: '/pricing'
+      fullPath: '/pricing/'
       preLoaderRoute: typeof PricingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about/': {
       id: '/about/'
       path: '/about'
-      fullPath: '/about'
+      fullPath: '/about/'
       preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -719,28 +719,28 @@ declare module '@tanstack/react-router' {
     '/pricing/$modelId/': {
       id: '/pricing/$modelId/'
       path: '/pricing/$modelId'
-      fullPath: '/pricing/$modelId'
+      fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/wallet/': {
       id: '/_authenticated/wallet/'
       path: '/wallet'
-      fullPath: '/wallet'
+      fullPath: '/wallet/'
       preLoaderRoute: typeof AuthenticatedWalletIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
-      fullPath: '/users'
+      fullPath: '/users/'
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/usage-logs/': {
       id: '/_authenticated/usage-logs/'
       path: '/usage-logs'
-      fullPath: '/usage-logs'
+      fullPath: '/usage-logs/'
       preLoaderRoute: typeof AuthenticatedUsageLogsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
@@ -754,49 +754,49 @@ declare module '@tanstack/react-router' {
     '/_authenticated/redemption-codes/': {
       id: '/_authenticated/redemption-codes/'
       path: '/redemption-codes'
-      fullPath: '/redemption-codes'
+      fullPath: '/redemption-codes/'
       preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/profile/': {
       id: '/_authenticated/profile/'
       path: '/profile'
-      fullPath: '/profile'
+      fullPath: '/profile/'
       preLoaderRoute: typeof AuthenticatedProfileIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/playground/': {
       id: '/_authenticated/playground/'
       path: '/playground'
-      fullPath: '/playground'
+      fullPath: '/playground/'
       preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/models/': {
       id: '/_authenticated/models/'
       path: '/models'
-      fullPath: '/models'
+      fullPath: '/models/'
       preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/keys/': {
       id: '/_authenticated/keys/'
       path: '/keys'
-      fullPath: '/keys'
+      fullPath: '/keys/'
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/': {
       id: '/_authenticated/dashboard/'
       path: '/dashboard'
-      fullPath: '/dashboard'
+      fullPath: '/dashboard/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
-      fullPath: '/channels'
+      fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
