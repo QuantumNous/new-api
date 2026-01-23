@@ -56,8 +56,9 @@ func formatUserLogs(logs []*Log) {
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
-			// delete admin
+			// Remove admin-only debug fields.
 			delete(otherMap, "admin_info")
+			delete(otherMap, "request_conversion")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 		logs[i].Id = logs[i].Id % 1024
