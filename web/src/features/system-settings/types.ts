@@ -139,6 +139,8 @@ export type IntegrationSettings = {
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
   AutomaticDisableKeywords: string
+  AutomaticDisableStatusCodes: string
+  AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'model_deployment.ionet.api_key': string
@@ -166,6 +168,8 @@ export type IntegrationSettings = {
 
 export type ModelSettings = {
   'global.pass_through_request_enabled': boolean
+  'global.thinking_model_blacklist': string
+  'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
   'gemini.safety_settings': string

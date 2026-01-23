@@ -68,6 +68,8 @@ export interface LogOtherData {
     use_channel?: number[]
     local_count_tokens?: boolean
   }
+  request_path?: string
+  request_conversion?: string[]
   ws?: boolean
   audio?: boolean
   audio_input?: number

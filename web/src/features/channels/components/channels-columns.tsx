@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronDown, ChevronRight, ListOrdered, Shuffle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { getCurrencyLabel } from '@/lib/currency'
 import {
   formatTimestampToDate,
@@ -38,10 +39,15 @@ import {
   handleUpdateTagField,
   handleUpdateChannelBalance,
 } from '../lib'
+import { getCodexUsage } from '../api'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
 import { NumericSpinnerInput } from './numeric-spinner-input'
+import {
+  CodexUsageDialog,
+  type CodexUsageDialogData,
+} from './dialogs/codex-usage-dialog'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
@@ -208,6 +214,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
+  const [codexUsageOpen, setCodexUsageOpen] = useState(false)
+  const [codexUsageResponse, setCodexUsageResponse] =
+    useState<CodexUsageDialogData | null>(null)
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -235,6 +244,24 @@ function BalanceCell({ channel }: { channel: Channel }) {
     if (isUpdating) return
 
     setIsUpdating(true)
+    if (channel.type === 57) {
+      try {
+        const res = await getCodexUsage(channel.id)
+        if (!res.success) {
+          throw new Error(res.message || t('Failed to fetch usage'))
+        }
+        setCodexUsageResponse(res)
+        setCodexUsageOpen(true)
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t('Failed to fetch usage')
+        )
+      } finally {
+        setIsUpdating(false)
+      }
+      return
+    }
+
     await handleUpdateChannelBalance(channel.id, queryClient)
     setIsUpdating(false)
   }
@@ -275,10 +302,40 @@ function BalanceCell({ channel }: { channel: Channel }) {
             <p>
               {t('Remaining:')} {remainingDisplay}
             </p>
-            <p>{t('Click to update balance')}</p>
+            <p>
+              {channel.type === 57
+                ? t('Click to view Codex usage')
+                : t('Click to update balance')}
+            </p>
           </TooltipContent>
         </Tooltip>
       </div>
+
+      <CodexUsageDialog
+        open={codexUsageOpen}
+        onOpenChange={setCodexUsageOpen}
+        channelName={channel.name}
+        channelId={channel.id}
+        response={codexUsageResponse}
+        onRefresh={async () => {
+          if (isUpdating) return
+          setIsUpdating(true)
+          try {
+            const res = await getCodexUsage(channel.id)
+            if (!res.success) {
+              throw new Error(res.message || t('Failed to fetch usage'))
+            }
+            setCodexUsageResponse(res)
+          } catch (error) {
+            toast.error(
+              error instanceof Error ? error.message : t('Failed to fetch usage')
+            )
+          } finally {
+            setIsUpdating(false)
+          }
+        }}
+        isRefreshing={isUpdating}
+      />
     </TooltipProvider>
   )
 }

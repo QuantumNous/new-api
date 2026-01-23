@@ -5,6 +5,16 @@ import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { RatioSettingsCard } from './ratio-settings-card'
 
+function formatJsonForEditor(value: string, fallback: string) {
+  const raw = (value ?? '').toString().trim()
+  if (!raw) return fallback
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return fallback
+  }
+}
+
 const MODELS_SECTIONS = [
   {
     id: 'global',
@@ -16,6 +26,14 @@ const MODELS_SECTIONS = [
           global: {
             pass_through_request_enabled:
               settings['global.pass_through_request_enabled'],
+            thinking_model_blacklist: formatJsonForEditor(
+              settings['global.thinking_model_blacklist'],
+              '[]'
+            ),
+            chat_completions_to_responses_policy: formatJsonForEditor(
+              settings['global.chat_completions_to_responses_policy'],
+              '{}'
+            ),
           },
           general_setting: {
             ping_interval_enabled:
