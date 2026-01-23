@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -282,6 +283,21 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+
+	// 如果开关开启且处于重试阶段，从 use_channel 构建排除集合
+	if common.RetryAvoidUsedChannelEnabled && retryParam.GetRetry() > 0 {
+		useChannelStrs := c.GetStringSlice("use_channel")
+		for _, idStr := range useChannelStrs {
+			if id, err := strconv.Atoi(idStr); err == nil {
+				retryParam.AddUsedChannel(id)
+			}
+		}
+		// 记录排除信息到日志
+		if len(retryParam.UsedChannelIds) > 0 {
+			logger.LogInfo(c, fmt.Sprintf("重试排除了 %d 个已用渠道", len(retryParam.UsedChannelIds)))
+		}
+	}
+
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)

@@ -47,6 +47,7 @@ export default function SettingsMonitoring(props) {
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
+    RetryAvoidUsedChannelEnabled: false,
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     'monitor_setting.auto_test_channel_enabled': false,
@@ -226,6 +227,22 @@ export default function SettingsMonitoring(props) {
                     setInputs({
                       ...inputs,
                       AutomaticEnableChannelEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'RetryAvoidUsedChannelEnabled'}
+                  label={t('重试时避开已尝试渠道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t('启用后，重试时不会再次选择已失败的渠道。注意：渠道数量较少时可能更早失败。')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      RetryAvoidUsedChannelEnabled: value,
                     })
                   }
                 />

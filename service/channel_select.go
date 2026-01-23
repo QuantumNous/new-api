@@ -12,11 +12,12 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx            *gin.Context
+	TokenGroup     string
+	ModelName      string
+	Retry          *int
+	resetNextTry   bool
+	UsedChannelIds map[int]struct{} // 已使用的渠道ID集合
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -43,6 +44,23 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// AddUsedChannel 添加已使用的渠道ID
+func (p *RetryParam) AddUsedChannel(channelId int) {
+	if p.UsedChannelIds == nil {
+		p.UsedChannelIds = make(map[int]struct{})
+	}
+	p.UsedChannelIds[channelId] = struct{}{}
+}
+
+// IsChannelUsed 检查渠道是否已被使用
+func (p *RetryParam) IsChannelUsed(channelId int) bool {
+	if p.UsedChannelIds == nil {
+		return false
+	}
+	_, used := p.UsedChannelIds[channelId]
+	return used
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -115,7 +133,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.UsedChannelIds)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +171,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.UsedChannelIds)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
