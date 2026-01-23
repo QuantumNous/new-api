@@ -16,8 +16,12 @@
     "knip": "knip"
   },
   "dependencies": {
+    "@base-ui/react": "^1.1.0",
     "@clerk/clerk-react": "^5.59.3",
+    "@fontsource-variable/public-sans": "^5.2.7",
     "@hookform/resolvers": "^5.2.2",
+    "@hugeicons/core-free-icons": "^3.1.1",
+    "@hugeicons/react": "^1.1.4",
     "@lobehub/icons": "^4.0.3",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -42,6 +46,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-query": "^5.90.16",
     "@tanstack/react-router": "^1.147.3",
     "@tanstack/react-table": "^8.21.3",
@@ -66,6 +71,7 @@
     "motion": "^12.25.0",
     "nanoid": "^5.1.6",
     "qrcode.react": "^4.2.0",
+    "radix-ui": "^1.4.3",
     "react": "^19.2.3",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.3",
@@ -109,6 +115,7 @@
     "knip": "^5.80.2",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "shadcn": "^3.7.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.52.0"
   }
