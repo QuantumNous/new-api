@@ -179,6 +179,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
             count: 0,
             model_name: '无数据',
             quota: 0,
+            token_used: 0,
             created_at: now.getTime() / 1000,
           });
         }

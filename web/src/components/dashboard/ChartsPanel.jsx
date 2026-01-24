@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { PieChart } from 'lucide-react';
+import { PieChart, DollarSign, Coins } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
 const ChartsPanel = ({
@@ -34,6 +34,8 @@ const ChartsPanel = ({
   FLEX_CENTER_GAP2,
   hasApiInfoPanel,
   t,
+  displayMode,
+  onDisplayModeChange,
 }) => {
   return (
     <Card
@@ -45,16 +47,31 @@ const ChartsPanel = ({
             <PieChart size={16} />
             {t('模型数据分析')}
           </div>
-          <Tabs
-            type='slash'
-            activeKey={activeChartTab}
-            onChange={setActiveChartTab}
-          >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-          </Tabs>
+          <div className='flex items-center gap-2'>
+            {activeChartTab === '1' && (
+              <div
+                className='flex items-center gap-1 bg-[var(--semi-color-fill-0)] rounded px-1.5 py-1 cursor-pointer hover:bg-[var(--semi-color-fill-1)] transition-colors'
+                onClick={() => onDisplayModeChange(displayMode === 'QUOTA' ? 'TOKENS' : 'QUOTA')}
+                title={displayMode === 'QUOTA' ? t('切换为 Token') : t('切换为金额')}
+              >
+                {displayMode === 'QUOTA' ? (
+                  <DollarSign size={14} className='text-[var(--semi-color-text-2)]' />
+                ) : (
+                  <Coins size={14} className='text-[var(--semi-color-text-2)]' />
+                )}
+              </div>
+            )}
+            <Tabs
+              type='slash'
+              activeKey={activeChartTab}
+              onChange={setActiveChartTab}
+            >
+              <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
+              <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
+              <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
+              <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
+            </Tabs>
+          </div>
         </div>
       }
       bodyStyle={{ padding: 0 }}
