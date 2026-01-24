@@ -104,6 +104,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(body))
 		requestBody = bytes.NewBuffer(body)
 	} else {
 		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
@@ -130,6 +131,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(jsonData))
 		if common.DebugEnabled {
 			println("requestBody: ", string(jsonData))
 		}

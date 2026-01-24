@@ -142,6 +142,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(body))
 		requestBody = bytes.NewReader(body)
 	} else {
 		// 使用 ConvertGeminiRequest 转换请求格式
@@ -163,6 +164,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(jsonData))
 		logger.LogDebug(c, "Gemini request body: "+string(jsonData))
 
 		requestBody = bytes.NewReader(jsonData)
@@ -267,6 +269,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 			return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 		}
 	}
+	common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(jsonData))
 	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
 	requestBody = bytes.NewReader(jsonData)
 

@@ -358,11 +358,22 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		if c.Request != nil && c.Request.URL != nil {
 			other["request_path"] = c.Request.URL.Path
 		}
-		requestBody, bodyErr := common.GetRequestBody(c)
-		if bodyErr == nil {
-			other["request_body"] = string(requestBody)
+		if processedBody, ok := common.GetContextKey(c, constant.ContextKeyProcessedRequestBody); ok {
+			switch body := processedBody.(type) {
+			case string:
+				other["request_body"] = body
+			case []byte:
+				other["request_body"] = string(body)
+			default:
+				other["request_body"] = processedBody
+			}
 		} else {
-			other["request_body_error"] = bodyErr.Error()
+			requestBody, bodyErr := common.GetRequestBody(c)
+			if bodyErr == nil {
+				other["request_body"] = string(requestBody)
+			} else {
+				other["request_body_error"] = bodyErr.Error()
+			}
 		}
 		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()

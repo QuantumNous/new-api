@@ -104,6 +104,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(body))
 		if common.DebugEnabled {
 			println("requestBody: ", string(body))
 		}
@@ -176,6 +177,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			}
 		}
 
+		common.SetContextKey(c, constant.ContextKeyProcessedRequestBody, string(jsonData))
 		logger.LogDebug(c, fmt.Sprintf("text request body: %s", string(jsonData)))
 
 		requestBody = bytes.NewBuffer(jsonData)
