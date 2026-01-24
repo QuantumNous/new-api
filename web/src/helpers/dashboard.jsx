@@ -85,18 +85,28 @@ export const updateChartSpec = (
   subtitle,
   newColors,
   dataId,
+  tooltipConfig = null,
 ) => {
-  setterFunc((prev) => ({
-    ...prev,
-    data: [{ id: dataId, values: newData }],
-    title: {
-      ...prev.title,
-      subtext: subtitle,
-    },
-    color: {
-      specified: newColors,
-    },
-  }));
+  setterFunc((prev) => {
+    const newSpec = {
+      ...prev,
+      data: [{ id: dataId, values: newData }],
+      title: {
+        ...prev.title,
+        subtext: subtitle,
+      },
+      color: {
+        specified: newColors,
+      },
+    };
+
+    // 如果有 tooltip 配置，更新 tooltip
+    if (tooltipConfig) {
+      newSpec.tooltip = tooltipConfig;
+    }
+
+    return newSpec;
+  });
 };
 
 export const getTrendSpec = (data, color) => ({
@@ -340,12 +350,14 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
         time: timeKey,
         model: modelKey,
         quota: 0,
+        tokenUsed: 0,
         count: 0,
       });
     }
 
     const existing = aggregatedData.get(key);
     existing.quota += item.quota;
+    existing.tokenUsed += item.token_used;
     existing.count += item.count;
   });
 
