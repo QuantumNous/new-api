@@ -180,16 +180,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		logger.LogDebug(c, "渠道请求开始: retry=%d/%d, model=%q, relay_mode=%d, token_group=%q, using_group=%q", retryParam.GetRetry(), common.RetryTimes, relayInfo.OriginModelName, relayInfo.RelayMode, relayInfo.TokenGroup, relayInfo.UsingGroup)
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
+			logger.LogDebug(c, "渠道选择失败: retry=%d, err=%s", retryParam.GetRetry(), channelErr.Error())
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
 		}
 
+		logger.LogDebug(c, "渠道选择成功: retry=%d, channel_id=%d, channel_type=%d, channel_name=%q", retryParam.GetRetry(), channel.Id, channel.Type, channel.Name)
 		addUsedChannel(c, channel.Id)
 		requestBody, bodyErr := common.GetRequestBody(c)
 		if bodyErr != nil {
+			logger.LogDebug(c, "读取请求体失败: retry=%d, err=%s", retryParam.GetRetry(), bodyErr.Error())
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
 			if common.IsRequestBodyTooLargeError(bodyErr) || errors.Is(bodyErr, common.ErrRequestBodyTooLarge) {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
@@ -212,14 +216,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			logger.LogDebug(c, "渠道请求成功: retry=%d, channel_id=%d", retryParam.GetRetry(), channel.Id)
 			return
 		}
 
+		logger.LogDebug(c, "渠道请求失败: retry=%d, channel_id=%d, status=%d, err=%s", retryParam.GetRetry(), channel.Id, newAPIError.StatusCode, newAPIError.Error())
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		remainTimes := common.RetryTimes - retryParam.GetRetry()
+		if !shouldRetry(c, newAPIError, remainTimes) {
+			logger.LogDebug(c, "渠道重试结束: retry=%d, remaining=%d, channel_id=%d", retryParam.GetRetry(), remainTimes, channel.Id)
 			break
 		}
+		logger.LogDebug(c, "渠道重试继续: retry=%d, remaining=%d, channel_id=%d", retryParam.GetRetry(), remainTimes, channel.Id)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -349,6 +358,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		if c.Request != nil && c.Request.URL != nil {
 			other["request_path"] = c.Request.URL.Path
 		}
+		requestBody, bodyErr := common.GetRequestBody(c)
+		if bodyErr == nil {
+			other["request_body"] = string(requestBody)
+		} else {
+			other["request_body_error"] = bodyErr.Error()
+		}
 		other["error_type"] = err.GetErrorType()
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
@@ -454,8 +469,10 @@ func RelayTask(c *gin.Context) {
 		Retry:      common.GetPointer(0),
 	}
 	for ; shouldRetryTaskRelay(c, channelId, taskErr, retryTimes) && retryParam.GetRetry() < retryTimes; retryParam.IncreaseRetry() {
+		logger.LogDebug(c, "任务渠道重试开始: retry=%d/%d, current_channel=%d, model=%q, status=%d", retryParam.GetRetry(), retryTimes, channelId, relayInfo.OriginModelName, taskErr.StatusCode)
 		channel, newAPIError := getChannel(c, relayInfo, retryParam)
 		if newAPIError != nil {
+			logger.LogDebug(c, "任务渠道选择失败: retry=%d, err=%s", retryParam.GetRetry(), newAPIError.Error())
 			logger.LogError(c, fmt.Sprintf("CacheGetRandomSatisfiedChannel failed: %s", newAPIError.Error()))
 			taskErr = service.TaskErrorWrapperLocal(newAPIError.Err, "get_channel_failed", http.StatusInternalServerError)
 			break
@@ -464,11 +481,13 @@ func RelayTask(c *gin.Context) {
 		useChannel := c.GetStringSlice("use_channel")
 		useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 		c.Set("use_channel", useChannel)
+		logger.LogDebug(c, "任务渠道选择成功: retry=%d, channel_id=%d, channel_type=%d, channel_name=%q", retryParam.GetRetry(), channel.Id, channel.Type, channel.Name)
 		logger.LogInfo(c, fmt.Sprintf("using channel #%d to retry (remain times %d)", channel.Id, retryParam.GetRetry()))
 		//middleware.SetupContextForSelectedChannel(c, channel, originalModel)
 
 		requestBody, err := common.GetRequestBody(c)
 		if err != nil {
+			logger.LogDebug(c, "任务读取请求体失败: retry=%d, err=%s", retryParam.GetRetry(), err.Error())
 			if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
 				taskErr = service.TaskErrorWrapperLocal(err, "read_request_body_failed", http.StatusRequestEntityTooLarge)
 			} else {
@@ -478,6 +497,11 @@ func RelayTask(c *gin.Context) {
 		}
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		taskErr = taskRelayHandler(c, relayInfo)
+		if taskErr == nil {
+			logger.LogDebug(c, "任务渠道请求成功: retry=%d, channel_id=%d", retryParam.GetRetry(), channelId)
+		} else {
+			logger.LogDebug(c, "任务渠道请求失败: retry=%d, channel_id=%d, status=%d, code=%s, message=%s", retryParam.GetRetry(), channelId, taskErr.StatusCode, taskErr.Code, taskErr.Message)
+		}
 	}
 	useChannel := c.GetStringSlice("use_channel")
 	if len(useChannel) > 1 {
