@@ -435,4 +435,9 @@ func RecordReConsumeLog(task *Task, modelRatio float64, groupRatio float64, tota
 		Other:     common.MapToJsonStr(other),
 	}
 	LOG_DB.Create(log)
+	if common.DataExportEnabled {
+		gopool.Go(func() {
+			LogQuotaData(log.UserId, username, log.ModelName, log.Quota, common.GetTimestamp(), log.PromptTokens+log.CompletionTokens)
+		})
+	}
 }
