@@ -60,7 +60,8 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 		if strings.TrimSpace(clientHeaderValue) == "" {
 			return "", false, nil
 		}
-		template = clientHeaderValue
+		// Do not interpolate {api_key} inside client-supplied content.
+		return clientHeaderValue, true, nil
 	}
 
 	if strings.Contains(template, "{api_key}") {
