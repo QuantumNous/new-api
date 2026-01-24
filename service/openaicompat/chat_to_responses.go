@@ -54,6 +54,38 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			continue
 		}
 
+		if role == "tool" || role == "function" {
+			callID := strings.TrimSpace(msg.ToolCallId)
+
+			var output any
+			if msg.Content == nil {
+				output = ""
+			} else if msg.IsStringContent() {
+				output = msg.StringContent()
+			} else {
+				if b, err := common.Marshal(msg.Content); err == nil {
+					output = string(b)
+				} else {
+					output = fmt.Sprintf("%v", msg.Content)
+				}
+			}
+
+			if callID == "" {
+				inputItems = append(inputItems, map[string]any{
+					"role":    "user",
+					"content": fmt.Sprintf("[tool_output_missing_call_id] %v", output),
+				})
+				continue
+			}
+
+			inputItems = append(inputItems, map[string]any{
+				"type":    "function_call_output",
+				"call_id": callID,
+				"output":  output,
+			})
+			continue
+		}
+
 		// Prefer mapping system/developer messages into `instructions`.
 		if role == "system" || role == "developer" {
 			if msg.Content == nil {
@@ -88,12 +120,54 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		if msg.Content == nil {
 			item["content"] = ""
 			inputItems = append(inputItems, item)
+
+			if role == "assistant" {
+				for _, tc := range msg.ParseToolCalls() {
+					if strings.TrimSpace(tc.ID) == "" {
+						continue
+					}
+					if tc.Type != "" && tc.Type != "function" {
+						continue
+					}
+					name := strings.TrimSpace(tc.Function.Name)
+					if name == "" {
+						continue
+					}
+					inputItems = append(inputItems, map[string]any{
+						"type":      "function_call",
+						"call_id":   tc.ID,
+						"name":      name,
+						"arguments": tc.Function.Arguments,
+					})
+				}
+			}
 			continue
 		}
 
 		if msg.IsStringContent() {
 			item["content"] = msg.StringContent()
 			inputItems = append(inputItems, item)
+
+			if role == "assistant" {
+				for _, tc := range msg.ParseToolCalls() {
+					if strings.TrimSpace(tc.ID) == "" {
+						continue
+					}
+					if tc.Type != "" && tc.Type != "function" {
+						continue
+					}
+					name := strings.TrimSpace(tc.Function.Name)
+					if name == "" {
+						continue
+					}
+					inputItems = append(inputItems, map[string]any{
+						"type":      "function_call",
+						"call_id":   tc.ID,
+						"name":      name,
+						"arguments": tc.Function.Arguments,
+					})
+				}
+			}
 			continue
 		}
 
@@ -127,7 +201,6 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 					"video_url": part.VideoUrl,
 				})
 			default:
-				// Best-effort: keep unknown parts as-is to avoid silently dropping context.
 				contentParts = append(contentParts, map[string]any{
 					"type": part.Type,
 				})
@@ -135,6 +208,27 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		}
 		item["content"] = contentParts
 		inputItems = append(inputItems, item)
+
+		if role == "assistant" {
+			for _, tc := range msg.ParseToolCalls() {
+				if strings.TrimSpace(tc.ID) == "" {
+					continue
+				}
+				if tc.Type != "" && tc.Type != "function" {
+					continue
+				}
+				name := strings.TrimSpace(tc.Function.Name)
+				if name == "" {
+					continue
+				}
+				inputItems = append(inputItems, map[string]any{
+					"type":      "function_call",
+					"call_id":   tc.ID,
+					"name":      name,
+					"arguments": tc.Function.Arguments,
+				})
+			}
+		}
 	}
 
 	inputRaw, err := common.Marshal(inputItems)
