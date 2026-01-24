@@ -38,10 +38,54 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	}
 }
 
+func maskHeaderOverrideValue(value string, apiKey string) string {
+	if apiKey == "" || value == "" {
+		return value
+	}
+	return strings.ReplaceAll(value, apiKey, "***")
+}
+
+func maskHeaderOverrideForLog(headerOverride map[string]interface{}, apiKey string) map[string]interface{} {
+	if len(headerOverride) == 0 {
+		return nil
+	}
+	masked := make(map[string]interface{}, len(headerOverride))
+	for key, value := range headerOverride {
+		if str, ok := value.(string); ok {
+			masked[key] = maskHeaderOverrideValue(str, apiKey)
+		} else {
+			masked[key] = value
+		}
+	}
+	return masked
+}
+
+func maskHeaderOverrideForLogString(headerOverride map[string]string, apiKey string) map[string]string {
+	if len(headerOverride) == 0 {
+		return nil
+	}
+	masked := make(map[string]string, len(headerOverride))
+	for key, value := range headerOverride {
+		masked[key] = maskHeaderOverrideValue(value, apiKey)
+	}
+	return masked
+}
+
 // processHeaderOverride 处理请求头覆盖，支持变量替换
 // 支持的变量：{api_key}
-func processHeaderOverride(info *common.RelayInfo) (map[string]string, error) {
+func processHeaderOverride(c *gin.Context, info *common.RelayInfo) (map[string]string, error) {
+	channelId := 0
+	channelType := 0
+	if info != nil && info.ChannelMeta != nil {
+		channelId = info.ChannelId
+		channelType = info.ChannelType
+	}
 	headerOverride := make(map[string]string)
+	if len(info.HeadersOverride) == 0 {
+		logger.LogDebug(c, "请求头覆盖配置: channel_id=%d, channel_type=%d, headers=空", channelId, channelType)
+	} else {
+		logger.LogDebug(c, "请求头覆盖配置: channel_id=%d, channel_type=%d, headers=%s", channelId, channelType, common2.GetJsonString(maskHeaderOverrideForLog(info.HeadersOverride, info.ApiKey)))
+	}
 	for k, v := range info.HeadersOverride {
 		str, ok := v.(string)
 		if !ok {
@@ -54,6 +98,11 @@ func processHeaderOverride(info *common.RelayInfo) (map[string]string, error) {
 		}
 
 		headerOverride[k] = str
+	}
+	if len(headerOverride) == 0 {
+		logger.LogDebug(c, "请求头覆盖结果: channel_id=%d, channel_type=%d, headers=空", channelId, channelType)
+	} else {
+		logger.LogDebug(c, "请求头覆盖结果: channel_id=%d, channel_type=%d, headers=%s", channelId, channelType, common2.GetJsonString(maskHeaderOverrideForLogString(headerOverride, info.ApiKey)))
 	}
 	return headerOverride, nil
 }
@@ -71,7 +120,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	headers := req.Header
-	headerOverride, err := processHeaderOverride(info)
+	headerOverride, err := processHeaderOverride(c, info)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +153,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	// set form data
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	headers := req.Header
-	headerOverride, err := processHeaderOverride(info)
+	headerOverride, err := processHeaderOverride(c, info)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +177,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	targetHeader := http.Header{}
-	headerOverride, err := processHeaderOverride(info)
+	headerOverride, err := processHeaderOverride(c, info)
 	if err != nil {
 		return nil, err
 	}
