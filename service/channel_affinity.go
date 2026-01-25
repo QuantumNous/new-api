@@ -465,6 +465,11 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if setting == nil || !setting.Enabled {
 		return
 	}
+	if setting.SwitchOnSuccess && c != nil {
+		if successChannelID := c.GetInt("channel_id"); successChannelID > 0 {
+			channelID = successChannelID
+		}
+	}
 	cacheKey, ttlSeconds, ok := getChannelAffinityContext(c)
 	if !ok {
 		return

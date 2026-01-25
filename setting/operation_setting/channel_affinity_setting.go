@@ -24,6 +24,7 @@ type ChannelAffinityRule struct {
 
 type ChannelAffinitySetting struct {
 	Enabled           bool                  `json:"enabled"`
+	SwitchOnSuccess   bool                  `json:"switch_on_success"`
 	MaxEntries        int                   `json:"max_entries"`
 	DefaultTTLSeconds int                   `json:"default_ttl_seconds"`
 	Rules             []ChannelAffinityRule `json:"rules"`
@@ -31,6 +32,7 @@ type ChannelAffinitySetting struct {
 
 var channelAffinitySetting = ChannelAffinitySetting{
 	Enabled:           false,
+	SwitchOnSuccess:   true,
 	MaxEntries:        100_000,
 	DefaultTTLSeconds: 3600,
 	Rules:             []ChannelAffinityRule{},

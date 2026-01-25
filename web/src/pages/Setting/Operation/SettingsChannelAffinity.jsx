@@ -54,6 +54,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 const KEY_ENABLED = 'channel_affinity_setting.enabled';
+const KEY_SWITCH_ON_SUCCESS = 'channel_affinity_setting.switch_on_success';
 const KEY_MAX_ENTRIES = 'channel_affinity_setting.max_entries';
 const KEY_DEFAULT_TTL = 'channel_affinity_setting.default_ttl_seconds';
 const KEY_RULES = 'channel_affinity_setting.rules';
@@ -195,6 +196,7 @@ export default function SettingsChannelAffinity(props) {
 
   const [inputs, setInputs] = useState({
     [KEY_ENABLED]: false,
+    [KEY_SWITCH_ON_SUCCESS]: true,
     [KEY_MAX_ENTRIES]: 100000,
     [KEY_DEFAULT_TTL]: 3600,
     [KEY_RULES]: '[]',
@@ -678,12 +680,18 @@ export default function SettingsChannelAffinity(props) {
     const currentInputs = { ...inputs };
     for (let key in props.options) {
       if (
-        ![KEY_ENABLED, KEY_MAX_ENTRIES, KEY_DEFAULT_TTL, KEY_RULES].includes(
-          key,
-        )
+        ![
+          KEY_ENABLED,
+          KEY_SWITCH_ON_SUCCESS,
+          KEY_MAX_ENTRIES,
+          KEY_DEFAULT_TTL,
+          KEY_RULES,
+        ].includes(key)
       )
         continue;
       if (key === KEY_ENABLED)
+        currentInputs[key] = toBoolean(props.options[key]);
+      else if (key === KEY_SWITCH_ON_SUCCESS)
         currentInputs[key] = toBoolean(props.options[key]);
       else if (key === KEY_MAX_ENTRIES)
         currentInputs[key] = Number(props.options[key] || 0) || 0;
@@ -800,6 +808,25 @@ export default function SettingsChannelAffinity(props) {
                     })
                   }
                 />
+              </Col>
+            </Row>
+
+            <Row gutter={16} style={{ marginTop: 12 }}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={KEY_SWITCH_ON_SUCCESS}
+                  label={t('成功后切换亲和')}
+                  checkedText='|'
+                  uncheckedText='O'
+                  onChange={(value) =>
+                    setInputs({ ...inputs, [KEY_SWITCH_ON_SUCCESS]: value })
+                  }
+                />
+                <Text type='tertiary' size='small'>
+                  {t(
+                    '如果亲和到的渠道失败，重试到其他渠道成功后，将亲和更新到成功的渠道。',
+                  )}
+                </Text>
               </Col>
             </Row>
 
