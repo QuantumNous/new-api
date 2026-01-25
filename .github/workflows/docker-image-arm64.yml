@@ -64,7 +64,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            autokernel/new-api
+            ahmczsy/new-api
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}
 
       - name: Build & push single-arch (to both registries)
@@ -74,8 +74,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            autokernel/new-api:${{ env.TAG }}-${{ matrix.arch }}
-            autokernel/new-api:latest-${{ matrix.arch }}
+            ahmczsy/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            ahmczsy/new-api:latest-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.TAG }}-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -105,16 +105,16 @@ jobs:
       - name: Create & push manifest (Docker Hub - version)
         run: |
           docker buildx imagetools create \
-            -t autokernel/new-api:${TAG} \
-            autokernel/new-api:${TAG}-amd64 \
-            autokernel/new-api:${TAG}-arm64
+            -t ahmczsy/new-api:${TAG} \
+            ahmczsy/new-api:${TAG}-amd64 \
+            ahmczsy/new-api:${TAG}-arm64
 
       - name: Create & push manifest (Docker Hub - latest)
         run: |
           docker buildx imagetools create \
-            -t autokernel/new-api:latest \
-            autokernel/new-api:latest-amd64 \
-            autokernel/new-api:latest-arm64
+            -t ahmczsy/new-api:latest \
+            ahmczsy/new-api:latest-amd64 \
+            ahmczsy/new-api:latest-arm64
 
       # ---- GHCR ----
 #      - name: Log in to GHCR
