@@ -319,7 +319,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Type: "message_delta",
 					Usage: &dto.ClaudeUsage{
-						InputTokens:              oaiUsage.PromptTokens,
+						InputTokens:              oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens,
 						OutputTokens:             oaiUsage.CompletionTokens,
 						CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 						CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
@@ -347,7 +347,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Type: "message_delta",
 					Usage: &dto.ClaudeUsage{
-						InputTokens:              oaiUsage.PromptTokens,
+						InputTokens:              oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens,
 						OutputTokens:             oaiUsage.CompletionTokens,
 						CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 						CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
@@ -476,7 +476,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Type: "message_delta",
 					Usage: &dto.ClaudeUsage{
-						InputTokens:              oaiUsage.PromptTokens,
+						InputTokens:              oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens,
 						OutputTokens:             oaiUsage.CompletionTokens,
 						CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 						CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
@@ -532,8 +532,9 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
 	claudeResponse.Usage = &dto.ClaudeUsage{
-		InputTokens:  openAIResponse.PromptTokens,
-		OutputTokens: openAIResponse.CompletionTokens,
+		InputTokens:          openAIResponse.PromptTokens - openAIResponse.PromptTokensDetails.CachedTokens,
+		OutputTokens:         openAIResponse.CompletionTokens,
+		CacheReadInputTokens: openAIResponse.PromptTokensDetails.CachedTokens,
 	}
 
 	return claudeResponse
