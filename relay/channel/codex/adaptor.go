@@ -53,6 +53,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
+
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt
 
@@ -88,7 +90,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			}
 		}
 	}
-
+	if isCompact {
+		return request, nil
+	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
 	// rm max_output_tokens
