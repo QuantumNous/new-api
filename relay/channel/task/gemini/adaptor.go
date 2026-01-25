@@ -181,7 +181,13 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if strings.TrimSpace(s.Name) == "" {
 		return "", nil, service.TaskErrorWrapper(fmt.Errorf("missing operation name"), "invalid_response", http.StatusInternalServerError)
 	}
-	taskID = encodeLocalTaskID(s.Name)
+
+	localTaskID, err := model.CreateTaskIDMappingWithChannel(s.Name, info.ChannelId)
+	if err != nil {
+		return "", nil, service.TaskErrorWrapper(err, "create_task_id_mapping_failed", http.StatusInternalServerError)
+	}
+	taskID = localTaskID
+
 	ov := dto.NewOpenAIVideo()
 	ov.ID = taskID
 	ov.TaskID = taskID
@@ -206,9 +212,18 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	upstreamName, err := decodeLocalTaskID(taskID)
+	upstreamName, found, err := model.GetUpstreamTaskIDByLocalTaskID(taskID)
 	if err != nil {
-		return nil, fmt.Errorf("decode task_id failed: %w", err)
+		return nil, fmt.Errorf("resolve task_id mapping failed: %w", err)
+	}
+	if !found {
+		if strings.HasPrefix(taskID, "tsk_") {
+			return nil, fmt.Errorf("task_id mapping not found")
+		}
+		upstreamName, err = decodeLocalTaskID(taskID)
+		if err != nil {
+			return nil, fmt.Errorf("decode task_id failed: %w", err)
+		}
 	}
 
 	// For Gemini API, we use GET request to the operations endpoint
@@ -254,9 +269,12 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	ti.Status = model.TaskStatusSuccess
 	ti.Progress = "100%"
 
-	taskID := encodeLocalTaskID(op.Name)
-	ti.TaskID = taskID
-	ti.Url = fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, taskID)
+	if system_setting.ServerAddress != "" {
+		if localID, found, err := model.GetLocalTaskIDByUpstreamTaskID(op.Name); err == nil && found {
+			ti.TaskID = localID
+			ti.Url = fmt.Sprintf("%s/v1/videos/%s/content", system_setting.ServerAddress, localID)
+		}
+	}
 
 	// Extract URL from generateVideoResponse if available
 	if len(op.Response.GenerateVideoResponse.GeneratedSamples) > 0 {
@@ -269,9 +287,18 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	upstreamName, err := decodeLocalTaskID(task.TaskID)
-	if err != nil {
-		upstreamName = ""
+	upstreamName := ""
+	if task != nil {
+		if mapped, found, err := model.GetUpstreamTaskIDByLocalTaskID(task.TaskID); err == nil && found {
+			upstreamName = mapped
+		} else {
+			if !strings.HasPrefix(task.TaskID, "tsk_") {
+				decoded, err := decodeLocalTaskID(task.TaskID)
+				if err == nil {
+					upstreamName = decoded
+				}
+			}
+		}
 	}
 	modelName := extractModelFromOperationName(upstreamName)
 	if strings.TrimSpace(modelName) == "" {
