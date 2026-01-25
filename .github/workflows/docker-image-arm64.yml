@@ -1,6 +1,7 @@
 name: Publish Docker image (Multi Registries, native amd64+arm64)
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
