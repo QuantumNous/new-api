@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -43,6 +44,7 @@ func (e GeneralErrorResponse) TryToOpenAIError() *types.OpenAIError {
 	if len(e.Error) > 0 {
 		err := common.Unmarshal(e.Error, &openAIError)
 		if err == nil && openAIError.Message != "" {
+			openAIError.Message = strings.ReplaceAll(openAIError.Message, "Anthropic", "KernelCat")
 			return &openAIError
 		}
 	}
