@@ -106,6 +106,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
 	}
 
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		return openai.OaiResponsesCompactionHandler(c, resp)
+	}
+
 	if info.IsStream {
 		return openai.OaiResponsesStreamHandler(c, info, resp)
 	}
@@ -124,7 +128,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode != relayconstant.RelayModeResponses && info.RelayMode != relayconstant.RelayModeResponsesCompact {
 		return "", errors.New("codex channel: only /v1/responses and /v1/responses/compact are supported")
 	}
-	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/backend-api/codex/responses", info.ChannelType), nil
+	path := "/backend-api/codex/responses"
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		path = "/backend-api/codex/responses/compact"
+	}
+	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
