@@ -411,6 +411,17 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 
 	name = FormatMatchingModelName(name)
 
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		price, ok := modelPriceMap[CompactWildcardModelKey]
+		if !ok {
+			if printErr {
+				common.SysError("model price not found: " + name)
+			}
+			return -1, false
+		}
+		return price, true
+	}
+
 	price, ok := modelPriceMap[name]
 	if !ok {
 		if printErr {
