@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -588,6 +590,24 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+// claudeResponseText extracts visible text for empty-stream retry checks.
+func claudeResponseText(requestMode int, claudeResponse *dto.ClaudeResponse) string {
+	if claudeResponse == nil {
+		return ""
+	}
+	if requestMode == RequestModeCompletion {
+		return strings.TrimSpace(claudeResponse.Completion)
+	}
+
+	var builder strings.Builder
+	for _, item := range claudeResponse.Content {
+		if item.Type == "text" {
+			builder.WriteString(item.GetText())
+		}
+	}
+	return strings.TrimSpace(builder.String())
+}
+
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	if requestMode == RequestModeCompletion {
 		claudeInfo.ResponseText.WriteString(claudeResponse.Completion)
@@ -702,6 +722,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	}
 }
 
+// ClaudeStreamHandler handles Claude streaming responses and returns usage or error.
 func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestMode int) (*dto.Usage, *types.NewAPIError) {
 	claudeInfo := &ClaudeResponseInfo{
 		ResponseId:   helper.GetResponseID(c),
@@ -722,10 +743,23 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 
+	generalSetting := operation_setting.GetGeneralSetting()
+	if generalSetting.EmptyStreamRetryEnabled && strings.TrimSpace(claudeInfo.ResponseText.String()) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		if generalSetting.EmptyStreamRetryDelayMs > 0 {
+			common.SetContextKey(c, constant.ContextKeyEmptyStreamRetryDelayMs, generalSetting.EmptyStreamRetryDelayMs)
+		}
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("响应流为空，使用率为零，可能存在流中断"),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+		)
+	}
+
 	HandleStreamFinalResponse(c, info, claudeInfo, requestMode)
 	return claudeInfo.Usage, nil
 }
 
+// HandleClaudeResponseData processes a Claude non-stream response payload and writes back the mapped response.
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte, requestMode int) *types.NewAPIError {
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
@@ -745,6 +779,17 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+	}
+	generalSetting := operation_setting.GetGeneralSetting()
+	if generalSetting.EmptyStreamRetryEnabled && claudeResponseText(requestMode, &claudeResponse) == "" && !service.ValidUsage(claudeInfo.Usage) {
+		if generalSetting.EmptyStreamRetryDelayMs > 0 {
+			common.SetContextKey(c, constant.ContextKeyEmptyStreamRetryDelayMs, generalSetting.EmptyStreamRetryDelayMs)
+		}
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("响应为空，使用率为零，可能存在流中断"),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+		)
 	}
 	var responseData []byte
 	switch info.RelayFormat {
