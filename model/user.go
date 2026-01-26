@@ -380,15 +380,11 @@ func CreditReferralCommission(userId int, rechargeAmount float64) error {
 		return nil // Commission too small
 	}
 
-	// Get inviter and credit commission to their AffQuota
-	inviter, err := GetUserById(user.InviterId, true)
-	if err != nil {
-		return err
-	}
-
-	inviter.AffQuota += commission
-	inviter.AffHistoryQuota += commission
-	err = DB.Save(inviter).Error
+	// Atomically update inviter's AffQuota to prevent race conditions under concurrent recharges
+	err = DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", commission),
+		"aff_history": gorm.Expr("aff_history + ?", commission),
+	}).Error
 	if err != nil {
 		return err
 	}

@@ -2409,7 +2409,6 @@
     "被邀请用户充值时，邀请人获得的返佣比例": "The percentage of recharge amount the inviter receives as commission",
     "最大返佣次数": "Max Commission Recharges",
     "被邀请用户前N次充值给予返佣，0表示不限次数": "Give commission for the first N recharges of invited users, 0 means unlimited",
-    "次": "times",
     "保存返佣设置": "Save Commission Settings",
     "邀请用户充值返佣 %s (%.1f%% of $%.2f)": "Referral commission %s (%.1f%% of $%.2f)",
     "邮件通知": "Email notification",
