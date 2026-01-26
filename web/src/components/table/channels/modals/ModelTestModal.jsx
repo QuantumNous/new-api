@@ -71,7 +71,7 @@ const ModelTestModal = ({
       value: 'gemini',
       label: 'Gemini (/v1beta/models/{model}:generateContent)',
     },
-    { value: 'jina-rerank', label: 'Jina Rerank (/rerank)' },
+    { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
     {
       value: 'image-generation',
       label: t('图像生成') + ' (/v1/images/generations)',
