@@ -37,6 +37,9 @@ export default function SettingsCreditLimit(props) {
     QuotaForInviter: '',
     QuotaForInvitee: '',
     'quota_setting.enable_free_model_pre_consume': true,
+    ReferralCommissionEnabled: false,
+    ReferralCommissionPercent: '10',
+    ReferralCommissionMaxRecharges: '0',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -186,6 +189,66 @@ export default function SettingsCreditLimit(props) {
             <Row>
               <Button size='default' onClick={onSubmit}>
                 {t('保存额度设置')}
+              </Button>
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('邀请充值返佣设置')}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  label={t('启用充值返佣')}
+                  field={'ReferralCommissionEnabled'}
+                  extraText={t('开启后，被邀请用户充值时，邀请人可获得充值金额的一定比例作为返佣')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ReferralCommissionEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('返佣比例')}
+                  field={'ReferralCommissionPercent'}
+                  step={0.1}
+                  min={0}
+                  max={100}
+                  suffix={'%'}
+                  extraText={t('被邀请用户充值时，邀请人获得的返佣比例')}
+                  placeholder={t('例如：10')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ReferralCommissionPercent: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('最大返佣次数')}
+                  field={'ReferralCommissionMaxRecharges'}
+                  step={1}
+                  min={0}
+                  suffix={t('次')}
+                  extraText={t('被邀请用户前N次充值给予返佣，0表示不限次数')}
+                  placeholder={t('例如：3')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ReferralCommissionMaxRecharges: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Button size='default' onClick={onSubmit}>
+                {t('保存返佣设置')}
               </Button>
             </Row>
           </Form.Section>
