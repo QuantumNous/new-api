@@ -61,6 +61,16 @@ const colors = [
   'yellow',
 ];
 
+function formatRatio(ratio) {
+  if (ratio === undefined || ratio === null) {
+    return '-';
+  }
+  if (typeof ratio === 'number') {
+    return ratio.toFixed(4);
+  }
+  return String(ratio);
+}
+
 // Render functions
 function renderType(type, t) {
   switch (type) {
@@ -541,6 +551,38 @@ export const getLogsColumns = ({
             </Typography.Paragraph>
           );
         }
+
+        if (
+          other?.violation_fee === true ||
+          Boolean(other?.violation_fee_code) ||
+          Boolean(other?.violation_fee_marker)
+        ) {
+          const feeQuota = other?.fee_quota ?? record?.quota;
+          const ratioText = formatRatio(other?.group_ratio);
+          const summary = [
+            t('违规扣费'),
+            `${t('分组倍率')}：${ratioText}`,
+            `${t('扣费')}：${renderQuota(feeQuota, 6)}`,
+            text ? `${t('详情')}：${text}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          return (
+            <Typography.Paragraph
+              ellipsis={{
+                rows: 2,
+                showTooltip: {
+                  type: 'popover',
+                  opts: { style: { width: 240 } },
+                },
+              }}
+              style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+            >
+              {summary}
+            </Typography.Paragraph>
+          );
+        }
+
         let content = other?.claude
           ? renderModelPriceSimple(
               other.model_ratio,
