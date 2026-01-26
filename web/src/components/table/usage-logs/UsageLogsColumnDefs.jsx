@@ -40,7 +40,7 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
 } from '../../../helpers';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconHelpCircle, IconStarStroked } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
 
 const colors = [
@@ -498,6 +498,7 @@ export const getLogsColumns = ({
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;
+        let affinity = null;
         if (record.other !== '') {
           let other = JSON.parse(record.other);
           if (other === null) {
@@ -513,9 +514,55 @@ export const getLogsColumns = ({
               let useChannelStr = useChannel.join('->');
               content = t('渠道') + `：${useChannelStr}`;
             }
+            if (other.admin_info.channel_affinity) {
+              affinity = other.admin_info.channel_affinity;
+            }
           }
         }
-        return isAdminUser ? <div>{content}</div> : <></>;
+        return isAdminUser ? (
+          <Space>
+            <div>{content}</div>
+	            {affinity ? (
+	              <Tooltip
+	                content={
+	                  <div style={{ lineHeight: 1.6 }}>
+	                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('规则')}：{affinity.rule_name || '-'}
+	                      </Typography.Text>
+	                    </div>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('分组')}：{affinity.selected_group || '-'}
+	                      </Typography.Text>
+	                    </div>
+	                    <div>
+	                      <Typography.Text type='secondary'>
+	                        {t('Key')}：
+	                        {(affinity.key_source || '-') +
+	                          ':' +
+	                          (affinity.key_path || affinity.key_key || '-') +
+                          (affinity.key_fp ? `#${affinity.key_fp}` : '')}
+                      </Typography.Text>
+                    </div>
+	                  </div>
+	                }
+	              >
+	                <span>
+	                  <Tag className='channel-affinity-tag' color='cyan' shape='circle'>
+	                    <span className='channel-affinity-tag-content'>
+	                      <IconStarStroked style={{ fontSize: 13 }} />
+	                      {t('优选')}
+	                    </span>
+	                  </Tag>
+	                </span>
+	              </Tooltip>
+            ) : null}
+          </Space>
+        ) : (
+          <></>
+        );
       },
     },
     {
@@ -552,9 +599,13 @@ export const getLogsColumns = ({
               other.cache_creation_tokens || 0,
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
               other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
               false,
               1.0,
               other?.is_system_prompt_overwritten,
