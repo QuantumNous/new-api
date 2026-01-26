@@ -26,6 +26,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -102,6 +103,14 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
 		}
+
+		// responses compaction models (must use /v1/responses/compact)
+		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
+			requestPath = "/v1/responses/compact"
+		}
+	}
+	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
+		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
 
 	c.Request = &http.Request{
@@ -145,6 +154,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 			relayFormat = types.RelayFormatOpenAI
 		case constant.EndpointTypeOpenAIResponse:
 			relayFormat = types.RelayFormatOpenAIResponses
+		case constant.EndpointTypeOpenAIResponseCompact:
+			relayFormat = types.RelayFormatOpenAIResponsesCompaction
 		case constant.EndpointTypeAnthropic:
 			relayFormat = types.RelayFormatClaude
 		case constant.EndpointTypeGemini:
@@ -179,6 +190,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		if c.Request.URL.Path == "/v1/responses" {
 			relayFormat = types.RelayFormatOpenAIResponses
 		}
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
+			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		}
 	}
 
 	request := buildTestRequest(testModel, endpointType, channel)
@@ -210,6 +224,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	request.SetModelName(testModel)
 
 	apiType, _ := common.ChannelType2APIType(channel.Type)
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
+		apiType != constant.APITypeOpenAI &&
+		apiType != constant.APITypeCodex {
+		return testResult{
+			context:     c,
+			localErr:    fmt.Errorf("responses compaction test only supports openai/codex channels, got api type %d", apiType),
+			newAPIError: types.NewError(fmt.Errorf("unsupported api type: %d", apiType), types.ErrorCodeInvalidApiType),
+		}
+	}
 	adaptor := relay.GetAdaptor(apiType)
 	if adaptor == nil {
 		return testResult{
@@ -280,6 +303,25 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 				context:     c,
 				localErr:    errors.New("invalid response request type"),
 				newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeResponsesCompact:
+		// Response compaction request - convert to OpenAIResponsesRequest before adapting
+		switch req := request.(type) {
+		case *dto.OpenAIResponsesCompactionRequest:
+			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+				Model:              req.Model,
+				Input:              req.Input,
+				Instructions:       req.Instructions,
+				PreviousResponseID: req.PreviousResponseID,
+			})
+		case *dto.OpenAIResponsesRequest:
+			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
+		default:
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid response compaction request type"),
+				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	default:
@@ -427,6 +469,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 }
 
 func buildTestRequest(model string, endpointType string, channel *model.Channel) dto.Request {
+	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
@@ -458,6 +502,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 				Model: model,
 				Input: json.RawMessage("\"hi\""),
 			}
+		case constant.EndpointTypeOpenAIResponseCompact:
+			// 返回 OpenAIResponsesCompactionRequest
+			return &dto.OpenAIResponsesCompactionRequest{
+				Model: model,
+				Input: testResponsesInput,
+			}
 		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
 			maxTokens := uint(16)
@@ -487,6 +537,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
+		}
+	}
+
+	// Responses compaction models (must use /v1/responses/compact)
+	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
+		return &dto.OpenAIResponsesCompactionRequest{
+			Model: model,
+			Input: testResponsesInput,
 		}
 	}
 

@@ -66,6 +66,10 @@ const ModelTestModal = ({
     { value: '', label: t('自动检测') },
     { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
     { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
+    {
+      value: 'openai-response-compact',
+      label: 'OpenAI Response Compaction (/v1/responses/compact)',
+    },
     { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
     {
       value: 'gemini',
