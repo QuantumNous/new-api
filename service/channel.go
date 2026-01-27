@@ -32,6 +32,8 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
 		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+	} else {
+		common.SysLog(fmt.Sprintf("通道「%s」（#%d）禁用状态未更新（可能已是禁用/启用状态），跳过通知", channelError.ChannelName, channelError.ChannelId))
 	}
 }
 

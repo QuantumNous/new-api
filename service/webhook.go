@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -55,6 +56,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	if err != nil {
 		return fmt.Errorf("failed to marshal webhook payload: %v", err)
 	}
+	common.SysLog(fmt.Sprintf("webhook notify request: url=%s body=%s", webhookURL, string(payloadBytes)))
 
 	// 创建 HTTP 请求
 	var req *http.Request
@@ -83,7 +85,9 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 		if err != nil {
 			return fmt.Errorf("failed to send webhook request through worker: %v", err)
 		}
-		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		common.SysLog(fmt.Sprintf("webhook notify response (worker): status=%d body=%s", resp.StatusCode, string(bodyBytes)))
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -116,7 +120,9 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 		if err != nil {
 			return fmt.Errorf("failed to send webhook request: %v", err)
 		}
-		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		common.SysLog(fmt.Sprintf("webhook notify response: status=%d body=%s", resp.StatusCode, string(bodyBytes)))
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
