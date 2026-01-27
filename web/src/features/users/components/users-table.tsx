@@ -162,12 +162,12 @@ export function UsersTable() {
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
+            title: t('Status'),
             options: getUserStatusOptions(t),
           },
           {
             columnId: 'role',
-            title: 'Role',
+            title: t('Role'),
             options: getUserRoleOptions(t),
           },
         ]}

@@ -157,11 +157,11 @@ export function ApiKeysTable() {
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter by name or key...'
+        searchPlaceholder={t('Filter by name or key...')}
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
+            title: t('Status'),
             options: API_KEY_STATUS_OPTIONS,
           },
         ]}

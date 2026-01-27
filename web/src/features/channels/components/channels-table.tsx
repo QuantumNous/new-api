@@ -290,19 +290,19 @@ export function ChannelsTable() {
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
+            title: t('Status'),
             options: [...CHANNEL_STATUS_OPTIONS],
             singleSelect: true,
           },
           {
             columnId: 'type',
-            title: 'Type',
+            title: t('Type'),
             options: typeFilterOptions,
             singleSelect: true,
           },
           {
             columnId: 'group',
-            title: 'Group',
+            title: t('Group'),
             options: groupFilterOptions,
             singleSelect: true,
           },

@@ -183,7 +183,7 @@ export function UsageLogsTable() {
       ? [
           {
             columnId: 'type',
-            title: 'Log Type',
+            title: t('Log Type'),
             options: LOG_TYPE_FILTERS,
             singleSelect: true,
           },

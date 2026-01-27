@@ -145,7 +145,7 @@ export function RedemptionsTable() {
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
+            title: t('Status'),
             options: redemptionStatusOptions,
           },
         ]}

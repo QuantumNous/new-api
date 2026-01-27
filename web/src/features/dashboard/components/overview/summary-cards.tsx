@@ -8,6 +8,7 @@ import { formatNumber, formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import { StatCard } from '../ui/stat-card'
+import { t } from 'i18next'
 
 export function SummaryCards() {
   // 使用已缓存的用户数据，避免重复调用 API
@@ -65,7 +66,7 @@ export function SummaryCards() {
               <Button variant='outline' size='sm' className='h-7' asChild>
                 <Link to='/wallet'>
                   <CreditCard className='mr-1.5 h-3.5 w-3.5' />
-                  Recharge
+                  {t('Recharge')}
                 </Link>
               </Button>
             ) : undefined
