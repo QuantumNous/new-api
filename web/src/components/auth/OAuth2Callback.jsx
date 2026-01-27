@@ -83,10 +83,10 @@ const OAuth2Callback = (props) => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
-    // 参数缺失直接返回
+    // 参数缺失直接返回登录页
     if (!code) {
       showError(t('未获取到授权码'));
-      navigate('/console/personal');
+      navigate('/login');
       return;
     }
 

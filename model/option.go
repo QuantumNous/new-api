@@ -96,6 +96,9 @@ func InitOptionMap() {
 	common.OptionMap["PayMethods"] = operation_setting.PayMethods2JsonString()
 	common.OptionMap["GitHubClientId"] = ""
 	common.OptionMap["GitHubClientSecret"] = ""
+	common.OptionMap["NodeLocClientId"] = ""
+	common.OptionMap["NodeLocClientSecret"] = ""
+	common.OptionMap["NodeLocMinimumTrustLevel"] = strconv.Itoa(common.NodeLocMinimumTrustLevel)
 	common.OptionMap["TelegramBotToken"] = ""
 	common.OptionMap["TelegramBotName"] = ""
 	common.OptionMap["WeChatServerAddress"] = ""

@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// NodeLocUser represents the user information returned by NodeLoc OAuth API.
 type NodeLocUser struct {
 	Id         int    `json:"id"`
 	Username   string `json:"username"`
@@ -27,6 +28,8 @@ type NodeLocUser struct {
 	Email      string `json:"email"`
 }
 
+// NodeLocBind handles binding a NodeLoc account to an existing user account.
+// It requires the user to be logged in and will associate their NodeLoc ID with their account.
 func NodeLocBind(c *gin.Context) {
 	if !common.NodeLocOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
@@ -57,7 +60,16 @@ func NodeLocBind(c *gin.Context) {
 
 	session := sessions.Default(c)
 	id := session.Get("id")
-	user.Id = id.(int)
+	// Safe type assertion to avoid panic
+	userId, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "用户未登录或会话无效",
+		})
+		return
+	}
+	user.Id = userId
 
 	err = user.FillUserById()
 	if err != nil {
@@ -78,6 +90,8 @@ func NodeLocBind(c *gin.Context) {
 	})
 }
 
+// getNodeLocUserInfoByCode exchanges the OAuth authorization code for an access token
+// and retrieves the user information from NodeLoc API.
 func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error) {
 	if code == "" {
 		return nil, errors.New("invalid code")
@@ -110,6 +124,11 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 		return nil, errors.New("failed to connect to NodeLoc server")
 	}
 	defer res.Body.Close()
+
+	// Validate HTTP status code for token exchange
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("NodeLoc token endpoint returned status %d", res.StatusCode)
+	}
 
 	var tokenRes struct {
 		AccessToken string `json:"access_token"`
@@ -145,6 +164,11 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 	}
 	defer res2.Body.Close()
 
+	// Validate HTTP status code for user info
+	if res2.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("NodeLoc userinfo endpoint returned status %d", res2.StatusCode)
+	}
+
 	var nodelocUser NodeLocUser
 	if err := json.NewDecoder(res2.Body).Decode(&nodelocUser); err != nil {
 		return nil, err
@@ -162,6 +186,9 @@ func getNodeLocUserInfoByCode(code string, c *gin.Context) (*NodeLocUser, error)
 	return &nodelocUser, nil
 }
 
+// NodeLocOAuth handles the NodeLoc OAuth callback for login and registration.
+// It validates the OAuth state, exchanges the code for user info, and either logs in
+// an existing user or creates a new account.
 func NodeLocOAuth(c *gin.Context) {
 	session := sessions.Default(c)
 
@@ -176,7 +203,10 @@ func NodeLocOAuth(c *gin.Context) {
 	}
 
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	// Safe type assertion for oauth_state validation
+	sessionState := session.Get("oauth_state")
+	expectedState, ok := sessionState.(string)
+	if state == "" || sessionState == nil || !ok || state != expectedState {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
@@ -229,10 +259,11 @@ func NodeLocOAuth(c *gin.Context) {
 	} else {
 		if common.RegisterEnabled {
 			if nodelocUser.TrustLevel >= common.NodeLocMinimumTrustLevel {
-				// 使用 NodeLoc 用户名，如果已存在则添加后缀
+				// 使用 NodeLoc 用户名，如果已存在则添加唯一后缀
+				// 使用时间戳和NodeLoc ID组合避免竞态条件
 				username := nodelocUser.Username
 				if model.IsUsernameExist(username) {
-					username = username + "_" + strconv.Itoa(model.GetMaxUserId()+1)
+					username = fmt.Sprintf("%s_%d_%d", nodelocUser.Username, nodelocUser.Id, time.Now().UnixNano()%10000)
 				}
 				user.Username = username
 				user.DisplayName = nodelocUser.Name
@@ -241,8 +272,11 @@ func NodeLocOAuth(c *gin.Context) {
 
 				affCode := session.Get("aff")
 				inviterId := 0
+				// Safe type assertion for affCode
 				if affCode != nil {
-					inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+					if affCodeStr, ok := affCode.(string); ok {
+						inviterId, _ = model.GetUserIdByAffCode(affCodeStr)
+					}
 				}
 
 				if err := user.Insert(inviterId); err != nil {

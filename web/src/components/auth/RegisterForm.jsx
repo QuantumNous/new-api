@@ -664,6 +664,7 @@ const RegisterForm = () => {
                 status.oidc_enabled ||
                 status.wechat_login ||
                 status.linuxdo_oauth ||
+                status.nodeloc_oauth ||
                 status.telegram_oauth) && (
                 <>
                   <Divider margin='12px' align='center'>
@@ -760,6 +761,7 @@ const RegisterForm = () => {
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||
+          status.nodeloc_oauth ||
           status.telegram_oauth
         )
           ? renderEmailRegisterForm()
