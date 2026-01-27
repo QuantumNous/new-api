@@ -50,17 +50,21 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 		Timestamp: time.Now().Unix(),
 	}
 
-	// Currently webhook payload format is fixed. User-configurable webhook payload template
-	// should be resolved in NotifyUser (where user setting is available).
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal webhook payload: %v", err)
 	}
+	return SendWebhookNotifyRaw(webhookURL, secret, payloadBytes)
+}
+
+// SendWebhookNotifyRaw sends an already-marshaled JSON payload.
+func SendWebhookNotifyRaw(webhookURL string, secret string, payloadBytes []byte) error {
 	common.SysLog(fmt.Sprintf("webhook notify request: url=%s body=%s", webhookURL, string(payloadBytes)))
 
 	// 创建 HTTP 请求
 	var req *http.Request
 	var resp *http.Response
+	var err error
 
 	if system_setting.EnableWorker() {
 		// 构建worker请求数据

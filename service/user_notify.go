@@ -82,8 +82,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			if err != nil {
 				return fmt.Errorf("invalid webhook payload template: %w", err)
 			}
-			data.Content = payload
-			data.Values = nil
+			return SendWebhookNotifyRaw(webhookURLStr, webhookSecret, []byte(payload))
 		}
 		return SendWebhookNotify(webhookURLStr, webhookSecret, data)
 	case dto.NotifyTypeBark:
