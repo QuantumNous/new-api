@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getDeploymentSettings, testDeploymentConnection } from '../api'
 
 interface ConnectionState {
@@ -7,8 +7,35 @@ interface ConnectionState {
   error: string | null
 }
 
+// Connection cache (5 minutes TTL)
+const CONNECTION_CACHE_TTL = 5 * 60 * 1000
+let connectionCache: {
+  ok: boolean
+  timestamp: number
+} | null = null
+
+function getCachedConnection(): boolean | null {
+  if (!connectionCache) return null
+  if (Date.now() - connectionCache.timestamp > CONNECTION_CACHE_TTL) {
+    connectionCache = null
+    return null
+  }
+  return connectionCache.ok
+}
+
+function setCachedConnection(ok: boolean) {
+  connectionCache = { ok, timestamp: Date.now() }
+}
+
+export function clearConnectionCache() {
+  connectionCache = null
+}
+
+type LoadingPhase = 'idle' | 'settings' | 'connection' | 'done'
+
 export function useModelDeploymentSettings() {
   const [loading, setLoading] = useState(true)
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('settings')
   const [settings, setSettings] = useState<Record<string, unknown>>({
     'model_deployment.ionet.enabled': false,
   })
@@ -17,70 +44,128 @@ export function useModelDeploymentSettings() {
     ok: null,
     error: null,
   })
+  const initialLoadRef = useRef(true)
 
-  const fetchSettings = useCallback(async () => {
+  // Parallel fetch: settings + connection test (when enabled)
+  const fetchAll = useCallback(async (useCache = true) => {
     setLoading(true)
+    setLoadingPhase('settings')
+
     try {
+      // Step 1: Fetch settings first (usually fast)
       const response = await getDeploymentSettings()
-      if (response?.success) {
-        // Backend returns { enabled, configured, can_connect, ... }
-        setSettings({
-          'model_deployment.ionet.enabled': response?.data?.enabled === true,
-        })
+      const isEnabled = response?.success && response?.data?.enabled === true
+
+      setSettings({
+        'model_deployment.ionet.enabled': isEnabled,
+      })
+
+      if (!isEnabled) {
+        // Not enabled, done
+        setConnectionState({ loading: false, ok: null, error: null })
+        setLoadingPhase('done')
+        setLoading(false)
+        return
+      }
+
+      // Step 2: Check connection (check cache first)
+      if (useCache) {
+        const cached = getCachedConnection()
+        if (cached !== null) {
+          setConnectionState({ loading: false, ok: cached, error: null })
+          setLoadingPhase('done')
+          setLoading(false)
+          return
+        }
+      }
+
+      // Test connection
+      setLoadingPhase('connection')
+      setConnectionState({ loading: true, ok: null, error: null })
+
+      try {
+        const connResponse = await testDeploymentConnection()
+        if (connResponse?.success) {
+          setCachedConnection(true)
+          setConnectionState({ loading: false, ok: true, error: null })
+        } else {
+          const message = connResponse?.message || 'Connection failed'
+          setCachedConnection(false)
+          setConnectionState({ loading: false, ok: false, error: message })
+        }
+      } catch (error: unknown) {
+        const errMsg =
+          error instanceof Error ? error.message : 'Connection failed'
+        setCachedConnection(false)
+        setConnectionState({ loading: false, ok: false, error: errMsg })
       }
     } catch {
-      // Ignore errors, use default settings
+      // Settings fetch failed, use defaults
+      setConnectionState({ loading: false, ok: null, error: null })
     } finally {
+      setLoadingPhase('done')
       setLoading(false)
     }
   }, [])
 
+  // Initial load
   useEffect(() => {
-    fetchSettings()
-  }, [fetchSettings])
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false
+      fetchAll(true)
+    }
+  }, [fetchAll])
 
   const isIoNetEnabled = Boolean(settings['model_deployment.ionet.enabled'])
 
+  // Manual retry (skip cache)
   const testConnection = useCallback(async () => {
+    clearConnectionCache()
     setConnectionState({ loading: true, ok: null, error: null })
+    setLoadingPhase('connection')
+
     try {
       const response = await testDeploymentConnection()
       if (response?.success) {
+        setCachedConnection(true)
         setConnectionState({ loading: false, ok: true, error: null })
         return
       }
       const message = response?.message || 'Connection failed'
+      setCachedConnection(false)
       setConnectionState({ loading: false, ok: false, error: message })
     } catch (error: unknown) {
       const errMsg =
         error instanceof Error ? error.message : 'Connection failed'
+      setCachedConnection(false)
       setConnectionState({ loading: false, ok: false, error: errMsg })
+    } finally {
+      setLoadingPhase('done')
     }
   }, [])
 
-  // Auto test connection when enabled
-  useEffect(() => {
-    if (!loading && isIoNetEnabled) {
-      testConnection()
-      return
-    }
-    setConnectionState({ loading: false, ok: null, error: null })
-  }, [loading, isIoNetEnabled, testConnection])
+  // Refresh all (skip cache)
+  const refresh = useCallback(() => {
+    clearConnectionCache()
+    return fetchAll(false)
+  }, [fetchAll])
 
   // Refresh on window focus (useful after saving settings in another page)
   useEffect(() => {
     const handler = () => {
-      fetchSettings()
+      // Use cache on focus to avoid unnecessary requests
+      fetchAll(true)
     }
     window.addEventListener('focus', handler)
     return () => window.removeEventListener('focus', handler)
-  }, [fetchSettings])
+  }, [fetchAll])
 
   return {
     loading,
+    loadingPhase,
     settings,
     isIoNetEnabled,
-    refresh: fetchSettings,
+    refresh,
     connectionLoading: connectionState.loading,
     connectionOk: connectionState.ok,
     connectionError: connectionState.error,

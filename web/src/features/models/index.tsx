@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { AppHeader, Main } from '@/components/layout'
 import { Button } from '@/components/ui/button'
+import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
 import { CreateDeploymentDrawer } from './components/dialogs/create-deployment-drawer'
@@ -12,6 +14,7 @@ import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
+import { deploymentsQueryKeys } from './lib'
 import type { ModelsSectionId } from './section-registry'
 import { MODELS_DEFAULT_SECTION } from './section-registry'
 
@@ -19,6 +22,7 @@ const route = getRouteApi('/_authenticated/models/')
 
 function ModelsContent() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { tabCategory, setTabCategory } = useModels()
   const search = route.useSearch()
   const activeSection = (search.section ?? MODELS_DEFAULT_SECTION) as ModelsSectionId
@@ -35,6 +39,7 @@ function ModelsContent() {
 
   const {
     loading: deploymentLoading,
+    loadingPhase,
     isIoNetEnabled,
     connectionLoading,
     connectionOk,
@@ -49,6 +54,19 @@ function ModelsContent() {
       refreshDeploymentSettings()
     }
   }, [activeSection, refreshDeploymentSettings])
+
+  // Prefetch deployments list while connection check is in progress
+  // This allows the data to be ready as soon as the guard passes
+  useEffect(() => {
+    if (activeSection === 'deployments' && isIoNetEnabled && loadingPhase === 'connection') {
+      const defaultParams = { p: 1, page_size: 10 }
+      queryClient.prefetchQuery({
+        queryKey: deploymentsQueryKeys.list(defaultParams),
+        queryFn: () => listDeployments(defaultParams),
+        staleTime: 30 * 1000, // 30 seconds
+      })
+    }
+  }, [activeSection, isIoNetEnabled, loadingPhase, queryClient])
 
   return (
     <>
@@ -81,6 +99,7 @@ function ModelsContent() {
           ) : (
             <DeploymentAccessGuard
               loading={deploymentLoading}
+              loadingPhase={loadingPhase}
               isEnabled={isIoNetEnabled}
               connectionLoading={connectionLoading}
               connectionOk={connectionOk}

@@ -1,13 +1,41 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertCircle, Loader2, Server, Settings, WifiOff } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Circle,
+  Loader2,
+  Server,
+  Settings,
+  WifiOff,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+
+type LoadingPhase = 'idle' | 'settings' | 'connection' | 'done'
+type StepStatus = 'pending' | 'loading' | 'done'
+
+function getSettingsStatus(phase: LoadingPhase): StepStatus {
+  if (phase === 'settings') return 'loading'
+  if (phase === 'connection' || phase === 'done') return 'done'
+  return 'pending'
+}
+
+function getConnectionStatus(
+  phase: LoadingPhase,
+  connectionOk: boolean | null
+): StepStatus {
+  if (phase === 'connection') return 'loading'
+  if (phase === 'done' && connectionOk) return 'done'
+  return 'pending'
+}
 
 interface DeploymentAccessGuardProps {
   children: ReactNode
   loading: boolean
+  loadingPhase?: LoadingPhase
   isEnabled: boolean
   connectionLoading: boolean
   connectionOk: boolean | null
@@ -15,9 +43,42 @@ interface DeploymentAccessGuardProps {
   onRetry: () => void
 }
 
+function LoadingStep({
+  label,
+  status,
+}: {
+  label: string
+  status: 'pending' | 'loading' | 'done'
+}) {
+  return (
+    <div className='flex items-center gap-3'>
+      {status === 'loading' && (
+        <Loader2 className='text-primary h-5 w-5 animate-spin' />
+      )}
+      {status === 'done' && (
+        <CheckCircle2 className='h-5 w-5 text-green-500' />
+      )}
+      {status === 'pending' && (
+        <Circle className='text-muted-foreground/40 h-5 w-5' />
+      )}
+      <span
+        className={cn(
+          'text-sm',
+          status === 'loading' && 'text-foreground font-medium',
+          status === 'done' && 'text-muted-foreground',
+          status === 'pending' && 'text-muted-foreground/60'
+        )}
+      >
+        {label}
+      </span>
+    </div>
+  )
+}
+
 export function DeploymentAccessGuard({
   children,
   loading,
+  loadingPhase = 'settings',
   isEnabled,
   connectionLoading,
   connectionOk,
@@ -31,13 +92,25 @@ export function DeploymentAccessGuard({
     navigate({ to: '/system-settings/integrations' })
   }
 
-  // Loading state
-  if (loading) {
+  // Combined loading state with step indicator
+  if (loading || connectionLoading) {
+    const settingsStatus = getSettingsStatus(loadingPhase)
+    const connectionStatus = getConnectionStatus(loadingPhase, connectionOk)
+
     return (
       <div className='mx-auto mt-8 max-w-md'>
         <div className='flex flex-col items-center justify-center py-12'>
-          <Loader2 className='text-muted-foreground mb-4 h-12 w-12 animate-spin' />
-          <p className='text-muted-foreground'>{t('Loading...')}</p>
+          <Loader2 className='text-primary mb-6 h-10 w-10 animate-spin' />
+          <div className='space-y-3'>
+            <LoadingStep
+              label={t('Loading configuration')}
+              status={settingsStatus}
+            />
+            <LoadingStep
+              label={t('Checking connection')}
+              status={connectionStatus}
+            />
+          </div>
         </div>
       </div>
     )
@@ -69,18 +142,6 @@ export function DeploymentAccessGuard({
             <Settings className='mr-2 h-4 w-4' />
             {t('Go to settings')}
           </Button>
-        </div>
-      </div>
-    )
-  }
-
-  // Connection loading state
-  if (connectionLoading) {
-    return (
-      <div className='mx-auto mt-8 max-w-md'>
-        <div className='flex flex-col items-center justify-center py-12'>
-          <Loader2 className='text-muted-foreground mb-4 h-12 w-12 animate-spin' />
-          <p className='text-muted-foreground'>{t('Checking connection...')}</p>
         </div>
       </div>
     )
