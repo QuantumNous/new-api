@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, RefreshCw, DollarSign } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -14,9 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { updateChannelBalance } from '../../api'
+import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
+import { CodexUsageDialog } from './codex-usage-dialog'
+import type { CodexUsageDialogData } from './codex-usage-dialog'
 
 type BalanceQueryDialogProps = {
   open: boolean
@@ -35,8 +37,34 @@ export function BalanceQueryDialog({
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
     null
   )
+  const [codexUsageResponse, setCodexUsageResponse] =
+    useState<CodexUsageDialogData | null>(null)
 
   if (!currentRow) return null
+
+  const isCodex = currentRow.type === 57
+
+  const handleQueryCodexUsage = async () => {
+    setIsQuerying(true)
+    try {
+      const res = await getCodexUsage(currentRow.id)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to fetch usage'))
+      }
+      setCodexUsageResponse(res)
+    } catch (error: any) {
+      toast.error(error?.message || t('Failed to fetch usage'))
+    } finally {
+      setIsQuerying(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isCodex) return
+    if (!open) return
+    handleQueryCodexUsage()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isCodex])
 
   const handleQueryBalance = async () => {
     setIsQuerying(true)
@@ -58,7 +86,7 @@ export function BalanceQueryDialog({
         })
 
         // Invalidate queries to refresh the table
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        await queryClient.invalidateQueries({queryKey: channelsQueryKeys.lists()})
       } else {
         toast.error(response.message || t('Failed to query balance'))
       }
@@ -72,6 +100,7 @@ export function BalanceQueryDialog({
   const handleClose = () => {
     setBalance(null)
     setBalanceUpdatedTime(null)
+    setCodexUsageResponse(null)
     onOpenChange(false)
   }
 
@@ -85,6 +114,22 @@ export function BalanceQueryDialog({
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'Never'
     return formatTimestampToDate(timestamp)
+  }
+
+  if (isCodex) {
+    return (
+      <CodexUsageDialog
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) handleClose()
+        }}
+        channelName={currentRow.name}
+        channelId={currentRow.id}
+        response={codexUsageResponse}
+        onRefresh={handleQueryCodexUsage}
+        isRefreshing={isQuerying}
+      />
+    )
   }
 
   return (

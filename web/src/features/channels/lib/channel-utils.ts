@@ -7,6 +7,7 @@ import {
   MULTI_KEY_STATUS_CONFIG,
   RESPONSE_TIME_CONFIG,
   RESPONSE_TIME_THRESHOLDS,
+  TYPE_TO_KEY_PROMPT,
 } from '../constants'
 import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
 
@@ -625,14 +626,5 @@ export function deduplicateKeys(keysText: string): {
  * Get key prompt based on channel type
  */
 export function getKeyPromptForType(type: number): string {
-  const typePrompts: Record<number, string> = {
-    15: 'Format: APIKey|SecretKey',
-    18: 'Format: APPID|APISecret|APIKey',
-    22: 'Format: APIKey-AppId, e.g., fastgpt-0sp2gtvfdgyi4k30jwlgwf1i-64f335d84283f05518e9e041',
-    23: 'Format: AppId|SecretId|SecretKey',
-    33: 'Format: Ak|Sk|Region',
-    50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
-    51: 'Format: Access Key ID|Secret Access Key',
-  }
-  return typePrompts[type] || 'Enter API key for this channel'
+  return TYPE_TO_KEY_PROMPT[type] || 'Enter API key for this channel'
 }

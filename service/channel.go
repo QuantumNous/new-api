@@ -57,9 +57,12 @@ func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 	if types.IsSkipRetryError(err) {
 		return false
 	}
-	if err.StatusCode == http.StatusUnauthorized {
+	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
 		return true
 	}
+	//if err.StatusCode == http.StatusUnauthorized {
+	//	return true
+	//}
 	if err.StatusCode == http.StatusForbidden {
 		switch channelType {
 		case constant.ChannelTypeGemini:

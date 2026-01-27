@@ -35,16 +35,16 @@ import { useUsageLogsContext } from '../usage-logs-provider'
 import { renderBadge, CacheTooltip } from './column-helpers'
 
 function DetailsCell({
-  content,
-  logType,
+  log,
+  isAdmin,
 }: {
-  content?: string | null
-  logType: number
+  log: UsageLog
+  isAdmin: boolean
 }) {
   const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  if (content == null) {
+  if (log.content == null) {
     return <span className='text-muted-foreground text-sm'>-</span>
   }
 
@@ -56,11 +56,49 @@ function DetailsCell({
         onClick={() => setDialogOpen(true)}
         title={t('Click to view full details')}
       >
-        <span className='truncate'>{content}</span>
+        <span className='truncate'>{log.content}</span>
       </Button>
       <DetailsDialog
-        details={content}
-        logType={logType}
+        log={log}
+        isAdmin={isAdmin}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
+    </>
+  )
+}
+
+function BillingTypeCell({
+  log,
+  isAdmin,
+}: {
+  log: UsageLog
+  isAdmin: boolean
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const other = parseLogOther(log.other)
+  const isPerCall = isPerCallBilling(other?.model_price)
+
+  return (
+    <>
+      <Button
+        type='button'
+        variant='ghost'
+        size='sm'
+        className='h-auto p-0 hover:bg-transparent'
+        onClick={() => setDialogOpen(true)}
+        title={isPerCall ? 'Per-call' : 'Per-token'}
+      >
+        <StatusBadge
+          label={isPerCall ? 'Per-call' : 'Per-token'}
+          variant={isPerCall ? 'teal' : 'violet'}
+          size='sm'
+          copyable={false}
+        />
+      </Button>
+      <DetailsDialog
+        log={log}
+        isAdmin={isAdmin}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
@@ -494,25 +532,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       header: t('Details'),
       cell: ({ row }) => {
         const log = row.original
-        const content = row.getValue('content') as string | null
 
         // For non-consume logs, show content
         if (log.type !== 2) {
-          return <DetailsCell content={content} logType={log.type} />
+          return <DetailsCell log={log} isAdmin={isAdmin} />
         }
 
-        // For consume logs, show billing type
-        const other = parseLogOther(log.other)
-        const isPerCall = isPerCallBilling(other?.model_price)
-
-        return (
-          <StatusBadge
-            label={isPerCall ? 'Per-call' : 'Per-token'}
-            variant={isPerCall ? 'teal' : 'violet'}
-            size='sm'
-            copyable={false}
-          />
-        )
+        return <BillingTypeCell log={log} isAdmin={isAdmin} />
       },
       meta: { label: t('Details') },
     }

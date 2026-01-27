@@ -78,3 +78,18 @@ export function truncateText(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text
   return text.slice(0, maxLength) + '...'
 }
+
+/**
+ * Try to parse and pretty-print JSON, fallback to original text if invalid
+ * @param text - Text that might be JSON
+ * @returns Pretty-printed JSON or original text
+ */
+export function tryPrettyJson(text: string): string {
+  const raw = (text ?? '').toString().trim()
+  if (!raw) return ''
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}

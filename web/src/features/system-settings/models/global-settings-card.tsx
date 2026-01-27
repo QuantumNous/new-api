@@ -16,12 +16,56 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+
+const thinkingBlacklistExample = JSON.stringify(
+  ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking'],
+  null,
+  2
+)
+
+const chatToResponsesPolicyExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: false,
+    channel_ids: [1, 2],
+    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+  },
+  null,
+  2
+)
+
+const chatToResponsesPolicyAllChannelsExample = JSON.stringify(
+  {
+    enabled: true,
+    all_channels: true,
+    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+  },
+  null,
+  2
+)
+
+const jsonString = z.string().refine((value) => {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  try {
+    JSON.parse(trimmed)
+    return true
+  } catch {
+    return false
+  }
+}, 'Invalid JSON format')
 
 const schema = z.object({
   global: z.object({
     pass_through_request_enabled: z.boolean(),
+    thinking_model_blacklist: jsonString,
+    chat_completions_to_responses_policy: jsonString,
   }),
   general_setting: z.object({
     ping_interval_enabled: z.boolean(),
@@ -34,6 +78,8 @@ type GlobalModelSettingsFormInput = z.input<typeof schema>
 
 type FlatGlobalModelSettings = {
   'global.pass_through_request_enabled': boolean
+  'global.thinking_model_blacklist': string
+  'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
 }
@@ -43,11 +89,24 @@ const flattenGlobalValues = (
 ): FlatGlobalModelSettings => ({
   'global.pass_through_request_enabled':
     values.global.pass_through_request_enabled,
+  'global.thinking_model_blacklist': normalizeJsonText(
+    values.global.thinking_model_blacklist,
+    '[]'
+  ),
+  'global.chat_completions_to_responses_policy': normalizeJsonText(
+    values.global.chat_completions_to_responses_policy,
+    '{}'
+  ),
   'general_setting.ping_interval_enabled':
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
     values.general_setting.ping_interval_seconds,
 })
+
+function normalizeJsonText(value: string, fallback: string) {
+  const trimmed = (value ?? '').toString().trim()
+  return trimmed ? trimmed : fallback
+}
 
 type GlobalSettingsCardProps = {
   defaultValues: GlobalModelSettingsFormValues
@@ -71,6 +130,21 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
   }, [defaultValues, form])
 
   const pingEnabled = form.watch('general_setting.ping_interval_enabled')
+
+  const formatJsonField = (
+    field:
+      | 'global.thinking_model_blacklist'
+      | 'global.chat_completions_to_responses_policy'
+  ) => {
+    const raw = form.getValues(field)
+    if (!raw || !raw.trim()) return
+    try {
+      const formatted = JSON.stringify(JSON.parse(raw), null, 2)
+      form.setValue(field, formatted, { shouldDirty: true })
+    } catch {
+      toast.error(t('Invalid JSON format'))
+    }
+  }
 
   const onSubmit = async (values: GlobalModelSettingsFormValues) => {
     const flattenedDefaults = flattenGlobalValues(defaultValues)
@@ -126,6 +200,124 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name='global.thinking_model_blacklist'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Disable thinking processing models')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={4}
+                    placeholder={`${t('Example:')}\n${thinkingBlacklistExample}`}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Models listed here will not automatically append or remove -thinking / -nothinking suffixes.'
+                  )}
+                </FormDescription>
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => formatJsonField('global.thinking_model_blacklist')}
+                  >
+                    {t('Format JSON')}
+                  </Button>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Separator />
+
+          <div className='space-y-4'>
+            <div className='flex items-center gap-2'>
+                <h3 className='text-base font-semibold'>
+                {t('ChatCompletions -> Responses Compatibility')}
+              </h3>
+              <Badge variant='secondary'>{t('Preview')}</Badge>
+            </div>
+
+            <Alert>
+              <AlertTitle>{t('Warning')}</AlertTitle>
+              <AlertDescription>
+                {t(
+                  'This feature is experimental. Configuration format and behavior may change.'
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <FormField
+              control={form.control}
+              name='global.chat_completions_to_responses_policy'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Policy JSON')}</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={8}
+                      placeholder={`${t('Example (specific channels):')}\n${chatToResponsesPolicyExample}\n\n${t('Example (all channels):')}\n${chatToResponsesPolicyAllChannelsExample}`}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Empty value will be saved as {}.')}
+                  </FormDescription>
+                  <div className='flex flex-wrap gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        form.setValue(
+                          'global.chat_completions_to_responses_policy',
+                          chatToResponsesPolicyExample,
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      {t('Fill example (specific channels)')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        form.setValue(
+                          'global.chat_completions_to_responses_policy',
+                          chatToResponsesPolicyAllChannelsExample,
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      {t('Fill example (all channels)')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        formatJsonField('global.chat_completions_to_responses_policy')
+                      }
+                    >
+                      {t('Format JSON')}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <Separator />
 
           <FormField
             control={form.control}

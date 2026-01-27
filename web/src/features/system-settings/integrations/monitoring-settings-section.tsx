@@ -17,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -33,6 +34,8 @@ const monitoringSchema = z.object({
   AutomaticDisableChannelEnabled: z.boolean(),
   AutomaticEnableChannelEnabled: z.boolean(),
   AutomaticDisableKeywords: z.string(),
+  AutomaticDisableStatusCodes: z.string(),
+  AutomaticRetryStatusCodes: z.string(),
   monitor_setting: z.object({
     auto_test_channel_enabled: z.boolean(),
     auto_test_channel_minutes: z.coerce
@@ -40,6 +43,31 @@ const monitoringSchema = z.object({
       .int()
       .min(1, 'Interval must be at least 1 minute'),
   }),
+})
+.superRefine((values, ctx) => {
+  const disableParsed = parseHttpStatusCodeRules(
+    values.AutomaticDisableStatusCodes
+  )
+  if (!disableParsed.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AutomaticDisableStatusCodes'],
+      message: `Invalid status code rules: ${disableParsed.invalidTokens.join(
+        ', '
+      )}`,
+    })
+  }
+
+  const retryParsed = parseHttpStatusCodeRules(values.AutomaticRetryStatusCodes)
+  if (!retryParsed.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AutomaticRetryStatusCodes'],
+      message: `Invalid status code rules: ${retryParsed.invalidTokens.join(
+        ', '
+      )}`,
+    })
+  }
 })
 
 type MonitoringFormValues = z.output<typeof monitoringSchema>
@@ -52,6 +80,8 @@ type MonitoringSettingsSectionProps = {
     AutomaticDisableChannelEnabled: boolean
     AutomaticEnableChannelEnabled: boolean
     AutomaticDisableKeywords: string
+    AutomaticDisableStatusCodes: string
+    AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
   }
@@ -67,6 +97,8 @@ type NormalizedMonitoringValues = {
   AutomaticDisableChannelEnabled: boolean
   AutomaticEnableChannelEnabled: boolean
   AutomaticDisableKeywords: string
+  AutomaticDisableStatusCodes: string
+  AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
 }
@@ -81,6 +113,8 @@ const buildFormDefaults = (
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
   ),
+  AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
+  AutomaticRetryStatusCodes: defaults.AutomaticRetryStatusCodes ?? '',
   monitor_setting: {
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
@@ -99,6 +133,12 @@ const normalizeDefaults = (
   AutomaticDisableKeywords: normalizeLineEndings(
     defaults.AutomaticDisableKeywords ?? ''
   ),
+  AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
+    defaults.AutomaticDisableStatusCodes ?? ''
+  ).normalized,
+  AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
+    defaults.AutomaticRetryStatusCodes ?? ''
+  ).normalized,
   'monitor_setting.auto_test_channel_enabled':
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
@@ -115,6 +155,12 @@ const normalizeFormValues = (
   AutomaticDisableKeywords: normalizeLineEndings(
     values.AutomaticDisableKeywords
   ),
+  AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
+    values.AutomaticDisableStatusCodes
+  ).normalized,
+  AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
+    values.AutomaticRetryStatusCodes
+  ).normalized,
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
@@ -141,6 +187,17 @@ export function MonitoringSettingsSection({
   })
 
   useResetForm(form, formDefaults)
+
+  const autoDisableStatusCodes = form.watch('AutomaticDisableStatusCodes')
+  const autoRetryStatusCodes = form.watch('AutomaticRetryStatusCodes')
+  const autoDisableParsed = useMemo(
+    () => parseHttpStatusCodeRules(autoDisableStatusCodes),
+    [autoDisableStatusCodes]
+  )
+  const autoRetryParsed = useMemo(
+    () => parseHttpStatusCodeRules(autoRetryStatusCodes),
+    [autoRetryStatusCodes]
+  )
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
@@ -352,6 +409,68 @@ export function MonitoringSettingsSection({
               </FormItem>
             )}
           />
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='AutomaticDisableStatusCodes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Auto-disable status codes')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g. 401, 403, 429, 500-599')}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Accepts comma-separated status codes and inclusive ranges.'
+                    )}{' '}
+                    {autoDisableParsed.ok &&
+                      autoDisableParsed.normalized &&
+                      autoDisableParsed.normalized !== field.value.trim() && (
+                        <span className='text-muted-foreground'>
+                          {t('Normalized:')} {autoDisableParsed.normalized}
+                        </span>
+                      )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='AutomaticRetryStatusCodes'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Auto-retry status codes')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('e.g. 401, 403, 429, 500-599')}
+                      value={field.value}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Accepts comma-separated status codes and inclusive ranges.'
+                    )}{' '}
+                    {autoRetryParsed.ok &&
+                      autoRetryParsed.normalized &&
+                      autoRetryParsed.normalized !== field.value.trim() && (
+                        <span className='text-muted-foreground'>
+                          {t('Normalized:')} {autoRetryParsed.normalized}
+                        </span>
+                      )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           <Button type='submit' disabled={updateOption.isPending}>
             {updateOption.isPending

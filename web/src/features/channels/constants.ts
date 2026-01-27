@@ -58,6 +58,7 @@ export const CHANNEL_TYPES = {
   54: i18n.t('DoubaoVideo'),
   55: i18n.t('Sora'),
   56: i18n.t('Replicate'),
+  57: i18n.t('Codex'),
 } as const
 
 export const CHANNEL_TYPE_OPTIONS = Object.entries(CHANNEL_TYPES)
@@ -385,6 +386,9 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
     'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)'
   ),
   51: i18n.t('Format: Access Key ID|Secret Access Key'),
+  57: i18n.t(
+    'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)'
+  ),
 }
 
 // Channel types with special warnings

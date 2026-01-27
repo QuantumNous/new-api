@@ -13,6 +13,8 @@ import {
   Eraser,
   Plus,
   Eye,
+  Link2,
+  RefreshCw,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -69,6 +71,7 @@ import {
   getChannelKey,
   getGroups,
   getPrefillGroups,
+  refreshCodexCredential,
   updateChannel,
 } from '../../api'
 import {
@@ -102,6 +105,7 @@ import {
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -176,6 +180,9 @@ export function ChannelMutateDrawer({
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
+  const [codexOAuthDialogOpen, setCodexOAuthDialogOpen] = useState(false)
+  const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
+    useState(false)
   const [doubaoApiEditUnlocked, setDoubaoApiEditUnlocked] = useState(false)
   const doubaoApiClickCountRef = useRef(0)
   const initialModelsRef = useRef<string[]>([])
@@ -521,6 +528,23 @@ export function ChannelMutateDrawer({
       }
     }
   }, [channelId, withVerification, fetchChannelKey])
+
+  const handleRefreshCodexCredential = useCallback(async () => {
+    if (!channelId) return
+    setIsCodexCredentialRefreshing(true)
+    try {
+      const res = await refreshCodexCredential(channelId)
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to refresh credential')
+      }
+      toast.success(t('Credential refreshed'))
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.detail(channelId) })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+    } finally {
+      setIsCodexCredentialRefreshing(false)
+    }
+  }, [channelId, queryClient, t])
 
   // Unified function to update models
   const updateModels = useCallback(
@@ -1791,6 +1815,67 @@ export function ChannelMutateDrawer({
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {currentType === 57 && (
+                  <div className='bg-muted/20 space-y-3 rounded-lg border p-4'>
+                    <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                      <div className='space-y-0.5'>
+                        <div className='text-sm font-semibold'>
+                          {t('Codex Authorization')}
+                        </div>
+                        <div className='text-muted-foreground text-xs'>
+                          {t(
+                            'Codex channels use an OAuth JSON credential as the key.'
+                          )}
+                        </div>
+                      </div>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => setCodexOAuthDialogOpen(true)}
+                        >
+                          <Link2 className='mr-2 h-4 w-4' />
+                          {t('Authorize')}
+                        </Button>
+                        {isEditing && channelId && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            onClick={handleRefreshCodexCredential}
+                            disabled={isCodexCredentialRefreshing}
+                          >
+                            {isCodexCredentialRefreshing ? (
+                              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                            ) : (
+                              <RefreshCw className='mr-2 h-4 w-4' />
+                            )}
+                            {isCodexCredentialRefreshing
+                              ? t('Refreshing...')
+                              : t('Refresh credential')}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'If authorization succeeds, the generated JSON will be inserted into the key field. You still need to save the channel to persist it.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                <CodexOAuthDialog
+                  open={codexOAuthDialogOpen}
+                  onOpenChange={setCodexOAuthDialogOpen}
+                  onKeyGenerated={(key) => {
+                    form.setValue('key', key, { shouldDirty: true })
+                  }}
                 />
 
                 {isEditing && isMultiKeyChannel && (
