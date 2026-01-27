@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -23,6 +24,13 @@ type Adaptor struct {
 	IsSyncImageModel bool
 }
 
+/*
+	var syncModels = []string{
+		"z-image",
+		"qwen-image",
+		"wan2.6",
+	}
+*/
 func supportsAliAnthropicMessages(modelName string) bool {
 	// Only models with the "qwen" designation can use the Claude-compatible interface; others require conversion.
 	return strings.Contains(strings.ToLower(modelName), "qwen")
@@ -35,12 +43,7 @@ var syncModels = []string{
 }
 
 func isSyncImageModel(modelName string) bool {
-	for _, m := range syncModels {
-		if strings.Contains(modelName, m) {
-			return true
-		}
-	}
-	return false
+	return model_setting.IsSyncImageModel(modelName)
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {

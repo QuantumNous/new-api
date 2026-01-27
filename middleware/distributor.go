@@ -97,35 +97,64 @@ func Distribute() func(c *gin.Context) {
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
 				}
-				channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-					Ctx:        c,
-					ModelName:  modelRequest.Model,
-					TokenGroup: usingGroup,
-					Retry:      common.GetPointer(0),
-				})
-				if err != nil {
-					showGroup := usingGroup
-					if usingGroup == "auto" {
-						showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+
+				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+					preferred, err := model.CacheGetChannel(preferredChannelID)
+					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+						if usingGroup == "auto" {
+							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+							autoGroups := service.GetUserAutoGroup(userGroup)
+							for _, g := range autoGroups {
+								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+									selectGroup = g
+									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+									channel = preferred
+									service.MarkChannelAffinityUsed(c, g, preferred.Id)
+									break
+								}
+							}
+						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+							channel = preferred
+							selectGroup = usingGroup
+							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+						}
 					}
-					message := fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败（distributor）: %s", showGroup, modelRequest.Model, err.Error())
-					// 如果错误，但是渠道不为空，说明是数据库一致性问题
-					//if channel != nil {
-					//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-					//	message = "数据库一致性已被破坏，请联系管理员"
-					//}
-					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
-					return
 				}
+
 				if channel == nil {
-					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("分组 %s 下模型 %s 无可用渠道（distributor）", usingGroup, modelRequest.Model), types.ErrorCodeModelNotFound)
-					return
+					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+						Ctx:        c,
+						ModelName:  modelRequest.Model,
+						TokenGroup: usingGroup,
+						Retry:      common.GetPointer(0),
+					})
+					if err != nil {
+						showGroup := usingGroup
+						if usingGroup == "auto" {
+							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+						}
+						message := fmt.Sprintf("获取分组 %s 下模型 %s 的可用渠道失败（distributor）: %s", showGroup, modelRequest.Model, err.Error())
+						// 如果错误，但是渠道不为空，说明是数据库一致性问题
+						//if channel != nil {
+						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
+						//	message = "数据库一致性已被破坏，请联系管理员"
+						//}
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+						return
+					}
+					if channel == nil {
+						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("分组 %s 下模型 %s 无可用渠道（distributor）", usingGroup, modelRequest.Model), types.ErrorCodeModelNotFound)
+						return
+					}
 				}
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
+		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
+			service.RecordChannelAffinity(c, channel.Id)
+		}
 	}
 }
 
@@ -299,6 +328,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = req.Model
 		modelRequest.Group = req.Group
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
+	}
+
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
+		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }

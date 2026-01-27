@@ -359,6 +359,13 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 			})
 		}
 		geminiRequest.SetTools(geminiTools)
+
+		// [NEW] Convert OpenAI tool_choice to Gemini toolConfig.functionCallingConfig
+		// Mapping: "auto" -> "AUTO", "none" -> "NONE", "required" -> "ANY"
+		// Object format: {"type": "function", "function": {"name": "xxx"}} -> "ANY" + allowedFunctionNames
+		if textRequest.ToolChoice != nil {
+			geminiRequest.ToolConfig = convertToolChoiceToGeminiConfig(textRequest.ToolChoice)
+		}
 	}
 
 	if textRequest.ResponseFormat != nil && (textRequest.ResponseFormat.Type == "json_schema" || textRequest.ResponseFormat.Type == "json_object") {
@@ -1031,6 +1038,24 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 				choice.FinishReason = constant.FinishReasonStop
 			case "MAX_TOKENS":
 				choice.FinishReason = constant.FinishReasonLength
+			case "SAFETY":
+				// Safety filter triggered
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "RECITATION":
+				// Recitation (citation) detected
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "BLOCKLIST":
+				// Blocklist triggered
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "PROHIBITED_CONTENT":
+				// Prohibited content detected
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "SPII":
+				// Sensitive personally identifiable information
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "OTHER":
+				// Other reasons
+				choice.FinishReason = constant.FinishReasonContentFilter
 			default:
 				choice.FinishReason = constant.FinishReasonContentFilter
 			}
@@ -1062,13 +1087,34 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		isTools := false
 		isThought := false
 		if candidate.FinishReason != nil {
-			// p := GeminiConvertFinishReason(*candidate.FinishReason)
+			// Map Gemini FinishReason to OpenAI finish_reason
 			switch *candidate.FinishReason {
 			case "STOP":
+				// Normal completion
 				choice.FinishReason = &constant.FinishReasonStop
 			case "MAX_TOKENS":
+				// Reached maximum token limit
 				choice.FinishReason = &constant.FinishReasonLength
+			case "SAFETY":
+				// Safety filter triggered
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "RECITATION":
+				// Recitation (citation) detected
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "BLOCKLIST":
+				// Blocklist triggered
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "PROHIBITED_CONTENT":
+				// Prohibited content detected
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "SPII":
+				// Sensitive personally identifiable information
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "OTHER":
+				// Other reasons
+				choice.FinishReason = &constant.FinishReasonContentFilter
 			default:
+				// Unknown reason, treat as content filter
 				choice.FinishReason = &constant.FinishReasonContentFilter
 			}
 		}
@@ -1149,6 +1195,10 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if err != nil {
 			logger.LogError(c, "error unmarshalling stream response: "+err.Error())
 			return false
+		}
+
+		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 		}
 
 		// 统计图片数量
@@ -1309,12 +1359,52 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(geminiResponse.Candidates) == 0 {
-		//return nil, types.NewOpenAIError(errors.New("no candidates returned"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-		//if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-		//	return nil, types.NewOpenAIError(errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason), types.ErrorCodePromptBlocked, http.StatusBadRequest)
-		//} else {
-		//	return nil, types.NewOpenAIError(errors.New("empty response from Gemini API"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
-		//}
+		usage := dto.Usage{
+			PromptTokens: geminiResponse.UsageMetadata.PromptTokenCount,
+		}
+		usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+		for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
+			if detail.Modality == "AUDIO" {
+				usage.PromptTokensDetails.AudioTokens = detail.TokenCount
+			} else if detail.Modality == "TEXT" {
+				usage.PromptTokensDetails.TextTokens = detail.TokenCount
+			}
+		}
+		if usage.PromptTokens <= 0 {
+			usage.PromptTokens = info.GetEstimatePromptTokens()
+		}
+
+		var newAPIError *types.NewAPIError
+		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			newAPIError = types.NewOpenAIError(
+				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
+				types.ErrorCodePromptBlocked,
+				http.StatusBadRequest,
+			)
+		} else {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
+			newAPIError = types.NewOpenAIError(
+				errors.New("empty response from Gemini API"),
+				types.ErrorCodeEmptyResponse,
+				http.StatusInternalServerError,
+			)
+		}
+
+		service.ResetStatusCode(newAPIError, c.GetString("status_code_mapping"))
+
+		switch info.RelayFormat {
+		case types.RelayFormatClaude:
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"type":  "error",
+				"error": newAPIError.ToClaudeError(),
+			})
+		default:
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+		return &usage, nil
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
@@ -1529,4 +1619,63 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 	}
 
 	return allModels, nil
+}
+
+// convertToolChoiceToGeminiConfig converts OpenAI tool_choice to Gemini toolConfig
+// OpenAI tool_choice values:
+//   - "auto": Let the model decide (default)
+//   - "none": Don't call any tools
+//   - "required": Must call at least one tool
+//   - {"type": "function", "function": {"name": "xxx"}}: Call specific function
+//
+// Gemini functionCallingConfig.mode values:
+//   - "AUTO": Model decides whether to call functions
+//   - "NONE": Model won't call functions
+//   - "ANY": Model must call at least one function
+func convertToolChoiceToGeminiConfig(toolChoice any) *dto.ToolConfig {
+	if toolChoice == nil {
+		return nil
+	}
+
+	// Handle string values: "auto", "none", "required"
+	if toolChoiceStr, ok := toolChoice.(string); ok {
+		config := &dto.ToolConfig{
+			FunctionCallingConfig: &dto.FunctionCallingConfig{},
+		}
+		switch toolChoiceStr {
+		case "auto":
+			config.FunctionCallingConfig.Mode = "AUTO"
+		case "none":
+			config.FunctionCallingConfig.Mode = "NONE"
+		case "required":
+			config.FunctionCallingConfig.Mode = "ANY"
+		default:
+			// Unknown string value, default to AUTO
+			config.FunctionCallingConfig.Mode = "AUTO"
+		}
+		return config
+	}
+
+	// Handle object value: {"type": "function", "function": {"name": "xxx"}}
+	if toolChoiceMap, ok := toolChoice.(map[string]interface{}); ok {
+		if toolChoiceMap["type"] == "function" {
+			config := &dto.ToolConfig{
+				FunctionCallingConfig: &dto.FunctionCallingConfig{
+					Mode: "ANY",
+				},
+			}
+			// Extract function name if specified
+			if function, ok := toolChoiceMap["function"].(map[string]interface{}); ok {
+				if name, ok := function["name"].(string); ok && name != "" {
+					config.FunctionCallingConfig.AllowedFunctionNames = []string{name}
+				}
+			}
+			return config
+		}
+		// Unsupported map structure (type is not "function"), return nil
+		return nil
+	}
+
+	// Unsupported type, return nil
+	return nil
 }

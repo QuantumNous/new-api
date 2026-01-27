@@ -397,6 +397,12 @@ export const useLogsData = () => {
             value: logs[i].content,
           });
         }
+        if (isAdminUser && other?.reject_reason) {
+          expandDataLocal.push({
+            key: t('拦截原因'),
+            value: other.reject_reason,
+          });
+        }
       }
       if (logs[i].type === 2) {
         let modelMapped =
@@ -413,72 +419,84 @@ export const useLogsData = () => {
             value: other.upstream_model_name,
           });
         }
+
+        const isViolationFeeLog =
+          other?.violation_fee === true ||
+          Boolean(other?.violation_fee_code) ||
+          Boolean(other?.violation_fee_marker);
+
         let content = '';
-        if (other?.ws || other?.audio) {
-          content = renderAudioModelPrice(
-            other?.text_input,
-            other?.text_output,
-            other?.model_ratio,
-            other?.model_price,
-            other?.completion_ratio,
-            other?.audio_input,
-            other?.audio_output,
-            other?.audio_ratio,
-            other?.audio_completion_ratio,
-            other?.group_ratio,
-            other?.user_group_ratio,
-            other?.cache_tokens || 0,
-            other?.cache_ratio || 1.0,
-          );
-        } else if (other?.claude) {
-          content = renderClaudeModelPrice(
-            logs[i].prompt_tokens,
-            logs[i].completion_tokens,
-            other.model_ratio,
-            other.model_price,
-            other.completion_ratio,
-            other.group_ratio,
-            other?.user_group_ratio,
-            other.cache_tokens || 0,
-            other.cache_ratio || 1.0,
-            other.cache_creation_tokens || 0,
-            other.cache_creation_ratio || 1.0,
-            other.cache_creation_tokens_5m || 0,
-            other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-            other.cache_creation_tokens_1h || 0,
-            other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-          );
-        } else {
-          content = renderModelPrice(
-            logs[i].prompt_tokens,
-            logs[i].completion_tokens,
-            other?.model_ratio,
-            other?.model_price,
-            other?.completion_ratio,
-            other?.group_ratio,
-            other?.user_group_ratio,
-            other?.cache_tokens || 0,
-            other?.cache_ratio || 1.0,
-            other?.image || false,
-            other?.image_ratio || 0,
-            other?.image_output || 0,
-            other?.web_search || false,
-            other?.web_search_call_count || 0,
-            other?.web_search_price || 0,
-            other?.file_search || false,
-            other?.file_search_call_count || 0,
-            other?.file_search_price || 0,
-            other?.audio_input_seperate_price || false,
-            other?.audio_input_token_count || 0,
-            other?.audio_input_price || 0,
-            other?.image_generation_call || false,
-            other?.image_generation_call_price || 0,
-          );
+        if (!isViolationFeeLog) {
+          if (other?.ws || other?.audio) {
+            content = renderAudioModelPrice(
+              other?.text_input,
+              other?.text_output,
+              other?.model_ratio,
+              other?.model_price,
+              other?.completion_ratio,
+              other?.audio_input,
+              other?.audio_output,
+              other?.audio_ratio,
+              other?.audio_completion_ratio,
+              other?.group_ratio,
+              other?.user_group_ratio,
+              other?.cache_tokens || 0,
+              other?.cache_ratio || 1.0,
+            );
+          } else if (other?.claude) {
+            content = renderClaudeModelPrice(
+              logs[i].prompt_tokens,
+              logs[i].completion_tokens,
+              other.model_ratio,
+              other.model_price,
+              other.completion_ratio,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_tokens || 0,
+              other.cache_ratio || 1.0,
+              other.cache_creation_tokens || 0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
+            );
+          } else {
+            content = renderModelPrice(
+              logs[i].prompt_tokens,
+              logs[i].completion_tokens,
+              other?.model_ratio,
+              other?.model_price,
+              other?.completion_ratio,
+              other?.group_ratio,
+              other?.user_group_ratio,
+              other?.cache_tokens || 0,
+              other?.cache_ratio || 1.0,
+              other?.image || false,
+              other?.image_ratio || 0,
+              other?.image_output || 0,
+              other?.web_search || false,
+              other?.web_search_call_count || 0,
+              other?.web_search_price || 0,
+              other?.file_search || false,
+              other?.file_search_call_count || 0,
+              other?.file_search_price || 0,
+              other?.audio_input_seperate_price || false,
+              other?.audio_input_token_count || 0,
+              other?.audio_input_price || 0,
+              other?.image_generation_call || false,
+              other?.image_generation_call_price || 0,
+            );
+          }
+          expandDataLocal.push({
+            key: t('计费过程'),
+            value: content,
+          });
         }
-        expandDataLocal.push({
-          key: t('计费过程'),
-          value: content,
-        });
         if (other?.reasoning_effort) {
           expandDataLocal.push({
             key: t('Reasoning Effort'),
