@@ -52,7 +52,7 @@ func updateVideoTaskAll(ctx context.Context, platform constant.TaskPlatform, cha
 	info.ChannelMeta = &relaycommon.ChannelMeta{
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
 	}
-	info.ApiKey = cacheGetChannel.Key
+	info.ApiKey = cacheGetChannel.GetKey()
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
@@ -74,7 +74,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-	key := channel.Key
+	key := channel.GetKey()
 
 	privateData := task.PrivateData
 	if privateData.Key != "" {
