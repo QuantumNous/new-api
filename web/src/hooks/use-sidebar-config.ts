@@ -47,6 +47,8 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
 const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/playground': { section: 'chat', module: 'playground' },
   '/dashboard': { section: 'console', module: 'detail' },
+  '/dashboard?section=overview': { section: 'console', module: 'detail' },
+  '/dashboard?section=models': { section: 'console', module: 'detail' },
   '/keys': { section: 'console', module: 'token' },
   '/usage-logs': { section: 'console', module: 'log' },
   '/wallet': { section: 'personal', module: 'topup' },
