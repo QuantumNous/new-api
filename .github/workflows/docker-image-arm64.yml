@@ -63,7 +63,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            calciumion/new-api
+            nodeloc/new-api
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}
 
       - name: Build & push single-arch (to both registries)
@@ -73,8 +73,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
-            calciumion/new-api:latest-${{ matrix.arch }}
+            nodeloc/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            nodeloc/new-api:latest-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.TAG }}-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -104,16 +104,16 @@ jobs:
       - name: Create & push manifest (Docker Hub - version)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${TAG} \
-            calciumion/new-api:${TAG}-amd64 \
-            calciumion/new-api:${TAG}-arm64
+            -t nodeloc/new-api:${TAG} \
+            nodeloc/new-api:${TAG}-amd64 \
+            nodeloc/new-api:${TAG}-arm64
 
       - name: Create & push manifest (Docker Hub - latest)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:latest \
-            calciumion/new-api:latest-amd64 \
-            calciumion/new-api:latest-arm64
+            -t nodeloc/new-api:latest \
+            nodeloc/new-api:latest-amd64 \
+            nodeloc/new-api:latest-arm64
 
       # ---- GHCR ----
 #      - name: Log in to GHCR
