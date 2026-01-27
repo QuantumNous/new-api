@@ -27,31 +27,83 @@ import (
 // ============================
 
 type requestPayload struct {
-	Model             string   `json:"model"`
-	Images            []string `json:"images"`
-	Prompt            string   `json:"prompt,omitempty"`
-	Duration          int      `json:"duration,omitempty"`
-	Seed              int      `json:"seed,omitempty"`
-	Resolution        string   `json:"resolution,omitempty"`
-	MovementAmplitude string   `json:"movement_amplitude,omitempty"`
-	Bgm               bool     `json:"bgm,omitempty"`
-	Payload           string   `json:"payload,omitempty"`
-	CallbackUrl       string   `json:"callback_url,omitempty"`
+	Model             string    `json:"model"`
+	Images            []string  `json:"images,omitempty"`
+	Videos            []string  `json:"videos,omitempty"`
+	Prompt            string    `json:"prompt,omitempty"`
+	Duration          float64   `json:"duration,omitempty"`
+	Seed              int       `json:"seed,omitempty"`
+	Resolution        string    `json:"resolution,omitempty"`
+	MovementAmplitude string    `json:"movement_amplitude,omitempty"`
+	Bgm               bool      `json:"bgm,omitempty"`
+	Payload           string    `json:"payload,omitempty"`
+	CallbackUrl       string    `json:"callback_url,omitempty"`
+	AspectRatio       string    `json:"aspect_ratio,omitempty"`
+	Style             string    `json:"style,omitempty"`
+	OffPeak           bool      `json:"off_peak,omitempty"`
+	Audio             bool      `json:"audio,omitempty"`
+	VoiceId           string    `json:"voice_id,omitempty"`
+	IsRec             bool      `json:"is_rec,omitempty"`
+	Subjects          []subject `json:"subjects,omitempty"`
+	VideoCreationId   string    `json:"video_creation_id,omitempty"`
+	VideoUrl          string    `json:"video_url,omitempty"`
+	UpscaleResolution string    `json:"upscale_resolution,omitempty"`
+	Language          string    `json:"language,omitempty"`
+	RemoveAudio       bool           `json:"remove_audio,omitempty"`
+	AudioUrl          string         `json:"audio_url,omitempty"`
+	AddSubtitle       bool           `json:"add_subtitle,omitempty"`
+	StartImage        string         `json:"start_image,omitempty"`
+	ImageSettings     []imageSetting `json:"image_settings,omitempty"`
+	Object            string         `json:"object,omitempty"`
+	Image             string         `json:"image,omitempty"`
+	StartFrom         int            `json:"start_from,omitempty"`
+	// TTS fields
+	Text                string  `json:"text,omitempty"`
+	VoiceSettingVoiceId string  `json:"voice_setting_voice_id,omitempty"`
+	VoiceSettingSpeed   float64 `json:"voice_setting_speed,omitempty"`
+	VoiceSettingVolume  int     `json:"voice_setting_volume,omitempty"`
+	VoiceSettingPitch   int     `json:"voice_setting_pitch,omitempty"`
+	VoiceSettingEmotion string  `json:"voice_setting_emotion,omitempty"`
+}
+
+type imageSetting struct {
+	KeyImage string `json:"key_image"`
+	Prompt   string `json:"prompt,omitempty"`
+	Duration int    `json:"duration,omitempty"`
+}
+
+type subject struct {
+	ID     string   `json:"id"`
+	Images []string `json:"images"`
 }
 
 type responsePayload struct {
-	TaskId            string   `json:"task_id"`
-	State             string   `json:"state"`
-	Model             string   `json:"model"`
-	Images            []string `json:"images"`
-	Prompt            string   `json:"prompt"`
-	Duration          int      `json:"duration"`
-	Seed              int      `json:"seed"`
-	Resolution        string   `json:"resolution"`
-	Bgm               bool     `json:"bgm"`
-	MovementAmplitude string   `json:"movement_amplitude"`
-	Payload           string   `json:"payload"`
-	CreatedAt         string   `json:"created_at"`
+	TaskId            string    `json:"task_id"`
+	State             string    `json:"state"`
+	Model             string    `json:"model"`
+	Images            []string  `json:"images,omitempty"`
+	Videos            []string  `json:"videos,omitempty"`
+	Prompt            string    `json:"prompt"`
+	Duration          float64   `json:"duration"`
+	Seed              int       `json:"seed"`
+	AspectRatio       string    `json:"aspect_ratio,omitempty"`
+	Resolution        string    `json:"resolution"`
+	Bgm               bool      `json:"bgm"`
+	MovementAmplitude string    `json:"movement_amplitude"`
+	Payload           string    `json:"payload"`
+	Credits           int       `json:"credits"`
+	CreatedAt         string    `json:"created_at"`
+	Audio             bool      `json:"audio,omitempty"`
+	VoiceId           string    `json:"voice_id,omitempty"`
+	OffPeak           bool      `json:"off_peak,omitempty"`
+	Style             string    `json:"style,omitempty"`
+	Subjects          []subject `json:"subjects,omitempty"`
+	VideoCreationId   string    `json:"video_creation_id,omitempty"`
+	VideoUrl          string    `json:"video_url,omitempty"`
+	UpscaleResolution string    `json:"upscale_resolution,omitempty"`
+	Language          string    `json:"language,omitempty"`
+	RemoveAudio       bool      `json:"remove_audio,omitempty"`
+	Id                string    `json:"id,omitempty"` // For AI-MV
 }
 
 type taskResultResponse struct {
@@ -60,6 +112,7 @@ type taskResultResponse struct {
 	Credits   int        `json:"credits"`
 	Payload   string     `json:"payload"`
 	Creations []creation `json:"creations"`
+	FileUrl   string     `json:"file_url,omitempty"` // For TTS
 }
 
 type creation struct {
@@ -103,6 +156,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 				action = constant.TaskActionReferenceGenerate
 			}
 		}
+	} else if req.Model == "audio1.0" {
+		action = constant.TaskActionText2Audio
 	}
 	info.Action = action
 	return nil
@@ -143,6 +198,24 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 		path = "/start-end2video"
 	case constant.TaskActionReferenceGenerate:
 		path = "/reference2video"
+	case constant.TaskActionText2Audio:
+		path = "/text2audio"
+	case constant.TaskActionAudioTTS:
+		path = "/audio-tts"
+	case constant.TaskActionExtend:
+		path = "/extend"
+	case constant.TaskActionUpscale:
+		path = "/upscale-new"
+	case constant.TaskActionAdOneClick:
+		path = "/ad-one-click"
+	case constant.TaskActionTrendingReplicate:
+		path = "/trending-replicate"
+	case constant.TaskActionMV:
+		path = "/one-click/mv"
+	case constant.TaskActionMultiFrame:
+		path = "/multiframe"
+	case constant.TaskActionReplace:
+		path = "/replace"
 	default:
 		path = "/text2video"
 	}
@@ -179,13 +252,18 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
+	taskID = vResp.TaskId
+	if taskID == "" {
+		taskID = vResp.Id
+	}
+
 	ov := dto.NewOpenAIVideo()
-	ov.ID = vResp.TaskId
-	ov.TaskID = vResp.TaskId
+	ov.ID = taskID
+	ov.TaskID = taskID
 	ov.CreatedAt = time.Now().Unix()
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
-	return vResp.TaskId, responseBody, nil
+	return taskID, responseBody, nil
 }
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
@@ -212,7 +290,10 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"viduq2", "viduq1", "vidu2.0", "vidu1.5"}
+	return []string{
+		"viduq2-pro-fast", "viduq2-turbo", "viduq2-pro", "viduq1", "viduq1-classic", "vidu2.0", "viduq2",
+		"audio1.0",
+	}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
@@ -228,10 +309,17 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		Model:             defaultString(req.Model, "viduq1"),
 		Images:            req.Images,
 		Prompt:            req.Prompt,
-		Duration:          defaultInt(req.Duration, 5),
+		Duration:          float64(defaultInt(req.Duration, 0)),
 		Resolution:        defaultString(req.Size, "1080p"),
 		MovementAmplitude: "auto",
 		Bgm:               false,
+	}
+	if r.Duration == 0 {
+		if req.Model == "audio1.0" {
+			r.Duration = 10
+		} else {
+			r.Duration = 5
+		}
 	}
 	metadata := req.Metadata
 	medaBytes, err := json.Marshal(metadata)
@@ -278,6 +366,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskInfo.Status = model.TaskStatusSuccess
 		if len(taskResp.Creations) > 0 {
 			taskInfo.Url = taskResp.Creations[0].URL
+		} else if taskResp.FileUrl != "" {
+			taskInfo.Url = taskResp.FileUrl
 		}
 	case "failed":
 		taskInfo.Status = model.TaskStatusFailure
@@ -306,6 +396,8 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
 		openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
+	} else if viduResp.FileUrl != "" {
+		openAIVideo.SetMetadata("url", viduResp.FileUrl)
 	}
 
 	if viduResp.State == "failed" && viduResp.ErrCode != "" {
