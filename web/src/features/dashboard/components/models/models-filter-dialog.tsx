@@ -164,7 +164,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
                         'ring-ring ring-2 ring-offset-2'
                     )}
                   >
-                    {range.label}
+                    {t(range.label)}
                   </Button>
                 ))}
               </div>
@@ -213,7 +213,7 @@ export function ModelsFilter({ onFilterChange, onReset }: ModelsFilterProps) {
                 <SelectContent>
                   {TIME_GRANULARITY_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>

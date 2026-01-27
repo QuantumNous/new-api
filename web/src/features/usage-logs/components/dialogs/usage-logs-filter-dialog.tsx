@@ -237,7 +237,7 @@ export function UsageLogsFilterDialog({
                         'ring-ring ring-2 ring-offset-2'
                     )}
                   >
-                    {range.label}
+                    {t(range.label)}
                   </Button>
                 ))}
               </div>

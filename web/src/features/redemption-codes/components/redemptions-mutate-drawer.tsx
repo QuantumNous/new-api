@@ -244,7 +244,7 @@ export function RedemptionsMutateDrawer({
                         size='sm'
                         onClick={() => handleSetExpiry(0, 1, 0)}
                       >
-                        {t('1D')}
+                        {t('1 Day')}
                       </Button>
                     </div>
                   </div>
