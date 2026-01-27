@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -36,7 +37,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
-		content = fmt.Sprintf(content, value)
+		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
 
 	// 构建 webhook 负载
@@ -48,7 +49,8 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 		Timestamp: time.Now().Unix(),
 	}
 
-	// 序列化负载
+	// Currently webhook payload format is fixed. User-configurable webhook payload template
+	// should be resolved in NotifyUser (where user setting is available).
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal webhook payload: %v", err)

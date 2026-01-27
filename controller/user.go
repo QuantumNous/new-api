@@ -1105,6 +1105,7 @@ type UpdateUserSettingRequest struct {
 	QuotaWarningThreshold      float64 `json:"quota_warning_threshold"`
 	WebhookUrl                 string  `json:"webhook_url,omitempty"`
 	WebhookSecret              string  `json:"webhook_secret,omitempty"`
+	WebhookPayloadTemplate     string  `json:"webhook_payload_template,omitempty"`
 	NotificationEmail          string  `json:"notification_email,omitempty"`
 	BarkUrl                    string  `json:"bark_url,omitempty"`
 	GotifyUrl                  string  `json:"gotify_url,omitempty"`
@@ -1254,6 +1255,9 @@ func UpdateUserSetting(c *gin.Context) {
 		settings.WebhookUrl = req.WebhookUrl
 		if req.WebhookSecret != "" {
 			settings.WebhookSecret = req.WebhookSecret
+		}
+		if req.WebhookPayloadTemplate != "" {
+			settings.WebhookPayloadTemplate = req.WebhookPayloadTemplate
 		}
 	}
 

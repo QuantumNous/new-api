@@ -14,6 +14,24 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
+func renderWebhookPayloadTemplate(template string, data dto.Notify) (string, error) {
+	if template == "" {
+		return "", nil
+	}
+
+	replaced := template
+	replaced = strings.ReplaceAll(replaced, "{{type}}", data.Type)
+	replaced = strings.ReplaceAll(replaced, "{{title}}", data.Title)
+	replaced = strings.ReplaceAll(replaced, "{{content}}", data.Content)
+
+	// Ensure it's valid JSON payload.
+	var js any
+	if err := json.Unmarshal([]byte(replaced), &js); err != nil {
+		return "", err
+	}
+	return replaced, nil
+}
+
 func NotifyRootUser(t string, subject string, content string) {
 	user := model.GetRootUser().ToBaseUser()
 	err := NotifyUser(user.Id, user.Email, user.GetSetting(), dto.NewNotify(t, subject, content, nil))
@@ -59,6 +77,14 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 
 		// 获取 webhook secret
 		webhookSecret := userSetting.WebhookSecret
+		if userSetting.WebhookPayloadTemplate != "" {
+			payload, err := renderWebhookPayloadTemplate(userSetting.WebhookPayloadTemplate, data)
+			if err != nil {
+				return fmt.Errorf("invalid webhook payload template: %w", err)
+			}
+			data.Content = payload
+			data.Values = nil
+		}
 		return SendWebhookNotify(webhookURLStr, webhookSecret, data)
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl

@@ -151,6 +151,17 @@ const PersonalSetting = () => {
         warningThreshold: settings.quota_warning_threshold || 500000,
         webhookUrl: settings.webhook_url || '',
         webhookSecret: settings.webhook_secret || '',
+        webhookPayloadTemplate:
+          settings.webhook_payload_template ||
+          JSON.stringify(
+            {
+              type: '{{type}}',
+              title: '{{title}}',
+              content: '{{content}}',
+            },
+            null,
+            2,
+          ),
         notificationEmail: settings.notification_email || '',
         barkUrl: settings.bark_url || '',
         gotifyUrl: settings.gotify_url || '',
@@ -417,6 +428,7 @@ const PersonalSetting = () => {
         ),
         webhook_url: notificationSettings.webhookUrl,
         webhook_secret: notificationSettings.webhookSecret,
+        webhook_payload_template: notificationSettings.webhookPayloadTemplate,
         notification_email: notificationSettings.notificationEmail,
         bark_url: notificationSettings.barkUrl,
         gotify_url: notificationSettings.gotifyUrl,

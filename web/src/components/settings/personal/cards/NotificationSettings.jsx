@@ -522,39 +522,40 @@ const NotificationSettings = ({
 
                     <Form.Slot label={t('Webhook请求结构说明')}>
                       <div>
-                        <div style={{ height: '200px', marginBottom: '12px' }}>
-                          <CodeViewer
-                            content={{
-                              type: 'quota_exceed',
-                              title: '额度预警通知',
-                              content:
-                                '您的额度即将用尽，当前剩余额度为 {{value}}',
-                              values: ['$0.99'],
-                              timestamp: 1739950503,
-                            }}
-                            title='webhook'
-                            language='json'
-                          />
-                        </div>
-                        <div className='text-xs text-gray-500 leading-relaxed'>
-                          <div>
-                            <strong>type:</strong>{' '}
-                            {t('通知类型 (quota_exceed: 额度预警)')}{' '}
-                          </div>
-                          <div>
-                            <strong>title:</strong> {t('通知标题')}
-                          </div>
-                          <div>
-                            <strong>content:</strong>{' '}
-                            {t('通知内容，支持 {{value}} 变量占位符')}
-                          </div>
-                          <div>
-                            <strong>values:</strong>{' '}
-                            {t('按顺序替换content中的变量占位符')}
-                          </div>
-                          <div>
-                            <strong>timestamp:</strong> {t('Unix时间戳')}
-                          </div>
+                        <Form.TextArea
+                          field='webhookPayloadTemplate'
+                          placeholder={t(
+                            '请输入JSON格式的payload，可使用变量：{{type}}、{{title}}、{{content}}',
+                          )}
+                          onChange={(val) =>
+                            handleFormChange('webhookPayloadTemplate', val)
+                          }
+                          extraText={t(
+                            '留空则使用默认结构：{"type":"...","title":"...","content":"...","values":[...],"timestamp":...}',
+                          )}
+                          showClear
+                          autosize
+                          rules={[
+                            {
+                              validator: (_, value) => {
+                                if (!value) return Promise.resolve();
+                                try {
+                                  JSON.parse(value);
+                                  return Promise.resolve();
+                                } catch {
+                                  return Promise.reject(
+                                    t('Webhook Payload 模板必须是合法的JSON'),
+                                  );
+                                }
+                              },
+                            },
+                          ]}
+                        />
+
+                        <div className='text-xs text-gray-500 leading-relaxed mt-2'>
+                          {t(
+                            '支持变量：{{type}} (通知类型), {{title}} (通知标题), {{content}} (通知内容)',
+                          )}
                         </div>
                       </div>
                     </Form.Slot>
