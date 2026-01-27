@@ -134,6 +134,13 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		}(),
 		Other: otherStr,
 	}
+
+	// Try async buffer first, fallback to sync if buffer is full or disabled
+	if AddLogAsync(log) {
+		return
+	}
+
+	// Fallback to sync write (buffer full or async disabled)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -193,6 +200,19 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		}(),
 		Other: otherStr,
 	}
+
+	// Try async buffer first, fallback to sync if buffer is full or disabled
+	if AddLogAsync(log) {
+		// Async write queued, still do data export
+		if common.DataExportEnabled {
+			gopool.Go(func() {
+				LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
+			})
+		}
+		return
+	}
+
+	// Fallback to sync write (buffer full or async disabled)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
