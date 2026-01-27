@@ -492,7 +492,7 @@ const NotificationSettings = ({
                       onChange={(val) => handleFormChange('webhookUrl', val)}
                       prefix={<IconLink />}
                       extraText={t(
-                        '只支持HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求',
+                        '支持HTTP和HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求',
                       )}
                       showClear
                       rules={[
@@ -502,8 +502,8 @@ const NotificationSettings = ({
                           message: t('请输入Webhook地址'),
                         },
                         {
-                          pattern: /^https:\/\/.+/,
-                          message: t('Webhook地址必须以https://开头'),
+                          pattern: /^https?:\/\/.+/,
+                          message: t('Webhook地址必须以http://或https://开头'),
                         },
                       ]}
                     />

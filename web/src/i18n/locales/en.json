@@ -629,7 +629,7 @@
     "变量值": "Variable Value",
     "变量名": "Variable Name",
     "只包括请求成功的次数": "Only include successful request times",
-    "只支持HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求": "Only HTTPS is supported, the system will send notifications via POST, please ensure that the address can receive POST requests",
+    "支持HTTP和HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求": "Supports HTTP and HTTPS, the system will send notifications via POST, please ensure that the address can receive POST requests",
     "只有当用户设置开启IP记录时，才会进行请求和错误类型日志的IP记录": "Only when the user sets IP recording, the IP recording of request and error type logs will be performed",
     "可信": "Reliable",
     "可在设置页面设置关于内容，支持 HTML & Markdown": "The About content can be set on the settings page, supporting HTML & Markdown",
