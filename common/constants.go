@@ -96,6 +96,13 @@ var TurnstileSecretKey = ""
 var TelegramBotToken = ""
 var TelegramBotName = ""
 
+// Hydra OAuth Provider configuration
+var HydraEnabled = false
+var HydraAdminURL = ""
+var HydraTrustedClients = []string{}      // Clients that get auto-consent (e.g., "new-api-web,new-api-admin")
+var HydraLoginRememberFor int64 = 3600    // Login session remember duration in seconds (default: 1 hour)
+var HydraConsentRememberFor int64 = 2592000 // Consent remember duration in seconds (default: 30 days)
+
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0

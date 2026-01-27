@@ -47,6 +47,7 @@ const routerMap = {
   models: '/console/models',
   playground: '/console/playground',
   personal: '/console/personal',
+  'oauth-clients': '/console/oauth-clients',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -167,6 +168,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('OAuth 客户端'),
+        itemKey: 'oauth-clients',
+        to: '/console/oauth-clients',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

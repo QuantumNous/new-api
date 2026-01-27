@@ -47,6 +47,8 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import { OAuthLogin, OAuthConsent } from './pages/OAuth';
+import OAuthClients from './pages/OAuthClients';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -209,11 +211,37 @@ function App() {
           }
         />
         <Route
+          path='/oauth/login'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <OAuthLogin />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/oauth/consent'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <OAuthConsent />
+            </Suspense>
+          }
+        />
+        <Route
           path='/console/setting'
           element={
             <AdminRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Setting />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/oauth-clients'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <OAuthClients />
               </Suspense>
             </AdminRoute>
           }

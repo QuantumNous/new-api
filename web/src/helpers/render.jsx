@@ -73,6 +73,7 @@ import {
   Settings,
   CircleUser,
   Package,
+  Link2,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -116,6 +117,8 @@ export function getLucideIcon(key, selected = false) {
       return <Package {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
+    case 'oauth-clients':
+      return <Link2 {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;
   }

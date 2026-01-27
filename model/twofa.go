@@ -296,6 +296,15 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	return true, nil
 }
 
+// UseBackupCode validates and uses a backup code, returning only the validity status
+func UseBackupCode(userId int, code string) bool {
+	valid, err := ValidateBackupCode(userId, code)
+	if err != nil {
+		return false
+	}
+	return valid
+}
+
 // GetTwoFAStats 获取2FA统计信息（管理员使用）
 func GetTwoFAStats() (map[string]interface{}, error) {
 	var totalUsers, enabledUsers int64
