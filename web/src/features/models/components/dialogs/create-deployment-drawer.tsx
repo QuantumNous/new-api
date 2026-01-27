@@ -7,12 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Form,
   FormControl,
   FormField,
@@ -21,7 +15,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -29,7 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
 import { MultiSelect } from '@/components/multi-select'
 import {
@@ -61,7 +62,6 @@ const schema = z.object({
   registry_username: z.string().optional(),
   registry_secret: z.string().optional(),
   currency: z.string().optional(),
-  enable_price_estimation: z.boolean().optional(),
 })
 
 // NOTE: react-hook-form resolver uses the schema input type (coerce input is unknown)
@@ -72,7 +72,7 @@ function toNumber(value: unknown, fallback: number) {
   return Number.isFinite(n) ? n : fallback
 }
 
-export function CreateDeploymentDialog({
+export function CreateDeploymentDrawer({
   open,
   onOpenChange,
 }: {
@@ -100,7 +100,6 @@ export function CreateDeploymentDialog({
       registry_username: '',
       registry_secret: '',
       currency: 'usdc',
-      enable_price_estimation: true,
     },
   })
 
@@ -110,7 +109,6 @@ export function CreateDeploymentDialog({
   const durationHours = toNumber(form.watch('duration_hours'), 1)
   const replicaCount = toNumber(form.watch('replica_count'), 1)
   const trafficPort = toNumber(form.watch('traffic_port'), DEFAULT_TRAFFIC_PORT)
-  const estimateEnabled = form.watch('enable_price_estimation')
   const currency = form.watch('currency')
   const resourceName = form.watch('resource_private_name')
 
@@ -194,7 +192,6 @@ export function CreateDeploymentDialog({
       }),
     enabled:
       open &&
-      estimateEnabled === true &&
       Boolean(hardwareId) &&
       gpuCount > 0 &&
       durationHours > 0 &&
@@ -333,7 +330,6 @@ export function CreateDeploymentDialog({
       registry_username: '',
       registry_secret: '',
       currency: 'usdc',
-      enable_price_estimation: true,
     })
   }, [open, form])
 
@@ -350,20 +346,37 @@ export function CreateDeploymentDialog({
   }, [priceData])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-3xl'>
-        <DialogHeader>
-          <DialogTitle>{t('Create deployment')}</DialogTitle>
-        </DialogHeader>
+    <Sheet
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v)
+        if (!v) {
+          form.reset()
+        }
+      }}
+    >
+      <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
+        <SheetHeader className='text-start'>
+          <SheetTitle>{t('Create deployment')}</SheetTitle>
+          <SheetDescription>
+            {t('Configure and deploy a new container instance.')}
+          </SheetDescription>
+        </SheetHeader>
 
         <Form {...form}>
           <form
+            id='deployment-form'
             onSubmit={form.handleSubmit((values) =>
               createMutation.mutate(values)
             )}
-            className='space-y-4'
+            className='flex-1 space-y-6 overflow-y-auto px-4'
           >
-            <div className='grid gap-4 md:grid-cols-2'>
+            {/* Basic Configuration */}
+            <div className='space-y-4'>
+              <h3 className='text-sm font-medium'>
+                {t('Basic Configuration')}
+              </h3>
+
               <FormField
                 control={form.control}
                 name='resource_private_name'
@@ -374,7 +387,7 @@ export function CreateDeploymentDialog({
                       <Input placeholder={t('Enter a name')} {...field} />
                     </FormControl>
                     {open && field.value?.trim() ? (
-                      <div className='text-muted-foreground mt-1 text-xs'>
+                      <div className='text-muted-foreground text-xs'>
                         {isCheckingName
                           ? t('Checking name...')
                           : nameAvailable === true
@@ -391,35 +404,56 @@ export function CreateDeploymentDialog({
 
               <FormField
                 control={form.control}
-                name='hardware_id'
+                name='image_url'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Hardware type')}</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={(v) => field.onChange(v)}
-                      disabled={isLoadingHardware}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={t('Select')} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {hardwareOptions.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t('Image')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <div className='grid gap-4 md:grid-cols-2'>
+            {/* Resource Configuration */}
+            <div className='space-y-4'>
+              <h3 className='text-sm font-medium'>
+                {t('Resource Configuration')}
+              </h3>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='hardware_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Hardware type')}</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => field.onChange(v)}
+                        disabled={isLoadingHardware}
+                      >
+                        <FormControl>
+                          <SelectTrigger className='w-full'>
+                            <SelectValue placeholder={t('Select')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {hardwareOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name='location_ids'
@@ -451,161 +485,172 @@ export function CreateDeploymentDialog({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name='gpus_per_container'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('GPU count')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={toNumber(field.value, gpuCount)}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === '' ? 0 : Number(e.target.value)
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='gpus_per_container'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('GPU count')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          value={toNumber(field.value, gpuCount)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === '' ? 0 : Number(e.target.value)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='replica_count'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Replica count')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          value={toNumber(field.value, replicaCount)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === '' ? 0 : Number(e.target.value)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='grid gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='duration_hours'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Duration (hours)')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          value={toNumber(field.value, durationHours)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === '' ? 0 : Number(e.target.value)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='traffic_port'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Port')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          value={toNumber(field.value, trafficPort)}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === '' ? 0 : Number(e.target.value)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
-            <div className='grid gap-4 md:grid-cols-3'>
-              <FormField
-                control={form.control}
-                name='replica_count'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Replica count')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={toNumber(field.value, replicaCount)}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === '' ? 0 : Number(e.target.value)
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='duration_hours'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Duration (hours)')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={toNumber(field.value, durationHours)}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === '' ? 0 : Number(e.target.value)
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='traffic_port'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Port')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type='number'
-                        value={toNumber(field.value, trafficPort)}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === '' ? 0 : Number(e.target.value)
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            {/* Price Estimation */}
+            <div className='space-y-4'>
+              <h3 className='text-sm font-medium'>{t('Price estimation')}</h3>
+              <p className='text-muted-foreground text-xs'>
+                {t('Price estimation description')}
+              </p>
 
-            <div className='grid gap-4 md:grid-cols-2'>
               <FormField
                 control={form.control}
-                name='image_url'
+                name='currency'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Image')}</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name='enable_price_estimation'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between rounded-md border p-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel>{t('Price estimation')}</FormLabel>
-                      <div className='text-muted-foreground text-sm'>
-                        {isLoadingPrice
-                          ? t('Calculating...')
-                          : priceSummary || t('Not calculated')}
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value === true}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <details className='rounded-md border p-3'>
-              <summary className='cursor-pointer text-sm'>
-                {t('Advanced configuration')}
-              </summary>
-              <div className='mt-3 grid gap-4 md:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label>{t('Currency')}</Label>
-                  <FormField
-                    control={form.control}
-                    name='currency'
-                    render={({ field }) => (
-                      <Select
-                        value={field.value || 'usdc'}
-                        onValueChange={(v) => field.onChange(v)}
-                      >
-                        <SelectTrigger>
+                    <FormLabel>{t('Billing currency')}</FormLabel>
+                    <Select
+                      value={field.value || 'usdc'}
+                      onValueChange={(v) => field.onChange(v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
                           <SelectValue placeholder={t('Select')} />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='usdc'>USDC</SelectItem>
-                          <SelectItem value='usd'>USD</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='usdc'>USDC</SelectItem>
+                        <SelectItem value='iocoin'>IOCOIN</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Advanced Configuration */}
+            <div className='space-y-4'>
+              <h3 className='text-sm font-medium'>
+                {t('Advanced Configuration')}
+              </h3>
+              <p className='text-muted-foreground text-xs'>
+                {t('Optional settings for advanced container configuration.')}
+              </p>
+
+              <div className='space-y-4'>
+                <div className='grid gap-4 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='entrypoint'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Entrypoint (space separated)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder='bash -lc' {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
                   />
-                  <div className='text-muted-foreground text-xs'>
-                    {t('Used for price estimation only')}
-                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name='args'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Args (space separated)')}</FormLabel>
+                        <FormControl>
+                          <Input placeholder='--foo bar' {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
@@ -616,7 +661,7 @@ export function CreateDeploymentDialog({
                       <FormLabel>{t('Environment variables (JSON)')}</FormLabel>
                       <FormControl>
                         <Textarea
-                          className='min-h-32 font-mono text-xs'
+                          className='min-h-24 font-mono text-xs'
                           placeholder='{"KEY":"VALUE"}'
                           {...field}
                         />
@@ -625,6 +670,7 @@ export function CreateDeploymentDialog({
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name='secret_env_json'
@@ -635,7 +681,7 @@ export function CreateDeploymentDialog({
                       </FormLabel>
                       <FormControl>
                         <Textarea
-                          className='min-h-32 font-mono text-xs'
+                          className='min-h-24 font-mono text-xs'
                           placeholder='{"SECRET":"VALUE"}'
                           {...field}
                         />
@@ -645,79 +691,57 @@ export function CreateDeploymentDialog({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name='entrypoint'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Entrypoint (space separated)')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='bash -lc' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className='grid gap-4 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='registry_username'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Registry username')}</FormLabel>
+                        <FormControl>
+                          <Input autoComplete='off' {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name='args'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Args (space separated)')}</FormLabel>
-                      <FormControl>
-                        <Input placeholder='--foo bar' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='registry_username'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Registry username')}</FormLabel>
-                      <FormControl>
-                        <Input autoComplete='off' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='registry_secret'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Registry secret')}</FormLabel>
-                      <FormControl>
-                        <Input type='password' autoComplete='off' {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name='registry_secret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Registry secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-            </details>
-
-            <div className='flex justify-end gap-2'>
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => onOpenChange(false)}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' disabled={createMutation.isPending}>
-                {createMutation.isPending ? t('Submitting...') : t('Create')}
-              </Button>
             </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+
+        <SheetFooter className='gap-2'>
+          <SheetClose asChild>
+            <Button variant='outline'>{t('Cancel')}</Button>
+          </SheetClose>
+          <Button
+            form='deployment-form'
+            type='submit'
+            disabled={createMutation.isPending}
+          >
+            {createMutation.isPending ? t('Submitting...') : t('Create')}
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }

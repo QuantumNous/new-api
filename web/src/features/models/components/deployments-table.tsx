@@ -7,7 +7,6 @@ import {
   useReactTable,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useMediaQuery } from '@/hooks'
@@ -22,7 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -43,7 +41,6 @@ import { getDeploymentStatusOptions } from '../constants'
 import { deploymentsQueryKeys } from '../lib'
 import type { Deployment } from '../types'
 import { useDeploymentsColumns } from './deployments-columns'
-import { CreateDeploymentDialog } from './dialogs/create-deployment-dialog'
 import { ExtendDeploymentDialog } from './dialogs/extend-deployment-dialog'
 import { RenameDeploymentDialog } from './dialogs/rename-deployment-dialog'
 import { UpdateConfigDialog } from './dialogs/update-config-dialog'
@@ -111,7 +108,6 @@ export function DeploymentsTable() {
     string | number | null
   >(null)
   const [renameCurrentName, setRenameCurrentName] = useState<string>('')
-  const [createOpen, setCreateOpen] = useState(false)
 
   // Delete confirm
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -231,29 +227,19 @@ export function DeploymentsTable() {
 
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-        <DataTableToolbar
-          table={table}
-          searchPlaceholder={t('Search deployments...')}
-          filters={[
-            {
-              columnId: 'status',
-              title: t('Status'),
-              options: statusFilterOptions,
-              singleSelect: true,
-            },
-          ]}
-        />
-
-        <Button
-          onClick={() => setCreateOpen(true)}
-          size='sm'
-          className='w-full sm:w-auto'
-        >
-          <Plus className='h-4 w-4' />
-          {t('Create deployment')}
-        </Button>
-      </div>
+      {/* Toolbar with Filters */}
+      <DataTableToolbar
+        table={table}
+        searchPlaceholder={t('Search deployments...')}
+        filters={[
+          {
+            columnId: 'status',
+            title: t('Status'),
+            options: statusFilterOptions,
+            singleSelect: true,
+          },
+        ]}
+      />
 
       {isMobile ? (
         <MobileCardList
@@ -363,8 +349,6 @@ export function DeploymentsTable() {
         deploymentId={renameDeploymentId}
         currentName={renameCurrentName}
       />
-
-      <CreateDeploymentDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

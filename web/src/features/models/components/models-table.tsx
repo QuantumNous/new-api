@@ -199,7 +199,7 @@ export function ModelsTable() {
   // Prepare filter options
   const vendorFilterOptions = [
     {
-      label: `All Vendors${vendorCounts?.all ? ` (${vendorCounts.all})` : ''}`,
+      label: `${t('All Vendors')}${vendorCounts?.all ? ` (${vendorCounts.all})` : ''}`,
       value: 'all',
     },
     ...vendorOptions.map((option) => ({
@@ -217,19 +217,19 @@ export function ModelsTable() {
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
+            title: t('Status'),
             options: [...getModelStatusOptions(t)],
             singleSelect: true,
           },
           {
             columnId: 'vendor_id',
-            title: 'Vendor',
+            title: t('Vendor'),
             options: vendorFilterOptions,
             singleSelect: true,
           },
           {
             columnId: 'sync_official',
-            title: 'Sync Status',
+            title: t('Official Sync'),
             options: [...getSyncStatusOptions(t)],
             singleSelect: true,
           },
@@ -240,8 +240,10 @@ export function ModelsTable() {
         <MobileCardList
           table={table}
           isLoading={isLoading}
-          emptyTitle='No Models Found'
-          emptyDescription='No models available. Create your first model to get started.'
+          emptyTitle={t('No Models Found')}
+          emptyDescription={t(
+            'No models available. Create your first model to get started.'
+          )}
         />
       ) : (
         <>

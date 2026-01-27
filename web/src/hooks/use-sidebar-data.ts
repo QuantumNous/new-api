@@ -15,6 +15,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
+import { getModelsSectionNavItems } from '@/features/models/section-registry'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
@@ -87,8 +88,8 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Models'),
-            url: '/models',
             icon: Box,
+            items: getModelsSectionNavItems(t),
           },
           {
             title: t('Users'),
