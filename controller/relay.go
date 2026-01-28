@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -191,6 +192,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		// 如果 channel 为 nil（该优先级的所有渠道都被排除），切换到下一个优先级
+		// If channel is nil (all channels at this priority have been excluded), switch to next priority
+		if channel == nil {
+			retryParam.IncreasePriorityIndex()
+			logger.LogInfo(c, fmt.Sprintf("优先级用尽，切换到下一个优先级。当前 priorityIndex: %d", retryParam.GetPriorityIndex()))
+			continue
+		}
+
+		logger.LogInfo(c, fmt.Sprintf("选择渠道 #%d，retry=%d, priorityIndex=%d, mode=%s", channel.Id, retryParam.GetRetry(), retryParam.GetPriorityIndex(), common.RetryPriorityMode))
 		addUsedChannel(c, channel.Id)
 		requestBody, bodyErr := common.GetRequestBody(c)
 		if bodyErr != nil {
@@ -226,6 +236,20 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+
+		// 注意：在 round-robin 模式下，不需要在这里增加 priorityIndex
+		// GetRandomSatisfiedChannel 中的模运算会自动处理优先级循环
+		// Note: In round-robin mode, no need to increase priorityIndex here
+		// The modulo operation in GetRandomSatisfiedChannel handles priority cycling automatically
+	}
+
+	// 如果所有重试都完成了，但没有找到可用渠道，返回错误
+	// If all retries are exhausted but no available channel found, return error
+	if newAPIError == nil && len(c.GetStringSlice("use_channel")) == 0 {
+		newAPIError = types.NewError(
+			fmt.Errorf("分组 %s 下模型 %s 的所有可用渠道都已被排除或不存在", relayInfo.TokenGroup, relayInfo.OriginModelName),
+			types.ErrorCodeGetChannelFailed,
+		)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -289,6 +313,21 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+
+	// 如果开关开启且处于重试阶段，从 use_channel 构建排除集合
+	if common.RetryAvoidUsedChannelEnabled && retryParam.GetRetry() > 0 {
+		useChannelStrs := c.GetStringSlice("use_channel")
+		for _, idStr := range useChannelStrs {
+			if id, err := strconv.Atoi(idStr); err == nil {
+				retryParam.AddUsedChannel(id)
+			}
+		}
+		// 记录排除信息到日志
+		if len(retryParam.UsedChannelIds) > 0 {
+			logger.LogInfo(c, fmt.Sprintf("重试排除了 %d 个已用渠道", len(retryParam.UsedChannelIds)))
+		}
+	}
+
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
@@ -297,7 +336,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
-		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		// 该优先级的所有渠道都被排除，返回 nil 以便继续尝试下一个优先级
+		// All channels at this priority have been excluded, return nil to continue trying next priority
+		return nil, nil
 	}
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)

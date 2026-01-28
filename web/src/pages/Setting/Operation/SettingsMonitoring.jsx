@@ -44,6 +44,8 @@ export default function SettingsMonitoring(props) {
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
+    RetryAvoidUsedChannelEnabled: false,
+    RetryPriorityMode: 'sequential',
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     AutomaticRetryStatusCodes: '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
@@ -238,6 +240,43 @@ export default function SettingsMonitoring(props) {
                     })
                   }
                 />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'RetryAvoidUsedChannelEnabled'}
+                  label={t('重试时避开已尝试渠道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t('启用后，重试时不会再次选择已失败的渠道。注意：渠道数量较少时可能更早失败。')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      RetryAvoidUsedChannelEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  field={'RetryPriorityMode'}
+                  label={t('重试优先级模式')}
+                  placeholder={t('选择重试模式')}
+                  extraText={t('顺序：同一优先级内尝试所有渠道后才降级；轮询：每个优先级轮流尝试')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      RetryPriorityMode: value,
+                    })
+                  }
+                >
+                  <Form.Select.Option value='sequential'>
+                    {t('分组顺序重试')} (A1→A2→A3→B1→B2→B3)
+                  </Form.Select.Option>
+                  <Form.Select.Option value='round-robin'>
+                    {t('分组轮询重试')} (A1→B1→C1→A2→B2→C2)
+                  </Form.Select.Option>
+                </Form.Select>
               </Col>
             </Row>
             <Row gutter={16}>

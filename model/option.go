@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,8 @@ func InitOptionMap() {
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
+	common.OptionMap["RetryAvoidUsedChannelEnabled"] = strconv.FormatBool(common.RetryAvoidUsedChannelEnabled)
+	common.OptionMap["RetryPriorityMode"] = common.RetryPriorityMode
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
@@ -175,8 +178,28 @@ func SyncOptions(frequency int) {
 	}
 }
 
+// validateOptionValue validates the value for specific option keys.
+// Returns an error if the value is invalid for the given key.
+func validateOptionValue(key string, value string) error {
+	switch key {
+	case "RetryPriorityMode":
+		if value != "sequential" && value != "round-robin" {
+			return fmt.Errorf("重试优先级模式无效：%s，必须是 'sequential' 或 'round-robin'", value)
+		}
+	}
+	return nil
+}
+
+// UpdateOption updates an option in the database and OptionMap.
+// It validates the value before saving to ensure data consistency.
 func UpdateOption(key string, value string) error {
-	// Save to database first
+	// Validate the value first before saving to database
+	err := validateOptionValue(key, value)
+	if err != nil {
+		return err
+	}
+
+	// Save to database
 	option := Option{
 		Key: key,
 	}
@@ -244,6 +267,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticDisableChannelEnabled = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
+		case "RetryAvoidUsedChannelEnabled":
+			common.RetryAvoidUsedChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
@@ -408,6 +433,12 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
+	case "RetryPriorityMode":
+		if value == "sequential" || value == "round-robin" {
+			common.RetryPriorityMode = value
+		}
+		// Invalid values are silently ignored to maintain backward compatibility
+		// Validation is done in validateOptionValue before saving to database
 	case "DataExportInterval":
 		common.DataExportInterval, _ = strconv.Atoi(value)
 	case "DataExportDefaultTime":
