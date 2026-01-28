@@ -400,9 +400,54 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 			} else if val, exists := tool_call_ids[message.ToolCallId]; exists {
 				name = val
 			}
-			var contentMap map[string]interface{}
-			contentStr := message.StringContent()
 
+			// 解析内容以处理图片和文本
+			toolContent := message.ParseContent()
+			var contentStr string
+			var imageParts []dto.GeminiPart
+
+			for _, part := range toolContent {
+				if part.Type == dto.ContentTypeText {
+					contentStr += part.Text
+				} else if part.Type == dto.ContentTypeImageURL {
+					// 处理图片内容 (支持 image_url 类型)
+					imageUrl := part.GetImageMedia().Url
+					if imageUrl != "" {
+						if strings.HasPrefix(imageUrl, "http") {
+							// URL 图片
+							fileData, err := service.GetFileBase64FromUrl(c, imageUrl, "formatting image for Gemini tool response")
+							if err != nil {
+								return nil, fmt.Errorf("get file base64 from url '%s' failed: %w", imageUrl, err)
+							}
+							imageParts = append(imageParts, dto.GeminiPart{
+								InlineData: &dto.GeminiInlineData{
+									MimeType: fileData.MimeType,
+									Data:     fileData.Base64Data,
+								},
+							})
+						} else {
+							// Base64 图片
+							format, base64String, err := service.DecodeBase64FileData(imageUrl)
+							if err != nil {
+								return nil, fmt.Errorf("decode base64 image data failed: %s", err.Error())
+							}
+							imageParts = append(imageParts, dto.GeminiPart{
+								InlineData: &dto.GeminiInlineData{
+									MimeType: format,
+									Data:     base64String,
+								},
+							})
+						}
+					}
+				}
+			}
+
+			// 如果没有解析到任何内容，尝试从原始字符串解析
+			if contentStr == "" && len(imageParts) == 0 {
+				contentStr = message.StringContent()
+			}
+
+			var contentMap map[string]interface{}
 			// 1. 尝试解析为 JSON 对象
 			if err := json.Unmarshal([]byte(contentStr), &contentMap); err != nil {
 				// 2. 如果失败，尝试解析为 JSON 数组
@@ -424,6 +469,11 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 			*parts = append(*parts, dto.GeminiPart{
 				FunctionResponse: functionResp,
 			})
+
+			// 添加图片 parts
+			for _, imgPart := range imageParts {
+				*parts = append(*parts, imgPart)
+			}
 			continue
 		}
 		var parts []dto.GeminiPart
