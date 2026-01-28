@@ -411,3 +411,35 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 
 	return total, nil
 }
+
+func RecordReConsumeLog(task *Task, modelRatio float64, groupRatio float64, totalTokens int, preConsumedQuota int, actualQuota int, content string) {
+	username, _ := GetUsernameById(task.UserId, false)
+	quotaDelta := actualQuota - preConsumedQuota
+	other := map[string]interface{}{
+		"task_id":      task.TaskID,
+		"model_ratio":  modelRatio,
+		"group_ratio":  groupRatio,
+		"total_tokens": totalTokens,
+		"pre_consumed": preConsumedQuota,
+		"actual_quota": actualQuota,
+		"quota_delta":  quotaDelta,
+	}
+	log := &Log{
+		UserId:    task.UserId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeConsume,
+		Content:   content,
+		ModelName: task.Properties.UpstreamModelName,
+		Quota:     quotaDelta,
+		ChannelId: task.ChannelId,
+		Group:     task.Group,
+		Other:     common.MapToJsonStr(other),
+	}
+	LOG_DB.Create(log)
+	if common.DataExportEnabled {
+		gopool.Go(func() {
+			LogQuotaData(log.UserId, username, log.ModelName, log.Quota, common.GetTimestamp(), log.PromptTokens+log.CompletionTokens)
+		})
+	}
+}
