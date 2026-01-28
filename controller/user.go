@@ -466,6 +466,7 @@ func GetSelf(c *gin.Context) {
 		"aff_history_quota": user.AffHistoryQuota,
 		"inviter_id":        user.InviterId,
 		"linux_do_id":       user.LinuxDOId,
+		"nodeloc_id":        user.NodeLocId,
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段

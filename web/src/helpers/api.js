@@ -296,6 +296,15 @@ export async function onLinuxDOOAuthClicked(
   );
 }
 
+export async function onNodeLocOAuthClicked(
+  nodeloc_client_id,
+  options = { shouldLogout: false },
+) {
+  const state = await prepareOAuthState(options);
+  if (!state) return;
+  window.location.href = `https://www.nodeloc.com/oauth-provider/authorize?response_type=code&client_id=${nodeloc_client_id}&redirect_uri=${encodeURIComponent(window.location.origin + '/oauth/nodeloc')}&state=${state}&scope=openid%20profile`;
+}
+
 let channelModels = undefined;
 export async function loadChannelModels() {
   const res = await API.get('/api/models');
