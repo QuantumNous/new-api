@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Activity, RotateCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { getUptimeStatus } from '@/features/dashboard/api'
+import type { UptimeGroupResult, UptimeMonitor } from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
@@ -17,46 +18,59 @@ const STATUS_COLOR_MAP: Record<number, string> = {
 }
 const DEFAULT_STATUS_COLOR = 'bg-muted-foreground/40'
 
-function StatusDot({ status }: { status: number }) {
+const StatusDot = memo(function StatusDot({ status }: { status: number }) {
   const color = STATUS_COLOR_MAP[status] ?? DEFAULT_STATUS_COLOR
   return <span className={cn('inline-block h-2 w-2 rounded-full', color)} />
-}
+})
 
 export function UptimePanel() {
   const { t } = useTranslation()
-  const [groups, setGroups] = useState<any[]>([])
+  const [groups, setGroups] = useState<UptimeGroupResult[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  const fetchData = () => {
-    let mounted = true
-    const isInitialLoad = loading
-
-    if (!isInitialLoad) {
-      setRefreshing(true)
-    }
+  useEffect(() => {
+    const abortController = new AbortController()
 
     getUptimeStatus()
       .then((res) => {
-        if (!mounted) return
+        if (abortController.signal.aborted) return
         setGroups(res?.data || [])
       })
-      .catch(() => setGroups([]))
+      .catch(() => {
+        if (abortController.signal.aborted) return
+        setGroups([])
+      })
       .finally(() => {
-        if (!mounted) return
-        setLoading(false)
-        setRefreshing(false)
+        if (!abortController.signal.aborted) {
+          setLoading(false)
+        }
       })
 
     return () => {
-      mounted = false
+      abortController.abort()
     }
-  }
-
-  useEffect(() => {
-    const cleanup = fetchData()
-    return cleanup
   }, [])
+
+  const handleRefresh = () => {
+    const abortController = new AbortController()
+    setRefreshing(true)
+
+    getUptimeStatus()
+      .then((res) => {
+        if (abortController.signal.aborted) return
+        setGroups(res?.data || [])
+      })
+      .catch(() => {
+        if (abortController.signal.aborted) return
+        setGroups([])
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setRefreshing(false)
+        }
+      })
+  }
 
   return (
     <PanelWrapper
@@ -74,7 +88,7 @@ export function UptimePanel() {
         <Button
           variant='ghost'
           size='sm'
-          onClick={fetchData}
+          onClick={handleRefresh}
           disabled={refreshing}
           className='h-8 w-8 p-0'
         >
@@ -96,7 +110,7 @@ export function UptimePanel() {
                 </Badge>
               </div>
               <div className='space-y-0'>
-                {group.monitors?.map((monitor: any, monitorIdx: number) => (
+                {group.monitors?.map((monitor: UptimeMonitor, monitorIdx: number) => (
                   <div key={monitor.name}>
                     <div className='group hover:bg-accent/50 -mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 transition-colors'>
                       <div className='flex min-w-0 items-center gap-2.5'>

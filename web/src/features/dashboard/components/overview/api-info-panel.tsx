@@ -42,9 +42,9 @@ export function ApiInfoPanel() {
     >
       <ScrollArea className='h-64'>
         <div className='space-y-0 pe-4'>
-          {list.map((item: ApiInfoItem, idx: number) => (
+          {list.map((item: ApiInfoItem) => (
             <ApiInfoItemComponent
-              key={idx}
+              key={item.url}
               item={item}
               status={pingStatus[item.url] || getDefaultPingStatus()}
               onTest={handleTest}

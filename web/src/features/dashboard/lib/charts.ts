@@ -24,7 +24,7 @@ export function processChartData(
     return {
       spec_pie: {
         type: 'pie',
-        data: [{ id: 'id0', values: [{ type: 'null', value: 0 }] }],
+        data: [{ id: 'id0', values: [] }],
         outerRadius: 0.8,
         innerRadius: 0.5,
         padAngle: 0.6,
@@ -33,18 +33,13 @@ export function processChartData(
         title: {
           visible: true,
           text: tt('Call Proportion'),
-          subtext: `${tt('Total:')} ${formatInt(0)}`,
+          subtext: tt('No data available'),
         },
-        legends: { visible: true, orient: 'left' },
-        label: { visible: true },
+        legends: { visible: false },
+        label: { visible: false },
         tooltip: {
           mark: {
-            content: [
-              {
-                key: (datum: any) => datum?.type,
-                value: (datum: any) => formatInt(Number(datum?.value) || 0),
-              },
-            ],
+            content: [],
           },
         },
       },

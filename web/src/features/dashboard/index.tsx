@@ -11,7 +11,10 @@ import { FAQPanel } from './components/overview/faq-panel'
 import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
-import { type DashboardFilters } from './types'
+import {
+  type DashboardFilters,
+  type QuotaDataItem,
+} from './types'
 import type { DashboardSectionId } from './section-registry'
 import { DASHBOARD_DEFAULT_SECTION } from './section-registry'
 
@@ -61,7 +64,7 @@ export function Dashboard() {
   const activeSection = (search.section ?? DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
-  const [modelData, setModelData] = useState<any[]>([])
+  const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
 
   const handleFilterChange = useCallback((filters: DashboardFilters) => {
@@ -72,7 +75,7 @@ export function Dashboard() {
     setModelFilters({})
   }, [])
 
-  const handleDataUpdate = useCallback((data: any[], loading: boolean) => {
+  const handleDataUpdate = useCallback((data: QuotaDataItem[], loading: boolean) => {
     setModelData(data)
     setDataLoading(loading)
   }, [])
