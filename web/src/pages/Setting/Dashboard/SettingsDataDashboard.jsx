@@ -36,11 +36,16 @@ export default function DataDashboard(props) {
     { key: 'day', label: t('天'), value: 'day' },
     { key: 'week', label: t('周'), value: 'week' },
   ];
+  const optionsDisplayMode = [
+    { key: 'QUOTA', label: t('显示金额'), value: 'QUOTA' },
+    { key: 'TOKENS', label: t('显示 Token'), value: 'TOKENS' },
+  ];
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     DataExportEnabled: false,
     DataExportInterval: '',
     DataExportDefaultTime: '',
+    DataExportDefaultDisplayMode: 'QUOTA',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -93,6 +98,10 @@ export default function DataDashboard(props) {
     localStorage.setItem(
       'data_export_default_time',
       String(inputs.DataExportDefaultTime),
+    );
+    localStorage.setItem(
+      'data_export_default_display_mode',
+      String(inputs.DataExportDefaultDisplayMode || 'QUOTA'),
     );
   }, [props.options]);
 
@@ -152,6 +161,22 @@ export default function DataDashboard(props) {
                     setInputs({
                       ...inputs,
                       DataExportDefaultTime: String(value),
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  label={t('默认显示模式')}
+                  optionList={optionsDisplayMode}
+                  field={'DataExportDefaultDisplayMode'}
+                  extraText={t('设置模型消耗分布图表默认显示方式')}
+                  placeholder={t('默认显示模式')}
+                  style={{ width: 180 }}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      DataExportDefaultDisplayMode: String(value),
                     })
                   }
                 />

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -57,6 +57,17 @@ const Dashboard = () => {
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState, statusDispatch] = useContext(StatusContext);
 
+  // ========== 显示模式状态 ==========
+  const [displayMode, setDisplayMode] = useState(() => {
+    const saved = localStorage.getItem('data_export_default_display_mode');
+    return saved || (localStorage.getItem('quota_display_type') === 'TOKENS' ? 'TOKENS' : 'QUOTA');
+  });
+
+  const handleDisplayModeChange = useCallback((newMode) => {
+    setDisplayMode(newMode);
+    localStorage.setItem('data_export_default_display_mode', newMode);
+  }, []);
+
   // ========== 主要数据管理 ==========
   const dashboardData = useDashboardData(userState, userDispatch, statusState);
 
@@ -71,6 +82,7 @@ const Dashboard = () => {
     dashboardData.setLineData,
     dashboardData.setModelColors,
     dashboardData.t,
+    displayMode,
   );
 
   // ========== 统计数据 ==========
@@ -138,6 +150,13 @@ const Dashboard = () => {
     initChart();
   }, []);
 
+  // 切换显示模式时重新计算图表
+  useEffect(() => {
+    if (dashboardData.quotaData && dashboardData.quotaData.length > 0) {
+      dashboardCharts.updateChartData(dashboardData.quotaData);
+    }
+  }, [displayMode, dashboardData.quotaData]);
+
   return (
     <div className='h-full'>
       <DashboardHeader
@@ -187,6 +206,8 @@ const Dashboard = () => {
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
             t={dashboardData.t}
+            displayMode={displayMode}
+            onDisplayModeChange={handleDisplayModeChange}
           />
 
           {dashboardData.hasApiInfoPanel && (

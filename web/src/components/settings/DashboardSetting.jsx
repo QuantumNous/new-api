@@ -48,6 +48,7 @@ const DashboardSetting = () => {
     DataExportEnabled: false,
     DataExportDefaultTime: 'hour',
     DataExportInterval: 5,
+    DataExportDefaultDisplayMode: 'QUOTA',
   });
 
   let [loading, setLoading] = useState(false);
