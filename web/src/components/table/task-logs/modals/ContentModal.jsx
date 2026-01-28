@@ -120,7 +120,7 @@ const ContentModal = ({
     }
 
     return (
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', height: '100%' }}>
         {isLoading && (
           <div
             style={{
@@ -137,7 +137,13 @@ const ContentModal = ({
         <video
           src={modalContent}
           controls
-          style={{ width: '100%' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+          }}
           autoPlay
           crossOrigin='anonymous'
           onError={handleVideoError}
@@ -155,11 +161,13 @@ const ContentModal = ({
       onCancel={() => setIsModalOpen(false)}
       closable={null}
       bodyStyle={{
-        height: isVideo ? '450px' : '400px',
+        height: isVideo ? '70vh' : '400px',
+        maxHeight: '80vh',
         overflow: 'auto',
         padding: isVideo && videoError ? '0' : '24px',
       }}
-      width={800}
+      width={isVideo ? '90vw' : 800}
+      style={isVideo ? { maxWidth: 960 } : undefined}
     >
       {isVideo ? (
         renderVideoContent()
