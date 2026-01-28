@@ -452,6 +452,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.HydraEnabled = value == "true"
 	case "HydraAdminURL":
 		common.HydraAdminURL = value
+	case "HydraPublicURL":
+		common.HydraPublicURL = value
 	case "HydraTrustedClients":
 		if value == "" {
 			common.HydraTrustedClients = []string{}

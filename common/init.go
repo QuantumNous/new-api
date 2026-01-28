@@ -106,6 +106,7 @@ func InitEnv() {
 	// Hydra OAuth Provider configuration
 	HydraEnabled = GetEnvOrDefaultBool("HYDRA_ENABLED", false)
 	HydraAdminURL = GetEnvOrDefaultString("HYDRA_ADMIN_URL", "")
+	HydraPublicURL = GetEnvOrDefaultString("HYDRA_PUBLIC_URL", "http://127.0.0.1:4444")
 	if trustedClients := GetEnvOrDefaultString("HYDRA_TRUSTED_CLIENTS", ""); trustedClients != "" {
 		for _, c := range strings.Split(trustedClients, ",") {
 			if trimmed := strings.TrimSpace(c); trimmed != "" {

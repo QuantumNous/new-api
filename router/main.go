@@ -19,6 +19,7 @@ func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
 	SetVideoRouter(router)
 	SetOAuthProviderRouter(router)
 	SetOAuthAPIRouter(router)
+	SetHydraPublicProxyRouter(router)
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""

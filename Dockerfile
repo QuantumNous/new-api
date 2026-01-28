@@ -38,6 +38,6 @@ COPY --from=builder2 /build/new-api /
 COPY --from=hydra /usr/bin/hydra /usr/bin/hydra
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-EXPOSE 3000 4444
+EXPOSE 3000
 WORKDIR /data
 ENTRYPOINT ["/entrypoint.sh"]
