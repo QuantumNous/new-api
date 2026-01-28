@@ -336,6 +336,65 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Save(user).Error
 }
 
+// CreditReferralCommission credits the inviter with a commission when the referred user recharges
+// This implements payment-based referral rewards instead of instant registration bonuses
+func CreditReferralCommission(userId int, rechargeAmount float64) error {
+	if !common.ReferralCommissionEnabled {
+		return nil // Commission feature disabled
+	}
+
+	if rechargeAmount <= 0 {
+		return nil // No recharge amount
+	}
+
+	// Get the user who recharged
+	user, err := GetUserById(userId, true)
+	if err != nil {
+		return err
+	}
+
+	// Check if user has an inviter
+	if user.InviterId == 0 {
+		return nil // No inviter, no commission
+	}
+
+	// Check max recharges limit (if configured)
+	if common.ReferralCommissionMaxRecharges > 0 {
+		// Count successful recharges for this user
+		var rechargeCount int64
+		DB.Model(&TopUp{}).Where("user_id = ? AND status = ?", userId, common.TopUpStatusSuccess).Count(&rechargeCount)
+		if int(rechargeCount) > common.ReferralCommissionMaxRecharges {
+			return nil // Max recharges reached, no more commission
+		}
+	}
+
+	// Calculate commission
+	commissionPercent := common.ReferralCommissionPercent
+	if commissionPercent <= 0 || commissionPercent > 100 {
+		return nil // Invalid percentage
+	}
+
+	// Commission = rechargeAmount * (percent/100) * QuotaPerUnit
+	commission := int(rechargeAmount * (commissionPercent / 100) * common.QuotaPerUnit)
+	if commission <= 0 {
+		return nil // Commission too small
+	}
+
+	// Atomically update inviter's AffQuota to prevent race conditions under concurrent recharges
+	err = DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", commission),
+		"aff_history": gorm.Expr("aff_history + ?", commission),
+	}).Error
+	if err != nil {
+		return err
+	}
+
+	// Log the commission
+	RecordLog(user.InviterId, LogTypeSystem, fmt.Sprintf("邀请用户充值返佣 %s (%.1f%% of $%.2f)", logger.LogQuota(commission), commissionPercent, rechargeAmount))
+
+	return nil
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {

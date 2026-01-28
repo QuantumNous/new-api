@@ -105,6 +105,9 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["ReferralCommissionEnabled"] = strconv.FormatBool(common.ReferralCommissionEnabled)
+	common.OptionMap["ReferralCommissionPercent"] = strconv.FormatFloat(common.ReferralCommissionPercent, 'f', -1, 64)
+	common.OptionMap["ReferralCommissionMaxRecharges"] = strconv.Itoa(common.ReferralCommissionMaxRecharges)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -296,6 +299,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "ReferralCommissionEnabled":
+			common.ReferralCommissionEnabled = boolValue
 		}
 	}
 	switch key {
@@ -394,6 +399,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "ReferralCommissionPercent":
+		common.ReferralCommissionPercent, _ = strconv.ParseFloat(value, 64)
+	case "ReferralCommissionMaxRecharges":
+		common.ReferralCommissionMaxRecharges, _ = strconv.Atoi(value)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
