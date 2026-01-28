@@ -54,6 +54,8 @@ func main() {
 	}
 
 	defer func() {
+		// Flush log buffer before closing DB
+		model.ShutdownLogBuffer()
 		err := model.CloseDB()
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
@@ -117,6 +119,11 @@ func main() {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
+	}
+
+	// Initialize async log buffer (enabled by default, disable with ASYNC_LOG_ENABLED=false)
+	if os.Getenv("ASYNC_LOG_ENABLED") != "false" {
+		model.InitLogBuffer()
 	}
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
