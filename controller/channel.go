@@ -1,16 +1,19 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
@@ -260,11 +263,37 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
+	// 对于 Gemini 渠道，使用特殊处理
+	if channel.Type == constant.ChannelTypeGemini {
+		// 获取用于请求的可用密钥（多密钥渠道优先使用启用状态的密钥）
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取渠道密钥失败: %s", apiErr.Error()),
+			})
+			return
+		}
+		key = strings.TrimSpace(key)
+		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Gemini模型失败: %s", err.Error()),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    models,
+		})
+		return
+	}
+
 	var url string
 	switch channel.Type {
-	case constant.ChannelTypeGemini:
-		// curl https://example.com/v1beta/models?key=$GEMINI_API_KEY
-		url = fmt.Sprintf("%s/v1beta/openai/models", baseURL) // Remove key in url since we need to use AuthHeader
 	case constant.ChannelTypeAli:
 		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
 	case constant.ChannelTypeZhipu_v4:
@@ -577,7 +606,58 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	// Codex OAuth key validation (optional, only when JSON object is provided)
+	if channel.Type == constant.ChannelTypeCodex {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			if !strings.HasPrefix(trimmedKey, "{") {
+				return fmt.Errorf("Codex key must be a valid JSON object")
+			}
+			var keyMap map[string]any
+			if err := common.Unmarshal([]byte(trimmedKey), &keyMap); err != nil {
+				return fmt.Errorf("Codex key must be a valid JSON object")
+			}
+			if v, ok := keyMap["access_token"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+				return fmt.Errorf("Codex key JSON must include access_token")
+			}
+			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+				return fmt.Errorf("Codex key JSON must include account_id")
+			}
+		}
+	}
+
 	return nil
+}
+
+func RefreshCodexChannelCredential(c *gin.Context) {
+	channelId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	oauthKey, ch, err := service.RefreshCodexChannelCredential(ctx, channelId, service.CodexCredentialRefreshOptions{ResetCaches: true})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "refreshed",
+		"data": gin.H{
+			"expires_at":   oauthKey.Expired,
+			"last_refresh": oauthKey.LastRefresh,
+			"account_id":   oauthKey.AccountID,
+			"email":        oauthKey.Email,
+			"channel_id":   ch.Id,
+			"channel_type": ch.Type,
+			"channel_name": ch.Name,
+		},
+	})
 }
 
 type AddChannelRequest struct {
@@ -970,9 +1050,6 @@ func UpdateChannel(c *gin.Context) {
 						// 单个JSON密钥
 						newKeys = []string{channel.Key}
 					}
-					// 合并密钥
-					allKeys := append(existingKeys, newKeys...)
-					channel.Key = strings.Join(allKeys, "\n")
 				} else {
 					// 普通渠道的处理
 					inputKeys := strings.Split(channel.Key, "\n")
@@ -982,10 +1059,31 @@ func UpdateChannel(c *gin.Context) {
 							newKeys = append(newKeys, key)
 						}
 					}
-					// 合并密钥
-					allKeys := append(existingKeys, newKeys...)
-					channel.Key = strings.Join(allKeys, "\n")
 				}
+
+				seen := make(map[string]struct{}, len(existingKeys)+len(newKeys))
+				for _, key := range existingKeys {
+					normalized := strings.TrimSpace(key)
+					if normalized == "" {
+						continue
+					}
+					seen[normalized] = struct{}{}
+				}
+				dedupedNewKeys := make([]string, 0, len(newKeys))
+				for _, key := range newKeys {
+					normalized := strings.TrimSpace(key)
+					if normalized == "" {
+						continue
+					}
+					if _, ok := seen[normalized]; ok {
+						continue
+					}
+					seen[normalized] = struct{}{}
+					dedupedNewKeys = append(dedupedNewKeys, normalized)
+				}
+
+				allKeys := append(existingKeys, dedupedNewKeys...)
+				channel.Key = strings.Join(allKeys, "\n")
 			}
 		case "replace":
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
@@ -1050,6 +1148,23 @@ func FetchModels(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data":    names,
+		})
+		return
+	}
+
+	if req.Type == constant.ChannelTypeGemini {
+		models, err := gemini.FetchGeminiModels(baseURL, key, "")
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Gemini模型失败: %s", err.Error()),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
 		})
 		return
 	}

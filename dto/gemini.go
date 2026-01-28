@@ -126,7 +126,7 @@ func (r *GeminiChatRequest) SetModelName(modelName string) {
 
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
 	var tools []GeminiChatTool
-	if strings.HasSuffix(string(r.Tools), "[") {
+	if strings.HasPrefix(string(r.Tools), "[") {
 		// is array
 		if err := common.Unmarshal(r.Tools, &tools); err != nil {
 			logger.LogError(nil, "error_unmarshalling_tools: "+err.Error())
@@ -339,6 +339,88 @@ type GeminiChatGenerationConfig struct {
 	ThinkingConfig     *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig       json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
 	ImageConfig        json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
+}
+
+// UnmarshalJSON allows GeminiChatGenerationConfig to accept both snake_case and camelCase fields.
+func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
+	type Alias GeminiChatGenerationConfig
+	var aux struct {
+		Alias
+		TopPSnake               float64               `json:"top_p,omitempty"`
+		TopKSnake               float64               `json:"top_k,omitempty"`
+		MaxOutputTokensSnake    uint                  `json:"max_output_tokens,omitempty"`
+		CandidateCountSnake     int                   `json:"candidate_count,omitempty"`
+		StopSequencesSnake      []string              `json:"stop_sequences,omitempty"`
+		ResponseMimeTypeSnake   string                `json:"response_mime_type,omitempty"`
+		ResponseSchemaSnake     any                   `json:"response_schema,omitempty"`
+		ResponseJsonSchemaSnake json.RawMessage       `json:"response_json_schema,omitempty"`
+		PresencePenaltySnake    *float32              `json:"presence_penalty,omitempty"`
+		FrequencyPenaltySnake   *float32              `json:"frequency_penalty,omitempty"`
+		ResponseLogprobsSnake   bool                  `json:"response_logprobs,omitempty"`
+		MediaResolutionSnake    MediaResolution       `json:"media_resolution,omitempty"`
+		ResponseModalitiesSnake []string              `json:"response_modalities,omitempty"`
+		ThinkingConfigSnake     *GeminiThinkingConfig `json:"thinking_config,omitempty"`
+		SpeechConfigSnake       json.RawMessage       `json:"speech_config,omitempty"`
+		ImageConfigSnake        json.RawMessage       `json:"image_config,omitempty"`
+	}
+
+	if err := common.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*c = GeminiChatGenerationConfig(aux.Alias)
+
+	// Prioritize snake_case if present
+	if aux.TopPSnake != 0 {
+		c.TopP = aux.TopPSnake
+	}
+	if aux.TopKSnake != 0 {
+		c.TopK = aux.TopKSnake
+	}
+	if aux.MaxOutputTokensSnake != 0 {
+		c.MaxOutputTokens = aux.MaxOutputTokensSnake
+	}
+	if aux.CandidateCountSnake != 0 {
+		c.CandidateCount = aux.CandidateCountSnake
+	}
+	if len(aux.StopSequencesSnake) > 0 {
+		c.StopSequences = aux.StopSequencesSnake
+	}
+	if aux.ResponseMimeTypeSnake != "" {
+		c.ResponseMimeType = aux.ResponseMimeTypeSnake
+	}
+	if aux.ResponseSchemaSnake != nil {
+		c.ResponseSchema = aux.ResponseSchemaSnake
+	}
+	if len(aux.ResponseJsonSchemaSnake) > 0 {
+		c.ResponseJsonSchema = aux.ResponseJsonSchemaSnake
+	}
+	if aux.PresencePenaltySnake != nil {
+		c.PresencePenalty = aux.PresencePenaltySnake
+	}
+	if aux.FrequencyPenaltySnake != nil {
+		c.FrequencyPenalty = aux.FrequencyPenaltySnake
+	}
+	if aux.ResponseLogprobsSnake {
+		c.ResponseLogprobs = aux.ResponseLogprobsSnake
+	}
+	if aux.MediaResolutionSnake != "" {
+		c.MediaResolution = aux.MediaResolutionSnake
+	}
+	if len(aux.ResponseModalitiesSnake) > 0 {
+		c.ResponseModalities = aux.ResponseModalitiesSnake
+	}
+	if aux.ThinkingConfigSnake != nil {
+		c.ThinkingConfig = aux.ThinkingConfigSnake
+	}
+	if len(aux.SpeechConfigSnake) > 0 {
+		c.SpeechConfig = aux.SpeechConfigSnake
+	}
+	if len(aux.ImageConfigSnake) > 0 {
+		c.ImageConfig = aux.ImageConfigSnake
+	}
+
+	return nil
 }
 
 type MediaResolution string

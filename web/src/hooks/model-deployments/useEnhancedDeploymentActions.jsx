@@ -25,9 +25,9 @@ export const useEnhancedDeploymentActions = (t) => {
 
   // Set loading state for specific operation
   const setOperationLoading = (operation, deploymentId, isLoading) => {
-    setLoading(prev => ({
+    setLoading((prev) => ({
       ...prev,
-      [`${operation}_${deploymentId}`]: isLoading
+      [`${operation}_${deploymentId}`]: isLoading,
     }));
   };
 
@@ -38,20 +38,26 @@ export const useEnhancedDeploymentActions = (t) => {
 
   // Extend deployment duration
   const extendDeployment = async (deploymentId, durationHours) => {
-    const operationKey = `extend_${deploymentId}`;
     try {
       setOperationLoading('extend', deploymentId, true);
-      
-      const response = await API.post(`/api/deployments/${deploymentId}/extend`, {
-        duration_hours: durationHours
-      });
+
+      const response = await API.post(
+        `/api/deployments/${deploymentId}/extend`,
+        {
+          duration_hours: durationHours,
+        },
+      );
 
       if (response.data.success) {
         showSuccess(t('容器时长延长成功'));
         return response.data.data;
       }
     } catch (error) {
-      showError(t('延长时长失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('延长时长失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('extend', deploymentId, false);
@@ -62,14 +68,18 @@ export const useEnhancedDeploymentActions = (t) => {
   const getDeploymentDetails = async (deploymentId) => {
     try {
       setOperationLoading('details', deploymentId, true);
-      
+
       const response = await API.get(`/api/deployments/${deploymentId}`);
-      
+
       if (response.data.success) {
         return response.data.data;
       }
     } catch (error) {
-      showError(t('获取详情失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('获取详情失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('details', deploymentId, false);
@@ -80,24 +90,31 @@ export const useEnhancedDeploymentActions = (t) => {
   const getDeploymentLogs = async (deploymentId, options = {}) => {
     try {
       setOperationLoading('logs', deploymentId, true);
-      
+
       const params = new URLSearchParams();
-      
-      if (options.containerId) params.append('container_id', options.containerId);
+
+      if (options.containerId)
+        params.append('container_id', options.containerId);
       if (options.level) params.append('level', options.level);
       if (options.limit) params.append('limit', options.limit.toString());
       if (options.cursor) params.append('cursor', options.cursor);
       if (options.follow) params.append('follow', 'true');
       if (options.startTime) params.append('start_time', options.startTime);
       if (options.endTime) params.append('end_time', options.endTime);
-      
-      const response = await API.get(`/api/deployments/${deploymentId}/logs?${params}`);
-      
+
+      const response = await API.get(
+        `/api/deployments/${deploymentId}/logs?${params}`,
+      );
+
       if (response.data.success) {
         return response.data.data;
       }
     } catch (error) {
-      showError(t('获取日志失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('获取日志失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('logs', deploymentId, false);
@@ -108,15 +125,22 @@ export const useEnhancedDeploymentActions = (t) => {
   const updateDeploymentConfig = async (deploymentId, config) => {
     try {
       setOperationLoading('config', deploymentId, true);
-      
-      const response = await API.put(`/api/deployments/${deploymentId}`, config);
-      
+
+      const response = await API.put(
+        `/api/deployments/${deploymentId}`,
+        config,
+      );
+
       if (response.data.success) {
         showSuccess(t('容器配置更新成功'));
         return response.data.data;
       }
     } catch (error) {
-      showError(t('更新配置失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('更新配置失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('config', deploymentId, false);
@@ -127,15 +151,19 @@ export const useEnhancedDeploymentActions = (t) => {
   const deleteDeployment = async (deploymentId) => {
     try {
       setOperationLoading('delete', deploymentId, true);
-      
+
       const response = await API.delete(`/api/deployments/${deploymentId}`);
-      
+
       if (response.data.success) {
         showSuccess(t('容器销毁请求已提交'));
         return response.data.data;
       }
     } catch (error) {
-      showError(t('销毁容器失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('销毁容器失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('delete', deploymentId, false);
@@ -146,17 +174,21 @@ export const useEnhancedDeploymentActions = (t) => {
   const updateDeploymentName = async (deploymentId, newName) => {
     try {
       setOperationLoading('rename', deploymentId, true);
-      
+
       const response = await API.put(`/api/deployments/${deploymentId}/name`, {
-        name: newName
+        name: newName,
       });
-      
+
       if (response.data.success) {
         showSuccess(t('容器名称更新成功'));
         return response.data.data;
       }
     } catch (error) {
-      showError(t('更新名称失败') + ': ' + (error.response?.data?.message || error.message));
+      showError(
+        t('更新名称失败') +
+          ': ' +
+          (error.response?.data?.message || error.message),
+      );
       throw error;
     } finally {
       setOperationLoading('rename', deploymentId, false);
@@ -167,21 +199,23 @@ export const useEnhancedDeploymentActions = (t) => {
   const batchDelete = async (deploymentIds) => {
     try {
       setOperationLoading('batch_delete', 'all', true);
-      
+
       const results = await Promise.allSettled(
-        deploymentIds.map(id => deleteDeployment(id))
+        deploymentIds.map((id) => deleteDeployment(id)),
       );
-      
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
-      
+
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+
       if (successful > 0) {
-        showSuccess(t('批量操作完成: {{success}}个成功, {{failed}}个失败', { 
-          success: successful, 
-          failed: failed 
-        }));
+        showSuccess(
+          t('批量操作完成: {{success}}个成功, {{failed}}个失败', {
+            success: successful,
+            failed: failed,
+          }),
+        );
       }
-      
+
       return { successful, failed };
     } catch (error) {
       showError(t('批量操作失败') + ': ' + error.message);
@@ -195,17 +229,20 @@ export const useEnhancedDeploymentActions = (t) => {
   const exportLogs = async (deploymentId, options = {}) => {
     try {
       setOperationLoading('export_logs', deploymentId, true);
-      
+
       const logs = await getDeploymentLogs(deploymentId, {
         ...options,
-        limit: 10000 // Get more logs for export
+        limit: 10000, // Get more logs for export
       });
-      
+
       if (logs && logs.logs) {
-        const logText = logs.logs.map(log => 
-          `[${new Date(log.timestamp).toISOString()}] [${log.level}] ${log.source ? `[${log.source}] ` : ''}${log.message}`
-        ).join('\n');
-        
+        const logText = logs.logs
+          .map(
+            (log) =>
+              `[${new Date(log.timestamp).toISOString()}] [${log.level}] ${log.source ? `[${log.source}] ` : ''}${log.message}`,
+          )
+          .join('\n');
+
         const blob = new Blob([logText], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -215,7 +252,7 @@ export const useEnhancedDeploymentActions = (t) => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         showSuccess(t('日志导出成功'));
       }
     } catch (error) {
@@ -236,13 +273,13 @@ export const useEnhancedDeploymentActions = (t) => {
     updateDeploymentName,
     batchDelete,
     exportLogs,
-    
+
     // Loading states
     isOperationLoading,
     loading,
-    
+
     // Utility
-    setOperationLoading
+    setOperationLoading,
   };
 };
 

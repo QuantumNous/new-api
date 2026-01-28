@@ -66,12 +66,16 @@ const ModelTestModal = ({
     { value: '', label: t('自动检测') },
     { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
     { value: 'openai-response', label: 'OpenAI Response (/v1/responses)' },
+    {
+      value: 'openai-response-compact',
+      label: 'OpenAI Response Compaction (/v1/responses/compact)',
+    },
     { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
     {
       value: 'gemini',
       label: 'Gemini (/v1beta/models/{model}:generateContent)',
     },
-    { value: 'jina-rerank', label: 'Jina Rerank (/rerank)' },
+    { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
     {
       value: 'image-generation',
       label: t('图像生成') + ' (/v1/images/generations)',
@@ -265,6 +269,11 @@ const ModelTestModal = ({
               placeholder={t('选择端点类型')}
             />
           </div>
+          <Typography.Text type='tertiary' size='small' className='block mb-2'>
+            {t(
+              '说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。',
+            )}
+          </Typography.Text>
 
           {/* 搜索与操作按钮 */}
           <div className='flex items-center justify-end gap-2 w-full mb-2'>

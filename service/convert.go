@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/reasonmap"
 )
 
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
@@ -540,20 +541,7 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 }
 
 func stopReasonOpenAI2Claude(reason string) string {
-	switch reason {
-	case "stop":
-		return "end_turn"
-	case "stop_sequence":
-		return "stop_sequence"
-	case "length":
-		fallthrough
-	case "max_tokens":
-		return "max_tokens"
-	case "tool_calls":
-		return "tool_use"
-	default:
-		return reason
-	}
+	return reasonmap.OpenAIFinishReasonToClaudeStopReason(reason)
 }
 
 func toJSONString(v interface{}) string {
@@ -674,20 +662,21 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 		var tools []dto.ToolCallRequest
 		for _, tool := range geminiRequest.GetTools() {
 			if tool.FunctionDeclarations != nil {
-				// 将 Gemini 的 FunctionDeclarations 转换为 OpenAI 的 ToolCallRequest
-				functionDeclarations, ok := tool.FunctionDeclarations.([]dto.FunctionRequest)
-				if ok {
-					for _, function := range functionDeclarations {
-						openAITool := dto.ToolCallRequest{
-							Type: "function",
-							Function: dto.FunctionRequest{
-								Name:        function.Name,
-								Description: function.Description,
-								Parameters:  function.Parameters,
-							},
-						}
-						tools = append(tools, openAITool)
+				functionDeclarations, err := common.Any2Type[[]dto.FunctionRequest](tool.FunctionDeclarations)
+				if err != nil {
+					common.SysError(fmt.Sprintf("failed to parse gemini function declarations: %v (type=%T)", err, tool.FunctionDeclarations))
+					continue
+				}
+				for _, function := range functionDeclarations {
+					openAITool := dto.ToolCallRequest{
+						Type: "function",
+						Function: dto.FunctionRequest{
+							Name:        function.Name,
+							Description: function.Description,
+							Parameters:  function.Parameters,
+						},
 					}
+					tools = append(tools, openAITool)
 				}
 			}
 		}

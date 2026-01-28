@@ -31,9 +31,10 @@ import {
   Avatar,
   Col,
   Row,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { Save, X, FileText } from 'lucide-react';
-import { IconLink } from '@douyinfe/semi-icons';
+import { IconInfoCircle, IconLink } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -44,9 +45,10 @@ const { Text, Title } = Typography;
 const ENDPOINT_TEMPLATE = {
   openai: { path: '/v1/chat/completions', method: 'POST' },
   'openai-response': { path: '/v1/responses', method: 'POST' },
+  'openai-response-compact': { path: '/v1/responses/compact', method: 'POST' },
   anthropic: { path: '/v1/messages', method: 'POST' },
   gemini: { path: '/v1beta/models/{model}:generateContent', method: 'POST' },
-  'jina-rerank': { path: '/rerank', method: 'POST' },
+  'jina-rerank': { path: '/v1/rerank', method: 'POST' },
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
 };
 
@@ -447,7 +449,22 @@ const EditModelModal = (props) => {
                   <Col span={24}>
                     <JSONEditor
                       field='endpoints'
-                      label={t('端点映射')}
+                      label={
+                        <span className='inline-flex items-center gap-2'>
+                          <span>{t('端点映射')}</span>
+                          <Tooltip
+                            position='top'
+                            content={t(
+                              '提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。',
+                            )}
+                          >
+                            <IconInfoCircle
+                              size='small'
+                              className='text-gray-400 cursor-help'
+                            />
+                          </Tooltip>
+                        </span>
+                      }
                       placeholder={
                         '{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'
                       }

@@ -38,7 +38,12 @@ import {
   Tooltip,
   Radio,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconMinus, IconHelpCircle, IconCopy } from '@douyinfe/semi-icons';
+import {
+  IconPlus,
+  IconMinus,
+  IconHelpCircle,
+  IconCopy,
+} from '@douyinfe/semi-icons';
 import { API } from '../../../../helpers';
 import { showError, showSuccess, copy } from '../../../../helpers';
 
@@ -72,17 +77,17 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const [hardwareTotalAvailable, setHardwareTotalAvailable] = useState(null);
   const [locations, setLocations] = useState([]);
   const [locationTotalAvailable, setLocationTotalAvailable] = useState(null);
-  const [availableReplicas, setAvailableReplicas] = useState([]);
   const [priceEstimation, setPriceEstimation] = useState(null);
 
   // UI states
   const [loadingHardware, setLoadingHardware] = useState(false);
-  const [loadingLocations, setLoadingLocations] = useState(false);
   const [loadingReplicas, setLoadingReplicas] = useState(false);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [envVariables, setEnvVariables] = useState([{ key: '', value: '' }]);
-  const [secretEnvVariables, setSecretEnvVariables] = useState([{ key: '', value: '' }]);
+  const [secretEnvVariables, setSecretEnvVariables] = useState([
+    { key: '', value: '' },
+  ]);
   const [entrypoint, setEntrypoint] = useState(['']);
   const [args, setArgs] = useState(['']);
   const [imageMode, setImageMode] = useState('builtin');
@@ -95,7 +100,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const basicSectionRef = useRef(null);
   const priceSectionRef = useRef(null);
   const advancedSectionRef = useRef(null);
-  const locationRequestIdRef = useRef(0);
   const replicaRequestIdRef = useRef(0);
   const [formDefaults, setFormDefaults] = useState({
     resource_private_name: '',
@@ -143,12 +147,33 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     return map;
   }, [locations]);
 
+  const getHardwareMaxGpus = (hardwareId) => {
+    if (!hardwareId) return 1;
+    const hardware = hardwareTypes.find((h) => h.id === hardwareId);
+    const maxGpus = Number(hardware?.max_gpus);
+    return Number.isFinite(maxGpus) && maxGpus > 0 ? maxGpus : 1;
+  };
+
   // Form values for price calculation
   const [selectedHardwareId, setSelectedHardwareId] = useState(null);
   const [selectedLocationIds, setSelectedLocationIds] = useState([]);
   const [gpusPerContainer, setGpusPerContainer] = useState(1);
   const [durationHours, setDurationHours] = useState(1);
   const [replicaCount, setReplicaCount] = useState(1);
+
+  useEffect(() => {
+    if (!selectedHardwareId) {
+      return;
+    }
+
+    const nextMaxGpus = getHardwareMaxGpus(selectedHardwareId);
+    if (gpusPerContainer !== nextMaxGpus) {
+      setGpusPerContainer(nextMaxGpus);
+    }
+    if (formApi) {
+      formApi.setValue('gpus_per_container', nextMaxGpus);
+    }
+  }, [selectedHardwareId, hardwareTypes, formApi, gpusPerContainer]);
 
   // Load initial data when modal opens
   useEffect(() => {
@@ -206,10 +231,14 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     if (imageMode === 'builtin') {
       if (prevMode === 'custom') {
         if (formApi) {
-          customImageRef.current = formApi.getValue('image_url') || customImageRef.current;
-          customTrafficPortRef.current = formApi.getValue('traffic_port') ?? customTrafficPortRef.current;
+          customImageRef.current =
+            formApi.getValue('image_url') || customImageRef.current;
+          customTrafficPortRef.current =
+            formApi.getValue('traffic_port') ?? customTrafficPortRef.current;
         }
-        customSecretEnvRef.current = secretEnvVariables.map((item) => ({ ...item }));
+        customSecretEnvRef.current = secretEnvVariables.map((item) => ({
+          ...item,
+        }));
         customEnvRef.current = envVariables.map((item) => ({ ...item }));
       }
       const newKey = generateRandomKey();
@@ -273,15 +302,12 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       return;
     }
     if (selectedHardwareId) {
-      loadLocations(selectedHardwareId);
+      return;
     } else {
       setLocations([]);
       setSelectedLocationIds([]);
-      setAvailableReplicas([]);
       setLocationTotalAvailable(null);
-      setLoadingLocations(false);
       setLoadingReplicas(false);
-      locationRequestIdRef.current = 0;
       replicaRequestIdRef.current = 0;
       if (formApi) {
         formApi.setValue('location_ids', []);
@@ -299,7 +325,6 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     setDurationHours(1);
     setReplicaCount(1);
     setPriceEstimation(null);
-    setAvailableReplicas([]);
     setLocations([]);
     setLocationTotalAvailable(null);
     setHardwareTotalAvailable(null);
@@ -336,11 +361,14 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       setLoadingHardware(true);
       const response = await API.get('/api/deployments/hardware-types');
       if (response.data.success) {
-        const { hardware_types: hardwareList = [], total_available } = response.data.data || {};
+        const { hardware_types: hardwareList = [], total_available } =
+          response.data.data || {};
 
         const normalizedHardware = hardwareList.map((hardware) => {
           const availableCountValue = Number(hardware.available_count);
-          const availableCount = Number.isNaN(availableCountValue) ? 0 : availableCountValue;
+          const availableCount = Number.isNaN(availableCountValue)
+            ? 0
+            : availableCountValue;
           const availableBool =
             typeof hardware.available === 'boolean'
               ? hardware.available
@@ -355,7 +383,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
         const providedTotal = Number(total_available);
         const fallbackTotal = normalizedHardware.reduce(
-          (acc, item) => acc + (Number.isNaN(item.available_count) ? 0 : item.available_count),
+          (acc, item) =>
+            acc +
+            (Number.isNaN(item.available_count) ? 0 : item.available_count),
           0,
         );
         const hasProvidedTotal =
@@ -378,81 +408,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     }
   };
 
-  const loadLocations = async (hardwareId) => {
-    if (!hardwareId) {
-      setLocations([]);
-      setLocationTotalAvailable(null);
-      return;
-    }
-
-    const requestId = Date.now();
-    locationRequestIdRef.current = requestId;
-    setLoadingLocations(true);
-    setLocations([]);
-    setLocationTotalAvailable(null);
-
-    try {
-      const response = await API.get('/api/deployments/locations', {
-        params: { hardware_id: hardwareId },
-      });
-
-      if (locationRequestIdRef.current !== requestId) {
-        return;
-      }
-
-      if (response.data.success) {
-        const { locations: locationsList = [], total } =
-          response.data.data || {};
-
-        const normalizedLocations = locationsList.map((location) => {
-          const iso2 = (location.iso2 || '').toString().toUpperCase();
-          const availableValue = Number(location.available);
-          const available = Number.isNaN(availableValue) ? 0 : availableValue;
-
-          return {
-            ...location,
-            iso2,
-            available,
-          };
-        });
-
-        const providedTotal = Number(total);
-        const fallbackTotal = normalizedLocations.reduce(
-          (acc, item) =>
-            acc + (Number.isNaN(item.available) ? 0 : item.available),
-          0,
-        );
-        const hasProvidedTotal =
-          total !== undefined &&
-          total !== null &&
-          total !== '' &&
-          !Number.isNaN(providedTotal);
-
-        setLocations(normalizedLocations);
-        setLocationTotalAvailable(
-          hasProvidedTotal ? providedTotal : fallbackTotal,
-        );
-      } else {
-        showError(t('获取部署位置失败: ') + response.data.message);
-        setLocations([]);
-        setLocationTotalAvailable(null);
-      }
-    } catch (error) {
-      if (locationRequestIdRef.current === requestId) {
-        showError(t('获取部署位置失败: ') + error.message);
-        setLocations([]);
-        setLocationTotalAvailable(null);
-      }
-    } finally {
-      if (locationRequestIdRef.current === requestId) {
-        setLoadingLocations(false);
-      }
-    }
-  };
-
   const loadAvailableReplicas = async (hardwareId, gpuCount) => {
     if (!hardwareId || !gpuCount) {
-      setAvailableReplicas([]);
+      setLocations([]);
       setLocationTotalAvailable(null);
       setLoadingReplicas(false);
       return;
@@ -461,7 +419,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     const requestId = Date.now();
     replicaRequestIdRef.current = requestId;
     setLoadingReplicas(true);
-    setAvailableReplicas([]);
+    setLocations([]);
+    setLocationTotalAvailable(null);
 
     try {
       const response = await API.get(
@@ -474,24 +433,67 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
       if (response.data.success) {
         const replicasList = response.data.data?.replicas || [];
-        const filteredReplicas = replicasList.filter(
-          (replica) => (replica.available_count || 0) > 0,
+
+        const nextLocationsMap = new Map();
+        replicasList.forEach((replica) => {
+          const rawId = replica?.location_id ?? replica?.location?.id;
+          if (rawId === null || rawId === undefined) {
+            return;
+          }
+          const id = rawId;
+          const mapKey = String(rawId);
+          const existing = nextLocationsMap.get(mapKey) || null;
+
+          const rawIso2 =
+            replica?.iso2 ?? replica?.location_iso2 ?? replica?.location?.iso2;
+          const iso2 = rawIso2 ? String(rawIso2).toUpperCase() : '';
+
+          const name =
+            replica?.location_name ??
+            replica?.location?.name ??
+            replica?.name ??
+            id;
+
+          const available = Number(replica?.available_count) || 0;
+          if (existing) {
+            existing.available += available;
+            return;
+          }
+
+          nextLocationsMap.set(mapKey, {
+            id,
+            name: String(name),
+            iso2,
+            region:
+              replica?.region ??
+              replica?.location_region ??
+              replica?.location?.region,
+            country:
+              replica?.country ??
+              replica?.location_country ??
+              replica?.location?.country,
+            code:
+              replica?.code ??
+              replica?.location_code ??
+              replica?.location?.code,
+            available,
+          });
+        });
+
+        setLocations(Array.from(nextLocationsMap.values()));
+        setLocationTotalAvailable(
+          Array.from(nextLocationsMap.values()).reduce(
+            (total, location) => total + (location.available || 0),
+            0,
+          ),
         );
-        setAvailableReplicas(filteredReplicas);
-        const totalAvailableForHardware = filteredReplicas.reduce(
-          (total, replica) => total + (replica.available_count || 0),
-          0,
-        );
-        setLocationTotalAvailable(totalAvailableForHardware);
       } else {
         showError(t('获取可用资源失败: ') + response.data.message);
-        setAvailableReplicas([]);
         setLocationTotalAvailable(null);
       }
     } catch (error) {
       if (replicaRequestIdRef.current === requestId) {
         console.error('Load available replicas error:', error);
-        setAvailableReplicas([]);
         setLocationTotalAvailable(null);
       }
     } finally {
@@ -516,7 +518,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         hardware_qty: gpusPerContainer,
       };
 
-      const response = await API.post('/api/deployments/price-estimation', requestData);
+      const response = await API.post(
+        '/api/deployments/price-estimation',
+        requestData,
+      );
       if (response.data.success) {
         setPriceEstimation(response.data.data);
       } else {
@@ -537,14 +542,14 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
       // Prepare environment variables
       const envVars = {};
-      envVariables.forEach(env => {
+      envVariables.forEach((env) => {
         if (env.key && env.value) {
           envVars[env.key] = env.value;
         }
       });
 
       const secretEnvVars = {};
-      secretEnvVariables.forEach(env => {
+      secretEnvVariables.forEach((env) => {
         if (env.key && env.value) {
           secretEnvVars[env.key] = env.value;
         }
@@ -559,17 +564,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       }
 
       // Prepare entrypoint and args
-      const cleanEntrypoint = entrypoint.filter(item => item.trim() !== '');
-      const cleanArgs = args.filter(item => item.trim() !== '');
+      const cleanEntrypoint = entrypoint.filter((item) => item.trim() !== '');
+      const cleanArgs = args.filter((item) => item.trim() !== '');
 
-      const resolvedImage = imageMode === 'builtin' ? BUILTIN_IMAGE : values.image_url;
+      const resolvedImage =
+        imageMode === 'builtin' ? BUILTIN_IMAGE : values.image_url;
       const resolvedTrafficPort =
-        values.traffic_port || (imageMode === 'builtin' ? DEFAULT_TRAFFIC_PORT : undefined);
+        values.traffic_port ||
+        (imageMode === 'builtin' ? DEFAULT_TRAFFIC_PORT : undefined);
 
       const requestData = {
         resource_private_name: values.resource_private_name,
         duration_hours: values.duration_hours,
-        gpus_per_container: values.gpus_per_container,
+        gpus_per_container: gpusPerContainer,
         hardware_id: values.hardware_id,
         location_ids: values.location_ids,
         container_config: {
@@ -588,7 +595,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       };
 
       const response = await API.post('/api/deployments', requestData);
-      
+
       if (response.data.success) {
         showSuccess(t('容器创建成功'));
         onSuccess?.(response.data.data);
@@ -614,10 +621,16 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const handleRemoveEnvVariable = (index, type) => {
     if (type === 'env') {
       const newEnvVars = envVariables.filter((_, i) => i !== index);
-      setEnvVariables(newEnvVars.length > 0 ? newEnvVars : [{ key: '', value: '' }]);
+      setEnvVariables(
+        newEnvVars.length > 0 ? newEnvVars : [{ key: '', value: '' }],
+      );
     } else {
       const newSecretEnvVars = secretEnvVariables.filter((_, i) => i !== index);
-      setSecretEnvVariables(newSecretEnvVars.length > 0 ? newSecretEnvVars : [{ key: '', value: '' }]);
+      setSecretEnvVariables(
+        newSecretEnvVars.length > 0
+          ? newSecretEnvVars
+          : [{ key: '', value: '' }],
+      );
     }
   };
 
@@ -678,10 +691,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       return;
     }
 
-    const validLocationIds =
-      availableReplicas.length > 0
-        ? availableReplicas.map((item) => item.location_id)
-        : locations.map((location) => location.id);
+    const validLocationIds = locations
+      .filter((location) => (Number(location.available) || 0) > 0)
+      .map((location) => location.id);
 
     if (validLocationIds.length === 0) {
       if (selectedLocationIds.length > 0) {
@@ -707,23 +719,10 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         formApi.setValue('location_ids', filteredSelection);
       }
     }
-  }, [
-    availableReplicas,
-    locations,
-    selectedHardwareId,
-    selectedLocationIds,
-    visible,
-    formApi,
-  ]);
+  }, [locations, selectedHardwareId, selectedLocationIds, visible, formApi]);
 
   const maxAvailableReplicas = useMemo(() => {
     if (!selectedLocationIds.length) return 0;
-
-    if (availableReplicas.length > 0) {
-      return availableReplicas
-        .filter((replica) => selectedLocationIds.includes(replica.location_id))
-        .reduce((total, replica) => total + (replica.available_count || 0), 0);
-    }
 
     return locations
       .filter((location) => selectedLocationIds.includes(location.id))
@@ -731,7 +730,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         const availableValue = Number(location.available);
         return total + (Number.isNaN(availableValue) ? 0 : availableValue);
       }, 0);
-  }, [availableReplicas, selectedLocationIds, locations]);
+  }, [selectedLocationIds, locations]);
 
   const isPriceReady = useMemo(
     () =>
@@ -749,7 +748,11 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     ],
   );
 
-  const currencyLabel = (priceEstimation?.currency || priceCurrency || '').toUpperCase();
+  const currencyLabel = (
+    priceEstimation?.currency ||
+    priceCurrency ||
+    ''
+  ).toUpperCase();
   const selectedHardwareLabel = selectedHardwareId
     ? hardwareLabelMap[selectedHardwareId]
     : '';
@@ -769,7 +772,9 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     {
       key: 'locations',
       label: t('部署位置'),
-      value: selectedLocationNames.length ? selectedLocationNames.join('、') : '--',
+      value: selectedLocationNames.length
+        ? selectedLocationNames.join('、')
+        : '--',
     },
     {
       key: 'replicas',
@@ -778,7 +783,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
     },
     {
       key: 'gpus',
-      label: t('每容器GPU数量'),
+      label: t('最大GPU数量'),
       value: (gpusPerContainer ?? 0).toString(),
     },
     {
@@ -802,14 +807,14 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
   const priceUnavailableContent = (
     <div style={{ marginTop: 12 }}>
       {loadingPrice ? (
-        <Space spacing={8} align="center">
-          <Spin size="small" />
-          <Text size="small" type="tertiary">
+        <Space spacing={8} align='center'>
+          <Spin size='small' />
+          <Text size='small' type='tertiary'>
             {t('价格计算中...')}
           </Text>
         </Space>
       ) : (
-        <Text size="small" type="tertiary">
+        <Text size='small' type='tertiary'>
           {isPriceReady
             ? t('价格暂时不可用，请稍后重试')
             : t('完成硬件类型、部署位置、副本数量等配置后，将自动计算价格')}
@@ -846,7 +851,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         getFormApi={setFormApi}
         onSubmit={handleSubmit}
         style={{ maxHeight: '70vh', overflowY: 'auto' }}
-        labelPosition="top"
+        labelPosition='top'
       >
         <Space
           wrap
@@ -854,25 +859,25 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
           style={{ justifyContent: 'flex-end', width: '100%', marginBottom: 8 }}
         >
           <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
+            size='small'
+            theme='borderless'
+            type='tertiary'
             onClick={() => scrollToSection(basicSectionRef)}
           >
             {t('部署配置')}
           </Button>
           <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
+            size='small'
+            theme='borderless'
+            type='tertiary'
             onClick={() => scrollToSection(priceSectionRef)}
           >
             {t('价格预估')}
           </Button>
           <Button
-            size="small"
-            theme="borderless"
-            type="tertiary"
+            size='small'
+            theme='borderless'
+            type='tertiary'
             onClick={() => scrollToSection(advancedSectionRef)}
           >
             {t('高级配置')}
@@ -880,32 +885,34 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
         </Space>
 
         <div ref={basicSectionRef}>
-          <Card className="mb-4">
+          <Card className='mb-4'>
             <Title heading={6}>{t('部署配置')}</Title>
-            
+
             <Form.Input
-              field="resource_private_name"
+              field='resource_private_name'
               label={t('容器名称')}
               placeholder={t('请输入容器名称')}
               rules={[{ required: true, message: t('请输入容器名称') }]}
             />
 
-            <div className="mt-2">
+            <div className='mt-2'>
               <Text strong>{t('镜像选择')}</Text>
               <div style={{ marginTop: 8 }}>
                 <RadioGroup
-                  type="button"
+                  type='button'
                   value={imageMode}
-                  onChange={(value) => setImageMode(value?.target?.value ?? value)}
+                  onChange={(value) =>
+                    setImageMode(value?.target?.value ?? value)
+                  }
                 >
-                  <Radio value="builtin">{t('内置 Ollama 镜像')}</Radio>
-                  <Radio value="custom">{t('自定义镜像')}</Radio>
+                  <Radio value='builtin'>{t('内置 Ollama 镜像')}</Radio>
+                  <Radio value='custom'>{t('自定义镜像')}</Radio>
                 </RadioGroup>
               </div>
             </div>
 
             <Form.Input
-              field="image_url"
+              field='image_url'
               label={t('镜像地址')}
               placeholder={t('例如：nginx:latest')}
               rules={[{ required: true, message: t('请输入镜像地址') }]}
@@ -918,20 +925,20 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             />
 
             {imageMode === 'builtin' && (
-              <Space align="center" spacing={8} className="mt-2">
-                <Text size="small" type="tertiary">
+              <Space align='center' spacing={8} className='mt-2'>
+                <Text size='small' type='tertiary'>
                   {t('系统已为该部署准备 Ollama 镜像与随机 API Key')}
                 </Text>
                 <Input
                   readOnly
                   value={autoOllamaKey}
-                  size="small"
+                  size='small'
                   style={{ width: 220 }}
                 />
                 <Button
                   icon={<IconCopy />}
-                  size="small"
-                  theme="borderless"
+                  size='small'
+                  theme='borderless'
                   onClick={async () => {
                     if (!autoOllamaKey) {
                       return;
@@ -952,16 +959,19 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             <Row gutter={16}>
               <Col xs={24} md={12}>
                 <Form.Select
-                  field="hardware_id"
+                  field='hardware_id'
                   label={t('硬件类型')}
                   placeholder={t('选择硬件类型')}
                   loading={loadingHardware}
                   rules={[{ required: true, message: t('请选择硬件类型') }]}
                   onChange={(value) => {
+                    const nextMaxGpus = getHardwareMaxGpus(value);
                     setSelectedHardwareId(value);
+                    setGpusPerContainer(nextMaxGpus);
                     setSelectedLocationIds([]);
                     if (formApi) {
                       formApi.setValue('location_ids', []);
+                      formApi.setValue('gpus_per_container', nextMaxGpus);
                     }
                   }}
                   style={{ width: '100%' }}
@@ -987,13 +997,16 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
                     return (
                       <Option key={hardware.id} value={hardware.id}>
-                        <div className="flex flex-col gap-1">
+                        <div className='flex flex-col gap-1'>
                           <Text strong>{displayName}</Text>
-                          <div className="flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]">
+                          <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
                             <span>
-                              {t('最大GPU数')}: {hardware.max_gpus}
+                              {t('最大GPU数量')}: {hardware.max_gpus}
                             </span>
-                            <Tag color={hasAvailability ? 'green' : 'red'} size="small">
+                            <Tag
+                              color={hasAvailability ? 'green' : 'red'}
+                              size='small'
+                            >
                               {t('可用数量')}: {availableCount}
                             </Tag>
                           </div>
@@ -1005,83 +1018,68 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               </Col>
               <Col xs={24} md={12}>
                 <Form.InputNumber
-                  field="gpus_per_container"
-                  label={t('每容器GPU数量')}
+                  field='gpus_per_container'
+                  label={t('最大GPU数量')}
                   placeholder={1}
                   min={1}
-                  max={selectedHardwareId ? hardwareTypes.find((h) => h.id === selectedHardwareId)?.max_gpus : 8}
+                  max={getHardwareMaxGpus(selectedHardwareId)}
                   step={1}
-                  innerButtons
-                  rules={[{ required: true, message: t('请输入GPU数量') }]}
-                  onChange={(value) => setGpusPerContainer(value)}
+                  disabled
                   style={{ width: '100%' }}
                 />
               </Col>
             </Row>
 
             {typeof hardwareTotalAvailable === 'number' && (
-              <Text size="small" type="tertiary">
+              <Text size='small' type='tertiary'>
                 {t('全部硬件总可用资源')}: {hardwareTotalAvailable}
               </Text>
             )}
 
             <Form.Select
-              field="location_ids"
+              field='location_ids'
               label={
                 <Space>
                   {t('部署位置')}
-                  {loadingReplicas && <Spin size="small" />}
+                  {loadingReplicas && <Spin size='small' />}
                 </Space>
               }
               placeholder={
                 !selectedHardwareId
                   ? t('请先选择硬件类型')
-                  : loadingLocations || loadingReplicas
+                  : loadingReplicas
                     ? t('正在加载可用部署位置...')
                     : t('选择部署位置（可多选）')
               }
               multiple
-              loading={loadingLocations || loadingReplicas}
-              disabled={!selectedHardwareId || loadingLocations || loadingReplicas}
+              loading={loadingReplicas}
+              disabled={!selectedHardwareId || loadingReplicas}
               rules={[{ required: true, message: t('请选择至少一个部署位置') }]}
               onChange={(value) => setSelectedLocationIds(value)}
               style={{ width: '100%' }}
               dropdownStyle={{ maxHeight: 360, overflowY: 'auto' }}
               renderSelectedItem={(optionNode) => ({
                 isRenderInTag: true,
-                content:
-                  !optionNode
-                    ? ''
-                    : loadingLocations || loadingReplicas
-                      ? t('部署位置加载中...')
-                      : locationLabelMap[optionNode?.value] ||
-                        optionNode?.label ||
-                        optionNode?.value ||
-                        '',
+                content: !optionNode
+                  ? ''
+                  : loadingReplicas
+                    ? t('部署位置加载中...')
+                    : locationLabelMap[optionNode?.value] ||
+                      optionNode?.label ||
+                      optionNode?.value ||
+                      '',
               })}
             >
               {locations.map((location) => {
-                const replicaEntry = availableReplicas.find(
-                  (r) => r.location_id === location.id,
-                );
-                const hasReplicaData = availableReplicas.length > 0;
-                const availableCount = hasReplicaData
-                  ? replicaEntry?.available_count ?? 0
-                  : (() => {
-                      const numeric = Number(location.available);
-                      return Number.isNaN(numeric) ? 0 : numeric;
-                    })();
+                const numeric = Number(location.available);
+                const availableCount = Number.isNaN(numeric) ? 0 : numeric;
                 const locationLabel =
                   location.region ||
                   location.country ||
                   (location.iso2 ? location.iso2.toUpperCase() : '') ||
                   location.code ||
                   '';
-                const disableOption = hasReplicaData
-                  ? availableCount === 0
-                  : typeof location.available === 'number'
-                    ? location.available === 0
-                    : false;
+                const disableOption = availableCount === 0;
 
                 return (
                   <Option
@@ -1089,17 +1087,17 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                     value={location.id}
                     disabled={disableOption}
                   >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
+                    <div className='flex flex-col gap-1'>
+                      <div className='flex items-center gap-2'>
                         <Text strong>{location.name}</Text>
                         {locationLabel && (
-                          <Tag color="blue" size="small">
+                          <Tag color='blue' size='small'>
                             {locationLabel}
                           </Tag>
                         )}
                       </div>
                       <Text
-                        size="small"
+                        size='small'
                         type={availableCount > 0 ? 'success' : 'danger'}
                       >
                         {t('可用数量')}: {availableCount}
@@ -1111,16 +1109,16 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
             </Form.Select>
 
             {typeof locationTotalAvailable === 'number' && (
-              <Text size="small" type="tertiary">
+              <Text size='small' type='tertiary'>
                 {t('全部地区总可用资源')}: {locationTotalAvailable}
               </Text>
             )}
 
-          <Row gutter={16}>
-            <Col xs={24} md={8}>
-              <Form.InputNumber
-                field="replica_count"
-                label={t('副本数量')}
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.InputNumber
+                  field='replica_count'
+                  label={t('副本数量')}
                   placeholder={1}
                   min={1}
                   max={maxAvailableReplicas || 100}
@@ -1129,14 +1127,14 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   style={{ width: '100%' }}
                 />
                 {maxAvailableReplicas > 0 && (
-                  <Text size="small" type="tertiary">
+                  <Text size='small' type='tertiary'>
                     {t('最大可用')}: {maxAvailableReplicas}
                   </Text>
                 )}
               </Col>
               <Col xs={24} md={8}>
                 <Form.InputNumber
-                  field="duration_hours"
+                  field='duration_hours'
                   label={t('运行时长（小时）')}
                   placeholder={1}
                   min={1}
@@ -1148,7 +1146,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               </Col>
               <Col xs={24} md={8}>
                 <Form.InputNumber
-                  field="traffic_port"
+                  field='traffic_port'
                   label={
                     <Space>
                       {t('流量端口')}
@@ -1162,298 +1160,349 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   max={65535}
                   style={{ width: '100%' }}
                   disabled={imageMode === 'builtin'}
-              />
-            </Col>
-          </Row>
+                />
+              </Col>
+            </Row>
 
-          <div ref={advancedSectionRef}>
-            <Collapse className="mt-4">
-              <Collapse.Panel header={t('高级配置')} itemKey="advanced">
-                <Card>
-                  <Title heading={6}>{t('镜像仓库配置')}</Title>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Input
-                        field="registry_username"
-                        label={t('镜像仓库用户名')}
-                        placeholder={t('私有镜像仓库的用户名')}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Input
-                        field="registry_secret"
-                        label={t('镜像仓库密码')}
-                        type="password"
-                        placeholder={t('私有镜像仓库的密码')}
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-
-                <Divider />
-
-                <Card>
-                  <Title heading={6}>{t('容器启动配置')}</Title>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <Text strong>{t('启动命令 (Entrypoint)')}</Text>
-                    {entrypoint.map((cmd, index) => (
-                      <div key={index} style={{ display: 'flex', marginTop: 8 }}>
-                        <Input
-                          value={cmd}
-                          placeholder={t('例如：/bin/bash')}
-                          onChange={(value) => handleArrayFieldChange(index, value, 'entrypoint')}
-                          style={{ flex: 1, marginRight: 8 }}
+            <div ref={advancedSectionRef}>
+              <Collapse className='mt-4'>
+                <Collapse.Panel header={t('高级配置')} itemKey='advanced'>
+                  <Card>
+                    <Title heading={6}>{t('镜像仓库配置')}</Title>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Input
+                          field='registry_username'
+                          label={t('镜像仓库用户名')}
+                          placeholder={t('私有镜像仓库的用户名')}
                         />
-                        <Button
-                          icon={<IconMinus />}
-                          onClick={() => handleRemoveArrayField(index, 'entrypoint')}
-                          disabled={entrypoint.length === 1}
+                      </Col>
+                      <Col span={12}>
+                        <Form.Input
+                          field='registry_secret'
+                          label={t('镜像仓库密码')}
+                          type='password'
+                          placeholder={t('私有镜像仓库的密码')}
                         />
-                      </div>
-                    ))}
-                    <Button
-                      icon={<IconPlus />}
-                      onClick={() => handleAddArrayField('entrypoint')}
-                      style={{ marginTop: 8 }}
-                    >
-                      {t('添加启动命令')}
-                    </Button>
-                  </div>
+                      </Col>
+                    </Row>
+                  </Card>
 
-                  <div style={{ marginBottom: 16 }}>
-                    <Text strong>{t('启动参数 (Args)')}</Text>
-                    {args.map((arg, index) => (
-                      <div key={index} style={{ display: 'flex', marginTop: 8 }}>
-                        <Input
-                          value={arg}
-                          placeholder={t('例如：-c')}
-                          onChange={(value) => handleArrayFieldChange(index, value, 'args')}
-                          style={{ flex: 1, marginRight: 8 }}
-                        />
-                        <Button
-                          icon={<IconMinus />}
-                          onClick={() => handleRemoveArrayField(index, 'args')}
-                          disabled={args.length === 1}
-                        />
-                      </div>
-                    ))}
-                    <Button
-                      icon={<IconPlus />}
-                      onClick={() => handleAddArrayField('args')}
-                      style={{ marginTop: 8 }}
-                    >
-                      {t('添加启动参数')}
-                    </Button>
-                  </div>
-                </Card>
+                  <Divider />
 
-                <Divider />
+                  <Card>
+                    <Title heading={6}>{t('容器启动配置')}</Title>
 
-                <Card>
-                  <Title heading={6}>{t('环境变量')}</Title>
-
-                  <div style={{ marginBottom: 16 }}>
-                    <Text strong>{t('普通环境变量')}</Text>
-                    {envVariables.map((env, index) => (
-                      <Row key={index} gutter={8} style={{ marginTop: 8 }}>
-                        <Col span={10}>
+                    <div style={{ marginBottom: 16 }}>
+                      <Text strong>{t('启动命令 (Entrypoint)')}</Text>
+                      {entrypoint.map((cmd, index) => (
+                        <div
+                          key={index}
+                          style={{ display: 'flex', marginTop: 8 }}
+                        >
                           <Input
-                            placeholder={t('变量名')}
-                            value={env.key}
-                            onChange={(value) => handleEnvVariableChange(index, 'key', value, 'env')}
+                            value={cmd}
+                            placeholder={t('例如：/bin/bash')}
+                            onChange={(value) =>
+                              handleArrayFieldChange(index, value, 'entrypoint')
+                            }
+                            style={{ flex: 1, marginRight: 8 }}
                           />
-                        </Col>
-                        <Col span={10}>
-                          <Input
-                            placeholder={t('变量值')}
-                            value={env.value}
-                            onChange={(value) => handleEnvVariableChange(index, 'value', value, 'env')}
-                          />
-                        </Col>
-                        <Col span={4}>
                           <Button
                             icon={<IconMinus />}
-                            onClick={() => handleRemoveEnvVariable(index, 'env')}
-                            disabled={envVariables.length === 1}
+                            onClick={() =>
+                              handleRemoveArrayField(index, 'entrypoint')
+                            }
+                            disabled={entrypoint.length === 1}
                           />
-                        </Col>
-                      </Row>
-                    ))}
-                    <Button
-                      icon={<IconPlus />}
-                      onClick={() => handleAddEnvVariable('env')}
-                      style={{ marginTop: 8 }}
-                    >
-                      {t('添加环境变量')}
-                    </Button>
-                  </div>
+                        </div>
+                      ))}
+                      <Button
+                        icon={<IconPlus />}
+                        onClick={() => handleAddArrayField('entrypoint')}
+                        style={{ marginTop: 8 }}
+                      >
+                        {t('添加启动命令')}
+                      </Button>
+                    </div>
 
-                  <div>
-                    <Text strong>{t('密钥环境变量')}</Text>
-                    {secretEnvVariables.map((env, index) => {
-                      const isAutoSecret =
-                        imageMode === 'builtin' && env.key === 'OLLAMA_API_KEY';
-                      return (
+                    <div style={{ marginBottom: 16 }}>
+                      <Text strong>{t('启动参数 (Args)')}</Text>
+                      {args.map((arg, index) => (
+                        <div
+                          key={index}
+                          style={{ display: 'flex', marginTop: 8 }}
+                        >
+                          <Input
+                            value={arg}
+                            placeholder={t('例如：-c')}
+                            onChange={(value) =>
+                              handleArrayFieldChange(index, value, 'args')
+                            }
+                            style={{ flex: 1, marginRight: 8 }}
+                          />
+                          <Button
+                            icon={<IconMinus />}
+                            onClick={() =>
+                              handleRemoveArrayField(index, 'args')
+                            }
+                            disabled={args.length === 1}
+                          />
+                        </div>
+                      ))}
+                      <Button
+                        icon={<IconPlus />}
+                        onClick={() => handleAddArrayField('args')}
+                        style={{ marginTop: 8 }}
+                      >
+                        {t('添加启动参数')}
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <Divider />
+
+                  <Card>
+                    <Title heading={6}>{t('环境变量')}</Title>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <Text strong>{t('普通环境变量')}</Text>
+                      {envVariables.map((env, index) => (
                         <Row key={index} gutter={8} style={{ marginTop: 8 }}>
                           <Col span={10}>
                             <Input
                               placeholder={t('变量名')}
                               value={env.key}
-                              onChange={(value) => handleEnvVariableChange(index, 'key', value, 'secret')}
-                              disabled={isAutoSecret}
+                              onChange={(value) =>
+                                handleEnvVariableChange(
+                                  index,
+                                  'key',
+                                  value,
+                                  'env',
+                                )
+                              }
                             />
                           </Col>
                           <Col span={10}>
                             <Input
                               placeholder={t('变量值')}
-                              type="password"
                               value={env.value}
-                              onChange={(value) => handleEnvVariableChange(index, 'value', value, 'secret')}
-                              disabled={isAutoSecret}
+                              onChange={(value) =>
+                                handleEnvVariableChange(
+                                  index,
+                                  'value',
+                                  value,
+                                  'env',
+                                )
+                              }
                             />
                           </Col>
                           <Col span={4}>
                             <Button
                               icon={<IconMinus />}
-                              onClick={() => handleRemoveEnvVariable(index, 'secret')}
-                              disabled={secretEnvVariables.length === 1 || isAutoSecret}
+                              onClick={() =>
+                                handleRemoveEnvVariable(index, 'env')
+                              }
+                              disabled={envVariables.length === 1}
                             />
                           </Col>
                         </Row>
-                      );
-                    })}
-                    <Button
-                      icon={<IconPlus />}
-                      onClick={() => handleAddEnvVariable('secret')}
-                      style={{ marginTop: 8 }}
-                    >
-                      {t('添加密钥环境变量')}
-                    </Button>
-                  </div>
-                </Card>
-              </Collapse.Panel>
-            </Collapse>
-          </div>
-        </Card>
-        </div>
-
-        <div ref={priceSectionRef}>
-          <Card className="mb-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Title heading={6} style={{ margin: 0 }}>
-                  {t('价格预估')}
-                </Title>
-                <Space align="center" spacing={12} className="flex flex-wrap">
-                  <Text type="secondary" size="small">
-                    {t('计价币种')}
-                  </Text>
-                  <RadioGroup
-                    type="button"
-                    value={priceCurrency}
-                    onChange={handleCurrencyChange}
-                  >
-                    <Radio value="usdc">USDC</Radio>
-                    <Radio value="iocoin">IOCOIN</Radio>
-                  </RadioGroup>
-                  <Tag size="small" color="blue">
-                    {currencyLabel}
-                  </Tag>
-                </Space>
-              </div>
-
-              {priceEstimation ? (
-                <div className="mt-4 flex w-full flex-col gap-4">
-                  <div className="grid w-full gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div
-                      className="flex flex-col gap-1 rounded-md px-4 py-3"
-                      style={{
-                        border: '1px solid var(--semi-color-border)',
-                        backgroundColor: 'var(--semi-color-fill-0)',
-                      }}
-                    >
-                      <Text size="small" type="tertiary">
-                        {t('预估总费用')}
-                      </Text>
-                      <div
-                        style={{
-                          fontSize: 24,
-                          fontWeight: 600,
-                          color: 'var(--semi-color-text-0)',
-                        }}
+                      ))}
+                      <Button
+                        icon={<IconPlus />}
+                        onClick={() => handleAddEnvVariable('env')}
+                        style={{ marginTop: 8 }}
                       >
-                        {typeof priceEstimation.estimated_cost === 'number'
-                          ? `${priceEstimation.estimated_cost.toFixed(4)} ${currencyLabel}`
-                          : '--'}
-                      </div>
+                        {t('添加环境变量')}
+                      </Button>
                     </div>
-                    <div
-                      className="flex flex-col gap-1 rounded-md px-4 py-3"
-                      style={{
-                        border: '1px solid var(--semi-color-border)',
-                        backgroundColor: 'var(--semi-color-fill-0)',
-                      }}
-                    >
-                      <Text size="small" type="tertiary">
-                        {t('小时费率')}
-                      </Text>
-                      <Text strong>
-                        {typeof priceEstimation.price_breakdown?.hourly_rate === 'number'
-                          ? `${priceEstimation.price_breakdown.hourly_rate.toFixed(4)} ${currencyLabel}/h`
-                          : '--'}
-                      </Text>
-                    </div>
-                    <div
-                      className="flex flex-col gap-1 rounded-md px-4 py-3"
-                      style={{
-                        border: '1px solid var(--semi-color-border)',
-                        backgroundColor: 'var(--semi-color-fill-0)',
-                      }}
-                    >
-                      <Text size="small" type="tertiary">
-                        {t('计算成本')}
-                      </Text>
-                      <Text strong>
-                        {typeof priceEstimation.price_breakdown?.compute_cost === 'number'
-                          ? `${priceEstimation.price_breakdown.compute_cost.toFixed(4)} ${currencyLabel}`
-                          : '--'}
-                      </Text>
-                    </div>
-                  </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {priceSummaryItems.map((item) => (
-                      <div
-                        key={item.key}
-                        className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
-                        style={{
-                          border: '1px solid var(--semi-color-border)',
-                          backgroundColor: 'var(--semi-color-fill-0)',
-                        }}
+                    <div>
+                      <Text strong>{t('密钥环境变量')}</Text>
+                      {secretEnvVariables.map((env, index) => {
+                        const isAutoSecret =
+                          imageMode === 'builtin' &&
+                          env.key === 'OLLAMA_API_KEY';
+                        return (
+                          <Row key={index} gutter={8} style={{ marginTop: 8 }}>
+                            <Col span={10}>
+                              <Input
+                                placeholder={t('变量名')}
+                                value={env.key}
+                                onChange={(value) =>
+                                  handleEnvVariableChange(
+                                    index,
+                                    'key',
+                                    value,
+                                    'secret',
+                                  )
+                                }
+                                disabled={isAutoSecret}
+                              />
+                            </Col>
+                            <Col span={10}>
+                              <Input
+                                placeholder={t('变量值')}
+                                type='password'
+                                value={env.value}
+                                onChange={(value) =>
+                                  handleEnvVariableChange(
+                                    index,
+                                    'value',
+                                    value,
+                                    'secret',
+                                  )
+                                }
+                                disabled={isAutoSecret}
+                              />
+                            </Col>
+                            <Col span={4}>
+                              <Button
+                                icon={<IconMinus />}
+                                onClick={() =>
+                                  handleRemoveEnvVariable(index, 'secret')
+                                }
+                                disabled={
+                                  secretEnvVariables.length === 1 ||
+                                  isAutoSecret
+                                }
+                              />
+                            </Col>
+                          </Row>
+                        );
+                      })}
+                      <Button
+                        icon={<IconPlus />}
+                        onClick={() => handleAddEnvVariable('secret')}
+                        style={{ marginTop: 8 }}
                       >
-                        <Text size="small" type="tertiary">
-                          {item.label}
-                        </Text>
-                        <Text strong>{item.value}</Text>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                priceUnavailableContent
-              )}
-
-              {priceEstimation && loadingPrice && (
-                <Space align="center" spacing={8} style={{ marginTop: 12 }}>
-                  <Spin size="small" />
-                  <Text size="small" type="tertiary">
-                    {t('价格重新计算中...')}
-                  </Text>
-                </Space>
-              )}
+                        {t('添加密钥环境变量')}
+                      </Button>
+                    </div>
+                  </Card>
+                </Collapse.Panel>
+              </Collapse>
+            </div>
           </Card>
         </div>
 
+        <div ref={priceSectionRef}>
+          <Card className='mb-4'>
+            <div className='flex flex-wrap items-center justify-between gap-3'>
+              <Title heading={6} style={{ margin: 0 }}>
+                {t('价格预估')}
+              </Title>
+              <Space align='center' spacing={12} className='flex flex-wrap'>
+                <Text type='secondary' size='small'>
+                  {t('计价币种')}
+                </Text>
+                <RadioGroup
+                  type='button'
+                  value={priceCurrency}
+                  onChange={handleCurrencyChange}
+                >
+                  <Radio value='usdc'>USDC</Radio>
+                  <Radio value='iocoin'>IOCOIN</Radio>
+                </RadioGroup>
+                <Tag size='small' color='blue'>
+                  {currencyLabel}
+                </Tag>
+              </Space>
+            </div>
+
+            {priceEstimation ? (
+              <div className='mt-4 flex w-full flex-col gap-4'>
+                <div className='grid w-full gap-4 md:grid-cols-2 lg:grid-cols-3'>
+                  <div
+                    className='flex flex-col gap-1 rounded-md px-4 py-3'
+                    style={{
+                      border: '1px solid var(--semi-color-border)',
+                      backgroundColor: 'var(--semi-color-fill-0)',
+                    }}
+                  >
+                    <Text size='small' type='tertiary'>
+                      {t('预估总费用')}
+                    </Text>
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 600,
+                        color: 'var(--semi-color-text-0)',
+                      }}
+                    >
+                      {typeof priceEstimation.estimated_cost === 'number'
+                        ? `${priceEstimation.estimated_cost.toFixed(4)} ${currencyLabel}`
+                        : '--'}
+                    </div>
+                  </div>
+                  <div
+                    className='flex flex-col gap-1 rounded-md px-4 py-3'
+                    style={{
+                      border: '1px solid var(--semi-color-border)',
+                      backgroundColor: 'var(--semi-color-fill-0)',
+                    }}
+                  >
+                    <Text size='small' type='tertiary'>
+                      {t('小时费率')}
+                    </Text>
+                    <Text strong>
+                      {typeof priceEstimation.price_breakdown?.hourly_rate ===
+                      'number'
+                        ? `${priceEstimation.price_breakdown.hourly_rate.toFixed(4)} ${currencyLabel}/h`
+                        : '--'}
+                    </Text>
+                  </div>
+                  <div
+                    className='flex flex-col gap-1 rounded-md px-4 py-3'
+                    style={{
+                      border: '1px solid var(--semi-color-border)',
+                      backgroundColor: 'var(--semi-color-fill-0)',
+                    }}
+                  >
+                    <Text size='small' type='tertiary'>
+                      {t('计算成本')}
+                    </Text>
+                    <Text strong>
+                      {typeof priceEstimation.price_breakdown?.compute_cost ===
+                      'number'
+                        ? `${priceEstimation.price_breakdown.compute_cost.toFixed(4)} ${currencyLabel}`
+                        : '--'}
+                    </Text>
+                  </div>
+                </div>
+
+                <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+                  {priceSummaryItems.map((item) => (
+                    <div
+                      key={item.key}
+                      className='flex items-center justify-between gap-3 rounded-md px-3 py-2'
+                      style={{
+                        border: '1px solid var(--semi-color-border)',
+                        backgroundColor: 'var(--semi-color-fill-0)',
+                      }}
+                    >
+                      <Text size='small' type='tertiary'>
+                        {item.label}
+                      </Text>
+                      <Text strong>{item.value}</Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              priceUnavailableContent
+            )}
+
+            {priceEstimation && loadingPrice && (
+              <Space align='center' spacing={8} style={{ marginTop: 12 }}>
+                <Spin size='small' />
+                <Text size='small' type='tertiary'>
+                  {t('价格重新计算中...')}
+                </Text>
+              </Space>
+            )}
+          </Card>
+        </div>
       </Form>
     </Modal>
   );

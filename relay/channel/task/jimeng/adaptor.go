@@ -17,6 +17,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -409,14 +410,15 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 
 	// 即梦视频3.0 ReqKey转换
 	// https://www.volcengine.com/docs/85621/1792707
+	imageLen := lo.Max([]int{len(req.Images), len(r.BinaryDataBase64), len(r.ImageUrls)})
 	if strings.Contains(r.ReqKey, "jimeng_v30") {
 		if r.ReqKey == "jimeng_v30_pro" {
 			// 3.0 pro只有固定的jimeng_ti2v_v30_pro
 			r.ReqKey = "jimeng_ti2v_v30_pro"
-		} else if len(req.Images) > 1 {
+		} else if imageLen > 1 {
 			// 多张图片：首尾帧生成
 			r.ReqKey = strings.TrimSuffix(strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_tail_v30", 1), "p")
-		} else if len(req.Images) == 1 {
+		} else if imageLen == 1 {
 			// 单张图片：图生视频
 			r.ReqKey = strings.TrimSuffix(strings.Replace(r.ReqKey, "jimeng_v30", "jimeng_i2v_first_v30", 1), "p")
 		} else {

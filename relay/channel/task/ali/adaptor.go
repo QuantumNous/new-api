@@ -291,7 +291,9 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 				aliReq.Parameters.Size = "1280*720"
 			}
 		} else {
-			if strings.HasPrefix(req.Model, "wan2.5") {
+			if strings.HasPrefix(req.Model, "wan2.6") {
+				aliReq.Parameters.Resolution = "1080P"
+			} else if strings.HasPrefix(req.Model, "wan2.5") {
 				aliReq.Parameters.Resolution = "1080P"
 			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
 				aliReq.Parameters.Resolution = "720P"

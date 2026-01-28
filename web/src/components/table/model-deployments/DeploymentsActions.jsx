@@ -27,13 +27,14 @@ const DeploymentsActions = ({
   setEditingDeployment,
   setShowEdit,
   batchDeleteDeployments,
+  batchOperationsEnabled = true,
   compactMode,
   setCompactMode,
   showCreateModal,
   setShowCreateModal,
   t,
 }) => {
-  const hasSelected = selectedKeys.length > 0;
+  const hasSelected = batchOperationsEnabled && selectedKeys.length > 0;
 
   const handleAddDeployment = () => {
     if (setShowCreateModal) {
@@ -52,7 +53,6 @@ const DeploymentsActions = ({
   const handleDeselectAll = () => {
     setSelectedKeys([]);
   };
-
 
   return (
     <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>

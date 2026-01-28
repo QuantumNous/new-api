@@ -1,7 +1,6 @@
 package ali
 
 import (
-	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -25,8 +24,6 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	var imageRequest AliImageRequest
 	imageRequest.Model = request.Model
 	imageRequest.ResponseFormat = request.ResponseFormat
-	logger.LogJson(context.Background(), "oaiImage2Ali request extra", request.Extra)
-	logger.LogDebug(context.Background(), "oaiImage2Ali request isSync: "+fmt.Sprintf("%v", isSync))
 	if request.Extra != nil {
 		if val, ok := request.Extra["parameters"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Parameters)

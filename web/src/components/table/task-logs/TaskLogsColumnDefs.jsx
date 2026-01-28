@@ -371,13 +371,12 @@ export const getTaskLogsColumns = ({
         const isSuccess = record.status === 'SUCCESS';
         const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
         if (isSuccess && isVideoTask && isUrl) {
-          const videoUrl = `/v1/videos/${record.task_id}/content`;
           return (
             <a
               href='#'
               onClick={(e) => {
                 e.preventDefault();
-                openVideoModal(videoUrl);
+                openVideoModal(text);
               }}
             >
               {t('点击预览视频')}
