@@ -144,7 +144,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.
 	if !success {
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[modelName]
 		if !ok {
-			modelPrice = 0.1
+			modelPrice = float64(common.PreConsumedQuota) / common.QuotaPerUnit
 		} else {
 			modelPrice = defaultPrice
 		}
