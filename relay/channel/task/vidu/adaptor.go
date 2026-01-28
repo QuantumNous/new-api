@@ -279,6 +279,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		if len(taskResp.Creations) > 0 {
 			taskInfo.Url = taskResp.Creations[0].URL
 		}
+		if taskResp.Credits > 0 {
+			taskInfo.CompletionTokens = taskResp.Credits
+			taskInfo.TotalTokens = taskResp.Credits
+		}
 	case "failed":
 		taskInfo.Status = model.TaskStatusFailure
 		if taskResp.ErrCode != "" {
