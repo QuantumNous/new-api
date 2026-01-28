@@ -838,9 +838,12 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 			}
 		}
 
-		// 设置 disable_parallel_tool_use
-		// 如果 parallel_tool_calls 为 true，则 disable_parallel_tool_use 为 false
-		claudeToolChoice.DisableParallelToolUse = !*parallelToolCalls
+		// Anthropic schema: tool_choice.type=none does not accept extra fields.
+		// When tools are disabled, parallel_tool_calls is irrelevant, so we drop it.
+		if claudeToolChoice.Type != "none" {
+			// 如果 parallel_tool_calls 为 true，则 disable_parallel_tool_use 为 false
+			claudeToolChoice.DisableParallelToolUse = !*parallelToolCalls
+		}
 	}
 
 	return claudeToolChoice
