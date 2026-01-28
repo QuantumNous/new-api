@@ -463,7 +463,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 			if wildcardRatio, ok := modelRatioMap[CompactWildcardModelKey]; ok {
 				return wildcardRatio, true, name
 			}
-			return 0, true, name
+			//return 0, true, name
 		}
 		return 37.5, operation_setting.SelfUseModeEnabled, name
 	}
