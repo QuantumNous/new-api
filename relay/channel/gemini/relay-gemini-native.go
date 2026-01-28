@@ -25,6 +25,9 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if common.DebugEnabled {
 		println(string(responseBody))
@@ -34,6 +37,12 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	var geminiResponse dto.GeminiChatResponse
 	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("gemini.GeminiTextGenerationHandler status=%d", resp.StatusCode),
+			err,
+			responseBody,
+		)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
@@ -70,6 +79,9 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if common.DebugEnabled {
 		println(string(responseBody))
@@ -81,12 +93,24 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 		var geminiResponse dto.GeminiBatchEmbeddingResponse
 		err = common.Unmarshal(responseBody, &geminiResponse)
 		if err != nil {
+			logger.LogJSONUnmarshalError(
+				c,
+				fmt.Sprintf("gemini.NativeGeminiEmbeddingHandler batch status=%d", resp.StatusCode),
+				err,
+				responseBody,
+			)
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 	} else {
 		var geminiResponse dto.GeminiEmbeddingResponse
 		err = common.Unmarshal(responseBody, &geminiResponse)
 		if err != nil {
+			logger.LogJSONUnmarshalError(
+				c,
+				fmt.Sprintf("gemini.NativeGeminiEmbeddingHandler status=%d", resp.StatusCode),
+				err,
+				responseBody,
+			)
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 	}

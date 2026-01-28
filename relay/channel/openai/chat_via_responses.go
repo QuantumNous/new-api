@@ -30,8 +30,17 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	if len(body) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("openai.OaiResponsesToChatHandler status=%d", resp.StatusCode),
+			err,
+			body,
+		)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
@@ -72,13 +81,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	model := info.UpstreamModelName
 
 	var (
-		usage       = &dto.Usage{}
-		outputText  strings.Builder
-		usageText   strings.Builder
-		sentStart   bool
-		sentStop    bool
-		sawToolCall bool
-		streamErr   *types.NewAPIError
+		usage         = &dto.Usage{}
+		outputText    strings.Builder
+		usageText     strings.Builder
+		sentStart     bool
+		sentStop      bool
+		sawToolCall   bool
+		hasStreamData bool
+		streamErr     *types.NewAPIError
 	)
 
 	toolCallIndexByID := make(map[string]int)
@@ -167,13 +177,18 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		hasStreamData = true
 		if streamErr != nil {
+			return false
+		}
+		if strings.TrimSpace(data) == "" {
+			streamErr = types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			return false
 		}
 
 		var streamResp dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
-			logger.LogError(c, "failed to unmarshal responses stream event: "+err.Error())
+			logger.LogJSONUnmarshalError(c, "openai.OaiResponsesToChatStreamHandler", err, []byte(data))
 			return true
 		}
 
@@ -334,6 +349,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 		return true
 	})
+
+	if !hasStreamData {
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if streamErr != nil {
 		return nil, streamErr
