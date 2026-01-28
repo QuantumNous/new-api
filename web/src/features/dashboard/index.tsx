@@ -3,7 +3,6 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppHeader, Main } from '@/components/layout'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
@@ -12,11 +11,14 @@ import { FAQPanel } from './components/overview/faq-panel'
 import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
-import { type DashboardFilters } from './types'
+import {
+  type DashboardFilters,
+  type QuotaDataItem,
+} from './types'
+import type { DashboardSectionId } from './section-registry'
+import { DASHBOARD_DEFAULT_SECTION } from './section-registry'
 
 const route = getRouteApi('/_authenticated/dashboard/')
-
-type DashboardTab = 'overview' | 'models'
 
 const LazyLogStatCards = lazy(() =>
   import('./components/models/log-stat-cards').then((m) => ({
@@ -58,26 +60,11 @@ function ModelChartsFallback() {
 
 export function Dashboard() {
   const { t } = useTranslation()
-  const navigate = route.useNavigate()
   const search = route.useSearch()
-  const activeTab: DashboardTab = search.tab ?? 'overview'
+  const activeSection = (search.section ?? DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
-  const setActiveTab = useCallback(
-    (tab: string) => {
-      if (tab !== 'overview' && tab !== 'models') return
-      const nextTab: DashboardTab = tab
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          tab: nextTab === 'overview' ? undefined : nextTab,
-        }),
-        replace: true,
-      })
-    },
-    [navigate]
-  )
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
-  const [modelData, setModelData] = useState<any[]>([])
+  const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
 
   const handleFilterChange = useCallback((filters: DashboardFilters) => {
@@ -88,7 +75,7 @@ export function Dashboard() {
     setModelFilters({})
   }, [])
 
-  const handleDataUpdate = useCallback((data: any[], loading: boolean) => {
+  const handleDataUpdate = useCallback((data: QuotaDataItem[], loading: boolean) => {
     setModelData(data)
     setDataLoading(loading)
   }, [])
@@ -100,12 +87,19 @@ export function Dashboard() {
 
       {/* ===== Main ===== */}
       <Main>
-        <div className='mb-2 flex items-center justify-between space-y-2'>
-          <h1 className='text-2xl font-bold tracking-tight'>
-            {t('Dashboard')}
-          </h1>
+        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
+          <div>
+            <h2 className='text-2xl font-bold tracking-tight'>
+              {activeSection === 'overview' ? t('Overview') : t('Models')}
+            </h2>
+            <p className='text-muted-foreground'>
+              {activeSection === 'overview'
+                ? t('View dashboard overview and statistics')
+                : t('View model statistics and charts')}
+            </p>
+          </div>
           <div className='flex items-center space-x-2'>
-            {activeTab === 'models' && (
+            {activeSection === 'models' && (
               <ModelsFilter
                 onFilterChange={handleFilterChange}
                 onReset={handleResetFilters}
@@ -113,48 +107,39 @@ export function Dashboard() {
             )}
           </div>
         </div>
-        <Tabs
-          orientation='vertical'
-          defaultValue='overview'
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className='space-y-4'
-        >
-          <div className='w-full overflow-x-auto pb-2'>
-            <TabsList>
-              <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
-              <TabsTrigger value='models'>{t('Models')}</TabsTrigger>
-            </TabsList>
-          </div>
-          <TabsContent value='overview' className='space-y-4'>
-            <SummaryCards />
-            <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
-              <ApiInfoPanel />
-              <AnnouncementsPanel />
-              <FAQPanel />
-              <UptimePanel />
-            </div>
-          </TabsContent>
-          <TabsContent value='models' className='space-y-4'>
-            <Suspense fallback={<LogStatCardsFallback />}>
-              <LazyLogStatCards
-                filters={modelFilters}
-                onDataUpdate={handleDataUpdate}
-              />
-            </Suspense>
-            <div className='grid grid-cols-1 gap-4'>
-              <Suspense fallback={<ModelChartsFallback />}>
-                <LazyModelCharts
-                  data={modelData}
-                  loading={dataLoading}
-                  timeGranularity={
-                    modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
-                  }
+        <div className='space-y-4'>
+          {activeSection === 'overview' ? (
+            <>
+              <SummaryCards />
+              <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+                <ApiInfoPanel />
+                <AnnouncementsPanel />
+                <FAQPanel />
+                <UptimePanel />
+              </div>
+            </>
+          ) : (
+            <>
+              <Suspense fallback={<LogStatCardsFallback />}>
+                <LazyLogStatCards
+                  filters={modelFilters}
+                  onDataUpdate={handleDataUpdate}
                 />
               </Suspense>
-            </div>
-          </TabsContent>
-        </Tabs>
+              <div className='grid grid-cols-1 gap-4'>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyModelCharts
+                    data={modelData}
+                    loading={dataLoading}
+                    timeGranularity={
+                      modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
+                    }
+                  />
+                </Suspense>
+              </div>
+            </>
+          )}
+        </div>
       </Main>
     </>
   )

@@ -33,7 +33,7 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
 
   useEffect(() => {
-    let mounted = true
+    const abortController = new AbortController()
     setLoading(true)
     setError(false)
     onDataUpdate?.([], true)
@@ -48,20 +48,25 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
 
     getUserQuotaDates(buildQueryParams(timeRange, filters))
       .then((res) => {
-        if (!mounted) return
+        if (abortController.signal.aborted) return
         const data = res?.data || []
         setStats(calculateDashboardStats(data))
         onDataUpdate?.(data, false)
       })
       .catch(() => {
+        if (abortController.signal.aborted) return
         setStats(null)
         setError(true)
         onDataUpdate?.([], false)
       })
-      .finally(() => mounted && setLoading(false))
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setLoading(false)
+        }
+      })
 
     return () => {
-      mounted = false
+      abortController.abort()
     }
   }, [filters, onDataUpdate])
 

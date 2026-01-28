@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
@@ -8,10 +8,15 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
+import type { AnnouncementItem } from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './announcement-detail-dialog'
 
-function AnnouncementStatusDot({ type }: { type?: string }) {
+const AnnouncementStatusDot = memo(function AnnouncementStatusDot({
+  type,
+}: {
+  type?: string
+}) {
   return (
     <span
       className={cn(
@@ -20,15 +25,16 @@ function AnnouncementStatusDot({ type }: { type?: string }) {
       )}
     />
   )
-}
+})
 
 export function AnnouncementsPanel() {
   const { t } = useTranslation()
   const { items: list, loading } = useAnnouncements()
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null)
+  const [selectedAnnouncement, setSelectedAnnouncement] =
+    useState<AnnouncementItem | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const handleAnnouncementClick = (item: any) => {
+  const handleAnnouncementClick = (item: AnnouncementItem) => {
     setSelectedAnnouncement(item)
     setIsDialogOpen(true)
   }
@@ -48,8 +54,11 @@ export function AnnouncementsPanel() {
     >
       <ScrollArea className='h-64'>
         <div className='space-y-0 pe-4'>
-          {list.map((item: any, idx: number) => (
-            <div key={idx}>
+          {list.map((item: AnnouncementItem, idx: number) => {
+            // Use id if available, otherwise fallback to index
+            const key = item.id ?? `announcement-${idx}`
+            return (
+              <div key={key}>
               <button
                 onClick={() => handleAnnouncementClick(item)}
                 className='group hover:bg-accent/50 -mx-2 w-full rounded-lg px-2 py-3 text-left transition-colors'
@@ -73,9 +82,10 @@ export function AnnouncementsPanel() {
                   </div>
                 </div>
               </button>
-              {idx < list.length - 1 && <Separator className='my-0' />}
-            </div>
-          ))}
+                {idx < list.length - 1 && <Separator className='my-0' />}
+              </div>
+            )
+          })}
         </div>
       </ScrollArea>
 

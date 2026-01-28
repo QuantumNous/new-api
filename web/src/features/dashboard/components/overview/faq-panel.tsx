@@ -9,6 +9,7 @@ import {
 import { Markdown } from '@/components/ui/markdown'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useFAQ } from '@/features/dashboard/hooks/use-status-data'
+import type { FAQItem } from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 export function FAQPanel() {
@@ -30,8 +31,12 @@ export function FAQPanel() {
     >
       <ScrollArea className='h-80'>
         <Accordion type='single' collapsible className='w-full pe-4'>
-          {list.map((item: any, idx: number) => (
-            <AccordionItem key={idx} value={`item-${idx}`}>
+          {list.map((item: FAQItem, idx: number) => {
+            // Use id if available, otherwise fallback to index
+            const key = item.id ?? `faq-${idx}`
+            const value = `item-${key}`
+            return (
+              <AccordionItem key={key} value={value}>
               <AccordionTrigger className='text-start hover:no-underline'>
                 <Markdown className='text-sm leading-relaxed font-semibold'>
                   {item.question}
@@ -42,8 +47,9 @@ export function FAQPanel() {
                   {item.answer}
                 </Markdown>
               </AccordionContent>
-            </AccordionItem>
-          ))}
+              </AccordionItem>
+            )
+          })}
         </Accordion>
       </ScrollArea>
     </PanelWrapper>

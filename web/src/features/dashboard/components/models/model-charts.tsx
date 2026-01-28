@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart as PieChartIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +13,9 @@ import type {
   ProcessedChartData,
   QuotaDataItem,
 } from '@/features/dashboard/types'
+
+// Cache ThemeManager import to avoid repeated dynamic imports
+let themeManagerPromise: Promise<typeof import('@visactor/vchart')['ThemeManager']> | null = null
 
 type ChartTab = '1' | '2' | '3' | '4'
 
@@ -42,13 +45,24 @@ export function ModelCharts({
   const { resolvedTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<ChartTab>('1')
   const [themeReady, setThemeReady] = useState(false)
+  const themeManagerRef = useRef<typeof import('@visactor/vchart')['ThemeManager'] | null>(null)
 
   useEffect(() => {
-    setThemeReady(false)
-    import('@visactor/vchart').then(({ ThemeManager }) => {
+    const updateTheme = async () => {
+      setThemeReady(false)
+      
+      // Use cached promise or create new one
+      if (!themeManagerPromise) {
+        themeManagerPromise = import('@visactor/vchart').then((m) => m.ThemeManager)
+      }
+      
+      const ThemeManager = await themeManagerPromise
+      themeManagerRef.current = ThemeManager
       ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
       setThemeReady(true)
-    })
+    }
+    
+    updateTheme()
   }, [resolvedTheme])
 
   const chartData = useMemo(

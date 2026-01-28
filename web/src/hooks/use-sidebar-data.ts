@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 import { getModelsSectionNavItems } from '@/features/models/section-registry'
+import { getDashboardSectionNavItems } from '@/features/dashboard/section-registry'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
@@ -52,8 +53,8 @@ export function useSidebarData(): SidebarData {
         items: [
           {
             title: t('Dashboard'),
-            url: '/dashboard',
             icon: LayoutDashboard,
+            items: getDashboardSectionNavItems(t),
           },
           {
             title: t('API Keys'),

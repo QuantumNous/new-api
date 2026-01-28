@@ -17,10 +17,10 @@ export const TIME_GRANULARITY_OPTIONS = [
 ] as const
 
 export const TIME_RANGE_PRESETS = [
-  { label: '1D', days: 1 },
-  { label: '7D', days: 7 },
-  { label: '14D', days: 14 },
-  { label: '29D', days: 29 },
+  { label: '1 Day', days: 1 },
+  { label: '7 Days', days: 7 },
+  { label: '14 Days', days: 14 },
+  { label: '29 Days', days: 29 },
 ] as const
 
 export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {

@@ -74,3 +74,25 @@ export interface ProcessedChartData {
   spec_model_line: VChartSpec
   spec_rank_bar: VChartSpec
 }
+
+// ============================================================================
+// Announcement Types
+// ============================================================================
+
+export interface AnnouncementItem {
+  id?: number
+  content: string
+  publishDate?: string
+  type?: 'default' | 'ongoing' | 'success' | 'warning' | 'error'
+  extra?: string
+}
+
+// ============================================================================
+// FAQ Types
+// ============================================================================
+
+export interface FAQItem {
+  id?: number
+  question: string
+  answer: string
+}
