@@ -16,14 +16,19 @@ function Calendar({
   buttonVariant = 'ghost',
   formatters,
   components,
+  locale,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>['variant']
+  /** date-fns locale for i18n (month/weekday labels). Pass from useTranslation/i18n. */
+  locale?: React.ComponentProps<typeof DayPicker>['locale']
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const localeCode = locale?.code ?? 'default'
 
   return (
     <DayPicker
+      locale={locale}
       showOutsideDays={showOutsideDays}
       className={cn(
         'bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent',
@@ -34,7 +39,7 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString('default', { month: 'short' }),
+          date.toLocaleString(localeCode, { month: 'short' }),
         ...formatters,
       }}
       classNames={{

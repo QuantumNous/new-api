@@ -2,6 +2,14 @@ import * as React from 'react'
 import dayjs from '@/lib/dayjs'
 import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import {
+  enUS,
+  fr,
+  ja,
+  ru,
+  vi,
+  zhCN,
+} from 'react-day-picker/locale'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -11,6 +19,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+
+const calendarLocales = {
+  en: enUS,
+  zh: zhCN,
+  fr,
+  ru,
+  ja,
+  vi,
+} as const
 
 interface DateTimePickerProps {
   value?: Date
@@ -25,8 +42,10 @@ export function DateTimePicker({
   placeholder,
   className,
 }: DateTimePickerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
+  const calendarLocale =
+    calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
@@ -101,6 +120,7 @@ export function DateTimePicker({
             onMonthChange={setMonth}
             captionLayout='dropdown'
             onSelect={handleDateSelect}
+            locale={calendarLocale}
           />
         </PopoverContent>
       </Popover>
