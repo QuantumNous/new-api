@@ -171,7 +171,26 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
+	// BASE_PATH 支持子路径部署
+	basePath := strings.TrimSuffix(os.Getenv("BASE_PATH"), "/")
+	if basePath != "" {
+		// 使用自定义 Handler 在 Gin 处理之前剥离路径前缀
+		err = http.ListenAndServe(":"+port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, basePath) {
+				r.URL.Path = strings.TrimPrefix(r.URL.Path, basePath)
+				if r.URL.Path == "" {
+					r.URL.Path = "/"
+				}
+				r.RequestURI = strings.TrimPrefix(r.RequestURI, basePath)
+				if r.RequestURI == "" {
+					r.RequestURI = "/"
+				}
+			}
+			server.ServeHTTP(w, r)
+		}))
+	} else {
+		err = server.Run(":" + port)
+	}
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
