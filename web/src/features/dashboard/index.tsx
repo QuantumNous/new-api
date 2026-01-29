@@ -3,7 +3,7 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AppHeader, Main } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { AnnouncementsPanel } from './components/overview/announcements-panel'
 import { ApiInfoPanel } from './components/overview/api-info-panel'
@@ -81,32 +81,24 @@ export function Dashboard() {
   }, [])
 
   return (
-    <>
-      {/* ===== Top Heading ===== */}
-      <AppHeader fixed />
-
-      {/* ===== Main ===== */}
-      <Main>
-        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
-          <div>
-            <h2 className='text-2xl font-bold tracking-tight'>
-              {activeSection === 'overview' ? t('Overview') : t('Models')}
-            </h2>
-            <p className='text-muted-foreground'>
-              {activeSection === 'overview'
-                ? t('View dashboard overview and statistics')
-                : t('View model statistics and charts')}
-            </p>
-          </div>
-          <div className='flex items-center space-x-2'>
-            {activeSection === 'models' && (
-              <ModelsFilter
-                onFilterChange={handleFilterChange}
-                onReset={handleResetFilters}
-              />
-            )}
-          </div>
-        </div>
+    <SectionPageLayout>
+      <SectionPageLayout.Title>
+        {activeSection === 'overview' ? t('Overview') : t('Models')}
+      </SectionPageLayout.Title>
+      <SectionPageLayout.Description>
+        {activeSection === 'overview'
+          ? t('View dashboard overview and statistics')
+          : t('View model statistics and charts')}
+      </SectionPageLayout.Description>
+      {activeSection === 'models' && (
+        <SectionPageLayout.Actions>
+          <ModelsFilter
+            onFilterChange={handleFilterChange}
+            onReset={handleResetFilters}
+          />
+        </SectionPageLayout.Actions>
+      )}
+      <SectionPageLayout.Content>
         <div className='space-y-4'>
           {activeSection === 'overview' ? (
             <>
@@ -140,7 +132,7 @@ export function Dashboard() {
             </>
           )}
         </div>
-      </Main>
-    </>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

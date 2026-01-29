@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { AppHeader, Main } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
@@ -70,20 +70,16 @@ function ModelsContent() {
 
   return (
     <>
-      <AppHeader fixed />
-
-      <Main>
-        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
-          <div>
-            <h2 className='text-2xl font-bold tracking-tight'>
-              {activeSection === 'metadata' ? t('Metadata') : t('Deployments')}
-            </h2>
-            <p className='text-muted-foreground'>
-              {activeSection === 'metadata'
-                ? t('Manage model metadata and configuration')
-                : t('Manage model deployments')}
-            </p>
-          </div>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>
+          {activeSection === 'metadata' ? t('Metadata') : t('Deployments')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {activeSection === 'metadata'
+            ? t('Manage model metadata and configuration')
+            : t('Manage model deployments')}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
           ) : (
@@ -92,8 +88,8 @@ function ModelsContent() {
               {t('Create deployment')}
             </Button>
           )}
-        </div>
-        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
           {activeSection === 'metadata' ? (
             <ModelsTable />
           ) : (
@@ -109,8 +105,8 @@ function ModelsContent() {
               <DeploymentsTable />
             </DeploymentAccessGuard>
           )}
-        </div>
-      </Main>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
       <ModelsDialogs />
       <CreateDeploymentDrawer
