@@ -81,6 +81,11 @@ const LoginForm = () => {
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
+  const [directLoginData, setDirectLoginData] = useState({
+    loginToken: '',
+    qrcodeUrl: '',
+    polling: false
+  });
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
@@ -150,7 +155,7 @@ const LoginForm = () => {
     }
   }, []);
 
-  const onWeChatLoginClicked = () => {
+  const onWeChatLoginClicked = async () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
@@ -158,6 +163,10 @@ const LoginForm = () => {
     setWechatLoading(true);
     setShowWeChatLoginModal(true);
     setWechatLoading(false);
+
+    if (status.wechat_direct_login_enabled) {
+      await generateDirectLoginQRCode();
+    }
   };
 
   const onSubmitWeChatVerificationCode = async () => {
@@ -186,6 +195,88 @@ const LoginForm = () => {
       showError('登录失败，请重试');
     } finally {
       setWechatCodeSubmitLoading(false);
+    }
+  };
+
+  // 生成直接登录二维码
+  const generateDirectLoginQRCode = async () => {
+    try {
+      setDirectLoginData(prev => ({ ...prev, polling: true }));
+      const res = await API.post('/api/wechat/create_login_qrcode');
+      if (res.data.success) {
+        setDirectLoginData({
+          loginToken: res.data.data.login_token,
+          qrcodeUrl: res.data.data.qrcode_url,
+          polling: true
+        });
+
+        // 开始轮询登录状态
+        pollLoginStatus(res.data.data.login_token);
+      } else {
+        showError(res.data.message || '生成二维码失败');
+        setDirectLoginData(prev => ({ ...prev, polling: false }));
+      }
+    } catch (error) {
+      showError('生成二维码失败');
+      setDirectLoginData(prev => ({ ...prev, polling: false }));
+    }
+  };
+
+  // 轮询登录状态
+  const pollLoginStatus = async (loginToken) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await API.get(`/api/wechat/login_status?login_token=${loginToken}`);
+        if (res.data.success) {
+          const { status, auth_code } = res.data.data;
+
+          if (status === 'success' && auth_code) {
+            clearInterval(interval);
+            setDirectLoginData(prev => ({ ...prev, polling: false }));
+
+            // 使用授权码完成登录
+            await loginWithAuthCode(auth_code);
+          } else if (status === 'expired') {
+            clearInterval(interval);
+            setDirectLoginData(prev => ({ ...prev, polling: false }));
+            showError('二维码已过期，请重新生成');
+          }
+        }
+      } catch (error) {
+        console.error('轮询失败:', error);
+      }
+    }, 2000); // 每2秒轮询一次
+
+    // 10分钟后停止轮询
+    setTimeout(() => {
+      clearInterval(interval);
+      setDirectLoginData(prev => ({ ...prev, polling: false }));
+    }, 10 * 60 * 1000);
+  };
+
+  // 使用授权码登录
+  const loginWithAuthCode = async (authCode) => {
+    if (turnstileEnabled && turnstileToken === '') {
+      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
+      return;
+    }
+
+    try {
+      const res = await API.get(`/api/oauth/wechat?code=${authCode}`);
+      const { success, message, data } = res.data;
+      if (success) {
+        userDispatch({ type: 'login', payload: data });
+        localStorage.setItem('user', JSON.stringify(data));
+        setUserData(data);
+        updateAPI();
+        navigate('/');
+        showSuccess('登录成功！');
+        setShowWeChatLoginModal(false);
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError('登录失败，请重试');
     }
   };
 
@@ -808,23 +899,23 @@ const LoginForm = () => {
     );
   };
 
-  // 微信登录模态框
-  const renderWeChatLoginModal = () => {
+  // 渲染验证码登录界面
+  const renderVerificationLogin = () => {
     return (
       <Modal
-        title={t('微信扫码登录')}
-        visible={showWeChatLoginModal}
-        maskClosable={true}
-        onOk={onSubmitWeChatVerificationCode}
-        onCancel={() => setShowWeChatLoginModal(false)}
-        okText={t('登录')}
-        centered={true}
-        okButtonProps={{
-          loading: wechatCodeSubmitLoading,
-        }}
+            title={t('微信扫码登录')}
+            visible={showWeChatLoginModal}
+            maskClosable={true}
+            onOk={onSubmitWeChatVerificationCode}
+            onCancel={() => setShowWeChatLoginModal(false)}
+            okText={t('登录')}
+            centered={true}
+            okButtonProps={{
+                loading: wechatCodeSubmitLoading,
+            }}
       >
-        <div className='flex flex-col items-center'>
-          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4' />
+        <div className='flex flex-col items-center mb-4'>
+          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4 w-32 h-32' />
         </div>
 
         <div className='text-center mb-4'>
@@ -844,6 +935,70 @@ const LoginForm = () => {
             }
           />
         </Form>
+      </Modal>
+    );
+  };
+
+  // 渲染扫码直接登录界面
+  const renderDirectLogin = () => {
+    return (
+      <div>
+        <div className='flex flex-col items-center'>
+          {directLoginData.qrcodeUrl ? (
+            <>
+              <img
+                src={directLoginData.qrcodeUrl}
+                alt='登录二维码'
+                className='mb-4 w-32 h-32 border border-gray-200 rounded'
+              />
+              <div className='text-center mb-4'>
+                <p>请使用微信扫码关注公众号，即可自动登录</p>
+                {directLoginData.polling && (
+                  <p className='text-blue-500 mt-2'>正在等待扫码...</p>
+                )}
+              </div>
+              <Button
+                theme='borderless'
+                type='tertiary'
+                onClick={generateDirectLoginQRCode}
+                loading={directLoginData.polling}
+              >
+                刷新二维码
+              </Button>
+            </>
+          ) : (
+            <div className='text-center py-8'>
+              <p className='text-blue-500'>正在生成二维码...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 微信登录模态框
+  const renderWeChatLoginModal = () => {
+    // 根据 WeChatDirectLoginEnabled 决定显示哪种登录方式
+    const isDirectLogin = status.wechat_direct_login_enabled;
+
+    return (
+      <Modal
+        title={isDirectLogin ? t('扫码直接登录') : t('验证码登录')}
+        visible={showWeChatLoginModal}
+        maskClosable={true}
+        onCancel={() => {
+          setShowWeChatLoginModal(false);
+          setDirectLoginData({ loginToken: '', qrcodeUrl: '', polling: false });
+        }}
+        centered={true}
+        footer={isDirectLogin ? null : undefined}
+        onOk={isDirectLogin ? undefined : onSubmitWeChatVerificationCode}
+        okText={isDirectLogin ? undefined : t('登录')}
+        okButtonProps={isDirectLogin ? undefined : {
+          loading: wechatCodeSubmitLoading,
+        }}
+      >
+        {isDirectLogin ? renderDirectLogin() : renderVerificationLogin()}
       </Modal>
     );
   };

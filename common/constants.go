@@ -93,6 +93,7 @@ var LinuxDOMinimumTrustLevel = 0
 var WeChatServerAddress = ""
 var WeChatServerToken = ""
 var WeChatAccountQRCodeImageURL = ""
+var WeChatDirectLoginEnabled = false // 扫码直接登录开关，false使用验证码登录，true使用扫码直接登录
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
