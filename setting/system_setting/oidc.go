@@ -10,6 +10,8 @@ type OIDCSettings struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	RoleClaimEnabled      bool   `json:"role_claim_enabled"` // 是否启用角色声明自动设置用户组和管理员
+	AutoMergeEnabled      bool   `json:"auto_merge_enabled"` // 是否启用通过邮箱自动合并用户
 }
 
 // 默认配置
