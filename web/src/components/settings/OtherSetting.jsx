@@ -498,18 +498,21 @@ const OtherSetting = () => {
         title={t('新版本') + '：' + updateData.tag_name}
         visible={showUpdateModal}
         onCancel={() => setShowUpdateModal(false)}
-        footer={[
-          <Button
-            key='details'
-            type='primary'
-            onClick={() => {
-              setShowUpdateModal(false);
-              openGitHubRelease();
-            }}
-          >
-            {t('详情')}
-          </Button>,
-        ]}
+        footer={
+          <div className='flex justify-end'>
+            <Button
+              key='details'
+              type='primary'
+              theme='solid'
+              onClick={() => {
+                setShowUpdateModal(false);
+                openGitHubRelease();
+              }}
+            >
+              {t('详情')}
+            </Button>
+          </div>
+        }
       >
         <div dangerouslySetInnerHTML={{ __html: updateData.content }}></div>
       </Modal>

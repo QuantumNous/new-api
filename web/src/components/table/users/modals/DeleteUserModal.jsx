@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button, Space } from '@douyinfe/semi-ui';
 
 const DeleteUserModal = ({
   visible,
@@ -47,8 +47,17 @@ const DeleteUserModal = ({
       title={t('确定是否要注销此用户？')}
       visible={visible}
       onCancel={onCancel}
-      onOk={handleConfirm}
       type='danger'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='danger' theme='solid' onClick={handleConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {t('相当于删除用户，此修改将不可逆')}
     </Modal>

@@ -26,6 +26,7 @@ import {
   Typography,
   Empty,
   Input,
+  Space,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -128,9 +129,15 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
       }
       visible={visible}
       onCancel={onClose}
-      footer={null}
       size={isMobile ? 'full-width' : 'medium'}
       className='!rounded-lg'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onClose}>{t('关闭')}</Button>
+          </Space>
+        </div>
+      }
     >
       <Spin spinning={loading}>
         {missingModels.length === 0 && !loading ? (

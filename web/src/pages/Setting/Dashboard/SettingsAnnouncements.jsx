@@ -520,11 +520,24 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <Modal
         title={editingAnnouncement ? t('编辑公告') : t('添加公告')}
         visible={showAnnouncementModal}
-        onOk={handleSaveAnnouncement}
         onCancel={() => setShowAnnouncementModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setShowAnnouncementModal(false)}>
+                {t('取消')}
+              </Button>
+              <Button
+                theme='solid'
+                type='primary'
+                loading={modalLoading}
+                onClick={handleSaveAnnouncement}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form
           layout='vertical'
@@ -584,18 +597,32 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <Modal
         title={t('确认删除')}
         visible={showDeleteModal}
-        onOk={confirmDeleteAnnouncement}
         onCancel={() => {
           setShowDeleteModal(false);
           setDeletingAnnouncement(null);
         }}
-        okText={t('确认删除')}
-        cancelText={t('取消')}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingAnnouncement(null);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button
+                theme='solid'
+                type='danger'
+                onClick={confirmDeleteAnnouncement}
+              >
+                {t('确认删除')}
+              </Button>
+            </Space>
+          </div>
+        }
         type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
-        }}
       >
         <Text>{t('确定要删除此公告吗？')}</Text>
       </Modal>
@@ -604,16 +631,32 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       <Modal
         title={t('编辑公告内容')}
         visible={showContentModal}
-        onOk={() => {
-          // 将内容同步到表单
-          if (formApiRef.current) {
-            formApiRef.current.setValue('content', announcementForm.content);
-          }
-          setShowContentModal(false);
-        }}
         onCancel={() => setShowContentModal(false)}
-        okText={t('确定')}
-        cancelText={t('取消')}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setShowContentModal(false)}>
+                {t('取消')}
+              </Button>
+              <Button
+                theme='solid'
+                type='primary'
+                onClick={() => {
+                  // 将内容同步到表单
+                  if (formApiRef.current) {
+                    formApiRef.current.setValue(
+                      'content',
+                      announcementForm.content,
+                    );
+                  }
+                  setShowContentModal(false);
+                }}
+              >
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
         width={800}
       >
         <TextArea

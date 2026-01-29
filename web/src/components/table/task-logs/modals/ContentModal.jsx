@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
+import { Modal, Button, Typography, Spin, Space } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -151,7 +151,6 @@ const ContentModal = ({
   return (
     <Modal
       visible={isModalOpen}
-      onOk={() => setIsModalOpen(false)}
       onCancel={() => setIsModalOpen(false)}
       closable={null}
       bodyStyle={{
@@ -160,6 +159,19 @@ const ContentModal = ({
         padding: isVideo && videoError ? '0' : '24px',
       }}
       width={800}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button
+              type='primary'
+              theme='solid'
+              onClick={() => setIsModalOpen(false)}
+            >
+              {t('关闭')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {isVideo ? (
         renderVideoContent()

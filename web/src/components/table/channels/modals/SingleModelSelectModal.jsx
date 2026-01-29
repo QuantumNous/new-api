@@ -21,11 +21,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
+  Button,
   Collapse,
   Empty,
   Input,
   Modal,
   Radio,
+  Space,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -119,11 +121,22 @@ const SingleModelSelectModal = ({
         </div>
       }
       visible={visible}
-      onOk={() => onConfirm?.(selectedModel)}
       onCancel={onCancel}
-      okText={t('确定')}
-      cancelText={t('取消')}
-      okButtonProps={{ disabled: !selectedModel }}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              onClick={() => onConfirm?.(selectedModel)}
+              disabled={!selectedModel}
+            >
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
       size={isMobile ? 'full-width' : 'large'}
       closeOnEsc
       maskClosable

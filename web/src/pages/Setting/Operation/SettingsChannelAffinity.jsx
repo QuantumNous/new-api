@@ -907,10 +907,26 @@ export default function SettingsChannelAffinity(props) {
           setModalInitValues(null);
           setModalAdvancedActiveKey([]);
         }}
-        onOk={handleModalSave}
-        okText={t('保存')}
-        cancelText={t('取消')}
         width={720}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  setModalVisible(false);
+                  setEditingRule(null);
+                  setModalInitValues(null);
+                  setModalAdvancedActiveKey([]);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button type='primary' onClick={handleModalSave}>
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form
           key={`channel-affinity-rule-form-${modalFormKey}`}

@@ -473,9 +473,18 @@ export default function SettingsChats(props) {
       <Modal
         title={isEdit ? t('编辑聊天配置') : t('添加聊天配置')}
         visible={modalVisible}
-        onOk={handleModalOk}
         onCancel={handleModalCancel}
         width={600}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={handleModalCancel}>{t('取消')}</Button>
+              <Button theme='solid' type='primary' onClick={handleModalOk}>
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form getFormApi={(api) => (modalFormRef.current = api)}>
           <Form.Input

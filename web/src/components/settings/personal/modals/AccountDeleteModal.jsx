@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner, Input, Modal, Typography } from '@douyinfe/semi-ui';
+import { Banner, Input, Modal, Typography, Button, Space } from '@douyinfe/semi-ui';
 import { IconDelete, IconUser } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
 
@@ -44,10 +44,21 @@ const AccountDeleteModal = ({
       }
       visible={showAccountDeleteModal}
       onCancel={() => setShowAccountDeleteModal(false)}
-      onOk={deleteAccount}
       size={'small'}
       centered={true}
       className='modern-modal'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={() => setShowAccountDeleteModal(false)}>
+              {t('取消')}
+            </Button>
+            <Button type='danger' theme='solid' onClick={deleteAccount}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='space-y-4 py-4'>
         <Banner

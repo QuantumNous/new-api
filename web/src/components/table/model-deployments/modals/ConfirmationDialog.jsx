@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Typography, Input } from '@douyinfe/semi-ui';
+import { Modal, Typography, Input, Button, Space } from '@douyinfe/semi-ui';
 
 const { Text } = Typography;
 
@@ -60,15 +60,23 @@ const ConfirmationDialog = ({
       title={title}
       visible={visible}
       onCancel={handleCancel}
-      onOk={handleConfirm}
-      okText={t('确认')}
-      cancelText={t('取消')}
-      okButtonProps={{
-        disabled: !isConfirmed,
-        type: type === 'danger' ? 'danger' : 'primary',
-        loading
-      }}
       width={480}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={handleCancel}>{t('取消')}</Button>
+            <Button
+              type={type === 'danger' ? 'danger' : 'primary'}
+              theme='solid'
+              disabled={!isConfirmed}
+              loading={loading}
+              onClick={handleConfirm}
+            >
+              {t('确认')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className="space-y-4">
         <Text type="danger" strong>

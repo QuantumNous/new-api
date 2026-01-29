@@ -838,12 +838,23 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
       title={t('新建容器部署')}
       visible={visible}
       onCancel={onCancel}
-      onOk={() => formApi?.submitForm()}
-      okText={t('创建')}
-      cancelText={t('取消')}
       width={800}
-      confirmLoading={submitting}
       style={{ top: 20 }}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={submitting}
+              onClick={() => formApi?.submitForm()}
+            >
+              {t('创建')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <Form
         key={formKey}

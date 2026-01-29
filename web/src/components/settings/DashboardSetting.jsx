@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, Spin, Button, Modal } from '@douyinfe/semi-ui';
+import { Card, Spin, Button, Modal, Space } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo';
 import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements';
@@ -128,11 +128,22 @@ const DashboardSetting = () => {
         <Modal
           title='配置迁移确认'
           visible={showMigrateModal}
-          onOk={handleMigrate}
+          footer={
+            <div className='flex justify-end'>
+              <Space>
+                <Button onClick={() => setShowMigrateModal(false)}>取消</Button>
+                <Button
+                  type='primary'
+                  theme='solid'
+                  loading={loading}
+                  onClick={handleMigrate}
+                >
+                  确认迁移
+                </Button>
+              </Space>
+            </div>
+          }
           onCancel={() => setShowMigrateModal(false)}
-          confirmLoading={loading}
-          okText='确认迁移'
-          cancelText='取消'
         >
           <p>检测到旧版本的配置数据，是否要迁移到新的配置格式？</p>
           <p style={{ color: '#f57c00', marginTop: '10px' }}>

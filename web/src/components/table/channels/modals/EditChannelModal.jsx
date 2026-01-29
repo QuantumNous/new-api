@@ -3410,9 +3410,11 @@ const EditChannelModal = (props) => {
         visible={keyDisplayState.showModal}
         onCancel={resetKeyDisplayState}
         footer={
-          <Button type='primary' onClick={resetKeyDisplayState}>
-            {t('完成')}
-          </Button>
+          <div className='flex justify-end'>
+            <Button type='primary' onClick={resetKeyDisplayState}>
+              {t('完成')}
+            </Button>
+          </div>
         }
         width={700}
         style={{ maxWidth: '90vw' }}

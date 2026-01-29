@@ -535,9 +535,11 @@ const OllamaModelModal = ({
       width={720}
       style={{ maxWidth: '95vw' }}
       footer={
-        <Button theme='solid' type='primary' onClick={onCancel}>
-          {t('关闭')}
-        </Button>
+        <div className='flex justify-end'>
+          <Button theme='solid' type='primary' onClick={onCancel}>
+            {t('关闭')}
+          </Button>
+        </div>
       }
     >
       <Space vertical spacing='medium' style={{ width: '100%' }}>

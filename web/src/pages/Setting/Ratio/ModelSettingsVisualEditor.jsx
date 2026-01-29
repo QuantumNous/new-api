@@ -511,49 +511,68 @@ export default function ModelSettingsVisualEditor(props) {
           resetModalState();
           setVisible(false);
         }}
-        onOk={() => {
-          if (currentModel) {
-            // If we're in token price mode, make sure ratio values are properly set
-            const valuesToSave = { ...currentModel };
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  resetModalState();
+                  setVisible(false);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button
+                type='primary'
+                onClick={() => {
+                  if (currentModel) {
+                    // If we're in token price mode, make sure ratio values are properly set
+                    const valuesToSave = { ...currentModel };
 
-            if (
-              pricingMode === 'per-token' &&
-              pricingSubMode === 'token-price' &&
-              currentModel.tokenPrice
-            ) {
-              // Calculate and set ratio from token price
-              const tokenPrice = parseFloat(currentModel.tokenPrice);
-              valuesToSave.ratio = (tokenPrice / 2).toString();
+                    if (
+                      pricingMode === 'per-token' &&
+                      pricingSubMode === 'token-price' &&
+                      currentModel.tokenPrice
+                    ) {
+                      // Calculate and set ratio from token price
+                      const tokenPrice = parseFloat(currentModel.tokenPrice);
+                      valuesToSave.ratio = (tokenPrice / 2).toString();
 
-              // Calculate and set completion ratio if both token prices are available
-              if (
-                currentModel.completionTokenPrice &&
-                currentModel.tokenPrice
-              ) {
-                const completionPrice = parseFloat(
-                  currentModel.completionTokenPrice,
-                );
-                const modelPrice = parseFloat(currentModel.tokenPrice);
-                if (modelPrice > 0) {
-                  valuesToSave.completionRatio = (
-                    completionPrice / modelPrice
-                  ).toString();
-                }
-              }
-            }
+                      // Calculate and set completion ratio if both token prices are available
+                      if (
+                        currentModel.completionTokenPrice &&
+                        currentModel.tokenPrice
+                      ) {
+                        const completionPrice = parseFloat(
+                          currentModel.completionTokenPrice,
+                        );
+                        const modelPrice = parseFloat(currentModel.tokenPrice);
+                        if (modelPrice > 0) {
+                          valuesToSave.completionRatio = (
+                            completionPrice / modelPrice
+                          ).toString();
+                        }
+                      }
+                    }
 
-            // Clear price if we're in per-token mode
-            if (pricingMode === 'per-token') {
-              valuesToSave.price = '';
-            } else {
-              // Clear ratios if we're in per-request mode
-              valuesToSave.ratio = '';
-              valuesToSave.completionRatio = '';
-            }
+                    // Clear price if we're in per-token mode
+                    if (pricingMode === 'per-token') {
+                      valuesToSave.price = '';
+                    } else {
+                      // Clear ratios if we're in per-request mode
+                      valuesToSave.ratio = '';
+                      valuesToSave.completionRatio = '';
+                    }
 
-            addOrUpdateModel(valuesToSave);
-          }
-        }}
+                    addOrUpdateModel(valuesToSave);
+                  }
+                }}
+              >
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form getFormApi={(api) => (formRef.current = api)}>
           <Form.Input

@@ -75,8 +75,17 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
       title={t('确认冲突项修改')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onOk}
       size={isMobile ? 'full-width' : 'large'}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='primary' onClick={onOk}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <Table
         columns={columns}

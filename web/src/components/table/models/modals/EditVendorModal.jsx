@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, Form, Col, Row } from '@douyinfe/semi-ui';
+import { Modal, Form, Col, Row, Button, Space } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { Typography } from '@douyinfe/semi-ui';
 import { IconLink } from '@douyinfe/semi-icons';
@@ -120,10 +120,24 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
     <Modal
       title={isEdit ? t('编辑供应商') : t('新增供应商')}
       visible={visible}
-      onOk={() => formApiRef.current?.submitForm()}
       onCancel={handleCancel}
       confirmLoading={loading}
       size={isMobile ? 'full-width' : 'small'}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={handleCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              onClick={() => formApiRef.current?.submitForm()}
+            >
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <Form
         initValues={getInitValues()}

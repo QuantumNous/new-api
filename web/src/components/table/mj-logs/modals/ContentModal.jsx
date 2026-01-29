@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, ImagePreview } from '@douyinfe/semi-ui';
+import { Modal, ImagePreview, Button, Space } from '@douyinfe/semi-ui';
 
 const ContentModal = ({
   isModalOpen,
@@ -33,11 +33,19 @@ const ContentModal = ({
       {/* Text Content Modal */}
       <Modal
         visible={isModalOpen}
-        onOk={() => setIsModalOpen(false)}
         onCancel={() => setIsModalOpen(false)}
         closable={null}
         bodyStyle={{ height: '400px', overflow: 'auto' }}
         width={800}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button type='primary' theme='solid' onClick={() => setIsModalOpen(false)}>
+                确定
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
       </Modal>

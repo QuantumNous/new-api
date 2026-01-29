@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Input, Modal } from '@douyinfe/semi-ui';
+import { Button, Input, Modal, Space } from '@douyinfe/semi-ui';
 import { IconMail, IconKey } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
 
@@ -47,11 +47,22 @@ const EmailBindModal = ({
       }
       visible={showEmailBindModal}
       onCancel={() => setShowEmailBindModal(false)}
-      onOk={bindEmail}
       size={'small'}
       centered={true}
       maskClosable={false}
       className='modern-modal'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={() => setShowEmailBindModal(false)}>
+              {t('取消')}
+            </Button>
+            <Button type='primary' theme='solid' onClick={bindEmail}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='space-y-4 py-4'>
         <div className='flex gap-3'>

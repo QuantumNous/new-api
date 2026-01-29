@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Button, Input, Typography } from '@douyinfe/semi-ui';
+import { Modal, Button, Input, Typography, Space } from '@douyinfe/semi-ui';
 
 /**
  * 可复用的两步验证模态框组件
@@ -76,17 +76,20 @@ const TwoFactorAuthModal = ({
       visible={visible}
       onCancel={onCancel}
       footer={
-        <>
-          <Button onClick={onCancel}>{t('取消')}</Button>
-          <Button
-            type='primary'
-            loading={loading}
-            disabled={!code || loading}
-            onClick={onVerify}
-          >
-            {t('验证')}
-          </Button>
-        </>
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              disabled={!code || loading}
+              onClick={onVerify}
+            >
+              {t('验证')}
+            </Button>
+          </Space>
+        </div>
       }
       width={500}
       style={{ maxWidth: '90vw' }}

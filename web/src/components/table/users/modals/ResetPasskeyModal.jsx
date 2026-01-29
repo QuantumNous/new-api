@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button, Space } from '@douyinfe/semi-ui';
 
 const ResetPasskeyModal = ({ visible, onCancel, onConfirm, user, t }) => {
   return (
@@ -26,8 +26,17 @@ const ResetPasskeyModal = ({ visible, onCancel, onConfirm, user, t }) => {
       title={t('确认重置 Passkey')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
       type='warning'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='warning' theme='solid' onClick={onConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {t('此操作将解绑用户当前的 Passkey，下次登录需要重新注册。')}{' '}
       {user?.username

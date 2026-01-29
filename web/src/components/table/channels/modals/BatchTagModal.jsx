@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Input, Typography } from '@douyinfe/semi-ui';
+import { Modal, Input, Typography, Space, Button } from '@douyinfe/semi-ui';
 
 const BatchTagModal = ({
   showBatchSetTag,
@@ -33,12 +33,21 @@ const BatchTagModal = ({
     <Modal
       title={t('批量设置标签')}
       visible={showBatchSetTag}
-      onOk={batchSetChannelTag}
       onCancel={() => setShowBatchSetTag(false)}
       maskClosable={false}
       centered={true}
       size='small'
       className='!rounded-lg'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={() => setShowBatchSetTag(false)}>{t('取消')}</Button>
+            <Button type='primary' onClick={batchSetChannelTag}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='mb-5'>
         <Typography.Text>{t('请输入要设置的标签名称')}</Typography.Text>

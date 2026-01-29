@@ -305,11 +305,20 @@ export default function SettingsPaymentGatewayCreem(props) {
             <Modal
                 title={editingProduct ? t('编辑产品') : t('添加产品')}
                 visible={showProductModal}
-                onOk={saveProduct}
                 onCancel={closeProductModal}
                 maskClosable={false}
                 size='small'
                 centered
+                footer={
+                    <div className='flex justify-end'>
+                        <Space>
+                            <Button onClick={closeProductModal}>{t('取消')}</Button>
+                            <Button theme='solid' type='primary' onClick={saveProduct}>
+                                {t('确定')}
+                            </Button>
+                        </Space>
+                    </div>
+                }
             >
                 <div className='space-y-4'>
                     <div>

@@ -27,6 +27,8 @@ import {
   Tag,
   Popover,
   Input,
+  Button,
+  Space,
 } from '@douyinfe/semi-ui';
 import { MousePointerClick } from 'lucide-react';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -267,11 +269,22 @@ const UpstreamConflictModal = ({
       title={t('选择要覆盖的冲突项')}
       visible={visible}
       onCancel={onClose}
-      onOk={handleOk}
-      confirmLoading={loading}
-      okText={t('应用覆盖')}
-      cancelText={t('取消')}
       width={isMobile ? '100%' : 1000}
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onClose}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              onClick={handleOk}
+            >
+              {t('应用覆盖')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {dataSource.length === 0 ? (
         <Empty description={t('无冲突项')} className='p-6' />

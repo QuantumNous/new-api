@@ -31,6 +31,7 @@ import {
   Card,
   Radio,
   Select,
+  Space,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -1620,13 +1621,34 @@ const SystemSetting = () => {
               <Modal
                 title={t('确认取消密码登录')}
                 visible={showPasswordLoginConfirmModal}
-                onOk={handlePasswordLoginConfirm}
+                footer={
+                  <div className='flex justify-end'>
+                    <Space>
+                      <Button
+                        onClick={() => {
+                          setShowPasswordLoginConfirmModal(false);
+                          formApiRef.current.setValue(
+                            'PasswordLoginEnabled',
+                            true,
+                          );
+                        }}
+                      >
+                        {t('取消')}
+                      </Button>
+                      <Button
+                        type='primary'
+                        theme='solid'
+                        onClick={handlePasswordLoginConfirm}
+                      >
+                        {t('确认')}
+                      </Button>
+                    </Space>
+                  </div>
+                }
                 onCancel={() => {
                   setShowPasswordLoginConfirmModal(false);
                   formApiRef.current.setValue('PasswordLoginEnabled', true);
                 }}
-                okText={t('确认')}
-                cancelText={t('取消')}
               >
                 <p>
                   {t(

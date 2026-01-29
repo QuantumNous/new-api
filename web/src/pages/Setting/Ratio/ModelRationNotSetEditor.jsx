@@ -453,9 +453,22 @@ export default function ModelRatioNotSetEditor(props) {
         title={t('添加模型')}
         visible={visible}
         onCancel={() => setVisible(false)}
-        onOk={() => {
-          currentModel && addModel(currentModel);
-        }}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setVisible(false)}>{t('取消')}</Button>
+              <Button
+                type='primary'
+                theme='solid'
+                onClick={() => {
+                  currentModel && addModel(currentModel);
+                }}
+              >
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form>
           <Form.Input
@@ -525,8 +538,17 @@ export default function ModelRatioNotSetEditor(props) {
         title={t('批量设置模型参数')}
         visible={batchVisible}
         onCancel={() => setBatchVisible(false)}
-        onOk={handleBatchFill}
         width={500}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setBatchVisible(false)}>{t('取消')}</Button>
+              <Button type='primary' onClick={handleBatchFill}>
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form>
           <Form.Section text={t('设置类型')}>

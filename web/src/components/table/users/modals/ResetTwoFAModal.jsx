@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button, Space } from '@douyinfe/semi-ui';
 
 const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
   return (
@@ -26,8 +26,17 @@ const ResetTwoFAModal = ({ visible, onCancel, onConfirm, user, t }) => {
       title={t('确认重置两步验证')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
       type='warning'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='warning' theme='solid' onClick={onConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {t(
         '此操作将禁用该用户当前的两步验证配置，下次登录将不再强制输入验证码，直到用户重新启用。',

@@ -454,11 +454,22 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       <Modal
         title={editingGroup ? t('编辑分类') : t('添加分类')}
         visible={showUptimeModal}
-        onOk={handleSaveGroup}
         onCancel={() => setShowUptimeModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setShowUptimeModal(false)}>{t('取消')}</Button>
+              <Button
+                theme='solid'
+                type='primary'
+                loading={modalLoading}
+                onClick={handleSaveGroup}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
         width={600}
       >
         <Form
@@ -500,18 +511,28 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       <Modal
         title={t('确认删除')}
         visible={showDeleteModal}
-        onOk={confirmDeleteGroup}
         onCancel={() => {
           setShowDeleteModal(false);
           setDeletingGroup(null);
         }}
-        okText={t('确认删除')}
-        cancelText={t('取消')}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingGroup(null);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button theme='solid' type='danger' onClick={confirmDeleteGroup}>
+                {t('确认删除')}
+              </Button>
+            </Space>
+          </div>
+        }
         type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
-        }}
       >
         <Text>{t('确定要删除此分类吗？')}</Text>
       </Modal>

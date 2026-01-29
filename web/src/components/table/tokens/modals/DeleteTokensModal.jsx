@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button, Space } from '@douyinfe/semi-ui';
 
 const DeleteTokensModal = ({
   visible,
@@ -32,8 +32,17 @@ const DeleteTokensModal = ({
       title={t('批量删除令牌')}
       visible={visible}
       onCancel={onCancel}
-      onOk={onConfirm}
       type='warning'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='warning' theme='solid' onClick={onConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div>
         {t('确定要删除所选的 {{count}} 个令牌吗？', {

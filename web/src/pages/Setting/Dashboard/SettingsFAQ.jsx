@@ -433,11 +433,22 @@ const SettingsFAQ = ({ options, refresh }) => {
       <Modal
         title={editingFaq ? t('编辑问答') : t('添加问答')}
         visible={showFaqModal}
-        onOk={handleSaveFaq}
         onCancel={() => setShowFaqModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setShowFaqModal(false)}>{t('取消')}</Button>
+              <Button
+                theme='solid'
+                type='primary'
+                loading={modalLoading}
+                onClick={handleSaveFaq}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
         width={800}
       >
         <Form
@@ -468,18 +479,28 @@ const SettingsFAQ = ({ options, refresh }) => {
       <Modal
         title={t('确认删除')}
         visible={showDeleteModal}
-        onOk={confirmDeleteFaq}
         onCancel={() => {
           setShowDeleteModal(false);
           setDeletingFaq(null);
         }}
-        okText={t('确认删除')}
-        cancelText={t('取消')}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingFaq(null);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button theme='solid' type='danger' onClick={confirmDeleteFaq}>
+                {t('确认删除')}
+              </Button>
+            </Space>
+          </div>
+        }
         type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
-        }}
       >
         <Text>{t('确定要删除此问答吗？')}</Text>
       </Modal>

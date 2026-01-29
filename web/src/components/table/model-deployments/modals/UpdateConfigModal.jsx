@@ -202,12 +202,23 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
       }
       visible={visible}
       onCancel={handleCancel}
-      onOk={handleUpdate}
-      okText={t('更新配置')}
-      cancelText={t('取消')}
-      confirmLoading={loading}
       width={700}
       className='update-config-modal'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={handleCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              onClick={handleUpdate}
+            >
+              {t('更新配置')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='space-y-4 max-h-[600px] overflow-y-auto'>
         {/* Container Info */}

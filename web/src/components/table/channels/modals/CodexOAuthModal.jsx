@@ -102,14 +102,21 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
       closeOnEsc
       width={720}
       footer={
-        <Space>
-          <Button theme='borderless' onClick={onCancel} disabled={loading}>
-            {t('取消')}
-          </Button>
-          <Button theme='solid' type='primary' onClick={completeOAuth} loading={loading}>
-            {t('生成并填入')}
-          </Button>
-        </Space>
+        <div className='flex justify-end'>
+          <Space>
+            <Button theme='borderless' onClick={onCancel} disabled={loading}>
+              {t('取消')}
+            </Button>
+            <Button
+              theme='solid'
+              type='primary'
+              onClick={completeOAuth}
+              loading={loading}
+            >
+              {t('生成并填入')}
+            </Button>
+          </Space>
+        </div>
       }
     >
       <Space vertical spacing='tight' style={{ width: '100%' }}>

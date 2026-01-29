@@ -442,11 +442,22 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       <Modal
         title={editingApi ? t('编辑API') : t('添加API')}
         visible={showApiModal}
-        onOk={handleSaveApi}
         onCancel={() => setShowApiModal(false)}
-        okText={t('保存')}
-        cancelText={t('取消')}
-        confirmLoading={modalLoading}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={() => setShowApiModal(false)}>{t('取消')}</Button>
+              <Button
+                theme='solid'
+                type='primary'
+                loading={modalLoading}
+                onClick={handleSaveApi}
+              >
+                {t('保存')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Form
           layout='vertical'
@@ -492,18 +503,28 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       <Modal
         title={t('确认删除')}
         visible={showDeleteModal}
-        onOk={confirmDeleteApi}
         onCancel={() => {
           setShowDeleteModal(false);
           setDeletingApi(null);
         }}
-        okText={t('确认删除')}
-        cancelText={t('取消')}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletingApi(null);
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button theme='solid' type='danger' onClick={confirmDeleteApi}>
+                {t('确认删除')}
+              </Button>
+            </Space>
+          </div>
+        }
         type='warning'
-        okButtonProps={{
-          type: 'danger',
-          theme: 'solid',
-        }}
       >
         <Text>{t('确定要删除此API信息吗？')}</Text>
       </Modal>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Button, Space } from '@douyinfe/semi-ui';
 import { REDEMPTION_ACTIONS } from '../../../../constants/redemption.constants';
 
 const DeleteRedemptionModal = ({
@@ -47,8 +47,17 @@ const DeleteRedemptionModal = ({
       title={t('确定是否要删除此兑换码？')}
       visible={visible}
       onCancel={onCancel}
-      onOk={handleConfirm}
       type='warning'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='warning' theme='solid' onClick={handleConfirm}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       {t('此修改将不可逆')}
     </Modal>

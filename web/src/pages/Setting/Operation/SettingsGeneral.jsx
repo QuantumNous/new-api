@@ -29,6 +29,7 @@ import {
   Select,
   InputGroup,
   Input,
+  Space,
 } from '@douyinfe/semi-ui';
 import {
   compareObjects,
@@ -299,10 +300,18 @@ export default function GeneralSettings(props) {
       <Modal
         title={t('警告')}
         visible={showQuotaWarning}
-        onOk={() => setShowQuotaWarning(false)}
         onCancel={() => setShowQuotaWarning(false)}
         closeOnEsc={true}
         width={500}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button theme='solid' type='primary' onClick={() => setShowQuotaWarning(false)}>
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Banner
           type='warning'

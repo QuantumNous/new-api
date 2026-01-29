@@ -87,7 +87,11 @@ const SecureVerificationModal = ({
         title={title || t('安全验证')}
         visible={visible}
         onCancel={onCancel}
-        footer={<Button onClick={onCancel}>{t('确定')}</Button>}
+        footer={
+          <div className='flex justify-end'>
+            <Button onClick={onCancel}>{t('确定')}</Button>
+          </div>
+        }
         width={500}
         style={{ maxWidth: '90vw' }}
       >

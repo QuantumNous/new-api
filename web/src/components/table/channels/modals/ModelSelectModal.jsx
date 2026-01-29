@@ -29,6 +29,8 @@ import {
   Tabs,
   Collapse,
   Tooltip,
+  Button,
+  Space,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -324,14 +326,21 @@ const ModelSelectModal = ({
         </div>
       }
       visible={visible}
-      onOk={handleOk}
       onCancel={onCancel}
-      okText={t('确定')}
-      cancelText={t('取消')}
       size={isMobile ? 'full-width' : 'large'}
       closeOnEsc
       maskClosable
       centered
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={onCancel}>{t('取消')}</Button>
+            <Button type='primary' theme='solid' onClick={handleOk}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <Input
         prefix={<IconSearch size={14} />}

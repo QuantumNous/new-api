@@ -310,16 +310,27 @@ const ExtendDurationModal = ({
       }
       visible={visible}
       onCancel={handleCancel}
-      onOk={handleExtend}
-      okText={t('确认延长')}
-      cancelText={t('取消')}
-      confirmLoading={loading}
-      okButtonProps={{
-        disabled:
-          !deployment?.id || detailsLoading || !durationHours || durationHours < 1,
-      }}
-      width={600}
-      className='extend-duration-modal'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={handleCancel}>{t('取消')}</Button>
+            <Button
+              type='primary'
+              theme='solid'
+              loading={loading}
+              disabled={
+                !deployment?.id ||
+                detailsLoading ||
+                !durationHours ||
+                durationHours < 1
+              }
+              onClick={handleExtend}
+            >
+              {t('确认延长')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='space-y-4'>
         <Card className='border-0 bg-gray-50'>

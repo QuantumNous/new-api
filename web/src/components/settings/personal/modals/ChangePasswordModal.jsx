@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Input, Modal, Typography } from '@douyinfe/semi-ui';
+import { Input, Modal, Typography, Button, Space } from '@douyinfe/semi-ui';
 import { IconLock } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
 
@@ -43,10 +43,21 @@ const ChangePasswordModal = ({
       }
       visible={showChangePasswordModal}
       onCancel={() => setShowChangePasswordModal(false)}
-      onOk={changePassword}
       size={'small'}
       centered={true}
       className='modern-modal'
+      footer={
+        <div className='flex justify-end'>
+          <Space>
+            <Button onClick={() => setShowChangePasswordModal(false)}>
+              {t('取消')}
+            </Button>
+            <Button type='primary' theme='solid' onClick={changePassword}>
+              {t('确定')}
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <div className='space-y-4 py-4'>
         <div>

@@ -32,6 +32,7 @@ import {
   Highlight,
   Select,
   Tag,
+  Button,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
@@ -247,13 +248,22 @@ const ChannelSelectorModal = forwardRef(
       <Modal
         visible={visible}
         onCancel={onCancel}
-        onOk={onOk}
         title={
           <span className='text-lg font-semibold'>{t('选择同步渠道')}</span>
         }
         size={isMobile ? 'full-width' : 'large'}
         keepDOM
         lazyRender={false}
+        footer={
+          <div className='flex justify-end'>
+            <Space>
+              <Button onClick={onCancel}>{t('取消')}</Button>
+              <Button type='primary' onClick={onOk}>
+                {t('确定')}
+              </Button>
+            </Space>
+          </div>
+        }
       >
         <Space vertical style={{ width: '100%' }}>
           <Input
