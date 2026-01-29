@@ -22,6 +22,8 @@ export type SectionRegistryConfig<
   sections: readonly SectionDefinition<TSettings, TExtraArgs>[]
   defaultSection: TSectionId
   basePath: string
+  /** 'query' = `${basePath}?section=${id}`, 'path' = `${basePath}/${id}` */
+  urlStyle?: 'query' | 'path'
 }
 
 /**
@@ -32,7 +34,7 @@ export function createSectionRegistry<
   TSettings,
   TExtraArgs extends any[] = []
 >(config: SectionRegistryConfig<TSectionId, TSettings, TExtraArgs>) {
-  const { sections, defaultSection, basePath } = config
+  const { sections, defaultSection, basePath, urlStyle = 'query' } = config
 
   type SectionId = TSectionId
 
@@ -47,7 +49,10 @@ export function createSectionRegistry<
   function getSectionNavItems(t: TFunction) {
     return sections.map((section) => ({
       title: t(section.titleKey),
-      url: `${basePath}?section=${section.id}`,
+      url:
+        urlStyle === 'path'
+          ? `${basePath}/${section.id}`
+          : `${basePath}?section=${section.id}`,
     }))
   }
 

@@ -37,16 +37,19 @@ import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
-import { UsageLogsTabs } from './usage-logs-tabs'
+import type { LogCategory } from '../types'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
-export function UsageLogsTable() {
+interface UsageLogsTableProps {
+  logCategory: LogCategory
+}
+
+export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
-  const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
-  const navigate = route.useNavigate()
+  const { refreshTrigger } = useUsageLogsContext()
   const searchParams = route.useSearch()
 
   const [sorting, setSorting] = useState<SortingState>([])
@@ -64,7 +67,7 @@ export function UsageLogsTable() {
     search: route.useSearch(),
     navigate: route.useNavigate(),
     pagination: { defaultPage: 1, defaultPageSize: 20 },
-    globalFilter: { enabled: true, key: 'filter' },
+    globalFilter: { enabled: false },
     columnFilters: [
       { columnId: 'type', searchKey: 'type', type: 'array' as const },
       { columnId: 'model_name', searchKey: 'model', type: 'string' as const },
@@ -111,7 +114,7 @@ export function UsageLogsTable() {
       })
 
       if (!result?.success) {
-        toast.error(result?.message || 'Failed to load logs')
+        toast.error(result?.message || t('Failed to load logs'))
         return DEFAULT_LOGS_DATA
       }
 
@@ -166,17 +169,6 @@ export function UsageLogsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  // Handle tab change with URL update
-  const handleTabChange = (category: typeof logCategory) => {
-    setLogCategory(category)
-    navigate({
-      search: {
-        ...searchParams,
-        tab: category,
-      },
-    })
-  }
-
   // Different filters for different log categories
   const filters =
     logCategory === 'common'
@@ -184,7 +176,10 @@ export function UsageLogsTable() {
           {
             columnId: 'type',
             title: t('Log Type'),
-            options: LOG_TYPE_FILTERS,
+            options: LOG_TYPE_FILTERS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.label),
+            })),
             singleSelect: true,
           },
         ]
@@ -194,17 +189,17 @@ export function UsageLogsTable() {
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
       <DataTableToolbar
         table={table}
-        customSearch={
-          <UsageLogsTabs value={logCategory} onValueChange={handleTabChange} />
-        }
         filters={filters}
+        customSearch={null}
       />
       {isMobile ? (
         <MobileCardList
           table={table}
           isLoading={isLoadingData}
-          emptyTitle='No Logs Found'
-          emptyDescription='No usage logs available. Logs will appear here once API calls are made.'
+          emptyTitle={t('No Logs Found')}
+          emptyDescription={t(
+            'No usage logs available. Logs will appear here once API calls are made.'
+          )}
         />
       ) : (
         <div className='overflow-hidden rounded-md border'>

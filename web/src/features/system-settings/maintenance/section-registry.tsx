@@ -91,6 +91,7 @@ const maintenanceRegistry = createSectionRegistry<
   sections: MAINTENANCE_SECTIONS,
   defaultSection: 'update-checker',
   basePath: '/system-settings/maintenance',
+  urlStyle: 'path',
 })
 
 export const MAINTENANCE_SECTION_IDS = maintenanceRegistry.sectionIds

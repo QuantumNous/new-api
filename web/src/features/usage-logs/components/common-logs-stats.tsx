@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { formatLogQuota } from '@/lib/format'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,9 +9,10 @@ import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 export function CommonLogsStats() {
+  const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const searchParams = route.useSearch()
 
@@ -49,17 +51,17 @@ export function CommonLogsStats() {
   return (
     <div className='flex items-center gap-2'>
       <StatusBadge
-        label={`Usage: ${formatLogQuota(stats?.quota || 0)}`}
+        label={`${t('Usage')}: ${formatLogQuota(stats?.quota || 0)}`}
         variant='blue'
         copyable={false}
       />
       <StatusBadge
-        label={`RPM: ${stats?.rpm || 0}`}
+        label={`${t('RPM')}: ${stats?.rpm || 0}`}
         variant='pink'
         copyable={false}
       />
       <StatusBadge
-        label={`TPM: ${stats?.tpm || 0}`}
+        label={`${t('TPM')}: ${stats?.tpm || 0}`}
         variant='neutral'
         copyable={false}
       />

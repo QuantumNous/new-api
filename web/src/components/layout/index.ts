@@ -14,6 +14,7 @@ export { NavLinkItem, NavLinkList } from './components/nav-link-item'
 export { Header } from './components/header'
 export { Main } from './components/main'
 export { NavGroup } from './components/nav-group'
+export { SectionPageLayout } from './components/section-page-layout'
 export { WorkspaceSwitcher } from './components/workspace-switcher'
 export { TopNav } from './components/top-nav'
 export { MobileDrawer } from './components/mobile-drawer'
@@ -51,3 +52,4 @@ export type {
   TopNavLink,
 } from './types'
 export type { WorkspaceConfig, WorkspaceId } from './lib/workspace-registry'
+export type { SectionPageLayoutProps } from './components/section-page-layout'

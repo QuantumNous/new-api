@@ -75,6 +75,7 @@ function BillingTypeCell({
   log: UsageLog
   isAdmin: boolean
 }) {
+  const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
   const other = parseLogOther(log.other)
   const isPerCall = isPerCallBilling(other?.model_price)
@@ -87,10 +88,10 @@ function BillingTypeCell({
         size='sm'
         className='h-auto p-0 hover:bg-transparent'
         onClick={() => setDialogOpen(true)}
-        title={isPerCall ? 'Per-call' : 'Per-token'}
+        title={isPerCall ? t('Per-call') : t('Per-token')}
       >
         <StatusBadge
-          label={isPerCall ? 'Per-call' : 'Per-token'}
+          label={isPerCall ? t('Per-call') : t('Per-token')}
           variant={isPerCall ? 'teal' : 'violet'}
           size='sm'
           copyable={false}
@@ -113,7 +114,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'created_at',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Time' />
+        <DataTableColumnHeader column={column} title={t('Time')} />
       ),
       cell: ({ row }) => {
         const timestamp = row.getValue('created_at') as number
@@ -131,7 +132,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'type',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Type' />
+        <DataTableColumnHeader column={column} title={t('Type')} />
       ),
       cell: ({ row }) => {
         const type = row.getValue('type') as number
@@ -139,7 +140,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <StatusBadge
-            label={config.label}
+            label={t(config.label)}
             variant={config.color as any}
             size='sm'
             copyable={false}
@@ -161,7 +162,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       {
         accessorKey: 'channel',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title='Channel' />
+          <DataTableColumnHeader column={column} title={t('Channel')} />
         ),
         cell: ({ row }) => {
           const log = row.original
@@ -212,7 +213,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       {
         accessorKey: 'username',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title='User' />
+          <DataTableColumnHeader column={column} title={t('User')} />
         ),
         cell: function UsernameCell({ row }) {
           const { setSelectedUserId, setUserInfoDialogOpen } =
@@ -249,7 +250,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'token_name',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Token' />
+        <DataTableColumnHeader column={column} title={t('Token')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -267,7 +268,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'group',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Group' />
+        <DataTableColumnHeader column={column} title={t('Group')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -283,7 +284,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'model_name',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Model' />
+        <DataTableColumnHeader column={column} title={t('Model')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -313,11 +314,11 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <PopoverContent className='w-80'>
               <div className='space-y-2'>
                 <div className='flex items-start justify-between gap-4'>
-                  <span className='text-sm font-medium'>Request Model:</span>
+                  <span className='text-sm font-medium'>{t('Request Model:')}</span>
                   {renderBadge(modelInfo.name, { mono: true })}
                 </div>
                 <div className='flex items-start justify-between gap-4'>
-                  <span className='text-sm font-medium'>Actual Model:</span>
+                  <span className='text-sm font-medium'>{t('Actual Model:')}</span>
                   {renderBadge(modelInfo.actualModel || '', { mono: true })}
                 </div>
               </div>
@@ -332,7 +333,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'use_time',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Time / FRT' />
+        <DataTableColumnHeader column={column} title={t('Time / FRT')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -361,7 +362,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
               />
             )}
             <StatusBadge
-              label={log.is_stream ? 'Stream' : 'Non-stream'}
+              label={log.is_stream ? t('Stream') : t('Non-stream')}
               variant={log.is_stream ? 'info' : 'neutral'}
               size='sm'
               copyable={false}
@@ -376,7 +377,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       id: 'tokens',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Tokens' />
+        <DataTableColumnHeader column={column} title={t('Tokens')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -416,24 +417,24 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         return (
           <div className='bg-muted/50 divide-border inline-flex items-center divide-x overflow-hidden rounded-md text-sm'>
             <div className='flex items-center gap-1.5 px-3 py-1'>
-              <span className='text-muted-foreground text-xs'>In:</span>
+              <span className='text-muted-foreground text-xs'>{t('In:')}</span>
               <span className='font-mono font-medium'>
                 {formatTokens(promptTokens)}
               </span>
               <CacheTooltip
                 tokens={cacheReadTokens}
-                label='Cache Read'
+                label={t('Cache Read')}
                 color='fill-amber-500 text-amber-500'
               />
             </div>
             <div className='flex items-center gap-1.5 px-3 py-1'>
-              <span className='text-muted-foreground text-xs'>Out:</span>
+              <span className='text-muted-foreground text-xs'>{t('Out:')}</span>
               <span className='font-mono font-medium'>
                 {formatTokens(completionTokens)}
               </span>
               <CacheTooltip
                 tokens={cacheWriteTokens}
-                label='Cache Write'
+                label={t('Cache Write')}
                 color='fill-blue-500 text-blue-500'
               />
             </div>
@@ -447,7 +448,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     {
       accessorKey: 'quota',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title='Cost' />
+        <DataTableColumnHeader column={column} title={t('Cost')} />
       ),
       cell: ({ row }) => {
         const log = row.original
@@ -485,7 +486,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </span>
             {groupRatio && groupRatio !== 1 && (
               <span className='text-muted-foreground text-xs'>
-                Group: {groupRatio}x
+                {t('Group: {{ratio}}x', { ratio: groupRatio })}
               </span>
             )}
           </div>
@@ -499,7 +500,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       accessorKey: 'ip',
       header: ({ column }) => (
         <div className='flex items-center gap-1'>
-          <DataTableColumnHeader column={column} title='IP' />
+          <DataTableColumnHeader column={column} title={t('IP')} />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -564,7 +565,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         return (
           <div className='text-sm'>
-            <span className='text-muted-foreground'>Chain: </span>
+            <span className='text-muted-foreground'>{t('Chain: ')}</span>
             <span className='font-mono'>{useChannel.join(' → ')}</span>
           </div>
         )

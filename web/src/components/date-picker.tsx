@@ -1,6 +1,14 @@
-import { format } from 'date-fns'
+import dayjs from '@/lib/dayjs'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import {
+  enUS,
+  fr,
+  ja,
+  ru,
+  vi,
+  zhCN,
+} from 'react-day-picker/locale'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -8,6 +16,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+
+const calendarLocales = {
+  en: enUS,
+  zh: zhCN,
+  fr,
+  ru,
+  ja,
+  vi,
+} as const
 
 type DatePickerProps = {
   selected: Date | undefined
@@ -20,8 +37,10 @@ export function DatePicker({
   onSelect,
   placeholder,
 }: DatePickerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Pick a date')
+  const calendarLocale =
+    calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -31,7 +50,7 @@ export function DatePicker({
           className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
         >
           {selected ? (
-            format(selected, 'MMM d, yyyy')
+            dayjs(selected).format('MMM D, YYYY')
           ) : (
             <span>{placeholderText}</span>
           )}
@@ -44,6 +63,7 @@ export function DatePicker({
           captionLayout='dropdown'
           selected={selected}
           onSelect={onSelect}
+          locale={calendarLocale}
           disabled={(date: Date) =>
             date > new Date() || date < new Date('1900-01-01')
           }

@@ -1,4 +1,4 @@
-import { useSearch } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { parseCurrencyDisplayType } from '@/lib/currency'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
@@ -43,7 +43,9 @@ const defaultGeneralSettings: GeneralSettings = {
 export function GeneralSettings() {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
-  const search = useSearch({ from: '/_authenticated/system-settings/general' })
+  const params = useParams({
+    from: '/_authenticated/system-settings/general/$section',
+  })
 
   if (isLoading) {
     return (
@@ -57,7 +59,12 @@ export function GeneralSettings() {
   const quotaDisplayType = parseCurrencyDisplayType(
     settings['general_setting.quota_display_type']
   )
-  const activeSection = search.section ?? GENERAL_DEFAULT_SECTION
+  const activeSection = (params?.section ?? GENERAL_DEFAULT_SECTION) as
+    | 'system-info'
+    | 'quota'
+    | 'pricing'
+    | 'checkin'
+    | 'behavior'
   const sectionContent = getGeneralSectionContent(
     activeSection,
     settings,

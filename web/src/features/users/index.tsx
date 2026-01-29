@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { AppHeader, Main } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
@@ -12,22 +12,18 @@ function UsersContent() {
 
   return (
     <>
-      <AppHeader fixed />
-
-      <Main>
-        <div className='mb-2 flex flex-wrap items-center justify-between space-y-2 gap-x-4'>
-          <div>
-            <h2 className='text-2xl font-bold tracking-tight'>{t('Users')}</h2>
-            <p className='text-muted-foreground'>
-              {t('Manage users and their permissions')}
-            </p>
-          </div>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('Users')}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Manage users and their permissions')}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Actions>
           <UsersPrimaryButtons />
-        </div>
-        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
           <UsersTable />
-        </div>
-      </Main>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
       <UsersMutateDrawer
         open={open === 'create' || open === 'update'}

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { AppHeader, Main } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
@@ -199,94 +199,88 @@ export function Wallet() {
 
   return (
     <>
-      <AppHeader fixed />
-      <Main>
-        <div className='mb-6'>
-          <h2 className='text-2xl font-bold tracking-tight'>{t('Wallet')}</h2>
-          <p className='text-muted-foreground'>
-            {t('Manage your balance and payment methods')}
-          </p>
-        </div>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {t('Manage your balance and payment methods')}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Content>
+          <div className='grid gap-6 lg:grid-cols-3'>
+            {/* Left Column - Stats & Recharge */}
+            <div className='space-y-6 lg:col-span-2'>
+              <WalletStatsCard user={user} loading={userLoading} />
+              <RechargeFormCard
+                topupInfo={topupInfo}
+                presetAmounts={presetAmounts}
+                selectedPreset={selectedPreset}
+                onSelectPreset={handleSelectPreset}
+                topupAmount={topupAmount}
+                onTopupAmountChange={handleTopupAmountChange}
+                paymentAmount={paymentAmount}
+                calculating={calculating}
+                onPaymentMethodSelect={handlePaymentMethodSelect}
+                paymentLoading={paymentLoading}
+                redemptionCode={redemptionCode}
+                onRedemptionCodeChange={setRedemptionCode}
+                onRedeem={handleRedeem}
+                redeeming={redeeming}
+                topupLink={topupInfo?.topup_link}
+                loading={topupLoading}
+                priceRatio={status?.price || 1}
+                usdExchangeRate={effectiveUsdExchangeRate}
+                onOpenBilling={() => setBillingDialogOpen(true)}
+                creemProducts={topupInfo?.creem_products}
+                enableCreemTopup={topupInfo?.enable_creem_topup}
+                onCreemProductSelect={handleCreemProductSelect}
+              />
+            </div>
 
-        <div className='grid gap-6 lg:grid-cols-3'>
-          {/* Left Column - Stats & Recharge */}
-          <div className='space-y-6 lg:col-span-2'>
-            <WalletStatsCard user={user} loading={userLoading} />
-            <RechargeFormCard
-              topupInfo={topupInfo}
-              presetAmounts={presetAmounts}
-              selectedPreset={selectedPreset}
-              onSelectPreset={handleSelectPreset}
-              topupAmount={topupAmount}
-              onTopupAmountChange={handleTopupAmountChange}
-              paymentAmount={paymentAmount}
-              calculating={calculating}
-              onPaymentMethodSelect={handlePaymentMethodSelect}
-              paymentLoading={paymentLoading}
-              redemptionCode={redemptionCode}
-              onRedemptionCodeChange={setRedemptionCode}
-              onRedeem={handleRedeem}
-              redeeming={redeeming}
-              topupLink={topupInfo?.topup_link}
-              loading={topupLoading}
-              priceRatio={status?.price || 1}
-              usdExchangeRate={effectiveUsdExchangeRate}
-              onOpenBilling={() => setBillingDialogOpen(true)}
-              creemProducts={topupInfo?.creem_products}
-              enableCreemTopup={topupInfo?.enable_creem_topup}
-              onCreemProductSelect={handleCreemProductSelect}
-            />
+            {/* Right Column - Affiliate */}
+            <div className='lg:col-span-1'>
+              <AffiliateRewardsCard
+                user={user}
+                affiliateLink={affiliateLink}
+                onTransfer={() => setTransferDialogOpen(true)}
+                loading={affiliateLoading}
+              />
+            </div>
           </div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
-          {/* Right Column - Affiliate */}
-          <div className='lg:col-span-1'>
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              loading={affiliateLoading}
-            />
-          </div>
-        </div>
+      <PaymentConfirmDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handlePaymentConfirm}
+        topupAmount={topupAmount}
+        paymentAmount={paymentAmount}
+        paymentMethod={selectedPaymentMethod}
+        calculating={calculating}
+        processing={processing}
+        discountRate={getDiscountRate()}
+        usdExchangeRate={effectiveUsdExchangeRate}
+      />
 
-        {/* Payment Confirmation Dialog */}
-        <PaymentConfirmDialog
-          open={confirmDialogOpen}
-          onOpenChange={setConfirmDialogOpen}
-          onConfirm={handlePaymentConfirm}
-          topupAmount={topupAmount}
-          paymentAmount={paymentAmount}
-          paymentMethod={selectedPaymentMethod}
-          calculating={calculating}
-          processing={processing}
-          discountRate={getDiscountRate()}
-          usdExchangeRate={effectiveUsdExchangeRate}
-        />
+      <TransferDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
+        onConfirm={handleTransfer}
+        availableQuota={user?.aff_quota ?? 0}
+        transferring={transferring}
+      />
 
-        {/* Transfer Dialog */}
-        <TransferDialog
-          open={transferDialogOpen}
-          onOpenChange={setTransferDialogOpen}
-          onConfirm={handleTransfer}
-          availableQuota={user?.aff_quota ?? 0}
-          transferring={transferring}
-        />
+      <BillingHistoryDialog
+        open={billingDialogOpen}
+        onOpenChange={setBillingDialogOpen}
+      />
 
-        {/* Billing History Dialog */}
-        <BillingHistoryDialog
-          open={billingDialogOpen}
-          onOpenChange={setBillingDialogOpen}
-        />
-
-        {/* Creem Confirmation Dialog */}
-        <CreemConfirmDialog
-          open={creemDialogOpen}
-          onOpenChange={setCreemDialogOpen}
-          onConfirm={handleCreemConfirm}
-          product={selectedCreemProduct}
-          processing={creemProcessing}
-        />
-      </Main>
+      <CreemConfirmDialog
+        open={creemDialogOpen}
+        onOpenChange={setCreemDialogOpen}
+        onConfirm={handleCreemConfirm}
+        product={selectedCreemProduct}
+        processing={creemProcessing}
+      />
     </>
   )
 }

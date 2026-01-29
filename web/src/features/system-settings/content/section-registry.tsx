@@ -118,6 +118,7 @@ const contentRegistry = createSectionRegistry<
   sections: CONTENT_SECTIONS,
   defaultSection: 'dashboard',
   basePath: '/system-settings/content',
+  urlStyle: 'path',
 })
 
 export const CONTENT_SECTION_IDS = contentRegistry.sectionIds

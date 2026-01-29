@@ -3,12 +3,17 @@ import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { UsageLogsFilterDialog } from './dialogs/usage-logs-filter-dialog'
-import { useUsageLogsContext } from './usage-logs-provider'
+import type { LogCategory } from '../types'
 
-export function UsageLogsPrimaryButtons() {
+interface UsageLogsPrimaryButtonsProps {
+  logCategory: LogCategory
+}
+
+export function UsageLogsPrimaryButtons({
+  logCategory,
+}: UsageLogsPrimaryButtonsProps) {
   const { t } = useTranslation()
   const [filterDialogOpen, setFilterDialogOpen] = useState(false)
-  const { logCategory } = useUsageLogsContext()
 
   return (
     <div className='flex gap-2'>

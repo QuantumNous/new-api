@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from 'date-fns'
+import dayjs from '@/lib/dayjs'
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import {
@@ -336,7 +336,7 @@ export function formatRelativeTime(timestamp: number): string {
   if (!timestamp || timestamp === 0) return 'Never'
 
   try {
-    return formatDistanceToNow(new Date(timestamp * 1000), { addSuffix: true })
+    return dayjs(timestamp * 1000).fromNow()
   } catch {
     return 'Unknown'
   }

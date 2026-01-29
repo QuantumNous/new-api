@@ -45,17 +45,17 @@ export function DetailsDialog({
   const getLogTypeLabel = (type: number): string => {
     switch (type) {
       case 1:
-        return 'Top-up'
+        return t('Top-up')
       case 2:
-        return 'Consume'
+        return t('Consume')
       case 3:
-        return 'Manage'
+        return t('Manage')
       case 4:
-        return 'System'
+        return t('System')
       case 5:
-        return 'Error'
+        return t('Error')
       default:
-        return 'Unknown'
+        return t('Unknown')
     }
   }
 

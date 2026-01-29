@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSearch } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
@@ -15,7 +15,9 @@ export function MaintenanceSettings() {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
   const { status } = useStatus()
-  const search = useSearch({ from: '/_authenticated/system-settings/maintenance' })
+  const params = useParams({
+    from: '/_authenticated/system-settings/maintenance/$section',
+  })
 
   const settings = useMemo(
     () => getOptionValue(data?.data, DEFAULT_MAINTENANCE_SETTINGS),
@@ -30,7 +32,12 @@ export function MaintenanceSettings() {
     )
   }
 
-  const activeSection = search.section ?? MAINTENANCE_DEFAULT_SECTION
+  const activeSection = (params?.section ?? MAINTENANCE_DEFAULT_SECTION) as
+    | 'update-checker'
+    | 'notice'
+    | 'logs'
+    | 'header-navigation'
+    | 'sidebar-modules'
   const sectionContent = getMaintenanceSectionContent(
     activeSection,
     settings,

@@ -113,6 +113,7 @@ const generalRegistry = createSectionRegistry<
   sections: GENERAL_SECTIONS,
   defaultSection: 'system-info',
   basePath: '/system-settings/general',
+  urlStyle: 'path',
 })
 
 export const GENERAL_SECTION_IDS = generalRegistry.sectionIds

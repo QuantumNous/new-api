@@ -23,24 +23,25 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   const columns: ColumnDef<TaskLog>[] = [
     createTimestampColumn<TaskLog>({
       accessorKey: 'submit_time',
-      title: 'Submit Time',
+      title: t('Submit Time'),
       unit: 'seconds',
     }),
     createTimestampColumn<TaskLog>({
       accessorKey: 'finish_time',
-      title: 'Finish Time',
+      title: t('Finish Time'),
       unit: 'seconds',
     }),
     createDurationColumn<TaskLog>({
       submitTimeKey: 'submit_time',
       finishTimeKey: 'finish_time',
       unit: 'seconds',
+      headerLabel: t('Duration'),
     }),
   ]
 
   // Channel (admin only)
   if (isAdmin) {
-    columns.push(createChannelColumn<TaskLog>({}))
+    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }))
   }
 
   columns.push(
@@ -52,7 +53,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const platform = row.getValue('platform') as string
         return (
           <StatusBadge
-            label={platform}
+            label={t(platform)}
             variant={taskPlatformMapper.getVariant(platform)}
             size='sm'
             copyable={false}
@@ -70,7 +71,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const action = row.getValue('action') as string
         return (
           <StatusBadge
-            label={taskActionMapper.getLabel(action)}
+            label={t(taskActionMapper.getLabel(action))}
             variant={taskActionMapper.getVariant(action)}
             size='sm'
             copyable={false}
@@ -106,7 +107,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const status = row.getValue('status') as string
         return (
           <StatusBadge
-            label={taskStatusMapper.getLabel(status, status || 'Submitting')}
+            label={t(taskStatusMapper.getLabel(status, status || 'Submitting'))}
             variant={taskStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
@@ -117,7 +118,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       meta: { label: t('Status') },
     },
 
-    createProgressColumn<TaskLog>(),
+    createProgressColumn<TaskLog>({ headerLabel: t('Progress') }),
 
     // Result/Fail Reason - Combined column
     {
@@ -165,7 +166,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               variant='ghost'
               className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal text-red-600 hover:underline'
               onClick={() => setDialogOpen(true)}
-              title='Click to view full error message'
+              title={t('Click to view full error message')}
             >
               <span className='truncate'>{failReason}</span>
             </Button>

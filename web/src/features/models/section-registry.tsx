@@ -28,6 +28,7 @@ const modelsRegistry = createSectionRegistry<
   sections: MODELS_SECTIONS,
   defaultSection: 'metadata',
   basePath: '/models',
+  urlStyle: 'path',
 })
 
 export const MODELS_SECTION_IDS = modelsRegistry.sectionIds

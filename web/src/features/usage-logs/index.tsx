@@ -1,7 +1,6 @@
-import { useEffect } from 'react'
 import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { AppHeader, Main } from '@/components/layout'
+import { SectionPageLayout } from '@/components/layout'
 import { CommonLogsStats } from './components/common-logs-stats'
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import { UsageLogsPrimaryButtons } from './components/usage-logs-primary-buttons'
@@ -10,59 +9,60 @@ import {
   useUsageLogsContext,
 } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
+import {
+  isUsageLogsSectionId,
+  USAGE_LOGS_DEFAULT_SECTION,
+} from './section-registry'
+import type { UsageLogsSectionId } from './section-registry'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 function UsageLogsContent() {
   const { t } = useTranslation()
-  const searchParams = route.useSearch()
+  const params = route.useParams()
+  const activeCategory: UsageLogsSectionId =
+    (params.section && isUsageLogsSectionId(params.section))
+      ? params.section
+      : USAGE_LOGS_DEFAULT_SECTION
   const {
     selectedUserId,
     userInfoDialogOpen,
     setUserInfoDialogOpen,
-    logCategory,
-    setLogCategory,
   } = useUsageLogsContext()
 
-  // Sync tab state with URL parameter
-  useEffect(() => {
-    if (searchParams.tab && searchParams.tab !== logCategory) {
-      setLogCategory(searchParams.tab as typeof logCategory)
-    }
-  }, [searchParams.tab, logCategory, setLogCategory])
+  const title =
+    activeCategory === 'common'
+      ? t('Common Logs')
+      : activeCategory === 'drawing'
+        ? t('Drawing Logs')
+        : activeCategory === 'task'
+          ? t('Task Logs')
+          : t('Usage Logs')
+
+  const description =
+    activeCategory === 'common'
+      ? t('View and manage your API usage logs')
+      : activeCategory === 'drawing'
+        ? t('View and manage your drawing logs')
+        : activeCategory === 'task'
+          ? t('View and manage your task logs')
+          : t('View and manage your API usage logs')
 
   return (
     <>
-      <AppHeader fixed />
-
-      <Main>
-        <div className='mb-2'>
-          <div className='flex flex-wrap items-center gap-x-4 gap-y-2'>
-            <div className='flex w-full items-center justify-between sm:w-auto sm:justify-start'>
-              <h2 className='text-2xl font-bold tracking-tight'>
-                {t('Usage Logs')}
-              </h2>
-              <div className='sm:hidden'>
-                <UsageLogsPrimaryButtons />
-              </div>
-            </div>
-            {logCategory === 'common' && (
-              <div className='order-last sm:order-none'>
-                <CommonLogsStats />
-              </div>
-            )}
-            <div className='hidden sm:ml-auto sm:block'>
-              <UsageLogsPrimaryButtons />
-            </div>
-          </div>
-          <p className='text-muted-foreground'>
-            {t('View and manage your API usage logs')}
-          </p>
-        </div>
-        <div className='-mx-4 flex-1 overflow-auto px-4 py-1 lg:flex-row lg:space-y-0 lg:space-x-12'>
-          <UsageLogsTable />
-        </div>
-      </Main>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{title}</SectionPageLayout.Title>
+        <SectionPageLayout.Description>
+          {description}
+        </SectionPageLayout.Description>
+        <SectionPageLayout.Actions>
+          {activeCategory === 'common' && <CommonLogsStats />}
+          <UsageLogsPrimaryButtons logCategory={activeCategory} />
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <UsageLogsTable logCategory={activeCategory} />
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
       <UserInfoDialog
         userId={selectedUserId}

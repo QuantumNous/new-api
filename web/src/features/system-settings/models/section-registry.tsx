@@ -128,6 +128,7 @@ const modelsRegistry = createSectionRegistry<
   sections: MODELS_SECTIONS,
   defaultSection: 'global',
   basePath: '/system-settings/models',
+  urlStyle: 'path',
 })
 
 export const MODELS_SECTION_IDS = modelsRegistry.sectionIds
