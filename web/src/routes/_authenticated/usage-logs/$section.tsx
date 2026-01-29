@@ -2,7 +2,7 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { UsageLogs } from '@/features/usage-logs'
 import {
-  USAGE_LOGS_SECTION_IDS,
+  isUsageLogsSectionId,
   USAGE_LOGS_DEFAULT_SECTION,
 } from '@/features/usage-logs/section-registry'
 
@@ -24,8 +24,7 @@ const usageLogsSearchSchema = z.object({
 
 export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
   beforeLoad: ({ params, search }) => {
-    const validSections = USAGE_LOGS_SECTION_IDS as unknown as string[]
-    if (!validSections.includes(params.section)) {
+    if (!isUsageLogsSectionId(params.section)) {
       throw redirect({
         to: '/usage-logs/$section',
         params: { section: USAGE_LOGS_DEFAULT_SECTION },

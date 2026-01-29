@@ -9,16 +9,21 @@ import {
   useUsageLogsContext,
 } from './components/usage-logs-provider'
 import { UsageLogsTable } from './components/usage-logs-table'
+import {
+  isUsageLogsSectionId,
+  USAGE_LOGS_DEFAULT_SECTION,
+} from './section-registry'
 import type { UsageLogsSectionId } from './section-registry'
-import { USAGE_LOGS_DEFAULT_SECTION } from './section-registry'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 function UsageLogsContent() {
   const { t } = useTranslation()
   const params = route.useParams()
-  const activeCategory = (params.section ??
-    USAGE_LOGS_DEFAULT_SECTION) as UsageLogsSectionId
+  const activeCategory: UsageLogsSectionId =
+    (params.section && isUsageLogsSectionId(params.section))
+      ? params.section
+      : USAGE_LOGS_DEFAULT_SECTION
   const {
     selectedUserId,
     userInfoDialogOpen,
