@@ -52,6 +52,7 @@ const RechargeCard = ({
   t,
   enableOnlineTopUp,
   enableStripeTopUp,
+  enableAlipayF2FTopUp,
   enableCreemTopUp,
   creemProducts,
   creemPreTopUp,
@@ -220,19 +221,19 @@ const RechargeCard = ({
             <div className='py-8 flex justify-center'>
               <Spin size='large' />
             </div>
-          ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp ? (
+          ) : enableOnlineTopUp || enableStripeTopUp || enableAlipayF2FTopUp || enableCreemTopUp ? (
             <Form
               getFormApi={(api) => (onlineFormApiRef.current = api)}
               initValues={{ topUpCount: topUpCount }}
             >
               <div className='space-y-6'>
-                {(enableOnlineTopUp || enableStripeTopUp) && (
+                {(enableOnlineTopUp || enableStripeTopUp || enableAlipayF2FTopUp) && (
                   <Row gutter={12}>
                     <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                       <Form.InputNumber
                         field='topUpCount'
                         label={t('充值数量')}
-                        disabled={!enableOnlineTopUp && !enableStripeTopUp}
+                        disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableAlipayF2FTopUp}
                         placeholder={
                           t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                         }
@@ -292,9 +293,16 @@ const RechargeCard = ({
                               const minTopupVal =
                                 Number(payMethod.min_topup) || 0;
                               const isStripe = payMethod.type === 'stripe';
+                              const isAlipayF2F = payMethod.type === 'alipay_f2f';
+                              if (!enableStripeTopUp && isStripe) return null;
+                              if (!enableAlipayF2FTopUp && isAlipayF2F) return null;
+                              if (!enableOnlineTopUp && !isStripe && !isAlipayF2F) {
+                                return null;
+                              }
                               const disabled =
-                                (!enableOnlineTopUp && !isStripe) ||
+                                (!enableOnlineTopUp && !isStripe && !isAlipayF2F) ||
                                 (!enableStripeTopUp && isStripe) ||
+                                (!enableAlipayF2FTopUp && isAlipayF2F) ||
                                 minTopupVal > Number(topUpCount || 0);
 
                               const buttonEl = (
@@ -308,7 +316,7 @@ const RechargeCard = ({
                                     paymentLoading && payWay === payMethod.type
                                   }
                                   icon={
-                                    payMethod.type === 'alipay' ? (
+                                    payMethod.type === 'alipay' || payMethod.type === 'alipay_f2f' ? (
                                       <SiAlipay size={18} color='#1677FF' />
                                     ) : payMethod.type === 'wxpay' ? (
                                       <SiWechat size={18} color='#07C160' />
@@ -326,7 +334,9 @@ const RechargeCard = ({
                                   }
                                   className='!rounded-lg !px-4 !py-2'
                                 >
-                                  {payMethod.name}
+                                  {payMethod.type === 'alipay_f2f'
+                                    ? t('支付宝支付')
+                                    : payMethod.name}
                                 </Button>
                               );
 
