@@ -640,7 +640,9 @@ func (ctrl *OAuthProviderController) OAuthConsentSubmit(c *gin.Context) {
 	}
 
 	// Auto-create default token if scope includes tokens:write and user has no tokens
-	if slices.Contains(req.GrantScope, "tokens:write") {
+	// Only create if tokens:write is both requested by client AND granted by user
+	requestedScope := consentReq.GetRequestedScope()
+	if slices.Contains(requestedScope, "tokens:write") && slices.Contains(req.GrantScope, "tokens:write") {
 		userId, _ := strconv.Atoi(subject)
 		tokens, _ := model.GetAllUserTokens(userId, 0, 1)
 		if len(tokens) == 0 {
