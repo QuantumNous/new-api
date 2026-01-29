@@ -28,11 +28,22 @@ const usageLogsSearchSchema = z.object({
 
 export const Route = createFileRoute('/_authenticated/usage-logs/')({
   beforeLoad: ({ search }) => {
-    // Redirect to default section if no section is provided
     if (!search?.section) {
       throw redirect({
         to: '/usage-logs',
         search: { section: USAGE_LOGS_DEFAULT_SECTION },
+      })
+    }
+    // type 仅 common 使用，非 common 时清掉 URL 里的 type
+    if (
+      search.section !== 'common' &&
+      Array.isArray(search.type) &&
+      search.type.length > 0
+    ) {
+      throw redirect({
+        to: '/usage-logs',
+        search: { ...search, type: undefined },
+        replace: true,
       })
     }
   },
