@@ -1,4 +1,4 @@
-import { format } from 'date-fns'
+import dayjs from '@/lib/dayjs'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -31,7 +31,7 @@ export function DatePicker({
           className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
         >
           {selected ? (
-            format(selected, 'MMM d, yyyy')
+            dayjs(selected).format('MMM D, YYYY')
           ) : (
             <span>{placeholderText}</span>
           )}

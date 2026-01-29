@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
-import { format } from 'date-fns'
+import dayjs from '@/lib/dayjs'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
@@ -369,7 +369,7 @@ export function AnnouncementsSection({
                           {getRelativeTime(announcement.publishDate)}
                         </span>
                         <span className='text-muted-foreground text-xs'>
-                          {format(new Date(announcement.publishDate), 'PPp')}
+                          {dayjs(announcement.publishDate).format('MMM D, YYYY, h:mm A')}
                         </span>
                       </div>
                     </TableCell>

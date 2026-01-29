@@ -1,5 +1,5 @@
 import * as React from 'react'
-import dayjs from 'dayjs'
+import dayjs from '@/lib/dayjs'
 import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'

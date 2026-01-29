@@ -24,6 +24,34 @@
 
 ---
 
+## 技术栈
+
+本项目主要采用以下前端技术栈：
+
+- **bun**：包管理器
+- **React 19**：主流响应式视图库，构建组件化 UI。
+- **TypeScript**：为 JavaScript 提供静态类型支持，提升代码可维护性和可靠性。
+- **@tanstack/react-query**：高效的数据请求和缓存管理库。
+- **@tanstack/react-router**：现代化路由解决方案，响应式路由和嵌套路由设计。
+- **@tanstack/react-table、@tanstack/react-virtual**：数据表格和虚拟滚动性能优化支持大数据量列表。
+- **i18next + react-i18next + i18next-browser-languagedetector**：国际化框架，支持多语言适配和自动语言检测。
+- **Day.js**：日期时间处理相关库。
+- **Radix UI**：一套可访问性的无样式 UI 组件，用于快速构建交互组件（如弹窗、对话框、选择器等）。
+- **Lucide React**：图标库。
+- **Tailwind CSS**：原子化 CSS 框架，快速响应式样式编写。
+- **clsx / class-variance-authority**：CSS className 工具。
+- **React Hook Form**：高性能、易于扩展的表单处理方案。
+- **axios**：HTTP 请求和数据交互。
+- **prettier、eslint**：代码风格和质量保证工具。
+- **vitest**（如有）：单元测试框架。
+- **qrcode.react**：二维码渲染组件。
+- **@visactor/vchart, @visactor/react-vchart**：数据可视化图表库。
+
+如有部分定制或者三方库按需集成，以 package.json 为准。所有依赖均支持现代浏览器和模块化开发。
+
+优先选择成熟、可靠的开源依赖库来实现功能，避免无必要的重复造轮子。仅当现有库无法满足业务需求、或为适配特殊情况时，才可考虑自行实现功能，并需充分评估可维护性和通用性。
+
+
 ## 国际化规范
 
 ### 文本国际化要求

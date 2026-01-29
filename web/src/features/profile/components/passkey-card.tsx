@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { formatDistanceToNowStrict } from 'date-fns'
+import dayjs from '@/lib/dayjs'
 import { KeyRound, ShieldAlert, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -55,7 +55,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   const formattedLastUsed =
     lastUsed && !Number.isNaN(Date.parse(lastUsed))
-      ? formatDistanceToNowStrict(new Date(lastUsed), { addSuffix: true })
+      ? dayjs(lastUsed).fromNow()
       : 'Not used yet'
 
   const showUnsupportedNotice = !supported && !enabled

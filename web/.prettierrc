@@ -22,7 +22,7 @@
     "^globals$",
     "^zod$",
     "^axios$",
-    "^date-fns$",
+    "^dayjs$",
     "^react-hook-form$",
     "^use-intl$",
     "^@radix-ui/(.*)$",
