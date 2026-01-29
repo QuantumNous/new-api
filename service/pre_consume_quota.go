@@ -15,17 +15,38 @@ import (
 )
 
 func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
-	if relayInfo.FinalPreConsumedQuota != 0 {
-		logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费额度 %s", relayInfo.UserId, logger.FormatQuota(relayInfo.FinalPreConsumedQuota)))
-		gopool.Go(func() {
-			relayInfoCopy := *relayInfo
+	// Always refund subscription pre-consumed (can be non-zero even when FinalPreConsumedQuota is 0)
+	needRefundSub := relayInfo.BillingSource == BillingSourceSubscription && relayInfo.SubscriptionItemId != 0 && relayInfo.SubscriptionPreConsumed > 0
+	needRefundToken := relayInfo.FinalPreConsumedQuota != 0
+	if !needRefundSub && !needRefundToken {
+		return
+	}
+	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, subscription=%d）",
+		relayInfo.UserId,
+		logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
+		relayInfo.SubscriptionPreConsumed,
+	))
+	gopool.Go(func() {
+		relayInfoCopy := *relayInfo
+		if relayInfoCopy.BillingSource == BillingSourceSubscription {
+			if needRefundSub {
+				_ = model.PostConsumeUserSubscriptionDelta(relayInfoCopy.SubscriptionItemId, -relayInfoCopy.SubscriptionPreConsumed)
+			}
+			// refund token quota only
+			if needRefundToken && !relayInfoCopy.IsPlayground {
+				_ = model.IncreaseTokenQuota(relayInfoCopy.TokenId, relayInfoCopy.TokenKey, relayInfoCopy.FinalPreConsumedQuota)
+			}
+			return
+		}
 
+		// wallet refund uses existing path (user quota + token quota)
+		if needRefundToken {
 			err := PostConsumeQuota(&relayInfoCopy, -relayInfoCopy.FinalPreConsumedQuota, 0, false)
 			if err != nil {
 				common.SysLog("error return pre-consumed quota: " + err.Error())
 			}
-		})
-	}
+		}
+	})
 }
 
 // PreConsumeQuota checks if the user has enough quota to pre-consume.

@@ -182,6 +182,18 @@ function renderFirstUseTime(type, t) {
   }
 }
 
+function renderBillingTag(record, t) {
+  const other = getLogOther(record.other);
+  if (other?.billing_source === 'subscription') {
+    return (
+      <Tag color='green' shape='circle'>
+        {t('订阅抵扣')}
+      </Tag>
+    );
+  }
+  return null;
+}
+
 function renderModelName(record, copyText, t) {
   let other = getLogOther(record.other);
   let modelMapped =
@@ -191,7 +203,7 @@ function renderModelName(record, copyText, t) {
   if (!modelMapped) {
     return renderModelTag(record.model_name, {
       onClick: (event) => {
-        copyText(event, record.model_name).then((r) => {});
+        copyText(event, record.model_name).then((r) => { });
       },
     });
   } else {
@@ -208,7 +220,7 @@ function renderModelName(record, copyText, t) {
                     </Typography.Text>
                     {renderModelTag(record.model_name, {
                       onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => {});
+                        copyText(event, record.model_name).then((r) => { });
                       },
                     })}
                   </div>
@@ -219,7 +231,7 @@ function renderModelName(record, copyText, t) {
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {
                         copyText(event, other.upstream_model_name).then(
-                          (r) => {},
+                          (r) => { },
                         );
                       },
                     })}
@@ -230,7 +242,7 @@ function renderModelName(record, copyText, t) {
           >
             {renderModelTag(record.model_name, {
               onClick: (event) => {
-                copyText(event, record.model_name).then((r) => {});
+                copyText(event, record.model_name).then((r) => { });
               },
               suffixIcon: (
                 <Route
@@ -457,11 +469,20 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 ? (
-          <>{renderQuota(text, 6)}</>
-        ) : (
-          <></>
-        );
+        if (!(record.type === 0 || record.type === 2 || record.type === 5)) {
+          return <></>;
+        }
+        const other = getLogOther(record.other);
+        const isSubscription = other?.billing_source === 'subscription';
+        if (isSubscription) {
+          // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
+          return (
+            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+              <span>{renderBillingTag(record, t)}</span>
+            </Tooltip>
+          );
+        }
+        return <>{renderQuota(text, 6)}</>;
       },
     },
     {
@@ -532,42 +553,42 @@ export const getLogsColumns = ({
         return isAdminUser ? (
           <Space>
             <div>{content}</div>
-	            {affinity ? (
-	              <Tooltip
-	                content={
-	                  <div style={{ lineHeight: 1.6 }}>
-	                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('规则')}：{affinity.rule_name || '-'}
-	                      </Typography.Text>
-	                    </div>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('分组')}：{affinity.selected_group || '-'}
-	                      </Typography.Text>
-	                    </div>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('Key')}：
-	                        {(affinity.key_source || '-') +
-	                          ':' +
-	                          (affinity.key_path || affinity.key_key || '-') +
+            {affinity ? (
+              <Tooltip
+                content={
+                  <div style={{ lineHeight: 1.6 }}>
+                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
+                    <div>
+                      <Typography.Text type='secondary'>
+                        {t('规则')}：{affinity.rule_name || '-'}
+                      </Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text type='secondary'>
+                        {t('分组')}：{affinity.selected_group || '-'}
+                      </Typography.Text>
+                    </div>
+                    <div>
+                      <Typography.Text type='secondary'>
+                        {t('Key')}：
+                        {(affinity.key_source || '-') +
+                          ':' +
+                          (affinity.key_path || affinity.key_key || '-') +
                           (affinity.key_fp ? `#${affinity.key_fp}` : '')}
                       </Typography.Text>
                     </div>
-	                  </div>
-	                }
-	              >
-	                <span>
-	                  <Tag className='channel-affinity-tag' color='cyan' shape='circle'>
-	                    <span className='channel-affinity-tag-content'>
-	                      <IconStarStroked style={{ fontSize: 13 }} />
-	                      {t('优选')}
-	                    </span>
-	                  </Tag>
-	                </span>
-	              </Tooltip>
+                  </div>
+                }
+              >
+                <span>
+                  <Tag className='channel-affinity-tag' color='cyan' shape='circle'>
+                    <span className='channel-affinity-tag-content'>
+                      <IconStarStroked style={{ fontSize: 13 }} />
+                      {t('优选')}
+                    </span>
+                  </Tag>
+                </span>
+              </Tooltip>
             ) : null}
           </Space>
         ) : (
@@ -632,45 +653,49 @@ export const getLogsColumns = ({
 
         let content = other?.claude
           ? renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m ||
-                other.cache_creation_ratio ||
-                1.0,
-              other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h ||
-                other.cache_creation_ratio ||
-                1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'claude',
-            )
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            other.cache_creation_tokens || 0,
+            other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_5m || 0,
+            other.cache_creation_ratio_5m ||
+            other.cache_creation_ratio ||
+            1.0,
+            other.cache_creation_tokens_1h || 0,
+            other.cache_creation_ratio_1h ||
+            other.cache_creation_ratio ||
+            1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'claude',
+          )
           : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'openai',
-            );
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'openai',
+          );
+        // Do not add billing source here; keep details clean.
+        const summary = [content, text ? `${t('详情')}：${text}` : null]
+          .filter(Boolean)
+          .join('\n');
         return (
           <Typography.Paragraph
             ellipsis={{
@@ -678,7 +703,7 @@ export const getLogsColumns = ({
             }}
             style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
           >
-            {content}
+            {summary}
           </Typography.Paragraph>
         );
       },

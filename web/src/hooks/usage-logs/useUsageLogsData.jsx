@@ -364,32 +364,32 @@ export const useLogsData = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_5m || 0,
-                other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_1h || 0,
-                other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-              )
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+            )
             : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-              ),
+              other?.model_ratio,
+              other.completion_ratio,
+              other.model_price,
+              other.group_ratio,
+              other?.user_group_ratio,
+              other.cache_ratio || 1.0,
+              false,
+              1.0,
+              other.web_search || false,
+              other.web_search_call_count || 0,
+              other.file_search || false,
+              other.file_search_call_count || 0,
+            ),
         });
         if (logs[i]?.content) {
           expandDataLocal.push({
@@ -458,12 +458,12 @@ export const useLogsData = () => {
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
               other.cache_creation_ratio_5m ||
-                other.cache_creation_ratio ||
-                1.0,
+              other.cache_creation_ratio ||
+              1.0,
               other.cache_creation_tokens_1h || 0,
               other.cache_creation_ratio_1h ||
-                other.cache_creation_ratio ||
-                1.0,
+              other.cache_creation_ratio ||
+              1.0,
             );
           } else {
             content = renderModelPrice(
@@ -510,6 +510,60 @@ export const useLogsData = () => {
           value: other.request_path,
         });
       }
+      if (other?.billing_source === 'subscription') {
+        const planId = other?.subscription_plan_id;
+        const planTitle = other?.subscription_plan_title || '';
+        const itemId = other?.subscription_item_id;
+        const quotaType = other?.subscription_quota_type;
+        const unit = quotaType === 1 ? t('次') : t('额度');
+        const pre = other?.subscription_pre_consumed ?? 0;
+        const postDelta = other?.subscription_post_delta ?? 0;
+        const finalConsumed =
+          other?.subscription_consumed ?? (quotaType === 1 ? 1 : pre + postDelta);
+        const remain = other?.subscription_remain;
+        const total = other?.subscription_total;
+        // Use multiple Description items to avoid an overlong single line.
+        if (planId) {
+          expandDataLocal.push({
+            key: t('订阅套餐'),
+            value: `#${planId} ${planTitle}`.trim(),
+          });
+        }
+        if (itemId) {
+          expandDataLocal.push({
+            key: t('订阅权益'),
+            value:
+              quotaType === 1
+                ? `${t('权益ID')} ${itemId} · ${t('按次')}（1 ${t('次')}/${t('请求')}）`
+                : `${t('权益ID')} ${itemId} · ${t('按量')}`,
+          });
+        }
+        const settlementLines = [
+          `${t('预扣')}：${pre} ${unit}`,
+          quotaType === 0
+            ? `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${postDelta} ${unit}`
+            : null,
+          `${t('最终抵扣')}：${finalConsumed} ${unit}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        expandDataLocal.push({
+          key: t('订阅结算'),
+          value: <div style={{ whiteSpace: 'pre-line' }}>{settlementLines}</div>,
+        });
+        if (remain !== undefined && total !== undefined) {
+          expandDataLocal.push({
+            key: t('订阅剩余'),
+            value: `${remain}/${total} ${unit}`,
+          });
+        }
+        expandDataLocal.push({
+          key: t('订阅说明'),
+          value: t(
+            'token 会按倍率换算成“额度/次数”，请求结束后再做差额结算（补扣/返还）。',
+          ),
+        });
+      }
       if (isAdminUser) {
         expandDataLocal.push({
           key: t('请求转换'),
@@ -524,8 +578,8 @@ export const useLogsData = () => {
           localCountMode = t('上游返回');
         }
         expandDataLocal.push({
-            key: t('计费模式'),
-            value: localCountMode,
+          key: t('计费模式'),
+          value: localCountMode,
         });
       }
       expandDatesLocal[logs[i].key] = expandDataLocal;
@@ -584,7 +638,7 @@ export const useLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {});
+    loadLogs(page, pageSize).then((r) => { });
   };
 
   const handlePageSizeChange = async (size) => {

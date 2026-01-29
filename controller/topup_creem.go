@@ -308,7 +308,18 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		return
 	}
 
-	// 验证订单类型，目前只处理一次性付款
+	// Subscription order takes precedence (accept both onetime/subscription types)
+	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
+		if err := model.CompleteSubscriptionOrder(referenceId, jsonString(event)); err != nil {
+			log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.Status(http.StatusOK)
+		return
+	}
+
+	// 验证订单类型，目前只处理一次性付款（充值）
 	if event.Object.Order.Type != "onetime" {
 		log.Printf("暂不支持的订单类型: %s, 跳过处理", event.Object.Order.Type)
 		c.Status(http.StatusOK)

@@ -166,6 +166,20 @@ func sessionCompleted(event stripe.Event) {
 		return
 	}
 
+	// Subscription order takes precedence
+	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
+		payload := map[string]any{
+			"customer": customerId,
+			"amount_total": event.GetObjectValue("amount_total"),
+			"currency": strings.ToUpper(event.GetObjectValue("currency")),
+			"event_type": string(event.Type),
+		}
+		if err := model.CompleteSubscriptionOrder(referenceId, jsonString(payload)); err != nil {
+			log.Println("complete subscription order failed:", err.Error(), referenceId)
+		}
+		return
+	}
+
 	err := model.Recharge(referenceId, customerId)
 	if err != nil {
 		log.Println(err.Error(), referenceId)
@@ -187,6 +201,14 @@ func sessionExpired(event stripe.Event) {
 
 	if len(referenceId) == 0 {
 		log.Println("未提供支付单号")
+		return
+	}
+
+	// Subscription order expiration
+	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
+		if err := model.ExpireSubscriptionOrder(referenceId); err != nil {
+			log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
+		}
 		return
 	}
 

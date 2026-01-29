@@ -503,13 +503,29 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
 
-	if quota > 0 {
-		err = model.DecreaseUserQuota(relayInfo.UserId, quota)
+	// 1) Consume from wallet quota OR subscription item
+	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
+		// For subscription: quotaType=0 uses quota units delta; quotaType=1 uses fixed 0 delta (pre-consumed 1 on request begin)
+		if relayInfo.SubscriptionQuotaType == 0 {
+			if relayInfo.SubscriptionItemId == 0 {
+				return errors.New("subscription item id is missing")
+			}
+			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionItemId, int64(quota)); err != nil {
+				return err
+			}
+			// Track delta for logging/UI (net consumed = preConsumed + postDelta)
+			relayInfo.SubscriptionPostDelta += int64(quota)
+		}
 	} else {
-		err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
-	}
-	if err != nil {
-		return err
+		// Wallet
+		if quota > 0 {
+			err = model.DecreaseUserQuota(relayInfo.UserId, quota)
+		} else {
+			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	if !relayInfo.IsPlayground {

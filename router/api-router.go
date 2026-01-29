@@ -119,6 +119,30 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
 		}
+
+		// Subscription billing (plans, purchase, admin management)
+		subscriptionRoute := apiRouter.Group("/subscription")
+		subscriptionRoute.Use(middleware.UserAuth())
+		{
+			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
+			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
+			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
+			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
+			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+		}
+		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
+		subscriptionAdminRoute.Use(middleware.AdminAuth())
+		{
+			subscriptionAdminRoute.GET("/plans", controller.AdminListSubscriptionPlans)
+			subscriptionAdminRoute.POST("/plans", controller.AdminCreateSubscriptionPlan)
+			subscriptionAdminRoute.PUT("/plans/:id", controller.AdminUpdateSubscriptionPlan)
+			subscriptionAdminRoute.DELETE("/plans/:id", controller.AdminDeleteSubscriptionPlan)
+			subscriptionAdminRoute.POST("/bind", controller.AdminBindSubscription)
+		}
+
+		// Subscription payment callbacks (no auth)
+		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{
