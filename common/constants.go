@@ -103,6 +103,11 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
+
+// Referral commission settings (payment-based referral)
+var ReferralCommissionEnabled = false   // Enable commission when referred user recharges
+var ReferralCommissionPercent = 10.0    // Percentage of recharge amount (0-100)
+var ReferralCommissionMaxRecharges = 0  // Max recharges to give commission (0 = unlimited)
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
