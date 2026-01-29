@@ -7,8 +7,8 @@
 🍥 **Passerelle de modèles étendus de nouvelle génération et système de gestion d'actifs d'IA**
 
 <p align="center">
-  <a href="./README.md">中文</a> | 
-  <a href="./README.en.md">English</a> | 
+  <a href="./README.zh.md">中文</a> | 
+  <a href="./README.md">English</a> | 
   <strong>Français</strong> | 
   <a href="./README.ja.md">日本語</a>
 </p>
@@ -34,6 +34,13 @@
 <p align="center">
   <a href="https://trendshift.io/repositories/8227" target="_blank">
     <img src="https://trendshift.io/api/badge/repositories/8227" alt="Calcium-Ion%2Fnew-api | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
+  </a>
+  <br>
+  <a href="https://hellogithub.com/repository/QuantumNous/new-api" target="_blank">
+    <img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=539ac4217e69431684ad4a0bab768811&claim_uid=tbFPfKIDHpc4TzR" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" />
+  </a>
+  <a href="https://www.producthunt.com/products/new-api/launches/new-api?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-new-api" target="_blank" rel="noopener noreferrer">
+    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1047693&theme=light&t=1769577875005" alt="New API - All-in-one AI asset management gateway. | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" />
   </a>
 </p>
 
@@ -193,9 +200,11 @@ docker run --name new-api -d --restart always \
 
 ### 🔐 Autorisation et sécurité
 
+- 😈 Connexion par autorisation Discord
 - 🤖 Connexion par autorisation LinuxDO
 - 📱 Connexion par autorisation Telegram
 - 🔑 Authentification unifiée OIDC
+- 🔍 Requête de quota d'utilisation de clé (avec [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 
 ### 🚀 Fonctionnalités avancées
 
@@ -223,10 +232,13 @@ docker run --name new-api -d --restart always \
 <details>
 <summary>Voir la configuration détaillée</summary>
 
-**Modèles de la série o d'OpenAI:**
+**Modèles de la série OpenAI :**
 - `o3-mini-high` - Effort de raisonnement élevé
 - `o3-mini-medium` - Effort de raisonnement moyen
 - `o3-mini-low` - Effort de raisonnement faible
+- `gpt-5-high` - Effort de raisonnement élevé
+- `gpt-5-medium` - Effort de raisonnement moyen
+- `gpt-5-low` - Effort de raisonnement faible
 
 **Modèles de pensée de Claude:**
 - `claude-3-7-sonnet-20250219-thinking` - Activer le mode de pensée
@@ -248,12 +260,13 @@ docker run --name new-api -d --restart always \
 
 | Type de modèle | Description | Documentation |
 |---------|------|------|
-| 🤖 OpenAI GPTs | série gpt-4-gizmo-* | - |
-| 🎨 Midjourney-Proxy | [Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy) | [Documentation](https://doc.newapi.pro/en/api/midjourney-proxy-image) |
-| 🎵 Suno-API | [Suno API](https://github.com/Suno-API/Suno-API) | [Documentation](https://doc.newapi.pro/en/api/suno-music) |
-| 🔄 Rerank | Cohere, Jina | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/rerank/create-rerank) |
-| 💬 Claude | Format Messages | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/create-message) |
-| 🌐 Gemini | Format Google Gemini | [Documentation](https://doc.newapi.pro/en/api/google-gemini-chat) |
+| 🤖 OpenAI-Compatible | Modèles compatibles OpenAI | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/createchatcompletion) |
+| 🤖 OpenAI Responses | Format OpenAI Responses | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/createresponse) |
+| 🎨 Midjourney-Proxy | [Midjourney-Proxy(Plus)](https://github.com/novicezk/midjourney-proxy) | [Documentation](https://doc.newapi.pro/api/midjourney-proxy-image) |
+| 🎵 Suno-API | [Suno API](https://github.com/Suno-API/Suno-API) | [Documentation](https://doc.newapi.pro/api/suno-music) |
+| 🔄 Rerank | Cohere, Jina | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/rerank/creatererank) |
+| 💬 Claude | Format Messages | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/createmessage) |
+| 🌐 Gemini | Format Google Gemini | [Documentation](https://docs.newapi.pro/en/docs/api/ai-model/chat/gemini/geminirelayv1beta) |
 | 🔧 Dify | Mode ChatFlow | - |
 | 🎯 Personnalisé | Prise en charge de l'adresse d'appel complète | - |
 
@@ -262,16 +275,16 @@ docker run --name new-api -d --restart always \
 <details>
 <summary>Voir la liste complète des interfaces</summary>
 
-- [Interface de discussion (Chat Completions)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/create-chat-completion)
-- [Interface de réponse (Responses)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/create-response)
-- [Interface d'image (Image)](https://docs.newapi.pro/en/docs/api/ai-model/images/openai/v1-images-generations--post)
+- [Interface de discussion (Chat Completions)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/createchatcompletion)
+- [Interface de réponse (Responses)](https://docs.newapi.pro/en/docs/api/ai-model/chat/openai/createresponse)
+- [Interface d'image (Image)](https://docs.newapi.pro/en/docs/api/ai-model/images/openai/post-v1-images-generations)
 - [Interface audio (Audio)](https://docs.newapi.pro/en/docs/api/ai-model/audio/openai/create-transcription)
-- [Interface vidéo (Video)](https://docs.newapi.pro/en/docs/api/ai-model/videos/create-video-generation)
-- [Interface d'incorporation (Embeddings)](https://docs.newapi.pro/en/docs/api/ai-model/embeddings/create-embedding)
-- [Interface de rerank (Rerank)](https://docs.newapi.pro/en/docs/api/ai-model/rerank/create-rerank)
-- [Conversation en temps réel (Realtime)](https://docs.newapi.pro/en/docs/api/ai-model/realtime/create-realtime-session)
-- [Discussion Claude](https://docs.newapi.pro/en/docs/api/ai-model/chat/create-message)
-- [Discussion Google Gemini](https://doc.newapi.pro/en/api/google-gemini-chat)
+- [Interface vidéo (Video)](https://docs.newapi.pro/en/docs/api/ai-model/audio/openai/createspeech)
+- [Interface d'incorporation (Embeddings)](https://docs.newapi.pro/en/docs/api/ai-model/embeddings/createembedding)
+- [Interface de rerank (Rerank)](https://docs.newapi.pro/en/docs/api/ai-model/rerank/creatererank)
+- [Conversation en temps réel (Realtime)](https://docs.newapi.pro/en/docs/api/ai-model/realtime/createrealtimesession)
+- [Discussion Claude](https://docs.newapi.pro/en/docs/api/ai-model/chat/createmessage)
+- [Discussion Google Gemini](https://docs.newapi.pro/en/docs/api/ai-model/chat/gemini/geminirelayv1beta)
 
 </details>
 
@@ -368,8 +381,9 @@ docker run --name new-api -d --restart always \
 <details>
 <summary><strong>Méthode 3: Panneau BaoTa</strong></summary>
 
-1. Installez le panneau BaoTa (version **9.2.0** ou supérieure), recherchez **New-API** dans le magasin d'applications et installez-le.
-2. Recherchez **New-API** dans le magasin d'applications et installez-le.
+1. Installez le panneau BaoTa (version ≥ 9.2.0)
+2. Recherchez **New-API** dans le magasin d'applications
+3. Installation en un clic
 
 📖 [Tutoriel avec des images](./docs/BT.md)
 
@@ -405,6 +419,7 @@ docker run --name new-api -d --restart always \
 | Projet | Description |
 |------|------|
 | [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool) | Outil de recherche de quota d'utilisation avec une clé |
+| [new-api-horizon](https://github.com/Calcium-Ion/new-api-horizon) | Version optimisée haute performance de New API |
 
 ---
 

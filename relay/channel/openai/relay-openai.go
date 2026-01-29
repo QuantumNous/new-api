@@ -229,6 +229,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	for _, choice := range simpleResponse.Choices {
+		if choice.FinishReason == constant.FinishReasonContentFilter {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
+			break
+		}
+	}
+
 	forceFormat := false
 	if info.ChannelSetting.ForceFormat {
 		forceFormat = true

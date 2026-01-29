@@ -46,6 +46,7 @@ import {
   Col,
   Highlight,
   Input,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import {
   getChannelModels,
@@ -55,6 +56,7 @@ import {
   selectFilter,
 } from '../../../../helpers';
 import ModelSelectModal from './ModelSelectModal';
+import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
@@ -70,6 +72,7 @@ import {
   IconCode,
   IconGlobe,
   IconBolt,
+  IconSearch,
   IconChevronUp,
   IconChevronDown,
 } from '@douyinfe/semi-icons';
@@ -110,7 +113,7 @@ function type2secretPrompt(type) {
     case 33:
       return '按照如下格式输入：Ak|Sk|Region';
     case 45:
-        return '请输入渠道对应的鉴权密钥, 豆包语音输入：AppId|AccessToken';
+      return '请输入渠道对应的鉴权密钥, 豆包语音输入：AppId|AccessToken';
     case 50:
       return '按照如下格式输入: AccessKey|SecretKey, 如果上游是New API，则直接输ApiKey';
     case 51:
@@ -184,6 +187,13 @@ const EditChannelModal = (props) => {
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [fetchedModels, setFetchedModels] = useState([]);
+  const [modelMappingValueModalVisible, setModelMappingValueModalVisible] =
+    useState(false);
+  const [modelMappingValueModalModels, setModelMappingValueModalModels] =
+    useState([]);
+  const [modelMappingValueKey, setModelMappingValueKey] = useState('');
+  const [modelMappingValueSelected, setModelMappingValueSelected] =
+    useState('');
   const [ollamaModalVisible, setOllamaModalVisible] = useState(false);
   const formApiRef = useRef(null);
   const [vertexKeys, setVertexKeys] = useState([]);
@@ -426,7 +436,11 @@ const EditChannelModal = (props) => {
   const isIonetLocked = isIonetChannel && isEdit;
 
   const handleInputChange = (name, value) => {
-    if (isIonetChannel && isEdit && ['type', 'key', 'base_url'].includes(name)) {
+    if (
+      isIonetChannel &&
+      isEdit &&
+      ['type', 'key', 'base_url'].includes(name)
+    ) {
       return;
     }
     if (formApiRef.current) {
@@ -754,10 +768,49 @@ const EditChannelModal = (props) => {
       if (!silent) {
         setModelModalVisible(true);
       }
+      setLoading(false);
+      return uniqueModels;
     } else {
       showError(t('获取模型列表失败'));
     }
     setLoading(false);
+    return null;
+  };
+
+  const openModelMappingValueModal = async ({ pairKey, value }) => {
+    const mappingKey = String(pairKey ?? '').trim();
+    if (!mappingKey) return;
+
+    if (!MODEL_FETCHABLE_TYPES.has(inputs.type)) {
+      return;
+    }
+
+    let modelsToUse = fetchedModels;
+    if (!Array.isArray(modelsToUse) || modelsToUse.length === 0) {
+      const fetched = await fetchUpstreamModelList('models', { silent: true });
+      if (Array.isArray(fetched)) {
+        modelsToUse = fetched;
+      }
+    }
+
+    if (!Array.isArray(modelsToUse) || modelsToUse.length === 0) {
+      showInfo(t('暂无模型'));
+      return;
+    }
+
+    const normalizedModelsToUse = Array.from(
+      new Set(
+        modelsToUse.map((model) => String(model ?? '').trim()).filter(Boolean),
+      ),
+    );
+    const currentValue = String(value ?? '').trim();
+
+    setModelMappingValueModalModels(normalizedModelsToUse);
+    setModelMappingValueKey(mappingKey);
+    setModelMappingValueSelected(
+      normalizedModelsToUse.includes(currentValue) ? currentValue : '',
+    );
+    setModelMappingValueModalVisible(true);
   };
 
   const fetchModels = async () => {
@@ -1764,43 +1817,45 @@ const EditChannelModal = (props) => {
                     </div>
 
                     {isIonetChannel && (
-                    <Banner
-                      type='info'
-                      closeIcon={null}
-                      className='mb-4 rounded-xl'
-                      description={t('此渠道由 IO.NET 自动同步，类型、密钥和 API 地址已锁定。')}
-                    >
-                      <Space>
-                        {ionetMetadata?.deployment_id && (
-                          <Button
-                            size='small'
-                            theme='light'
-                            type='primary'
-                            icon={<IconGlobe />}
-                            onClick={handleOpenIonetDeployment}
-                          >
-                            {t('查看关联部署')}
-                          </Button>
+                      <Banner
+                        type='info'
+                        closeIcon={null}
+                        className='mb-4 rounded-xl'
+                        description={t(
+                          '此渠道由 IO.NET 自动同步，类型、密钥和 API 地址已锁定。',
                         )}
-                      </Space>
-                    </Banner>
-                  )}
+                      >
+                        <Space>
+                          {ionetMetadata?.deployment_id && (
+                            <Button
+                              size='small'
+                              theme='light'
+                              type='primary'
+                              icon={<IconGlobe />}
+                              onClick={handleOpenIonetDeployment}
+                            >
+                              {t('查看关联部署')}
+                            </Button>
+                          )}
+                        </Space>
+                      </Banner>
+                    )}
 
-                  <Form.Select
-                    field='type'
-                    label={t('类型')}
-                    placeholder={t('请选择渠道类型')}
-                    rules={[{ required: true, message: t('请选择渠道类型') }]}
-                    optionList={channelOptionList}
-                    style={{ width: '100%' }}
-                    filter={selectFilter}
-                    autoClearSearchValue={false}
-                    searchPosition='dropdown'
-                    onSearch={(value) => setChannelSearchValue(value)}
-                    renderOptionItem={renderChannelOption}
-                    onChange={(value) => handleInputChange('type', value)}
-                    disabled={isIonetLocked}
-                  />
+                    <Form.Select
+                      field='type'
+                      label={t('类型')}
+                      placeholder={t('请选择渠道类型')}
+                      rules={[{ required: true, message: t('请选择渠道类型') }]}
+                      optionList={channelOptionList}
+                      style={{ width: '100%' }}
+                      filter={selectFilter}
+                      autoClearSearchValue={false}
+                      searchPosition='dropdown'
+                      onSearch={(value) => setChannelSearchValue(value)}
+                      renderOptionItem={renderChannelOption}
+                      onChange={(value) => handleInputChange('type', value)}
+                      disabled={isIonetLocked}
+                    />
 
                     {inputs.type === 20 && (
                       <Form.Switch
@@ -1845,7 +1900,10 @@ const EditChannelModal = (props) => {
                           style={{ width: '100%' }}
                           value={inputs.aws_key_type || 'ak_sk'}
                           onChange={(value) => {
-                            handleChannelOtherSettingsChange('aws_key_type', value);
+                            handleChannelOtherSettingsChange(
+                              'aws_key_type',
+                              value,
+                            );
                           }}
                           extraText={t(
                             'AK/SK 模式：使用 AccessKey 和 SecretAccessKey；API Key 模式：使用 API Key',
@@ -1925,7 +1983,9 @@ const EditChannelModal = (props) => {
                           placeholder={
                             inputs.type === 33
                               ? inputs.aws_key_type === 'api_key'
-                                ? t('请输入 API Key，一行一个，格式：APIKey|Region')
+                                ? t(
+                                    '请输入 API Key，一行一个，格式：APIKey|Region',
+                                  )
                                 : t(
                                     '请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region',
                                   )
@@ -2213,7 +2273,9 @@ const EditChannelModal = (props) => {
                               inputs.type === 33
                                 ? inputs.aws_key_type === 'api_key'
                                   ? t('请输入 API Key，格式：APIKey|Region')
-                                  : t('按照如下格式输入：AccessKey|SecretAccessKey|Region')
+                                  : t(
+                                      '按照如下格式输入：AccessKey|SecretAccessKey|Region',
+                                    )
                                 : t(type2secretPrompt(inputs.type))
                             }
                             rules={
@@ -2435,86 +2497,86 @@ const EditChannelModal = (props) => {
                         />
                       )}
 
-                    {inputs.type === 3 && (
-                      <>
-                        <Banner
-                          type='warning'
-                          description={t(
-                            '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
-                          )}
-                          className='!rounded-lg'
-                        />
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label='AZURE_OPENAI_ENDPOINT'
-                            placeholder={t(
-                              '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
+                      {inputs.type === 3 && (
+                        <>
+                          <Banner
+                            type='warning'
+                            description={t(
+                              '2025年5月10日后添加的渠道，不需要再在部署的时候移除模型名称中的"."',
                             )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                            disabled={isIonetLocked}
+                            className='!rounded-lg'
                           />
-                        </div>
-                        <div>
-                          <Form.Input
-                            field='other'
-                            label={t('默认 API 版本')}
-                            placeholder={t(
-                              '请输入默认 API 版本，例如：2025-04-01-preview',
-                            )}
-                            onChange={(value) =>
-                              handleInputChange('other', value)
-                            }
-                            showClear
-                          />
-                        </div>
-                        <div>
-                          <Form.Input
-                            field='azure_responses_version'
-                            label={t(
-                              '默认 Responses API 版本，为空则使用上方版本',
-                            )}
-                            placeholder={t('例如：preview')}
-                            onChange={(value) =>
-                              handleChannelOtherSettingsChange(
-                                'azure_responses_version',
-                                value,
-                              )
-                            }
-                            showClear
-                          />
-                        </div>
-                      </>
-                    )}
+                          <div>
+                            <Form.Input
+                              field='base_url'
+                              label='AZURE_OPENAI_ENDPOINT'
+                              placeholder={t(
+                                '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              showClear
+                              disabled={isIonetLocked}
+                            />
+                          </div>
+                          <div>
+                            <Form.Input
+                              field='other'
+                              label={t('默认 API 版本')}
+                              placeholder={t(
+                                '请输入默认 API 版本，例如：2025-04-01-preview',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('other', value)
+                              }
+                              showClear
+                            />
+                          </div>
+                          <div>
+                            <Form.Input
+                              field='azure_responses_version'
+                              label={t(
+                                '默认 Responses API 版本，为空则使用上方版本',
+                              )}
+                              placeholder={t('例如：preview')}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'azure_responses_version',
+                                  value,
+                                )
+                              }
+                              showClear
+                            />
+                          </div>
+                        </>
+                      )}
 
-                    {inputs.type === 8 && (
-                      <>
-                        <Banner
-                          type='warning'
-                          description={t(
-                            '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
-                          )}
-                          className='!rounded-lg'
-                        />
-                        <div>
-                          <Form.Input
-                            field='base_url'
-                            label={t('完整的 Base URL，支持变量{model}')}
-                            placeholder={t(
-                              '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
+                      {inputs.type === 8 && (
+                        <>
+                          <Banner
+                            type='warning'
+                            description={t(
+                              '如果你对接的是上游One API或者New API等转发项目，请使用OpenAI类型，不要使用此类型，除非你知道你在做什么。',
                             )}
-                            onChange={(value) =>
-                              handleInputChange('base_url', value)
-                            }
-                            showClear
-                            disabled={isIonetLocked}
+                            className='!rounded-lg'
                           />
-                        </div>
-                      </>
-                    )}
+                          <div>
+                            <Form.Input
+                              field='base_url'
+                              label={t('完整的 Base URL，支持变量{model}')}
+                              placeholder={t(
+                                '请输入完整的URL，例如：https://api.openai.com/v1/chat/completions',
+                              )}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              showClear
+                              disabled={isIonetLocked}
+                            />
+                          </div>
+                        </>
+                      )}
 
                       {inputs.type === 37 && (
                         <Banner
@@ -2543,76 +2605,79 @@ const EditChannelModal = (props) => {
                               }
                               showClear
                               disabled={isIonetLocked}
-                            extraText={t(
-                              '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
+                              extraText={t(
+                                '对于官方渠道，new-api已经内置地址，除非是第三方代理站点或者Azure的特殊接入地址，否则不需要填写',
+                              )}
+                            />
+                          </div>
+                        )}
+
+                      {inputs.type === 22 && (
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label={t('私有部署地址')}
+                            placeholder={t(
+                              '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
                             )}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            showClear
+                            disabled={isIonetLocked}
                           />
                         </div>
                       )}
 
-                    {inputs.type === 22 && (
-                      <div>
-                        <Form.Input
-                          field='base_url'
-                          label={t('私有部署地址')}
-                          placeholder={t(
-                            '请输入私有部署地址，格式为：https://fastgpt.run/api/openapi',
-                          )}
-                          onChange={(value) =>
-                            handleInputChange('base_url', value)
-                          }
-                          showClear
-                          disabled={isIonetLocked}
-                        />
-                      </div>
-                    )}
-
-                    {inputs.type === 36 && (
-                      <div>
-                        <Form.Input
-                          field='base_url'
-                          label={t(
-                            '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
-                          )}
-                      placeholder={t(
-                        '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
-                      )}
-                      onChange={(value) =>
-                        handleInputChange('base_url', value)
-                      }
-                      showClear
-                      disabled={isIonetLocked}
-                    />
-                  </div>
-                )}
-
-                {inputs.type === 45 && !doubaoApiEditUnlocked && (
-                    <div>
-                      <Form.Select
-                          field='base_url'
-                          label={t('API地址')}
-                          placeholder={t('请选择API地址')}
-                          onChange={(value) =>
+                      {inputs.type === 36 && (
+                        <div>
+                          <Form.Input
+                            field='base_url'
+                            label={t(
+                              '注意非Chat API，请务必填写正确的API地址，否则可能导致无法使用',
+                            )}
+                            placeholder={t(
+                              '请输入到 /suno 前的路径，通常就是域名，例如：https://api.example.com',
+                            )}
+                            onChange={(value) =>
                               handleInputChange('base_url', value)
-                          }
-                          optionList={[
-                            {
-                              value: 'https://ark.cn-beijing.volces.com',
-                              label: 'https://ark.cn-beijing.volces.com',
-                            },
-                            {
-                              value: 'https://ark.ap-southeast.bytepluses.com',
-                              label: 'https://ark.ap-southeast.bytepluses.com',
-                            },
-                          {
-                          value: 'doubao-coding-plan',
-                                    label: 'Doubao Coding Plan',
-                                },
-                            ]}defaultValue='https://ark.cn-beijing.volces.com'
-                          disabled={isIonetLocked}
-                      />
-                    </div>
-                )}
+                            }
+                            showClear
+                            disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
+
+                      {inputs.type === 45 && !doubaoApiEditUnlocked && (
+                        <div>
+                          <Form.Select
+                            field='base_url'
+                            label={t('API地址')}
+                            placeholder={t('请选择API地址')}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            optionList={[
+                              {
+                                value: 'https://ark.cn-beijing.volces.com',
+                                label: 'https://ark.cn-beijing.volces.com',
+                              },
+                              {
+                                value:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                                label:
+                                  'https://ark.ap-southeast.bytepluses.com',
+                              },
+                              {
+                                value: 'doubao-coding-plan',
+                                label: 'Doubao Coding Plan',
+                              },
+                            ]}
+                            defaultValue='https://ark.cn-beijing.volces.com'
+                            disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
                     </Card>
                   </div>
                 )}
@@ -2708,79 +2773,81 @@ const EditChannelModal = (props) => {
                             </Button>
                           )}
                           {inputs.type === 4 && isEdit && (
-                          <Button
-                            size='small'
-                            type='primary'
-                            theme='light'
-                            onClick={() => setOllamaModalVisible(true)}
-                          >
-                            {t('Ollama 模型管理')}
-                          </Button>
-                        )}
-                        <Button
-                          size='small'
-                          type='warning'
-                          onClick={() => handleInputChange('models', [])}
-                        >
-                          {t('清除所有模型')}
-                        </Button>
-                        <Button
-                          size='small'
-                          type='tertiary'
-                          onClick={() => {
-                            if (inputs.models.length === 0) {
-                              showInfo(t('没有模型可以复制'));
-                              return;
-                            }
-                            try {
-                              copy(inputs.models.join(','));
-                              showSuccess(t('模型列表已复制到剪贴板'));
-                            } catch (error) {
-                              showError(t('复制失败'));
-                            }
-                          }}
-                        >
-                          {t('复制所有模型')}
-                        </Button>
-                        {modelGroups &&
-                          modelGroups.length > 0 &&
-                          modelGroups.map((group) => (
                             <Button
-                              key={group.id}
                               size='small'
                               type='primary'
-                              onClick={() => {
-                                let items = [];
-                                try {
-                                  if (Array.isArray(group.items)) {
-                                    items = group.items;
-                                  } else if (typeof group.items === 'string') {
-                                    const parsed = JSON.parse(
-                                      group.items || '[]',
-                                    );
-                                    if (Array.isArray(parsed)) items = parsed;
-                                  }
-                                } catch {}
-                                const current =
-                                  formApiRef.current?.getValue('models') ||
-                                  inputs.models ||
-                                  [];
-                                const merged = Array.from(
-                                  new Set(
-                                    [...current, ...items]
-                                      .map((m) => (m || '').trim())
-                                      .filter(Boolean),
-                                  ),
-                                );
-                                handleInputChange('models', merged);
-                              }}
+                              theme='light'
+                              onClick={() => setOllamaModalVisible(true)}
                             >
-                              {group.name}
+                              {t('Ollama 模型管理')}
                             </Button>
-                          ))}
-                      </Space>
-                    }
-                  />
+                          )}
+                          <Button
+                            size='small'
+                            type='warning'
+                            onClick={() => handleInputChange('models', [])}
+                          >
+                            {t('清除所有模型')}
+                          </Button>
+                          <Button
+                            size='small'
+                            type='tertiary'
+                            onClick={() => {
+                              if (inputs.models.length === 0) {
+                                showInfo(t('没有模型可以复制'));
+                                return;
+                              }
+                              try {
+                                copy(inputs.models.join(','));
+                                showSuccess(t('模型列表已复制到剪贴板'));
+                              } catch (error) {
+                                showError(t('复制失败'));
+                              }
+                            }}
+                          >
+                            {t('复制所有模型')}
+                          </Button>
+                          {modelGroups &&
+                            modelGroups.length > 0 &&
+                            modelGroups.map((group) => (
+                              <Button
+                                key={group.id}
+                                size='small'
+                                type='primary'
+                                onClick={() => {
+                                  let items = [];
+                                  try {
+                                    if (Array.isArray(group.items)) {
+                                      items = group.items;
+                                    } else if (
+                                      typeof group.items === 'string'
+                                    ) {
+                                      const parsed = JSON.parse(
+                                        group.items || '[]',
+                                      );
+                                      if (Array.isArray(parsed)) items = parsed;
+                                    }
+                                  } catch {}
+                                  const current =
+                                    formApiRef.current?.getValue('models') ||
+                                    inputs.models ||
+                                    [];
+                                  const merged = Array.from(
+                                    new Set(
+                                      [...current, ...items]
+                                        .map((m) => (m || '').trim())
+                                        .filter(Boolean),
+                                    ),
+                                  );
+                                  handleInputChange('models', merged);
+                                }}
+                              >
+                                {group.name}
+                              </Button>
+                            ))}
+                        </Space>
+                      }
+                    />
 
                     <Form.Input
                       field='custom_model'
@@ -2827,6 +2894,27 @@ const EditChannelModal = (props) => {
                       templateLabel={t('填入模板')}
                       editorType='keyValue'
                       formApi={formApiRef.current}
+                      renderStringValueSuffix={({ pairKey, value }) => {
+                        if (!MODEL_FETCHABLE_TYPES.has(inputs.type)) {
+                          return null;
+                        }
+                        const disabled = !String(pairKey ?? '').trim();
+                        return (
+                          <Tooltip content={t('选择模型')}>
+                            <Button
+                              type='tertiary'
+                              theme='borderless'
+                              size='small'
+                              icon={<IconSearch size={14} />}
+                              disabled={disabled}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openModelMappingValueModal({ pairKey, value });
+                              }}
+                            />
+                          </Tooltip>
+                        );
+                      }}
                       extraText={t(
                         '键为请求中的模型名称，值为要替换的模型名称',
                       )}
@@ -3351,6 +3439,53 @@ const EditChannelModal = (props) => {
           setModelModalVisible(false);
         }}
         onCancel={() => setModelModalVisible(false)}
+      />
+
+      <SingleModelSelectModal
+        visible={modelMappingValueModalVisible}
+        models={modelMappingValueModalModels}
+        selected={modelMappingValueSelected}
+        onConfirm={(selectedModel) => {
+          const modelName = String(selectedModel ?? '').trim();
+          if (!modelName) {
+            showError(t('请先选择模型！'));
+            return;
+          }
+
+          const mappingKey = String(modelMappingValueKey ?? '').trim();
+          if (!mappingKey) {
+            setModelMappingValueModalVisible(false);
+            return;
+          }
+
+          let parsed = {};
+          const currentMapping = inputs.model_mapping;
+          if (typeof currentMapping === 'string' && currentMapping.trim()) {
+            try {
+              parsed = JSON.parse(currentMapping);
+            } catch (error) {
+              parsed = {};
+            }
+          } else if (
+            currentMapping &&
+            typeof currentMapping === 'object' &&
+            !Array.isArray(currentMapping)
+          ) {
+            parsed = currentMapping;
+          }
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            parsed = {};
+          }
+
+          parsed[mappingKey] = modelName;
+          const nextMapping = JSON.stringify(parsed, null, 2);
+          handleInputChange('model_mapping', nextMapping);
+          if (formApiRef.current) {
+            formApiRef.current.setValue('model_mapping', nextMapping);
+          }
+          setModelMappingValueModalVisible(false);
+        }}
+        onCancel={() => setModelMappingValueModalVisible(false)}
       />
 
       <OllamaModelModal

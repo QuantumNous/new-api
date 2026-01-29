@@ -465,9 +465,8 @@ const TopUp = () => {
   };
 
   useEffect(() => {
-    if (!userState?.user?.id) {
-      getUserQuota().then();
-    }
+    // 始终获取最新用户数据，确保余额等统计信息准确
+    getUserQuota().then();
     setTransferAmount(getQuotaPerUnit());
   }, []);
 

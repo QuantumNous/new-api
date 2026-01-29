@@ -8,11 +8,13 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -27,17 +29,15 @@ const (
 )
 
 func stopReasonClaude2OpenAI(reason string) string {
-	switch reason {
-	case "stop_sequence":
-		return "stop"
-	case "end_turn":
-		return "stop"
-	case "max_tokens":
-		return "length"
-	case "tool_use":
-		return "tool_calls"
-	default:
-		return reason
+	return reasonmap.ClaudeStopReasonToOpenAIFinishReason(reason)
+}
+
+func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
+	if c == nil {
+		return
+	}
+	if strings.EqualFold(stopReason, "refusal") {
+		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
 	}
 }
 
@@ -644,6 +644,12 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
+	if claudeResponse.StopReason != "" {
+		maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
+	}
+	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
+		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		FormatClaudeResponseInfo(requestMode, &claudeResponse, nil, claudeInfo)
 
@@ -735,6 +741,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
+	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
 	if requestMode == RequestModeCompletion {
 		claudeInfo.Usage = service.ResponseText2Usage(c, claudeResponse.Completion, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	} else {
