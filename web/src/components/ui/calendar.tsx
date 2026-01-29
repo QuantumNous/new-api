@@ -20,7 +20,7 @@ function Calendar({
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>['variant']
-  /** date-fns locale for i18n (month/weekday labels). Pass from useTranslation/i18n. */
+  /** react-day-picker locale for i18n (month/weekday labels). Pass the locale used by your i18n/date setup. */
   locale?: React.ComponentProps<typeof DayPicker>['locale']
 }) {
   const defaultClassNames = getDefaultClassNames()
