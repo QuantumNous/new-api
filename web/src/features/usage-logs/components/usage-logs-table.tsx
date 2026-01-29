@@ -67,7 +67,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     search: route.useSearch(),
     navigate: route.useNavigate(),
     pagination: { defaultPage: 1, defaultPageSize: 20 },
-    globalFilter: { enabled: true, key: 'filter' },
+    globalFilter: { enabled: false },
     columnFilters: [
       { columnId: 'type', searchKey: 'type', type: 'array' as const },
       { columnId: 'model_name', searchKey: 'model', type: 'string' as const },
@@ -187,7 +187,11 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar table={table} filters={filters} />
+      <DataTableToolbar
+        table={table}
+        filters={filters}
+        customSearch={null}
+      />
       {isMobile ? (
         <MobileCardList
           table={table}
