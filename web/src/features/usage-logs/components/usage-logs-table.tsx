@@ -114,7 +114,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       })
 
       if (!result?.success) {
-        toast.error(result?.message || 'Failed to load logs')
+        toast.error(result?.message || t('Failed to load logs'))
         return DEFAULT_LOGS_DATA
       }
 
@@ -176,7 +176,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           {
             columnId: 'type',
             title: t('Log Type'),
-            options: LOG_TYPE_FILTERS,
+            options: LOG_TYPE_FILTERS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.label),
+            })),
             singleSelect: true,
           },
         ]
@@ -189,8 +192,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         <MobileCardList
           table={table}
           isLoading={isLoadingData}
-          emptyTitle='No Logs Found'
-          emptyDescription='No usage logs available. Logs will appear here once API calls are made.'
+          emptyTitle={t('No Logs Found')}
+          emptyDescription={t(
+            'No usage logs available. Logs will appear here once API calls are made.'
+          )}
         />
       ) : (
         <div className='overflow-hidden rounded-md border'>

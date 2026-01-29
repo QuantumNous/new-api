@@ -109,12 +109,16 @@ export function createDurationColumn<T extends Record<string, any>>(config: {
   submitTimeKey: string
   finishTimeKey: string
   unit?: 'seconds' | 'milliseconds'
+  headerLabel: string
 }): ColumnDef<T> {
-  const { submitTimeKey, finishTimeKey, unit = 'milliseconds' } = config
+  const { submitTimeKey, finishTimeKey, unit = 'milliseconds', headerLabel } =
+    config
 
   return {
     id: 'duration',
-    header: 'Duration',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={headerLabel} />
+    ),
     cell: ({ row }) => {
       const log = row.original
       const duration = formatDuration(
@@ -137,7 +141,7 @@ export function createDurationColumn<T extends Record<string, any>>(config: {
         />
       )
     },
-    meta: { label: 'Duration' },
+    meta: { label: headerLabel },
   }
 }
 
@@ -146,13 +150,14 @@ export function createDurationColumn<T extends Record<string, any>>(config: {
  */
 export function createChannelColumn<T>(config: {
   accessorKey?: string
+  headerLabel: string
 }): ColumnDef<T> {
-  const { accessorKey = 'channel_id' } = config
+  const { accessorKey = 'channel_id', headerLabel } = config
 
   return {
     accessorKey,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Channel' />
+      <DataTableColumnHeader column={column} title={headerLabel} />
     ),
     cell: ({ row }) => {
       const channelId = row.getValue(accessorKey) as number
@@ -164,7 +169,7 @@ export function createChannelColumn<T>(config: {
         />
       )
     },
-    meta: { label: 'Channel' },
+    meta: { label: headerLabel },
   }
 }
 
@@ -173,12 +178,20 @@ export function createChannelColumn<T>(config: {
  */
 export function createFailReasonColumn<T>(config?: {
   accessorKey?: string
+  headerLabel: string
+  cellTitle: string
 }): ColumnDef<T> {
-  const { accessorKey = 'fail_reason' } = config || {}
+  const {
+    accessorKey = 'fail_reason',
+    headerLabel,
+    cellTitle,
+  } = config || ({} as { headerLabel: string; cellTitle: string })
 
   return {
     accessorKey,
-    header: 'Fail Reason',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={headerLabel} />
+    ),
     cell: ({ row }) => {
       const failReason = row.getValue(accessorKey) as string
       const [dialogOpen, setDialogOpen] = useState(false)
@@ -193,7 +206,7 @@ export function createFailReasonColumn<T>(config?: {
             variant='ghost'
             className='h-auto max-w-[200px] justify-start overflow-hidden p-0 text-left text-sm font-normal text-red-600 hover:underline'
             onClick={() => setDialogOpen(true)}
-            title='Click to view full error message'
+            title={cellTitle}
           >
             <span className='truncate'>{failReason}</span>
           </Button>
@@ -205,7 +218,7 @@ export function createFailReasonColumn<T>(config?: {
         </>
       )
     },
-    meta: { label: 'Fail Reason' },
+    meta: { label: headerLabel },
   }
 }
 
@@ -214,12 +227,17 @@ export function createFailReasonColumn<T>(config?: {
  */
 export function createProgressColumn<T>(config?: {
   accessorKey?: string
+  headerLabel: string
 }): ColumnDef<T> {
-  const { accessorKey = 'progress' } = config || {}
+  const { accessorKey = 'progress', headerLabel } = config || ({} as {
+    headerLabel: string
+  })
 
   return {
     accessorKey,
-    header: 'Progress',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={headerLabel} />
+    ),
     cell: ({ row }) => {
       const progress = row.getValue(accessorKey) as string
       if (!progress) {
@@ -227,6 +245,6 @@ export function createProgressColumn<T>(config?: {
       }
       return <div className='font-mono text-sm'>{progress}</div>
     },
-    meta: { label: 'Progress' },
+    meta: { label: headerLabel },
   }
 }

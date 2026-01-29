@@ -141,30 +141,30 @@ export function UsageLogsFilterDialog({
           <>
             <FilterInput
               id='model'
-              label='Model Name'
-              placeholder='e.g., gpt-4, claude-3'
+              label={t('Model Name')}
+              placeholder={t('e.g., gpt-4, claude-3')}
               value={commonFilters.model || ''}
               onChange={(value) => handleChange('model', value)}
             />
             <FilterInput
               id='token'
-              label='Token Name'
-              placeholder='Filter by token name'
+              label={t('Token Name')}
+              placeholder={t('Filter by token name')}
               value={commonFilters.token || ''}
               onChange={(value) => handleChange('token', value)}
             />
             <FilterInput
               id='group'
-              label='Group'
-              placeholder='Filter by group'
+              label={t('Group')}
+              placeholder={t('Filter by group')}
               value={commonFilters.group || ''}
               onChange={(value) => handleChange('group', value)}
             />
             {isAdmin && (
               <FilterInput
                 id='username'
-                label='Username'
-                placeholder='Filter by username'
+                label={t('Username')}
+                placeholder={t('Filter by username')}
                 value={commonFilters.username || ''}
                 onChange={(value) => handleChange('username', value)}
               />
@@ -177,8 +177,8 @@ export function UsageLogsFilterDialog({
         return (
           <FilterInput
             id='mjId'
-            label='Task ID'
-            placeholder='Filter by Midjourney task ID'
+            label={t('Task ID')}
+            placeholder={t('Filter by Midjourney task ID')}
             value={drawingFilters.mjId || ''}
             onChange={(value) => handleChange('mjId', value)}
           />
@@ -189,8 +189,8 @@ export function UsageLogsFilterDialog({
         return (
           <FilterInput
             id='taskId'
-            label='Task ID'
-            placeholder='Filter by task ID'
+            label={t('Task ID')}
+            placeholder={t('Filter by task ID')}
             value={taskFilters.taskId || ''}
             onChange={(value) => handleChange('taskId', value)}
           />
@@ -206,7 +206,7 @@ export function UsageLogsFilterDialog({
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>
-            {t('Filter')} {getLogCategoryLabel(logCategory)} {t('Logs')}
+            {t('Filter')} {t(getLogCategoryLabel(logCategory))} {t('Logs')}
           </DialogTitle>
           <DialogDescription>
             {t('Set filters to narrow down your log search results.')}

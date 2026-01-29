@@ -26,17 +26,18 @@ export function useDrawingLogsColumns(
   const columns: ColumnDef<MidjourneyLog>[] = [
     createTimestampColumn<MidjourneyLog>({
       accessorKey: 'submit_time',
-      title: 'Submit Time',
+      title: t('Submit Time'),
     }),
     createDurationColumn<MidjourneyLog>({
       submitTimeKey: 'submit_time',
       finishTimeKey: 'finish_time',
+      headerLabel: t('Duration'),
     }),
   ]
 
   // Channel (admin only)
   if (isAdmin) {
-    columns.push(createChannelColumn<MidjourneyLog>({}))
+    columns.push(createChannelColumn<MidjourneyLog>({ headerLabel: t('Channel') }))
   }
 
   columns.push(
@@ -48,7 +49,7 @@ export function useDrawingLogsColumns(
         const action = row.getValue('action') as string
         return (
           <StatusBadge
-            label={mjTaskTypeMapper.getLabel(action)}
+            label={t(mjTaskTypeMapper.getLabel(action))}
             variant={mjTaskTypeMapper.getVariant(action)}
             size='sm'
             copyable={false}
@@ -92,7 +93,7 @@ export function useDrawingLogsColumns(
 
         return (
           <StatusBadge
-            label={mjSubmitResultMapper.getLabel(String(code))}
+            label={t(mjSubmitResultMapper.getLabel(String(code)))}
             variant={mjSubmitResultMapper.getVariant(String(code))}
             size='sm'
             copyable={false}
@@ -113,7 +114,7 @@ export function useDrawingLogsColumns(
         const status = row.getValue('status') as string
         return (
           <StatusBadge
-            label={mjStatusMapper.getLabel(status)}
+            label={t(mjStatusMapper.getLabel(status))}
             variant={mjStatusMapper.getVariant(status)}
             size='sm'
             copyable={false}
@@ -124,7 +125,7 @@ export function useDrawingLogsColumns(
       meta: { label: t('Status') },
     },
 
-    createProgressColumn<MidjourneyLog>(),
+    createProgressColumn<MidjourneyLog>({ headerLabel: t('Progress') }),
 
     // Image
     {
@@ -146,7 +147,7 @@ export function useDrawingLogsColumns(
               className='text-primary h-auto p-0 text-sm font-normal hover:underline'
               onClick={() => setDialogOpen(true)}
             >
-              View
+              {t('View')}
             </Button>
             <ImageDialog
               imageUrl={imageUrl}
@@ -179,7 +180,7 @@ export function useDrawingLogsColumns(
               variant='ghost'
               className='h-auto max-w-[300px] justify-start overflow-hidden p-0 text-left text-sm font-normal hover:underline'
               onClick={() => setDialogOpen(true)}
-              title='Click to view full prompt'
+              title={t('Click to view full prompt')}
             >
               <span className='truncate'>{prompt}</span>
             </Button>
@@ -195,7 +196,10 @@ export function useDrawingLogsColumns(
       meta: { label: t('Prompt') },
     },
 
-    createFailReasonColumn<MidjourneyLog>()
+    createFailReasonColumn<MidjourneyLog>({
+      headerLabel: t('Fail Reason'),
+      cellTitle: t('Click to view full error message'),
+    })
   )
 
   return columns

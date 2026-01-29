@@ -52,7 +52,9 @@ export function ImageDialog({
         <DialogHeader>
           <DialogTitle>{t('Image Preview')}</DialogTitle>
           <DialogDescription>
-            {taskId ? `Task ID: ${taskId}` : 'View the generated image'}
+            {taskId
+              ? `${t('Task ID:')} ${taskId}`
+              : t('View the generated image')}
           </DialogDescription>
         </DialogHeader>
 
