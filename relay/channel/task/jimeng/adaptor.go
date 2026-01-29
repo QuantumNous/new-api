@@ -11,7 +11,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -168,6 +170,24 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "convert request payload failed")
 	}
+
+	// 按秒计费:https://www.volcengine.com/docs/85621/1792702
+	var seconds int
+	if frames := body.Frames; frames > 0 {
+		if !slices.Contains([]int{121, 241}, frames) {
+			return nil, fmt.Errorf("invalid frames value: %d, required 121 or 241", frames)
+		}
+		seconds = frames / 24
+	} else if seconds, _ = strconv.Atoi(req.Seconds); seconds > 0 {
+		if !slices.Contains([]int{5, 10}, seconds) {
+			return nil, fmt.Errorf("invalid seconds value: %d, required 5 or 10", seconds)
+		}
+		body.Frames = seconds*24 + 1
+	} else {
+		seconds = 5
+	}
+	info.PriceData.AddOtherRatio("seconds", float64(seconds))
+
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
