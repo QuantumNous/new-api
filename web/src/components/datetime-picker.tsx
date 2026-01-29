@@ -1,4 +1,5 @@
 import * as React from 'react'
+import dayjs from 'dayjs'
 import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
@@ -88,7 +89,7 @@ export function DateTimePicker({
               !date && 'text-muted-foreground'
             )}
           >
-            {date ? date.toLocaleDateString() : placeholderText}
+            {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
             <ChevronDownIcon className='h-4 w-4 opacity-50' />
           </Button>
         </PopoverTrigger>
