@@ -124,6 +124,11 @@ func main() {
 		common.SysLog("pprof enabled")
 	}
 
+	err = common.StartPyroScope()
+	if err != nil {
+		common.SysError(fmt.Sprintf("start pyroscope error : %v", err))
+	}
+
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
