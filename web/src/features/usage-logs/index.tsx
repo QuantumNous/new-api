@@ -12,12 +12,12 @@ import { UsageLogsTable } from './components/usage-logs-table'
 import type { UsageLogsSectionId } from './section-registry'
 import { USAGE_LOGS_DEFAULT_SECTION } from './section-registry'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 function UsageLogsContent() {
   const { t } = useTranslation()
-  const search = route.useSearch()
-  const activeCategory = (search.section ??
+  const params = route.useParams()
+  const activeCategory = (params.section ??
     USAGE_LOGS_DEFAULT_SECTION) as UsageLogsSectionId
   const {
     selectedUserId,

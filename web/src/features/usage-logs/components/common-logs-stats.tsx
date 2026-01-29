@@ -9,7 +9,7 @@ import { getLogStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 export function CommonLogsStats() {
   const { t } = useTranslation()

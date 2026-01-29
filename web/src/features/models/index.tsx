@@ -18,14 +18,14 @@ import { deploymentsQueryKeys } from './lib'
 import type { ModelsSectionId } from './section-registry'
 import { MODELS_DEFAULT_SECTION } from './section-registry'
 
-const route = getRouteApi('/_authenticated/models/')
+const route = getRouteApi('/_authenticated/models/$section')
 
 function ModelsContent() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { tabCategory, setTabCategory } = useModels()
-  const search = route.useSearch()
-  const activeSection = (search.section ?? MODELS_DEFAULT_SECTION) as ModelsSectionId
+  const params = route.useParams()
+  const activeSection = (params.section ?? MODELS_DEFAULT_SECTION) as ModelsSectionId
 
   // Deployment create dialog state
   const [createDeploymentOpen, setCreateDeploymentOpen] = useState(false)

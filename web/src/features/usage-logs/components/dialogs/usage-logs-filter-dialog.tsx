@@ -29,7 +29,7 @@ import type {
 } from '../../types'
 import { FilterInput, SectionDivider } from './filter-components'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 interface UsageLogsFilterDialogProps {
   open?: boolean
@@ -97,16 +97,14 @@ export function UsageLogsFilterDialog({
 
   // Common navigation helper
   const navigateWithFilters = useCallback(
-    (params: Record<string, any>) => {
+    (searchParamsUpdate: Record<string, any>) => {
       navigate({
-        to: '/usage-logs',
-        search: {
-          ...params,
-          section: searchParams.section, // Preserve section parameter
-        },
+        to: '/usage-logs/$section',
+        params: { section: logCategory },
+        search: searchParamsUpdate,
       })
     },
-    [navigate, searchParams.section]
+    [navigate, logCategory]
   )
 
   const handleApply = useCallback(() => {

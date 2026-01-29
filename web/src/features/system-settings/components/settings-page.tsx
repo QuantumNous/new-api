@@ -1,4 +1,4 @@
-import { useSearch } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 
@@ -33,7 +33,7 @@ export function SettingsPage<
 }: SettingsPageProps<TSettings, TSectionId>) {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
-  const search = useSearch({ from: routePath as any })
+  const params = useParams({ from: routePath as any })
 
   if (isLoading) {
     return (
@@ -47,7 +47,7 @@ export function SettingsPage<
     data?.data,
     defaultSettings
   ) as TSettings
-  const activeSection = (search.section ?? defaultSection) as TSectionId
+  const activeSection = (params?.section ?? defaultSection) as TSectionId
   const sectionContent = getSectionContent(activeSection, settings, ...extraArgs)
 
   return (

@@ -18,7 +18,7 @@ import {
 import type { DashboardSectionId } from './section-registry'
 import { DASHBOARD_DEFAULT_SECTION } from './section-registry'
 
-const route = getRouteApi('/_authenticated/dashboard/')
+const route = getRouteApi('/_authenticated/dashboard/$section')
 
 const LazyLogStatCards = lazy(() =>
   import('./components/models/log-stat-cards').then((m) => ({
@@ -60,8 +60,8 @@ function ModelChartsFallback() {
 
 export function Dashboard() {
   const { t } = useTranslation()
-  const search = route.useSearch()
-  const activeSection = (search.section ?? DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
+  const params = route.useParams()
+  const activeSection = (params.section ?? DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])

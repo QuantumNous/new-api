@@ -51,7 +51,7 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
 export function IntegrationSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/system-settings/integrations'
+      routePath='/_authenticated/system-settings/integrations/$section'
       defaultSettings={defaultIntegrationSettings}
       defaultSection={INTEGRATIONS_DEFAULT_SECTION}
       getSectionContent={getIntegrationsSectionContent}

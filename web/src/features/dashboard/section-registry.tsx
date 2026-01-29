@@ -28,6 +28,7 @@ const dashboardRegistry = createSectionRegistry<
   sections: DASHBOARD_SECTIONS,
   defaultSection: 'overview',
   basePath: '/dashboard',
+  urlStyle: 'path',
 })
 
 export const DASHBOARD_SECTION_IDS = dashboardRegistry.sectionIds

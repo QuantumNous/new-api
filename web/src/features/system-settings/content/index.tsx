@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSearch } from '@tanstack/react-router'
+import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { getOptionValue, useSystemOptions } from '../hooks/use-system-options'
 import type { ContentSettings } from '../types'
@@ -32,7 +32,9 @@ const defaultContentSettings: ContentSettings = {
 export function ContentSettings() {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
-  const search = useSearch({ from: '/_authenticated/system-settings/content' })
+  const params = useParams({
+    from: '/_authenticated/system-settings/content/$section',
+  })
 
   const settings = useMemo(() => {
     const resolved = getOptionValue(data?.data, defaultContentSettings)
@@ -90,7 +92,14 @@ export function ContentSettings() {
     )
   }
 
-  const activeSection = search.section ?? CONTENT_DEFAULT_SECTION
+  const activeSection = (params?.section ?? CONTENT_DEFAULT_SECTION) as
+    | 'dashboard'
+    | 'announcements'
+    | 'api-info'
+    | 'faq'
+    | 'uptime-kuma'
+    | 'chat'
+    | 'drawing'
   const sectionContent = getContentSectionContent(activeSection, settings)
 
   return (

@@ -52,7 +52,7 @@ const defaultAuthSettings: AuthSettings = {
 export function AuthSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/system-settings/auth'
+      routePath='/_authenticated/system-settings/auth/$section'
       defaultSettings={defaultAuthSettings}
       defaultSection={AUTH_DEFAULT_SECTION}
       getSectionContent={getAuthSectionContent}

@@ -27,7 +27,7 @@ const defaultRequestLimitsSettings: RequestLimitsSettings = {
 export function RequestLimitsSettings() {
   return (
     <SettingsPage
-      routePath='/_authenticated/system-settings/request-limits'
+      routePath='/_authenticated/system-settings/request-limits/$section'
       defaultSettings={defaultRequestLimitsSettings}
       defaultSection={REQUEST_LIMITS_DEFAULT_SECTION}
       getSectionContent={getRequestLimitsSectionContent}

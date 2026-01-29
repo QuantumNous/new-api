@@ -34,6 +34,7 @@ const usageLogsRegistry = createSectionRegistry<
   sections: USAGE_LOGS_SECTIONS,
   defaultSection: 'common',
   basePath: '/usage-logs',
+  urlStyle: 'path',
 })
 
 export const USAGE_LOGS_SECTION_IDS = usageLogsRegistry.sectionIds

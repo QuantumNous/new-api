@@ -39,7 +39,7 @@ import { fetchLogsByCategory } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
 import type { LogCategory } from '../types'
 
-const route = getRouteApi('/_authenticated/usage-logs/')
+const route = getRouteApi('/_authenticated/usage-logs/$section')
 
 interface UsageLogsTableProps {
   logCategory: LogCategory

@@ -118,6 +118,7 @@ const integrationsRegistry = createSectionRegistry<
   sections: INTEGRATIONS_SECTIONS,
   defaultSection: 'payment',
   basePath: '/system-settings/integrations',
+  urlStyle: 'path',
 })
 
 export const INTEGRATIONS_SECTION_IDS = integrationsRegistry.sectionIds

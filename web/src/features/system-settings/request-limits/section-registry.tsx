@@ -77,6 +77,7 @@ const requestLimitsRegistry = createSectionRegistry<
   sections: REQUEST_LIMITS_SECTIONS,
   defaultSection: 'rate-limit',
   basePath: '/system-settings/request-limits',
+  urlStyle: 'path',
 })
 
 export const REQUEST_LIMITS_SECTION_IDS = requestLimitsRegistry.sectionIds
