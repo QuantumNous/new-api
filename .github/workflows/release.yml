@@ -12,6 +12,7 @@ on:
   push:
     branches:
       - main
+      - dev
     tags:
       - '*'
       - '!*-alpha*'
@@ -99,15 +100,27 @@ jobs:
         with:
           images: ghcr.io/${{ env.GHCR_REPOSITORY }}
 
+      - name: Determine Docker tags
+        id: docker-tags
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            # dev branch: dev + dev-{version}
+            echo "TAGS=ghcr.io/${{ env.GHCR_REPOSITORY }}:dev,ghcr.io/${{ env.GHCR_REPOSITORY }}:dev-${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # main branch: latest + {version}
+            echo "TAGS=ghcr.io/${{ env.GHCR_REPOSITORY }}:latest,ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          else
+            # git tag: {version} only
+            echo "TAGS=ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.VERSION }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build & push to GHCR
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: |
-            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.VERSION }}
-            ghcr.io/${{ env.GHCR_REPOSITORY }}:latest
+          tags: ${{ steps.docker-tags.outputs.TAGS }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

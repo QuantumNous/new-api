@@ -114,7 +114,7 @@ func InitEnv() {
 			}
 		}
 	}
-	HydraLoginRememberFor = int64(GetEnvOrDefault("HYDRA_LOGIN_REMEMBER_FOR", 3600))       // Default: 1 hour
+	HydraLoginRememberFor = int64(GetEnvOrDefault("HYDRA_LOGIN_REMEMBER_FOR", 2592000))     // Default: 30 days (same as new-api session)
 	HydraConsentRememberFor = int64(GetEnvOrDefault("HYDRA_CONSENT_REMEMBER_FOR", 2592000)) // Default: 30 days
 
 	initConstantEnv()

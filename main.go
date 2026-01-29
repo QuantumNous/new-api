@@ -146,7 +146,7 @@ func main() {
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
 		Secure:   false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode, // Lax allows OAuth redirect flows while preventing CSRF
 	})
 	server.Use(sessions.Sessions("session", store))
 

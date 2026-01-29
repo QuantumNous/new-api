@@ -118,6 +118,14 @@ func (s *Service) RejectLogout(ctx context.Context, challenge string) error {
 	return err
 }
 
+// RevokeLoginSessions revokes all login sessions for a subject (user ID)
+func (s *Service) RevokeLoginSessions(ctx context.Context, subject string) error {
+	_, err := s.admin.OAuth2API.RevokeOAuth2LoginSessions(ctx).
+		Subject(subject).
+		Execute()
+	return err
+}
+
 // IntrospectToken validates a token and returns its metadata
 func (s *Service) IntrospectToken(ctx context.Context, token string, scope string) (*client.IntrospectedOAuth2Token, error) {
 	req := s.admin.OAuth2API.IntrospectOAuth2Token(ctx).Token(token)

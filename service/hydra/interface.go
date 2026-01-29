@@ -24,6 +24,9 @@ type Provider interface {
 	AcceptLogout(ctx context.Context, challenge string) (*client.OAuth2RedirectTo, error)
 	RejectLogout(ctx context.Context, challenge string) error
 
+	// Session Management
+	RevokeLoginSessions(ctx context.Context, subject string) error
+
 	// Token Introspection
 	IntrospectToken(ctx context.Context, token string, scope string) (*client.IntrospectedOAuth2Token, error)
 

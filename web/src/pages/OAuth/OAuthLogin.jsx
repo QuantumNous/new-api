@@ -109,6 +109,9 @@ const OAuthLogin = () => {
         if (data.require_2fa) {
           setRequire2FA(true);
         } else if (data.redirect_to) {
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
           window.location.href = data.redirect_to;
         }
       } else {
@@ -139,6 +142,9 @@ const OAuthLogin = () => {
       const { success, message, data } = res.data;
 
       if (success && data.redirect_to) {
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
         window.location.href = data.redirect_to;
       } else {
         showError(message || t('验证失败'));

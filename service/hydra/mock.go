@@ -28,20 +28,24 @@ type MockProvider struct {
 	RejectedLogouts  map[string]bool
 
 	// Error injection
-	GetLoginRequestErr    error
-	AcceptLoginErr        error
-	RejectLoginErr        error
-	GetConsentRequestErr  error
-	AcceptConsentErr      error
-	RejectConsentErr      error
-	GetLogoutRequestErr   error
-	AcceptLogoutErr       error
-	RejectLogoutErr       error
-	IntrospectTokenErr    error
-	CreateOAuth2ClientErr error
-	UpdateOAuth2ClientErr error
-	ListOAuth2ClientsErr  error
-	DeleteOAuth2ClientErr error
+	GetLoginRequestErr       error
+	AcceptLoginErr           error
+	RejectLoginErr           error
+	GetConsentRequestErr     error
+	AcceptConsentErr         error
+	RejectConsentErr         error
+	GetLogoutRequestErr      error
+	AcceptLogoutErr          error
+	RejectLogoutErr          error
+	RevokeLoginSessionsErr   error
+	IntrospectTokenErr       error
+	CreateOAuth2ClientErr    error
+	UpdateOAuth2ClientErr    error
+	ListOAuth2ClientsErr     error
+	DeleteOAuth2ClientErr    error
+
+	// Track revoked sessions
+	RevokedSessions map[string]bool
 
 	// Default redirect URL
 	RedirectURL string
@@ -61,6 +65,7 @@ func NewMockProvider() *MockProvider {
 		RejectedLogins:     make(map[string]string),
 		RejectedConsents:   make(map[string]string),
 		RejectedLogouts:    make(map[string]bool),
+		RevokedSessions:    make(map[string]bool),
 		RedirectURL:        "https://example.com/callback",
 	}
 }
@@ -256,6 +261,19 @@ func (m *MockProvider) RejectLogout(ctx context.Context, challenge string) error
 	return nil
 }
 
+// RevokeLoginSessions implements Provider
+func (m *MockProvider) RevokeLoginSessions(ctx context.Context, subject string) error {
+	if m.RevokeLoginSessionsErr != nil {
+		return m.RevokeLoginSessionsErr
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.RevokedSessions[subject] = true
+	return nil
+}
+
 // SetIntrospectedToken sets a mock introspection result for testing
 func (m *MockProvider) SetIntrospectedToken(token string, active bool, subject string, scope string, clientID string) {
 	m.mu.Lock()
@@ -387,6 +405,7 @@ func (m *MockProvider) Reset() {
 	m.RejectedLogins = make(map[string]string)
 	m.RejectedConsents = make(map[string]string)
 	m.RejectedLogouts = make(map[string]bool)
+	m.RevokedSessions = make(map[string]bool)
 
 	m.GetLoginRequestErr = nil
 	m.AcceptLoginErr = nil
@@ -397,6 +416,7 @@ func (m *MockProvider) Reset() {
 	m.GetLogoutRequestErr = nil
 	m.AcceptLogoutErr = nil
 	m.RejectLogoutErr = nil
+	m.RevokeLoginSessionsErr = nil
 	m.IntrospectTokenErr = nil
 	m.CreateOAuth2ClientErr = nil
 	m.UpdateOAuth2ClientErr = nil

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/hydra"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -127,6 +129,11 @@ func setupLogin(user *model.User, c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
+
+	// Get user ID before clearing session (for Hydra logout)
+	userID := session.Get("id")
+
+	// Clear new-api session
 	session.Clear()
 	err := session.Save()
 	if err != nil {
@@ -136,6 +143,14 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
+
+	// Also revoke Hydra login sessions if Hydra is enabled
+	if common.HydraEnabled && common.HydraAdminURL != "" && userID != nil {
+		hydraService := hydra.NewService(common.HydraAdminURL)
+		subject := strconv.Itoa(userID.(int))
+		_ = hydraService.RevokeLoginSessions(context.Background(), subject)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
