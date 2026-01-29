@@ -176,7 +176,7 @@ export function createChannelColumn<T>(config: {
 /**
  * Create a fail reason column
  */
-export function createFailReasonColumn<T>(config?: {
+export function createFailReasonColumn<T>(config: {
   accessorKey?: string
   headerLabel: string
   cellTitle: string
@@ -185,7 +185,7 @@ export function createFailReasonColumn<T>(config?: {
     accessorKey = 'fail_reason',
     headerLabel,
     cellTitle,
-  } = config || ({} as { headerLabel: string; cellTitle: string })
+  } = config
 
   return {
     accessorKey,
@@ -225,13 +225,11 @@ export function createFailReasonColumn<T>(config?: {
 /**
  * Create a progress column
  */
-export function createProgressColumn<T>(config?: {
+export function createProgressColumn<T>(config: {
   accessorKey?: string
   headerLabel: string
 }): ColumnDef<T> {
-  const { accessorKey = 'progress', headerLabel } = config || ({} as {
-    headerLabel: string
-  })
+  const { accessorKey = 'progress', headerLabel } = config
 
   return {
     accessorKey,
