@@ -191,6 +191,10 @@ func AddToken(c *gin.Context) {
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		Duration:           token.Duration,
+	}
+	if token.Duration > 0 {
+		cleanToken.ExpiredTime = -1
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -286,6 +290,7 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.Duration = token.Duration
 	}
 	err = cleanToken.Update()
 	if err != nil {

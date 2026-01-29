@@ -1,38 +1,14 @@
-FROM oven/bun:latest AS builder
+FROM golang:latest
 
-WORKDIR /build
-COPY web/package.json .
-COPY web/bun.lock .
-RUN bun install
-COPY ./web .
-COPY ./VERSION .
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
+WORKDIR /app
 
-FROM golang:alpine AS builder2
-ENV GO111MODULE=on CGO_ENABLED=0
+ENV GOOS=windows
+ENV GOARCH=amd64
+ENV CGO_ENABLED=0
 
-ARG TARGETOS
-ARG TARGETARCH
-ENV GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64}
-ENV GOEXPERIMENT=greenteagc
-
-WORKDIR /build
-
-ADD go.mod go.sum ./
-RUN go mod download
-
+# 复制源码（包含我们伪造的 web/dist）
 COPY . .
-COPY --from=builder /build/dist ./web/dist
-RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
-FROM debian:bookworm-slim
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
-    && rm -rf /var/lib/apt/lists/* \
-    && update-ca-certificates
-
-COPY --from=builder2 /build/new-api /
-EXPOSE 3000
-WORKDIR /data
-ENTRYPOINT ["/new-api"]
+# 下载依赖并编译
+RUN go mod download
+RUN go build -ldflags "-s -w" -o new-api-galaxy.exe

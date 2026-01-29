@@ -27,6 +27,8 @@ type Token struct {
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	ActivatedTime      int64          `json:"activated_time" gorm:"bigint;default:0"`
+	Duration           int64          `json:"duration" gorm:"bigint;default:0"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
@@ -86,6 +88,20 @@ func ValidateUserToken(key string) (token *Token, err error) {
 		}
 		if token.Status != common.TokenStatusEnabled {
 			return token, errors.New("该令牌状态不可用")
+		}
+		if token.ExpiredTime == -1 && token.Duration > 0 && token.ActivatedTime == 0 {
+			token.ActivatedTime = common.GetTimestamp()
+			token.ExpiredTime = token.ActivatedTime + token.Duration
+			// Update DB
+			DB.Model(token).Select("activated_time", "expired_time").Updates(token)
+			// Update Redis if enabled
+			if common.RedisEnabled {
+				gopool.Go(func() {
+					if err := cacheSetToken(*token); err != nil {
+						common.SysLog("failed to update token cache: " + err.Error())
+					}
+				})
+			}
 		}
 		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
 			if !common.RedisEnabled {
@@ -190,7 +206,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "duration", "activated_time").Updates(token).Error
 	return err
 }
 

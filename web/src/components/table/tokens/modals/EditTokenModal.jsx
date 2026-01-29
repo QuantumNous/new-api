@@ -75,6 +75,7 @@ const EditTokenModal = (props) => {
     group: '',
     cross_group_retry: false,
     tokenCount: 1,
+    duration: 2592000,
   });
 
   const handleCancel = () => {
@@ -95,6 +96,15 @@ const EditTokenModal = (props) => {
     } else {
       formApiRef.current.setValue('expired_time', -1);
     }
+  };
+
+  const setDuration = (month, day, hour, minute) => {
+    let seconds = month * 30 * 24 * 60 * 60;
+    seconds += day * 24 * 60 * 60;
+    seconds += hour * 60 * 60;
+    seconds += minute * 60;
+    if (!formApiRef.current) return;
+    formApiRef.current.setValue('duration', seconds);
   };
 
   const loadModels = async () => {
@@ -210,6 +220,7 @@ const EditTokenModal = (props) => {
     if (isEdit) {
       let { tokenCount: _tc, ...localInputs } = values;
       localInputs.remain_quota = parseInt(localInputs.remain_quota);
+      localInputs.duration = parseInt(localInputs.duration);
       if (localInputs.expired_time !== -1) {
         let time = Date.parse(localInputs.expired_time);
         if (isNaN(time)) {
@@ -246,6 +257,7 @@ const EditTokenModal = (props) => {
           localInputs.name = baseName;
         }
         localInputs.remain_quota = parseInt(localInputs.remain_quota);
+        localInputs.duration = parseInt(localInputs.duration);
 
         if (localInputs.expired_time !== -1) {
           let time = Date.parse(localInputs.expired_time);
@@ -448,6 +460,51 @@ const EditTokenModal = (props) => {
                           onClick={() => setExpiredTime(0, 0, 1, 0)}
                         >
                           {t('一小时')}
+                        </Button>
+                      </Space>
+                    </Form.Slot>
+                  </Col>
+                  <Col span={24} />
+                  <Col xs={24} sm={24} md={24} lg={10} xl={10}>
+                    <Form.InputNumber
+                      field='duration'
+                      label={t('自动激活有效期 (秒)')}
+                      placeholder={t('首次使用后开始计算，0为不启用')}
+                      min={0}
+                      extraText={t('启用此项后，过期时间将从首次使用时开始计算')}
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                  <Col xs={24} sm={24} md={24} lg={14} xl={14}>
+                    <Form.Slot label={t('有效期快捷设置')}>
+                      <Space wrap>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setDuration(0, 0, 1, 0)}
+                        >
+                          {t('一小时')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setDuration(0, 1, 0, 0)}
+                        >
+                          {t('一天')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setDuration(0, 7, 0, 0)}
+                        >
+                          {t('一周')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setDuration(1, 0, 0, 0)}
+                        >
+                          {t('一个月')}
                         </Button>
                       </Space>
                     </Form.Slot>

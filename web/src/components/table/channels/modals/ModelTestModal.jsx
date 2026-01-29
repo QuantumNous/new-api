@@ -26,6 +26,7 @@ import {
   Tag,
   Typography,
   Select,
+  Space,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
@@ -228,27 +229,29 @@ const ModelTestModal = ({
       footer={
         hasChannel ? (
           <div className='flex justify-end'>
-            {isBatchTesting ? (
-              <Button type='danger' onClick={handleCloseModal}>
-                {t('停止测试')}
+            <Space>
+              {isBatchTesting ? (
+                <Button type='danger' onClick={handleCloseModal}>
+                  {t('停止测试')}
+                </Button>
+              ) : (
+                <Button type='tertiary' onClick={handleCloseModal}>
+                  {t('取消')}
+                </Button>
+              )}
+              <Button
+                onClick={batchTestModels}
+                loading={isBatchTesting}
+                disabled={isBatchTesting}
+              >
+                {isBatchTesting
+                  ? t('测试中...')
+                  : t('批量测试${count}个模型').replace(
+                      '${count}',
+                      filteredModels.length,
+                    )}
               </Button>
-            ) : (
-              <Button type='tertiary' onClick={handleCloseModal}>
-                {t('取消')}
-              </Button>
-            )}
-            <Button
-              onClick={batchTestModels}
-              loading={isBatchTesting}
-              disabled={isBatchTesting}
-            >
-              {isBatchTesting
-                ? t('测试中...')
-                : t('批量测试${count}个模型').replace(
-                    '${count}',
-                    filteredModels.length,
-                  )}
-            </Button>
+            </Space>
           </div>
         ) : null
       }
