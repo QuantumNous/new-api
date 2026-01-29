@@ -289,6 +289,8 @@ export const getChannelsColumns = ({
   checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
+  setShowSingleChannelStatistics,
+  setCurrentStatisticsChannel,
 }) => {
   return [
     {
@@ -715,6 +717,17 @@ export const getChannelsColumns = ({
                   {t('编辑')}
                 </Button>
               )}
+
+              <Button
+                type='tertiary'
+                size='small'
+                onClick={() => {
+                  setCurrentStatisticsChannel(record);
+                  setShowSingleChannelStatistics(true);
+                }}
+              >
+                {t('统计')}
+              </Button>
 
               <Dropdown
                 trigger='click'
