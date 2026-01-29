@@ -37,7 +37,9 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 	// 首先检查是否有 BodyStorage 缓存
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
-			bs.Seek(0, io.SeekStart)
+			if _, err := bs.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("failed to seek body storage: %w", err)
+			}
 			return bs.Bytes()
 		}
 	}
@@ -89,7 +91,9 @@ func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 	// 检查是否已有存储
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
-			bs.Seek(0, io.SeekStart)
+			if _, err := bs.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("failed to seek body storage: %w", err)
+			}
 			return bs, nil
 		}
 	}
@@ -103,7 +107,9 @@ func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 	// 再次获取存储
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
-			bs.Seek(0, io.SeekStart)
+			if _, err := bs.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("failed to seek body storage: %w", err)
+			}
 			return bs, nil
 		}
 	}

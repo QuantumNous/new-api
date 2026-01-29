@@ -25,12 +25,16 @@ type BodyStorage interface {
 	IsDisk() bool
 }
 
+// ErrStorageClosed 存储已关闭错误
+var ErrStorageClosed = fmt.Errorf("body storage is closed")
+
 // memoryStorage 内存存储实现
 type memoryStorage struct {
 	data   []byte
 	reader *bytes.Reader
 	size   int64
 	closed int32
+	mu     sync.Mutex
 }
 
 func newMemoryStorage(data []byte) *memoryStorage {
@@ -44,14 +48,26 @@ func newMemoryStorage(data []byte) *memoryStorage {
 }
 
 func (m *memoryStorage) Read(p []byte) (n int, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if atomic.LoadInt32(&m.closed) == 1 {
+		return 0, ErrStorageClosed
+	}
 	return m.reader.Read(p)
 }
 
 func (m *memoryStorage) Seek(offset int64, whence int) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if atomic.LoadInt32(&m.closed) == 1 {
+		return 0, ErrStorageClosed
+	}
 	return m.reader.Seek(offset, whence)
 }
 
 func (m *memoryStorage) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if atomic.CompareAndSwapInt32(&m.closed, 0, 1) {
 		DecrementMemoryBuffers(m.size)
 	}
@@ -59,6 +75,11 @@ func (m *memoryStorage) Close() error {
 }
 
 func (m *memoryStorage) Bytes() ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if atomic.LoadInt32(&m.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
 	return m.data, nil
 }
 
@@ -181,19 +202,25 @@ func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string
 func (d *diskStorage) Read(p []byte) (n int, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if atomic.LoadInt32(&d.closed) == 1 {
+		return 0, ErrStorageClosed
+	}
 	return d.file.Read(p)
 }
 
 func (d *diskStorage) Seek(offset int64, whence int) (int64, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if atomic.LoadInt32(&d.closed) == 1 {
+		return 0, ErrStorageClosed
+	}
 	return d.file.Seek(offset, whence)
 }
 
 func (d *diskStorage) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if atomic.CompareAndSwapInt32(&d.closed, 0, 1) {
-		d.mu.Lock()
-		defer d.mu.Unlock()
 		d.file.Close()
 		os.Remove(d.filePath)
 		DecrementDiskFiles(d.size)
@@ -204,6 +231,10 @@ func (d *diskStorage) Close() error {
 func (d *diskStorage) Bytes() ([]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	if atomic.LoadInt32(&d.closed) == 1 {
+		return nil, ErrStorageClosed
+	}
 
 	// 保存当前位置
 	currentPos, err := d.file.Seek(0, io.SeekCurrent)
@@ -274,11 +305,12 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 			if IsRequestBodyTooLargeError(err) {
 				return nil, err
 			}
-			// 如果磁盘存储失败，回退到内存读取
-			SysError(fmt.Sprintf("failed to create disk storage from reader, falling back to memory: %v", err))
-		} else {
-			return storage, nil
+			// 磁盘存储失败，reader 已被消费，无法安全回退
+			// 直接返回错误而非尝试回退（因为 reader 数据已丢失）
+			return nil, fmt.Errorf("disk storage creation failed: %w", err)
 		}
+		IncrementDiskCacheHits()
+		return storage, nil
 	}
 
 	// 使用内存读取
@@ -290,7 +322,17 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 		return nil, ErrRequestBodyTooLarge
 	}
 
-	return CreateBodyStorage(data)
+	storage, err := CreateBodyStorage(data)
+	if err != nil {
+		return nil, err
+	}
+	// 如果最终使用内存存储，记录内存缓存命中
+	if !storage.IsDisk() {
+		IncrementMemoryCacheHits()
+	} else {
+		IncrementDiskCacheHits()
+	}
+	return storage, nil
 }
 
 // CleanupOldCacheFiles 清理旧的缓存文件（用于启动时清理残留）
