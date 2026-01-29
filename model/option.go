@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
@@ -479,6 +480,12 @@ func handleConfigUpdate(key, value string) bool {
 		configKey: value,
 	}
 	config.UpdateConfigFromMap(cfg, configMap)
+
+	// 特定配置的后处理
+	if configName == "performance_setting" {
+		// 同步磁盘缓存配置到 common 包
+		performance_setting.UpdateAndSync()
+	}
 
 	return true // 已处理
 }

@@ -128,6 +128,14 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
+		performanceRoute := apiRouter.Group("/performance")
+		performanceRoute.Use(middleware.RootAuth())
+		{
+			performanceRoute.GET("/stats", controller.GetPerformanceStats)
+			performanceRoute.DELETE("/disk_cache", controller.ClearDiskCache)
+			performanceRoute.POST("/reset_stats", controller.ResetPerformanceStats)
+			performanceRoute.POST("/gc", controller.ForceGC)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{
