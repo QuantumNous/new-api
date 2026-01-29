@@ -1,11 +1,18 @@
 import z from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { UsageLogs } from '@/features/usage-logs'
+import {
+  USAGE_LOGS_SECTION_IDS,
+  USAGE_LOGS_DEFAULT_SECTION,
+} from '@/features/usage-logs/section-registry'
 
 const logTypeValues = ['0', '1', '2', '3', '4', '5'] as const
-const logCategoryValues = ['common', 'drawing', 'task'] as const
 
 const usageLogsSearchSchema = z.object({
+  section: z
+    .enum(USAGE_LOGS_SECTION_IDS as unknown as [string, ...string[]])
+    .optional()
+    .catch(USAGE_LOGS_DEFAULT_SECTION),
   page: z.number().optional().catch(1),
   pageSize: z.number().optional().catch(10),
   type: z.array(z.enum(logTypeValues)).optional().catch([]),
@@ -17,10 +24,18 @@ const usageLogsSearchSchema = z.object({
   username: z.string().optional().catch(''),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
-  tab: z.enum(logCategoryValues).optional().catch('common'),
 })
 
 export const Route = createFileRoute('/_authenticated/usage-logs/')({
+  beforeLoad: ({ search }) => {
+    // Redirect to default section if no section is provided
+    if (!search?.section) {
+      throw redirect({
+        to: '/usage-logs',
+        search: { section: USAGE_LOGS_DEFAULT_SECTION },
+      })
+    }
+  },
   validateSearch: usageLogsSearchSchema,
   component: UsageLogs,
 })

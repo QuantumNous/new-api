@@ -102,11 +102,11 @@ export function UsageLogsFilterDialog({
         to: '/usage-logs',
         search: {
           ...params,
-          tab: searchParams.tab, // Preserve tab parameter
+          section: searchParams.section, // Preserve section parameter
         },
       })
     },
-    [navigate, searchParams.tab]
+    [navigate, searchParams.section]
   )
 
   const handleApply = useCallback(() => {

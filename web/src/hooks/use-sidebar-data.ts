@@ -17,6 +17,7 @@ import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
 import { getModelsSectionNavItems } from '@/features/models/section-registry'
 import { getDashboardSectionNavItems } from '@/features/dashboard/section-registry'
+import { getUsageLogsSectionNavItems } from '@/features/usage-logs/section-registry'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
@@ -63,8 +64,8 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Usage Logs'),
-            url: '/usage-logs',
             icon: FileText,
+            items: getUsageLogsSectionNavItems(t),
           },
           {
             title: t('Wallet'),

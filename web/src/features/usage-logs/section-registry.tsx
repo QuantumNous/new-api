@@ -1,0 +1,41 @@
+import { createSectionRegistry } from '@/features/system-settings/utils/section-registry'
+
+/**
+ * Usage logs page section definitions
+ */
+const USAGE_LOGS_SECTIONS = [
+  {
+    id: 'common',
+    titleKey: 'Common Logs',
+    descriptionKey: 'View and manage your API usage logs',
+    build: () => null, // Content is rendered directly in the page component
+  },
+  {
+    id: 'drawing',
+    titleKey: 'Drawing Logs',
+    descriptionKey: 'View and manage your drawing logs',
+    build: () => null, // Content is rendered directly in the page component
+  },
+  {
+    id: 'task',
+    titleKey: 'Task Logs',
+    descriptionKey: 'View and manage your task logs',
+    build: () => null, // Content is rendered directly in the page component
+  },
+] as const
+
+export type UsageLogsSectionId = (typeof USAGE_LOGS_SECTIONS)[number]['id']
+
+const usageLogsRegistry = createSectionRegistry<
+  UsageLogsSectionId,
+  Record<string, never>,
+  []
+>({
+  sections: USAGE_LOGS_SECTIONS,
+  defaultSection: 'common',
+  basePath: '/usage-logs',
+})
+
+export const USAGE_LOGS_SECTION_IDS = usageLogsRegistry.sectionIds
+export const USAGE_LOGS_DEFAULT_SECTION = usageLogsRegistry.defaultSection
+export const getUsageLogsSectionNavItems = usageLogsRegistry.getSectionNavItems

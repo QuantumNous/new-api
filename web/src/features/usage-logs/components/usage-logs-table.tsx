@@ -37,16 +37,19 @@ import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import { useUsageLogsContext } from './usage-logs-provider'
-import { UsageLogsTabs } from './usage-logs-tabs'
+import type { LogCategory } from '../types'
 
 const route = getRouteApi('/_authenticated/usage-logs/')
 
-export function UsageLogsTable() {
+interface UsageLogsTableProps {
+  logCategory: LogCategory
+}
+
+export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
-  const { refreshTrigger, logCategory, setLogCategory } = useUsageLogsContext()
-  const navigate = route.useNavigate()
+  const { refreshTrigger } = useUsageLogsContext()
   const searchParams = route.useSearch()
 
   const [sorting, setSorting] = useState<SortingState>([])
@@ -166,17 +169,6 @@ export function UsageLogsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  // Handle tab change with URL update
-  const handleTabChange = (category: typeof logCategory) => {
-    setLogCategory(category)
-    navigate({
-      search: {
-        ...searchParams,
-        tab: category,
-      },
-    })
-  }
-
   // Different filters for different log categories
   const filters =
     logCategory === 'common'
@@ -192,13 +184,7 @@ export function UsageLogsTable() {
 
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar
-        table={table}
-        customSearch={
-          <UsageLogsTabs value={logCategory} onValueChange={handleTabChange} />
-        }
-        filters={filters}
-      />
+      <DataTableToolbar table={table} filters={filters} />
       {isMobile ? (
         <MobileCardList
           table={table}
