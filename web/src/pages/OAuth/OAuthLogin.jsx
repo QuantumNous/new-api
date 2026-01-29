@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button, Card, Form, Spin, Tag } from '@douyinfe/semi-ui';
 import { IconLock, IconMail } from '@douyinfe/semi-icons';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
@@ -322,6 +322,18 @@ const OAuthLogin = () => {
                 </div>
               </div>
             )}
+
+            <div className='mt-6 text-center text-sm'>
+              <Text>
+                {t('没有账户？')}{' '}
+                <Link
+                  to={`/register?login_challenge=${challenge}`}
+                  className='text-blue-600 hover:text-blue-800 font-medium'
+                >
+                  {t('注册')}
+                </Link>
+              </Text>
+            </div>
           </div>
         </Card>
       </div>
