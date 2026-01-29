@@ -160,6 +160,24 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		action = constant.TaskActionText2Audio
 	}
 	info.Action = action
+
+	// 动态计费
+	if info.ChannelType == constant.ChannelTypeVidu {
+		if info.PriceData.OtherRatios == nil {
+			info.PriceData.OtherRatios = make(map[string]float64)
+		}
+		duration := req.Duration
+		if duration == 0 {
+			if req.Model == "audio1.0" {
+				duration = 10
+			} else {
+				duration = 4
+			}
+		}
+		info.PriceData.OtherRatios["duration"] = float64(duration)
+		info.PriceData.OtherRatios["size"] = 1
+	}
+
 	return nil
 }
 
