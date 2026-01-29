@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   API,
   getLogo,
@@ -55,6 +55,8 @@ import { useTranslation } from 'react-i18next';
 const RegisterForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const loginChallenge = searchParams.get('login_challenge');
   const [inputs, setInputs] = useState({
     username: '',
     password: '',
@@ -204,8 +206,13 @@ const RegisterForm = () => {
         );
         const { success, message } = res.data;
         if (success) {
-          navigate('/login');
-          showSuccess('注册成功！');
+          if (loginChallenge) {
+            navigate(`/oauth/login?login_challenge=${loginChallenge}`);
+            showSuccess(t('注册成功！请登录以继续'));
+          } else {
+            navigate('/login');
+            showSuccess(t('注册成功！'));
+          }
         } else {
           showError(message);
         }
@@ -440,7 +447,7 @@ const RegisterForm = () => {
                 <Text>
                   {t('已有账户？')}{' '}
                   <Link
-                    to='/login'
+                    to={loginChallenge ? `/oauth/login?login_challenge=${loginChallenge}` : '/login'}
                     className='text-blue-600 hover:text-blue-800 font-medium'
                   >
                     {t('登录')}
@@ -618,7 +625,7 @@ const RegisterForm = () => {
                 <Text>
                   {t('已有账户？')}{' '}
                   <Link
-                    to='/login'
+                    to={loginChallenge ? `/oauth/login?login_challenge=${loginChallenge}` : '/login'}
                     className='text-blue-600 hover:text-blue-800 font-medium'
                   >
                     {t('登录')}

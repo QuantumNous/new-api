@@ -639,6 +639,31 @@ func (ctrl *OAuthProviderController) OAuthConsentSubmit(c *gin.Context) {
 		rememberFor = common.HydraConsentRememberFor
 	}
 
+	// Auto-create default token if scope includes tokens:write and user has no tokens
+	if slices.Contains(req.GrantScope, "tokens:write") {
+		userId, _ := strconv.Atoi(subject)
+		tokens, _ := model.GetAllUserTokens(userId, 0, 1)
+		if len(tokens) == 0 {
+			key, err := common.GenerateKey()
+			if err == nil {
+				token := model.Token{
+					UserId:         userId,
+					Name:           "默认令牌",
+					Key:            key,
+					CreatedTime:    common.GetTimestamp(),
+					AccessedTime:   common.GetTimestamp(),
+					ExpiredTime:    -1,
+					UnlimitedQuota: true,
+				}
+				if insertErr := token.Insert(); insertErr == nil {
+					common.SysLog(fmt.Sprintf("OAuth consent: auto-created default token for user %d", userId))
+				} else {
+					common.SysError(fmt.Sprintf("OAuth consent: failed to auto-create default token for user %d: %s", userId, insertErr.Error()))
+				}
+			}
+		}
+	}
+
 	redirect, err := ctrl.hydra.AcceptConsent(
 		c.Request.Context(),
 		req.Challenge,
