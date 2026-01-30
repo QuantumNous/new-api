@@ -252,7 +252,7 @@ const TwoFASetting = ({ t }) => {
   // 渲染设置模态框footer
   const renderSetupModalFooter = () => {
     return (
-      <>
+      <Space>
         {currentStep > 0 && (
           <Button
             onClick={() => setCurrentStep(currentStep - 1)}
@@ -287,14 +287,14 @@ const TwoFASetting = ({ t }) => {
             {t('完成设置并启用两步验证')}
           </Button>
         )}
-      </>
+      </Space>
     );
   };
 
   // 渲染禁用模态框footer
   const renderDisableModalFooter = () => {
     return (
-      <>
+      <Space>
         <Button
           onClick={() => {
             setDisableModalVisible(false);
@@ -315,7 +315,7 @@ const TwoFASetting = ({ t }) => {
         >
           {t('确认禁用')}
         </Button>
-      </>
+      </Space>
     );
   };
 
@@ -339,7 +339,7 @@ const TwoFASetting = ({ t }) => {
     }
 
     return (
-      <>
+      <Space>
         <Button
           onClick={() => {
             setBackupModalVisible(false);
@@ -360,7 +360,7 @@ const TwoFASetting = ({ t }) => {
         >
           {t('生成新的备用码')}
         </Button>
-      </>
+      </Space>
     );
   };
 

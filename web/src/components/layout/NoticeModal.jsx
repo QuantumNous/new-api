@@ -236,7 +236,7 @@ const NoticeModal = ({
       visible={visible}
       onCancel={onClose}
       footer={
-        <div className='flex justify-end'>
+        <div className='flex justify-end gap-2'>
           <Button type='secondary' onClick={handleCloseTodayNotice}>
             {t('今日关闭')}
           </Button>
