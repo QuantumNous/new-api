@@ -106,6 +106,7 @@ const RegisterForm = () => {
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
+  const hasShownRegisterDisabledError = useRef(false);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
 
   const logo = getLogo();
@@ -139,6 +140,21 @@ const RegisterForm = () => {
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status?.user_agreement_enabled || false);
     setHasPrivacyPolicy(status?.privacy_policy_enabled || false);
+
+    // 检查是否所有注册选项都关闭
+    const hasAnyRegisterOption =
+      status?.github_oauth ||
+      status?.discord_oauth ||
+      status?.oidc_enabled ||
+      status?.wechat_login ||
+      status?.linuxdo_oauth ||
+      status?.telegram_oauth ||
+      status?.password_register;
+
+    if (!hasAnyRegisterOption && !hasShownRegisterDisabledError.current) {
+      showError(t('管理员关闭了新用户注册'));
+      hasShownRegisterDisabledError.current = true;
+    }
   }, [status]);
 
   useEffect(() => {
@@ -477,24 +493,22 @@ const RegisterForm = () => {
                     />
                   </div>
                 )}
-
                 {status.password_register && (
-                  <Divider margin='12px' align='center'>
-                    {t('或')}
-                  </Divider>
-                )}
-
-                {status.password_register && (
-                  <Button
-                    theme='solid'
-                    type='primary'
-                    className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                    icon={<IconMail size='large' />}
-                    onClick={handleEmailRegisterClick}
-                    loading={emailRegisterLoading}
-                  >
-                    <span className='ml-3'>{t('使用 用户名 注册')}</span>
-                  </Button>
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
+                    <Button
+                        theme='solid'
+                        type='primary'
+                        className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                        icon={<IconMail size='large'/>}
+                        onClick={handleEmailRegisterClick}
+                        loading={emailRegisterLoading}
+                    >
+                      <span className='ml-3'>{t('使用 用户名 注册')}</span>
+                    </Button>
+                  </>
                 )}
               </div>
 
@@ -749,14 +763,14 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailRegister ||
-        !(
+            (!(
           status.github_oauth ||
           status.discord_oauth ||
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||
           status.telegram_oauth
-        )
+        ) && status.password_register)
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
