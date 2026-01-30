@@ -31,7 +31,7 @@ import EnableDisableUserModal from './modals/EnableDisableUserModal';
 import DeleteUserModal from './modals/DeleteUserModal';
 import ResetPasskeyModal from './modals/ResetPasskeyModal';
 import ResetTwoFAModal from './modals/ResetTwoFAModal';
-import BindSubscriptionModal from './modals/BindSubscriptionModal';
+import UserSubscriptionsModal from './modals/UserSubscriptionsModal';
 
 const UsersTable = (usersData) => {
   const {
@@ -62,7 +62,7 @@ const UsersTable = (usersData) => {
   const [enableDisableAction, setEnableDisableAction] = useState('');
   const [showResetPasskeyModal, setShowResetPasskeyModal] = useState(false);
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
-  const [showBindSubscriptionModal, setShowBindSubscriptionModal] =
+  const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
     useState(false);
 
   // Modal handlers
@@ -97,9 +97,9 @@ const UsersTable = (usersData) => {
     setShowResetTwoFAModal(true);
   };
 
-  const showBindSubscriptionUserModal = (user) => {
+  const showUserSubscriptionsUserModal = (user) => {
     setModalUser(user);
-    setShowBindSubscriptionModal(true);
+    setShowUserSubscriptionsModal(true);
   };
 
   // Modal confirm handlers
@@ -140,7 +140,7 @@ const UsersTable = (usersData) => {
       showDeleteModal: showDeleteUserModal,
       showResetPasskeyModal: showResetPasskeyUserModal,
       showResetTwoFAModal: showResetTwoFAUserModal,
-      showBindSubscriptionModal: showBindSubscriptionUserModal,
+      showUserSubscriptionsModal: showUserSubscriptionsUserModal,
     });
   }, [
     t,
@@ -152,7 +152,7 @@ const UsersTable = (usersData) => {
     showDeleteUserModal,
     showResetPasskeyUserModal,
     showResetTwoFAUserModal,
-    showBindSubscriptionUserModal,
+    showUserSubscriptionsUserModal,
   ]);
 
   // Handle compact mode by removing fixed positioning
@@ -253,9 +253,9 @@ const UsersTable = (usersData) => {
         t={t}
       />
 
-      <BindSubscriptionModal
-        visible={showBindSubscriptionModal}
-        onCancel={() => setShowBindSubscriptionModal(false)}
+      <UserSubscriptionsModal
+        visible={showUserSubscriptionsModal}
+        onCancel={() => setShowUserSubscriptionsModal(false)}
         user={modalUser}
         t={t}
         onSuccess={() => refresh?.()}

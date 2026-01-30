@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Card, Tag, Button, Select, Divider } from '@douyinfe/semi-ui';
+import { Banner, Modal, Typography, Card, Tag, Button, Select, Divider } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package, Check } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
@@ -223,9 +223,12 @@ const SubscriptionPurchaseModal = ({
               )}
             </div>
           ) : (
-            <div className='text-gray-500 text-sm p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-center'>
-              {t('管理员未开启在线支付，请联系管理员配置')}
-            </div>
+            <Banner
+              type='info'
+              description={t('管理员未开启在线支付功能，请联系管理员配置。')}
+              className='!rounded-xl'
+              closeIcon={null}
+            />
           )}
         </div>
       ) : null}

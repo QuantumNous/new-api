@@ -392,6 +392,44 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return result, nil
 }
 
+// ---- Admin helpers for managing user subscriptions ----
+
+// AdminListUserSubscriptions lists all subscriptions (including expired) for a user.
+func AdminListUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
+	return GetAllUserSubscriptions(userId)
+}
+
+// AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.
+func AdminInvalidateUserSubscription(userSubscriptionId int) error {
+	if userSubscriptionId <= 0 {
+		return errors.New("invalid userSubscriptionId")
+	}
+	now := common.GetTimestamp()
+	return DB.Model(&UserSubscription{}).
+		Where("id = ?", userSubscriptionId).
+		Updates(map[string]interface{}{
+			"status":     "cancelled",
+			"end_time":   now,
+			"updated_at": now,
+		}).Error
+}
+
+// AdminDeleteUserSubscription hard-deletes a user subscription and its items.
+func AdminDeleteUserSubscription(userSubscriptionId int) error {
+	if userSubscriptionId <= 0 {
+		return errors.New("invalid userSubscriptionId")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_subscription_id = ?", userSubscriptionId).Delete(&UserSubscriptionItem{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", userSubscriptionId).Delete(&UserSubscription{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 type SubscriptionPreConsumeResult struct {
 	UserSubscriptionId int
 	ItemId             int

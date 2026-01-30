@@ -295,6 +295,73 @@ func AdminBindSubscription(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
+// ---- Admin: user subscription management ----
+
+func AdminListUserSubscriptions(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("id"))
+	if userId <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+	subs, err := model.AdminListUserSubscriptions(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, subs)
+}
+
+type AdminCreateUserSubscriptionRequest struct {
+	PlanId int `json:"plan_id"`
+}
+
+// AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
+func AdminCreateUserSubscription(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("id"))
+	if userId <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+	var req AdminCreateUserSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if err := model.AdminBindSubscription(userId, req.PlanId, ""); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// AdminInvalidateUserSubscription cancels a user subscription immediately.
+func AdminInvalidateUserSubscription(c *gin.Context) {
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	if err := model.AdminInvalidateUserSubscription(subId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+// AdminDeleteUserSubscription hard-deletes a user subscription.
+func AdminDeleteUserSubscription(c *gin.Context) {
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	if err := model.AdminDeleteUserSubscription(subId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 // ---- Helper: serialize provider payload safely ----
 
 func jsonString(v any) string {
