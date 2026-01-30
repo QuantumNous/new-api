@@ -3,20 +3,13 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { CopyButton } from '@/components/copy-button'
+import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { REDEMPTION_FILTER_EXPIRED, getRedemptionStatuses } from '../constants'
@@ -142,30 +135,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         const maskedKey = `${key.slice(0, 8)}${'*'.repeat(16)}${key.slice(-8)}`
 
         return (
-          <div className='flex items-center'>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant='ghost' size='sm' className='h-7 font-mono'>
-                  {maskedKey}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className='w-auto'>
-                <div className='space-y-2'>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Full Code:')}
-                  </p>
-                  <Input value={key} readOnly className='h-8 font-mono' />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <CopyButton
-              value={key}
-              className='size-7'
-              iconClassName='size-3.5'
-              tooltip={t('Copy code')}
-              aria-label={t('Copy redemption code')}
-            />
-          </div>
+          <MaskedValueDisplay
+            label={t('Full Code')}
+            fullValue={key}
+            maskedValue={maskedKey}
+            copyTooltip={t('Copy code')}
+            copyAriaLabel={t('Copy redemption code')}
+          />
         )
       },
       enableSorting: false,
