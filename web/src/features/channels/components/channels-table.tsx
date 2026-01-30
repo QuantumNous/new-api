@@ -269,7 +269,7 @@ export function ChannelsTable() {
   ]
 
   const groupFilterOptions = [
-    { label: 'All Groups', value: 'all' },
+    { label: t('All Groups'), value: 'all' },
     ...groupOptions,
   ]
 
