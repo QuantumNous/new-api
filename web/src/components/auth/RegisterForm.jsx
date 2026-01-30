@@ -106,7 +106,6 @@ const RegisterForm = () => {
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
-  const hasShownRegisterDisabledError = useRef(false);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
 
   const logo = getLogo();
@@ -140,21 +139,6 @@ const RegisterForm = () => {
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status?.user_agreement_enabled || false);
     setHasPrivacyPolicy(status?.privacy_policy_enabled || false);
-
-    // 检查是否所有注册选项都关闭
-    const hasAnyRegisterOption =
-      status?.github_oauth ||
-      status?.discord_oauth ||
-      status?.oidc_enabled ||
-      status?.wechat_login ||
-      status?.linuxdo_oauth ||
-      status?.telegram_oauth ||
-      status?.password_register;
-
-    if (!hasAnyRegisterOption && !hasShownRegisterDisabledError.current) {
-      showError(t('管理员关闭了新用户注册'));
-      hasShownRegisterDisabledError.current = true;
-    }
   }, [status]);
 
   useEffect(() => {
@@ -763,14 +747,14 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailRegister ||
-            (!(
+        !(
           status.github_oauth ||
           status.discord_oauth ||
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||
           status.telegram_oauth
-        ) && status.password_register)
+        )
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
