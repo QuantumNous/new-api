@@ -138,12 +138,15 @@ export function RedemptionsMutateDrawer({
       <SheetContent className='flex w-full flex-col sm:max-w-[600px]'>
         <SheetHeader className='text-start'>
           <SheetTitle>
-            {isUpdate ? t('Update') : t('Create')} {t('Redemption Code')}
+            {isUpdate
+              ? t('Update Redemption Code')
+              : t('Create Redemption Code')}
           </SheetTitle>
           <SheetDescription>
             {isUpdate
               ? t('Update the redemption code by providing necessary info.')
               : t('Add new redemption code(s) by providing necessary info.')}
+            {' '}
             {t('Click save when you&apos;re done.')}
           </SheetDescription>
         </SheetHeader>
