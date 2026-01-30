@@ -57,8 +57,8 @@ export function checkIsActive(
         const subItemUrlWithoutQuery = subItemUrl.split('?')[0]
         const subItemUrlHasQuery = subItemUrl.includes('?')
         if (subItemUrlWithoutQuery === hrefWithoutQuery) {
-          // If sub-item URL has no query params, only match if href also has no query params
-          if (!subItemUrlHasQuery && !hrefHasQuery) return true
+          // If sub-item URL has no query params, pathname match is enough (href may have query params)
+          if (!subItemUrlHasQuery) return true
           // If sub-item URL has query params, they must match exactly
           if (subItemUrlHasQuery && href === subItemUrl) return true
         }
@@ -84,9 +84,8 @@ export function checkIsActive(
 
   // If both URLs have the same base path
   if (hrefWithoutQuery === itemUrlWithoutQuery) {
-    // If item.url has no query params, only match if href also has no query params
-    // This prevents /system-settings/auth from matching /system-settings/auth?section=xxx
-    if (!itemUrlHasQuery && !hrefHasQuery) return true
+    // If item.url has no query params, pathname match is enough (current URL may have query params)
+    if (!itemUrlHasQuery) return true
     // If item.url has query params, they must match exactly
     if (itemUrlHasQuery && href === itemUrl) return true
   }
