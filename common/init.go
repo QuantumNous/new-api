@@ -146,6 +146,8 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
+	// 是否移除 Responses API 输入中的 reasoning 相关项（用于多账户轮询场景）
+	constant.RemoveResponsesReasoningInput = GetEnvOrDefaultBool("REMOVE_RESPONSES_REASONING_INPUT", false)
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {

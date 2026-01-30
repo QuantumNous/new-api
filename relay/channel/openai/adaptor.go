@@ -585,6 +585,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		}
 		request.Model = originModel
 	}
+
+	// 移除 input 中的 reasoning 相关项（用于多账户轮询场景）
+	if constant.RemoveResponsesReasoningInput {
+		request.RemoveReasoningFromInput()
+	}
+
 	return request, nil
 }
 
