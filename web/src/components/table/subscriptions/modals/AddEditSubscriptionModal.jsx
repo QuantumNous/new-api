@@ -40,9 +40,10 @@ import {
   IconCalendarClock,
   IconClose,
   IconCreditCard,
+  IconPlusCircle,
   IconSave,
 } from '@douyinfe/semi-icons';
-import { Trash2, Clock } from 'lucide-react';
+import { Trash2, Clock, Boxes } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
@@ -88,6 +89,11 @@ const AddEditSubscriptionModal = ({
   });
 
   const [items, setItems] = useState([]);
+  // Model benefits UX
+  const [pendingModels, setPendingModels] = useState([]);
+  const [defaultNewAmountTotal, setDefaultNewAmountTotal] = useState(0);
+  const [bulkAmountTotal, setBulkAmountTotal] = useState(0);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
   const buildFormValues = () => {
     const base = getInitValues();
@@ -141,6 +147,79 @@ const AddEditSubscriptionModal = ({
         amount_total: 0,
       },
     ]);
+  };
+
+  const addPendingModels = () => {
+    const selected = (pendingModels || []).filter(Boolean);
+    if (selected.length === 0) {
+      showError(t('请选择要添加的模型'));
+      return;
+    }
+    const existing = new Set((items || []).map((it) => it.model_name));
+    const toAdd = selected.filter((name) => !existing.has(name));
+    if (toAdd.length === 0) {
+      showError(t('所选模型已全部存在'));
+      return;
+    }
+    const defaultAmount = Number(defaultNewAmountTotal || 0);
+    const next = [...items];
+    toAdd.forEach((modelName) => {
+      const modelMeta = modelOptions.find((m) => m.value === modelName);
+      if (!modelMeta) return;
+      next.push({
+        model_name: modelName,
+        quota_type: modelMeta.quota_type,
+        amount_total: Number.isFinite(defaultAmount) && defaultAmount >= 0 ? defaultAmount : 0,
+      });
+    });
+    setItems(next);
+    setPendingModels([]);
+    showSuccess(t('已添加'));
+  };
+
+  const applyBulkAmountTotal = ({ scope }) => {
+    const n = Number(bulkAmountTotal || 0);
+    if (!Number.isFinite(n) || n < 0) {
+      showError(t('请输入有效的数量'));
+      return;
+    }
+    if (!items || items.length === 0) {
+      showError(t('请先添加模型权益'));
+      return;
+    }
+
+    if (scope === 'selected') {
+      if (!selectedRowKeys || selectedRowKeys.length === 0) {
+        showError(t('请先勾选要批量设置的权益'));
+        return;
+      }
+      const keySet = new Set(selectedRowKeys);
+      setItems(
+        items.map((it) => {
+          const k = `${it.model_name}-${it.quota_type}`;
+          if (!keySet.has(k)) return it;
+          return { ...it, amount_total: n };
+        }),
+      );
+      showSuccess(t('已对选中项批量设置'));
+      return;
+    }
+
+    // scope === 'all'
+    setItems(items.map((it) => ({ ...it, amount_total: n })));
+    showSuccess(t('已对全部批量设置'));
+  };
+
+  const deleteSelectedItems = () => {
+    if (!selectedRowKeys || selectedRowKeys.length === 0) {
+      showError(t('请先勾选要删除的权益'));
+      return;
+    }
+    const keySet = new Set(selectedRowKeys);
+    const next = (items || []).filter((it) => !keySet.has(`${it.model_name}-${it.quota_type}`));
+    setItems(next);
+    setSelectedRowKeys([]);
+    showSuccess(t('已删除选中项'));
   };
 
   const updateItem = (idx, patch) => {
@@ -496,32 +575,108 @@ const AddEditSubscriptionModal = ({
 
                 {/* 模型权益 */}
                 <Card className='!rounded-2xl shadow-sm border-0'>
-                  <div className='flex items-center justify-between mb-3'>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('模型权益')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('配置套餐可使用的模型及额度')}
+                  <div className='flex items-center justify-between mb-3 gap-3'>
+                    <div className='flex items-center'>
+                      <Avatar
+                        size='small'
+                        color='orange'
+                        className='mr-2 shadow-md'
+                      >
+                        <Boxes size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>{t('模型权益')}</Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('配置套餐可使用的模型及额度')}
+                        </div>
                       </div>
                     </div>
-                    <Select
-                      placeholder={t('添加模型')}
-                      style={{ width: 280 }}
-                      filter
-                      onChange={addItem}
-                    >
-                      {modelOptions.map((o) => (
-                        <Select.Option key={o.value} value={o.value}>
-                          {o.label}
-                        </Select.Option>
-                      ))}
-                    </Select>
                   </div>
+
+                  {/* 工具栏：最少步骤完成“添加 + 批量设置” */}
+                  <div className='flex flex-col gap-2 mb-3'>
+                    <div className='flex flex-col md:flex-row gap-2 md:items-center'>
+                      <Select
+                        placeholder={t('选择模型（可多选）')}
+                        multiple
+                        filter
+                        value={pendingModels}
+                        onChange={setPendingModels}
+                        style={{ width: '100%', flex: 1 }}
+                      >
+                        {modelOptions.map((o) => (
+                          <Select.Option key={o.value} value={o.value}>
+                            {o.label}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      <InputNumber
+                        value={Number(defaultNewAmountTotal || 0)}
+                        min={0}
+                        precision={0}
+                        onChange={(v) => setDefaultNewAmountTotal(v)}
+                        style={{ width: isMobile ? '100%' : 180 }}
+                        placeholder={t('默认数量')}
+                      />
+                      <Button
+                        theme='solid'
+                        type='primary'
+                        icon={<IconPlusCircle />}
+                        onClick={addPendingModels}
+                      >
+                        {t('添加')}
+                      </Button>
+                    </div>
+
+                    <div className='flex flex-col md:flex-row gap-2 md:items-center md:justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Tag color='white' shape='circle'>
+                          {t('已选')} {selectedRowKeys?.length || 0}
+                        </Tag>
+                        <InputNumber
+                          value={Number(bulkAmountTotal || 0)}
+                          min={0}
+                          precision={0}
+                          onChange={(v) => setBulkAmountTotal(v)}
+                          style={{ width: isMobile ? '100%' : 220 }}
+                          placeholder={t('统一设置数量')}
+                        />
+                      </div>
+                      <div className='flex items-center gap-2 justify-end'>
+                        <Button
+                          theme='light'
+                          type='primary'
+                          onClick={() => applyBulkAmountTotal({ scope: 'selected' })}
+                        >
+                          {t('应用到选中')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='primary'
+                          onClick={() => applyBulkAmountTotal({ scope: 'all' })}
+                        >
+                          {t('应用到全部')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='danger'
+                          icon={<Trash2 size={14} />}
+                          onClick={deleteSelectedItems}
+                        >
+                          {t('删除选中')}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
                   <Table
                     columns={itemColumns}
                     dataSource={items}
                     pagination={false}
+                    rowSelection={{
+                      selectedRowKeys,
+                      onChange: (keys) => setSelectedRowKeys(keys || []),
+                    }}
                     rowKey={(row) => `${row.model_name}-${row.quota_type}`}
                     empty={
                       <div className='py-6 text-center text-gray-500'>

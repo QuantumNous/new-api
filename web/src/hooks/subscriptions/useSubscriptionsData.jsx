@@ -27,9 +27,13 @@ export const useSubscriptionsData = () => {
   const [compactMode, setCompactMode] = useTableCompactMode('subscriptions');
 
   // State management
-  const [plans, setPlans] = useState([]);
+  const [allPlans, setAllPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pricingModels, setPricingModels] = useState([]);
+
+  // Pagination (client-side for now)
+  const [activePage, setActivePage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Drawer states
   const [showEdit, setShowEdit] = useState(false);
@@ -54,7 +58,12 @@ export const useSubscriptionsData = () => {
     try {
       const res = await API.get('/api/subscription/admin/plans');
       if (res.data?.success) {
-        setPlans(res.data.data || []);
+        const next = res.data.data || [];
+        setAllPlans(next);
+
+        // Keep page in range after data changes
+        const totalPages = Math.max(1, Math.ceil(next.length / pageSize));
+        setActivePage((p) => Math.min(p || 1, totalPages));
       } else {
         showError(res.data?.message || t('加载失败'));
       }
@@ -68,6 +77,15 @@ export const useSubscriptionsData = () => {
   // Refresh data
   const refresh = async () => {
     await loadPlans();
+  };
+
+  const handlePageChange = (page) => {
+    setActivePage(page);
+  };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setActivePage(1);
   };
 
   // Disable plan
@@ -113,9 +131,16 @@ export const useSubscriptionsData = () => {
     loadPlans();
   }, []);
 
+  const planCount = allPlans.length;
+  const plans = allPlans.slice(
+    Math.max(0, (activePage - 1) * pageSize),
+    Math.max(0, (activePage - 1) * pageSize) + pageSize,
+  );
+
   return {
     // Data state
     plans,
+    planCount,
     loading,
     pricingModels,
 
@@ -129,6 +154,12 @@ export const useSubscriptionsData = () => {
     // UI state
     compactMode,
     setCompactMode,
+
+    // Pagination
+    activePage,
+    pageSize,
+    handlePageChange,
+    handlePageSizeChange,
 
     // Actions
     loadPlans,

@@ -25,9 +25,12 @@ import SubscriptionsActions from './SubscriptionsActions';
 import SubscriptionsDescription from './SubscriptionsDescription';
 import AddEditSubscriptionModal from './modals/AddEditSubscriptionModal';
 import { useSubscriptionsData } from '../../../hooks/subscriptions/useSubscriptionsData';
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { createCardProPagination } from '../../../helpers/utils';
 
 const SubscriptionsPage = () => {
   const subscriptionsData = useSubscriptionsData();
+  const isMobile = useIsMobile();
 
   const {
     showEdit,
@@ -79,6 +82,15 @@ const SubscriptionsPage = () => {
             />
           </div>
         }
+        paginationArea={createCardProPagination({
+          currentPage: subscriptionsData.activePage,
+          pageSize: subscriptionsData.pageSize,
+          total: subscriptionsData.planCount,
+          onPageChange: subscriptionsData.handlePageChange,
+          onPageSizeChange: subscriptionsData.handlePageSizeChange,
+          isMobile,
+          t: subscriptionsData.t,
+        })}
         t={t}
       >
         <SubscriptionsTable {...subscriptionsData} />
