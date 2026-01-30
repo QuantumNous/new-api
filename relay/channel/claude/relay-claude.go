@@ -635,10 +635,13 @@ func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeRespons
 }
 
 func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string, requestMode int) *types.NewAPIError {
+	if strings.TrimSpace(data) == "" {
+		return types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+	}
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
 	if err != nil {
-		common.SysLog("error unmarshalling stream response: " + err.Error())
+		logger.LogJSONUnmarshalError(c, "claude.HandleStreamResponseData", err, []byte(data))
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
@@ -717,7 +720,9 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
+	var hasStreamData bool
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		hasStreamData = true
 		err = HandleStreamResponseData(c, info, claudeInfo, data, requestMode)
 		if err != nil {
 			return false
@@ -727,15 +732,22 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	if err != nil {
 		return nil, err
 	}
+	if !hasStreamData {
+		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+	}
 
 	HandleStreamFinalResponse(c, info, claudeInfo, requestMode)
 	return claudeInfo.Usage, nil
 }
 
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte, requestMode int) *types.NewAPIError {
+	if len(data) == 0 {
+		return types.NewEmptyResponseBodyError(types.ErrorCodeBadResponseBody)
+	}
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
 	if err != nil {
+		logger.LogJSONUnmarshalError(c, "claude.HandleClaudeResponseData", err, data)
 		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
@@ -787,6 +799,9 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyError(types.ErrorCodeBadResponseBody)
 	}
 	if common.DebugEnabled {
 		println("responseBody: ", string(responseBody))

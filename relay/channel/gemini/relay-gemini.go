@@ -1220,14 +1220,22 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var usage = &dto.Usage{}
 	var imageCount int
 	responseText := strings.Builder{}
+	var hasParsedData bool
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		if strings.TrimSpace(data) == "" {
+			streamErr = types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+			return false
+		}
 		var geminiResponse dto.GeminiChatResponse
 		err := common.UnmarshalJsonStr(data, &geminiResponse)
 		if err != nil {
-			logger.LogError(c, "error unmarshalling stream response: "+err.Error())
+			logger.LogJSONUnmarshalError(c, "gemini.geminiStreamHandler", err, []byte(data))
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			return false
 		}
+		hasParsedData = true
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
@@ -1262,6 +1270,13 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 		return callback(data, &geminiResponse)
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if !hasParsedData {
+		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+	}
 
 	if imageCount != 0 {
 		if usage.CompletionTokens == 0 {
@@ -1381,6 +1396,9 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 	service.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
 		println(string(responseBody))
@@ -1388,6 +1406,12 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	var geminiResponse dto.GeminiChatResponse
 	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("gemini.GeminiChatHandler status=%d", resp.StatusCode),
+			err,
+			responseBody,
+		)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(geminiResponse.Candidates) == 0 {
@@ -1488,9 +1512,18 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	if readErr != nil {
 		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	var geminiResponse dto.GeminiBatchEmbeddingResponse
 	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("gemini.GeminiEmbeddingHandler status=%d", resp.StatusCode),
+			jsonErr,
+			responseBody,
+		)
 		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
@@ -1531,10 +1564,19 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	if readErr != nil {
 		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if len(responseBody) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 	_ = resp.Body.Close()
 
 	var geminiResponse dto.GeminiImageResponse
 	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("gemini.GeminiImageHandler status=%d", resp.StatusCode),
+			jsonErr,
+			responseBody,
+		)
 		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
