@@ -2,21 +2,14 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { Progress } from '@/components/ui/progress'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { CopyButton } from '@/components/copy-button'
+import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
@@ -102,30 +95,13 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
         const maskedKey = `sk-${apiKey.key.slice(0, 4)}${'*'.repeat(16)}${apiKey.key.slice(-4)}`
 
         return (
-          <div className='flex items-center'>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant='ghost' size='sm' className='h-7 font-mono'>
-                  {maskedKey}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className='w-auto'>
-                <div className='space-y-2'>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Full API Key:')}
-                  </p>
-                  <Input value={fullKey} readOnly className='h-8 font-mono' />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <CopyButton
-              value={fullKey}
-              className='size-7'
-              iconClassName='size-3.5'
-              tooltip={t('Copy API key')}
-              aria-label={t('Copy API key')}
-            />
-          </div>
+          <MaskedValueDisplay
+            label={t('Full API Key')}
+            fullValue={fullKey}
+            maskedValue={maskedKey}
+            copyTooltip={t('Copy API key')}
+            copyAriaLabel={t('Copy API key')}
+          />
         )
       },
       enableSorting: false,

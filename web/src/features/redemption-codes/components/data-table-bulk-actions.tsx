@@ -46,7 +46,9 @@ export function DataTableBulkActions<TData>({
       if (result.success) {
         const count = result.data || 0
         toast.success(
-          `Successfully deleted ${count} invalid redemption code${count > 1 ? 's' : ''}`
+          t('Successfully deleted {{count}} invalid redemption codes', {
+            count,
+          })
         )
         table.resetRowSelection()
         triggerRefresh()
@@ -59,14 +61,17 @@ export function DataTableBulkActions<TData>({
 
   return (
     <>
-      <BulkActionsToolbar table={table} entityName='redemption code'>
+      <BulkActionsToolbar
+        table={table}
+        entityName={t('redemption code')}
+      >
         <CopyButton
           value={contentToCopy}
           variant='outline'
           size='icon'
           className='size-8'
           tooltip={t('Copy selected codes')}
-          successTooltip='Codes copied!'
+          successTooltip={t('Codes copied!')}
           aria-label={t('Copy selected codes')}
         />
 
@@ -108,7 +113,7 @@ export function DataTableBulkActions<TData>({
             {t('This action cannot be undone.')}
           </>
         }
-        confirmText='Delete Invalid'
+        confirmText={t('Delete Invalid')}
       />
     </>
   )
