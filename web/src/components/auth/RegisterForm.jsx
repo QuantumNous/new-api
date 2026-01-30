@@ -114,11 +114,33 @@ const RegisterForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
-    
+
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status.user_agreement_enabled || false);
     setHasPrivacyPolicy(status.privacy_policy_enabled || false);
   }, [status]);
+
+  // Check if user is already logged in during OAuth flow
+  useEffect(() => {
+    if (!loginChallenge) return;
+
+    const checkOAuthSession = async () => {
+      try {
+        const res = await API.get(`/api/oauth/login?login_challenge=${loginChallenge}`);
+        const { success, data } = res.data;
+
+        if (success && data?.redirect_to) {
+          // User is already logged in, redirect to continue OAuth flow
+          window.location.href = data.redirect_to;
+        }
+      } catch (err) {
+        // Ignore errors, just show registration form
+        console.error('OAuth session check failed:', err);
+      }
+    };
+
+    checkOAuthSession();
+  }, [loginChallenge]);
 
   useEffect(() => {
     let countdownInterval = null;
