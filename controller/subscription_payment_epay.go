@@ -50,7 +50,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	userId := c.GetInt("id")
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(system_setting.ServerAddress + "/console/topup")
+	returnUrl, _ := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	notifyUrl, _ := url.Parse(callBackAddress + "/api/subscription/epay/notify")
 
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
@@ -122,5 +122,33 @@ func SubscriptionEpayNotify(c *gin.Context) {
 		// do not fail webhook response after signature verified
 		return
 	}
+}
+
+// SubscriptionEpayReturn handles browser return after payment.
+// It verifies the payload and completes the order, then redirects to console.
+func SubscriptionEpayReturn(c *gin.Context) {
+	params := lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
+		r[t] = c.Request.URL.Query().Get(t)
+		return r
+	}, map[string]string{})
+
+	client := GetEpayClient()
+	if client == nil {
+		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		return
+	}
+	verifyInfo, err := client.Verify(params)
+	if err != nil || !verifyInfo.VerifyStatus {
+		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=fail")
+		return
+	}
+	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
+		LockOrder(verifyInfo.ServiceTradeNo)
+		defer UnlockOrder(verifyInfo.ServiceTradeNo)
+		_ = model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, jsonString(verifyInfo))
+		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=success")
+		return
+	}
+	c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/topup?pay=pending")
 }
 

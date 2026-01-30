@@ -68,17 +68,10 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
-	// For backward compatibility, also return the first active subscription as "subscription"
-	var summary *model.SubscriptionSummary
-	if len(activeSubscriptions) > 0 {
-		summary = &activeSubscriptions[0]
-	}
-
 	common.ApiSuccess(c, gin.H{
-		"billing_preference":     pref,
-		"subscription":           summary,              // backward compatibility (first active)
-		"subscriptions":          activeSubscriptions,  // all active subscriptions
-		"all_subscriptions":      allSubscriptions,     // all subscriptions including expired
+		"billing_preference": pref,
+		"subscriptions":      activeSubscriptions, // all active subscriptions
+		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
 	})
 }
 

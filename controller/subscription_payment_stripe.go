@@ -45,6 +45,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "Stripe 未配置或密钥无效")
 		return
 	}
+	if setting.StripeWebhookSecret == "" {
+		common.ApiErrorMsg(c, "Stripe Webhook 未配置")
+		return
+	}
 
 	userId := c.GetInt("id")
 	user, _ := model.GetUserById(userId, false)

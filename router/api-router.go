@@ -149,6 +149,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		// Subscription payment callbacks (no auth)
 		apiRouter.GET("/subscription/epay/notify", controller.SubscriptionEpayNotify)
+		apiRouter.GET("/subscription/epay/return", controller.SubscriptionEpayReturn)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
 		{

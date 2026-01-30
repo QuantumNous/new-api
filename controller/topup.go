@@ -65,12 +65,10 @@ func GetTopUpInfo(c *gin.Context) {
 type EpayRequest struct {
 	Amount        int64  `json:"amount"`
 	PaymentMethod string `json:"payment_method"`
-	TopUpCode     string `json:"top_up_code"`
 }
 
 type AmountRequest struct {
-	Amount    int64  `json:"amount"`
-	TopUpCode string `json:"top_up_code"`
+	Amount int64 `json:"amount"`
 }
 
 func GetEpayClient() *epay.Client {

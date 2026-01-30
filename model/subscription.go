@@ -255,7 +255,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 	if common.UsingPostgreSQL {
 		refCol = `"trade_no"`
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	var logUserId int
+	var logPlanTitle string
+	var logMoney float64
+	var logPaymentMethod string
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return errors.New("subscription order not found")
@@ -277,13 +281,65 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 		if err != nil {
 			return err
 		}
+		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+			return err
+		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
 		if providerPayload != "" {
 			order.ProviderPayload = providerPayload
 		}
-		return tx.Save(&order).Error
+		if err := tx.Save(&order).Error; err != nil {
+			return err
+		}
+		logUserId = order.UserId
+		logPlanTitle = plan.Title
+		logMoney = order.Money
+		logPaymentMethod = order.PaymentMethod
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if logUserId > 0 {
+		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
+		RecordLog(logUserId, LogTypeTopup, msg)
+	}
+	return nil
+}
+
+func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
+	if tx == nil || order == nil {
+		return errors.New("invalid subscription order")
+	}
+	now := common.GetTimestamp()
+	var topup TopUp
+	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			topup = TopUp{
+				UserId:        order.UserId,
+				Amount:        0,
+				Money:         order.Money,
+				TradeNo:       order.TradeNo,
+				PaymentMethod: order.PaymentMethod,
+				CreateTime:    order.CreateTime,
+				CompleteTime:  now,
+				Status:        common.TopUpStatusSuccess,
+			}
+			return tx.Create(&topup).Error
+		}
+		return err
+	}
+	topup.Money = order.Money
+	if topup.PaymentMethod == "" {
+		topup.PaymentMethod = order.PaymentMethod
+	}
+	if topup.CreateTime == 0 {
+		topup.CreateTime = order.CreateTime
+	}
+	topup.CompleteTime = now
+	topup.Status = common.TopUpStatusSuccess
+	return tx.Save(&topup).Error
 }
 
 func ExpireSubscriptionOrder(tradeNo string) error {
@@ -321,26 +377,6 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) error {
 		_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
 		return err
 	})
-}
-
-// Get current active subscription (best-effort: latest end_time)
-func GetActiveUserSubscription(userId int) (*SubscriptionSummary, error) {
-	if userId <= 0 {
-		return nil, errors.New("invalid userId")
-	}
-	now := common.GetTimestamp()
-	var sub UserSubscription
-	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Order("end_time desc, id desc").
-		First(&sub).Error
-	if err != nil {
-		return nil, err
-	}
-	var items []UserSubscriptionItem
-	if err := DB.Where("user_subscription_id = ?", sub.Id).Find(&items).Error; err != nil {
-		return nil, err
-	}
-	return &SubscriptionSummary{Subscription: &sub, Items: items}, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.

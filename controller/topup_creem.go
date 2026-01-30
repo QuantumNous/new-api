@@ -227,16 +227,6 @@ type CreemWebhookEvent struct {
 	} `json:"object"`
 }
 
-// 保留旧的结构体作为兼容
-type CreemWebhookData struct {
-	Type string `json:"type"`
-	Data struct {
-		RequestId string            `json:"request_id"`
-		Status    string            `json:"status"`
-		Metadata  map[string]string `json:"metadata"`
-	} `json:"data"`
-}
-
 func CreemWebhook(c *gin.Context) {
 	// 读取body内容用于打印，同时保留原始数据供后续使用
 	bodyBytes, err := io.ReadAll(c.Request.Body)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/thanhpk/randstr"
 )
@@ -44,6 +45,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	}
 	if plan.CreemProductId == "" {
 		common.ApiErrorMsg(c, "该套餐未配置 CreemProductId")
+		return
+	}
+	if setting.CreemWebhookSecret == "" && !setting.CreemTestMode {
+		common.ApiErrorMsg(c, "Creem Webhook 未配置")
 		return
 	}
 
