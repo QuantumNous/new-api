@@ -97,4 +97,3 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		},
 	})
 }
-

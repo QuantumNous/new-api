@@ -169,7 +169,10 @@ const AddEditSubscriptionModal = ({
       next.push({
         model_name: modelName,
         quota_type: modelMeta.quota_type,
-        amount_total: Number.isFinite(defaultAmount) && defaultAmount >= 0 ? defaultAmount : 0,
+        amount_total:
+          Number.isFinite(defaultAmount) && defaultAmount >= 0
+            ? defaultAmount
+            : 0,
       });
     });
     setItems(next);
@@ -216,7 +219,9 @@ const AddEditSubscriptionModal = ({
       return;
     }
     const keySet = new Set(selectedRowKeys);
-    const next = (items || []).filter((it) => !keySet.has(`${it.model_name}-${it.quota_type}`));
+    const next = (items || []).filter(
+      (it) => !keySet.has(`${it.model_name}-${it.quota_type}`),
+    );
     setItems(next);
     setSelectedRowKeys([]);
     showSuccess(t('已删除选中项'));
@@ -417,7 +422,9 @@ const AddEditSubscriptionModal = ({
                         field='title'
                         label={t('套餐标题')}
                         placeholder={t('例如：基础套餐')}
-                        rules={[{ required: true, message: t('请输入套餐标题') }]}
+                        rules={[
+                          { required: true, message: t('请输入套餐标题') },
+                        ]}
                         showClear
                       />
                     </Col>
@@ -585,7 +592,9 @@ const AddEditSubscriptionModal = ({
                         <Boxes size={16} />
                       </Avatar>
                       <div>
-                        <Text className='text-lg font-medium'>{t('模型权益')}</Text>
+                        <Text className='text-lg font-medium'>
+                          {t('模型权益')}
+                        </Text>
                         <div className='text-xs text-gray-600'>
                           {t('配置套餐可使用的模型及额度')}
                         </div>
@@ -646,7 +655,9 @@ const AddEditSubscriptionModal = ({
                         <Button
                           theme='light'
                           type='primary'
-                          onClick={() => applyBulkAmountTotal({ scope: 'selected' })}
+                          onClick={() =>
+                            applyBulkAmountTotal({ scope: 'selected' })
+                          }
                         >
                           {t('应用到选中')}
                         </Button>

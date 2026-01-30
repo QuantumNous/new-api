@@ -15,8 +15,8 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan  model.SubscriptionPlan        `json:"plan"`
-	Items []model.SubscriptionPlanItem  `json:"items"`
+	Plan  model.SubscriptionPlan       `json:"plan"`
+	Items []model.SubscriptionPlanItem `json:"items"`
 }
 
 type BillingPreferenceRequest struct {

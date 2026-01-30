@@ -364,32 +364,36 @@ export const useLogsData = () => {
           key: t('日志详情'),
           value: other?.claude
             ? renderClaudeLogContent(
-              other?.model_ratio,
-              other.completion_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_ratio || 1.0,
-              other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-            )
+                other?.model_ratio,
+                other.completion_ratio,
+                other.model_price,
+                other.group_ratio,
+                other?.user_group_ratio,
+                other.cache_ratio || 1.0,
+                other.cache_creation_ratio || 1.0,
+                other.cache_creation_tokens_5m || 0,
+                other.cache_creation_ratio_5m ||
+                  other.cache_creation_ratio ||
+                  1.0,
+                other.cache_creation_tokens_1h || 0,
+                other.cache_creation_ratio_1h ||
+                  other.cache_creation_ratio ||
+                  1.0,
+              )
             : renderLogContent(
-              other?.model_ratio,
-              other.completion_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_ratio || 1.0,
-              false,
-              1.0,
-              other.web_search || false,
-              other.web_search_call_count || 0,
-              other.file_search || false,
-              other.file_search_call_count || 0,
-            ),
+                other?.model_ratio,
+                other.completion_ratio,
+                other.model_price,
+                other.group_ratio,
+                other?.user_group_ratio,
+                other.cache_ratio || 1.0,
+                false,
+                1.0,
+                other.web_search || false,
+                other.web_search_call_count || 0,
+                other.file_search || false,
+                other.file_search_call_count || 0,
+              ),
         });
         if (logs[i]?.content) {
           expandDataLocal.push({
@@ -458,12 +462,12 @@ export const useLogsData = () => {
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
               other.cache_creation_ratio_5m ||
-              other.cache_creation_ratio ||
-              1.0,
+                other.cache_creation_ratio ||
+                1.0,
               other.cache_creation_tokens_1h || 0,
               other.cache_creation_ratio_1h ||
-              other.cache_creation_ratio ||
-              1.0,
+                other.cache_creation_ratio ||
+                1.0,
             );
           } else {
             content = renderModelPrice(
@@ -519,7 +523,8 @@ export const useLogsData = () => {
         const pre = other?.subscription_pre_consumed ?? 0;
         const postDelta = other?.subscription_post_delta ?? 0;
         const finalConsumed =
-          other?.subscription_consumed ?? (quotaType === 1 ? 1 : pre + postDelta);
+          other?.subscription_consumed ??
+          (quotaType === 1 ? 1 : pre + postDelta);
         const remain = other?.subscription_remain;
         const total = other?.subscription_total;
         // Use multiple Description items to avoid an overlong single line.
@@ -549,7 +554,9 @@ export const useLogsData = () => {
           .join('\n');
         expandDataLocal.push({
           key: t('订阅结算'),
-          value: <div style={{ whiteSpace: 'pre-line' }}>{settlementLines}</div>,
+          value: (
+            <div style={{ whiteSpace: 'pre-line' }}>{settlementLines}</div>
+          ),
         });
         if (remain !== undefined && total !== undefined) {
           expandDataLocal.push({
@@ -638,7 +645,7 @@ export const useLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => { });
+    loadLogs(page, pageSize).then((r) => {});
   };
 
   const handlePageSizeChange = async (size) => {

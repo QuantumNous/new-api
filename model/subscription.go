@@ -36,7 +36,7 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	StripePriceId string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
+	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
@@ -69,9 +69,9 @@ type SubscriptionPlanItem struct {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int   `json:"id"`
-	UserId int   `json:"user_id" gorm:"index"`
-	PlanId int   `json:"plan_id" gorm:"index"`
+	Id     int     `json:"id"`
+	UserId int     `json:"user_id" gorm:"index"`
+	PlanId int     `json:"plan_id" gorm:"index"`
 	Money  float64 `json:"money"`
 
 	TradeNo       string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
@@ -134,8 +134,8 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 }
 
 type UserSubscriptionItem struct {
-	Id                 int   `json:"id"`
-	UserSubscriptionId int   `json:"user_subscription_id" gorm:"index"`
+	Id                 int    `json:"id"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
 	ModelName          string `json:"model_name" gorm:"type:varchar(128);index"`
 	QuotaType          int    `json:"quota_type" gorm:"type:int;index"`
 	AmountTotal        int64  `json:"amount_total" gorm:"type:bigint;not null;default:0"`
@@ -211,14 +211,14 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		return nil, err
 	}
 	sub := &UserSubscription{
-		UserId:     userId,
-		PlanId:     plan.Id,
-		StartTime:  now.Unix(),
-		EndTime:    endUnix,
-		Status:     "active",
-		Source:     source,
-		CreatedAt:  common.GetTimestamp(),
-		UpdatedAt:  common.GetTimestamp(),
+		UserId:    userId,
+		PlanId:    plan.Id,
+		StartTime: now.Unix(),
+		EndTime:   endUnix,
+		Status:    "active",
+		Source:    source,
+		CreatedAt: common.GetTimestamp(),
+		UpdatedAt: common.GetTimestamp(),
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
@@ -586,4 +586,3 @@ func PostConsumeUserSubscriptionDelta(itemId int, delta int64) error {
 		return tx.Save(&item).Error
 	})
 }
-

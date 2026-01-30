@@ -240,9 +240,7 @@ const SubscriptionPlansCard = ({
             <Crown size={16} />
           </Avatar>
           <div>
-            <Text className='text-lg font-medium'>
-              {t('订阅套餐')}
-            </Text>
+            <Text className='text-lg font-medium'>{t('订阅套餐')}</Text>
             <div className='text-xs'>{t('购买订阅获得模型额度/次数')}</div>
           </div>
         </div>
@@ -276,13 +274,27 @@ const SubscriptionPlansCard = ({
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
             {[1, 2, 3].map((i) => (
               <Card key={i} className='!rounded-xl' bodyStyle={{ padding: 16 }}>
-                <Skeleton.Title active style={{ width: '60%', height: 24, marginBottom: 8 }} />
-                <Skeleton.Paragraph active rows={1} style={{ marginBottom: 12 }} />
+                <Skeleton.Title
+                  active
+                  style={{ width: '60%', height: 24, marginBottom: 8 }}
+                />
+                <Skeleton.Paragraph
+                  active
+                  rows={1}
+                  style={{ marginBottom: 12 }}
+                />
                 <div className='text-center py-4'>
-                  <Skeleton.Title active style={{ width: '40%', height: 32, margin: '0 auto' }} />
+                  <Skeleton.Title
+                    active
+                    style={{ width: '40%', height: 32, margin: '0 auto' }}
+                  />
                 </div>
                 <Skeleton.Paragraph active rows={3} style={{ marginTop: 12 }} />
-                <Skeleton.Button active block style={{ marginTop: 16, height: 32 }} />
+                <Skeleton.Button
+                  active
+                  block
+                  style={{ marginTop: 16, height: 32 }}
+                />
               </Card>
             ))}
           </div>
@@ -299,18 +311,26 @@ const SubscriptionPlansCard = ({
                     {activeSubscriptions.length} {t('个生效中')}
                   </Tag>
                 ) : (
-                  <Tag color='grey' size='small' shape='circle'>{t('无生效')}</Tag>
+                  <Tag color='grey' size='small' shape='circle'>
+                    {t('无生效')}
+                  </Tag>
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
                   <Tag color='grey' size='small' shape='circle' type='light'>
-                    {allSubscriptions.length - activeSubscriptions.length} {t('个已过期')}
+                    {allSubscriptions.length - activeSubscriptions.length}{' '}
+                    {t('个已过期')}
                   </Tag>
                 )}
               </div>
               <Button
                 size='small'
                 theme='borderless'
-                icon={<RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />}
+                icon={
+                  <RefreshCw
+                    size={12}
+                    className={refreshing ? 'animate-spin' : ''}
+                  />
+                }
                 onClick={handleRefresh}
                 loading={refreshing}
               />
@@ -325,7 +345,8 @@ const SubscriptionPlansCard = ({
                   const usagePercent = getUsagePercent(sub);
                   const now = Date.now() / 1000;
                   const isExpired = (subscription?.end_time || 0) < now;
-                  const isActive = subscription?.status === 'active' && !isExpired;
+                  const isActive =
+                    subscription?.status === 'active' && !isExpired;
 
                   return (
                     <div
@@ -339,19 +360,27 @@ const SubscriptionPlansCard = ({
                             {t('订阅')} #{subscription?.id}
                           </span>
                           {isActive ? (
-                            <Tag color='green' size='small' shape='circle'>{t('生效')}</Tag>
+                            <Tag color='green' size='small' shape='circle'>
+                              {t('生效')}
+                            </Tag>
                           ) : (
-                            <Tag color='grey' size='small' shape='circle'>{t('已过期')}</Tag>
+                            <Tag color='grey' size='small' shape='circle'>
+                              {t('已过期')}
+                            </Tag>
                           )}
                         </div>
                         {isActive && (
                           <span className='text-gray-500'>
-                            {t('剩余')} {remainDays} {t('天')} · {t('已用')} {usagePercent}%
+                            {t('剩余')} {remainDays} {t('天')} · {t('已用')}{' '}
+                            {usagePercent}%
                           </span>
                         )}
                       </div>
                       <div className='text-xs text-gray-500 mb-2'>
-                        {isActive ? t('至') : t('过期于')} {new Date((subscription?.end_time || 0) * 1000).toLocaleString()}
+                        {isActive ? t('至') : t('过期于')}{' '}
+                        {new Date(
+                          (subscription?.end_time || 0) * 1000,
+                        ).toLocaleString()}
                       </div>
                       {/* 权益列表 */}
                       {items.length > 0 && (
@@ -360,23 +389,36 @@ const SubscriptionPlansCard = ({
                             const used = Number(it.amount_used || 0);
                             const total = Number(it.amount_total || 0);
                             const remain = total - used;
-                            const percent = total > 0 ? Math.round((used / total) * 100) : 0;
+                            const percent =
+                              total > 0 ? Math.round((used / total) * 100) : 0;
                             const label = it.quota_type === 1 ? t('次') : '';
 
                             return (
                               <Tag
                                 key={`${it.id}-${it.model_name}`}
                                 size='small'
-                                color={isActive ? (percent > 80 ? 'red' : 'blue') : 'grey'}
+                                color={
+                                  isActive
+                                    ? percent > 80
+                                      ? 'red'
+                                      : 'blue'
+                                    : 'grey'
+                                }
                                 type='light'
                                 shape='circle'
                               >
-                                {it.model_name}: {remain}{label}
+                                {it.model_name}: {remain}
+                                {label}
                               </Tag>
                             );
                           })}
                           {items.length > 4 && (
-                            <Tag size='small' color='grey' type='light' shape='circle'>
+                            <Tag
+                              size='small'
+                              color='grey'
+                              type='light'
+                              shape='circle'
+                            >
                               +{items.length - 4}
                             </Tag>
                           )}
@@ -406,8 +448,9 @@ const SubscriptionPlansCard = ({
                 return (
                   <Card
                     key={plan?.id}
-                    className={`!rounded-xl transition-all hover:shadow-lg ${isPopular ? 'ring-2 ring-purple-500' : ''
-                      }`}
+                    className={`!rounded-xl transition-all hover:shadow-lg ${
+                      isPopular ? 'ring-2 ring-purple-500' : ''
+                    }`}
                     bodyStyle={{ padding: 0 }}
                   >
                     <div className='p-4'>
@@ -462,16 +505,20 @@ const SubscriptionPlansCard = ({
                       {/* 权益列表 */}
                       <div className='space-y-2 mb-4'>
                         {planItems.slice(0, 5).map((it, idx) => (
-                          <div
-                            key={idx}
-                            className='flex items-center text-sm'
-                          >
+                          <div key={idx} className='flex items-center text-sm'>
                             <Check
                               size={14}
                               className='text-green-500 mr-2 flex-shrink-0'
                             />
-                            <span className='truncate flex-1'>{it.model_name}</span>
-                            <Tag size='small' color='blue' shape='circle' type='light'>
+                            <span className='truncate flex-1'>
+                              {it.model_name}
+                            </span>
+                            <Tag
+                              size='small'
+                              color='blue'
+                              shape='circle'
+                              type='light'
+                            >
                               {it.amount_total}
                               {it.quota_type === 1 ? t('次') : ''}
                             </Tag>
@@ -495,7 +542,9 @@ const SubscriptionPlansCard = ({
                         type='primary'
                         block
                         onClick={() => openBuy(p)}
-                        className={isPopular ? '!bg-purple-600 hover:!bg-purple-700' : ''}
+                        className={
+                          isPopular ? '!bg-purple-600 hover:!bg-purple-700' : ''
+                        }
                       >
                         {t('立即订阅')}
                       </Button>
@@ -534,4 +583,3 @@ const SubscriptionPlansCard = ({
 };
 
 export default SubscriptionPlansCard;
-

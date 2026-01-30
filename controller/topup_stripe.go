@@ -169,10 +169,10 @@ func sessionCompleted(event stripe.Event) {
 	// Subscription order takes precedence
 	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
 		payload := map[string]any{
-			"customer": customerId,
+			"customer":     customerId,
 			"amount_total": event.GetObjectValue("amount_total"),
-			"currency": strings.ToUpper(event.GetObjectValue("currency")),
-			"event_type": string(event.Type),
+			"currency":     strings.ToUpper(event.GetObjectValue("currency")),
+			"event_type":   string(event.Type),
 		}
 		if err := model.CompleteSubscriptionOrder(referenceId, jsonString(payload)); err != nil {
 			log.Println("complete subscription order failed:", err.Error(), referenceId)

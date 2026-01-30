@@ -114,4 +114,3 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 		return nil
 	}
 }
-

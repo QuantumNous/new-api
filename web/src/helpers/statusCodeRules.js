@@ -35,7 +35,9 @@ export function parseHttpStatusCodeRules(input) {
   }
 
   const merged = mergeRanges(ranges);
-  const tokens = merged.map((r) => (r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`));
+  const tokens = merged.map((r) =>
+    r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`,
+  );
   const normalized = tokens.join(',');
 
   return {
@@ -78,7 +80,9 @@ function isNumber(s) {
 function mergeRanges(ranges) {
   if (!Array.isArray(ranges) || ranges.length === 0) return [];
 
-  const sorted = [...ranges].sort((a, b) => (a.start !== b.start ? a.start - b.start : a.end - b.end));
+  const sorted = [...ranges].sort((a, b) =>
+    a.start !== b.start ? a.start - b.start : a.end - b.end,
+  );
   const merged = [sorted[0]];
 
   for (let i = 1; i < sorted.length; i += 1) {

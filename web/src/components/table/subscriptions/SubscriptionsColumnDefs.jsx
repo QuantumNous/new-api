@@ -81,7 +81,9 @@ const renderModels = (text, record, t) => {
         </div>
       ))}
       {items.length > 3 && (
-        <div className='text-gray-500'>...{t('共')} {items.length} {t('个模型')}</div>
+        <div className='text-gray-500'>
+          ...{t('共')} {items.length} {t('个模型')}
+        </div>
       )}
     </div>
   );

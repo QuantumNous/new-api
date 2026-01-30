@@ -116,4 +116,3 @@ func genStripeSubscriptionLink(referenceId string, customerId string, email stri
 	}
 	return result.URL, nil
 }
-

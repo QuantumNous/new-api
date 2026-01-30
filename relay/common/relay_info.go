@@ -113,7 +113,7 @@ type RelayInfo struct {
 	UserQuota              int
 	RelayFormat            types.RelayFormat
 	SendResponseCount      int
-	FinalPreConsumedQuota  int  // 最终预消耗的配额
+	FinalPreConsumedQuota  int // 最终预消耗的配额
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
@@ -130,10 +130,10 @@ type RelayInfo struct {
 	SubscriptionPlanId    int
 	SubscriptionPlanTitle string
 	// SubscriptionAmountTotal / SubscriptionAmountUsedAfterPreConsume are used to compute remaining in logs.
-	SubscriptionAmountTotal            int64
+	SubscriptionAmountTotal               int64
 	SubscriptionAmountUsedAfterPreConsume int64
-	IsClaudeBetaQuery      bool // /v1/messages?beta=true
-	IsChannelTest          bool // channel test request
+	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
+	IsChannelTest                         bool // channel test request
 
 	PriceData types.PriceData
 

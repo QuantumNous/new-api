@@ -129,7 +129,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const res = await API.get(`/api/subscription/admin/users/${user.id}/subscriptions`);
+      const res = await API.get(
+        `/api/subscription/admin/users/${user.id}/subscriptions`,
+      );
       if (res.data?.success) {
         const next = res.data.data || [];
         setSubs(next);
@@ -167,9 +169,12 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     }
     setCreating(true);
     try {
-      const res = await API.post(`/api/subscription/admin/users/${user.id}/subscriptions`, {
-        plan_id: selectedPlanId,
-      });
+      const res = await API.post(
+        `/api/subscription/admin/users/${user.id}/subscriptions`,
+        {
+          plan_id: selectedPlanId,
+        },
+      );
       if (res.data?.success) {
         showSuccess(t('新增成功'));
         setSelectedPlanId(null);
@@ -217,7 +222,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       okType: 'danger',
       onOk: async () => {
         try {
-          const res = await API.delete(`/api/subscription/admin/user_subscriptions/${subId}`);
+          const res = await API.delete(
+            `/api/subscription/admin/user_subscriptions/${subId}`,
+          );
           if (res.data?.success) {
             showSuccess(t('已删除'));
             await loadUserSubscriptions();
@@ -247,7 +254,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         render: (_, record) => {
           const sub = record?.subscription;
           const planId = sub?.plan_id;
-          const title = planTitleMap.get(planId) || (planId ? `#${planId}` : '-');
+          const title =
+            planTitleMap.get(planId) || (planId ? `#${planId}` : '-');
           return (
             <div className='min-w-0'>
               <div className='font-medium truncate'>{title}</div>
@@ -292,7 +300,10 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const content = (
             <div className='max-w-[320px] space-y-1'>
               {items.map((it) => (
-                <div key={`${it.id}-${it.model_name}`} className='flex justify-between text-xs'>
+                <div
+                  key={`${it.id}-${it.model_name}`}
+                  className='flex justify-between text-xs'
+                >
                   <span className='truncate mr-2'>{it.model_name}</span>
                   <span className='text-gray-600'>
                     {it.amount_used}/{it.amount_total}
@@ -319,7 +330,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         render: (_, record) => {
           const sub = record?.subscription;
           const now = Date.now() / 1000;
-          const isExpired = (sub?.end_time || 0) > 0 && (sub?.end_time || 0) < now;
+          const isExpired =
+            (sub?.end_time || 0) > 0 && (sub?.end_time || 0) < now;
           const isActive = sub?.status === 'active' && !isExpired;
           const isCancelled = sub?.status === 'cancelled';
           return (
@@ -412,7 +424,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           }}
           empty={
             <Empty
-              image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+              image={
+                <IllustrationNoResult style={{ width: 150, height: 150 }} />
+              }
               darkModeImage={
                 <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
               }
@@ -428,4 +442,3 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 };
 
 export default UserSubscriptionsModal;
-

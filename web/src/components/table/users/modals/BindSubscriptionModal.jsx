@@ -121,4 +121,3 @@ const BindSubscriptionModal = ({ visible, onCancel, user, t, onSuccess }) => {
 };
 
 export default BindSubscriptionModal;
-

@@ -18,7 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Banner, Modal, Typography, Card, Tag, Button, Select, Divider } from '@douyinfe/semi-ui';
+import {
+  Banner,
+  Modal,
+  Typography,
+  Card,
+  Tag,
+  Button,
+  Select,
+  Divider,
+} from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package, Check } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
@@ -137,7 +146,8 @@ const SubscriptionPurchaseModal = ({
                   {t('应付金额')}：
                 </Text>
                 <Text strong className='text-xl text-purple-600'>
-                  {currency}{price.toFixed(price % 1 === 0 ? 0 : 2)}
+                  {currency}
+                  {price.toFixed(price % 1 === 0 ? 0 : 2)}
                 </Text>
               </div>
             </div>
@@ -146,12 +156,21 @@ const SubscriptionPurchaseModal = ({
           {/* 权益列表 */}
           {items.length > 0 && (
             <div className='space-y-2'>
-              <Text size='small' type='tertiary'>{t('权益明细')}：</Text>
+              <Text size='small' type='tertiary'>
+                {t('权益明细')}：
+              </Text>
               <div className='flex flex-wrap gap-1'>
                 {items.slice(0, 6).map((it, idx) => (
-                  <Tag key={idx} size='small' color='blue' type='light' shape='circle'>
+                  <Tag
+                    key={idx}
+                    size='small'
+                    color='blue'
+                    type='light'
+                    shape='circle'
+                  >
                     <Check size={10} className='mr-1' />
-                    {it.model_name}: {it.amount_total}{it.quota_type === 1 ? t('次') : ''}
+                    {it.model_name}: {it.amount_total}
+                    {it.quota_type === 1 ? t('次') : ''}
                   </Tag>
                 ))}
                 {items.length > 6 && (
@@ -166,7 +185,9 @@ const SubscriptionPurchaseModal = ({
           {/* 支付方式 */}
           {hasAnyPayment ? (
             <div className='space-y-3'>
-              <Text size='small' type='tertiary'>{t('选择支付方式')}：</Text>
+              <Text size='small' type='tertiary'>
+                {t('选择支付方式')}：
+              </Text>
 
               {/* Stripe / Creem */}
               {(hasStripe || hasCreem) && (

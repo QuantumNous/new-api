@@ -27,14 +27,8 @@ import {
 import { getSubscriptionsColumns } from './SubscriptionsColumnDefs';
 
 const SubscriptionsTable = (subscriptionsData) => {
-  const {
-    plans,
-    loading,
-    compactMode,
-    openEdit,
-    disablePlan,
-    t,
-  } = subscriptionsData;
+  const { plans, loading, compactMode, openEdit, disablePlan, t } =
+    subscriptionsData;
 
   const columns = useMemo(() => {
     return getSubscriptionsColumns({
@@ -47,12 +41,12 @@ const SubscriptionsTable = (subscriptionsData) => {
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
-        if (col.dataIndex === 'operate') {
-          const { fixed, ...rest } = col;
-          return rest;
-        }
-        return col;
-      })
+          if (col.dataIndex === 'operate') {
+            const { fixed, ...rest } = col;
+            return rest;
+          }
+          return col;
+        })
       : columns;
   }, [compactMode, columns]);
 
