@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,15 @@ const (
 	SubscriptionDurationDay    = "day"
 	SubscriptionDurationHour   = "hour"
 	SubscriptionDurationCustom = "custom"
+)
+
+// Subscription quota reset period
+const (
+	SubscriptionResetNever   = "never"
+	SubscriptionResetDaily   = "daily"
+	SubscriptionResetWeekly  = "weekly"
+	SubscriptionResetMonthly = "monthly"
+	SubscriptionResetCustom  = "custom"
 )
 
 // Subscription plan
@@ -38,6 +48,10 @@ type SubscriptionPlan struct {
 
 	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+
+	// Quota reset period for plan items
+	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
+	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -140,6 +154,8 @@ type UserSubscriptionItem struct {
 	QuotaType          int    `json:"quota_type" gorm:"type:int;index"`
 	AmountTotal        int64  `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed         int64  `json:"amount_used" gorm:"type:bigint;not null;default:0"`
+	LastResetTime      int64  `json:"last_reset_time" gorm:"type:bigint;default:0"`
+	NextResetTime      int64  `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
 }
 
 type SubscriptionSummary struct {
@@ -171,6 +187,45 @@ func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	default:
 		return 0, fmt.Errorf("invalid duration_unit: %s", plan.DurationUnit)
 	}
+}
+
+func normalizeResetPeriod(period string) string {
+	switch strings.TrimSpace(period) {
+	case SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetMonthly, SubscriptionResetCustom:
+		return strings.TrimSpace(period)
+	default:
+		return SubscriptionResetNever
+	}
+}
+
+func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) int64 {
+	if plan == nil {
+		return 0
+	}
+	period := normalizeResetPeriod(plan.QuotaResetPeriod)
+	if period == SubscriptionResetNever {
+		return 0
+	}
+	var next time.Time
+	switch period {
+	case SubscriptionResetDaily:
+		next = base.Add(24 * time.Hour)
+	case SubscriptionResetWeekly:
+		next = base.AddDate(0, 0, 7)
+	case SubscriptionResetMonthly:
+		next = base.AddDate(0, 1, 0)
+	case SubscriptionResetCustom:
+		if plan.QuotaResetCustomSeconds <= 0 {
+			return 0
+		}
+		next = base.Add(time.Duration(plan.QuotaResetCustomSeconds) * time.Second)
+	default:
+		return 0
+	}
+	if endUnix > 0 && next.Unix() > endUnix {
+		return 0
+	}
+	return next.Unix()
 }
 
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
@@ -210,6 +265,12 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if err != nil {
 		return nil, err
 	}
+	resetBase := now
+	nextReset := calcNextResetTime(resetBase, plan, endUnix)
+	lastReset := int64(0)
+	if nextReset > 0 {
+		lastReset = now.Unix()
+	}
 	sub := &UserSubscription{
 		UserId:    userId,
 		PlanId:    plan.Id,
@@ -238,6 +299,8 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			QuotaType:          it.QuotaType,
 			AmountTotal:        it.AmountTotal,
 			AmountUsed:         0,
+			LastResetTime:      lastReset,
+			NextResetTime:      nextReset,
 		})
 	}
 	if err := tx.Create(&userItems).Error; err != nil {
@@ -476,6 +539,52 @@ type SubscriptionPreConsumeResult struct {
 	AmountUsedAfter    int64
 }
 
+func maybeResetSubscriptionItemTx(tx *gorm.DB, item *UserSubscriptionItem, now int64) error {
+	if tx == nil || item == nil {
+		return errors.New("invalid reset args")
+	}
+	if item.NextResetTime > 0 && item.NextResetTime > now {
+		return nil
+	}
+	var sub UserSubscription
+	if err := tx.Where("id = ?", item.UserSubscriptionId).First(&sub).Error; err != nil {
+		return err
+	}
+	var plan SubscriptionPlan
+	if err := tx.Where("id = ?", sub.PlanId).First(&plan).Error; err != nil {
+		return err
+	}
+	if normalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
+		return nil
+	}
+
+	baseUnix := item.LastResetTime
+	if baseUnix <= 0 {
+		baseUnix = sub.StartTime
+	}
+	base := time.Unix(baseUnix, 0)
+	next := calcNextResetTime(base, &plan, sub.EndTime)
+	advanced := false
+	for next > 0 && next <= now {
+		advanced = true
+		base = time.Unix(next, 0)
+		next = calcNextResetTime(base, &plan, sub.EndTime)
+	}
+	if !advanced {
+		// keep next reset time in sync if missing
+		if item.NextResetTime == 0 && next > 0 {
+			item.NextResetTime = next
+			item.LastResetTime = base.Unix()
+			return tx.Save(item).Error
+		}
+		return nil
+	}
+	item.AmountUsed = 0
+	item.LastResetTime = base.Unix()
+	item.NextResetTime = next
+	return tx.Save(item).Error
+}
+
 // PreConsumeUserSubscription finds a valid active subscription item and increments amount_used.
 // quotaType=0 => consume quota units; quotaType=1 => consume request count (usually 1).
 func PreConsumeUserSubscription(userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
@@ -503,6 +612,13 @@ func PreConsumeUserSubscription(userId int, modelName string, quotaType int, amo
 			Order("user_subscriptions.end_time desc, user_subscriptions.id desc, user_subscription_items.id desc")
 		if err := q.First(&item).Error; err != nil {
 			return errors.New("no active subscription item for this model")
+		}
+		if err := maybeResetSubscriptionItemTx(tx, &item, now); err != nil {
+			return err
+		}
+		// reload item after potential reset
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", item.Id).First(&item).Error; err != nil {
+			return err
 		}
 		usedBefore := item.AmountUsed
 		remain := item.AmountTotal - usedBefore

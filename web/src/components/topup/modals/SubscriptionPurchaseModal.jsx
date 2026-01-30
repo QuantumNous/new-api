@@ -54,6 +54,22 @@ function formatDuration(plan, t) {
   return `${value} ${unitLabels[unit] || unit}`;
 }
 
+function formatResetPeriod(plan, t) {
+  const period = plan?.quota_reset_period || 'never';
+  if (period === 'never') return t('不重置');
+  if (period === 'daily') return t('每天');
+  if (period === 'weekly') return t('每周');
+  if (period === 'monthly') return t('每月');
+  if (period === 'custom') {
+    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
+    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
+    return `${seconds} ${t('秒')}`;
+  }
+  return t('不重置');
+}
+
 // 获取货币符号
 function getCurrencySymbol(currency) {
   const symbols = { USD: '$', EUR: '€', CNY: '¥', GBP: '£', JPY: '¥' };
@@ -128,6 +144,14 @@ const SubscriptionPurchaseModal = ({
                     {formatDuration(plan, t)}
                   </Text>
                 </div>
+              </div>
+              <div className='flex justify-between items-center'>
+                <Text strong className='text-slate-700 dark:text-slate-200'>
+                  {t('重置周期')}：
+                </Text>
+                <Text className='text-slate-900 dark:text-slate-100'>
+                  {formatResetPeriod(plan, t)}
+                </Text>
               </div>
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>

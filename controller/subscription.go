@@ -32,6 +32,18 @@ func normalizeBillingPreference(pref string) string {
 	}
 }
 
+func normalizeQuotaResetPeriod(period string) string {
+	switch strings.TrimSpace(period) {
+	case model.SubscriptionResetDaily,
+		model.SubscriptionResetWeekly,
+		model.SubscriptionResetMonthly,
+		model.SubscriptionResetCustom:
+		return strings.TrimSpace(period)
+	default:
+		return model.SubscriptionResetNever
+	}
+}
+
 // ---- User APIs ----
 
 func GetSubscriptionPlans(c *gin.Context) {
@@ -143,6 +155,11 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
 	}
+	req.Plan.QuotaResetPeriod = normalizeQuotaResetPeriod(req.Plan.QuotaResetPeriod)
+	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
+		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		return
+	}
 
 	if len(req.Items) == 0 {
 		common.ApiErrorMsg(c, "套餐至少需要配置一个模型权益")
@@ -202,6 +219,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
+	}
+	req.Plan.QuotaResetPeriod = normalizeQuotaResetPeriod(req.Plan.QuotaResetPeriod)
+	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
+		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		return
 	}
 
 	if len(req.Items) == 0 {

@@ -43,7 +43,7 @@ import {
   IconPlusCircle,
   IconSave,
 } from '@douyinfe/semi-icons';
-import { Trash2, Clock, Boxes } from 'lucide-react';
+import { Trash2, Clock, Boxes, RefreshCw } from 'lucide-react';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
@@ -54,6 +54,14 @@ const durationUnitOptions = [
   { value: 'month', label: '月' },
   { value: 'day', label: '日' },
   { value: 'hour', label: '小时' },
+  { value: 'custom', label: '自定义(秒)' },
+];
+
+const resetPeriodOptions = [
+  { value: 'never', label: '不重置' },
+  { value: 'daily', label: '每天' },
+  { value: 'weekly', label: '每周' },
+  { value: 'monthly', label: '每月' },
   { value: 'custom', label: '自定义(秒)' },
 ];
 
@@ -82,6 +90,8 @@ const AddEditSubscriptionModal = ({
     duration_unit: 'month',
     duration_value: 1,
     custom_seconds: 0,
+    quota_reset_period: 'never',
+    quota_reset_custom_seconds: 0,
     enabled: true,
     sort_order: 0,
     stripe_price_id: '',
@@ -108,6 +118,8 @@ const AddEditSubscriptionModal = ({
       duration_unit: p.duration_unit || 'month',
       duration_value: Number(p.duration_value || 1),
       custom_seconds: Number(p.custom_seconds || 0),
+      quota_reset_period: p.quota_reset_period || 'never',
+      quota_reset_custom_seconds: Number(p.quota_reset_custom_seconds || 0),
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       stripe_price_id: p.stripe_price_id || '',
@@ -264,6 +276,11 @@ const AddEditSubscriptionModal = ({
           price_amount: Number(values.price_amount || 0),
           duration_value: Number(values.duration_value || 0),
           custom_seconds: Number(values.custom_seconds || 0),
+          quota_reset_period: values.quota_reset_period || 'never',
+          quota_reset_custom_seconds:
+            values.quota_reset_period === 'custom'
+              ? Number(values.quota_reset_custom_seconds || 0)
+              : 0,
           sort_order: Number(values.sort_order || 0),
         },
         items: cleanedItems,
@@ -533,6 +550,63 @@ const AddEditSubscriptionModal = ({
                           precision={0}
                           rules={[{ required: true, message: t('请输入数值') }]}
                           style={{ width: '100%' }}
+                        />
+                      )}
+                    </Col>
+                  </Row>
+                </Card>
+
+                {/* 额度重置 */}
+                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='orange'
+                      className='mr-2 shadow-md'
+                    >
+                      <RefreshCw size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('额度重置')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('支持周期性重置套餐权益额度')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Select
+                        field='quota_reset_period'
+                        label={t('重置周期')}
+                      >
+                        {resetPeriodOptions.map((o) => (
+                          <Select.Option key={o.value} value={o.value}>
+                            {o.label}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col span={12}>
+                      {values.quota_reset_period === 'custom' ? (
+                        <Form.InputNumber
+                          field='quota_reset_custom_seconds'
+                          label={t('自定义秒数')}
+                          min={60}
+                          precision={0}
+                          rules={[{ required: true, message: t('请输入秒数') }]}
+                          style={{ width: '100%' }}
+                        />
+                      ) : (
+                        <Form.InputNumber
+                          field='quota_reset_custom_seconds'
+                          label={t('自定义秒数')}
+                          min={0}
+                          precision={0}
+                          style={{ width: '100%' }}
+                          disabled
                         />
                       )}
                     </Col>

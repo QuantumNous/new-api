@@ -55,6 +55,22 @@ function formatDuration(plan, t) {
   return `${value} ${unitLabels[unit] || unit}`;
 }
 
+function formatResetPeriod(plan, t) {
+  const period = plan?.quota_reset_period || 'never';
+  if (period === 'never') return t('不重置');
+  if (period === 'daily') return t('每天');
+  if (period === 'weekly') return t('每周');
+  if (period === 'monthly') return t('每月');
+  if (period === 'custom') {
+    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
+    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
+    return `${seconds} ${t('秒')}`;
+  }
+  return t('不重置');
+}
+
 // 过滤易支付方式
 function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
@@ -497,6 +513,9 @@ const SubscriptionPlansCard = ({
                         <div className='text-sm text-gray-500 mt-1'>
                           <CalendarClock size={12} className='inline mr-1' />
                           {formatDuration(plan, t)}
+                          <span className='ml-2 text-xs text-gray-400'>
+                            {t('重置')}: {formatResetPeriod(plan, t)}
+                          </span>
                         </div>
                       </div>
 
