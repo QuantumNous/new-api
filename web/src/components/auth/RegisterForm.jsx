@@ -478,9 +478,11 @@ const RegisterForm = () => {
                   </div>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
+                {status.password_register && (
+                  <Divider margin='12px' align='center'>
+                    {t('或')}
+                  </Divider>
+                )}
 
                 {status.password_register && (
                   <Button

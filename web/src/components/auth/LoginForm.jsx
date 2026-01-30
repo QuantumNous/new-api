@@ -578,9 +578,11 @@ const LoginForm = () => {
                   </Button>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
+                {status.password_login && (
+                  <Divider margin='12px' align='center'>
+                    {t('或')}
+                  </Divider>
+                )}
 
                 {status.password_login && (
                   <Button
