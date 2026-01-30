@@ -45,6 +45,7 @@ import {
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocOAuthClicked,
   onDiscordOAuthClicked,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
@@ -443,6 +444,80 @@ const AccountManagement = ({
                       }
                     >
                       {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* NodeLoc绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <svg
+                        width='20'
+                        height='20'
+                        viewBox='0 0 24 24'
+                        className='text-blue-600 dark:text-blue-300'
+                      >
+                        <circle cx='12' cy='7' r='2.5' fill='currentColor' />
+                        <circle cx='7' cy='17' r='2.5' fill='currentColor' />
+                        <circle cx='17' cy='17' r='2.5' fill='currentColor' />
+                        <line
+                          x1='12'
+                          y1='9.5'
+                          x2='12'
+                          y2='14'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                          strokeLinecap='round'
+                        />
+                        <line
+                          x1='12'
+                          y1='14'
+                          x2='9'
+                          y2='15.5'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                          strokeLinecap='round'
+                        />
+                        <line
+                          x1='12'
+                          y1='14'
+                          x2='15'
+                          y2='15.5'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                          strokeLinecap='round'
+                        />
+                      </svg>
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('NodeLoc')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {renderAccountInfo(
+                          userState.user?.nodeloc_id,
+                          t('NodeLoc ID'),
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() =>
+                        onNodeLocOAuthClicked(status.nodeloc_client_id)
+                      }
+                      disabled={
+                        isBound(userState.user?.nodeloc_id) ||
+                        !status.nodeloc_oauth
+                      }
+                    >
+                      {status.nodeloc_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

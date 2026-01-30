@@ -98,6 +98,10 @@ const SystemSetting = () => {
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
+    NodeLocOAuthEnabled: '',
+    NodeLocClientId: '',
+    NodeLocClientSecret: '',
+    NodeLocMinimumTrustLevel: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -118,6 +122,7 @@ const SystemSetting = () => {
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
   const [linuxDOOAuthEnabled, setLinuxDOOAuthEnabled] = useState(false);
+  const [nodeLocOAuthEnabled, setNodeLocOAuthEnabled] = useState(false);
   const [emailToAdd, setEmailToAdd] = useState('');
   const [domainFilterMode, setDomainFilterMode] = useState(true);
   const [ipFilterMode, setIpFilterMode] = useState(true);
@@ -182,6 +187,7 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
+          case 'NodeLocOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
           case 'passkey.enabled':
@@ -632,6 +638,36 @@ const SystemSetting = () => {
     }
   };
 
+  const submitNodeLocOAuth = async () => {
+    const options = [];
+
+    if (originInputs['NodeLocClientId'] !== inputs.NodeLocClientId) {
+      options.push({ key: 'NodeLocClientId', value: inputs.NodeLocClientId });
+    }
+    if (
+      originInputs['NodeLocClientSecret'] !== inputs.NodeLocClientSecret &&
+      inputs.NodeLocClientSecret !== ''
+    ) {
+      options.push({
+        key: 'NodeLocClientSecret',
+        value: inputs.NodeLocClientSecret,
+      });
+    }
+    if (
+      originInputs['NodeLocMinimumTrustLevel'] !==
+      inputs.NodeLocMinimumTrustLevel
+    ) {
+      options.push({
+        key: 'NodeLocMinimumTrustLevel',
+        value: inputs.NodeLocMinimumTrustLevel,
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
   const submitPasskeySettings = async () => {
     // 使用formApi直接获取当前表单值
     const formValues = formApiRef.current?.getValues() || {};
@@ -681,6 +717,9 @@ const SystemSetting = () => {
     }
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
+    }
+    if (optionKey === 'NodeLocOAuthEnabled') {
+      setNodeLocOAuthEnabled(value);
     }
   };
 
@@ -1056,6 +1095,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许通过 Linux DO 账户登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='NodeLocOAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('NodeLocOAuthEnabled', e)
+                        }
+                      >
+                        {t('允许通过 NodeLoc 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='WeChatAuthEnabled'
@@ -1526,6 +1574,57 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
                     {t('保存 Linux DO OAuth 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置 NodeLoc OAuth App')}>
+                  <Text>
+                    {t(
+                      '用以支持通过 NodeLoc 进行登录注册，'
+                    )}
+                    <a
+                      href='https://docs.nodeloc.com/api-reference/introduction'
+                      target='_blank'
+                      rel='noreferrer'
+                      style={{
+                        display: 'inline-block',
+                        marginLeft: 4,
+                        marginRight: 4,
+                      }}
+                    >
+                      {t('点击查看详细文档')}
+                    </a>
+                  </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={10} lg={10} xl={10}>
+                      <Form.Input
+                        field='NodeLocClientId'
+                        label={t('NodeLoc Client ID')}
+                        placeholder={t('输入你注册的 NodeLoc OAuth APP 的 ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={10} lg={10} xl={10}>
+                      <Form.Input
+                        field='NodeLocClientSecret'
+                        label={t('NodeLoc Client Secret')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={4} lg={4} xl={4}>
+                      <Form.Input
+                        field='NodeLocMinimumTrustLevel'
+                        label='NodeLoc Minimum Trust Level'
+                        placeholder='允许注册的最低信任等级'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitNodeLocOAuth}>
+                    {t('保存 NodeLoc OAuth 设置')}
                   </Button>
                 </Form.Section>
               </Card>
