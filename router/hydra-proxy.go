@@ -15,11 +15,12 @@ import (
 // Hydra paths -> target paths (for redirect rewriting)
 var oauthPathMapping = map[string]string{
 	// Hydra fallback paths -> new-api OAuth paths
-	"/oauth2/fallbacks/login":   "/oauth/login",
+	// Redirect to register first for new users; existing users can click to login
+	"/oauth2/fallbacks/login":   "/register",
 	"/oauth2/fallbacks/consent": "/oauth/consent",
 	"/oauth2/fallbacks/logout":  "/oauth/logout",
-	// Configured OAuth paths (keep same path, just rewrite host)
-	"/oauth/login":   "/oauth/login",
+	// Configured OAuth paths - redirect login to register page
+	"/oauth/login":   "/register",
 	"/oauth/consent": "/oauth/consent",
 	"/oauth/logout":  "/oauth/logout",
 	// Hydra internal paths (keep same path, just rewrite host)

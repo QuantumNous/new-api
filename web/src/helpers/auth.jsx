@@ -35,6 +35,13 @@ export function authHeader() {
 export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
 
+  // Don't redirect if in OAuth flow (login_challenge present)
+  const searchParams = new URLSearchParams(window.location.search);
+  const loginChallenge = searchParams.get('login_challenge');
+  if (loginChallenge) {
+    return children;
+  }
+
   if (user) {
     return <Navigate to='/console' replace />;
   }
