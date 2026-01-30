@@ -192,6 +192,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateSubscriptionPlanCache(req.Plan.Id)
 	common.ApiSuccess(c, req.Plan)
 }
 
@@ -275,6 +276,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateSubscriptionPlanCache(id)
 	common.ApiSuccess(c, nil)
 }
 
@@ -289,6 +291,7 @@ func AdminDeleteSubscriptionPlan(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.InvalidateSubscriptionPlanCache(id)
 	common.ApiSuccess(c, nil)
 }
 
