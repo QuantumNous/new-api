@@ -482,16 +482,18 @@ const RegisterForm = () => {
                   {t('或')}
                 </Divider>
 
-                <Button
-                  theme='solid'
-                  type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
-                  onClick={handleEmailRegisterClick}
-                  loading={emailRegisterLoading}
-                >
-                  <span className='ml-3'>{t('使用 用户名 注册')}</span>
-                </Button>
+                {status.password_register && (
+                  <Button
+                    theme='solid'
+                    type='primary'
+                    className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                    icon={<IconMail size='large' />}
+                    onClick={handleEmailRegisterClick}
+                    loading={emailRegisterLoading}
+                  >
+                    <span className='ml-3'>{t('使用 用户名 注册')}</span>
+                  </Button>
+                )}
               </div>
 
               <div className='mt-6 text-center text-sm'>
