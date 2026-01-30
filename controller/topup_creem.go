@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -298,14 +299,15 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		return
 	}
 
-	// Subscription order takes precedence (accept both onetime/subscription types)
-	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
-		if err := model.CompleteSubscriptionOrder(referenceId, jsonString(event)); err != nil {
-			log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
-			c.AbortWithStatus(http.StatusInternalServerError)
-			return
-		}
+	// Try complete subscription order first
+	LockOrder(referenceId)
+	defer UnlockOrder(referenceId)
+	if err := model.CompleteSubscriptionOrder(referenceId, jsonString(event)); err == nil {
 		c.Status(http.StatusOK)
+		return
+	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+		log.Printf("Creem订阅订单处理失败: %s, 订单号: %s", err.Error(), referenceId)
+		c.AbortWithStatus(http.StatusInternalServerError)
 		return
 	}
 

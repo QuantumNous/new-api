@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -166,17 +167,19 @@ func sessionCompleted(event stripe.Event) {
 		return
 	}
 
-	// Subscription order takes precedence
-	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
-		payload := map[string]any{
-			"customer":     customerId,
-			"amount_total": event.GetObjectValue("amount_total"),
-			"currency":     strings.ToUpper(event.GetObjectValue("currency")),
-			"event_type":   string(event.Type),
-		}
-		if err := model.CompleteSubscriptionOrder(referenceId, jsonString(payload)); err != nil {
-			log.Println("complete subscription order failed:", err.Error(), referenceId)
-		}
+	// Try complete subscription order first
+	LockOrder(referenceId)
+	defer UnlockOrder(referenceId)
+	payload := map[string]any{
+		"customer":     customerId,
+		"amount_total": event.GetObjectValue("amount_total"),
+		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
+		"event_type":   string(event.Type),
+	}
+	if err := model.CompleteSubscriptionOrder(referenceId, jsonString(payload)); err == nil {
+		return
+	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+		log.Println("complete subscription order failed:", err.Error(), referenceId)
 		return
 	}
 
@@ -205,10 +208,12 @@ func sessionExpired(event stripe.Event) {
 	}
 
 	// Subscription order expiration
-	if model.GetSubscriptionOrderByTradeNo(referenceId) != nil {
-		if err := model.ExpireSubscriptionOrder(referenceId); err != nil {
-			log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
-		}
+	LockOrder(referenceId)
+	defer UnlockOrder(referenceId)
+	if err := model.ExpireSubscriptionOrder(referenceId); err == nil {
+		return
+	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+		log.Println("过期订阅订单失败", referenceId, ", err:", err.Error())
 		return
 	}
 

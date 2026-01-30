@@ -56,7 +56,7 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 			}
 		}
 
-		res, err := model.PreConsumeUserSubscription(relayInfo.UserId, relayInfo.OriginModelName, quotaType, subConsume)
+		res, err := model.PreConsumeUserSubscription(relayInfo.RequestId, relayInfo.UserId, relayInfo.OriginModelName, quotaType, subConsume)
 		if err != nil {
 			// revert token pre-consume when subscription fails
 			if preConsumedQuota > 0 && !relayInfo.IsPlayground {

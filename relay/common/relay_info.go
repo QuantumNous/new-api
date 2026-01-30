@@ -129,6 +129,8 @@ type RelayInfo struct {
 	// SubscriptionPlanId / SubscriptionPlanTitle are used for logging/UI display.
 	SubscriptionPlanId    int
 	SubscriptionPlanTitle string
+	// RequestId is used for idempotent pre-consume/refund
+	RequestId string
 	// SubscriptionAmountTotal / SubscriptionAmountUsedAfterPreConsume are used to compute remaining in logs.
 	SubscriptionAmountTotal               int64
 	SubscriptionAmountUsedAfterPreConsume int64
@@ -418,9 +420,14 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 	// firstResponseTime = time.Now() - 1 second
 
+	reqId := common.GetContextKeyString(c, common.RequestIdKey)
+	if reqId == "" {
+		reqId = common.GetTimeString() + common.GetRandomString(8)
+	}
 	info := &RelayInfo{
 		Request: request,
 
+		RequestId:  reqId,
 		UserId:     common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),

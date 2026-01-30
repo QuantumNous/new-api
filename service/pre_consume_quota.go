@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -30,7 +31,9 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		relayInfoCopy := *relayInfo
 		if relayInfoCopy.BillingSource == BillingSourceSubscription {
 			if needRefundSub {
-				_ = model.PostConsumeUserSubscriptionDelta(relayInfoCopy.SubscriptionItemId, -relayInfoCopy.SubscriptionPreConsumed)
+				refundWithRetry(func() error {
+					return model.RefundSubscriptionPreConsume(relayInfoCopy.RequestId)
+				})
 			}
 			// refund token quota only
 			if needRefundToken && !relayInfoCopy.IsPlayground {
@@ -47,6 +50,21 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 			}
 		}
 	})
+}
+
+func refundWithRetry(fn func() error) {
+	if fn == nil {
+		return
+	}
+	const maxAttempts = 3
+	for i := 0; i < maxAttempts; i++ {
+		if err := fn(); err == nil {
+			return
+		}
+		if i < maxAttempts-1 {
+			time.Sleep(time.Duration(200*(i+1)) * time.Millisecond)
+		}
+	}
 }
 
 // PreConsumeQuota checks if the user has enough quota to pre-consume.
