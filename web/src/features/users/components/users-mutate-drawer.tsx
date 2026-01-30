@@ -116,8 +116,8 @@ export function UsersMutateDrawer({
       if (result.success) {
         toast.success(
           isUpdate
-            ? SUCCESS_MESSAGES.USER_UPDATED
-            : SUCCESS_MESSAGES.USER_CREATED
+            ? t(SUCCESS_MESSAGES.USER_UPDATED)
+            : t(SUCCESS_MESSAGES.USER_CREATED)
         )
         onOpenChange(false)
         triggerRefresh()
@@ -125,12 +125,12 @@ export function UsersMutateDrawer({
         toast.error(
           result.message ||
             (isUpdate
-              ? ERROR_MESSAGES.UPDATE_FAILED
-              : ERROR_MESSAGES.CREATE_FAILED)
+              ? t(ERROR_MESSAGES.UPDATE_FAILED)
+              : t(ERROR_MESSAGES.CREATE_FAILED))
         )
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
     }

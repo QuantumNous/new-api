@@ -2,6 +2,7 @@ import { type StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
 // API Key Status Configuration
+// label values are i18n keys; use t(config.label) in components (e.g. StatusBadge)
 // ============================================================================
 
 export const API_KEY_STATUS = {
@@ -58,7 +59,7 @@ export const API_KEY_STATUS_OPTIONS = Object.values(API_KEY_STATUSES).map(
 export const DEFAULT_GROUP = 'auto' as const
 
 // ============================================================================
-// Error Messages
+// Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)
 // ============================================================================
 
 export const ERROR_MESSAGES = {
@@ -73,7 +74,7 @@ export const ERROR_MESSAGES = {
 } as const
 
 // ============================================================================
-// Success Messages
+// Success Messages (i18n keys: use t(SUCCESS_MESSAGES.xxx) when displaying)
 // ============================================================================
 
 export const SUCCESS_MESSAGES = {

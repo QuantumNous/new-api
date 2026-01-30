@@ -97,7 +97,7 @@ export const BINDING_FIELDS = [
 ] as const
 
 // ============================================================================
-// Error Messages
+// Error Messages (i18n keys: use t(ERROR_MESSAGES.xxx) when displaying)
 // ============================================================================
 
 export const ERROR_MESSAGES = {
@@ -111,7 +111,7 @@ export const ERROR_MESSAGES = {
 } as const
 
 // ============================================================================
-// Success Messages
+// Success Messages (i18n keys: use t(SUCCESS_MESSAGES.xxx) when displaying)
 // ============================================================================
 
 export const SUCCESS_MESSAGES = {

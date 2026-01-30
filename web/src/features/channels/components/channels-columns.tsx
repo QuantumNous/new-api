@@ -494,7 +494,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         }
 
         const type = row.getValue('type') as number
-        const typeName = getChannelTypeLabel(type)
+        const typeNameKey = getChannelTypeLabel(type)
+        const typeName = t(typeNameKey)
         const iconName = getChannelTypeIcon(type)
         const icon = getLobeIcon(`${iconName}.Color`, 20)
         const channel = row.original as Channel
@@ -504,8 +505,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
           multiKeyMode === 'random' ? Shuffle : ListOrdered
         const multiKeyTooltip =
           multiKeyMode === 'random'
-            ? 'Multi-key: Random rotation'
-            : 'Multi-key: Polling rotation'
+            ? t('Multi-key: Random rotation')
+            : t('Multi-key: Polling rotation')
 
         const ionetMeta = parseIonetMeta(channel.other_info)
         const isIonet = ionetMeta?.source === 'ionet'
@@ -639,8 +640,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         const enabledCount = Math.max(0, keySize - disabledCount)
         const label =
           isMultiKey && keySize > 0
-            ? `${config.label} (${enabledCount}/${keySize})`
-            : config.label
+            ? `${t(config.label)} (${enabledCount}/${keySize})`
+            : t(config.label)
 
         return (
           <StatusBadge

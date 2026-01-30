@@ -256,14 +256,14 @@ export function ChannelsTable() {
     ensurePageInRange(pageCount)
   }, [pageCount, ensurePageInRange])
 
-  // Prepare filter options
+  // Prepare filter options (option.label are i18n keys; faceted-filter uses t(option.label))
   const typeFilterOptions = [
     {
-      label: `All Types${typeCounts?.all ? ` (${typeCounts.all})` : ''}`,
+      label: `${t('All Types')}${typeCounts?.all ? ` (${typeCounts.all})` : ''}`,
       value: 'all',
     },
     ...CHANNEL_TYPE_OPTIONS.map((option) => ({
-      label: `${option.label}${typeCounts?.[option.value] ? ` (${typeCounts[option.value]})` : ''}`,
+      label: `${t(option.label)}${typeCounts?.[option.value] ? ` (${typeCounts[option.value]})` : ''}`,
       value: String(option.value),
     })),
   ]

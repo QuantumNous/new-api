@@ -81,7 +81,7 @@ export function ApiKeysTable() {
       if (hasFilter) {
         const result = await searchApiKeys({ keyword: globalFilter })
         if (!result.success) {
-          toast.error(result.message || ERROR_MESSAGES.SEARCH_FAILED)
+          toast.error(result.message || t(ERROR_MESSAGES.SEARCH_FAILED))
           return { items: [], total: 0 }
         }
         return {
@@ -97,7 +97,7 @@ export function ApiKeysTable() {
       })
 
       if (!result.success) {
-        toast.error(result.message || ERROR_MESSAGES.LOAD_FAILED)
+        toast.error(result.message || t(ERROR_MESSAGES.LOAD_FAILED))
         return { items: [], total: 0 }
       }
 

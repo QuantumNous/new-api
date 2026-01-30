@@ -27,14 +27,14 @@ export function ApiKeysDeleteDialog() {
     try {
       const result = await deleteApiKey(currentRow.id)
       if (result.success) {
-        toast.success(SUCCESS_MESSAGES.API_KEY_DELETED)
+        toast.success(t(SUCCESS_MESSAGES.API_KEY_DELETED))
         setOpen(null)
         triggerRefresh()
       } else {
-        toast.error(result.message || ERROR_MESSAGES.DELETE_FAILED)
+        toast.error(result.message || t(ERROR_MESSAGES.DELETE_FAILED))
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsDeleting(false)
     }
