@@ -17,21 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { LocaleProvider } from '@douyinfe/semi-ui';
+import '@douyinfe/semi-ui/dist/css/semi.css';
+import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
+import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { useTranslation } from 'react-i18next';
 import { BrowserRouter } from 'react-router-dom';
-import '@douyinfe/semi-ui/dist/css/semi.css';
-import { UserProvider } from './context/User';
 import 'react-toastify/dist/ReactToastify.css';
+import PageLayout from './components/layout/PageLayout';
 import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
-import PageLayout from './components/layout/PageLayout';
+import { UserProvider } from './context/User';
 import './i18n/i18n';
 import './index.css';
-import { LocaleProvider } from '@douyinfe/semi-ui';
-import { useTranslation } from 'react-i18next';
-import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
-import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
 
 // 欢迎信息（二次开发者未经允许不准将此移除）
 // Welcome message (Do not remove this without permission from the original developer)
