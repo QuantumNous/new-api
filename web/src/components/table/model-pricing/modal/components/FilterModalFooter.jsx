@@ -22,7 +22,7 @@ import { Button } from '@douyinfe/semi-ui';
 
 const FilterModalFooter = ({ onReset, onConfirm, t }) => {
   return (
-    <div className='flex justify-end'>
+    <div className='flex justify-end gap-2'>
       <Button theme='outline' type='tertiary' onClick={onReset}>
         {t('重置')}
       </Button>

@@ -76,20 +76,17 @@ const TwoFactorAuthModal = ({
       visible={visible}
       onCancel={onCancel}
       footer={
-        <div className='flex justify-end'>
-          <Space>
-            <Button onClick={onCancel}>{t('取消')}</Button>
-            <Button
-              type='primary'
-              theme='solid'
-              loading={loading}
-              disabled={!code || loading}
-              onClick={onVerify}
-            >
-              {t('验证')}
-            </Button>
-          </Space>
-        </div>
+        <Space>
+          <Button onClick={onCancel}>{t('取消')}</Button>
+          <Button
+            type='primary'
+            loading={loading}
+            disabled={!code || loading}
+            onClick={onVerify}
+          >
+            {t('验证')}
+          </Button>
+        </Space>
       }
       width={500}
       style={{ maxWidth: '90vw' }}
