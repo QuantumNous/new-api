@@ -134,6 +134,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
 	}
+	if req.Plan.MaxPurchasePerUser < 0 {
+		common.ApiErrorMsg(c, "购买上限不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -201,6 +205,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
 	}
+	if req.Plan.MaxPurchasePerUser < 0 {
+		common.ApiErrorMsg(c, "购买上限不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -215,18 +223,19 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
-			"title":            req.Plan.Title,
-			"subtitle":         req.Plan.Subtitle,
-			"price_amount":     req.Plan.PriceAmount,
-			"currency":         req.Plan.Currency,
-			"duration_unit":    req.Plan.DurationUnit,
-			"duration_value":   req.Plan.DurationValue,
-			"custom_seconds":   req.Plan.CustomSeconds,
-			"enabled":          req.Plan.Enabled,
-			"sort_order":       req.Plan.SortOrder,
-			"stripe_price_id":  req.Plan.StripePriceId,
-			"creem_product_id": req.Plan.CreemProductId,
-			"updated_at":       common.GetTimestamp(),
+			"title":                 req.Plan.Title,
+			"subtitle":              req.Plan.Subtitle,
+			"price_amount":          req.Plan.PriceAmount,
+			"currency":              req.Plan.Currency,
+			"duration_unit":         req.Plan.DurationUnit,
+			"duration_value":        req.Plan.DurationValue,
+			"custom_seconds":        req.Plan.CustomSeconds,
+			"enabled":               req.Plan.Enabled,
+			"sort_order":            req.Plan.SortOrder,
+			"stripe_price_id":       req.Plan.StripePriceId,
+			"creem_product_id":      req.Plan.CreemProductId,
+			"max_purchase_per_user": req.Plan.MaxPurchasePerUser,
+			"updated_at":            common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err

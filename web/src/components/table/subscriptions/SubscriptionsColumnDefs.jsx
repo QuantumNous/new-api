@@ -26,6 +26,7 @@ import {
   Typography,
   Popover,
   Divider,
+  Badge,
 } from '@douyinfe/semi-ui';
 import { IconEdit, IconStop, IconPlay } from '@douyinfe/semi-icons';
 import { convertUSDToCurrency } from '../../../helpers/render';
@@ -83,6 +84,12 @@ const renderPlanTitle = (text, record, t) => {
         <Text strong style={{ color: 'var(--semi-color-success)' }}>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
+        <Text type='tertiary'>{t('购买上限')}</Text>
+        <Text>
+          {plan?.max_purchase_per_user > 0
+            ? plan.max_purchase_per_user
+            : t('不限')}
+        </Text>
         <Text type='tertiary'>{t('有效期')}</Text>
         <Text>{formatDuration(plan, t)}</Text>
         <Text type='tertiary'>{t('重置')}</Text>
@@ -123,17 +130,36 @@ const renderPrice = (text) => {
   );
 };
 
+const renderPurchaseLimit = (text, record, t) => {
+  const limit = Number(record?.plan?.max_purchase_per_user || 0);
+  return (
+    <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
+      {limit > 0 ? limit : t('不限')}
+    </Text>
+  );
+};
+
 const renderDuration = (text, record, t) => {
   return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
 };
 
 const renderEnabled = (text, record, t) => {
   return text ? (
-    <Tag color='green' shape='circle'>
+    <Tag
+      color='white'
+      shape='circle'
+      type='light'
+      prefixIcon={<Badge dot type='success' />}
+    >
       {t('启用')}
     </Tag>
   ) : (
-    <Tag color='grey' shape='circle'>
+    <Tag
+      color='white'
+      shape='circle'
+      type='light'
+      prefixIcon={<Badge dot type='danger' />}
+    >
       {t('禁用')}
     </Tag>
   );
@@ -299,6 +325,11 @@ export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
       dataIndex: ['plan', 'price_amount'],
       width: 100,
       render: (text) => renderPrice(text),
+    },
+    {
+      title: t('购买上限'),
+      width: 90,
+      render: (text, record) => renderPurchaseLimit(text, record, t),
     },
     {
       title: t('优先级'),

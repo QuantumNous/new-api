@@ -94,6 +94,7 @@ const AddEditSubscriptionModal = ({
     quota_reset_custom_seconds: 0,
     enabled: true,
     sort_order: 0,
+    max_purchase_per_user: 0,
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -122,6 +123,7 @@ const AddEditSubscriptionModal = ({
       quota_reset_custom_seconds: Number(p.quota_reset_custom_seconds || 0),
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
+      max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -283,6 +285,7 @@ const AddEditSubscriptionModal = ({
               ? Number(values.quota_reset_custom_seconds || 0)
               : 0,
           sort_order: Number(values.sort_order || 0),
+          max_purchase_per_user: Number(values.max_purchase_per_user || 0),
         },
         items: cleanedItems,
       };
@@ -481,6 +484,17 @@ const AddEditSubscriptionModal = ({
                         field='sort_order'
                         label={t('排序')}
                         precision={0}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='max_purchase_per_user'
+                        label={t('购买上限')}
+                        min={0}
+                        precision={0}
+                        extraText={t('0 表示不限')}
                         style={{ width: '100%' }}
                       />
                     </Col>

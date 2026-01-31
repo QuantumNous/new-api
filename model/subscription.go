@@ -204,6 +204,9 @@ type SubscriptionPlan struct {
 	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
 
+	// Max purchases per user (0 = unlimited)
+	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
+
 	// Quota reset period for plan items
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
@@ -438,6 +441,19 @@ func GetSubscriptionPlanItems(planId int) ([]SubscriptionPlanItem, error) {
 	return items, nil
 }
 
+func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
+	if userId <= 0 || planId <= 0 {
+		return 0, errors.New("invalid userId or planId")
+	}
+	var count int64
+	if err := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND plan_id = ?", userId, planId).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
@@ -447,6 +463,17 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
+	}
+	if plan.MaxPurchasePerUser > 0 {
+		var count int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
+			Count(&count).Error; err != nil {
+			return nil, err
+		}
+		if count >= int64(plan.MaxPurchasePerUser) {
+			return nil, errors.New("已达到该套餐购买上限")
+		}
 	}
 	nowUnix := GetDBTimestamp()
 	now := time.Unix(nowUnix, 0)
