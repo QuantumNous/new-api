@@ -186,7 +186,7 @@ export function MultiKeyManageDialog({
     const config = getMultiKeyStatusConfig(status)
     return (
       <StatusBadge
-        label={config.label}
+        label={t(config.label)}
         variant={config.variant}
         showDot
         copyable={false}
@@ -212,8 +212,8 @@ export function MultiKeyManageDialog({
               {currentRow.channel_info?.multi_key_mode && (
                 <Badge variant='secondary'>
                   {currentRow.channel_info.multi_key_mode === 'random'
-                    ? 'Random'
-                    : 'Polling'}
+                    ? t('Random')
+                    : t('Polling')}
                 </Badge>
               )}
             </DialogTitle>
@@ -256,7 +256,7 @@ export function MultiKeyManageDialog({
                 <SelectContent>
                   {MULTI_KEY_FILTER_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -400,7 +400,7 @@ export function MultiKeyManageDialog({
         open={confirmAction !== null}
         onOpenChange={(open) => !open && setConfirmAction(null)}
         title={t('Confirm Action')}
-        desc={getMultiKeyConfirmMessage(confirmAction)}
+        desc={t(getMultiKeyConfirmMessage(confirmAction))}
         destructive={isDestructiveAction(confirmAction)}
         isLoading={isPerformingAction}
         handleConfirm={performAction}

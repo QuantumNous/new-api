@@ -27,9 +27,9 @@ import {
 } from '@/components/ui/sheet'
 import { DateTimePicker } from '@/components/datetime-picker'
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { getRedemptionSuccessMessages } from '../constants'
+import { SUCCESS_MESSAGES } from '../constants'
 import {
-  redemptionFormSchema,
+  getRedemptionFormSchema,
   type RedemptionFormValues,
   REDEMPTION_FORM_DEFAULT_VALUES,
   transformFormDataToPayload,
@@ -50,13 +50,12 @@ export function RedemptionsMutateDrawer({
   currentRow,
 }: RedemptionsMutateDrawerProps) {
   const { t } = useTranslation()
-  const successMessages = getRedemptionSuccessMessages(t)
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<RedemptionFormValues>({
-    resolver: zodResolver(redemptionFormSchema),
+    resolver: zodResolver(getRedemptionFormSchema(t)),
     defaultValues: REDEMPTION_FORM_DEFAULT_VALUES,
   })
 
@@ -86,7 +85,7 @@ export function RedemptionsMutateDrawer({
           id: currentRow.id,
         })
         if (result.success) {
-          toast.success(successMessages.REDEMPTION_UPDATED)
+          toast.success(t(SUCCESS_MESSAGES.REDEMPTION_UPDATED))
           onOpenChange(false)
           triggerRefresh()
         }
@@ -100,7 +99,7 @@ export function RedemptionsMutateDrawer({
               ? t('Successfully created {{count}} redemption codes', {
                   count,
                 })
-              : successMessages.REDEMPTION_CREATED
+              : t(SUCCESS_MESSAGES.REDEMPTION_CREATED)
           )
           onOpenChange(false)
           triggerRefresh()

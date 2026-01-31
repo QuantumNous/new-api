@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { updateRedemptionStatus } from '../api'
-import { REDEMPTION_STATUS, getRedemptionSuccessMessages } from '../constants'
+import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
 import { isRedemptionExpired } from '../lib'
 import { redemptionSchema } from '../types'
 import { useRedemptions } from './redemptions-provider'
@@ -26,7 +26,6 @@ export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {
   const { t } = useTranslation()
-  const successMessages = getRedemptionSuccessMessages(t)
   const redemption = redemptionSchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useRedemptions()
   const isEnabled = redemption.status === REDEMPTION_STATUS.ENABLED
@@ -44,8 +43,8 @@ export function DataTableRowActions<TData>({
     const result = await updateRedemptionStatus(redemption.id, newStatus)
     if (result.success) {
       const message = isEnabled
-        ? successMessages.REDEMPTION_DISABLED
-        : successMessages.REDEMPTION_ENABLED
+        ? t(SUCCESS_MESSAGES.REDEMPTION_DISABLED)
+        : t(SUCCESS_MESSAGES.REDEMPTION_ENABLED)
       toast.success(message)
       triggerRefresh()
     }

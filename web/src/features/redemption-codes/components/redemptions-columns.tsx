@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
@@ -12,14 +11,13 @@ import {
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { REDEMPTION_FILTER_EXPIRED, getRedemptionStatuses } from '../constants'
+import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
 import { type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
   const { t } = useTranslation()
-  const statusConfigMap = useMemo(() => getRedemptionStatuses(t), [t])
   return [
     {
       id: 'select',
@@ -92,7 +90,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
           )
         }
 
-        const statusConfig = statusConfigMap[statusValue]
+        const statusConfig = REDEMPTION_STATUSES[statusValue]
 
         if (!statusConfig) {
           return null
@@ -100,7 +98,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
 
         return (
           <StatusBadge
-            label={statusConfig.label}
+            label={t(statusConfig.labelKey)}
             variant={statusConfig.variant}
             showDot={statusConfig.showDot}
             copyable={false}

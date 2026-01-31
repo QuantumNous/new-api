@@ -1,33 +1,40 @@
+import type { TFunction } from 'i18next'
 import { z } from 'zod'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
-import { REDEMPTION_VALIDATION, ERROR_MESSAGES } from '../constants'
+import {
+  REDEMPTION_VALIDATION,
+  ERROR_MESSAGES,
+  getRedemptionFormErrorMessages,
+} from '../constants'
 import { type RedemptionFormData, type Redemption } from '../types'
 
 // ============================================================================
-// Form Schema
+// Form Schema (use getRedemptionFormSchema(t) in components for i18n messages)
 // ============================================================================
 
-export const redemptionFormSchema = z.object({
-  name: z
-    .string()
-    .min(
-      REDEMPTION_VALIDATION.NAME_MIN_LENGTH,
-      ERROR_MESSAGES.NAME_LENGTH_INVALID
-    )
-    .max(
-      REDEMPTION_VALIDATION.NAME_MAX_LENGTH,
-      ERROR_MESSAGES.NAME_LENGTH_INVALID
-    ),
-  quota_dollars: z.number().min(0, 'Quota must be a positive number'),
-  expired_time: z.date().optional(),
-  count: z
-    .number()
-    .min(REDEMPTION_VALIDATION.COUNT_MIN, ERROR_MESSAGES.COUNT_INVALID)
-    .max(REDEMPTION_VALIDATION.COUNT_MAX, ERROR_MESSAGES.COUNT_INVALID)
-    .optional(),
-})
+export function getRedemptionFormSchema(t: TFunction) {
+  const msg = getRedemptionFormErrorMessages(t)
+  return z.object({
+    name: z
+      .string()
+      .min(REDEMPTION_VALIDATION.NAME_MIN_LENGTH, msg.NAME_LENGTH_INVALID)
+      .max(REDEMPTION_VALIDATION.NAME_MAX_LENGTH, msg.NAME_LENGTH_INVALID),
+    quota_dollars: z.number().min(0, t('Quota must be a positive number')),
+    expired_time: z.date().optional(),
+    count: z
+      .number()
+      .min(REDEMPTION_VALIDATION.COUNT_MIN, msg.COUNT_INVALID)
+      .max(REDEMPTION_VALIDATION.COUNT_MAX, msg.COUNT_INVALID)
+      .optional(),
+  })
+}
 
-export type RedemptionFormValues = z.infer<typeof redemptionFormSchema>
+export type RedemptionFormValues = {
+  name: string
+  quota_dollars: number
+  expired_time?: Date
+  count?: number
+}
 
 // ============================================================================
 // Form Defaults

@@ -399,7 +399,7 @@ export function ChannelTestDialog({
                     const itemValue = option.value
                     return (
                       <SelectItem key={itemValue} value={itemValue}>
-                        {option.label}
+                        {t(option.label)}
                       </SelectItem>
                     )
                   })}

@@ -794,7 +794,7 @@ export function ChannelMutateDrawer({
             payloadWithKeyMode
           )
           if (response.success) {
-            toast.success(SUCCESS_MESSAGES.UPDATED)
+            toast.success(t(SUCCESS_MESSAGES.UPDATED))
             handleSuccess()
           }
         } else {
@@ -802,12 +802,12 @@ export function ChannelMutateDrawer({
           const payload = transformFormDataToCreatePayload(data)
           const response = await createChannel(payload)
           if (response.success) {
-            toast.success(SUCCESS_MESSAGES.CREATED)
+            toast.success(t(SUCCESS_MESSAGES.CREATED))
             handleSuccess()
           }
         }
       } catch (error: unknown) {
-        toast.error(getErrorMessage(error) || ERROR_MESSAGES.CREATE_FAILED)
+        toast.error(getErrorMessage(error) || t(ERROR_MESSAGES.CREATE_FAILED))
       } finally {
         setIsSubmitting(false)
       }
@@ -865,7 +865,7 @@ export function ChannelMutateDrawer({
                       <FormLabel>{t('Name *')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={FIELD_PLACEHOLDERS.NAME}
+                          placeholder={t(FIELD_PLACEHOLDERS.NAME)}
                           {...field}
                         />
                       </FormControl>
@@ -905,7 +905,7 @@ export function ChannelMutateDrawer({
                                   `${getChannelTypeIcon(option.value)}.Color`,
                                   16
                                 )}
-                                <span>{option.label}</span>
+                                <span>{t(option.label)}</span>
                               </div>
                             </SelectItem>
                           ))}
@@ -977,7 +977,7 @@ export function ChannelMutateDrawer({
                 {CHANNEL_TYPE_WARNINGS[currentType] && (
                   <Alert>
                     <AlertDescription>
-                      {CHANNEL_TYPE_WARNINGS[currentType]}
+                      {t(CHANNEL_TYPE_WARNINGS[currentType])}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -1617,7 +1617,7 @@ export function ChannelMutateDrawer({
                         <FormLabel>{t('Base URL')}</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder={FIELD_PLACEHOLDERS.BASE_URL}
+                            placeholder={t(FIELD_PLACEHOLDERS.BASE_URL)}
                             {...field}
                           />
                         </FormControl>
@@ -1672,7 +1672,7 @@ export function ChannelMutateDrawer({
                                 key={option.value}
                                 value={option.value}
                               >
-                                {option.label}
+                                {t(option.label)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2204,7 +2204,7 @@ export function ChannelMutateDrawer({
                             options={groupOptions}
                             selected={field.value}
                             onChange={field.onChange}
-                            placeholder={FIELD_PLACEHOLDERS.GROUP}
+                            placeholder={t(FIELD_PLACEHOLDERS.GROUP)}
                           />
                         )}
                       </FormControl>
@@ -2281,7 +2281,7 @@ export function ChannelMutateDrawer({
                       <FormLabel>{t('Test Model')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={FIELD_PLACEHOLDERS.TEST_MODEL}
+                          placeholder={t(FIELD_PLACEHOLDERS.TEST_MODEL)}
                           {...field}
                         />
                       </FormControl>
@@ -2326,7 +2326,7 @@ export function ChannelMutateDrawer({
                       <FormLabel>{t('Tag')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={FIELD_PLACEHOLDERS.TAG}
+                          placeholder={t(FIELD_PLACEHOLDERS.TAG)}
                           {...field}
                         />
                       </FormControl>
@@ -2346,7 +2346,7 @@ export function ChannelMutateDrawer({
                       <FormLabel>{t('Remark')}</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder={FIELD_PLACEHOLDERS.REMARK}
+                          placeholder={t(FIELD_PLACEHOLDERS.REMARK)}
                           rows={2}
                           {...field}
                         />

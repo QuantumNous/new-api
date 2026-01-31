@@ -129,11 +129,11 @@ export function ApiKeysMutateDrawer({
           id: currentRow.id,
         })
         if (result.success) {
-          toast.success(SUCCESS_MESSAGES.API_KEY_UPDATED)
+          toast.success(t(SUCCESS_MESSAGES.API_KEY_UPDATED))
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(result.message || ERROR_MESSAGES.UPDATE_FAILED)
+          toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
         }
       } else {
         // Create mode - handle batch creation
@@ -151,7 +151,7 @@ export function ApiKeysMutateDrawer({
           if (result.success) {
             successCount++
           } else {
-            toast.error(result.message || ERROR_MESSAGES.CREATE_FAILED)
+            toast.error(result.message || t(ERROR_MESSAGES.CREATE_FAILED))
             break
           }
         }
@@ -167,7 +167,7 @@ export function ApiKeysMutateDrawer({
         }
       }
     } catch (error) {
-      toast.error(ERROR_MESSAGES.UNEXPECTED)
+      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
     }

@@ -12,12 +12,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { deleteRedemption } from '../api'
-import { getRedemptionSuccessMessages } from '../constants'
+import { SUCCESS_MESSAGES } from '../constants'
 import { useRedemptions } from './redemptions-provider'
 
 export function RedemptionsDeleteDialog() {
   const { t } = useTranslation()
-  const successMessages = getRedemptionSuccessMessages(t)
   const { open, setOpen, currentRow, triggerRefresh } = useRedemptions()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -28,7 +27,7 @@ export function RedemptionsDeleteDialog() {
     try {
       const result = await deleteRedemption(currentRow.id)
       if (result.success) {
-        toast.success(successMessages.REDEMPTION_DELETED)
+        toast.success(t(SUCCESS_MESSAGES.REDEMPTION_DELETED))
         setOpen(null)
         triggerRefresh()
       }
