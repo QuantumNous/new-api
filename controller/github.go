@@ -23,6 +23,7 @@ type GitHubOAuthResponse struct {
 }
 
 type GitHubUser struct {
+	Id    int64  `json:"id"`
 	Login string `json:"login"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -73,7 +74,7 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if githubUser.Login == "" {
+	if githubUser.Id == 0 {
 		return nil, errors.New("返回值非法，用户字段为空，请稍后重试！")
 	}
 	return &githubUser, nil
@@ -108,11 +109,13 @@ func GitHubOAuth(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	user := model.User{
-		GitHubId: githubUser.Login,
-	}
-	// IsGitHubIdAlreadyTaken is unscoped
-	if model.IsGitHubIdAlreadyTaken(user.GitHubId) {
+
+	// 只使用不可变的数字ID作为唯一标识（安全）
+	numericId := strconv.FormatInt(githubUser.Id, 10)
+	user := model.User{GitHubId: numericId}
+
+	// 只通过数字ID查找用户，防止账户劫持风险
+	if model.IsGitHubIdAlreadyTaken(numericId) {
 		// FillUserByGitHubId is scoped
 		err := user.FillUserByGitHubId()
 		if err != nil {
@@ -132,7 +135,12 @@ func GitHubOAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
+			// 创建新账号，使用数字ID作为GitHub ID
+			user.GitHubId = numericId
+
+			// 使用GitHub数字ID作为用户名后缀，确保唯一性且无竞态条件
+			// 格式: github_<github_numeric_id>
+			user.Username = "github_" + numericId
 			if githubUser.Name != "" {
 				user.DisplayName = githubUser.Name
 			} else {
@@ -187,10 +195,12 @@ func GitHubBind(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	user := model.User{
-		GitHubId: githubUser.Login,
-	}
-	if model.IsGitHubIdAlreadyTaken(user.GitHubId) {
+
+	// 只检查不可变的数字ID是否已被绑定
+	numericId := strconv.FormatInt(githubUser.Id, 10)
+	isAlreadyBound := model.IsGitHubIdAlreadyTaken(numericId)
+
+	if isAlreadyBound {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "该 GitHub 账户已被绑定",
@@ -200,13 +210,14 @@ func GitHubBind(c *gin.Context) {
 	session := sessions.Default(c)
 	id := session.Get("id")
 	// id := c.GetInt("id")  // critical bug!
+	var user model.User
 	user.Id = id.(int)
 	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	user.GitHubId = githubUser.Login
+	user.GitHubId = strconv.FormatInt(githubUser.Id, 10)
 	err = user.Update(false)
 	if err != nil {
 		common.ApiError(c, err)
