@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -16,15 +17,6 @@ const (
 	BillingSourceSubscription = "subscription"
 )
 
-func normalizeBillingPreference(pref string) string {
-	switch pref {
-	case "subscription_first", "wallet_first", "subscription_only", "wallet_only":
-		return pref
-	default:
-		return "subscription_first"
-	}
-}
-
 // PreConsumeBilling decides whether to pre-consume from subscription or wallet based on user preference.
 // It also always pre-consumes token quota in quota units (same as legacy flow).
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
@@ -32,7 +24,7 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 		return types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	pref := normalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
+	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 	trySubscription := func() *types.NewAPIError {
 		quotaTypes := model.GetModelQuotaTypes(relayInfo.OriginModelName)
 		quotaType := 0

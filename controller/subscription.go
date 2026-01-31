@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -21,27 +20,6 @@ type SubscriptionPlanDTO struct {
 
 type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
-}
-
-func normalizeBillingPreference(pref string) string {
-	switch strings.TrimSpace(pref) {
-	case "subscription_first", "wallet_first", "subscription_only", "wallet_only":
-		return strings.TrimSpace(pref)
-	default:
-		return "subscription_first"
-	}
-}
-
-func normalizeQuotaResetPeriod(period string) string {
-	switch strings.TrimSpace(period) {
-	case model.SubscriptionResetDaily,
-		model.SubscriptionResetWeekly,
-		model.SubscriptionResetMonthly,
-		model.SubscriptionResetCustom:
-		return strings.TrimSpace(period)
-	default:
-		return model.SubscriptionResetNever
-	}
 }
 
 // ---- User APIs ----
@@ -66,7 +44,7 @@ func GetSubscriptionPlans(c *gin.Context) {
 func GetSubscriptionSelf(c *gin.Context) {
 	userId := c.GetInt("id")
 	settingMap, _ := model.GetUserSetting(userId, false)
-	pref := normalizeBillingPreference(settingMap.BillingPreference)
+	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
 	// Get all subscriptions (including expired)
 	allSubscriptions, err := model.GetAllUserSubscriptions(userId)
@@ -94,7 +72,7 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	pref := normalizeBillingPreference(req.BillingPreference)
+	pref := common.NormalizeBillingPreference(req.BillingPreference)
 
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
@@ -156,7 +134,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
 	}
-	req.Plan.QuotaResetPeriod = normalizeQuotaResetPeriod(req.Plan.QuotaResetPeriod)
+	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
@@ -223,7 +201,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.DurationValue <= 0 && req.Plan.DurationUnit != model.SubscriptionDurationCustom {
 		req.Plan.DurationValue = 1
 	}
-	req.Plan.QuotaResetPeriod = normalizeQuotaResetPeriod(req.Plan.QuotaResetPeriod)
+	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
@@ -282,14 +260,22 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-func AdminDeleteSubscriptionPlan(c *gin.Context) {
+type AdminUpdateSubscriptionPlanStatusRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if id <= 0 {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
-	// best practice: disable instead of hard delete to avoid breaking past orders
-	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", false).Error; err != nil {
+	var req AdminUpdateSubscriptionPlanStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -323,7 +309,7 @@ func AdminListUserSubscriptions(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的用户ID")
 		return
 	}
-	subs, err := model.AdminListUserSubscriptions(userId)
+	subs, err := model.GetAllUserSubscriptions(userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -380,11 +366,4 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
-}
-
-// ---- Helper: serialize provider payload safely ----
-
-func jsonString(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }

@@ -18,8 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Modal, Space, Tag } from '@douyinfe/semi-ui';
-import { convertUSDToCurrency } from '../../helpers/render';
+import {
+  Button,
+  Modal,
+  Space,
+  Tag,
+  Typography,
+  Popover,
+  Divider,
+} from '@douyinfe/semi-ui';
+import { IconEdit, IconStop, IconPlay } from '@douyinfe/semi-icons';
+import { convertUSDToCurrency } from '../../../helpers/render';
+
+const { Text } = Typography;
 
 const quotaTypeLabel = (quotaType) => (quotaType === 1 ? '按次' : '按量');
 
@@ -38,33 +49,92 @@ function formatDuration(plan, t) {
   return `${plan.duration_value || 0}${unitMap[u] || u}`;
 }
 
-const renderPlanTitle = (text, record) => {
-  return (
-    <div>
-      <div className='font-medium'>{text}</div>
-      {record?.plan?.subtitle ? (
-        <div className='text-xs text-gray-500'>{record.plan.subtitle}</div>
-      ) : null}
+function formatResetPeriod(plan, t) {
+  const period = plan?.quota_reset_period || 'never';
+  if (period === 'daily') return t('每天');
+  if (period === 'weekly') return t('每周');
+  if (period === 'monthly') return t('每月');
+  if (period === 'custom') {
+    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
+    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
+    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
+    return `${seconds} ${t('秒')}`;
+  }
+  return t('不重置');
+}
+
+const renderPlanTitle = (text, record, t) => {
+  const subtitle = record?.plan?.subtitle;
+  const plan = record?.plan;
+  const items = record?.items || [];
+
+  const popoverContent = (
+    <div style={{ width: 260 }}>
+      <Text strong>{text}</Text>
+      {subtitle && (
+        <Text type='tertiary' style={{ display: 'block', marginTop: 4 }}>
+          {subtitle}
+        </Text>
+      )}
+      <Divider margin={12} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <Text type='tertiary'>{t('价格')}</Text>
+        <Text strong style={{ color: 'var(--semi-color-success)' }}>
+          {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
+        </Text>
+        <Text type='tertiary'>{t('有效期')}</Text>
+        <Text>{formatDuration(plan, t)}</Text>
+        <Text type='tertiary'>{t('重置')}</Text>
+        <Text>{formatResetPeriod(plan, t)}</Text>
+        <Text type='tertiary'>{t('模型')}</Text>
+        <Text>
+          {items.length} {t('个')}
+        </Text>
+      </div>
     </div>
+  );
+
+  return (
+    <Popover content={popoverContent} position='rightTop' showArrow>
+      <div style={{ cursor: 'pointer', maxWidth: 180 }}>
+        <Text strong ellipsis={{ showTooltip: false }}>
+          {text}
+        </Text>
+        {subtitle && (
+          <Text
+            type='tertiary'
+            ellipsis={{ showTooltip: false }}
+            style={{ display: 'block' }}
+          >
+            {subtitle}
+          </Text>
+        )}
+      </div>
+    </Popover>
   );
 };
 
 const renderPrice = (text) => {
-  return convertUSDToCurrency(Number(text || 0), 2);
+  return (
+    <Text strong style={{ color: 'var(--semi-color-success)' }}>
+      {convertUSDToCurrency(Number(text || 0), 2)}
+    </Text>
+  );
 };
 
 const renderDuration = (text, record, t) => {
-  return formatDuration(record?.plan, t);
+  return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
 };
 
-const renderEnabled = (text, record) => {
+const renderEnabled = (text, record, t) => {
   return text ? (
     <Tag color='green' shape='circle'>
-      启用
+      {t('启用')}
     </Tag>
   ) : (
     <Tag color='grey' shape='circle'>
-      禁用
+      {t('禁用')}
     </Tag>
   );
 };
@@ -72,93 +142,203 @@ const renderEnabled = (text, record) => {
 const renderModels = (text, record, t) => {
   const items = record?.items || [];
   if (items.length === 0) {
-    return <div className='text-xs text-gray-500'>{t('无模型')}</div>;
+    return <Text type='tertiary'>—</Text>;
   }
-  return (
-    <div className='text-xs space-y-1'>
-      {items.slice(0, 3).map((it, idx) => (
-        <div key={idx}>
-          {it.model_name} ({quotaTypeLabel(it.quota_type)}: {it.amount_total})
-        </div>
-      ))}
-      {items.length > 3 && (
-        <div className='text-gray-500'>
-          ...{t('共')} {items.length} {t('个模型')}
-        </div>
-      )}
+
+  const popoverContent = (
+    <div style={{ maxWidth: 320, maxHeight: 260, overflowY: 'auto' }}>
+      <Text strong>
+        {t('模型权益')} ({items.length})
+      </Text>
+      <Divider margin={8} />
+      <Space vertical align='start' spacing={6}>
+        {items.map((it, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              gap: 12,
+            }}
+          >
+            <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>
+              {it.model_name}
+            </Text>
+            <Space spacing={8}>
+              <Tag
+                color={it.quota_type === 1 ? 'amber' : 'teal'}
+                shape='circle'
+              >
+                {quotaTypeLabel(it.quota_type)}
+              </Tag>
+              <Text type='secondary'>{it.amount_total}</Text>
+            </Space>
+          </div>
+        ))}
+      </Space>
     </div>
+  );
+
+  return (
+    <Popover content={popoverContent} position='leftTop' showArrow>
+      <Tag color='blue' shape='circle' style={{ cursor: 'pointer' }}>
+        {items.length} {t('个模型')}
+      </Tag>
+    </Popover>
   );
 };
 
-const renderOperations = (text, record, { openEdit, disablePlan, t }) => {
-  const handleDisable = () => {
-    Modal.confirm({
-      title: t('确认禁用'),
-      content: t('禁用后用户端不再展示，但历史订单不受影响。是否继续？'),
-      centered: true,
-      onOk: () => disablePlan(record?.plan?.id),
-    });
-  };
+const renderResetPeriod = (text, record, t) => {
+  const period = record?.plan?.quota_reset_period || 'never';
+  const isNever = period === 'never';
+  return (
+    <Text type={isNever ? 'tertiary' : 'secondary'}>
+      {formatResetPeriod(record?.plan, t)}
+    </Text>
+  );
+};
+
+const renderPaymentConfig = (text, record, t) => {
+  const hasStripe = !!record?.plan?.stripe_price_id;
+  const hasCreem = !!record?.plan?.creem_product_id;
 
   return (
-    <Space>
-      <Button
-        type='tertiary'
-        size='small'
-        onClick={() => {
-          openEdit(record);
-        }}
-      >
-        {t('编辑')}
-      </Button>
-      <Button type='danger' size='small' onClick={handleDisable}>
-        {t('禁用')}
-      </Button>
+    <Space spacing={4}>
+      {hasStripe && (
+        <Tag color='violet' shape='circle'>
+          Stripe
+        </Tag>
+      )}
+      {hasCreem && (
+        <Tag color='cyan' shape='circle'>
+          Creem
+        </Tag>
+      )}
+      <Tag color='light-green' shape='circle'>
+        {t('易支付')}
+      </Tag>
     </Space>
   );
 };
 
-export const getSubscriptionsColumns = ({ t, openEdit, disablePlan }) => {
+const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
+  const isEnabled = record?.plan?.enabled;
+
+  const handleToggle = () => {
+    if (isEnabled) {
+      Modal.confirm({
+        title: t('确认禁用'),
+        content: t('禁用后用户端不再展示，但历史订单不受影响。是否继续？'),
+        centered: true,
+        onOk: () => setPlanEnabled(record, false),
+      });
+    } else {
+      Modal.confirm({
+        title: t('确认启用'),
+        content: t('启用后套餐将在用户端展示。是否继续？'),
+        centered: true,
+        onOk: () => setPlanEnabled(record, true),
+      });
+    }
+  };
+
+  return (
+    <Space spacing={8}>
+      <Button
+        theme='borderless'
+        type='tertiary'
+        size='small'
+        icon={<IconEdit />}
+        onClick={() => openEdit(record)}
+      >
+        {t('编辑')}
+      </Button>
+      {isEnabled ? (
+        <Button
+          theme='borderless'
+          type='danger'
+          size='small'
+          icon={<IconStop />}
+          onClick={handleToggle}
+        >
+          {t('禁用')}
+        </Button>
+      ) : (
+        <Button
+          theme='borderless'
+          type='primary'
+          size='small'
+          icon={<IconPlay />}
+          onClick={handleToggle}
+        >
+          {t('启用')}
+        </Button>
+      )}
+    </Space>
+  );
+};
+
+export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
   return [
     {
       title: 'ID',
       dataIndex: ['plan', 'id'],
-      width: 80,
+      width: 60,
+      render: (text) => <Text type='tertiary'>#{text}</Text>,
     },
     {
-      title: t('标题'),
+      title: t('套餐'),
       dataIndex: ['plan', 'title'],
-      render: (text, record) => renderPlanTitle(text, record),
+      width: 200,
+      render: (text, record) => renderPlanTitle(text, record, t),
     },
     {
       title: t('价格'),
       dataIndex: ['plan', 'price_amount'],
-      width: 140,
-      render: (text, record) => renderPrice(text, record),
+      width: 100,
+      render: (text) => renderPrice(text),
+    },
+    {
+      title: t('优先级'),
+      dataIndex: ['plan', 'sort_order'],
+      width: 80,
+      render: (text) => <Text type='tertiary'>{Number(text || 0)}</Text>,
     },
     {
       title: t('有效期'),
-      width: 140,
+      width: 80,
       render: (text, record) => renderDuration(text, record, t),
+    },
+    {
+      title: t('重置'),
+      width: 80,
+      render: (text, record) => renderResetPeriod(text, record, t),
     },
     {
       title: t('状态'),
       dataIndex: ['plan', 'enabled'],
-      width: 90,
-      render: (text, record) => renderEnabled(text, record),
+      width: 80,
+      render: (text, record) => renderEnabled(text, record, t),
     },
     {
-      title: t('模型权益'),
-      width: 200,
+      title: t('支付渠道'),
+      width: 180,
+      render: (text, record) => renderPaymentConfig(text, record, t),
+    },
+    {
+      title: t('模型'),
+      width: 100,
       render: (text, record) => renderModels(text, record, t),
     },
     {
-      title: '',
+      title: t('操作'),
       dataIndex: 'operate',
       fixed: 'right',
-      width: 180,
+      width: 160,
       render: (text, record) =>
-        renderOperations(text, record, { openEdit, disablePlan, t }),
+        renderOperations(text, record, { openEdit, setPlanEnabled, t }),
     },
   ];
 };

@@ -344,7 +344,7 @@ func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	}
 }
 
-func normalizeResetPeriod(period string) string {
+func NormalizeResetPeriod(period string) string {
 	switch strings.TrimSpace(period) {
 	case SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetMonthly, SubscriptionResetCustom:
 		return strings.TrimSpace(period)
@@ -357,7 +357,7 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	if plan == nil {
 		return 0
 	}
-	period := normalizeResetPeriod(plan.QuotaResetPeriod)
+	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
 	if period == SubscriptionResetNever {
 		return 0
 	}
@@ -689,13 +689,6 @@ func buildSubscriptionSummaries(subs []UserSubscription) ([]SubscriptionSummary,
 	return result, nil
 }
 
-// ---- Admin helpers for managing user subscriptions ----
-
-// AdminListUserSubscriptions lists all subscriptions (including expired) for a user.
-func AdminListUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
-	return GetAllUserSubscriptions(userId)
-}
-
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.
 func AdminInvalidateUserSubscription(userSubscriptionId int) error {
 	if userSubscriptionId <= 0 {
@@ -786,7 +779,7 @@ func maybeResetSubscriptionItemWithPlanTx(tx *gorm.DB, item *UserSubscriptionIte
 	if item.NextResetTime > 0 && item.NextResetTime > now {
 		return nil
 	}
-	if normalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
+	if NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
 		return nil
 	}
 

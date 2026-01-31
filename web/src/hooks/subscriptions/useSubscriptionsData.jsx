@@ -88,14 +88,20 @@ export const useSubscriptionsData = () => {
     setActivePage(1);
   };
 
-  // Disable plan
-  const disablePlan = async (planId) => {
+  // Update plan enabled status (single endpoint)
+  const setPlanEnabled = async (planRecordOrId, enabled) => {
+    const planId =
+      typeof planRecordOrId === 'number'
+        ? planRecordOrId
+        : planRecordOrId?.plan?.id;
     if (!planId) return;
     setLoading(true);
     try {
-      const res = await API.delete(`/api/subscription/admin/plans/${planId}`);
+      const res = await API.patch(`/api/subscription/admin/plans/${planId}`, {
+        enabled: !!enabled,
+      });
       if (res.data?.success) {
-        showSuccess(t('已禁用'));
+        showSuccess(enabled ? t('已启用') : t('已禁用'));
         await loadPlans();
       } else {
         showError(res.data?.message || t('操作失败'));
@@ -163,7 +169,7 @@ export const useSubscriptionsData = () => {
 
     // Actions
     loadPlans,
-    disablePlan,
+    setPlanEnabled,
     refresh,
     closeEdit,
     openCreate,
