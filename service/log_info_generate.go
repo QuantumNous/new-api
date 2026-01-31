@@ -6,7 +6,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -90,15 +89,14 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		other["billing_preference"] = relayInfo.UserSetting.BillingPreference
 	}
 	if relayInfo.BillingSource == "subscription" {
-		if relayInfo.SubscriptionItemId != 0 {
-			other["subscription_item_id"] = relayInfo.SubscriptionItemId
+		if relayInfo.SubscriptionId != 0 {
+			other["subscription_id"] = relayInfo.SubscriptionId
 		}
-		other["subscription_quota_type"] = relayInfo.SubscriptionQuotaType
 		if relayInfo.SubscriptionPreConsumed > 0 {
 			other["subscription_pre_consumed"] = relayInfo.SubscriptionPreConsumed
 		}
 		// post_delta: settlement delta applied after actual usage is known (can be negative for refund)
-		if relayInfo.SubscriptionQuotaType == 0 && relayInfo.SubscriptionPostDelta != 0 {
+		if relayInfo.SubscriptionPostDelta != 0 {
 			other["subscription_post_delta"] = relayInfo.SubscriptionPostDelta
 		}
 		if relayInfo.SubscriptionPlanId != 0 {
@@ -108,12 +106,8 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			other["subscription_plan_title"] = relayInfo.SubscriptionPlanTitle
 		}
 		// Compute "this request" subscription consumed + remaining
-		consumed := relayInfo.SubscriptionPreConsumed
-		usedFinal := relayInfo.SubscriptionAmountUsedAfterPreConsume
-		if relayInfo.SubscriptionQuotaType == 0 {
-			consumed = relayInfo.SubscriptionPreConsumed + relayInfo.SubscriptionPostDelta
-			usedFinal = relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
-		}
+		consumed := relayInfo.SubscriptionPreConsumed + relayInfo.SubscriptionPostDelta
+		usedFinal := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
 		if consumed < 0 {
 			consumed = 0
 		}
@@ -131,13 +125,6 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		if consumed > 0 {
 			other["subscription_consumed"] = consumed
-		}
-		// Fallback: if plan info missing (older requests), best-effort fetch by item id.
-		if relayInfo.SubscriptionPlanId == 0 && relayInfo.SubscriptionItemId != 0 {
-			if info, err := model.GetSubscriptionPlanInfoBySubscriptionItemId(relayInfo.SubscriptionItemId); err == nil && info != nil {
-				other["subscription_plan_id"] = info.PlanId
-				other["subscription_plan_title"] = info.PlanTitle
-			}
 		}
 		// Wallet quota is not deducted when billed from subscription.
 		other["wallet_quota_deducted"] = 0

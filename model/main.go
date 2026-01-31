@@ -269,10 +269,8 @@ func migrateDB() error {
 		&TwoFABackupCode{},
 		&Checkin{},
 		&SubscriptionPlan{},
-		&SubscriptionPlanItem{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
-		&UserSubscriptionItem{},
 		&SubscriptionPreConsumeRecord{},
 	)
 	if err != nil {
@@ -309,10 +307,8 @@ func migrateDBFast() error {
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
 		{&Checkin{}, "Checkin"},
 		{&SubscriptionPlan{}, "SubscriptionPlan"},
-		{&SubscriptionPlanItem{}, "SubscriptionPlanItem"},
 		{&SubscriptionOrder{}, "SubscriptionOrder"},
 		{&UserSubscription{}, "UserSubscription"},
-		{&UserSubscriptionItem{}, "UserSubscriptionItem"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大

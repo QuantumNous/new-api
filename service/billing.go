@@ -26,17 +26,9 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 	trySubscription := func() *types.NewAPIError {
-		quotaTypes := model.GetModelQuotaTypes(relayInfo.OriginModelName)
 		quotaType := 0
-		if len(quotaTypes) > 0 {
-			quotaType = quotaTypes[0]
-		}
-
-		// For subscription item: per-request consumes 1, per-quota consumes preConsumedQuota quota units.
+		// For total quota: consume preConsumedQuota quota units.
 		subConsume := int64(preConsumedQuota)
-		if quotaType == 1 {
-			subConsume = 1
-		}
 		if subConsume <= 0 {
 			subConsume = 1
 		}
@@ -58,8 +50,7 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 		}
 
 		relayInfo.BillingSource = BillingSourceSubscription
-		relayInfo.SubscriptionItemId = res.ItemId
-		relayInfo.SubscriptionQuotaType = quotaType
+		relayInfo.SubscriptionId = res.UserSubscriptionId
 		relayInfo.SubscriptionPreConsumed = res.PreConsumed
 		relayInfo.SubscriptionPostDelta = 0
 		relayInfo.SubscriptionAmountTotal = res.AmountTotal
@@ -76,8 +67,7 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 
 	tryWallet := func() *types.NewAPIError {
 		relayInfo.BillingSource = BillingSourceWallet
-		relayInfo.SubscriptionItemId = 0
-		relayInfo.SubscriptionQuotaType = 0
+		relayInfo.SubscriptionId = 0
 		relayInfo.SubscriptionPreConsumed = 0
 		return PreConsumeQuota(c, preConsumedQuota, relayInfo)
 	}

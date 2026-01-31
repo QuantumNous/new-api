@@ -22,7 +22,6 @@ import {
   Button,
   Empty,
   Modal,
-  Popover,
   Select,
   SideSheet,
   Space,
@@ -295,34 +294,17 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         },
       },
       {
-        title: t('权益'),
-        key: 'items',
-        width: 80,
+        title: t('总额度'),
+        key: 'total',
+        width: 120,
         render: (_, record) => {
-          const items = record?.items || [];
-          if (items.length === 0) return <Text type='tertiary'>-</Text>;
-          const content = (
-            <div className='max-w-[320px] space-y-1'>
-              {items.map((it) => (
-                <div
-                  key={`${it.id}-${it.model_name}`}
-                  className='flex justify-between text-xs'
-                >
-                  <span className='truncate mr-2'>{it.model_name}</span>
-                  <span className='text-gray-600'>
-                    {it.amount_used}/{it.amount_total}
-                    {it.quota_type === 1 ? t('次') : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          );
+          const sub = record?.subscription;
+          const total = Number(sub?.amount_total || 0);
+          const used = Number(sub?.amount_used || 0);
           return (
-            <Popover content={content} position='top' showArrow>
-              <Tag color='white' shape='circle'>
-                {items.length} {t('项')}
-              </Tag>
-            </Popover>
+            <Text type={total > 0 ? 'secondary' : 'tertiary'}>
+              {total > 0 ? `${used}/${total}` : t('不限')}
+            </Text>
           );
         },
       },

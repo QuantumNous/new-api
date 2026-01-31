@@ -23,12 +23,11 @@ import {
   Modal,
   Typography,
   Card,
-  Tag,
   Button,
   Select,
   Divider,
 } from '@douyinfe/semi-ui';
-import { Crown, CalendarClock, Package, Check } from 'lucide-react';
+import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { getCurrencyConfig } from '../../../helpers/render';
@@ -89,7 +88,7 @@ const SubscriptionPurchaseModal = ({
   onPayEpay,
 }) => {
   const plan = selectedPlan?.plan;
-  const items = selectedPlan?.items || [];
+  const totalAmount = Number(plan?.total_amount || 0);
   const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
   const displayPrice = (price * rate).toFixed(price % 1 === 0 ? 0 : 2);
@@ -156,12 +155,12 @@ const SubscriptionPurchaseModal = ({
               </div>
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('包含权益')}：
+                  {t('总额度')}：
                 </Text>
                 <div className='flex items-center'>
                   <Package size={14} className='mr-1 text-slate-500' />
                   <Text className='text-slate-900 dark:text-slate-100'>
-                    {items.length} {t('项')}
+                    {totalAmount > 0 ? totalAmount : t('不限')}
                   </Text>
                 </div>
               </div>
@@ -177,35 +176,6 @@ const SubscriptionPurchaseModal = ({
               </div>
             </div>
           </Card>
-
-          {/* 权益列表 */}
-          {items.length > 0 && (
-            <div className='space-y-2'>
-              <Text size='small' type='tertiary'>
-                {t('权益明细')}：
-              </Text>
-              <div className='flex flex-wrap gap-1'>
-                {items.slice(0, 6).map((it, idx) => (
-                  <Tag
-                    key={idx}
-                    size='small'
-                    color='white'
-                    type='light'
-                    shape='circle'
-                  >
-                    <Check size={10} className='mr-1' />
-                    {it.model_name}: {it.amount_total}
-                    {it.quota_type === 1 ? t('次') : ''}
-                  </Tag>
-                ))}
-                {items.length > 6 && (
-                  <Tag size='small' color='white' type='light' shape='circle'>
-                    +{items.length - 6}
-                  </Tag>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* 支付方式 */}
           {purchaseLimitReached && (

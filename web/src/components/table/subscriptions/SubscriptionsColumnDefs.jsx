@@ -33,8 +33,6 @@ import { convertUSDToCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
 
-const quotaTypeLabel = (quotaType) => (quotaType === 1 ? '按次' : '按量');
-
 function formatDuration(plan, t) {
   if (!plan) return '';
   const u = plan.duration_unit || 'month';
@@ -68,8 +66,6 @@ function formatResetPeriod(plan, t) {
 const renderPlanTitle = (text, record, t) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
-  const items = record?.items || [];
-
   const popoverContent = (
     <div style={{ width: 260 }}>
       <Text strong>{text}</Text>
@@ -84,6 +80,8 @@ const renderPlanTitle = (text, record, t) => {
         <Text strong style={{ color: 'var(--semi-color-success)' }}>
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
+        <Text type='tertiary'>{t('总额度')}</Text>
+        <Text>{plan?.total_amount > 0 ? plan.total_amount : t('不限')}</Text>
         <Text type='tertiary'>{t('购买上限')}</Text>
         <Text>
           {plan?.max_purchase_per_user > 0
@@ -94,10 +92,6 @@ const renderPlanTitle = (text, record, t) => {
         <Text>{formatDuration(plan, t)}</Text>
         <Text type='tertiary'>{t('重置')}</Text>
         <Text>{formatResetPeriod(plan, t)}</Text>
-        <Text type='tertiary'>{t('模型')}</Text>
-        <Text>
-          {items.length} {t('个')}
-        </Text>
       </div>
     </div>
   );
@@ -165,54 +159,12 @@ const renderEnabled = (text, record, t) => {
   );
 };
 
-const renderModels = (text, record, t) => {
-  const items = record?.items || [];
-  if (items.length === 0) {
-    return <Text type='tertiary'>—</Text>;
-  }
-
-  const popoverContent = (
-    <div style={{ maxWidth: 320, maxHeight: 260, overflowY: 'auto' }}>
-      <Text strong>
-        {t('模型权益')} ({items.length})
-      </Text>
-      <Divider margin={8} />
-      <Space vertical align='start' spacing={6}>
-        {items.map((it, idx) => (
-          <div
-            key={idx}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              gap: 12,
-            }}
-          >
-            <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>
-              {it.model_name}
-            </Text>
-            <Space spacing={8}>
-              <Tag
-                color={it.quota_type === 1 ? 'amber' : 'teal'}
-                shape='circle'
-              >
-                {quotaTypeLabel(it.quota_type)}
-              </Tag>
-              <Text type='secondary'>{it.amount_total}</Text>
-            </Space>
-          </div>
-        ))}
-      </Space>
-    </div>
-  );
-
+const renderTotalAmount = (text, record, t) => {
+  const total = Number(record?.plan?.total_amount || 0);
   return (
-    <Popover content={popoverContent} position='leftTop' showArrow>
-      <Tag color='blue' shape='circle' style={{ cursor: 'pointer' }}>
-        {items.length} {t('个模型')}
-      </Tag>
-    </Popover>
+    <Text type={total > 0 ? 'secondary' : 'tertiary'}>
+      {total > 0 ? total : t('不限')}
+    </Text>
   );
 };
 
@@ -359,9 +311,9 @@ export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
       render: (text, record) => renderPaymentConfig(text, record, t),
     },
     {
-      title: t('模型'),
+      title: t('总额度'),
       width: 100,
-      render: (text, record) => renderModels(text, record, t),
+      render: (text, record) => renderTotalAmount(text, record, t),
     },
     {
       title: t('操作'),

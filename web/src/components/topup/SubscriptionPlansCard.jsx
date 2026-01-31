@@ -33,7 +33,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../helpers';
 import { getCurrencyConfig, stringToColor } from '../../helpers/render';
-import { CalendarClock, Check, Crown, RefreshCw, Sparkles } from 'lucide-react';
+import { Crown, RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 
 const { Text } = Typography;
@@ -245,16 +245,10 @@ const SubscriptionPlansCard = ({
 
   // 计算单个订阅的使用进度
   const getUsagePercent = (sub) => {
-    const items = sub?.items || [];
-    if (items.length === 0) return 0;
-    let totalUsed = 0;
-    let totalAmount = 0;
-    items.forEach((it) => {
-      totalUsed += Number(it.amount_used || 0);
-      totalAmount += Number(it.amount_total || 0);
-    });
-    if (totalAmount === 0) return 0;
-    return Math.round((totalUsed / totalAmount) * 100);
+    const total = Number(sub?.subscription?.amount_total || 0);
+    const used = Number(sub?.subscription?.amount_used || 0);
+    if (total <= 0) return 0;
+    return Math.round((used / total) * 100);
   };
 
   return (
@@ -374,7 +368,12 @@ const SubscriptionPlansCard = ({
                   {allSubscriptions.map((sub, subIndex) => {
                     const isLast = subIndex === allSubscriptions.length - 1;
                     const subscription = sub.subscription;
-                    const items = sub.items || [];
+                    const totalAmount = Number(subscription?.amount_total || 0);
+                    const usedAmount = Number(subscription?.amount_used || 0);
+                    const remainAmount =
+                      totalAmount > 0
+                        ? Math.max(0, totalAmount - usedAmount)
+                        : 0;
                     const remainDays = getRemainingDays(sub);
                     const usagePercent = getUsagePercent(sub);
                     const now = Date.now() / 1000;
@@ -418,34 +417,17 @@ const SubscriptionPlansCard = ({
                             (subscription?.end_time || 0) * 1000,
                           ).toLocaleString()}
                         </div>
-                        {/* 权益列表 */}
-                        {items.length > 0 && (
-                          <div className='flex flex-wrap gap-1'>
-                            {items.slice(0, 4).map((it) => {
-                              const used = Number(it.amount_used || 0);
-                              const total = Number(it.amount_total || 0);
-                              const remain = total - used;
-                              const label = it.quota_type === 1 ? t('次') : '';
-
-                              return (
-                                <Tag
-                                  key={`${it.id}-${it.model_name}`}
-                                  size='small'
-                                  color='white'
-                                  shape='circle'
-                                >
-                                  {it.model_name}: {remain}
-                                  {label}
-                                </Tag>
-                              );
-                            })}
-                            {items.length > 4 && (
-                              <Tag size='small' color='white' shape='circle'>
-                                +{items.length - 4}
-                              </Tag>
-                            )}
-                          </div>
-                        )}
+                        <div className='text-xs text-gray-500 mb-2'>
+                          {t('总额度')}:{' '}
+                          {totalAmount > 0
+                            ? `${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`
+                            : t('不限')}
+                          {totalAmount > 0 && (
+                            <span className='ml-2'>
+                              {t('已用')} {usagePercent}%
+                            </span>
+                          )}
+                        </div>
                         {!isLast && <Divider margin={12} />}
                       </div>
                     );
@@ -464,7 +446,7 @@ const SubscriptionPlansCard = ({
             <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
               {plans.map((p, index) => {
                 const plan = p?.plan;
-                const planItems = p?.items || [];
+                const totalAmount = Number(plan?.total_amount || 0);
                 const { symbol, rate } = getCurrencyConfig();
                 const price = Number(plan?.price_amount || 0);
                 const displayPrice = (price * rate).toFixed(
@@ -474,10 +456,14 @@ const SubscriptionPlansCard = ({
                 const limit = Number(plan?.max_purchase_per_user || 0);
                 const limitLabel =
                   limit > 0 ? `${t('限购')} ${limit}` : t('不限购');
+                const totalLabel =
+                  totalAmount > 0
+                    ? `${t('总额度')}: ${totalAmount}`
+                    : `${t('总额度')}: ${t('不限')}`;
                 const planTags = [
                   `${t('有效期')}: ${formatDuration(plan, t)}`,
                   `${t('重置')}: ${formatResetPeriod(plan, t)}`,
-                  `${t('权益')}: ${planItems.length} ${t('项')}`,
+                  totalLabel,
                   limitLabel,
                 ];
 
@@ -547,35 +533,6 @@ const SubscriptionPlansCard = ({
                       </div>
 
                       <Divider margin={12} />
-
-                      {/* 权益列表 */}
-                      <div className='space-y-2 mb-4'>
-                        {planItems.slice(0, 5).map((it, idx) => (
-                          <div key={idx} className='flex items-center text-sm'>
-                            <Check
-                              size={14}
-                              className='text-green-500 mr-2 flex-shrink-0'
-                            />
-                            <span className='truncate flex-1'>
-                              {it.model_name}
-                            </span>
-                            <Tag size='small' color='white' shape='circle'>
-                              {it.amount_total}
-                              {it.quota_type === 1 ? t('次') : ''}
-                            </Tag>
-                          </div>
-                        ))}
-                        {planItems.length > 5 && (
-                          <div className='text-xs text-gray-400 text-center'>
-                            +{planItems.length - 5} {t('项更多权益')}
-                          </div>
-                        )}
-                        {planItems.length === 0 && (
-                          <div className='text-xs text-gray-400 text-center py-2'>
-                            {t('暂无权益配置')}
-                          </div>
-                        )}
-                      </div>
 
                       {/* 购买按钮 */}
                       {(() => {

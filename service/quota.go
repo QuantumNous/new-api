@@ -505,16 +505,15 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 
 	// 1) Consume from wallet quota OR subscription item
 	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
-		// For subscription: quotaType=0 uses quota units delta; quotaType=1 uses fixed 0 delta (pre-consumed 1 on request begin)
-		if relayInfo.SubscriptionQuotaType == 0 {
-			if relayInfo.SubscriptionItemId == 0 {
-				return errors.New("subscription item id is missing")
-			}
-			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionItemId, int64(quota)); err != nil {
+		if relayInfo.SubscriptionId == 0 {
+			return errors.New("subscription id is missing")
+		}
+		delta := int64(quota) - relayInfo.SubscriptionPreConsumed
+		if delta != 0 {
+			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
 				return err
 			}
-			// Track delta for logging/UI (net consumed = preConsumed + postDelta)
-			relayInfo.SubscriptionPostDelta += int64(quota)
+			relayInfo.SubscriptionPostDelta += delta
 		}
 	} else {
 		// Wallet

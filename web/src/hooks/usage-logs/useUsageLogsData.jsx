@@ -517,14 +517,11 @@ export const useLogsData = () => {
       if (other?.billing_source === 'subscription') {
         const planId = other?.subscription_plan_id;
         const planTitle = other?.subscription_plan_title || '';
-        const itemId = other?.subscription_item_id;
-        const quotaType = other?.subscription_quota_type;
-        const unit = quotaType === 1 ? t('次') : t('额度');
+        const subscriptionId = other?.subscription_id;
+        const unit = t('额度');
         const pre = other?.subscription_pre_consumed ?? 0;
         const postDelta = other?.subscription_post_delta ?? 0;
-        const finalConsumed =
-          other?.subscription_consumed ??
-          (quotaType === 1 ? 1 : pre + postDelta);
+        const finalConsumed = other?.subscription_consumed ?? pre + postDelta;
         const remain = other?.subscription_remain;
         const total = other?.subscription_total;
         // Use multiple Description items to avoid an overlong single line.
@@ -534,20 +531,15 @@ export const useLogsData = () => {
             value: `#${planId} ${planTitle}`.trim(),
           });
         }
-        if (itemId) {
+        if (subscriptionId) {
           expandDataLocal.push({
-            key: t('订阅权益'),
-            value:
-              quotaType === 1
-                ? `${t('权益ID')} ${itemId} · ${t('按次')}（1 ${t('次')}/${t('请求')}）`
-                : `${t('权益ID')} ${itemId} · ${t('按量')}`,
+            key: t('订阅实例'),
+            value: `#${subscriptionId}`,
           });
         }
         const settlementLines = [
           `${t('预扣')}：${pre} ${unit}`,
-          quotaType === 0
-            ? `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${postDelta} ${unit}`
-            : null,
+          `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${postDelta} ${unit}`,
           `${t('最终抵扣')}：${finalConsumed} ${unit}`,
         ]
           .filter(Boolean)

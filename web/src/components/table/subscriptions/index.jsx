@@ -41,7 +41,6 @@ const SubscriptionsPage = () => {
     openCreate,
     compactMode,
     setCompactMode,
-    pricingModels,
     t,
   } = subscriptionsData;
 
@@ -52,7 +51,6 @@ const SubscriptionsPage = () => {
         handleClose={closeEdit}
         editingPlan={editingPlan}
         placement={sheetPlacement}
-        pricingModels={pricingModels}
         refresh={refresh}
         t={t}
       />

@@ -53,7 +53,7 @@ func runSubscriptionQuotaResetOnce() {
 	ctx := context.Background()
 	totalReset := 0
 	for {
-		n, err := model.ResetDueSubscriptionItems(subscriptionResetBatchSize)
+		n, err := model.ResetDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("subscription quota reset task failed: %v", err))
 			return

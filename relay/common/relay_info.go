@@ -117,14 +117,11 @@ type RelayInfo struct {
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
-	// SubscriptionItemId is the user_subscription_items.id used when BillingSource == "subscription"
-	SubscriptionItemId int
-	// SubscriptionQuotaType is the plan item quota type: 0=quota units, 1=request count
-	SubscriptionQuotaType int
+	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
+	SubscriptionId int
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
 	SubscriptionPreConsumed int64
 	// SubscriptionPostDelta is the post-consume delta applied to amount_used (quota units; can be negative).
-	// Only meaningful when SubscriptionQuotaType == 0.
 	SubscriptionPostDelta int64
 	// SubscriptionPlanId / SubscriptionPlanTitle are used for logging/UI display.
 	SubscriptionPlanId    int

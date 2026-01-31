@@ -17,7 +17,7 @@ import (
 
 func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	// Always refund subscription pre-consumed (can be non-zero even when FinalPreConsumedQuota is 0)
-	needRefundSub := relayInfo.BillingSource == BillingSourceSubscription && relayInfo.SubscriptionItemId != 0 && relayInfo.SubscriptionPreConsumed > 0
+	needRefundSub := relayInfo.BillingSource == BillingSourceSubscription && relayInfo.SubscriptionId != 0 && relayInfo.SubscriptionPreConsumed > 0
 	needRefundToken := relayInfo.FinalPreConsumedQuota != 0
 	if !needRefundSub && !needRefundToken {
 		return

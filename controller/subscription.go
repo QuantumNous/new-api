@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -14,8 +13,7 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan  model.SubscriptionPlan       `json:"plan"`
-	Items []model.SubscriptionPlanItem `json:"items"`
+	Plan model.SubscriptionPlan `json:"plan"`
 }
 
 type BillingPreferenceRequest struct {
@@ -32,10 +30,8 @@ func GetSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
-		items, _ := model.GetSubscriptionPlanItems(p.Id)
 		result = append(result, SubscriptionPlanDTO{
-			Plan:  p,
-			Items: items,
+			Plan: p,
 		})
 	}
 	common.ApiSuccess(c, result)
@@ -99,18 +95,15 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
-		items, _ := model.GetSubscriptionPlanItems(p.Id)
 		result = append(result, SubscriptionPlanDTO{
-			Plan:  p,
-			Items: items,
+			Plan: p,
 		})
 	}
 	common.ApiSuccess(c, result)
 }
 
 type AdminUpsertSubscriptionPlanRequest struct {
-	Plan  model.SubscriptionPlan       `json:"plan"`
-	Items []model.SubscriptionPlanItem `json:"items"`
+	Plan model.SubscriptionPlan `json:"plan"`
 }
 
 func AdminCreateSubscriptionPlan(c *gin.Context) {
@@ -138,39 +131,16 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.TotalAmount < 0 {
+		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-
-	if len(req.Items) == 0 {
-		common.ApiErrorMsg(c, "套餐至少需要配置一个模型权益")
-		return
-	}
-
-	db := model.DB
-	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&req.Plan).Error; err != nil {
-			return err
-		}
-		items := make([]model.SubscriptionPlanItem, 0, len(req.Items))
-		for _, it := range req.Items {
-			if strings.TrimSpace(it.ModelName) == "" {
-				continue
-			}
-			if it.AmountTotal <= 0 {
-				continue
-			}
-			it.Id = 0
-			it.PlanId = req.Plan.Id
-			items = append(items, it)
-		}
-		if len(items) == 0 {
-			return errors.New("无有效的模型权益配置")
-		}
-		return tx.Create(&items).Error
-	})
+	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -209,14 +179,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "购买上限不能为负数")
 		return
 	}
+	if req.Plan.TotalAmount < 0 {
+		common.ApiErrorMsg(c, "总额度不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
-		return
-	}
-
-	if len(req.Items) == 0 {
-		common.ApiErrorMsg(c, "套餐至少需要配置一个模型权益")
 		return
 	}
 
@@ -235,31 +204,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"stripe_price_id":       req.Plan.StripePriceId,
 			"creem_product_id":      req.Plan.CreemProductId,
 			"max_purchase_per_user": req.Plan.MaxPurchasePerUser,
+			"total_amount":          req.Plan.TotalAmount,
 			"updated_at":            common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
 		}
-		// replace items
-		if err := tx.Where("plan_id = ?", id).Delete(&model.SubscriptionPlanItem{}).Error; err != nil {
-			return err
-		}
-		items := make([]model.SubscriptionPlanItem, 0, len(req.Items))
-		for _, it := range req.Items {
-			if strings.TrimSpace(it.ModelName) == "" {
-				continue
-			}
-			if it.AmountTotal <= 0 {
-				continue
-			}
-			it.Id = 0
-			it.PlanId = id
-			items = append(items, it)
-		}
-		if len(items) == 0 {
-			return errors.New("无有效的模型权益配置")
-		}
-		return tx.Create(&items).Error
+		return nil
 	})
 	if err != nil {
 		common.ApiError(c, err)

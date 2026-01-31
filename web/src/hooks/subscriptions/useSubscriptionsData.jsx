@@ -29,7 +29,6 @@ export const useSubscriptionsData = () => {
   // State management
   const [allPlans, setAllPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pricingModels, setPricingModels] = useState([]);
 
   // Pagination (client-side for now)
   const [activePage, setActivePage] = useState(1);
@@ -39,18 +38,6 @@ export const useSubscriptionsData = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [sheetPlacement, setSheetPlacement] = useState('left'); // 'left' | 'right'
-
-  // Load pricing models for dropdown
-  const loadModels = async () => {
-    try {
-      const res = await API.get('/api/pricing');
-      if (res.data?.success) {
-        setPricingModels(res.data.data || []);
-      }
-    } catch (e) {
-      setPricingModels([]);
-    }
-  };
 
   // Load subscription plans
   const loadPlans = async () => {
@@ -133,7 +120,6 @@ export const useSubscriptionsData = () => {
 
   // Initialize data on component mount
   useEffect(() => {
-    loadModels();
     loadPlans();
   }, []);
 
@@ -148,7 +134,6 @@ export const useSubscriptionsData = () => {
     plans,
     planCount,
     loading,
-    pricingModels,
 
     // Modal state
     showEdit,
