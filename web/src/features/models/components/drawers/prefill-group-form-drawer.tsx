@@ -351,7 +351,7 @@ export function PrefillGroupFormDrawer({
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
             {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isSaving ? 'Saving...' : isEdit ? 'Save changes' : 'Create'}
+            {isSaving ? t('Saving...') : isEdit ? t('Save changes') : t('Create')}
           </Button>
         </SheetFooter>
       </SheetContent>

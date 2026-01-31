@@ -279,7 +279,7 @@ export function ChannelTestDialog({
           if (!result || result.status === 'idle') {
             return (
               <StatusBadge
-                label='Not tested'
+                label={t('Not tested')}
                 variant='neutral'
                 copyable={false}
               />
@@ -305,7 +305,7 @@ export function ChannelTestDialog({
                 />
                 {typeof result.responseTime === 'number' && (
                   <span className='text-muted-foreground'>
-                    {formatResponseTime(result.responseTime)}
+                    {formatResponseTime(result.responseTime, t)}
                   </span>
                 )}
               </div>

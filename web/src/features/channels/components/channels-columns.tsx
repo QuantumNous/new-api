@@ -811,7 +811,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
         return (
           <StatusBadge
-            label={formatResponseTime(responseTime)}
+            label={formatResponseTime(responseTime, t)}
             variant={config.variant}
             size='sm'
             copyable={false}
@@ -833,7 +833,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
 
         // For invalid timestamps, show "Never" badge
         if (!testTime || testTime === 0) {
-          return <Badge variant='outline'>Never</Badge>
+          return <span className='text-muted-foreground text-xs'>-</span>
         }
 
         const timeText = formatRelativeTime(testTime)

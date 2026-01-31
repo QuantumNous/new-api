@@ -586,8 +586,10 @@ export function UpstreamConflictDialog({
                           <ChevronLeft className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
                         </Button>
                         <span className='text-xs font-medium'>
-                          {t('Page')} {currentPageDisplay} {t('of')}{' '}
-                          {totalPagesDisplay}
+                          {t('Page {{current}} of {{total}}', {
+                            current: currentPageDisplay,
+                            total: totalPagesDisplay,
+                          })}
                         </span>
                         <Button
                           variant='outline'

@@ -263,7 +263,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Badge variant='secondary' className='cursor-help text-xs'>
-                  {t('Invited:')} {affCount}
+                  {t('Invited')}: {affCount}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
@@ -273,7 +273,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Badge variant='secondary' className='cursor-help text-xs'>
-                  Revenue: {formatQuota(affHistoryQuota)}
+                  {t('Revenue')}: {formatQuota(affHistoryQuota)}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
@@ -284,7 +284,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge variant='outline' className='cursor-help text-xs'>
-                    Inviter: {inviterId}
+                    {t('Inviter')}: {inviterId}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -296,7 +296,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             )}
             {inviterId === 0 && (
               <Badge variant='outline' className='text-xs'>
-                No Inviter
+                {t('No Inviter')}
               </Badge>
             )}
           </div>

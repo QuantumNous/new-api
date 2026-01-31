@@ -369,7 +369,7 @@ export function MultiKeyManageDialog({
             {totalPages > 1 && (
               <div className='flex shrink-0 items-center justify-between'>
                 <div className='text-muted-foreground text-sm'>
-                  {t('Page')} {currentPage} {t('of')} {totalPages}
+                  {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
                 </div>
                 <div className='flex gap-2'>
                   <Button

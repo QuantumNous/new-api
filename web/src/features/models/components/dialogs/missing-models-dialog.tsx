@@ -183,7 +183,7 @@ export function MissingModelsDialog({
 
                 <div className='bg-muted/40 flex items-center justify-between border-t px-3 py-2 text-sm'>
                   <div className='text-muted-foreground text-sm'>
-                    {t('Page')} {currentPage} {t('of')} {totalPages}
+                    {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
                   </div>
                   {showPagination && (
                     <div className='flex items-center gap-2'>

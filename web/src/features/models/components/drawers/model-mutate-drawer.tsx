@@ -1229,7 +1229,7 @@ export function ModelMutateDrawer({
           </SheetClose>
           <Button form='model-form' type='submit' disabled={isSubmitting}>
             {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isEditing ? 'Update Model' : 'Save changes'}
+            {isEditing ? t('Update Model') : t('Save changes')}
           </Button>
         </SheetFooter>
       </SheetContent>

@@ -38,7 +38,7 @@ export function DataTablePagination<TData>({
     >
       <div className='flex w-full items-center justify-between'>
         <div className='flex min-w-[130px] items-center text-sm font-medium @2xl/content:hidden whitespace-nowrap'>
-          {t('Page')} {currentPage} {t('of')} {totalPages}
+          {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
         </div>
         <div className='flex items-center gap-2 @max-2xl/content:flex-row-reverse'>
           <Select
@@ -66,7 +66,7 @@ export function DataTablePagination<TData>({
 
       <div className='flex items-center sm:space-x-6 lg:space-x-8'>
         <div className='flex min-w-[130px] items-center text-sm font-medium @max-3xl/content:hidden whitespace-nowrap'>
-          {t('Page')} {currentPage} {t('of')} {totalPages}
+          {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
         </div>
         <div className='flex items-center space-x-2'>
           <Button

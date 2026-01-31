@@ -2677,7 +2677,7 @@ export function ChannelMutateDrawer({
               {isSubmitting && (
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               )}
-              {isEditing ? 'Update Channel' : 'Save changes'}
+              {isEditing ? t('Update Channel') : t('Save changes')}
             </Button>
           </SheetFooter>
         </SheetContent>
