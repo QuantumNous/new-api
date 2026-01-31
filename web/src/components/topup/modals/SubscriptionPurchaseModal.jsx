@@ -26,10 +26,12 @@ import {
   Button,
   Select,
   Divider,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
+import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
 
 const { Text } = Typography;
@@ -145,25 +147,45 @@ const SubscriptionPurchaseModal = ({
                   </Text>
                 </div>
               </div>
-              <div className='flex justify-between items-center'>
-                <Text strong className='text-slate-700 dark:text-slate-200'>
-                  {t('重置周期')}：
-                </Text>
-                <Text className='text-slate-900 dark:text-slate-100'>
-                  {formatResetPeriod(plan, t)}
-                </Text>
-              </div>
+              {formatResetPeriod(plan, t) !== t('不重置') && (
+                <div className='flex justify-between items-center'>
+                  <Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('重置周期')}：
+                  </Text>
+                  <Text className='text-slate-900 dark:text-slate-100'>
+                    {formatResetPeriod(plan, t)}
+                  </Text>
+                </div>
+              )}
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>
                   {t('总额度')}：
                 </Text>
                 <div className='flex items-center'>
                   <Package size={14} className='mr-1 text-slate-500' />
-                  <Text className='text-slate-900 dark:text-slate-100'>
-                    {totalAmount > 0 ? totalAmount : t('不限')}
-                  </Text>
+                  {totalAmount > 0 ? (
+                    <Tooltip content={`${t('原生额度')}：${totalAmount}`}>
+                      <Text className='text-slate-900 dark:text-slate-100'>
+                        {renderQuota(totalAmount)}
+                      </Text>
+                    </Tooltip>
+                  ) : (
+                    <Text className='text-slate-900 dark:text-slate-100'>
+                      {t('不限')}
+                    </Text>
+                  )}
                 </div>
               </div>
+              {plan?.upgrade_group ? (
+                <div className='flex justify-between items-center'>
+                  <Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('升级分组')}：
+                  </Text>
+                  <Text className='text-slate-900 dark:text-slate-100'>
+                    {plan.upgrade_group}
+                  </Text>
+                </div>
+              ) : null}
               <Divider margin={8} />
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>
