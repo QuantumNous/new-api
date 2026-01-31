@@ -179,7 +179,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         },
       );
       if (res.data?.success) {
-        showSuccess(t('新增成功'));
+        const msg = res.data?.data?.message;
+        showSuccess(msg ? msg : t('新增成功'));
         setSelectedPlanId(null);
         await loadUserSubscriptions();
         onSuccess?.();
@@ -204,7 +205,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             `/api/subscription/admin/user_subscriptions/${subId}/invalidate`,
           );
           if (res.data?.success) {
-            showSuccess(t('已作废'));
+            const msg = res.data?.data?.message;
+            showSuccess(msg ? msg : t('已作废'));
             await loadUserSubscriptions();
             onSuccess?.();
           } else {
@@ -229,7 +231,8 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             `/api/subscription/admin/user_subscriptions/${subId}`,
           );
           if (res.data?.success) {
-            showSuccess(t('已删除'));
+            const msg = res.data?.data?.message;
+            showSuccess(msg ? msg : t('已删除'));
             await loadUserSubscriptions();
             onSuccess?.();
           } else {

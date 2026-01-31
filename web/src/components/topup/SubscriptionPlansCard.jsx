@@ -31,8 +31,8 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess } from '../../helpers';
-import { getCurrencyConfig, stringToColor } from '../../helpers/render';
+import { API, showError, showSuccess, renderQuota } from '../../helpers';
+import { getCurrencyConfig } from '../../helpers/render';
 import { Crown, RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 
@@ -232,6 +232,16 @@ const SubscriptionPlansCard = ({
     return map;
   }, [allSubscriptions]);
 
+  const planTitleMap = useMemo(() => {
+    const map = new Map();
+    (plans || []).forEach((p) => {
+      const plan = p?.plan;
+      if (!plan?.id) return;
+      map.set(plan.id, plan.title || '');
+    });
+    return map;
+  }, [plans]);
+
   const getPlanPurchaseCount = (planId) =>
     planPurchaseCountMap.get(planId) || 0;
 
@@ -374,6 +384,8 @@ const SubscriptionPlansCard = ({
                       totalAmount > 0
                         ? Math.max(0, totalAmount - usedAmount)
                         : 0;
+                    const planTitle =
+                      planTitleMap.get(subscription?.plan_id) || '';
                     const remainDays = getRemainingDays(sub);
                     const usagePercent = getUsagePercent(sub);
                     const now = Date.now() / 1000;
@@ -387,7 +399,9 @@ const SubscriptionPlansCard = ({
                         <div className='flex items-center justify-between text-xs mb-2'>
                           <div className='flex items-center gap-2'>
                             <span className='font-medium'>
-                              {t('订阅')} #{subscription?.id}
+                              {planTitle
+                                ? `${planTitle} · ${t('订阅')} #${subscription?.id}`
+                                : `${t('订阅')} #${subscription?.id}`}
                             </span>
                             {isActive ? (
                               <Tag
@@ -418,9 +432,19 @@ const SubscriptionPlansCard = ({
                         </div>
                         <div className='text-xs text-gray-500 mb-2'>
                           {t('总额度')}:{' '}
-                          {totalAmount > 0
-                            ? `${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`
-                            : t('不限')}
+                          {totalAmount > 0 ? (
+                            <Tooltip
+                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                            >
+                              <span>
+                                {renderQuota(usedAmount)}/
+                                {renderQuota(totalAmount)} · {t('剩余')}{' '}
+                                {renderQuota(remainAmount)}
+                              </span>
+                            </Tooltip>
+                          ) : (
+                            t('不限')
+                          )}
                           {totalAmount > 0 && (
                             <span className='ml-2'>
                               {t('已用')} {usagePercent}%
@@ -453,18 +477,30 @@ const SubscriptionPlansCard = ({
                 );
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
-                const limitLabel =
-                  limit > 0 ? `${t('限购')} ${limit}` : t('不限购');
+                const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
                 const totalLabel =
                   totalAmount > 0
-                    ? `${t('总额度')}: ${totalAmount}`
+                    ? `${t('总额度')}: ${renderQuota(totalAmount)}`
                     : `${t('总额度')}: ${t('不限')}`;
-                const planTags = [
-                  `${t('有效期')}: ${formatDuration(plan, t)}`,
-                  `${t('重置')}: ${formatResetPeriod(plan, t)}`,
-                  totalLabel,
-                  limitLabel,
-                ];
+                const upgradeLabel = plan?.upgrade_group
+                  ? `${t('升级分组')}: ${plan.upgrade_group}`
+                  : null;
+                const resetLabel =
+                  formatResetPeriod(plan, t) === t('不重置')
+                    ? null
+                    : `${t('额度重置')}: ${formatResetPeriod(plan, t)}`;
+                const planBenefits = [
+                  { label: `${t('有效期')}: ${formatDuration(plan, t)}` },
+                  resetLabel ? { label: resetLabel } : null,
+                  totalAmount > 0
+                    ? {
+                        label: totalLabel,
+                        tooltip: `${t('原生额度')}：${totalAmount}`,
+                      }
+                    : { label: totalLabel },
+                  limitLabel ? { label: limitLabel } : null,
+                  upgradeLabel ? { label: upgradeLabel } : null,
+                ].filter(Boolean);
 
                 return (
                   <Card
@@ -517,18 +553,33 @@ const SubscriptionPlansCard = ({
                         </div>
                       </div>
 
-                      {/* 属性标签 */}
-                      <div className='flex flex-wrap justify-center gap-2 pb-2'>
-                        {planTags.map((tag) => (
-                          <Tag
-                            key={tag}
-                            size='small'
-                            shape='circle'
-                            color='white'
-                          >
-                            {tag}
-                          </Tag>
-                        ))}
+                      {/* 套餐权益描述 */}
+                      <div className='flex flex-col items-center gap-1 pb-2'>
+                        {planBenefits.map((item) => {
+                          const content = (
+                            <div className='flex items-center gap-2 text-xs text-gray-500'>
+                              <Badge dot type='tertiary' />
+                              <span>{item.label}</span>
+                            </div>
+                          );
+                          if (!item.tooltip) {
+                            return (
+                              <div
+                                key={item.label}
+                                className='w-full flex justify-center'
+                              >
+                                {content}
+                              </div>
+                            );
+                          }
+                          return (
+                            <Tooltip key={item.label} content={item.tooltip}>
+                              <div className='w-full flex justify-center'>
+                                {content}
+                              </div>
+                            </Tooltip>
+                          );
+                        })}
                       </div>
 
                       <Divider margin={12} />

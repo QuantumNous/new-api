@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Avatar,
   Button,
@@ -74,6 +74,8 @@ const AddEditSubscriptionModal = ({
   t,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [groupOptions, setGroupOptions] = useState([]);
+  const [groupLoading, setGroupLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
@@ -93,6 +95,7 @@ const AddEditSubscriptionModal = ({
     sort_order: 0,
     max_purchase_per_user: 0,
     total_amount: 0,
+    upgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -116,10 +119,26 @@ const AddEditSubscriptionModal = ({
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       total_amount: Number(p.total_amount || 0),
+      upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
   };
+
+  useEffect(() => {
+    if (!visible) return;
+    setGroupLoading(true);
+    API.get('/api/group')
+      .then((res) => {
+        if (res.data?.success) {
+          setGroupOptions(res.data?.data || []);
+        } else {
+          setGroupOptions([]);
+        }
+      })
+      .catch(() => setGroupOptions([]))
+      .finally(() => setGroupLoading(false));
+  }, [visible]);
 
   const submit = async (values) => {
     if (!values.title || values.title.trim() === '') {
@@ -143,6 +162,7 @@ const AddEditSubscriptionModal = ({
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: Number(values.total_amount || 0),
+          upgrade_group: values.upgrade_group || '',
         },
       };
       if (editingPlan?.plan?.id) {
@@ -257,6 +277,7 @@ const AddEditSubscriptionModal = ({
                         field='title'
                         label={t('套餐标题')}
                         placeholder={t('例如：基础套餐')}
+                        required
                         rules={[
                           { required: true, message: t('请输入套餐标题') },
                         ]}
@@ -277,6 +298,7 @@ const AddEditSubscriptionModal = ({
                       <Form.InputNumber
                         field='price_amount'
                         label={t('实付金额')}
+                        required
                         min={0}
                         precision={2}
                         rules={[{ required: true, message: t('请输入金额') }]}
@@ -288,6 +310,7 @@ const AddEditSubscriptionModal = ({
                       <Form.AutoComplete
                         field='total_amount'
                         label={t('总额度')}
+                        required
                         type='number'
                         rules={[{ required: true, message: t('请输入总额度') }]}
                         extraText={`${t('0 表示不限')} · ${renderQuotaWithPrompt(
@@ -303,6 +326,23 @@ const AddEditSubscriptionModal = ({
                         ]}
                         style={{ width: '100%' }}
                       />
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Select
+                        field='upgrade_group'
+                        label={t('升级分组')}
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('不升级')}
+                      >
+                        <Select.Option value=''>{t('不升级')}</Select.Option>
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
                     </Col>
 
                     <Col span={12}>
@@ -369,6 +409,7 @@ const AddEditSubscriptionModal = ({
                       <Form.Select
                         field='duration_unit'
                         label={t('有效期单位')}
+                        required
                         rules={[{ required: true }]}
                       >
                         {durationUnitOptions.map((o) => (
@@ -384,6 +425,7 @@ const AddEditSubscriptionModal = ({
                         <Form.InputNumber
                           field='custom_seconds'
                           label={t('自定义秒数')}
+                          required
                           min={0}
                           precision={0}
                           rules={[{ required: true, message: t('请输入秒数') }]}
@@ -393,6 +435,7 @@ const AddEditSubscriptionModal = ({
                         <Form.InputNumber
                           field='duration_value'
                           label={t('有效期数值')}
+                          required
                           min={1}
                           precision={0}
                           rules={[{ required: true, message: t('请输入数值') }]}
@@ -441,6 +484,7 @@ const AddEditSubscriptionModal = ({
                         <Form.InputNumber
                           field='quota_reset_custom_seconds'
                           label={t('自定义秒数')}
+                          required
                           min={60}
                           precision={0}
                           rules={[{ required: true, message: t('请输入秒数') }]}

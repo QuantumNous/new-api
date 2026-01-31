@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -135,6 +136,13 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
+	if req.Plan.UpgradeGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
+			common.ApiErrorMsg(c, "升级分组不存在")
+			return
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -183,6 +191,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
+	if req.Plan.UpgradeGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
+			common.ApiErrorMsg(c, "升级分组不存在")
+			return
+		}
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
@@ -205,6 +220,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":      req.Plan.CreemProductId,
 			"max_purchase_per_user": req.Plan.MaxPurchasePerUser,
 			"total_amount":          req.Plan.TotalAmount,
+			"upgrade_group":         req.Plan.UpgradeGroup,
 			"updated_at":            common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
@@ -254,8 +270,13 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	if err := model.AdminBindSubscription(req.UserId, req.PlanId, ""); err != nil {
+	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
+	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if msg != "" {
+		common.ApiSuccess(c, gin.H{"message": msg})
 		return
 	}
 	common.ApiSuccess(c, nil)
@@ -293,8 +314,13 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	if err := model.AdminBindSubscription(userId, req.PlanId, ""); err != nil {
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
+	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if msg != "" {
+		common.ApiSuccess(c, gin.H{"message": msg})
 		return
 	}
 	common.ApiSuccess(c, nil)
@@ -307,8 +333,13 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}
-	if err := model.AdminInvalidateUserSubscription(subId); err != nil {
+	msg, err := model.AdminInvalidateUserSubscription(subId)
+	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if msg != "" {
+		common.ApiSuccess(c, gin.H{"message": msg})
 		return
 	}
 	common.ApiSuccess(c, nil)
@@ -321,8 +352,13 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}
-	if err := model.AdminDeleteUserSubscription(subId); err != nil {
+	msg, err := model.AdminDeleteUserSubscription(subId)
+	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if msg != "" {
+		common.ApiSuccess(c, gin.H{"message": msg})
 		return
 	}
 	common.ApiSuccess(c, nil)

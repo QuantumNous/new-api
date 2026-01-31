@@ -82,6 +82,8 @@ const renderPlanTitle = (text, record, t) => {
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
         <Text>{plan?.total_amount > 0 ? plan.total_amount : t('不限')}</Text>
+        <Text type='tertiary'>{t('升级分组')}</Text>
+        <Text>{plan?.upgrade_group ? plan.upgrade_group : t('不升级')}</Text>
         <Text type='tertiary'>{t('购买上限')}</Text>
         <Text>
           {plan?.max_purchase_per_user > 0
@@ -164,6 +166,15 @@ const renderTotalAmount = (text, record, t) => {
   return (
     <Text type={total > 0 ? 'secondary' : 'tertiary'}>
       {total > 0 ? total : t('不限')}
+    </Text>
+  );
+};
+
+const renderUpgradeGroup = (text, record, t) => {
+  const group = record?.plan?.upgrade_group || '';
+  return (
+    <Text type={group ? 'secondary' : 'tertiary'}>
+      {group ? group : t('不升级')}
     </Text>
   );
 };
@@ -291,7 +302,7 @@ export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
     },
     {
       title: t('有效期'),
-      width: 80,
+      width: 100,
       render: (text, record) => renderDuration(text, record, t),
     },
     {
@@ -314,6 +325,11 @@ export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
       title: t('总额度'),
       width: 100,
       render: (text, record) => renderTotalAmount(text, record, t),
+    },
+    {
+      title: t('升级分组'),
+      width: 100,
+      render: (text, record) => renderUpgradeGroup(text, record, t),
     },
     {
       title: t('操作'),
