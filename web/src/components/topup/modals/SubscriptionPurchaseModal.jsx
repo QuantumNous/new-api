@@ -189,7 +189,7 @@ const SubscriptionPurchaseModal = ({
                   <Tag
                     key={idx}
                     size='small'
-                    color='blue'
+                    color='white'
                     type='light'
                     shape='circle'
                   >
@@ -199,7 +199,7 @@ const SubscriptionPurchaseModal = ({
                   </Tag>
                 ))}
                 {items.length > 6 && (
-                  <Tag size='small' color='grey' type='light' shape='circle'>
+                  <Tag size='small' color='white' type='light' shape='circle'>
                     +{items.length - 6}
                   </Tag>
                 )}
