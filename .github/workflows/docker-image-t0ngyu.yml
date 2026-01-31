@@ -3,7 +3,7 @@ name: Publish Docker image to Docker Hub (t0ngyu/new-api-sub)
 on:
   push:
     branches:
-      - main
+      - sub
   workflow_dispatch:
     inputs:
       name:
