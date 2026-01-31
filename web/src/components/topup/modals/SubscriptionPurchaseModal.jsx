@@ -31,6 +31,7 @@ import {
 import { Crown, CalendarClock, Package, Check } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
+import { getCurrencyConfig } from '../../../helpers/render';
 
 const { Text } = Typography;
 
@@ -70,12 +71,6 @@ function formatResetPeriod(plan, t) {
   return t('不重置');
 }
 
-// 获取货币符号
-function getCurrencySymbol(currency) {
-  const symbols = { USD: '$', EUR: '€', CNY: '¥', GBP: '£', JPY: '¥' };
-  return symbols[currency] || currency + ' ';
-}
-
 const SubscriptionPurchaseModal = ({
   t,
   visible,
@@ -94,8 +89,9 @@ const SubscriptionPurchaseModal = ({
 }) => {
   const plan = selectedPlan?.plan;
   const items = selectedPlan?.items || [];
-  const currency = plan ? getCurrencySymbol(plan.currency || 'USD') : '$';
+  const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
+  const displayPrice = (price * rate).toFixed(price % 1 === 0 ? 0 : 2);
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
@@ -170,8 +166,8 @@ const SubscriptionPurchaseModal = ({
                   {t('应付金额')}：
                 </Text>
                 <Text strong className='text-xl text-purple-600'>
-                  {currency}
-                  {price.toFixed(price % 1 === 0 ? 0 : 2)}
+                  {symbol}
+                  {displayPrice}
                 </Text>
               </div>
             </div>

@@ -35,6 +35,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
 
@@ -104,7 +105,10 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
 
   const planOptions = useMemo(() => {
     return (plans || []).map((p) => ({
-      label: `${p?.plan?.title || ''} (${p?.plan?.currency || 'USD'} ${Number(p?.plan?.price_amount || 0)})`,
+      label: `${p?.plan?.title || ''} (${convertUSDToCurrency(
+        Number(p?.plan?.price_amount || 0),
+        2,
+      )})`,
       value: p?.plan?.id,
     }));
   }, [plans]);

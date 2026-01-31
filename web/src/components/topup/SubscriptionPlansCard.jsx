@@ -30,6 +30,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../helpers';
+import { getCurrencyConfig } from '../../helpers/render';
 import { CalendarClock, Check, Crown, RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 
@@ -97,12 +98,6 @@ function submitEpayForm({ url, params }) {
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
-}
-
-// 获取货币符号
-function getCurrencySymbol(currency) {
-  const symbols = { USD: '$', EUR: '€', CNY: '¥', GBP: '£', JPY: '¥' };
-  return symbols[currency] || currency + ' ';
 }
 
 const SubscriptionPlansCard = ({
@@ -457,8 +452,11 @@ const SubscriptionPlansCard = ({
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const planItems = p?.items || [];
-                const currency = getCurrencySymbol(plan?.currency || 'USD');
+                const { symbol, rate } = getCurrencyConfig();
                 const price = Number(plan?.price_amount || 0);
+                const displayPrice = (price * rate).toFixed(
+                  price % 1 === 0 ? 0 : 2,
+                );
                 const isPopular = index === 0 && plans.length > 1;
 
                 return (
@@ -504,10 +502,10 @@ const SubscriptionPlansCard = ({
                       <div className='text-center py-2'>
                         <div className='flex items-baseline justify-center'>
                           <span className='text-xl font-bold text-purple-600'>
-                            {currency}
+                            {symbol}
                           </span>
                           <span className='text-3xl font-bold text-purple-600'>
-                            {price.toFixed(price % 1 === 0 ? 0 : 2)}
+                            {displayPrice}
                           </span>
                         </div>
                         <div className='text-sm text-gray-500 mt-1'>

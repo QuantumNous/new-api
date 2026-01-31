@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button, Modal, Space, Tag } from '@douyinfe/semi-ui';
+import { convertUSDToCurrency } from '../../helpers/render';
 
 const quotaTypeLabel = (quotaType) => (quotaType === 1 ? '按次' : '按量');
 
@@ -48,8 +49,8 @@ const renderPlanTitle = (text, record) => {
   );
 };
 
-const renderPrice = (text, record) => {
-  return `${record?.plan?.currency || 'USD'} ${Number(text || 0).toFixed(2)}`;
+const renderPrice = (text) => {
+  return convertUSDToCurrency(Number(text || 0), 2);
 };
 
 const renderDuration = (text, record, t) => {
