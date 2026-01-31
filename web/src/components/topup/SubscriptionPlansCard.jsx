@@ -406,8 +406,7 @@ const SubscriptionPlansCard = ({
                           </div>
                           {isActive && (
                             <span className='text-gray-500'>
-                              {t('剩余')} {remainDays} {t('天')} · {t('已用')}{' '}
-                              {usagePercent}%
+                              {t('剩余')} {remainDays} {t('天')}
                             </span>
                           )}
                         </div>
