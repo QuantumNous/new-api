@@ -73,7 +73,7 @@ function formatRatio(ratio) {
 
 function buildChannelAffinityTooltip(affinity, t) {
   if (!affinity) {
-    return '';
+    return null;
   }
 
   const keySource = affinity.key_source || '-';
@@ -81,12 +81,20 @@ function buildChannelAffinityTooltip(affinity, t) {
   const keyFp = affinity.key_fp ? `#${affinity.key_fp}` : '';
   const keyText = `${keySource}:${keyPath}${keyFp}`;
 
-  return [
+  const lines = [
     t('渠道亲和性'),
     `${t('规则')}：${affinity.rule_name || '-'}`,
     `${t('分组')}：${affinity.selected_group || '-'}`,
     `${t('Key')}：${keyText}`,
-  ].join(' · ');
+  ];
+
+  return (
+    <div style={{ lineHeight: 1.6, display: 'flex', flexDirection: 'column' }}>
+      {lines.map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+    </div>
+  );
 }
 
 // Render functions
