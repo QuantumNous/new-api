@@ -467,17 +467,10 @@ const EditTokenModal = (props) => {
                       <Space wrap>
                         <Button
                           theme='light'
-                          type='primary'
-                          onClick={() => setExpiredTime(0, 0, 0, 0)}
-                        >
-                          {t('永不过期')}
-                        </Button>
-                        <Button
-                          theme='light'
                           type='tertiary'
-                          onClick={() => setExpiredTime(1, 0, 0, 0)}
+                          onClick={() => setExpiredTime(0, 0, 1, 0)}
                         >
-                          {t('一个月')}
+                          {t('一小时')}
                         </Button>
                         <Button
                           theme='light'
@@ -489,9 +482,37 @@ const EditTokenModal = (props) => {
                         <Button
                           theme='light'
                           type='tertiary'
-                          onClick={() => setExpiredTime(0, 0, 1, 0)}
+                          onClick={() => setExpiredTime(0, 7, 0, 0)}
                         >
-                          {t('一小时')}
+                          {t('一周')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(1, 0, 0, 0)}
+                        >
+                          {t('一个月')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(2, 0, 0, 0)}
+                        >
+                          {t('两个月')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(3, 0, 0, 0)}
+                        >
+                          {t('三个月')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='primary'
+                          onClick={() => setExpiredTime(0, 0, 0, 0)}
+                        >
+                          {t('永不过期')}
                         </Button>
                       </Space>
                     </Form.Slot>
