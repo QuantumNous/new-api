@@ -472,16 +472,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		return nil, errors.Wrap(err, "unmarshal ali response failed")
 	}
 
-	openAIResp := dto.NewOpenAIVideo()
-	openAIResp.ID = task.TaskID
-	openAIResp.Status = convertAliStatus(aliResp.Output.TaskStatus)
-	openAIResp.Model = task.Properties.OriginModelName
-	openAIResp.SetProgressStr(task.Progress)
-	openAIResp.CreatedAt = task.CreatedAt
-	openAIResp.CompletedAt = task.UpdatedAt
-
-	// 设置视频URL（核心字段）
-	openAIResp.SetMetadata("url", aliResp.Output.VideoURL)
+	openAIResp := task.ToOpenAIVideo()
 
 	// 错误处理
 	if aliResp.Code != "" {
