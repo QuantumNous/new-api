@@ -146,7 +146,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 			task.FinishTime = now
 		}
 		if !(len(taskResult.Url) > 5 && taskResult.Url[:5] == "data:") {
-			task.FailReason = taskResult.Url
+			task.Url = taskResult.Url
 		}
 
 		// 如果返回了 total_tokens 并且配置了模型倍率(非固定价格),则重新计费
