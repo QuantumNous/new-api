@@ -153,7 +153,12 @@ const normalizeKeySource = (src) => {
   const type = (src?.type || '').trim();
   const key = (src?.key || '').trim();
   const path = (src?.path || '').trim();
-  return { type, key, path };
+
+  if (type === 'gjson') {
+    return { type, key: '', path };
+  }
+
+  return { type, key, path: '' };
 };
 
 const makeUniqueName = (existingNames, baseName) => {
