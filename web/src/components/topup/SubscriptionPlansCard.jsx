@@ -359,7 +359,8 @@ const SubscriptionPlansCard = ({
               </div>
               <Button
                 size='small'
-                theme='borderless'
+                theme='light'
+                type='tertiary'
                 icon={
                   <RefreshCw
                     size={12}

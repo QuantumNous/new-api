@@ -39,12 +39,11 @@ import {
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
+import { API, showError, showSuccess } from '../../../../helpers';
 import {
-  API,
-  showError,
-  showSuccess,
-  renderQuotaWithPrompt,
-} from '../../../../helpers';
+  quotaToDisplayAmount,
+  displayAmountToQuota,
+} from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
@@ -118,7 +117,9 @@ const AddEditSubscriptionModal = ({
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
-      total_amount: Number(p.total_amount || 0),
+      total_amount: Number(
+        quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
+      ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
@@ -161,7 +162,7 @@ const AddEditSubscriptionModal = ({
               : 0,
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
-          total_amount: Number(values.total_amount || 0),
+          total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
         },
       };
@@ -307,23 +308,16 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
-                      <Form.AutoComplete
+                      <Form.InputNumber
                         field='total_amount'
                         label={t('总额度')}
                         required
-                        type='number'
+                        min={0}
+                        precision={2}
                         rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${renderQuotaWithPrompt(
-                          Number(values.total_amount || 0),
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.total_amount,
                         )}`}
-                        data={[
-                          { value: 500000, label: '1' },
-                          { value: 5000000, label: '10' },
-                          { value: 25000000, label: '50' },
-                          { value: 50000000, label: '100' },
-                          { value: 250000000, label: '500' },
-                          { value: 500000000, label: '1000' },
-                        ]}
                         style={{ width: '100%' }}
                       />
                     </Col>

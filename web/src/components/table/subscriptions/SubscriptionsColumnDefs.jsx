@@ -27,8 +27,9 @@ import {
   Popover,
   Divider,
   Badge,
+  Tooltip,
 } from '@douyinfe/semi-ui';
-import { IconEdit, IconStop, IconPlay } from '@douyinfe/semi-icons';
+import { renderQuota } from '../../../helpers';
 import { convertUSDToCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
@@ -81,7 +82,13 @@ const renderPlanTitle = (text, record, t) => {
           {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
-        <Text>{plan?.total_amount > 0 ? plan.total_amount : t('不限')}</Text>
+        {plan?.total_amount > 0 ? (
+          <Tooltip content={`${t('原生额度')}：${plan.total_amount}`}>
+            <Text>{renderQuota(plan.total_amount)}</Text>
+          </Tooltip>
+        ) : (
+          <Text>{t('不限')}</Text>
+        )}
         <Text type='tertiary'>{t('升级分组')}</Text>
         <Text>{plan?.upgrade_group ? plan.upgrade_group : t('不升级')}</Text>
         <Text type='tertiary'>{t('购买上限')}</Text>
@@ -165,7 +172,13 @@ const renderTotalAmount = (text, record, t) => {
   const total = Number(record?.plan?.total_amount || 0);
   return (
     <Text type={total > 0 ? 'secondary' : 'tertiary'}>
-      {total > 0 ? total : t('不限')}
+      {total > 0 ? (
+        <Tooltip content={`${t('原生额度')}：${total}`}>
+          <span>{renderQuota(total)}</span>
+        </Tooltip>
+      ) : (
+        t('不限')
+      )}
     </Text>
   );
 };
@@ -236,30 +249,22 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
   return (
     <Space spacing={8}>
       <Button
-        theme='borderless'
+        theme='light'
         type='tertiary'
         size='small'
-        icon={<IconEdit />}
         onClick={() => openEdit(record)}
       >
         {t('编辑')}
       </Button>
       {isEnabled ? (
-        <Button
-          theme='borderless'
-          type='danger'
-          size='small'
-          icon={<IconStop />}
-          onClick={handleToggle}
-        >
+        <Button theme='light' type='danger' size='small' onClick={handleToggle}>
           {t('禁用')}
         </Button>
       ) : (
         <Button
-          theme='borderless'
+          theme='light'
           type='primary'
           size='small'
-          icon={<IconPlay />}
           onClick={handleToggle}
         >
           {t('启用')}

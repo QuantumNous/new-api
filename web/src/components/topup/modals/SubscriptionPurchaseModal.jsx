@@ -115,7 +115,6 @@ const SubscriptionPurchaseModal = ({
       visible={visible}
       onCancel={onCancel}
       footer={null}
-      maskClosable={false}
       size='small'
       centered
     >
