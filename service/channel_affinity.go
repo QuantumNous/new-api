@@ -21,6 +21,7 @@ const (
 	ginKeyChannelAffinityTTLSeconds = "channel_affinity_ttl_seconds"
 	ginKeyChannelAffinityMeta       = "channel_affinity_meta"
 	ginKeyChannelAffinityLogInfo    = "channel_affinity_log_info"
+	ginKeyChannelAffinitySkipRetry  = "channel_affinity_skip_retry_on_failure"
 
 	channelAffinityCacheNamespace = "new-api:channel_affinity:v1"
 )
@@ -36,6 +37,7 @@ type channelAffinityMeta struct {
 	CacheKey       string
 	TTLSeconds     int
 	RuleName       string
+	SkipRetry      bool
 	KeySourceType  string
 	KeySourceKey   string
 	KeySourcePath  string
@@ -399,6 +401,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 			CacheKey:       cacheKeyFull,
 			TTLSeconds:     ttlSeconds,
 			RuleName:       rule.Name,
+			SkipRetry:      rule.SkipRetryOnFailure,
 			KeySourceType:  strings.TrimSpace(usedSource.Type),
 			KeySourceKey:   strings.TrimSpace(usedSource.Key),
 			KeySourcePath:  strings.TrimSpace(usedSource.Path),
@@ -422,6 +425,21 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 	return 0, false
 }
 
+func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	v, ok := c.Get(ginKeyChannelAffinitySkipRetry)
+	if !ok {
+		return false
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false
+	}
+	return b
+}
+
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {
 	if c == nil || channelID <= 0 {
 		return
@@ -430,6 +448,7 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 	if !ok {
 		return
 	}
+	c.Set(ginKeyChannelAffinitySkipRetry, meta.SkipRetry)
 	info := map[string]interface{}{
 		"reason":         meta.RuleName,
 		"rule_name":      meta.RuleName,
