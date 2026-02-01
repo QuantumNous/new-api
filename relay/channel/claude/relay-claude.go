@@ -356,9 +356,10 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 					claudeMediaMessage := dto.ClaudeMediaMessage{
 						Type: mediaMessage.Type,
 					}
-					if mediaMessage.Type == "text" {
+					switch mediaMessage.Type {
+					case dto.ContentTypeText:
 						claudeMediaMessage.Text = common.GetPointer[string](mediaMessage.Text)
-					} else {
+					case dto.ContentTypeImageURL:
 						imageUrl := mediaMessage.GetImageMedia()
 						claudeMediaMessage.Type = "image"
 						claudeMediaMessage.Source = &dto.ClaudeMessageSource{
@@ -381,6 +382,26 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							claudeMediaMessage.Source.MediaType = "image/" + format
 							claudeMediaMessage.Source.Data = base64String
 						}
+						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
+					case dto.ContentTypeFile:
+						file := mediaMessage.GetFile()
+						if file == nil {
+							return nil, fmt.Errorf("file content is missing data")
+						}
+						mimeType, base64String, err := service.DecodeBase64FileData(file.FileData)
+						if err != nil {
+							return nil, fmt.Errorf("decode file data failed: %w", err)
+						}
+						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+							Type: "document",
+							Source: &dto.ClaudeMessageSource{
+								Type:      "base64",
+								MediaType: mimeType,
+								Data:      base64String,
+							},
+						})
+					default:
+						return nil, fmt.Errorf("unsupported content type '%s' for Claude", mediaMessage.Type)
 					}
 					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
 				}
