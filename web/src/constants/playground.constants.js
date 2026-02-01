@@ -74,10 +74,11 @@ export const DEBUG_TABS = {
 };
 
 // ========== API 相关常量 ==========
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
 export const API_ENDPOINTS = {
-  CHAT_COMPLETIONS: '/pg/chat/completions',
-  USER_MODELS: '/api/user/models',
-  USER_GROUPS: '/api/user/self/groups',
+  CHAT_COMPLETIONS: `${BASE_PATH}/pg/chat/completions`,
+  USER_MODELS: `${BASE_PATH}/api/user/models`,
+  USER_GROUPS: `${BASE_PATH}/api/user/self/groups`,
 };
 
 // ========== 配置默认值 ==========

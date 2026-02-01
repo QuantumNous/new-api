@@ -28,6 +28,8 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
+
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -432,7 +434,7 @@ const TopUp = () => {
     const res = await API.get('/api/user/aff');
     const { success, message, data } = res.data;
     if (success) {
-      let link = `${window.location.origin}/register?aff=${data}`;
+      let link = `${window.location.origin}${BASE_PATH}/register?aff=${data}`;
       setAffLink(link);
     } else {
       showError(message);
