@@ -33,9 +33,7 @@ func validUserInfo(username string, role int) bool {
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
-	role := session.Get("role")
 	id := session.Get("id")
-	status := session.Get("status")
 	useAccessToken := false
 	if username == nil {
 		// Check access token
@@ -60,9 +58,7 @@ func authHelper(c *gin.Context, minRole int) {
 			}
 			// Token is valid
 			username = user.Username
-			role = user.Role
 			id = user.Id
-			status = user.Status
 			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
@@ -101,7 +97,18 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if status.(int) == common.UserStatusDisabled {
+
+	userCache, err := model.GetUserCache(id.(int))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		c.Abort()
+		return
+	}
+
+	if userCache.Status == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户已被封禁",
@@ -109,7 +116,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	if userCache.Role < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，权限不足",
@@ -117,7 +124,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(userCache.Username, userCache.Role) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，用户信息无效",
@@ -125,11 +132,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	c.Set("username", username)
-	c.Set("role", role)
-	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	userCache.WriteContext(c)
 	c.Set("use_access_token", useAccessToken)
 
 	//userCache, err := model.GetUserCache(id.(int))
