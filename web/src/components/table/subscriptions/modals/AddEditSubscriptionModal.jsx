@@ -329,6 +329,9 @@ const AddEditSubscriptionModal = ({
                         showClear
                         loading={groupLoading}
                         placeholder={t('不升级')}
+                        extraText={t(
+                          '购买或手动新增订阅会升级到该分组；当套餐失效/过期或手动作废/删除后，将回退到升级前分组。回退不会立即生效，通常会有几分钟延迟。',
+                        )}
                       >
                         <Select.Option value=''>{t('不升级')}</Select.Option>
                         {(groupOptions || []).map((g) => (
