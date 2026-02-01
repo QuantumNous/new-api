@@ -71,6 +71,24 @@ function formatRatio(ratio) {
   return String(ratio);
 }
 
+function buildChannelAffinityTooltip(affinity, t) {
+  if (!affinity) {
+    return '';
+  }
+
+  const keySource = affinity.key_source || '-';
+  const keyPath = affinity.key_path || affinity.key_key || '-';
+  const keyFp = affinity.key_fp ? `#${affinity.key_fp}` : '';
+  const keyText = `${keySource}:${keyPath}${keyFp}`;
+
+  return [
+    t('渠道亲和性'),
+    `${t('规则')}：${affinity.rule_name || '-'}`,
+    `${t('分组')}：${affinity.selected_group || '-'}`,
+    `${t('Key')}：${keyText}`,
+  ].join(' · ');
+}
+
 // Render functions
 function renderType(type, t) {
   switch (type) {
@@ -532,42 +550,21 @@ export const getLogsColumns = ({
         return isAdminUser ? (
           <Space>
             <div>{content}</div>
-	            {affinity ? (
-	              <Tooltip
-	                content={
-	                  <div style={{ lineHeight: 1.6 }}>
-	                    <Typography.Text strong>{t('渠道亲和性')}</Typography.Text>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('规则')}：{affinity.rule_name || '-'}
-	                      </Typography.Text>
-	                    </div>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('分组')}：{affinity.selected_group || '-'}
-	                      </Typography.Text>
-	                    </div>
-	                    <div>
-	                      <Typography.Text type='secondary'>
-	                        {t('Key')}：
-	                        {(affinity.key_source || '-') +
-	                          ':' +
-	                          (affinity.key_path || affinity.key_key || '-') +
-                          (affinity.key_fp ? `#${affinity.key_fp}` : '')}
-                      </Typography.Text>
-                    </div>
-	                  </div>
-	                }
-	              >
-	                <span>
-	                  <Tag className='channel-affinity-tag' color='cyan' shape='circle'>
-	                    <span className='channel-affinity-tag-content'>
-	                      <IconStarStroked style={{ fontSize: 13 }} />
-	                      {t('优选')}
-	                    </span>
-	                  </Tag>
-	                </span>
-	              </Tooltip>
+            {affinity ? (
+              <Tooltip content={buildChannelAffinityTooltip(affinity, t)}>
+                <span>
+                  <Tag
+                    className='channel-affinity-tag'
+                    color='cyan'
+                    shape='circle'
+                  >
+                    <span className='channel-affinity-tag-content'>
+                      <IconStarStroked style={{ fontSize: 13 }} />
+                      {t('优选')}
+                    </span>
+                  </Tag>
+                </span>
+              </Tooltip>
             ) : null}
           </Space>
         ) : (
