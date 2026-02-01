@@ -77,18 +77,28 @@ const EditTokenModal = (props) => {
     group: '',
     cross_group_retry: false,
     tokenCount: 1,
-    // 新增字段
-    validity_type: 'forever', // forever, custom
-    duration_value: 30,
-    duration_unit: 'd', // h, d
-    activation_type: 'immediate', // immediate, first_use
+    is_sleep_mode: false, // 新增睡眠模式字段
   });
 
   const handleCancel = () => {
     props.handleClose();
   };
 
-  // 移除旧的时间设置函数
+  const setExpiredTime = (month, day, hour, minute) => {
+    let now = new Date();
+    let timestamp = now.getTime() / 1000;
+    let seconds = month * 30 * 24 * 60 * 60;
+    seconds += day * 24 * 60 * 60;
+    seconds += hour * 60 * 60;
+    seconds += minute * 60;
+    if (!formApiRef.current) return;
+    if (seconds !== 0) {
+      timestamp += seconds;
+      formApiRef.current.setValue('expired_time', timestamp2string(timestamp));
+    } else {
+      formApiRef.current.setValue('expired_time', -1);
+    }
+  };
 
   const loadModels = async () => {
     let res = await API.get(`/api/user/models`);
@@ -156,36 +166,17 @@ const EditTokenModal = (props) => {
       // 反推 UI 状态
       let uiValues = { ...getInitValues(), ...data };
 
-      if (data.expired_time === -1 && data.duration === 0) {
-        uiValues.validity_type = 'forever';
+      if (data.expired_time === -1 && data.duration > 0) {
+        // 睡眠模式：expired_time 为 -1，但有 duration
+        uiValues.is_sleep_mode = true;
+        // 将 duration 转换为未来的时间点显示，以便用户直观看到时长
+        let now = Math.floor(Date.now() / 1000);
+        uiValues.expired_time = timestamp2string(now + data.duration);
       } else {
-        uiValues.validity_type = 'custom';
-        if (data.duration > 0) {
-          // 首次激活模式
-          uiValues.activation_type = 'first_use';
-          // 尝试转换为天或小时
-          if (data.duration % 86400 === 0) {
-            uiValues.duration_value = data.duration / 86400;
-            uiValues.duration_unit = 'd';
-          } else {
-            uiValues.duration_value = Math.ceil(data.duration / 3600);
-            uiValues.duration_unit = 'h';
-          }
-        } else if (data.expired_time !== -1) {
-          // 固定过期时间模式
-          uiValues.activation_type = 'immediate';
-          // 计算剩余时间作为默认显示（可选，或者直接给个默认值）
-          let now = Math.floor(Date.now() / 1000);
-          let diff = data.expired_time - now;
-          if (diff > 0) {
-            if (diff % 86400 === 0) {
-               uiValues.duration_value = diff / 86400;
-               uiValues.duration_unit = 'd';
-            } else {
-               uiValues.duration_value = Math.ceil(diff / 3600);
-               uiValues.duration_unit = 'h';
-            }
-          }
+        // 普通模式
+        uiValues.is_sleep_mode = false;
+        if (data.expired_time !== -1) {
+          uiValues.expired_time = timestamp2string(data.expired_time);
         }
       }
 
@@ -235,39 +226,38 @@ const EditTokenModal = (props) => {
   const processSubmitData = (values) => {
     let {
       tokenCount: _tc,
-      validity_type,
-      duration_value,
-      duration_unit,
-      activation_type,
+      is_sleep_mode,
       ...localInputs
     } = values;
 
     localInputs.remain_quota = parseInt(localInputs.remain_quota);
 
-    // 处理有效期逻辑
-    if (validity_type === 'forever') {
-      localInputs.expired_time = -1;
-      localInputs.duration = 0;
-    } else {
-      let seconds = parseInt(duration_value);
-      if (isNaN(seconds) || seconds <= 0) {
-        throw new Error(t('请输入有效的时长！'));
+    // 处理过期时间逻辑
+    if (localInputs.expired_time !== -1) {
+      let time = Date.parse(localInputs.expired_time);
+      if (isNaN(time)) {
+        throw new Error(t('过期时间格式错误！'));
       }
+      let timestamp = Math.ceil(time / 1000);
 
-      if (duration_unit === 'd') {
-        seconds *= 86400;
-      } else if (duration_unit === 'h') {
-        seconds *= 3600;
-      }
-
-      if (activation_type === 'first_use') {
+      if (is_sleep_mode) {
+        // 睡眠模式：计算时长，设置 expired_time 为 -1
+        let now = Math.floor(Date.now() / 1000);
+        let duration = timestamp - now;
+        if (duration <= 0) {
+             throw new Error(t('睡眠模式下，请选择未来的时间以设置有效时长！'));
+        }
         localInputs.expired_time = -1;
-        localInputs.duration = seconds;
+        localInputs.duration = duration;
       } else {
-        // 立即生效
-        localInputs.expired_time = Math.floor(Date.now() / 1000) + seconds;
+        // 普通模式：直接设置 expired_time
+        localInputs.expired_time = timestamp;
         localInputs.duration = 0;
       }
+    } else {
+      // 选择了永不过期
+      localInputs.expired_time = -1;
+      localInputs.duration = 0;
     }
 
     localInputs.model_limits = localInputs.model_limits.join(',');
@@ -444,57 +434,78 @@ const EditTokenModal = (props) => {
                       )}
                     />
                   </Col>
-                  <Col span={24}>
-                    <Form.RadioGroup
-                      field='validity_type'
-                      label={t('有效期类型')}
-                      initValue='forever'
-                    >
-                      <Radio value='forever'>{t('永久有效')}</Radio>
-                      <Radio value='custom'>{t('自定义时长')}</Radio>
-                    </Form.RadioGroup>
+                  <Col xs={24} sm={24} md={24} lg={10} xl={10}>
+                    <Form.DatePicker
+                      field='expired_time'
+                      label={t('过期时间')}
+                      type='dateTime'
+                      placeholder={t('请选择过期时间')}
+                      rules={[
+                        { required: true, message: t('请选择过期时间') },
+                        {
+                          validator: (rule, value) => {
+                            if (value === -1 || !value) return Promise.resolve();
+                            const time = Date.parse(value);
+                            if (isNaN(time)) {
+                              return Promise.reject(t('过期时间格式错误！'));
+                            }
+                            if (time <= Date.now()) {
+                              return Promise.reject(
+                                t('过期时间不能早于当前时间！'),
+                              );
+                            }
+                            return Promise.resolve();
+                          },
+                        },
+                      ]}
+                      showClear
+                      style={{ width: '100%' }}
+                    />
                   </Col>
-
-                  {values.validity_type === 'custom' && (
-                    <>
-                      <Col span={24}>
-                        <Form.InputGroup
-                          label={t('有效期时长')}
-                          style={{ width: '100%' }}
+                  <Col xs={24} sm={24} md={24} lg={14} xl={14}>
+                    <Form.Slot label={t('过期时间快捷设置')}>
+                      <Space wrap>
+                        <Button
+                          theme='light'
+                          type='primary'
+                          onClick={() => setExpiredTime(0, 0, 0, 0)}
                         >
-                          <Form.InputNumber
-                            field='duration_value'
-                            min={1}
-                            style={{ width: '100%' }}
-                            placeholder={t('请输入时长数值')}
-                          />
-                          <Form.Select
-                            field='duration_unit'
-                            style={{ width: 120 }}
-                            optionList={[
-                              { label: t('小时'), value: 'h' },
-                              { label: t('天'), value: 'd' },
-                            ]}
-                          />
-                        </Form.InputGroup>
-                      </Col>
-                      <Col span={24}>
-                        <Form.RadioGroup
-                          field='activation_type'
-                          label={t('生效模式')}
-                          initValue='immediate'
-                          extraText={
-                            values.activation_type === 'immediate'
-                              ? t('创建后立即开始倒计时')
-                              : t('用户首次使用该令牌时才开始倒计时')
-                          }
+                          {t('永不过期')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(1, 0, 0, 0)}
                         >
-                          <Radio value='immediate'>{t('立即生效')}</Radio>
-                          <Radio value='first_use'>{t('首次使用时生效')}</Radio>
-                        </Form.RadioGroup>
-                      </Col>
-                    </>
-                  )}
+                          {t('一个月')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(0, 1, 0, 0)}
+                        >
+                          {t('一天')}
+                        </Button>
+                        <Button
+                          theme='light'
+                          type='tertiary'
+                          onClick={() => setExpiredTime(0, 0, 1, 0)}
+                        >
+                          {t('一小时')}
+                        </Button>
+                      </Space>
+                    </Form.Slot>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Switch
+                      field='is_sleep_mode'
+                      label={t('睡眠模式 (首次使用时激活)')}
+                      size='default'
+                      extraText={t(
+                        '开启后，令牌在首次使用前永不过期。首次使用时，将根据上方设置的过期时间计算有效期时长进行倒计时。',
+                      )}
+                    />
+                  </Col>
                   {!isEdit && (
                     <Col span={24}>
                       <Form.InputNumber
