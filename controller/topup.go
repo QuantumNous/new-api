@@ -228,7 +228,11 @@ func UnlockOrder(tradeNo string) {
 }
 
 func EpayNotify(c *gin.Context) {
-	_ = c.Request.ParseForm()
+	if err := c.Request.ParseForm(); err != nil {
+		log.Println("易支付回调解析失败:", err)
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
 	params := lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
 		r[t] = c.Request.PostForm.Get(t)
 		return r

@@ -112,7 +112,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
-	_ = c.Request.ParseForm()
+	if err := c.Request.ParseForm(); err != nil {
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
 	params := lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
 		r[t] = c.Request.PostForm.Get(t)
 		return r
@@ -154,7 +157,10 @@ func SubscriptionEpayNotify(c *gin.Context) {
 // SubscriptionEpayReturn handles browser return after payment.
 // It verifies the payload and completes the order, then redirects to console.
 func SubscriptionEpayReturn(c *gin.Context) {
-	_ = c.Request.ParseForm()
+	if err := c.Request.ParseForm(); err != nil {
+		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/subscription?pay=fail")
+		return
+	}
 	params := lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
 		r[t] = c.Request.PostForm.Get(t)
 		return r
