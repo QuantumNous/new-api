@@ -108,7 +108,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
+	common.ApiSuccess(c, gin.H{"data": params, "url": uri})
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
