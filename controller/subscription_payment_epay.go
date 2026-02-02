@@ -112,10 +112,17 @@ func SubscriptionRequestEpay(c *gin.Context) {
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
-	params := lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
-		r[t] = c.Request.URL.Query().Get(t)
+	_ = c.Request.ParseForm()
+	params := lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
+		r[t] = c.Request.PostForm.Get(t)
 		return r
 	}, map[string]string{})
+	if len(params) == 0 {
+		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.URL.Query().Get(t)
+			return r
+		}, map[string]string{})
+	}
 
 	client := GetEpayClient()
 	if client == nil {
@@ -147,10 +154,17 @@ func SubscriptionEpayNotify(c *gin.Context) {
 // SubscriptionEpayReturn handles browser return after payment.
 // It verifies the payload and completes the order, then redirects to console.
 func SubscriptionEpayReturn(c *gin.Context) {
-	params := lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
-		r[t] = c.Request.URL.Query().Get(t)
+	_ = c.Request.ParseForm()
+	params := lo.Reduce(lo.Keys(c.Request.PostForm), func(r map[string]string, t string, i int) map[string]string {
+		r[t] = c.Request.PostForm.Get(t)
 		return r
 	}, map[string]string{})
+	if len(params) == 0 {
+		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
+			r[t] = c.Request.URL.Query().Get(t)
+			return r
+		}, map[string]string{})
+	}
 
 	client := GetEpayClient()
 	if client == nil {
