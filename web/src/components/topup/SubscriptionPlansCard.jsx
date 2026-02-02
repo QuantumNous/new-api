@@ -35,44 +35,12 @@ import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
 import { Crown, RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
+import {
+  formatSubscriptionDuration,
+  formatSubscriptionResetPeriod,
+} from '../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
-
-// 格式化有效期显示
-function formatDuration(plan, t) {
-  const unit = plan?.duration_unit || 'month';
-  const value = plan?.duration_value || 1;
-  const unitLabels = {
-    year: t('年'),
-    month: t('个月'),
-    day: t('天'),
-    hour: t('小时'),
-    custom: t('自定义'),
-  };
-  if (unit === 'custom') {
-    const seconds = plan?.custom_seconds || 0;
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
-    return `${seconds} ${t('秒')}`;
-  }
-  return `${value} ${unitLabels[unit] || unit}`;
-}
-
-function formatResetPeriod(plan, t) {
-  const period = plan?.quota_reset_period || 'never';
-  if (period === 'never') return t('不重置');
-  if (period === 'daily') return t('每天');
-  if (period === 'weekly') return t('每周');
-  if (period === 'monthly') return t('每月');
-  if (period === 'custom') {
-    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
-    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
-    return `${seconds} ${t('秒')}`;
-  }
-  return t('不重置');
-}
 
 // 过滤易支付方式
 function getEpayMethods(payMethods = []) {
@@ -473,8 +441,9 @@ const SubscriptionPlansCard = ({
                 const totalAmount = Number(plan?.total_amount || 0);
                 const { symbol, rate } = getCurrencyConfig();
                 const price = Number(plan?.price_amount || 0);
-                const displayPrice = (price * rate).toFixed(
-                  price % 1 === 0 ? 0 : 2,
+                const convertedPrice = price * rate;
+                const displayPrice = convertedPrice.toFixed(
+                  Number.isInteger(convertedPrice) ? 0 : 2,
                 );
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
@@ -487,11 +456,13 @@ const SubscriptionPlansCard = ({
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
                 const resetLabel =
-                  formatResetPeriod(plan, t) === t('不重置')
+                  formatSubscriptionResetPeriod(plan, t) === t('不重置')
                     ? null
-                    : `${t('额度重置')}: ${formatResetPeriod(plan, t)}`;
+                    : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
                 const planBenefits = [
-                  { label: `${t('有效期')}: ${formatDuration(plan, t)}` },
+                  {
+                    label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
+                  },
                   resetLabel ? { label: resetLabel } : null,
                   totalAmount > 0
                     ? {

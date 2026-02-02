@@ -356,6 +356,7 @@ const TopUp = () => {
   };
 
   const updateBillingPreference = async (pref) => {
+    const previousPref = billingPreference;
     setBillingPreference(pref);
     try {
       const res = await API.put('/api/subscription/self/preference', {
@@ -363,11 +364,16 @@ const TopUp = () => {
       });
       if (res.data?.success) {
         showSuccess(t('更新成功'));
+        const normalizedPref =
+          res.data?.data?.billing_preference || pref || previousPref;
+        setBillingPreference(normalizedPref);
       } else {
         showError(res.data?.message || t('更新失败'));
+        setBillingPreference(previousPref);
       }
     } catch (e) {
       showError(t('请求失败'));
+      setBillingPreference(previousPref);
     }
   };
 

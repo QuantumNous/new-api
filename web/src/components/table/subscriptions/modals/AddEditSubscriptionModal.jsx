@@ -423,7 +423,7 @@ const AddEditSubscriptionModal = ({
                           field='custom_seconds'
                           label={t('自定义秒数')}
                           required
-                          min={0}
+                          min={1}
                           precision={0}
                           rules={[{ required: true, message: t('请输入秒数') }]}
                           style={{ width: '100%' }}

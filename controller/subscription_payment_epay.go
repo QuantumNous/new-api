@@ -61,8 +61,16 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(callBackAddress + "/api/subscription/epay/return")
-	notifyUrl, _ := url.Parse(callBackAddress + "/api/subscription/epay/notify")
+	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
+	if err != nil {
+		common.ApiErrorMsg(c, "回调地址配置错误")
+		return
+	}
+	notifyUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/notify")
+	if err != nil {
+		common.ApiErrorMsg(c, "回调地址配置错误")
+		return
+	}
 
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
 	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)

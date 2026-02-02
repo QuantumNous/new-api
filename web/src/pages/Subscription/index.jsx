@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import SubscriptionsTable from '../../components/table/subscriptions';
+import SubscriptionsPage from '../../components/table/subscriptions';
 
 const Subscription = () => {
   return (
     <div className='mt-[60px] px-2'>
-      <SubscriptionsTable />
+      <SubscriptionsPage />
     </div>
   );
 };
