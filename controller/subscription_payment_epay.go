@@ -77,7 +77,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 
 	client := GetEpayClient()
 	if client == nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
+		common.ApiErrorMsg(c, "当前管理员未配置支付信息")
 		return
 	}
 
@@ -91,7 +91,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		ReturnUrl:      returnUrl,
 	})
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		common.ApiErrorMsg(c, "拉起支付失败")
 		return
 	}
 
@@ -105,7 +105,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
@@ -128,14 +128,17 @@ func SubscriptionEpayNotify(c *gin.Context) {
 		return
 	}
 
-	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
-		LockOrder(verifyInfo.ServiceTradeNo)
-		defer UnlockOrder(verifyInfo.ServiceTradeNo)
+	if verifyInfo.TradeStatus != epay.StatusTradeSuccess {
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
+	}
 
-		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo)); err != nil {
-			_, _ = c.Writer.Write([]byte("fail"))
-			return
-		}
+	LockOrder(verifyInfo.ServiceTradeNo)
+	defer UnlockOrder(verifyInfo.ServiceTradeNo)
+
+	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo)); err != nil {
+		_, _ = c.Writer.Write([]byte("fail"))
+		return
 	}
 
 	_, _ = c.Writer.Write([]byte("success"))
