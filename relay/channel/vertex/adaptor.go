@@ -168,8 +168,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 			}
 		} else if a.RequestMode == RequestModeLlama {
 			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
-				region,
+				"https://aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
 				adc.ProjectID,
 				region,
 			), nil
