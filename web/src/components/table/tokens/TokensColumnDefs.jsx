@@ -486,7 +486,17 @@ export const getTokensColumns = ({
       render: (text, record, index) => {
         return (
           <div>
-            {record.expired_time === -1 ? t('永不过期') : renderTimestamp(text)}
+            {record.expired_time === -1 ? (
+              record.duration > 0 ? (
+                <Tag color='orange' shape='circle'>
+                  {t('睡眠中')}
+                </Tag>
+              ) : (
+                t('永不过期')
+              )
+            ) : (
+              renderTimestamp(text)
+            )}
           </div>
         );
       },
