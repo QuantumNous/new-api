@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getNormalizedDateRange } from '@/lib/time'
@@ -17,6 +18,8 @@ import {
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DateTimePicker } from '@/components/datetime-picker'
+import { ComboboxInput } from '@/components/ui/combobox-input'
+import { getApiKeys } from '@/features/keys/api'
 import { TIME_RANGE_PRESETS } from '../../constants'
 import { buildSearchParams, getLogCategoryLabel } from '../../lib/filter'
 import { getDefaultTimeRange } from '../../lib/utils'
@@ -58,6 +61,24 @@ export function UsageLogsFilterDialog({
     return { startTime: start, endTime: end }
   })
   const [selectedRange, setSelectedRange] = useState<number | null>(null)
+
+  const { data: tokensData } = useQuery({
+    queryKey: ['api-keys', 'filter', open, logCategory],
+    queryFn: () => getApiKeys({ p: 1, size: 200 }),
+    enabled: open && logCategory === 'common',
+  })
+
+  const tokenNameOptions = useMemo(() => {
+    const items = tokensData?.data?.items ?? []
+    const seen = new Set<string>()
+    return items
+      .filter((item) => {
+        if (seen.has(item.name)) return false
+        seen.add(item.name)
+        return true
+      })
+      .map((item) => ({ value: item.name, label: item.name }))
+  }, [tokensData?.data?.items])
 
   // Sync filters from URL
   useEffect(() => {
@@ -144,13 +165,17 @@ export function UsageLogsFilterDialog({
               value={commonFilters.model || ''}
               onChange={(value) => handleChange('model', value)}
             />
-            <FilterInput
-              id='token'
-              label={t('Token Name')}
-              placeholder={t('Filter by token name')}
-              value={commonFilters.token || ''}
-              onChange={(value) => handleChange('token', value)}
-            />
+            <div className='grid gap-2'>
+              <Label htmlFor='token'>{t('Token Name')}</Label>
+              <ComboboxInput
+                id='token'
+                options={tokenNameOptions}
+                value={commonFilters.token || ''}
+                onValueChange={(v) => handleChange('token', v)}
+                placeholder={t('Filter by token name')}
+                emptyText={t('No token found.')}
+              />
+            </div>
             <FilterInput
               id='group'
               label={t('Group')}
