@@ -48,6 +48,7 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	ModelGroupMapping *string `json:"model_group_mapping" gorm:"type:text"` // 模型分组映射，格式：{"model": ["group1", "group2"]}
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -100,6 +101,24 @@ func (channel *Channel) GetKeys() []string {
 	// Otherwise, fall back to splitting by newline
 	keys := strings.Split(strings.Trim(channel.Key, "\n"), "\n")
 	return keys
+}
+
+// GetModelGroupMapping 解析模型分组映射，返回 map[model][]groups
+func (channel *Channel) GetModelGroupMapping() map[string][]string {
+	if channel.ModelGroupMapping == nil || *channel.ModelGroupMapping == "" {
+		return nil
+	}
+	var mapping map[string][]string
+	if err := common.Unmarshal([]byte(*channel.ModelGroupMapping), &mapping); err != nil {
+		return nil
+	}
+	// 清理空值
+	for model, groups := range mapping {
+		if model == "" || len(groups) == 0 {
+			delete(mapping, model)
+		}
+	}
+	return mapping
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {

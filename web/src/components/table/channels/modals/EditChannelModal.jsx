@@ -58,6 +58,7 @@ import ModelSelectModal from './ModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
+import ModelGroupMappingEditor from '../ModelGroupMappingEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import { useSecureVerification } from '../../../../hooks/common/useSecureVerification';
@@ -140,6 +141,7 @@ const EditChannelModal = (props) => {
     base_url: '',
     other: '',
     model_mapping: '',
+    model_group_mapping: '',
     status_code_mapping: '',
     models: [],
     auto_ban: 1,
@@ -179,6 +181,9 @@ const EditChannelModal = (props) => {
   const [basicModels, setBasicModels] = useState([]);
   const [fullModels, setFullModels] = useState([]);
   const [modelGroups, setModelGroups] = useState([]);
+  const [modelGroupConfig, setModelGroupConfig] = useState({
+    specificRules: {},
+  });
   const [customModel, setCustomModel] = useState('');
   const [modalImageUrl, setModalImageUrl] = useState('');
   const [isModalOpenurl, setIsModalOpenurl] = useState(false);
@@ -558,6 +563,23 @@ const EditChannelModal = (props) => {
           2,
         );
       }
+      // Parse model_group_mapping for ModelGroupMappingEditor
+      let mgConfig = { specificRules: {} };
+      if (data.model_group_mapping && data.model_group_mapping !== '') {
+        try {
+          let mgMap = data.model_group_mapping;
+          if (typeof mgMap === 'string') {
+            mgMap = JSON.parse(mgMap);
+          }
+          if (mgMap && typeof mgMap === 'object') {
+            // 直接使用 model_group_mapping 的内容作为 specificRules，不做过滤
+            mgConfig.specificRules = mgMap;
+          }
+        } catch (error) {
+          console.error('解析模型分组配置失败:', error);
+        }
+      }
+      setModelGroupConfig(mgConfig);
       const chInfo = data.channel_info || {};
       const isMulti = chInfo.is_multi_key === true;
       setIsMultiKeyChannel(isMulti);
@@ -990,6 +1012,8 @@ const EditChannelModal = (props) => {
     setInputs(getInitValues());
     // 重置密钥显示状态
     resetKeyDisplayState();
+    // 重置模型分组配置
+    setModelGroupConfig({ specificRules: {} });
   };
 
   const handleVertexUploadChange = ({ fileList }) => {
@@ -1364,6 +1388,11 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
+
+    // Build model_group_mapping from modelGroupConfig.specificRules only
+    // model_group_mapping 只存储有单独配置的模型
+    localInputs.model_group_mapping = JSON.stringify(modelGroupConfig.specificRules || {});
+
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -2871,6 +2900,19 @@ const EditChannelModal = (props) => {
                       style={{ width: '100%' }}
                       onChange={(value) => handleInputChange('groups', value)}
                     />
+
+                    <Form.Slot label={t('模型分组配置')}>
+                      <ModelGroupMappingEditor
+                        models={inputs.models || []}
+                        value={modelGroupConfig}
+                        onChange={(newConfig) => {
+                          setModelGroupConfig(newConfig);
+                        }}
+                        allGroups={groupOptions.map((g) => g.value)}
+                        channelGroups={inputs.groups || []}
+                        disabled={loading}
+                      />
+                    </Form.Slot>
 
                     <Form.Input
                       field='tag'
