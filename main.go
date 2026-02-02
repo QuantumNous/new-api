@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -132,7 +133,40 @@ func main() {
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		// 获取请求信息
+		method := c.Request.Method
+		path := c.Request.URL.Path
+		query := c.Request.URL.RawQuery
+		clientIP := c.ClientIP()
+		requestId := c.GetString("X-Request-Id")
+
+		// 获取 request body（如果存在缓存，key 定义在 common.KeyRequestBody）
+		var bodyStr string
+
+		if bodyBytes, err := common.GetRequestBody(c); err == nil && bodyBytes != nil {
+			bodyStr = string(bodyBytes)
+			if len(bodyStr) > 1024 {
+				bodyStr = bodyStr[:1024] + "...(truncated)"
+			}
+		}
+
+		// 获取堆栈信息
+		stack := string(debug.Stack())
+
+		// 打印详细日志
+		common.SysError(fmt.Sprintf(
+			"panic detected:\n"+
+				"  Request ID: %s\n"+
+				"  Method: %s\n"+
+				"  Path: %s\n"+
+				"  Query: %s\n"+
+				"  Client IP: %s\n"+
+				"  Error: %v\n"+
+				"  Body: %s\n"+
+				"  Stack:\n%s",
+			requestId, method, path, query, clientIP, err, bodyStr, stack,
+		))
+
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
