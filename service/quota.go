@@ -267,6 +267,8 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 			}
 		}
 		promptTokens -= cacheCreationTokens
+	} else if relayInfo.ChannelType == constant.ChannelTypeGemini || relayInfo.ChannelType == constant.ChannelTypeVertexAi {
+		promptTokens -= cacheTokens
 	}
 
 	calculateQuota := 0.0
