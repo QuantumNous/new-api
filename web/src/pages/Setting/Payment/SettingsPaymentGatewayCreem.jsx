@@ -27,7 +27,6 @@ export default function SettingsPaymentGatewayCreem(props) {
     CreemProducts: '[]',
     CreemTestMode: false,
   });
-  const [originInputs, setOriginInputs] = useState({});
   const [products, setProducts] = useState([]);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -49,7 +48,6 @@ export default function SettingsPaymentGatewayCreem(props) {
         CreemTestMode: props.options.CreemTestMode === 'true',
       };
       setInputs(currentInputs);
-      setOriginInputs({ ...currentInputs });
       formApiRef.current.setValues(currentInputs);
 
       // Parse products
@@ -109,8 +107,6 @@ export default function SettingsPaymentGatewayCreem(props) {
         });
       } else {
         showSuccess(t('更新成功'));
-        // 更新本地存储的原始值
-        setOriginInputs({ ...inputs });
         props.refresh?.();
       }
     } catch (error) {
