@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,7 @@ export function Combobox({
   className,
   allowCustomValue = false,
 }: ComboboxProps) {
+  const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState('')
 
@@ -114,8 +116,9 @@ export function Combobox({
               {emptyText}
               {allowCustomValue && searchValue && (
                 <div className='mt-2 text-xs'>
-                  Press <kbd className='bg-muted rounded px-1'>Enter</kbd> to
-                  use "{searchValue}"
+                  {t('Press Enter to use "{{value}}"', {
+                    value: searchValue,
+                  })}
                 </div>
               )}
             </CommandEmpty>
