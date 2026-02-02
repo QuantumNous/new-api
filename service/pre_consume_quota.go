@@ -31,9 +31,11 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 		relayInfoCopy := *relayInfo
 		if relayInfoCopy.BillingSource == BillingSourceSubscription {
 			if needRefundSub {
-				refundWithRetry(func() error {
+				if err := refundWithRetry(func() error {
 					return model.RefundSubscriptionPreConsume(relayInfoCopy.RequestId)
-				})
+				}); err != nil {
+					common.SysLog("error refund subscription pre-consume: " + err.Error())
+				}
 			}
 			// refund token quota only
 			if needRefundToken && !relayInfoCopy.IsPlayground {
@@ -52,19 +54,23 @@ func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
 	})
 }
 
-func refundWithRetry(fn func() error) {
+func refundWithRetry(fn func() error) error {
 	if fn == nil {
-		return
+		return nil
 	}
 	const maxAttempts = 3
+	var lastErr error
 	for i := 0; i < maxAttempts; i++ {
 		if err := fn(); err == nil {
-			return
+			return nil
+		} else {
+			lastErr = err
 		}
 		if i < maxAttempts-1 {
 			time.Sleep(time.Duration(200*(i+1)) * time.Millisecond)
 		}
 	}
+	return lastErr
 }
 
 // PreConsumeQuota checks if the user has enough quota to pre-consume.

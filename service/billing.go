@@ -46,7 +46,11 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 			if preConsumedQuota > 0 && !relayInfo.IsPlayground {
 				_ = model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, preConsumedQuota)
 			}
-			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", err.Error()), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
+				return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			}
+			return types.NewErrorWithStatusCode(fmt.Errorf("订阅预扣失败: %s", errMsg), types.ErrorCodeQueryDataError, http.StatusInternalServerError)
 		}
 
 		relayInfo.BillingSource = BillingSourceSubscription
@@ -91,7 +95,10 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 	default:
 		if err := trySubscription(); err != nil {
 			// fallback only when subscription not available/insufficient
-			return tryWallet()
+			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				return tryWallet()
+			}
+			return err
 		}
 		return nil
 	}
