@@ -817,6 +817,10 @@ type OpenAIResponsesRequest struct {
 	User                 string          `json:"user,omitempty"`
 	MaxToolCalls         uint            `json:"max_tool_calls,omitempty"`
 	Prompt               json.RawMessage `json:"prompt,omitempty"`
+	// qwen
+	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
+	// perplexity
+	Preset json.RawMessage `json:"preset,omitempty"`
 }
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {

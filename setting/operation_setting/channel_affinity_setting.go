@@ -33,11 +33,40 @@ type ChannelAffinitySetting struct {
 }
 
 var channelAffinitySetting = ChannelAffinitySetting{
-	Enabled:           false,
+	Enabled:           true,
 	SwitchOnSuccess:   true,
 	MaxEntries:        100_000,
 	DefaultTTLSeconds: 3600,
-	Rules:             []ChannelAffinityRule{},
+	Rules: []ChannelAffinityRule{
+		{
+			Name:       "codex trace",
+			ModelRegex: []string{"^gpt-.*$"},
+			PathRegex:  []string{"/v1/responses"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "prompt_cache_key"},
+			},
+			ValueRegex:         "",
+			TTLSeconds:         0,
+			SkipRetryOnFailure: false,
+			IncludeUsingGroup:  true,
+			IncludeRuleName:    true,
+			UserAgentInclude:   nil,
+		},
+		{
+			Name:       "claude code trace",
+			ModelRegex: []string{"^claude-.*$"},
+			PathRegex:  []string{"/v1/messages"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "metadata.user_id"},
+			},
+			ValueRegex:         "",
+			TTLSeconds:         0,
+			SkipRetryOnFailure: false,
+			IncludeUsingGroup:  true,
+			IncludeRuleName:    true,
+			UserAgentInclude:   nil,
+		},
+	},
 }
 
 func init() {

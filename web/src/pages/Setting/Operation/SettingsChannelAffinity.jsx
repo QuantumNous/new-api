@@ -67,7 +67,7 @@ const KEY_SOURCE_TYPES = [
 
 const RULE_TEMPLATES = {
   codex: {
-    name: 'codex优选',
+    name: 'codex trace',
     model_regex: ['^gpt-.*$'],
     path_regex: ['/v1/responses'],
     key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
@@ -78,7 +78,7 @@ const RULE_TEMPLATES = {
     include_rule_name: true,
   },
   claudeCode: {
-    name: 'claude-code优选',
+    name: 'claude-code trace',
     model_regex: ['^claude-.*$'],
     path_regex: ['/v1/messages'],
     key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
