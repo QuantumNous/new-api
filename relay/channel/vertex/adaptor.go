@@ -114,7 +114,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 		a.RequestMode = RequestModeClaude
 	} else if strings.Contains(info.UpstreamModelName, "llama") ||
 		// open source models
-		strings.Contains(info.UpstreamModelName, "-maas") {
+		strings.Contains(info.UpstreamModelName, "-maas") || strings.Contains(info.UpstreamModelName, "gpt-oss") {
 		a.RequestMode = RequestModeLlama
 	} else {
 		a.RequestMode = RequestModeGemini
