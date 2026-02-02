@@ -2607,6 +2607,7 @@
     "Stripe/Creem 需在第三方平台创建商品并填入 ID": "Les produits Stripe/Creem doivent être créés sur la plateforme tierce et l'ID doit être renseigné",
     "暂无订阅套餐": "Aucun plan d'abonnement",
     "订阅管理": "Gestion des abonnements",
+    "订阅套餐管理": "Gestion des plans d'abonnement",
     "新建套餐": "Créer un plan",
     "套餐": "Plan",
     "支付渠道": "Canaux de paiement",
