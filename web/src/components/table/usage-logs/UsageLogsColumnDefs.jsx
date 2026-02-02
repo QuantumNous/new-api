@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import {
   Avatar,
+  Button,
   Space,
   Tag,
   Tooltip,
@@ -78,6 +79,7 @@ function buildChannelAffinityTooltip(affinity, t) {
 
   const keySource = affinity.key_source || '-';
   const keyPath = affinity.key_path || affinity.key_key || '-';
+  const keyHint = affinity.key_hint || '';
   const keyFp = affinity.key_fp ? `#${affinity.key_fp}` : '';
   const keyText = `${keySource}:${keyPath}${keyFp}`;
 
@@ -86,6 +88,7 @@ function buildChannelAffinityTooltip(affinity, t) {
     `${t('规则')}：${affinity.rule_name || '-'}`,
     `${t('分组')}：${affinity.selected_group || '-'}`,
     `${t('Key')}：${keyText}`,
+    ...(keyHint ? [`${t('Key 摘要')}：${keyHint}`] : []),
   ];
 
   return (
@@ -276,6 +279,7 @@ export const getLogsColumns = ({
   COLUMN_KEYS,
   copyText,
   showUserInfoFunc,
+  openChannelAffinityUsageCacheModal,
   isAdminUser,
 }) => {
   return [
@@ -559,7 +563,25 @@ export const getLogsColumns = ({
           <Space>
             <div>{content}</div>
             {affinity ? (
-              <Tooltip content={buildChannelAffinityTooltip(affinity, t)}>
+              <Tooltip
+                content={
+                  <div>
+                    {buildChannelAffinityTooltip(affinity, t)}
+                    <div style={{ marginTop: 6 }}>
+                      <Button
+                        theme='borderless'
+                        size='small'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openChannelAffinityUsageCacheModal?.(affinity);
+                        }}
+                      >
+                        {t('查看详情')}
+                      </Button>
+                    </div>
+                  </div>
+                }
+              >
                 <span>
                   <Tag
                     className='channel-affinity-tag'
