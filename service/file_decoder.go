@@ -231,6 +231,8 @@ func GetMimeTypeByExtension(ext string) string {
 		return "image/png"
 	case "gif":
 		return "image/gif"
+	case "jfif":
+		return "image/jpeg"
 
 	// Audio files
 	case "mp3":
