@@ -73,6 +73,7 @@ const RULE_TEMPLATES = {
     key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
     value_regex: '',
     ttl_seconds: 0,
+    skip_retry_on_failure: false,
     include_using_group: true,
     include_rule_name: true,
   },
@@ -83,6 +84,7 @@ const RULE_TEMPLATES = {
     key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
     value_regex: '',
     ttl_seconds: 0,
+    skip_retry_on_failure: false,
     include_using_group: true,
     include_rule_name: true,
   },
@@ -112,6 +114,7 @@ const RULES_JSON_PLACEHOLDER = `[
     ],
     "value_regex": "^[-0-9A-Za-z._:]{1,128}$",
     "ttl_seconds": 600,
+    "skip_retry_on_failure": false,
     "include_using_group": true,
     "include_rule_name": true
   }
@@ -153,7 +156,12 @@ const normalizeKeySource = (src) => {
   const type = (src?.type || '').trim();
   const key = (src?.key || '').trim();
   const path = (src?.path || '').trim();
-  return { type, key, path };
+
+  if (type === 'gjson') {
+    return { type, key: '', path };
+  }
+
+  return { type, key, path: '' };
 };
 
 const makeUniqueName = (existingNames, baseName) => {
@@ -229,6 +237,7 @@ export default function SettingsChannelAffinity(props) {
       user_agent_include_text: (r.user_agent_include || []).join('\n'),
       value_regex: r.value_regex || '',
       ttl_seconds: Number(r.ttl_seconds || 0),
+      skip_retry_on_failure: !!r.skip_retry_on_failure,
       include_using_group: r.include_using_group ?? true,
       include_rule_name: r.include_rule_name ?? true,
     };
@@ -523,6 +532,7 @@ export default function SettingsChannelAffinity(props) {
       key_sources: [{ type: 'gjson', path: '' }],
       value_regex: '',
       ttl_seconds: 0,
+      skip_retry_on_failure: false,
       include_using_group: true,
       include_rule_name: true,
     };
@@ -583,6 +593,9 @@ export default function SettingsChannelAffinity(props) {
         ttl_seconds: Number(values.ttl_seconds || 0),
         include_using_group: !!values.include_using_group,
         include_rule_name: !!values.include_rule_name,
+        ...(values.skip_retry_on_failure
+          ? { skip_retry_on_failure: true }
+          : {}),
         ...(userAgentInclude.length > 0
           ? { user_agent_include: userAgentInclude }
           : {}),
@@ -1038,6 +1051,18 @@ export default function SettingsChannelAffinity(props) {
                   />
                   <Text type='tertiary' size='small'>
                     {t('开启后，规则名称会参与 cache key（不同规则隔离）。')}
+                  </Text>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Switch
+                    field='skip_retry_on_failure'
+                    label={t('失败后不重试')}
+                  />
+                  <Text type='tertiary' size='small'>
+                    {t('开启后，若该规则命中且请求失败，将不会切换渠道重试。')}
                   </Text>
                 </Col>
               </Row>

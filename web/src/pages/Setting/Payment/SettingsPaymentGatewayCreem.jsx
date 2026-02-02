@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import React, { useEffect, useState, useRef } from 'react';
 import {
   Banner,
@@ -27,6 +45,7 @@ export default function SettingsPaymentGatewayCreem(props) {
     CreemProducts: '[]',
     CreemTestMode: false,
   });
+  const [originInputs, setOriginInputs] = useState({});
   const [products, setProducts] = useState([]);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -48,6 +67,7 @@ export default function SettingsPaymentGatewayCreem(props) {
         CreemTestMode: props.options.CreemTestMode === 'true',
       };
       setInputs(currentInputs);
+      setOriginInputs({ ...currentInputs });
       formApiRef.current.setValues(currentInputs);
 
       // Parse products
@@ -107,6 +127,8 @@ export default function SettingsPaymentGatewayCreem(props) {
         });
       } else {
         showSuccess(t('更新成功'));
+        // 更新本地存储的原始值
+        setOriginInputs({ ...inputs });
         props.refresh?.();
       }
     } catch (error) {

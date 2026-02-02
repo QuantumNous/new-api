@@ -112,6 +112,14 @@ export const useLogsData = () => {
   const [showUserInfo, setShowUserInfoModal] = useState(false);
   const [userInfoData, setUserInfoData] = useState(null);
 
+  // Channel affinity usage cache stats modal state (admin only)
+  const [
+    showChannelAffinityUsageCacheModal,
+    setShowChannelAffinityUsageCacheModal,
+  ] = useState(false);
+  const [channelAffinityUsageCacheTarget, setChannelAffinityUsageCacheTarget] =
+    useState(null);
+
   // Load saved column preferences from localStorage
   useEffect(() => {
     const savedColumns = localStorage.getItem(STORAGE_KEY);
@@ -302,6 +310,17 @@ export const useLogsData = () => {
     } else {
       showError(message);
     }
+  };
+
+  const openChannelAffinityUsageCacheModal = (affinity) => {
+    const a = affinity || {};
+    setChannelAffinityUsageCacheTarget({
+      rule_name: a.rule_name || a.reason || '',
+      using_group: a.using_group || '',
+      key_hint: a.key_hint || '',
+      key_fp: a.key_fp || '',
+    });
+    setShowChannelAffinityUsageCacheModal(true);
   };
 
   // Format logs data
@@ -732,6 +751,12 @@ export const useLogsData = () => {
     setShowUserInfoModal,
     userInfoData,
     showUserInfoFunc,
+
+    // Channel affinity usage cache stats modal
+    showChannelAffinityUsageCacheModal,
+    setShowChannelAffinityUsageCacheModal,
+    channelAffinityUsageCacheTarget,
+    openChannelAffinityUsageCacheModal,
 
     // Functions
     loadLogs,
