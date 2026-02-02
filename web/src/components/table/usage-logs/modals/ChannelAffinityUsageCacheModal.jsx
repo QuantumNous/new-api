@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Descriptions, Spin, Typography } from '@douyinfe/semi-ui';
 import { API, showError, timestamp2string } from '../../../../helpers';
 
@@ -47,6 +47,7 @@ const ChannelAffinityUsageCacheModal = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
+  const requestSeqRef = useRef(0);
 
   const params = useMemo(() => {
     const x = channelAffinityUsageCacheTarget || {};
@@ -59,38 +60,52 @@ const ChannelAffinityUsageCacheModal = ({
   }, [channelAffinityUsageCacheTarget]);
 
   useEffect(() => {
-    const shouldFetch =
-      showChannelAffinityUsageCacheModal &&
-      params.rule_name &&
-      params.key_fp &&
-      !loading;
-    if (!shouldFetch) return;
+    if (!showChannelAffinityUsageCacheModal) {
+      requestSeqRef.current += 1; // invalidate inflight request
+      setLoading(false);
+      setStats(null);
+      return;
+    }
+    if (!params.rule_name || !params.key_fp) {
+      setLoading(false);
+      setStats(null);
+      return;
+    }
 
-    let cancelled = false;
+    const reqSeq = (requestSeqRef.current += 1);
+    setStats(null);
+    setLoading(true);
     (async () => {
       try {
-        setLoading(true);
         const res = await API.get('/api/log/channel_affinity_usage_cache', {
           params,
           disableDuplicate: true,
         });
+        if (reqSeq !== requestSeqRef.current) return;
         const { success, message, data } = res.data || {};
         if (!success) {
+          setStats(null);
           showError(t(message || '请求失败'));
           return;
         }
-        if (!cancelled) setStats(data || {});
+        setStats(data || {});
       } catch (e) {
+        if (reqSeq !== requestSeqRef.current) return;
+        setStats(null);
         showError(t('请求失败'));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (reqSeq !== requestSeqRef.current) return;
+        setLoading(false);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showChannelAffinityUsageCacheModal, params, loading, t]);
+  }, [
+    showChannelAffinityUsageCacheModal,
+    params.rule_name,
+    params.using_group,
+    params.key_hint,
+    params.key_fp,
+    t,
+  ]);
 
   const rows = useMemo(() => {
     const s = stats || {};
@@ -164,8 +179,16 @@ const ChannelAffinityUsageCacheModal = ({
             {t('命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。')}
           </Text>
         </div>
-        <Spin spinning={loading}>
-          <Descriptions data={rows} />
+        <Spin spinning={loading} tip={t('加载中...')}>
+          {stats ? (
+            <Descriptions data={rows} />
+          ) : (
+            <div style={{ padding: '24px 0' }}>
+              <Text type='tertiary' size='small'>
+                {loading ? t('加载中...') : t('暂无数据')}
+              </Text>
+            </div>
+          )}
         </Spin>
       </div>
     </Modal>
