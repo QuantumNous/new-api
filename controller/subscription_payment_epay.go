@@ -162,7 +162,10 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		_ = model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo))
+		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo)); err != nil {
+			c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/subscription?pay=fail")
+			return
+		}
 		c.Redirect(http.StatusFound, system_setting.ServerAddress+"/console/subscription?pay=success")
 		return
 	}
