@@ -2605,6 +2605,7 @@
     "Stripe/Creem 需在第三方平台创建商品并填入 ID": "Stripe/Creem products must be created on the third-party platform and the ID filled in",
     "暂无订阅套餐": "No subscription plans",
     "订阅管理": "Subscription Management",
+    "订阅套餐管理": "Subscription Plan Management",
     "新建套餐": "Create Plan",
     "套餐": "Plan",
     "支付渠道": "Payment Channels",
