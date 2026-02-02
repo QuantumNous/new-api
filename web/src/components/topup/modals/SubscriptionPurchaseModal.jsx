@@ -33,44 +33,12 @@ import { SiStripe } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
+import {
+  formatSubscriptionDuration,
+  formatSubscriptionResetPeriod,
+} from '../../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
-
-// 格式化有效期显示
-function formatDuration(plan, t) {
-  const unit = plan?.duration_unit || 'month';
-  const value = plan?.duration_value || 1;
-  const unitLabels = {
-    year: t('年'),
-    month: t('个月'),
-    day: t('天'),
-    hour: t('小时'),
-    custom: t('自定义'),
-  };
-  if (unit === 'custom') {
-    const seconds = plan?.custom_seconds || 0;
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
-    return `${seconds} ${t('秒')}`;
-  }
-  return `${value} ${unitLabels[unit] || unit}`;
-}
-
-function formatResetPeriod(plan, t) {
-  const period = plan?.quota_reset_period || 'never';
-  if (period === 'never') return t('不重置');
-  if (period === 'daily') return t('每天');
-  if (period === 'weekly') return t('每周');
-  if (period === 'monthly') return t('每月');
-  if (period === 'custom') {
-    const seconds = Number(plan?.quota_reset_custom_seconds || 0);
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('天')}`;
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('小时')}`;
-    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('分钟')}`;
-    return `${seconds} ${t('秒')}`;
-  }
-  return t('不重置');
-}
 
 const SubscriptionPurchaseModal = ({
   t,
@@ -93,7 +61,10 @@ const SubscriptionPurchaseModal = ({
   const totalAmount = Number(plan?.total_amount || 0);
   const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
-  const displayPrice = (price * rate).toFixed(price % 1 === 0 ? 0 : 2);
+  const convertedPrice = price * rate;
+  const displayPrice = convertedPrice.toFixed(
+    Number.isInteger(convertedPrice) ? 0 : 2,
+  );
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
@@ -142,17 +113,17 @@ const SubscriptionPurchaseModal = ({
                 <div className='flex items-center'>
                   <CalendarClock size={14} className='mr-1 text-slate-500' />
                   <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatDuration(plan, t)}
+                    {formatSubscriptionDuration(plan, t)}
                   </Text>
                 </div>
               </div>
-              {formatResetPeriod(plan, t) !== t('不重置') && (
+              {formatSubscriptionResetPeriod(plan, t) !== t('不重置') && (
                 <div className='flex justify-between items-center'>
                   <Text strong className='text-slate-700 dark:text-slate-200'>
                     {t('重置周期')}：
                   </Text>
                   <Text className='text-slate-900 dark:text-slate-100'>
-                    {formatResetPeriod(plan, t)}
+                    {formatSubscriptionResetPeriod(plan, t)}
                   </Text>
                 </div>
               )}

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { Banner } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import SubscriptionsTable from './SubscriptionsTable';
@@ -27,10 +27,13 @@ import AddEditSubscriptionModal from './modals/AddEditSubscriptionModal';
 import { useSubscriptionsData } from '../../../hooks/subscriptions/useSubscriptionsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { StatusContext } from '../../../context/Status';
 
 const SubscriptionsPage = () => {
   const subscriptionsData = useSubscriptionsData();
   const isMobile = useIsMobile();
+  const [statusState] = useContext(StatusContext);
+  const enableEpay = !!statusState?.status?.enable_online_topup;
 
   const {
     showEdit,
@@ -91,7 +94,7 @@ const SubscriptionsPage = () => {
         })}
         t={t}
       >
-        <SubscriptionsTable {...subscriptionsData} />
+        <SubscriptionsTable {...subscriptionsData} enableEpay={enableEpay} />
       </CardPro>
     </>
   );

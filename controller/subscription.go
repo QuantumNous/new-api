@@ -207,21 +207,23 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
-			"title":                 req.Plan.Title,
-			"subtitle":              req.Plan.Subtitle,
-			"price_amount":          req.Plan.PriceAmount,
-			"currency":              req.Plan.Currency,
-			"duration_unit":         req.Plan.DurationUnit,
-			"duration_value":        req.Plan.DurationValue,
-			"custom_seconds":        req.Plan.CustomSeconds,
-			"enabled":               req.Plan.Enabled,
-			"sort_order":            req.Plan.SortOrder,
-			"stripe_price_id":       req.Plan.StripePriceId,
-			"creem_product_id":      req.Plan.CreemProductId,
-			"max_purchase_per_user": req.Plan.MaxPurchasePerUser,
-			"total_amount":          req.Plan.TotalAmount,
-			"upgrade_group":         req.Plan.UpgradeGroup,
-			"updated_at":            common.GetTimestamp(),
+			"title":                      req.Plan.Title,
+			"subtitle":                   req.Plan.Subtitle,
+			"price_amount":               req.Plan.PriceAmount,
+			"currency":                   req.Plan.Currency,
+			"duration_unit":              req.Plan.DurationUnit,
+			"duration_value":             req.Plan.DurationValue,
+			"custom_seconds":             req.Plan.CustomSeconds,
+			"enabled":                    req.Plan.Enabled,
+			"sort_order":                 req.Plan.SortOrder,
+			"stripe_price_id":            req.Plan.StripePriceId,
+			"creem_product_id":           req.Plan.CreemProductId,
+			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
+			"total_amount":               req.Plan.TotalAmount,
+			"upgrade_group":              req.Plan.UpgradeGroup,
+			"quota_reset_period":         req.Plan.QuotaResetPeriod,
+			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"updated_at":                 common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
