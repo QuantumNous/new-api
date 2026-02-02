@@ -651,7 +651,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}{selectedCreemProduct.price}
+              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {selectedCreemProduct.price}
             </p>
             <p>
               {t('充值额度')}：{selectedCreemProduct.quota}

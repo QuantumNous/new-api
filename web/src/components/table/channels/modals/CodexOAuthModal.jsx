@@ -19,7 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal, Button, Space, Typography, Input, Banner } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  Button,
+  Space,
+  Typography,
+  Input,
+  Banner,
+} from '@douyinfe/semi-ui';
 import { API, copy, showError, showSuccess } from '../../../../helpers';
 
 const { Text } = Typography;
@@ -33,14 +40,21 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
   const startOAuth = async () => {
     setLoading(true);
     try {
-      const res = await API.post('/api/channel/codex/oauth/start', {}, { skipErrorHandler: true });
+      const res = await API.post(
+        '/api/channel/codex/oauth/start',
+        {},
+        { skipErrorHandler: true },
+      );
       if (!res?.data?.success) {
         console.error('Codex OAuth start failed:', res?.data?.message);
         throw new Error(t('启动授权失败'));
       }
       const url = res?.data?.data?.authorize_url || '';
       if (!url) {
-        console.error('Codex OAuth start response missing authorize_url:', res?.data);
+        console.error(
+          'Codex OAuth start response missing authorize_url:',
+          res?.data,
+        );
         throw new Error(t('响应缺少授权链接'));
       }
       setAuthorizeUrl(url);
@@ -106,7 +120,12 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
           <Button theme='borderless' onClick={onCancel} disabled={loading}>
             {t('取消')}
           </Button>
-          <Button theme='solid' type='primary' onClick={completeOAuth} loading={loading}>
+          <Button
+            theme='solid'
+            type='primary'
+            onClick={completeOAuth}
+            loading={loading}
+          >
             {t('生成并填入')}
           </Button>
         </Space>
@@ -141,7 +160,9 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
         />
 
         <Text type='tertiary' size='small'>
-          {t('说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。')}
+          {t(
+            '说明：生成结果是可直接粘贴到渠道密钥里的 JSON（包含 access_token / refresh_token / account_id）。',
+          )}
         </Text>
       </Space>
     </Modal>

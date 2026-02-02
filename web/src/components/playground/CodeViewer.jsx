@@ -115,8 +115,7 @@ const linkifyHtml = (html) => {
       if (part.startsWith('<')) return part;
       return part.replace(
         linkRegex,
-        (url) =>
-          `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`,
+        (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`,
       );
     })
     .join('');

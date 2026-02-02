@@ -176,7 +176,9 @@ const ChannelAffinityUsageCacheModal = ({
       <div style={{ padding: 16 }}>
         <div style={{ marginBottom: 12 }}>
           <Text type='tertiary' size='small'>
-            {t('命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。')}
+            {t(
+              '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
+            )}
           </Text>
         </div>
         <Spin spinning={loading} tip={t('加载中...')}>
