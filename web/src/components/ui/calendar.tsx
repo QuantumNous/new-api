@@ -1,10 +1,16 @@
 import * as React from 'react'
 import {
+  CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
 } from 'lucide-react'
-import { DayButton, DayPicker, getDefaultClassNames } from 'react-day-picker'
+import {
+  DayButton,
+  DayPicker,
+  type DropdownProps,
+  getDefaultClassNames,
+} from 'react-day-picker'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 
@@ -68,17 +74,11 @@ function Calendar({
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
-          'w-full flex items-center text-sm font-medium justify-center h-(--cell-size) gap-1.5',
+          'flex items-center justify-center gap-0.5',
           defaultClassNames.dropdowns
         ),
-        dropdown_root: cn(
-          'relative has-focus:border-ring border border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] rounded-md',
-          defaultClassNames.dropdown_root
-        ),
-        dropdown: cn(
-          'absolute bg-popover inset-0 opacity-0',
-          defaultClassNames.dropdown
-        ),
+        dropdown_root: cn('relative', defaultClassNames.dropdown_root),
+        dropdown: cn('sr-only', defaultClassNames.dropdown),
         caption_label: cn(
           'select-none font-medium',
           captionLayout === 'label'
@@ -158,6 +158,7 @@ function Calendar({
           )
         },
         DayButton: CalendarDayButton,
+        Dropdown: CalendarDropdown,
         WeekNumber: ({ children, ...props }) => {
           return (
             <td {...props}>
@@ -212,4 +213,90 @@ function CalendarDayButton({
   )
 }
 
-export { Calendar, CalendarDayButton }
+function CalendarDropdown(props: DropdownProps) {
+  const { options, value, onChange, 'aria-label': ariaLabel } = props
+  const [open, setOpen] = React.useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
+
+  const selectedOption = options?.find((opt) => opt.value === value)
+
+  // Handle all events in a single effect
+  React.useEffect(() => {
+    if (!open) return
+
+    // Scroll to selected option
+    const selectedEl = listRef.current?.querySelector('[data-selected="true"]')
+    selectedEl?.scrollIntoView({ block: 'center' })
+
+    // Event handlers
+    const onClickOutside = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const handleSelect = (optValue: number) => {
+    onChange?.({ target: { value: String(optValue) } } as React.ChangeEvent<HTMLSelectElement>)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className='relative'>
+      <Button
+        variant='ghost'
+        size='sm'
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className='h-8 gap-1 px-2 font-medium'
+      >
+        {selectedOption?.label}
+        <ChevronDownIcon
+          className={cn('size-3.5 opacity-50 transition-transform', open && 'rotate-180')}
+        />
+      </Button>
+
+      {open && (
+        <div className='bg-popover text-popover-foreground absolute top-full left-1/2 z-50 mt-1 min-w-max -translate-x-1/2 rounded-md border shadow-md'>
+          <div
+            ref={listRef}
+            className='max-h-60 overflow-y-auto p-1'
+            onWheel={(e) => e.stopPropagation()}
+          >
+            {options?.map((opt) => (
+              <button
+                key={opt.value}
+                type='button'
+                disabled={opt.disabled}
+                data-selected={opt.value === value}
+                onClick={() => handleSelect(opt.value)}
+                className={cn(
+                  'hover:bg-accent hover:text-accent-foreground relative flex w-full cursor-default items-center whitespace-nowrap rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none',
+                  opt.disabled && 'pointer-events-none opacity-50',
+                  opt.value === value && 'bg-accent text-accent-foreground'
+                )}
+              >
+                {opt.label}
+                {opt.value === value && (
+                  <CheckIcon className='absolute right-2 size-4' />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export { Calendar, CalendarDayButton, CalendarDropdown }
