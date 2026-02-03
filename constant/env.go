@@ -17,6 +17,7 @@ var NotificationLimitDurationMinute int
 var GenerateDefaultToken bool
 var ErrorLogEnabled bool
 var TaskQueryLimit int
+var RemoveResponsesReasoningInput bool
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string
