@@ -116,7 +116,6 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
       closeOnEsc
       width={720}
       footer={
-      footer={
         <div className='flex justify-end'>
           <Space>
             <Button theme='borderless' onClick={onCancel} disabled={loading}>
@@ -132,7 +131,6 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
             </Button>
           </Space>
         </div>
-      }
       }
     >
       <Space vertical spacing='tight' style={{ width: '100%' }}>
