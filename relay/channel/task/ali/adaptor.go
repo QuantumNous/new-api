@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -121,7 +122,9 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
-	// 阿里通义万相支持 JSON 格式，不使用 multipart
+	if taskErr = relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return
+	}
 	var taskReq relaycommon.TaskSubmitReq
 	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
 		return service.TaskErrorWrapper(err, "unmarshal_task_request_failed", http.StatusBadRequest)
@@ -130,9 +133,16 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err != nil {
 		return service.TaskErrorWrapper(err, "convert_to_ali_request_failed", http.StatusInternalServerError)
 	}
+	hasImage := aliReq.Input.ImgURL != ""
+	if hasImage {
+		info.Action = constant.TaskActionGenerate
+	} else if strings.Contains(aliReq.Model, "i2v") { // 无图像自动切换为文本生视频
+		aliReq.Model = strings.ReplaceAll(aliReq.Model, "i2v", "t2v")
+		info.Action = constant.TaskActionTextGenerate
+	}
 	a.aliReq = aliReq
 	logger.LogJson(c, "ali video request body", aliReq)
-	return relaycommon.ValidateMultipartDirect(c, info)
+	return
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
