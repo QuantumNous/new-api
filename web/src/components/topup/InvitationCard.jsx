@@ -199,12 +199,12 @@ const InvitationCard = ({
           title={<Text type='tertiary'>{t('奖励说明')}</Text>}
         >
           <div className='space-y-3'>
-            <div className='flex items-start gap-2'>
+            {/* <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>
                 {t('邀请好友注册，好友充值后您可获得相应奖励')}
               </Text>
-            </div>
+            </div> */}
 
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
