@@ -427,6 +427,10 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		}
 	}
 
+	// 图片文件URL，仅支持输入1张图片 参考: https://www.volcengine.com/docs/85621/1777001
+	if r.ReqKey == "jimeng_ti2v_v30_pro" && len(req.Images) > 1 {
+		return nil, fmt.Errorf("jimeng_v30_pro 不支持多图输入")
+	}
 	return &r, nil
 }
 
