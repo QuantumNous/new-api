@@ -185,6 +185,11 @@ func GetMaxUserId() int {
 	return user.Id
 }
 
+// GetAllUsers retrieves a paginated list of users and the total number of users.
+// It returns results that include soft-deleted records, ordered by id descending,
+// and omits the password field from the returned user objects.
+// The pageInfo parameter provides the page size and start index for pagination.
+// Returns the slice of users, the total user count, and any error encountered.
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
@@ -219,7 +224,10 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
+// SearchUsers searches for users matching the provided keyword, group, and exact-match filters.
+// The function accepts a keyword (performs LIKE match on username, email, and display_name; if the keyword is numeric it also matches id), a group to scope results, a map of exact-match filters (allowed keys: "github_id", "discord_id", "oidc_id", "wechat_id", "email", "telegram_id", "linux_do_id"), and pagination parameters startIdx and num.
+// It returns the matched users, the total number of records matching the query (ignoring pagination), and an error if the operation fails.
+func SearchUsers(keyword string, group string, filters map[string]string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -238,30 +246,44 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
 
-	// 构建搜索条件
-	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
+	// 允许的过滤字段白名单
+	allowedFields := map[string]bool{
+		"github_id":   true,
+		"discord_id":  true,
+		"oidc_id":     true,
+		"wechat_id":   true,
+		"email":       true,
+		"telegram_id": true,
+		"linux_do_id": true,
+	}
 
-	// 尝试将关键字转换为整数ID
-	keywordInt, err := strconv.Atoi(keyword)
-	if err == nil {
-		// 如果是数字，同时搜索ID和其他字段
-		likeCondition = "id = ? OR " + likeCondition
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
-		} else {
+	// 应用精确匹配过滤器
+	for field, value := range filters {
+		if value != "" && allowedFields[field] {
+			query = query.Where(field+" = ?", value)
+		}
+	}
+
+	// 构建搜索条件
+	if keyword != "" {
+		likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
+
+		// 尝试将关键字转换为整数ID
+		keywordInt, err := strconv.Atoi(keyword)
+		if err == nil {
+			// 如果是数字，同时搜索ID和其他字段
+			likeCondition = "id = ? OR " + likeCondition
 			query = query.Where(likeCondition,
 				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
-		}
-	} else {
-		// 非数字关键字，只搜索字符串字段
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
 		} else {
+			// 非数字关键字，只搜索字符串字段
 			query = query.Where(likeCondition,
 				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 		}
+	}
+
+	if group != "" {
+		query = query.Where(commonGroupCol+" = ?", group)
 	}
 
 	// 获取总数
