@@ -147,6 +147,9 @@ const Dashboard = () => {
         refresh={handleRefresh}
         loading={dashboardData.loading}
         t={dashboardData.t}
+        userGroup={userState?.user?.group}
+        groupDescription={userState?.user?.group_description}
+        groupLimits={userState?.user?.group_limits}
       />
 
       <SearchModal

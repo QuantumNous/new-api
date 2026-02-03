@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -443,6 +444,27 @@ func GetSelf(c *gin.Context) {
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
 
+	// 获取用户组的限制配置
+	var groupLimits map[string]interface{}
+	if setting.GroupLimitEnabled {
+		groupLimitConfig := setting.GetGroupLimitConfig(user.Group)
+		groupLimits = map[string]interface{}{
+			"enabled":     true,
+			"concurrency": groupLimitConfig.Concurrency,
+			"rpm":         groupLimitConfig.RPM,
+			"rpd":         groupLimitConfig.RPD,
+			"tpm":         groupLimitConfig.TPM,
+			"tpd":         groupLimitConfig.TPD,
+		}
+	} else {
+		groupLimits = map[string]interface{}{
+			"enabled": false,
+		}
+	}
+
+	// 获取用户分组描述
+	groupDescription := ratio_setting.GetGroupDescription(user.Group)
+
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
 		"id":                user.Id,
@@ -457,6 +479,7 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":         user.WeChatId,
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
+		"group_description": groupDescription,
 		"quota":             user.Quota,
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
@@ -470,6 +493,7 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer":   user.StripeCustomer,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,                // 新增权限字段
+		"group_limits":      groupLimits,                // 新增用户组限制信息
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -786,6 +786,19 @@ export function truncateText(text, maxWidth = 200) {
   }
 }
 
+// 格式化限制值的辅助函数
+const formatLimitValue = (value) => {
+  if (value === 0 || value === undefined || value === null) {
+    return '∞';
+  }
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1)}M`;
+  } else if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}K`;
+  }
+  return value.toString();
+};
+
 export const renderGroupOption = (item) => {
   const {
     disabled,
@@ -830,6 +843,9 @@ export const renderGroupOption = (item) => {
     }
   };
 
+  // 检查是否有限制信息
+  const hasLimits = item.concurrency !== undefined || item.rpm !== undefined || item.rpd !== undefined || item.tpm !== undefined || item.tpd !== undefined;
+
   return (
     <div
       style={baseStyle}
@@ -838,11 +854,27 @@ export const renderGroupOption = (item) => {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <Typography.Text strong type={disabled ? 'tertiary' : undefined}>
-          {value}
-        </Typography.Text>
-        <Typography.Text type='secondary' size='small'>
           {label}
         </Typography.Text>
+        {hasLimits && (
+          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+            <Tag size='small' color='green' style={{ fontSize: '10px' }}>
+              {i18next.t('并发')}: {formatLimitValue(item.concurrency)}
+            </Tag>
+            <Tag size='small' color='orange' style={{ fontSize: '10px' }}>
+              RPM: {formatLimitValue(item.rpm)}
+            </Tag>
+            <Tag size='small' color='amber' style={{ fontSize: '10px' }}>
+              RPD: {formatLimitValue(item.rpd)}
+            </Tag>
+            <Tag size='small' color='purple' style={{ fontSize: '10px' }}>
+              TPM: {formatLimitValue(item.tpm)}
+            </Tag>
+            <Tag size='small' color='cyan' style={{ fontSize: '10px' }}>
+              TPD: {formatLimitValue(item.tpd)}
+            </Tag>
+          </div>
+        )}
       </div>
       {item.ratio && renderRatio(item.ratio)}
     </div>

@@ -34,6 +34,7 @@ export default function GroupRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     GroupRatio: '',
+    GroupDescription: '',
     UserUsableGroups: '',
     GroupGroupRatio: '',
     'group_ratio_setting.group_special_usable_group': '',
@@ -135,6 +136,28 @@ export default function GroupRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, GroupRatio: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分组描述')}
+              placeholder={t('为一个 JSON 文本，键为分组名称，值为分组描述')}
+              extraText={t(
+                '分组描述设置，用于在令牌创建时显示分组的描述信息，格式为 JSON 字符串，例如：{"default": "默认分组", "vip": "VIP分组"}',
+              )}
+              field={'GroupDescription'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) => setInputs({ ...inputs, GroupDescription: value })}
             />
           </Col>
         </Row>

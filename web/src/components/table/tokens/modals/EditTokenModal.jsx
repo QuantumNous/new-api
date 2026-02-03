@@ -134,6 +134,11 @@ const EditTokenModal = (props) => {
         label: info.desc,
         value: group,
         ratio: info.ratio,
+        concurrency: info.concurrency,
+        rpm: info.rpm,
+        rpd: info.rpd,
+        tpm: info.tpm,
+        tpd: info.tpd,
       }));
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {

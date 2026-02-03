@@ -18,6 +18,15 @@ var groupRatio = map[string]float64{
 
 var groupRatioMutex sync.RWMutex
 
+// 分组描述，与分组倍率关联
+var groupDescription = map[string]string{
+	"default": "默认分组",
+	"vip":     "VIP分组",
+	"svip":    "SVIP分组",
+}
+
+var groupDescriptionMutex sync.RWMutex
+
 var (
 	GroupGroupRatio = map[string]map[string]float64{
 		"vip": {
@@ -111,6 +120,51 @@ func GetGroupRatio(name string) float64 {
 		return 1
 	}
 	return ratio
+}
+
+// GetGroupDescription 获取分组描述
+func GetGroupDescription(name string) string {
+	groupDescriptionMutex.RLock()
+	defer groupDescriptionMutex.RUnlock()
+
+	desc, ok := groupDescription[name]
+	if !ok {
+		return name // 如果没有描述，返回分组名
+	}
+	return desc
+}
+
+// GetGroupDescriptionCopy 获取分组描述的副本
+func GetGroupDescriptionCopy() map[string]string {
+	groupDescriptionMutex.RLock()
+	defer groupDescriptionMutex.RUnlock()
+
+	descCopy := make(map[string]string)
+	for k, v := range groupDescription {
+		descCopy[k] = v
+	}
+	return descCopy
+}
+
+// GroupDescription2JSONString 将分组描述转换为JSON字符串
+func GroupDescription2JSONString() string {
+	groupDescriptionMutex.RLock()
+	defer groupDescriptionMutex.RUnlock()
+
+	jsonBytes, err := json.Marshal(groupDescription)
+	if err != nil {
+		common.SysLog("error marshalling group description: " + err.Error())
+	}
+	return string(jsonBytes)
+}
+
+// UpdateGroupDescriptionByJSONString 通过JSON字符串更新分组描述
+func UpdateGroupDescriptionByJSONString(jsonStr string) error {
+	groupDescriptionMutex.Lock()
+	defer groupDescriptionMutex.Unlock()
+
+	groupDescription = make(map[string]string)
+	return json.Unmarshal([]byte(jsonStr), &groupDescription)
 }
 
 func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {

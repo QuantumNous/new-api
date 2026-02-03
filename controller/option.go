@@ -142,6 +142,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "GroupDescription":
+		err = ratio_setting.UpdateGroupDescriptionByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "分组描述设置失败: " + err.Error(),
+			})
+			return
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
 		if err != nil {
@@ -175,6 +184,15 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
+			})
+			return
+		}
+	case "GroupLimitConfigs":
+		err = setting.ValidateGroupLimitConfigsJSON(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "用户组限制配置格式错误: " + err.Error(),
 			})
 			return
 		}

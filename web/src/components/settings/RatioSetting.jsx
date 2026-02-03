@@ -38,6 +38,7 @@ const RatioSetting = () => {
     CacheRatio: '',
     CompletionRatio: '',
     GroupRatio: '',
+    GroupDescription: '',
     GroupGroupRatio: '',
     ImageRatio: '',
     AudioRatio: '',

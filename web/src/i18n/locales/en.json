@@ -2602,6 +2602,12 @@
     "关闭后将不再显示此提示（仅对当前浏览器生效）。确定要关闭吗？": "After closing, this notice will no longer be shown (only for this browser). Are you sure you want to close it?",
     "关闭提示": "Close notice",
     "说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。": "Note: Tests on this page use non-streaming requests. If a channel only supports streaming responses, tests may fail. Please rely on actual usage.",
-    "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Notice: Endpoint mapping is for Model Marketplace display only and does not affect real model invocation. To configure real invocation, please go to Channel Management."
+    "提示：端点映射仅用于模型广场展示，不会影响模型真实调用。如需配置真实调用，请前往「渠道管理」。": "Notice: Endpoint mapping is for Model Marketplace display only and does not affect real model invocation. To configure real invocation, please go to Channel Management.",
+    "无限制": "Unlimited",
+    "同时进行的请求数限制": "Concurrent request limit",
+    "每分钟请求数限制": "Requests per minute limit",
+    "每分钟令牌数限制": "Tokens per minute limit",
+    "每日令牌数限制": "Tokens per day limit",
+    "并发数": "Concurrency"
   }
 }

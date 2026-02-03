@@ -29,20 +29,40 @@ func GetUserGroups(c *gin.Context) {
 	userId := c.GetInt("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
-	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
+	for groupName := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
-		if desc, ok := userUsableGroups[groupName]; ok {
-			usableGroups[groupName] = map[string]interface{}{
+		if _, ok := userUsableGroups[groupName]; ok {
+			groupInfo := map[string]interface{}{
 				"ratio": service.GetUserGroupRatio(userGroup, groupName),
-				"desc":  desc,
+				"desc":  ratio_setting.GetGroupDescription(groupName), // 从分组倍率设置获取描述
 			}
+			// 添加分组限制信息
+			if setting.GroupLimitEnabled {
+				limitConfig := setting.GetGroupLimitConfig(groupName)
+				groupInfo["concurrency"] = limitConfig.Concurrency
+				groupInfo["rpm"] = limitConfig.RPM
+				groupInfo["rpd"] = limitConfig.RPD
+				groupInfo["tpm"] = limitConfig.TPM
+				groupInfo["tpd"] = limitConfig.TPD
+			}
+			usableGroups[groupName] = groupInfo
 		}
 	}
 	if _, ok := userUsableGroups["auto"]; ok {
-		usableGroups["auto"] = map[string]interface{}{
+		groupInfo := map[string]interface{}{
 			"ratio": "自动",
-			"desc":  setting.GetUsableGroupDescription("auto"),
+			"desc":  ratio_setting.GetGroupDescription("auto"), // 从分组倍率设置获取描述
 		}
+		// auto 分组也添加限制信息（使用用户当前分组的限制）
+		if setting.GroupLimitEnabled {
+			limitConfig := setting.GetGroupLimitConfig(userGroup)
+			groupInfo["concurrency"] = limitConfig.Concurrency
+			groupInfo["rpm"] = limitConfig.RPM
+			groupInfo["rpd"] = limitConfig.RPD
+			groupInfo["tpm"] = limitConfig.TPM
+			groupInfo["tpd"] = limitConfig.TPD
+		}
+		usableGroups["auto"] = groupInfo
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
