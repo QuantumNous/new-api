@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const DefaultSearchLimit = 100
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -29,9 +31,23 @@ func GetAllTokens(c *gin.Context) {
 
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	role := c.GetInt("role")
+
 	keyword := c.Query("keyword")
 	token := c.Query("token")
-	tokens, err := model.SearchUserTokens(userId, keyword, token)
+	scope := c.Query("scope")
+
+	limit := DefaultSearchLimit
+
+	var tokens []*model.Token
+	var err error
+
+	if scope == "global" && role >= common.RoleAdminUser {
+		tokens, err = model.SearchAllTokens(keyword, token, limit)
+	} else {
+		tokens, err = model.SearchUserTokens(userId, keyword, token)
+	}
+
 	if err != nil {
 		common.ApiError(c, err)
 		return
