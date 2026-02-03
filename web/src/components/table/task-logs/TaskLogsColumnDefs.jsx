@@ -376,7 +376,7 @@ export const getTaskLogsColumns = ({
               href='#'
               onClick={(e) => {
                 e.preventDefault();
-                openVideoModal(text);
+                openVideoModal(recordUrl);
               }}
             >
               {t('点击预览视频')}
