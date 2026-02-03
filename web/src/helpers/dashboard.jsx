@@ -261,7 +261,7 @@ export const processRawData = (
   };
 
   // 检查数据是否跨年
-  const showYear = isDataCrossYear(data.map(item => item.created_at));
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
 
   data.forEach((item) => {
     result.uniqueModels.add(item.model_name);
@@ -269,7 +269,11 @@ export const processRawData = (
     result.totalQuota += item.quota;
     result.totalTimes += item.count;
 
-    const timeKey = timestamp2string1(item.created_at, dataExportDefaultTime, showYear);
+    const timeKey = timestamp2string1(
+      item.created_at,
+      dataExportDefaultTime,
+      showYear,
+    );
     if (!result.timePoints.includes(timeKey)) {
       result.timePoints.push(timeKey);
     }
@@ -328,10 +332,14 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
   const aggregatedData = new Map();
 
   // 检查数据是否跨年
-  const showYear = isDataCrossYear(data.map(item => item.created_at));
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
 
   data.forEach((item) => {
-    const timeKey = timestamp2string1(item.created_at, dataExportDefaultTime, showYear);
+    const timeKey = timestamp2string1(
+      item.created_at,
+      dataExportDefaultTime,
+      showYear,
+    );
     const modelKey = item.model_name;
     const key = `${timeKey}-${modelKey}`;
 
@@ -372,7 +380,7 @@ export const generateChartTimePoints = (
     );
     const showYear = isDataCrossYear(generatedTimestamps);
 
-    chartTimePoints = generatedTimestamps.map(ts =>
+    chartTimePoints = generatedTimestamps.map((ts) =>
       timestamp2string1(ts, dataExportDefaultTime, showYear),
     );
   }

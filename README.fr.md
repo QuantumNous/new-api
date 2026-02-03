@@ -445,6 +445,14 @@ Bienvenue à toutes les formes de contribution!
 
 ---
 
+## 📜 Licence
+
+Ce projet est sous licence [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
+
+Si les politiques de votre organisation ne permettent pas l'utilisation de logiciels sous licence AGPLv3, ou si vous souhaitez éviter les obligations open-source de l'AGPLv3, veuillez nous contacter à : [support@quantumnous.com](mailto:support@quantumnous.com)
+
+---
+
 ## 🌟 Historique des étoiles
 
 <div align="center">

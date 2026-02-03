@@ -104,7 +104,9 @@ const ModelSelectModal = ({
   }, [normalizedRedirectModels, normalizedSelectedSet]);
 
   const filteredModels = models.filter((m) =>
-    String(m || '').toLowerCase().includes(keyword.toLowerCase()),
+    String(m || '')
+      .toLowerCase()
+      .includes(keyword.toLowerCase()),
   );
 
   // 分类模型：新获取的模型和已有模型

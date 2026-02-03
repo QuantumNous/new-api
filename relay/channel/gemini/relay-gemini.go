@@ -988,11 +988,9 @@ func unescapeMapOrSlice(data interface{}) interface{} {
 func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	var argsBytes []byte
 	var err error
-	if result, ok := item.FunctionCall.Arguments.(map[string]interface{}); ok {
-		argsBytes, err = json.Marshal(unescapeMapOrSlice(result))
-	} else {
-		argsBytes, err = json.Marshal(item.FunctionCall.Arguments)
-	}
+	// 移除 unescapeMapOrSlice 调用，直接使用 json.Marshal
+	// JSON 序列化/反序列化已经正确处理了转义字符
+	argsBytes, err = json.Marshal(item.FunctionCall.Arguments)
 
 	if err != nil {
 		return nil
@@ -1251,6 +1249,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
+			usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
 			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
 				if detail.Modality == "AUDIO" {
 					usage.PromptTokensDetails.AudioTokens = detail.TokenCount
@@ -1395,6 +1394,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			PromptTokens: geminiResponse.UsageMetadata.PromptTokenCount,
 		}
 		usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+		usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
 		for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
 			if detail.Modality == "AUDIO" {
 				usage.PromptTokensDetails.AudioTokens = detail.TokenCount
@@ -1447,6 +1447,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 
 	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+	usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
 	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 
 	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {

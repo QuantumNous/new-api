@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -15,17 +16,61 @@ import (
 )
 
 func ReturnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
-	if relayInfo.FinalPreConsumedQuota != 0 {
-		logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费额度 %s", relayInfo.UserId, logger.FormatQuota(relayInfo.FinalPreConsumedQuota)))
-		gopool.Go(func() {
-			relayInfoCopy := *relayInfo
+	// Always refund subscription pre-consumed (can be non-zero even when FinalPreConsumedQuota is 0)
+	needRefundSub := relayInfo.BillingSource == BillingSourceSubscription && relayInfo.SubscriptionId != 0 && relayInfo.SubscriptionPreConsumed > 0
+	needRefundToken := relayInfo.FinalPreConsumedQuota != 0
+	if !needRefundSub && !needRefundToken {
+		return
+	}
+	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, subscription=%d）",
+		relayInfo.UserId,
+		logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
+		relayInfo.SubscriptionPreConsumed,
+	))
+	gopool.Go(func() {
+		relayInfoCopy := *relayInfo
+		if relayInfoCopy.BillingSource == BillingSourceSubscription {
+			if needRefundSub {
+				if err := refundWithRetry(func() error {
+					return model.RefundSubscriptionPreConsume(relayInfoCopy.RequestId)
+				}); err != nil {
+					common.SysLog("error refund subscription pre-consume: " + err.Error())
+				}
+			}
+			// refund token quota only
+			if needRefundToken && !relayInfoCopy.IsPlayground {
+				_ = model.IncreaseTokenQuota(relayInfoCopy.TokenId, relayInfoCopy.TokenKey, relayInfoCopy.FinalPreConsumedQuota)
+			}
+			return
+		}
 
+		// wallet refund uses existing path (user quota + token quota)
+		if needRefundToken {
 			err := PostConsumeQuota(&relayInfoCopy, -relayInfoCopy.FinalPreConsumedQuota, 0, false)
 			if err != nil {
 				common.SysLog("error return pre-consumed quota: " + err.Error())
 			}
-		})
+		}
+	})
+}
+
+func refundWithRetry(fn func() error) error {
+	if fn == nil {
+		return nil
 	}
+	const maxAttempts = 3
+	var lastErr error
+	for i := 0; i < maxAttempts; i++ {
+		if err := fn(); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if i < maxAttempts-1 {
+			time.Sleep(time.Duration(200*(i+1)) * time.Millisecond)
+		}
+	}
+	return lastErr
 }
 
 // PreConsumeQuota checks if the user has enough quota to pre-consume.

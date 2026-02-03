@@ -112,6 +112,14 @@ export const useLogsData = () => {
   const [showUserInfo, setShowUserInfoModal] = useState(false);
   const [userInfoData, setUserInfoData] = useState(null);
 
+  // Channel affinity usage cache stats modal state (admin only)
+  const [
+    showChannelAffinityUsageCacheModal,
+    setShowChannelAffinityUsageCacheModal,
+  ] = useState(false);
+  const [channelAffinityUsageCacheTarget, setChannelAffinityUsageCacheTarget] =
+    useState(null);
+
   // Load saved column preferences from localStorage
   useEffect(() => {
     const savedColumns = localStorage.getItem(STORAGE_KEY);
@@ -304,6 +312,17 @@ export const useLogsData = () => {
     }
   };
 
+  const openChannelAffinityUsageCacheModal = (affinity) => {
+    const a = affinity || {};
+    setChannelAffinityUsageCacheTarget({
+      rule_name: a.rule_name || a.reason || '',
+      using_group: a.using_group || '',
+      key_hint: a.key_hint || '',
+      key_fp: a.key_fp || '',
+    });
+    setShowChannelAffinityUsageCacheModal(true);
+  };
+
   // Format logs data
   const setLogsFormat = (logs) => {
     const requestConversionDisplayValue = (conversionChain) => {
@@ -372,9 +391,13 @@ export const useLogsData = () => {
                 other.cache_ratio || 1.0,
                 other.cache_creation_ratio || 1.0,
                 other.cache_creation_tokens_5m || 0,
-                other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+                other.cache_creation_ratio_5m ||
+                  other.cache_creation_ratio ||
+                  1.0,
                 other.cache_creation_tokens_1h || 0,
-                other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+                other.cache_creation_ratio_1h ||
+                  other.cache_creation_ratio ||
+                  1.0,
               )
             : renderLogContent(
                 other?.model_ratio,
@@ -510,6 +533,55 @@ export const useLogsData = () => {
           value: other.request_path,
         });
       }
+      if (other?.billing_source === 'subscription') {
+        const planId = other?.subscription_plan_id;
+        const planTitle = other?.subscription_plan_title || '';
+        const subscriptionId = other?.subscription_id;
+        const unit = t('额度');
+        const pre = other?.subscription_pre_consumed ?? 0;
+        const postDelta = other?.subscription_post_delta ?? 0;
+        const finalConsumed = other?.subscription_consumed ?? pre + postDelta;
+        const remain = other?.subscription_remain;
+        const total = other?.subscription_total;
+        // Use multiple Description items to avoid an overlong single line.
+        if (planId) {
+          expandDataLocal.push({
+            key: t('订阅套餐'),
+            value: `#${planId} ${planTitle}`.trim(),
+          });
+        }
+        if (subscriptionId) {
+          expandDataLocal.push({
+            key: t('订阅实例'),
+            value: `#${subscriptionId}`,
+          });
+        }
+        const settlementLines = [
+          `${t('预扣')}：${pre} ${unit}`,
+          `${t('结算差额')}：${postDelta > 0 ? '+' : ''}${postDelta} ${unit}`,
+          `${t('最终抵扣')}：${finalConsumed} ${unit}`,
+        ]
+          .filter(Boolean)
+          .join('\n');
+        expandDataLocal.push({
+          key: t('订阅结算'),
+          value: (
+            <div style={{ whiteSpace: 'pre-line' }}>{settlementLines}</div>
+          ),
+        });
+        if (remain !== undefined && total !== undefined) {
+          expandDataLocal.push({
+            key: t('订阅剩余'),
+            value: `${remain}/${total} ${unit}`,
+          });
+        }
+        expandDataLocal.push({
+          key: t('订阅说明'),
+          value: t(
+            'token 会按倍率换算成“额度/次数”，请求结束后再做差额结算（补扣/返还）。',
+          ),
+        });
+      }
       if (isAdminUser) {
         expandDataLocal.push({
           key: t('请求转换'),
@@ -524,8 +596,8 @@ export const useLogsData = () => {
           localCountMode = t('上游返回');
         }
         expandDataLocal.push({
-            key: t('计费模式'),
-            value: localCountMode,
+          key: t('计费模式'),
+          value: localCountMode,
         });
       }
       expandDatesLocal[logs[i].key] = expandDataLocal;
@@ -679,6 +751,12 @@ export const useLogsData = () => {
     setShowUserInfoModal,
     userInfoData,
     showUserInfoFunc,
+
+    // Channel affinity usage cache stats modal
+    showChannelAffinityUsageCacheModal,
+    setShowChannelAffinityUsageCacheModal,
+    channelAffinityUsageCacheTarget,
+    openChannelAffinityUsageCacheModal,
 
     // Functions
     loadLogs,

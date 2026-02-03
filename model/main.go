@@ -248,6 +248,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	// Migrate price_amount column from float/double to decimal for existing tables
+	migrateSubscriptionPlanPriceAmount()
+
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
@@ -268,6 +271,10 @@ func migrateDB() error {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&Checkin{},
+		&SubscriptionPlan{},
+		&SubscriptionOrder{},
+		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
 	)
 	if err != nil {
 		return err
@@ -302,6 +309,10 @@ func migrateDBFast() error {
 		{&TwoFA{}, "TwoFA"},
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
 		{&Checkin{}, "Checkin"},
+		{&SubscriptionPlan{}, "SubscriptionPlan"},
+		{&SubscriptionOrder{}, "SubscriptionOrder"},
+		{&UserSubscription{}, "UserSubscription"},
+		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -336,6 +347,61 @@ func migrateLOGDB() error {
 		return err
 	}
 	return nil
+}
+
+// migrateSubscriptionPlanPriceAmount migrates price_amount column from float/double to decimal(10,6)
+// This is safe to run multiple times - it checks the column type first
+func migrateSubscriptionPlanPriceAmount() {
+	tableName := "subscription_plans"
+	columnName := "price_amount"
+
+	// Check if table exists first
+	if !DB.Migrator().HasTable(tableName) {
+		return
+	}
+
+	// Check if column exists
+	if !DB.Migrator().HasColumn(&SubscriptionPlan{}, columnName) {
+		return
+	}
+
+	var alterSQL string
+	if common.UsingPostgreSQL {
+		// PostgreSQL: Check if already decimal/numeric
+		var dataType string
+		DB.Raw(`SELECT data_type FROM information_schema.columns 
+			WHERE table_name = ? AND column_name = ?`, tableName, columnName).Scan(&dataType)
+		if dataType == "numeric" {
+			return // Already decimal/numeric
+		}
+		alterSQL = fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE decimal(10,6) USING %s::decimal(10,6)`,
+			tableName, columnName, columnName)
+	} else if common.UsingMySQL {
+		// MySQL: Check if already decimal
+		var columnType string
+		DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns 
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&columnType)
+		if strings.HasPrefix(strings.ToLower(columnType), "decimal") {
+			return // Already decimal
+		}
+		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s decimal(10,6) NOT NULL DEFAULT 0",
+			tableName, columnName)
+	} else if common.UsingSQLite {
+		// SQLite doesn't support ALTER COLUMN, but its type affinity handles this automatically
+		// The column will accept decimal values without modification
+		return
+	} else {
+		return
+	}
+
+	if alterSQL != "" {
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to migrate %s.%s to decimal: %v", tableName, columnName, err))
+		} else {
+			common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to decimal(10,6)", tableName, columnName))
+		}
+	}
 }
 
 func closeDB(db *gorm.DB) error {

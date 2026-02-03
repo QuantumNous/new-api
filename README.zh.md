@@ -445,6 +445,14 @@ docker run --name new-api -d --restart always \
 
 ---
 
+## 📜 许可证
+
+本项目采用 [GNU Affero 通用公共许可证 v3.0 (AGPLv3)](./LICENSE) 授权。
+
+如果您所在的组织政策不允许使用 AGPLv3 许可的软件，或您希望规避 AGPLv3 的开源义务，请发送邮件至：[support@quantumnous.com](mailto:support@quantumnous.com)
+
+---
+
 ## 🌟 Star History
 
 <div align="center">

@@ -20,3 +20,7 @@ var TaskQueryLimit int
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string
+
+// TrustedRedirectDomains is a list of trusted domains for redirect URL validation.
+// Domains support subdomain matching (e.g., "example.com" matches "sub.example.com").
+var TrustedRedirectDomains []string

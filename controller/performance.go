@@ -91,11 +91,11 @@ func GetPerformanceStats(c *gin.Context) {
 	// 获取配置信息
 	diskConfig := common.GetDiskCacheConfig()
 	config := PerformanceConfig{
-		DiskCacheEnabled:      diskConfig.Enabled,
-		DiskCacheThresholdMB:  diskConfig.ThresholdMB,
-		DiskCacheMaxSizeMB:    diskConfig.MaxSizeMB,
-		DiskCachePath:         diskConfig.Path,
-		IsRunningInContainer:  common.IsRunningInContainer(),
+		DiskCacheEnabled:     diskConfig.Enabled,
+		DiskCacheThresholdMB: diskConfig.ThresholdMB,
+		DiskCacheMaxSizeMB:   diskConfig.MaxSizeMB,
+		DiskCachePath:        diskConfig.Path,
+		IsRunningInContainer: common.IsRunningInContainer(),
 	}
 
 	// 获取磁盘空间信息
@@ -199,4 +199,3 @@ func getDiskCacheInfo() DiskCacheInfo {
 
 	return info
 }
-
