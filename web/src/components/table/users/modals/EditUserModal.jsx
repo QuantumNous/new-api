@@ -338,6 +338,7 @@ const EditUserModal = (props) => {
                       'wechat_id',
                       'email',
                       'telegram_id',
+                      'linux_do_id',
                     ].map((field) => (
                       <Col span={24} key={field}>
                         <Form.Input
