@@ -63,11 +63,16 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	return tokens, err
 }
 
-func SearchUserTokens(userId int, keyword string, token string) (tokens []*Token, err error) {
+func SearchUserTokens(userId int, keyword string, token string, group string) (tokens []*Token, err error) {
 	if token != "" {
-		token = strings.Trim(token, "sk-")
+		token = strings.TrimPrefix(token, "sk-")
 	}
-	err = DB.Where("user_id = ?", userId).Where("name LIKE ?", "%"+keyword+"%").Where(commonKeyCol+" LIKE ?", "%"+token+"%").Find(&tokens).Error
+	group = strings.TrimSpace(group)
+	query := DB.Where("user_id = ?", userId).Where("name LIKE ?", "%"+keyword+"%").Where(commonKeyCol+" LIKE ?", "%"+token+"%")
+	if group != "" && group != "null" {
+		query = query.Where(commonGroupCol+" = ?", group)
+	}
+	err = query.Find(&tokens).Error
 	return tokens, err
 }
 

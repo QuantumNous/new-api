@@ -27,6 +27,7 @@ const TokensFilters = ({
   searchTokens,
   loading,
   searching,
+  groupOptions = [],
   t,
 }) => {
   // Handle form reset and immediate search
@@ -75,6 +76,25 @@ const TokensFilters = ({
             showClear
             pure
             size='small'
+          />
+        </div>
+
+        <div className='relative w-full md:w-40'>
+          <Form.Select
+            field='searchGroup'
+            placeholder={t('选择分组')}
+            optionList={[
+              { label: t('选择分组'), value: '' },
+              ...groupOptions,
+            ]}
+            showClear
+            pure
+            size='small'
+            onChange={() => {
+              setTimeout(() => {
+                searchTokens();
+              }, 0);
+            }}
           />
         </div>
 

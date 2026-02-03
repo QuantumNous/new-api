@@ -345,6 +345,7 @@ function TokensPage() {
     searchTokens,
     loading,
     searching,
+    groupOptions,
 
     // Description state
     compactMode,
@@ -391,6 +392,7 @@ function TokensPage() {
                 searchTokens={searchTokens}
                 loading={loading}
                 searching={searching}
+                groupOptions={groupOptions}
                 t={t}
               />
             </div>
