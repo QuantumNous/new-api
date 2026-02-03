@@ -217,7 +217,11 @@ export function timestamp2string(timestamp) {
   );
 }
 
-export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour', showYear = false) {
+export function timestamp2string1(
+  timestamp,
+  dataExportDefaultTime = 'hour',
+  showYear = false,
+) {
   let date = new Date(timestamp * 1000);
   let year = date.getFullYear();
   let month = (date.getMonth() + 1).toString();
@@ -248,7 +252,9 @@ export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour', sho
       nextDay = '0' + nextDay;
     }
     // 周视图结束日期也仅在跨年时显示年份
-    let nextStr = showYear ? nextWeekYear + '-' + nextMonth + '-' + nextDay : nextMonth + '-' + nextDay;
+    let nextStr = showYear
+      ? nextWeekYear + '-' + nextMonth + '-' + nextDay
+      : nextMonth + '-' + nextDay;
     str += ' - ' + nextStr;
   }
   return str;
@@ -257,7 +263,9 @@ export function timestamp2string1(timestamp, dataExportDefaultTime = 'hour', sho
 // 检查时间戳数组是否跨年
 export function isDataCrossYear(timestamps) {
   if (!timestamps || timestamps.length === 0) return false;
-  const years = new Set(timestamps.map(ts => new Date(ts * 1000).getFullYear()));
+  const years = new Set(
+    timestamps.map((ts) => new Date(ts * 1000).getFullYear()),
+  );
   return years.size > 1;
 }
 

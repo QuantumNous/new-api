@@ -40,7 +40,7 @@ const ModelDeploymentSetting = () => {
         'model_deployment.ionet.api_key': '',
         'model_deployment.ionet.enabled': false,
       };
-      
+
       data.forEach((item) => {
         if (item.key.endsWith('Enabled') || item.key.endsWith('enabled')) {
           newInputs[item.key] = toBoolean(item.value);

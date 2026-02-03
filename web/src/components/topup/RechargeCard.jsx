@@ -87,7 +87,12 @@ const RechargeCard = ({
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
-  console.log(' enabled screem ?', enableCreemTopUp, ' products ?', creemProducts);
+  console.log(
+    ' enabled screem ?',
+    enableCreemTopUp,
+    ' products ?',
+    creemProducts,
+  );
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -503,7 +508,8 @@ const RechargeCard = ({
                             {t('充值额度')}: {product.quota}
                           </div>
                           <div className='text-lg font-semibold text-blue-600'>
-                            {product.currency === 'EUR' ? '€' : '$'}{product.price}
+                            {product.currency === 'EUR' ? '€' : '$'}
+                            {product.price}
                           </div>
                         </Card>
                       ))}

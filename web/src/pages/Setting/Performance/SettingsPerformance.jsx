@@ -168,7 +168,8 @@ export default function SettingsPerformance(props) {
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
         if (typeof inputs[key] === 'boolean') {
-          currentInputs[key] = props.options[key] === 'true' || props.options[key] === true;
+          currentInputs[key] =
+            props.options[key] === 'true' || props.options[key] === true;
         } else if (typeof inputs[key] === 'number') {
           currentInputs[key] = parseInt(props.options[key]) || inputs[key];
         } else {
@@ -184,9 +185,14 @@ export default function SettingsPerformance(props) {
     fetchStats();
   }, [props.options]);
 
-  const diskCacheUsagePercent = stats?.cache_stats?.disk_cache_max_bytes > 0
-    ? (stats.cache_stats.current_disk_usage_bytes / stats.cache_stats.disk_cache_max_bytes * 100).toFixed(1)
-    : 0;
+  const diskCacheUsagePercent =
+    stats?.cache_stats?.disk_cache_max_bytes > 0
+      ? (
+          (stats.cache_stats.current_disk_usage_bytes /
+            stats.cache_stats.disk_cache_max_bytes) *
+          100
+        ).toFixed(1)
+      : 0;
 
   return (
     <>
@@ -199,7 +205,9 @@ export default function SettingsPerformance(props) {
           <Form.Section text={t('磁盘缓存设置（磁盘换内存）')}>
             <Banner
               type='info'
-              description={t('启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用，适用于处理包含大量图片/文件的请求。建议在 SSD 环境下使用。')}
+              description={t(
+                '启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用，适用于处理包含大量图片/文件的请求。建议在 SSD 环境下使用。',
+              )}
               style={{ marginBottom: 16 }}
             />
             <Row gutter={16}>
@@ -211,7 +219,9 @@ export default function SettingsPerformance(props) {
                   size='default'
                   checkedText='｜'
                   uncheckedText='〇'
-                  onChange={handleFieldChange('performance_setting.disk_cache_enabled')}
+                  onChange={handleFieldChange(
+                    'performance_setting.disk_cache_enabled',
+                  )}
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -221,7 +231,9 @@ export default function SettingsPerformance(props) {
                   extraText={t('请求体超过此大小时使用磁盘缓存')}
                   min={1}
                   max={1024}
-                  onChange={handleFieldChange('performance_setting.disk_cache_threshold_mb')}
+                  onChange={handleFieldChange(
+                    'performance_setting.disk_cache_threshold_mb',
+                  )}
                   disabled={!inputs['performance_setting.disk_cache_enabled']}
                 />
               </Col>
@@ -239,7 +251,9 @@ export default function SettingsPerformance(props) {
                   }
                   min={100}
                   max={102400}
-                  onChange={handleFieldChange('performance_setting.disk_cache_max_size_mb')}
+                  onChange={handleFieldChange(
+                    'performance_setting.disk_cache_max_size_mb',
+                  )}
                   disabled={!inputs['performance_setting.disk_cache_enabled']}
                 />
               </Col>
@@ -251,7 +265,9 @@ export default function SettingsPerformance(props) {
                     label={t('缓存目录')}
                     extraText={t('留空使用系统临时目录')}
                     placeholder={t('例如 /var/cache/new-api')}
-                    onChange={handleFieldChange('performance_setting.disk_cache_path')}
+                    onChange={handleFieldChange(
+                      'performance_setting.disk_cache_path',
+                    )}
                     showClear
                     disabled={!inputs['performance_setting.disk_cache_enabled']}
                   />
@@ -290,38 +306,98 @@ export default function SettingsPerformance(props) {
           {stats && (
             <>
               {/* 缓存使用情况 */}
-              <Row gutter={16} style={{ marginBottom: 16, display: 'flex', alignItems: 'stretch' }}>
+              <Row
+                gutter={16}
+                style={{
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'stretch',
+                }}
+              >
                 <Col xs={24} md={12} style={{ display: 'flex' }}>
-                  <div style={{ padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Text strong style={{ marginBottom: 8, display: 'block' }}>{t('请求体磁盘缓存')}</Text>
+                  <div
+                    style={{
+                      padding: 16,
+                      background: 'var(--semi-color-fill-0)',
+                      borderRadius: 8,
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <Text strong style={{ marginBottom: 8, display: 'block' }}>
+                      {t('请求体磁盘缓存')}
+                    </Text>
                     <Progress
                       percent={parseFloat(diskCacheUsagePercent)}
                       showInfo
                       style={{ marginBottom: 8 }}
-                      stroke={parseFloat(diskCacheUsagePercent) > 80 ? 'var(--semi-color-danger)' : 'var(--semi-color-primary)'}
+                      stroke={
+                        parseFloat(diskCacheUsagePercent) > 80
+                          ? 'var(--semi-color-danger)'
+                          : 'var(--semi-color-primary)'
+                      }
                     />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                      }}
+                    >
                       <Text type='tertiary'>
-                        {formatBytes(stats.cache_stats.current_disk_usage_bytes)} / {formatBytes(stats.cache_stats.disk_cache_max_bytes)}
+                        {formatBytes(
+                          stats.cache_stats.current_disk_usage_bytes,
+                        )}{' '}
+                        / {formatBytes(stats.cache_stats.disk_cache_max_bytes)}
                       </Text>
                       <Text type='tertiary'>
                         {t('活跃文件')}: {stats.cache_stats.active_disk_files}
                       </Text>
                     </div>
                     <div style={{ marginTop: 'auto' }}>
-                      <Tag color='blue'>{t('磁盘命中')}: {stats.cache_stats.disk_cache_hits}</Tag>
+                      <Tag color='blue'>
+                        {t('磁盘命中')}: {stats.cache_stats.disk_cache_hits}
+                      </Tag>
                     </div>
                   </div>
                 </Col>
                 <Col xs={24} md={12} style={{ display: 'flex' }}>
-                  <div style={{ padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Text strong style={{ marginBottom: 8, display: 'block' }}>{t('请求体内存缓存')}</Text>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <Text>{t('当前缓存大小')}: {formatBytes(stats.cache_stats.current_memory_usage_bytes)}</Text>
-                      <Text>{t('活跃缓存数')}: {stats.cache_stats.active_memory_buffers}</Text>
+                  <div
+                    style={{
+                      padding: 16,
+                      background: 'var(--semi-color-fill-0)',
+                      borderRadius: 8,
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
+                    <Text strong style={{ marginBottom: 8, display: 'block' }}>
+                      {t('请求体内存缓存')}
+                    </Text>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                      }}
+                    >
+                      <Text>
+                        {t('当前缓存大小')}:{' '}
+                        {formatBytes(
+                          stats.cache_stats.current_memory_usage_bytes,
+                        )}
+                      </Text>
+                      <Text>
+                        {t('活跃缓存数')}:{' '}
+                        {stats.cache_stats.active_memory_buffers}
+                      </Text>
                     </div>
                     <div style={{ marginTop: 'auto' }}>
-                      <Tag color='green'>{t('内存命中')}: {stats.cache_stats.memory_cache_hits}</Tag>
+                      <Tag color='green'>
+                        {t('内存命中')}: {stats.cache_stats.memory_cache_hits}
+                      </Tag>
                     </div>
                   </div>
                 </Col>
@@ -331,20 +407,56 @@ export default function SettingsPerformance(props) {
               {stats.disk_space_info?.total > 0 && (
                 <Row gutter={16} style={{ marginBottom: 16 }}>
                   <Col span={24}>
-                    <div style={{ padding: 16, background: 'var(--semi-color-fill-0)', borderRadius: 8 }}>
-                      <Text strong style={{ marginBottom: 8, display: 'block' }}>{t('缓存目录磁盘空间')}</Text>
+                    <div
+                      style={{
+                        padding: 16,
+                        background: 'var(--semi-color-fill-0)',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Text
+                        strong
+                        style={{ marginBottom: 8, display: 'block' }}
+                      >
+                        {t('缓存目录磁盘空间')}
+                      </Text>
                       <Progress
-                        percent={parseFloat(stats.disk_space_info.used_percent.toFixed(1))}
+                        percent={parseFloat(
+                          stats.disk_space_info.used_percent.toFixed(1),
+                        )}
                         showInfo
                         style={{ marginBottom: 8 }}
-                        stroke={stats.disk_space_info.used_percent > 90 ? 'var(--semi-color-danger)' : stats.disk_space_info.used_percent > 70 ? 'var(--semi-color-warning)' : 'var(--semi-color-primary)'}
+                        stroke={
+                          stats.disk_space_info.used_percent > 90
+                            ? 'var(--semi-color-danger)'
+                            : stats.disk_space_info.used_percent > 70
+                              ? 'var(--semi-color-warning)'
+                              : 'var(--semi-color-primary)'
+                        }
                       />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                        <Text type='tertiary'>{t('已用')}: {formatBytes(stats.disk_space_info.used)}</Text>
-                        <Text type='tertiary'>{t('可用')}: {formatBytes(stats.disk_space_info.free)}</Text>
-                        <Text type='tertiary'>{t('总计')}: {formatBytes(stats.disk_space_info.total)}</Text>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: 8,
+                        }}
+                      >
+                        <Text type='tertiary'>
+                          {t('已用')}: {formatBytes(stats.disk_space_info.used)}
+                        </Text>
+                        <Text type='tertiary'>
+                          {t('可用')}: {formatBytes(stats.disk_space_info.free)}
+                        </Text>
+                        <Text type='tertiary'>
+                          {t('总计')}:{' '}
+                          {formatBytes(stats.disk_space_info.total)}
+                        </Text>
                       </div>
-                      {stats.disk_space_info.free < inputs['performance_setting.disk_cache_max_size_mb'] * 1024 * 1024 && (
+                      {stats.disk_space_info.free <
+                        inputs['performance_setting.disk_cache_max_size_mb'] *
+                          1024 *
+                          1024 && (
                         <Banner
                           type='warning'
                           description={t('磁盘可用空间小于缓存最大总量设置')}
@@ -361,14 +473,32 @@ export default function SettingsPerformance(props) {
                 <Col span={24}>
                   <Descriptions
                     data={[
-                      { key: t('已分配内存'), value: formatBytes(stats.memory_stats.alloc) },
-                      { key: t('总分配内存'), value: formatBytes(stats.memory_stats.total_alloc) },
-                      { key: t('系统内存'), value: formatBytes(stats.memory_stats.sys) },
+                      {
+                        key: t('已分配内存'),
+                        value: formatBytes(stats.memory_stats.alloc),
+                      },
+                      {
+                        key: t('总分配内存'),
+                        value: formatBytes(stats.memory_stats.total_alloc),
+                      },
+                      {
+                        key: t('系统内存'),
+                        value: formatBytes(stats.memory_stats.sys),
+                      },
                       { key: t('GC 次数'), value: stats.memory_stats.num_gc },
-                      { key: t('Goroutine 数'), value: stats.memory_stats.num_goroutine },
+                      {
+                        key: t('Goroutine 数'),
+                        value: stats.memory_stats.num_goroutine,
+                      },
                       { key: t('缓存目录'), value: stats.disk_cache_info.path },
-                      { key: t('目录文件数'), value: stats.disk_cache_info.file_count },
-                      { key: t('目录总大小'), value: formatBytes(stats.disk_cache_info.total_size) },
+                      {
+                        key: t('目录文件数'),
+                        value: stats.disk_cache_info.file_count,
+                      },
+                      {
+                        key: t('目录总大小'),
+                        value: formatBytes(stats.disk_cache_info.total_size),
+                      },
                     ]}
                   />
                 </Col>

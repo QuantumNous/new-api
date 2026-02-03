@@ -424,7 +424,12 @@ const EditTokenModal = (props) => {
                       />
                     )}
                   </Col>
-                  <Col span={24} style={{ display: values.group === 'auto' ? 'block' : 'none' }}>
+                  <Col
+                    span={24}
+                    style={{
+                      display: values.group === 'auto' ? 'block' : 'none',
+                    }}
+                  >
                     <Form.Switch
                       field='cross_group_retry'
                       label={t('跨分组重试')}
@@ -636,7 +641,9 @@ const EditTokenModal = (props) => {
                       placeholder={t('允许的IP，一行一个，不填写则不限制')}
                       autosize
                       rows={1}
-                      extraText={t('请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用')}
+                      extraText={t(
+                        '请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用',
+                      )}
                       showClear
                       style={{ width: '100%' }}
                     />
