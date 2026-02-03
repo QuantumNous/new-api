@@ -677,6 +677,7 @@
     "启用Ping间隔": "Bật khoảng thời gian Ping",
     "启用SMTP SSL": "Bật SMTP SSL",
     "启用SSRF防护（推荐开启以保护服务器安全）": "Bật bảo vệ SSRF (Khuyên dùng để bảo mật máy chủ)",
+    "启用微信扫码直接登录": "Bật đăng nhập trực tiếp bằng mã QR WeChat",
     "启用全部": "Bật tất cả",
     "启用后可接入 io.net GPU 资源": "After enabling, you can access io.net GPU resources",
     "启用后可添加图片URL进行多模态对话": "Bật để thêm URL hình ảnh cho cuộc trò chuyện đa phương thức",

@@ -309,9 +309,14 @@ const PersonalSetting = () => {
     if (success) {
       showSuccess(t('微信账户绑定成功！'));
       setShowWeChatBindModal(false);
+      await getUserData();
     } else {
       showError(message);
     }
+  };
+
+  const handleWeChatBindSuccess = async () => {
+    await getUserData();
   };
 
   const changePassword = async () => {
@@ -518,6 +523,7 @@ const PersonalSetting = () => {
         handleInputChange={handleInputChange}
         bindWeChat={bindWeChat}
         status={status}
+        onBindSuccess={handleWeChatBindSuccess}
       />
 
       <AccountDeleteModal
