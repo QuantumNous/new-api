@@ -99,19 +99,16 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 				if part.Type == dto.ContentTypeImageURL {
 					img := part.GetImageMedia()
 					if img != nil && img.Url != "" {
-						var base64Data string
+						// 使用统一的文件服务获取图片数据
+						var source *types.FileSource
 						if strings.HasPrefix(img.Url, "http") {
-							fileData, err := service.GetFileBase64FromUrl(c, img.Url, "fetch image for ollama chat")
-							if err != nil {
-								return nil, err
-							}
-							base64Data = fileData.Base64Data
-						} else if strings.HasPrefix(img.Url, "data:") {
-							if idx := strings.Index(img.Url, ","); idx != -1 && idx+1 < len(img.Url) {
-								base64Data = img.Url[idx+1:]
-							}
+							source = types.NewURLFileSource(img.Url)
 						} else {
-							base64Data = img.Url
+							source = types.NewBase64FileSource(img.Url, "")
+						}
+						base64Data, _, err := service.GetBase64Data(c, source, "fetch image for ollama chat")
+						if err != nil {
+							return nil, err
 						}
 						if base64Data != "" {
 							images = append(images, base64Data)

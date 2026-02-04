@@ -106,6 +106,21 @@ const highlightJson = (str) => {
   );
 };
 
+const linkRegex = /(https?:\/\/[^\s<"'\]),;}]+)/g;
+
+const linkifyHtml = (html) => {
+  const parts = html.split(/(<[^>]+>)/g);
+  return parts
+    .map((part) => {
+      if (part.startsWith('<')) return part;
+      return part.replace(
+        linkRegex,
+        (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`,
+      );
+    })
+    .join('');
+};
+
 const isJsonLike = (content, language) => {
   if (language === 'json') return true;
   const trimmed = content.trim();
@@ -178,6 +193,10 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
     return displayContent;
   }, [displayContent, language, contentMetrics.isVeryLarge, isExpanded]);
+
+  const renderedContent = useMemo(() => {
+    return linkifyHtml(highlightedContent);
+  }, [highlightedContent]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -276,6 +295,8 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         style={{
           ...codeThemeStyles.content,
           paddingTop: contentPadding,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
         }}
         className='model-settings-scroll'
       >
@@ -303,7 +324,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
             {t('正在处理大内容...')}
           </div>
         ) : (
-          <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />
+          <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
         )}
       </div>
 

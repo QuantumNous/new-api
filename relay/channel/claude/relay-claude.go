@@ -364,23 +364,19 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						claudeMediaMessage.Source = &dto.ClaudeMessageSource{
 							Type: "base64",
 						}
-						// 判断是否是url
+						// 使用统一的文件服务获取图片数据
+						var source *types.FileSource
 						if strings.HasPrefix(imageUrl.Url, "http") {
-							// 是url，获取图片的类型和base64编码的数据
-							fileData, err := service.GetFileBase64FromUrl(c, imageUrl.Url, "formatting image for Claude")
-							if err != nil {
-								return nil, fmt.Errorf("get file base64 from url failed: %s", err.Error())
-							}
-							claudeMediaMessage.Source.MediaType = fileData.MimeType
-							claudeMediaMessage.Source.Data = fileData.Base64Data
+							source = types.NewURLFileSource(imageUrl.Url)
 						} else {
-							_, format, base64String, err := service.DecodeBase64ImageData(imageUrl.Url)
-							if err != nil {
-								return nil, err
-							}
-							claudeMediaMessage.Source.MediaType = "image/" + format
-							claudeMediaMessage.Source.Data = base64String
+							source = types.NewBase64FileSource(imageUrl.Url, "")
 						}
+						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+						claudeMediaMessage.Source.MediaType = mimeType
+						claudeMediaMessage.Source.Data = base64Data
 					}
 					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
 				}
@@ -437,8 +433,10 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 		}
 	} else {
 		if claudeResponse.Type == "message_start" {
-			response.Id = claudeResponse.Message.Id
-			response.Model = claudeResponse.Message.Model
+			if claudeResponse.Message != nil {
+				response.Id = claudeResponse.Message.Id
+				response.Model = claudeResponse.Message.Model
+			}
 			//claudeUsage = &claudeResponse.Message.Usage
 			choice.Delta.SetContentString("")
 			choice.Delta.Role = "assistant"
@@ -589,35 +587,63 @@ type ClaudeResponseInfo struct {
 }
 
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
+	if claudeInfo == nil {
+		return false
+	}
+	if claudeInfo.Usage == nil {
+		claudeInfo.Usage = &dto.Usage{}
+	}
 	if requestMode == RequestModeCompletion {
 		claudeInfo.ResponseText.WriteString(claudeResponse.Completion)
 	} else {
 		if claudeResponse.Type == "message_start" {
-			claudeInfo.ResponseId = claudeResponse.Message.Id
-			claudeInfo.Model = claudeResponse.Message.Model
+			if claudeResponse.Message != nil {
+				claudeInfo.ResponseId = claudeResponse.Message.Id
+				claudeInfo.Model = claudeResponse.Message.Model
+			}
 
 			// message_start, 获取usage
-			claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
-			claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
-			claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
-			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
-			claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Message.Usage.GetCacheCreation1hTokens()
-			claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
-		} else if claudeResponse.Type == "content_block_delta" {
-			if claudeResponse.Delta.Text != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
+			if claudeResponse.Message != nil && claudeResponse.Message.Usage != nil {
+				claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
+				claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
+				claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
+				claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
+				claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Message.Usage.GetCacheCreation1hTokens()
+				claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
 			}
-			if claudeResponse.Delta.Thinking != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
+		} else if claudeResponse.Type == "content_block_delta" {
+			if claudeResponse.Delta != nil {
+				if claudeResponse.Delta.Text != nil {
+					claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
+				}
+				if claudeResponse.Delta.Thinking != nil {
+					claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
+				}
 			}
 		} else if claudeResponse.Type == "message_delta" {
 			// 最终的usage获取
-			if claudeResponse.Usage.InputTokens > 0 {
-				// 不叠加，只取最新的
-				claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+			if claudeResponse.Usage != nil {
+				if claudeResponse.Usage.InputTokens > 0 {
+					// 不叠加，只取最新的
+					claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+				}
+				if claudeResponse.Usage.CacheReadInputTokens > 0 {
+					claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
+				}
+				if claudeResponse.Usage.CacheCreationInputTokens > 0 {
+					claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
+				}
+				if cacheCreation5m := claudeResponse.Usage.GetCacheCreation5mTokens(); cacheCreation5m > 0 {
+					claudeInfo.Usage.ClaudeCacheCreation5mTokens = cacheCreation5m
+				}
+				if cacheCreation1h := claudeResponse.Usage.GetCacheCreation1hTokens(); cacheCreation1h > 0 {
+					claudeInfo.Usage.ClaudeCacheCreation1hTokens = cacheCreation1h
+				}
+				if claudeResponse.Usage.OutputTokens > 0 {
+					claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+				}
+				claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 			}
-			claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
-			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 
 			// 判断是否完整
 			claudeInfo.Done = true
@@ -657,7 +683,9 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		} else {
 			if claudeResponse.Type == "message_start" {
 				// message_start, 获取usage
-				info.UpstreamModelName = claudeResponse.Message.Model
+				if claudeResponse.Message != nil {
+					info.UpstreamModelName = claudeResponse.Message.Model
+				}
 			} else if claudeResponse.Type == "content_block_delta" {
 			} else if claudeResponse.Type == "message_delta" {
 			}
@@ -745,13 +773,18 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if requestMode == RequestModeCompletion {
 		claudeInfo.Usage = service.ResponseText2Usage(c, claudeResponse.Completion, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	} else {
-		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
-		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
-		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
-		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
-		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
-		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
-		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+		if claudeInfo.Usage == nil {
+			claudeInfo.Usage = &dto.Usage{}
+		}
+		if claudeResponse.Usage != nil {
+			claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+			claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+			claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
+			claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
+			claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
+			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
+			claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+		}
 	}
 	var responseData []byte
 	switch info.RelayFormat {
@@ -766,7 +799,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		responseData = data
 	}
 
-	if claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
+	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
 		c.Set("claude_web_search_requests", claudeResponse.Usage.ServerToolUse.WebSearchRequests)
 	}
 
@@ -838,9 +871,12 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 			}
 		}
 
-		// 设置 disable_parallel_tool_use
-		// 如果 parallel_tool_calls 为 true，则 disable_parallel_tool_use 为 false
-		claudeToolChoice.DisableParallelToolUse = !*parallelToolCalls
+		// Anthropic schema: tool_choice.type=none does not accept extra fields.
+		// When tools are disabled, parallel_tool_calls is irrelevant, so we drop it.
+		if claudeToolChoice.Type != "none" {
+			// 如果 parallel_tool_calls 为 true，则 disable_parallel_tool_use 为 false
+			claudeToolChoice.DisableParallelToolUse = !*parallelToolCalls
+		}
 	}
 
 	return claudeToolChoice

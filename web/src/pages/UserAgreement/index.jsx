@@ -26,9 +26,9 @@ const UserAgreement = () => {
 
   return (
     <DocumentRenderer
-      apiEndpoint="/api/user-agreement"
+      apiEndpoint='/api/user-agreement'
       title={t('用户协议')}
-      cacheKey="user_agreement"
+      cacheKey='user_agreement'
       emptyMessage={t('加载用户协议内容失败...')}
     />
   );

@@ -30,64 +30,67 @@ const CustomInputRender = (props) => {
     detailProps;
   const containerRef = useRef(null);
 
-  const handlePaste = useCallback(async (e) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+  const handlePaste = useCallback(
+    async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        
-        if (file) {
-          try {
-            if (!imageEnabled) {
-              Toast.warning({
-                content: t('请先在设置中启用图片功能'),
-                duration: 3,
-              });
-              return;
-            }
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const base64 = event.target.result;
-              
-              if (onPasteImage) {
-                onPasteImage(base64);
-                Toast.success({
-                  content: t('图片已添加'),
-                  duration: 2,
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+
+          if (file) {
+            try {
+              if (!imageEnabled) {
+                Toast.warning({
+                  content: t('请先在设置中启用图片功能'),
+                  duration: 3,
                 });
-              } else {
-                Toast.error({
-                  content: t('无法添加图片'),
-                  duration: 2,
-                });
+                return;
               }
-            };
-            reader.onerror = () => {
-              console.error('Failed to read image file:', reader.error);
+
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                const base64 = event.target.result;
+
+                if (onPasteImage) {
+                  onPasteImage(base64);
+                  Toast.success({
+                    content: t('图片已添加'),
+                    duration: 2,
+                  });
+                } else {
+                  Toast.error({
+                    content: t('无法添加图片'),
+                    duration: 2,
+                  });
+                }
+              };
+              reader.onerror = () => {
+                console.error('Failed to read image file:', reader.error);
+                Toast.error({
+                  content: t('粘贴图片失败'),
+                  duration: 2,
+                });
+              };
+              reader.readAsDataURL(file);
+            } catch (error) {
+              console.error('Failed to paste image:', error);
               Toast.error({
                 content: t('粘贴图片失败'),
                 duration: 2,
               });
-            };
-            reader.readAsDataURL(file);
-          } catch (error) {
-            console.error('Failed to paste image:', error);
-            Toast.error({
-              content: t('粘贴图片失败'),
-              duration: 2,
-            });
+            }
           }
+          break;
         }
-        break;
       }
-    }
-  }, [onPasteImage, imageEnabled, t]);
+    },
+    [onPasteImage, imageEnabled, t],
+  );
 
   useEffect(() => {
     const container = containerRef.current;

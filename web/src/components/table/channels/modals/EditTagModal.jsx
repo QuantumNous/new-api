@@ -533,7 +533,11 @@ const EditTagModal = (props) => {
               <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                 {/* Header: Advanced Settings */}
                 <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+                  <Avatar
+                    size='small'
+                    color='orange'
+                    className='mr-2 shadow-md'
+                  >
                     <IconSetting size={16} />
                   </Avatar>
                   <div>
@@ -549,9 +553,7 @@ const EditTagModal = (props) => {
                     field='param_override'
                     label={t('参数覆盖')}
                     placeholder={
-                      t(
-                        '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
-                      ) +
+                      t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
                       '\n' +
                       t('旧格式（直接覆盖）：') +
                       '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +

@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Button, Progress, Tag, Typography, Spin } from '@douyinfe/semi-ui';
+import {
+  Modal,
+  Button,
+  Progress,
+  Tag,
+  Typography,
+  Spin,
+} from '@douyinfe/semi-ui';
 import { API, showError } from '../../../../helpers';
 
 const { Text } = Typography;
@@ -134,7 +141,12 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
         </Text>
         <div className='flex items-center gap-2'>
           {statusTag}
-          <Button size='small' type='tertiary' theme='borderless' onClick={onRefresh}>
+          <Button
+            size='small'
+            type='tertiary'
+            theme='borderless'
+            onClick={onRefresh}
+          >
             {tt('刷新')}
           </Button>
         </div>
@@ -243,7 +255,12 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
       <div className='flex flex-col gap-3'>
         <Text type='danger'>{tt('获取用量失败')}</Text>
         <div className='flex justify-end'>
-          <Button size='small' type='primary' theme='outline' onClick={fetchUsage}>
+          <Button
+            size='small'
+            type='primary'
+            theme='outline'
+            onClick={fetchUsage}
+          >
             {tt('刷新')}
           </Button>
         </div>

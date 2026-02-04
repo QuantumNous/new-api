@@ -113,9 +113,26 @@ type RelayInfo struct {
 	UserQuota              int
 	RelayFormat            types.RelayFormat
 	SendResponseCount      int
-	FinalPreConsumedQuota  int  // 最终预消耗的配额
-	IsClaudeBetaQuery      bool // /v1/messages?beta=true
-	IsChannelTest          bool // channel test request
+	FinalPreConsumedQuota  int // 最终预消耗的配额
+	// BillingSource indicates whether this request is billed from wallet quota or subscription.
+	// "" or "wallet" => wallet; "subscription" => subscription
+	BillingSource string
+	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
+	SubscriptionId int
+	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
+	SubscriptionPreConsumed int64
+	// SubscriptionPostDelta is the post-consume delta applied to amount_used (quota units; can be negative).
+	SubscriptionPostDelta int64
+	// SubscriptionPlanId / SubscriptionPlanTitle are used for logging/UI display.
+	SubscriptionPlanId    int
+	SubscriptionPlanTitle string
+	// RequestId is used for idempotent pre-consume/refund
+	RequestId string
+	// SubscriptionAmountTotal / SubscriptionAmountUsedAfterPreConsume are used to compute remaining in logs.
+	SubscriptionAmountTotal               int64
+	SubscriptionAmountUsedAfterPreConsume int64
+	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
+	IsChannelTest                         bool // channel test request
 
 	PriceData types.PriceData
 
@@ -400,9 +417,14 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 	// firstResponseTime = time.Now() - 1 second
 
+	reqId := common.GetContextKeyString(c, common.RequestIdKey)
+	if reqId == "" {
+		reqId = common.GetTimeString() + common.GetRandomString(8)
+	}
 	info := &RelayInfo{
 		Request: request,
 
+		RequestId:  reqId,
 		UserId:     common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
