@@ -524,7 +524,8 @@ func (l *RedisGroupLimiter) RecordTPD(userID int, tokens int64) error {
 	}
 
 	ctx := context.Background()
-	today := time.Now().Format("2006-01-02")
+	now := time.Now()
+	today := now.Format("2006-01-02")
 	key := l.tpdKey(userID, today)
 
 	// 增加令牌计数
@@ -534,8 +535,8 @@ func (l *RedisGroupLimiter) RecordTPD(userID int, tokens int64) error {
 		return err
 	}
 
-	// 设置过期时间为明天
-	tomorrow := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour)
+	// 设置过期时间为本地时区的明天午夜
+	tomorrow := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	RDB.ExpireAt(ctx, key, tomorrow)
 
 	return nil
@@ -628,7 +629,8 @@ func (l *RedisGroupLimiter) CheckRPD(userID int, limit int) (bool, error) {
 // RecordRPD 记录每日请求数
 func (l *RedisGroupLimiter) RecordRPD(userID int) error {
 	ctx := context.Background()
-	today := time.Now().Format("2006-01-02")
+	now := time.Now()
+	today := now.Format("2006-01-02")
 	key := l.rpdKey(userID, today)
 
 	// 增加请求计数
@@ -638,8 +640,8 @@ func (l *RedisGroupLimiter) RecordRPD(userID int) error {
 		return err
 	}
 
-	// 设置过期时间为明天
-	tomorrow := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour)
+	// 设置过期时间为本地时区的明天午夜
+	tomorrow := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
 	RDB.ExpireAt(ctx, key, tomorrow)
 
 	return nil

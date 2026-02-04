@@ -30,11 +30,17 @@ func GroupLimit() gin.HandlerFunc {
 			return
 		}
 
+		// 标记 c.Next() 是否已被调用，防止 panic recovery 中重复调用
+		nextCalled := false
+
 		// 安全地执行限流检查，任何错误都不影响原有功能
 		defer func() {
 			if r := recover(); r != nil {
 				common.SysLog("GroupLimit panic recovered: " + toString(r))
-				c.Next()
+				// 只有在 c.Next() 尚未被调用时才调用，避免重复执行处理器
+				if !nextCalled {
+					c.Next()
+				}
 			}
 		}()
 
@@ -101,18 +107,21 @@ func GroupLimit() gin.HandlerFunc {
 			allowed, err := limiter.CheckConcurrency(userID, config.Concurrency)
 			if err != nil {
 				common.SysLog("GroupLimit CheckConcurrency error: " + err.Error())
-				// 错误时允许通过
+				// 错误时允许通过，但不标记为已获取锁（因为实际上没有成功获取）
 			} else if !allowed {
 				abortWithGroupLimitError(c, "concurrency", config.Concurrency)
 				return
+			} else {
+				// 只有在成功获取并发锁时（allowed == true && err == nil）才标记
+				ctx.ConcurrencyLocked = true
 			}
-			ctx.ConcurrencyLocked = true
 		}
 
 		// 存储上下文信息
 		c.Set(groupLimitContextKey, ctx)
 
 		// 处理请求
+		nextCalled = true
 		c.Next()
 
 		// 释放并发锁

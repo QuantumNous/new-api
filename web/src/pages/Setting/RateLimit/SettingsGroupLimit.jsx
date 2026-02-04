@@ -58,11 +58,8 @@ export default function SettingsGroupLimit(props) {
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+        if (res.includes(undefined)) {
+          return showError(t('部分保存失败，请重试'));
         }
 
         for (let i = 0; i < res.length; i++) {
