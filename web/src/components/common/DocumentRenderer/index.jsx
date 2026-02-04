@@ -41,7 +41,7 @@ const isUrl = (content) => {
 // 检查是否为 HTML 内容
 const isHtmlContent = (content) => {
   if (!content || typeof content !== 'string') return false;
-  
+
   // 检查是否包含HTML标签
   const htmlTagRegex = /<\/?[a-z][\s\S]*>/i;
   return htmlTagRegex.test(content);
@@ -52,16 +52,16 @@ const sanitizeHtml = (html) => {
   // 创建一个临时元素来解析HTML
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = html;
-  
+
   // 提取样式
   const styles = Array.from(tempDiv.querySelectorAll('style'))
-    .map(style => style.innerHTML)
+    .map((style) => style.innerHTML)
     .join('\n');
-  
+
   // 提取body内容，如果没有body标签则使用全部内容
   const bodyContent = tempDiv.querySelector('body');
   const content = bodyContent ? bodyContent.innerHTML : html;
-  
+
   return { content, styles };
 };
 
@@ -129,7 +129,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 处理HTML样式注入
   useEffect(() => {
     const styleId = `document-renderer-styles-${cacheKey}`;
-    
+
     if (htmlStyles) {
       let styleEl = document.getElementById(styleId);
       if (!styleEl) {
@@ -165,8 +165,12 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
       <div className='flex justify-center items-center min-h-screen bg-gray-50'>
         <Empty
           title={t('管理员未设置' + title + '内容')}
-          image={<IllustrationConstruction style={{ width: 150, height: 150 }} />}
-          darkModeImage={<IllustrationConstructionDark style={{ width: 150, height: 150 }} />}
+          image={
+            <IllustrationConstruction style={{ width: 150, height: 150 }} />
+          }
+          darkModeImage={
+            <IllustrationConstructionDark style={{ width: 150, height: 150 }} />
+          }
           className='p-8'
         />
       </div>
@@ -179,7 +183,9 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
       <div className='flex justify-center items-center min-h-screen bg-gray-50 p-4'>
         <Card className='max-w-md w-full'>
           <div className='text-center'>
-            <Title heading={4} className='mb-4'>{title}</Title>
+            <Title heading={4} className='mb-4'>
+              {title}
+            </Title>
             <p className='text-gray-600 mb-4'>
               {t('管理员设置了外部链接，点击下方按钮访问')}
             </p>
@@ -202,20 +208,22 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 HTML 内容，直接渲染
   if (isHtmlContent(content)) {
     const { content: htmlContent, styles } = sanitizeHtml(content);
-    
+
     // 设置样式（如果有的话）
     useEffect(() => {
       if (styles && styles !== htmlStyles) {
         setHtmlStyles(styles);
       }
     }, [content, styles, htmlStyles]);
-    
+
     return (
       <div className='min-h-screen bg-gray-50'>
         <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
           <div className='bg-white rounded-lg shadow-sm p-8'>
-            <Title heading={2} className='text-center mb-8'>{title}</Title>
-            <div 
+            <Title heading={2} className='text-center mb-8'>
+              {title}
+            </Title>
+            <div
               className='prose prose-lg max-w-none'
               dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
@@ -230,7 +238,9 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     <div className='min-h-screen bg-gray-50'>
       <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
         <div className='bg-white rounded-lg shadow-sm p-8'>
-          <Title heading={2} className='text-center mb-8'>{title}</Title>
+          <Title heading={2} className='text-center mb-8'>
+            {title}
+          </Title>
           <div className='prose prose-lg max-w-none'>
             <MarkdownRenderer content={content} />
           </div>

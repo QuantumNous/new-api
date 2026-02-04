@@ -107,9 +107,10 @@ func GetTokenUsage(c *gin.Context) {
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
 	if err != nil {
+		common.SysError("failed to get token by key: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": err.Error(),
+			"message": "获取令牌信息失败，请稍后重试",
 		})
 		return
 	}
