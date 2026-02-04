@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
+	openaicompat "github.com/QuantumNous/new-api/service/openaicompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -578,12 +579,13 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId           string
+	Created              int64
+	Model                string
+	ResponseText         strings.Builder
+	Usage                *dto.Usage
+	Done                 bool
+	ResponsesStreamState *openaicompat.ChatToResponsesStreamState
 }
 
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
@@ -702,6 +704,22 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		response := StreamResponseClaude2OpenAI(requestMode, &claudeResponse)
+		if !FormatClaudeResponseInfo(requestMode, &claudeResponse, response, claudeInfo) {
+			return nil
+		}
+		if claudeInfo.ResponsesStreamState == nil {
+			claudeInfo.ResponsesStreamState = openaicompat.NewChatToResponsesStreamState(claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
+		}
+		for _, event := range claudeInfo.ResponsesStreamState.HandleChatChunk(response) {
+			jsonData, err := common.Marshal(event)
+			if err != nil {
+				logger.LogError(c, "send_stream_response_failed: "+err.Error())
+				continue
+			}
+			helper.ResponseChunkData(c, event, string(jsonData))
+		}
 	}
 	return nil
 }
@@ -733,6 +751,18 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			}
 		}
 		helper.Done(c)
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		if claudeInfo.ResponsesStreamState == nil {
+			claudeInfo.ResponsesStreamState = openaicompat.NewChatToResponsesStreamState(claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
+		}
+		for _, event := range claudeInfo.ResponsesStreamState.FinalEvents(claudeInfo.Usage) {
+			jsonData, err := common.Marshal(event)
+			if err != nil {
+				common.SysLog("send final response failed: " + err.Error())
+				continue
+			}
+			helper.ResponseChunkData(c, event, string(jsonData))
+		}
 	}
 }
 
@@ -743,6 +773,9 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Model:        info.UpstreamModelName,
 		ResponseText: strings.Builder{},
 		Usage:        &dto.Usage{},
+	}
+	if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		claudeInfo.ResponsesStreamState = openaicompat.NewChatToResponsesStreamState(claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
 	}
 	var err *types.NewAPIError
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
@@ -792,6 +825,20 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		openaiResponse := ResponseClaude2OpenAI(requestMode, &claudeResponse)
 		openaiResponse.Usage = *claudeInfo.Usage
 		responseData, err = json.Marshal(openaiResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+	case types.RelayFormatOpenAIResponses:
+		openaiResponse := ResponseClaude2OpenAI(requestMode, &claudeResponse)
+		openaiResponse.Usage = *claudeInfo.Usage
+		responsesResp, usage, convErr := service.ChatCompletionsResponseToResponsesResponse(openaiResponse, info, claudeInfo.ResponseId)
+		if convErr != nil {
+			return types.NewError(convErr, types.ErrorCodeBadResponseBody)
+		}
+		if usage != nil {
+			claudeInfo.Usage = usage
+		}
+		responseData, err = json.Marshal(responsesResp)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}

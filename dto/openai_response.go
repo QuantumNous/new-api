@@ -368,14 +368,19 @@ const (
 
 // ResponsesStreamResponse 用于处理 /v1/responses 流式响应
 type ResponsesStreamResponse struct {
-	Type     string                   `json:"type"`
-	Response *OpenAIResponsesResponse `json:"response,omitempty"`
-	Delta    string                   `json:"delta,omitempty"`
-	Item     *ResponsesOutput         `json:"item,omitempty"`
+	Type       string                   `json:"type"`
+	ResponseID string                   `json:"response_id,omitempty"`
+	Response   *OpenAIResponsesResponse `json:"response,omitempty"`
+	Delta      string                   `json:"delta,omitempty"`
+	Text       string                   `json:"text,omitempty"`
+	Arguments  string                   `json:"arguments,omitempty"`
+	Item       *ResponsesOutput         `json:"item,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
-	OutputIndex *int   `json:"output_index,omitempty"`
-	ItemID      string `json:"item_id,omitempty"`
+	OutputIndex  *int                    `json:"output_index,omitempty"`
+	ItemID       string                  `json:"item_id,omitempty"`
+	ContentIndex *int                    `json:"content_index,omitempty"`
+	Part         *ResponsesOutputContent `json:"part,omitempty"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
