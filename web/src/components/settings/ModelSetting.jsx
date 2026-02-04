@@ -24,6 +24,7 @@ import { API, showError, showSuccess, toBoolean } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 import SettingGeminiModel from '../../pages/Setting/Model/SettingGeminiModel';
 import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel';
+import SettingCodexModel from '../../pages/Setting/Model/SettingCodexModel';
 import SettingGlobalModel from '../../pages/Setting/Model/SettingGlobalModel';
 import SettingGrokModel from '../../pages/Setting/Model/SettingGrokModel';
 import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChannelAffinity';
@@ -31,6 +32,7 @@ import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChann
 const ModelSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
+    'codex.non_stream_adapter_enabled': true,
     'gemini.safety_settings': '',
     'gemini.version_settings': '',
     'gemini.supported_imagine_models': '',
@@ -116,6 +118,10 @@ const ModelSetting = () => {
         {/* Channel affinity */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* Codex */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingCodexModel options={inputs} refresh={onRefresh} />
         </Card>
         {/* Gemini */}
         <Card style={{ marginTop: '10px' }}>

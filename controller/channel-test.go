@@ -77,6 +77,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	}
 
 	requestPath := "/v1/chat/completions"
+	apiType, _ := common.ChannelType2APIType(channel.Type)
 
 	// 如果指定了端点类型，使用指定的端点类型
 	if endpointType != "" {
@@ -86,27 +87,33 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
 
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
-		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
+		// Codex upstream only supports /v1/responses (and /v1/responses/compact).
+		// The tested model may not contain "codex" (e.g. gpt-5.2), so choose endpoint by channel type.
+		if apiType == constant.APITypeCodex {
 			requestPath = "/v1/responses"
+		} else {
+			if strings.Contains(strings.ToLower(testModel), "rerank") {
+				requestPath = "/v1/rerank"
+			}
+
+			// 先判断是否为 Embedding 模型
+			if strings.Contains(strings.ToLower(testModel), "embedding") ||
+				strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
+				strings.Contains(testModel, "bge-") || // bge 系列模型
+				strings.Contains(testModel, "embed") ||
+				channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
+				requestPath = "/v1/embeddings" // 修改请求路径
+			}
+
+			// VolcEngine 图像生成模型
+			if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+				requestPath = "/v1/images/generations"
+			}
+
+			// responses-only models
+			if strings.Contains(strings.ToLower(testModel), "codex") {
+				requestPath = "/v1/responses"
+			}
 		}
 
 		// responses compaction models (must use /v1/responses/compact)
@@ -228,7 +235,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 	// 更新请求中的模型名称
 	request.SetModelName(testModel)
 
-	apiType, _ := common.ChannelType2APIType(channel.Type)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
 		apiType != constant.APITypeOpenAI &&
 		apiType != constant.APITypeCodex {
@@ -534,6 +540,25 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 	}
 
 	// 自动检测逻辑（保持原有行为）
+
+	apiType, _ := common.ChannelType2APIType(channel.Type)
+
+	// Responses compaction models (must use /v1/responses/compact)
+	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
+		return &dto.OpenAIResponsesCompactionRequest{
+			Model: model,
+			Input: testResponsesInput,
+		}
+	}
+
+	// Codex upstream only supports /v1/responses; model names may not include "codex".
+	if apiType == constant.APITypeCodex {
+		return &dto.OpenAIResponsesRequest{
+			Model: model,
+			Input: json.RawMessage(`[{"role":"user","content":"hi"}]`),
+		}
+	}
+
 	if strings.Contains(strings.ToLower(model), "rerank") {
 		return &dto.RerankRequest{
 			Model:     model,
@@ -551,14 +576,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
-		}
-	}
-
-	// Responses compaction models (must use /v1/responses/compact)
-	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
-		return &dto.OpenAIResponsesCompactionRequest{
-			Model: model,
-			Input: testResponsesInput,
 		}
 	}
 

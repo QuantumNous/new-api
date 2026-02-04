@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -107,9 +108,11 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
-	// Codex backend only supports streaming for /responses. For non-stream requests, we still send
-	// stream=true upstream and buffer the SSE response into a single JSON response for the client.
-	request.Stream = true
+	if model_setting.GetCodexSettings().NonStreamAdapterEnabled {
+		// Codex backend only supports streaming for /responses. For non-stream requests, we still send
+		// stream=true upstream and buffer the SSE response into a single JSON response for the client.
+		request.Stream = true
+	}
 	// rm max_output_tokens
 	request.MaxOutputTokens = 0
 	request.Temperature = nil
@@ -133,9 +136,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return openai.OaiResponsesStreamHandler(c, info, resp)
 	}
 
-	// Codex upstream requires streaming for /responses. If the client requested non-stream, we need to
-	// buffer SSE until response.completed and return the completed response JSON.
-	return responsesNonStreamViaStreamHandler(c, info, resp)
+	if model_setting.GetCodexSettings().NonStreamAdapterEnabled {
+		// Codex upstream requires streaming for /responses. If the client requested non-stream, we need to
+		// buffer SSE until response.completed and return the completed response JSON.
+		return responsesNonStreamViaStreamHandler(c, info, resp)
+	}
+	return openai.OaiResponsesHandler(c, info, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {
@@ -194,8 +200,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	// Codex upstream requires streaming for /responses.
-	if info.RelayMode == relayconstant.RelayModeResponses {
+	// Codex upstream requires streaming for /responses; if non-stream adapter is enabled,
+	// always request SSE so we can buffer it into JSON for non-stream clients.
+	if info.RelayMode == relayconstant.RelayModeResponses && model_setting.GetCodexSettings().NonStreamAdapterEnabled {
 		req.Set("Accept", "text/event-stream")
 	} else if info.IsStream {
 		req.Set("Accept", "text/event-stream")
