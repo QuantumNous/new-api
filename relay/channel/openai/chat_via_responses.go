@@ -97,8 +97,16 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	toolCallNameSent := make(map[string]bool)
 	toolCallCanonicalIDByItemID := make(map[string]string)
 
+	isDownstreamClosed := func() bool {
+		return c == nil || c.Request == nil || c.Request.Context().Err() != nil
+	}
+
 	sendStartIfNeeded := func() bool {
 		if sentStart {
+			return true
+		}
+		if isDownstreamClosed() {
+			sentStart = true
 			return true
 		}
 		if err := helper.ObjectData(c, helper.GenerateStartEmptyResponse(responseId, createAt, model, nil)); err != nil {
@@ -144,6 +152,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if name != "" && !toolCallNameSent[callID] {
 			tool.Function.Name = name
 			toolCallNameSent[callID] = true
+		}
+
+		if isDownstreamClosed() {
+			sawToolCall = true
+			return true
 		}
 
 		chunk := &dto.ChatCompletionsStreamResponse{
@@ -211,6 +224,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if streamResp.Delta != "" {
 				outputText.WriteString(streamResp.Delta)
 				usageText.WriteString(streamResp.Delta)
+				if isDownstreamClosed() {
+					break
+				}
 				delta := streamResp.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      responseId,
@@ -327,6 +343,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					finishReason = "tool_calls"
 				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
+				if isDownstreamClosed() {
+					sentStop = true
+					break
+				}
 				if err := helper.ObjectData(c, stop); err != nil {
 					streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 					return false
@@ -362,12 +382,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		usage = service.ResponseText2Usage(c, usageText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 
-	if !sentStart {
+	if !sentStart && !isDownstreamClosed() {
 		if err := helper.ObjectData(c, helper.GenerateStartEmptyResponse(responseId, createAt, model, nil)); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
-	if !sentStop {
+	if !sentStop && !isDownstreamClosed() {
 		finishReason := "stop"
 		if sawToolCall && outputText.Len() == 0 {
 			finishReason = "tool_calls"
@@ -377,12 +397,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
-	if info.ShouldIncludeUsage && usage != nil {
+	if info.ShouldIncludeUsage && usage != nil && !isDownstreamClosed() {
 		if err := helper.ObjectData(c, helper.GenerateFinalUsageResponse(responseId, createAt, model, *usage)); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
 
-	helper.Done(c)
+	if !isDownstreamClosed() {
+		helper.Done(c)
+	}
 	return usage, nil
 }

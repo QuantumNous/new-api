@@ -1118,6 +1118,9 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 }
 
 func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
+	if c == nil || c.Request == nil || c.Request.Context().Err() != nil {
+		return nil
+	}
 	streamData, err := common.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("failed to marshal stream response: %w", err)
@@ -1130,6 +1133,9 @@ func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCom
 }
 
 func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
+	if c == nil || c.Request == nil || c.Request.Context().Err() != nil {
+		return nil
+	}
 	streamData, err := common.Marshal(resp)
 	if err != nil {
 		return fmt.Errorf("failed to marshal stream response: %w", err)
