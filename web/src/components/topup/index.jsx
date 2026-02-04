@@ -35,6 +35,7 @@ import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
+import SubscriptionPlansCard from './SubscriptionPlansCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
@@ -86,6 +87,14 @@ const TopUp = () => {
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
+
+  // 订阅相关
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [billingPreference, setBillingPreference] =
+    useState('subscription_first');
+  const [activeSubscriptions, setActiveSubscriptions] = useState([]);
+  const [allSubscriptions, setAllSubscriptions] = useState([]);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -313,6 +322,61 @@ const TopUp = () => {
     }
   };
 
+  const getSubscriptionPlans = async () => {
+    setSubscriptionLoading(true);
+    try {
+      const res = await API.get('/api/subscription/plans');
+      if (res.data?.success) {
+        setSubscriptionPlans(res.data.data || []);
+      }
+    } catch (e) {
+      setSubscriptionPlans([]);
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const getSubscriptionSelf = async () => {
+    try {
+      const res = await API.get('/api/subscription/self');
+      if (res.data?.success) {
+        setBillingPreference(
+          res.data.data?.billing_preference || 'subscription_first',
+        );
+        // Active subscriptions
+        const activeSubs = res.data.data?.subscriptions || [];
+        setActiveSubscriptions(activeSubs);
+        // All subscriptions (including expired)
+        const allSubs = res.data.data?.all_subscriptions || [];
+        setAllSubscriptions(allSubs);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const updateBillingPreference = async (pref) => {
+    const previousPref = billingPreference;
+    setBillingPreference(pref);
+    try {
+      const res = await API.put('/api/subscription/self/preference', {
+        billing_preference: pref,
+      });
+      if (res.data?.success) {
+        showSuccess(t('更新成功'));
+        const normalizedPref =
+          res.data?.data?.billing_preference || pref || previousPref;
+        setBillingPreference(normalizedPref);
+      } else {
+        showError(res.data?.message || t('更新失败'));
+        setBillingPreference(previousPref);
+      }
+    } catch (e) {
+      showError(t('请求失败'));
+      setBillingPreference(previousPref);
+    }
+  };
+
   // 获取充值配置信息
   const getTopupInfo = async () => {
     try {
@@ -465,9 +529,8 @@ const TopUp = () => {
   };
 
   useEffect(() => {
-    if (!userState?.user?.id) {
-      getUserQuota().then();
-    }
+    // 始终获取最新用户数据，确保余额等统计信息准确
+    getUserQuota().then();
     setTransferAmount(getQuotaPerUnit());
   }, []);
 
@@ -480,6 +543,8 @@ const TopUp = () => {
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
     getTopupInfo().then();
+    getSubscriptionPlans().then();
+    getSubscriptionSelf().then();
   }, []);
 
   useEffect(() => {
@@ -652,7 +717,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}{selectedCreemProduct.price}
+              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {selectedCreemProduct.price}
             </p>
             <p>
               {t('充值额度')}：{selectedCreemProduct.quota}
@@ -662,60 +728,72 @@ const TopUp = () => {
         )}
       </Modal>
 
-      {/* 用户信息头部 */}
-      <div className='space-y-6'>
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
-          {/* 左侧充值区域 */}
-          <div className='lg:col-span-7 space-y-6 w-full'>
-            <RechargeCard
-              t={t}
-              enableOnlineTopUp={enableOnlineTopUp}
-              enableStripeTopUp={enableStripeTopUp}
-              enableCreemTopUp={enableCreemTopUp}
-              creemProducts={creemProducts}
-              creemPreTopUp={creemPreTopUp}
-              presetAmounts={presetAmounts}
-              selectedPreset={selectedPreset}
-              selectPresetAmount={selectPresetAmount}
-              formatLargeNumber={formatLargeNumber}
-              priceRatio={priceRatio}
-              topUpCount={topUpCount}
-              minTopUp={minTopUp}
-              renderQuotaWithAmount={renderQuotaWithAmount}
-              getAmount={getAmount}
-              setTopUpCount={setTopUpCount}
-              setSelectedPreset={setSelectedPreset}
-              renderAmount={renderAmount}
-              amountLoading={amountLoading}
-              payMethods={payMethods}
-              preTopUp={preTopUp}
-              paymentLoading={paymentLoading}
-              payWay={payWay}
-              redemptionCode={redemptionCode}
-              setRedemptionCode={setRedemptionCode}
-              topUp={topUp}
-              isSubmitting={isSubmitting}
-              topUpLink={topUpLink}
-              openTopUpLink={openTopUpLink}
-              userState={userState}
-              renderQuota={renderQuota}
-              statusLoading={statusLoading}
-              topupInfo={topupInfo}
-              onOpenHistory={handleOpenHistory}
-            />
-          </div>
+      {/* 主布局区域 */}
+      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
+        {/* 左侧 - 订阅套餐 */}
+        <div className='lg:col-span-7'>
+          <SubscriptionPlansCard
+            t={t}
+            loading={subscriptionLoading}
+            plans={subscriptionPlans}
+            payMethods={payMethods}
+            enableOnlineTopUp={enableOnlineTopUp}
+            enableStripeTopUp={enableStripeTopUp}
+            enableCreemTopUp={enableCreemTopUp}
+            billingPreference={billingPreference}
+            onChangeBillingPreference={updateBillingPreference}
+            activeSubscriptions={activeSubscriptions}
+            allSubscriptions={allSubscriptions}
+            reloadSubscriptionSelf={getSubscriptionSelf}
+          />
+        </div>
 
-          {/* 右侧信息区域 */}
-          <div className='lg:col-span-5'>
-            <InvitationCard
-              t={t}
-              userState={userState}
-              renderQuota={renderQuota}
-              setOpenTransfer={setOpenTransfer}
-              affLink={affLink}
-              handleAffLinkClick={handleAffLinkClick}
-            />
-          </div>
+        {/* 右侧 - 账户充值 + 邀请奖励 */}
+        <div className='lg:col-span-5 flex flex-col gap-6'>
+          <RechargeCard
+            t={t}
+            enableOnlineTopUp={enableOnlineTopUp}
+            enableStripeTopUp={enableStripeTopUp}
+            enableCreemTopUp={enableCreemTopUp}
+            creemProducts={creemProducts}
+            creemPreTopUp={creemPreTopUp}
+            presetAmounts={presetAmounts}
+            selectedPreset={selectedPreset}
+            selectPresetAmount={selectPresetAmount}
+            formatLargeNumber={formatLargeNumber}
+            priceRatio={priceRatio}
+            topUpCount={topUpCount}
+            minTopUp={minTopUp}
+            renderQuotaWithAmount={renderQuotaWithAmount}
+            getAmount={getAmount}
+            setTopUpCount={setTopUpCount}
+            setSelectedPreset={setSelectedPreset}
+            renderAmount={renderAmount}
+            amountLoading={amountLoading}
+            payMethods={payMethods}
+            preTopUp={preTopUp}
+            paymentLoading={paymentLoading}
+            payWay={payWay}
+            redemptionCode={redemptionCode}
+            setRedemptionCode={setRedemptionCode}
+            topUp={topUp}
+            isSubmitting={isSubmitting}
+            topUpLink={topUpLink}
+            openTopUpLink={openTopUpLink}
+            userState={userState}
+            renderQuota={renderQuota}
+            statusLoading={statusLoading}
+            topupInfo={topupInfo}
+            onOpenHistory={handleOpenHistory}
+          />
+          <InvitationCard
+            t={t}
+            userState={userState}
+            renderQuota={renderQuota}
+            setOpenTransfer={setOpenTransfer}
+            affLink={affLink}
+            handleAffLinkClick={handleAffLinkClick}
+          />
         </div>
       </div>
     </div>

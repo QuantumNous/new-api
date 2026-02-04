@@ -30,7 +30,7 @@ const ConfirmationDialog = ({
   type = 'danger',
   deployment,
   t,
-  loading = false
+  loading = false,
 }) => {
   const [confirmText, setConfirmText] = useState('');
 
@@ -66,17 +66,17 @@ const ConfirmationDialog = ({
       okButtonProps={{
         disabled: !isConfirmed,
         type: type === 'danger' ? 'danger' : 'primary',
-        loading
+        loading,
       }}
       width={480}
     >
-      <div className="space-y-4">
-        <Text type="danger" strong>
+      <div className='space-y-4'>
+        <Text type='danger' strong>
           {t('此操作具有风险，请确认要继续执行')}。
         </Text>
         <Text>
           {t('请输入部署名称以完成二次确认')}：
-          <Text code className="ml-1">
+          <Text code className='ml-1'>
             {requiredText || t('未知部署')}
           </Text>
         </Text>
@@ -87,7 +87,7 @@ const ConfirmationDialog = ({
           autoFocus
         />
         {!isConfirmed && confirmText && (
-          <Text type="danger" size="small">
+          <Text type='danger' size='small'>
             {t('部署名称不匹配，请检查后重新输入')}
           </Text>
         )}

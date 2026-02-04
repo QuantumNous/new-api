@@ -620,6 +620,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		} else {
 			usage, err = OaiResponsesHandler(c, info, resp)
 		}
+	case relayconstant.RelayModeResponsesCompact:
+		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
 		if info.IsStream {
 			usage, err = OaiStreamHandler(c, info, resp)

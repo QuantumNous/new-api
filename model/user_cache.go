@@ -204,6 +204,10 @@ func updateUserGroupCache(userId int, group string) error {
 	return common.RedisHSetField(getUserCacheKey(userId), "Group", group)
 }
 
+func UpdateUserGroupCache(userId int, group string) error {
+	return updateUserGroupCache(userId, group)
+}
+
 func updateUserNameCache(userId int, username string) error {
 	if !common.RedisEnabled {
 		return nil
