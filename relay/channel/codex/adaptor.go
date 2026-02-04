@@ -1,18 +1,24 @@
 package codex
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -101,6 +107,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	// Codex backend only supports streaming for /responses. For non-stream requests, we still send
+	// stream=true upstream and buffer the SSE response into a single JSON response for the client.
+	request.Stream = true
 	// rm max_output_tokens
 	request.MaxOutputTokens = 0
 	request.Temperature = nil
@@ -123,7 +132,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.IsStream {
 		return openai.OaiResponsesStreamHandler(c, info, resp)
 	}
-	return openai.OaiResponsesHandler(c, info, resp)
+
+	// Codex upstream requires streaming for /responses. If the client requested non-stream, we need to
+	// buffer SSE until response.completed and return the completed response JSON.
+	return responsesNonStreamViaStreamHandler(c, info, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {
@@ -182,11 +194,165 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	if info.IsStream {
+	// Codex upstream requires streaming for /responses.
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		req.Set("Accept", "text/event-stream")
+	} else if info.IsStream {
 		req.Set("Accept", "text/event-stream")
 	} else if req.Get("Accept") == "" {
 		req.Set("Accept", "application/json")
 	}
 
 	return nil
+}
+
+type codexResponsesEvent struct {
+	Type     string          `json:"type"`
+	Response json.RawMessage `json:"response,omitempty"`
+}
+
+func responsesNonStreamViaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseBody, newAPIError := extractCompletedResponseFromSSE(resp.Body)
+	if newAPIError != nil {
+		return nil, newAPIError
+	}
+
+	synth := &http.Response{
+		StatusCode: resp.StatusCode,
+		Header:     sanitizeHeadersForNonStream(resp.Header),
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}
+	synth.Header.Set("Content-Type", "application/json")
+	return openai.OaiResponsesHandler(c, info, synth)
+}
+
+func extractCompletedResponseFromSSE(body io.Reader) ([]byte, *types.NewAPIError) {
+	if body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("empty response body"), types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	reader := bufio.NewReader(body)
+	if peek, err := reader.Peek(256); err == nil || len(peek) > 0 {
+		trimmed := bytes.TrimSpace(peek)
+		if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+			b, readErr := io.ReadAll(reader)
+			if readErr != nil {
+				return nil, types.NewOpenAIError(readErr, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+			}
+			return b, nil
+		}
+	}
+
+	maxSize := helper.DefaultMaxScannerBufferSize
+	if appconstant.StreamScannerMaxBufferMB > 0 {
+		maxSize = appconstant.StreamScannerMaxBufferMB << 20
+	}
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, helper.InitialScannerBufferSize), maxSize)
+	scanner.Split(bufio.ScanLines)
+
+	var currentEventType string
+	for scanner.Scan() {
+		line := strings.TrimSpace(strings.TrimSuffix(scanner.Text(), "\r"))
+		if line == "" {
+			continue
+		}
+
+		if strings.HasPrefix(line, ":") {
+			// SSE comment line
+			continue
+		}
+
+		if strings.HasPrefix(line, "[DONE]") {
+			break
+		}
+
+		if strings.HasPrefix(line, "event:") {
+			currentEventType = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+			continue
+		}
+
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		eventTypeForData := currentEventType
+		currentEventType = ""
+		if strings.HasPrefix(data, "[DONE]") {
+			break
+		}
+		if data == "" {
+			continue
+		}
+
+		var event codexResponsesEvent
+		if err := common.UnmarshalJsonStr(data, &event); err != nil {
+			switch eventTypeForData {
+			case "response.completed":
+				return []byte(data), nil
+			case "response.error", "response.failed":
+				return nil, types.NewOpenAIError(fmt.Errorf("responses stream error: %s", eventTypeForData), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			default:
+				continue
+			}
+		}
+
+		if event.Type == "" {
+			switch eventTypeForData {
+			case "response.completed":
+				return []byte(data), nil
+			case "response.error", "response.failed":
+				return nil, types.NewOpenAIError(fmt.Errorf("responses stream error: %s", eventTypeForData), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			default:
+				continue
+			}
+		}
+
+		switch event.Type {
+		case "response.completed":
+			if len(event.Response) == 0 {
+				return nil, types.NewOpenAIError(fmt.Errorf("responses stream error: missing response on response.completed"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			}
+			return event.Response, nil
+		case "response.error", "response.failed":
+			if len(event.Response) > 0 {
+				var response dto.OpenAIResponsesResponse
+				if err := common.Unmarshal(event.Response, &response); err == nil {
+					if oaiErr := response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
+						return nil, types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					}
+				}
+			}
+			return nil, types.NewOpenAIError(fmt.Errorf("responses stream error: %s", event.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		default:
+		}
+	}
+
+	if err := scanner.Err(); err != nil && err != io.EOF {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	return nil, types.NewOpenAIError(fmt.Errorf("stream disconnected before completion"), types.ErrorCodeBadResponse, http.StatusRequestTimeout)
+}
+
+func sanitizeHeadersForNonStream(upstream http.Header) http.Header {
+	out := make(http.Header, len(upstream))
+	for k, v := range upstream {
+		if strings.EqualFold(k, "Content-Type") ||
+			strings.EqualFold(k, "Content-Length") ||
+			strings.EqualFold(k, "Transfer-Encoding") ||
+			strings.EqualFold(k, "Connection") ||
+			strings.EqualFold(k, "Keep-Alive") ||
+			strings.EqualFold(k, "Trailer") {
+			continue
+		}
+		out[k] = append([]string(nil), v...)
+	}
+	return out
 }
