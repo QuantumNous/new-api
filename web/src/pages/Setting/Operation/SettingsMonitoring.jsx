@@ -244,7 +244,6 @@ export default function SettingsMonitoring(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={16}>
-                {inputs.AutomaticDisableChannelEnabled && (
                   <div style={{ paddingLeft: 24 }}>
                     <Form.Switch
                       field={'AutomaticDisableOnEmptyResponseEnabled'}
@@ -261,7 +260,6 @@ export default function SettingsMonitoring(props) {
                       }
                     />
                   </div>
-                )}
                 <HttpStatusCodeRulesInput
                   label={t('自动禁用状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
