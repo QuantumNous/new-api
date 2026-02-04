@@ -128,7 +128,11 @@ const SubscriptionPlansCard = ({
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
-        showError(res.data?.data || res.data?.message || t('支付失败'));
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
       }
     } catch (e) {
       showError(t('支付请求失败'));
@@ -152,7 +156,11 @@ const SubscriptionPlansCard = ({
         showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
-        showError(res.data?.data || res.data?.message || t('支付失败'));
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
       }
     } catch (e) {
       showError(t('支付请求失败'));
@@ -177,7 +185,11 @@ const SubscriptionPlansCard = ({
         showSuccess(t('已发起支付'));
         closeBuy();
       } else {
-        showError(res.data?.data || res.data?.message || t('支付失败'));
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
       }
     } catch (e) {
       showError(t('支付请求失败'));
@@ -269,9 +281,13 @@ const SubscriptionPlansCard = ({
             </div>
           </Card>
           {/* 套餐列表骨架屏 */}
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full'>
             {[1, 2, 3].map((i) => (
-              <Card key={i} className='!rounded-xl' bodyStyle={{ padding: 16 }}>
+              <Card
+                key={i}
+                className='!rounded-xl w-full h-full'
+                bodyStyle={{ padding: 16 }}
+              >
                 <Skeleton.Title
                   active
                   style={{ width: '60%', height: 24, marginBottom: 8 }}
@@ -435,7 +451,7 @@ const SubscriptionPlansCard = ({
 
           {/* 可购买套餐 - 标准定价卡片 */}
           {plans.length > 0 ? (
-            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full'>
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const totalAmount = Number(plan?.total_amount || 0);
@@ -477,15 +493,15 @@ const SubscriptionPlansCard = ({
                 return (
                   <Card
                     key={plan?.id}
-                    className={`!rounded-xl transition-all hover:shadow-lg ${
+                    className={`!rounded-xl transition-all hover:shadow-lg w-full h-full ${
                       isPopular ? 'ring-2 ring-purple-500' : ''
                     }`}
                     bodyStyle={{ padding: 0 }}
                   >
-                    <div className='p-4'>
+                    <div className='p-4 h-full flex flex-col'>
                       {/* 推荐标签 */}
                       {isPopular && (
-                        <div className='text-center mb-2'>
+                        <div className='mb-2'>
                           <Tag color='purple' shape='circle' size='small'>
                             <Sparkles size={10} className='mr-1' />
                             {t('推荐')}
@@ -493,7 +509,7 @@ const SubscriptionPlansCard = ({
                         </div>
                       )}
                       {/* 套餐名称 */}
-                      <div className='text-center mb-3'>
+                      <div className='mb-3'>
                         <Typography.Title
                           heading={5}
                           ellipsis={{ rows: 1, showTooltip: true }}
@@ -514,8 +530,8 @@ const SubscriptionPlansCard = ({
                       </div>
 
                       {/* 价格区域 */}
-                      <div className='text-center py-2'>
-                        <div className='flex items-baseline justify-center'>
+                      <div className='py-2'>
+                        <div className='flex items-baseline justify-start'>
                           <span className='text-xl font-bold text-purple-600'>
                             {symbol}
                           </span>
@@ -526,7 +542,7 @@ const SubscriptionPlansCard = ({
                       </div>
 
                       {/* 套餐权益描述 */}
-                      <div className='flex flex-col items-center gap-1 pb-2'>
+                      <div className='flex flex-col items-start gap-1 pb-2'>
                         {planBenefits.map((item) => {
                           const content = (
                             <div className='flex items-center gap-2 text-xs text-gray-500'>
@@ -538,7 +554,7 @@ const SubscriptionPlansCard = ({
                             return (
                               <div
                                 key={item.label}
-                                className='w-full flex justify-center'
+                                className='w-full flex justify-start'
                               >
                                 {content}
                               </div>
@@ -546,7 +562,7 @@ const SubscriptionPlansCard = ({
                           }
                           return (
                             <Tooltip key={item.label} content={item.tooltip}>
-                              <div className='w-full flex justify-center'>
+                              <div className='w-full flex justify-start'>
                                 {content}
                               </div>
                             </Tooltip>
@@ -554,36 +570,38 @@ const SubscriptionPlansCard = ({
                         })}
                       </div>
 
-                      <Divider margin={12} />
+                      <div className='mt-auto'>
+                        <Divider margin={12} />
 
-                      {/* 购买按钮 */}
-                      {(() => {
-                        const count = getPlanPurchaseCount(p?.plan?.id);
-                        const reached = limit > 0 && count >= limit;
-                        const tip = reached
-                          ? t('已达到购买上限') + ` (${count}/${limit})`
-                          : '';
-                        const buttonEl = (
-                          <Button
-                            theme='outline'
-                            type='tertiary'
-                            block
-                            disabled={reached}
-                            onClick={() => {
-                              if (!reached) openBuy(p);
-                            }}
-                          >
-                            {reached ? t('已达上限') : t('立即订阅')}
-                          </Button>
-                        );
-                        return reached ? (
-                          <Tooltip content={tip} position='top'>
-                            {buttonEl}
-                          </Tooltip>
-                        ) : (
-                          buttonEl
-                        );
-                      })()}
+                        {/* 购买按钮 */}
+                        {(() => {
+                          const count = getPlanPurchaseCount(p?.plan?.id);
+                          const reached = limit > 0 && count >= limit;
+                          const tip = reached
+                            ? t('已达到购买上限') + ` (${count}/${limit})`
+                            : '';
+                          const buttonEl = (
+                            <Button
+                              theme='outline'
+                              type='tertiary'
+                              block
+                              disabled={reached}
+                              onClick={() => {
+                                if (!reached) openBuy(p);
+                              }}
+                            >
+                              {reached ? t('已达上限') : t('立即订阅')}
+                            </Button>
+                          );
+                          return reached ? (
+                            <Tooltip content={tip} position='top'>
+                              {buttonEl}
+                            </Tooltip>
+                          ) : (
+                            buttonEl
+                          );
+                        })()}
+                      </div>
                     </div>
                   </Card>
                 );

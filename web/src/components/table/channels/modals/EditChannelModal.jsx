@@ -3118,11 +3118,31 @@ const EditChannelModal = (props) => {
                               onClick={() =>
                                 handleInputChange(
                                   'header_override',
+                                    JSON.stringify(
+                                        {
+                                          '*': true,
+                                          're:^X-Trace-.*$': true,
+                                          'X-Foo': '{client_header:X-Foo}',
+                                          Authorization: 'Bearer {api_key}',
+                                          'User-Agent':
+                                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
+                                        },
+                                        null,
+                                        2,
+                                    ),
+                                )
+                              }
+                            >
+                              {t('填入模板')}
+                            </Text>
+                            <Text
+                              className='!text-semi-color-primary cursor-pointer'
+                              onClick={() =>
+                                handleInputChange(
+                                  'header_override',
                                   JSON.stringify(
                                     {
-                                      'User-Agent':
-                                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36 Edg/139.0.0.0',
-                                      Authorization: 'Bearer{api_key}',
+                                      '*': true,
                                     },
                                     null,
                                     2,
@@ -3130,7 +3150,7 @@ const EditChannelModal = (props) => {
                                 )
                               }
                             >
-                              {t('填入模板')}
+                              {t('填入透传模版')}
                             </Text>
                             <Text
                               className='!text-semi-color-primary cursor-pointer'

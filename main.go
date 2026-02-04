@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -151,6 +152,7 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.PoweredBy())
+	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
@@ -277,6 +279,17 @@ func InitResources() error {
 
 	// 启动系统监控
 	common.StartSystemMonitor()
+
+	// Initialize i18n
+	err = i18n.Init()
+	if err != nil {
+		common.SysError("failed to initialize i18n: " + err.Error())
+		// Don't return error, i18n is not critical
+	} else {
+		common.SysLog("i18n initialized with languages: " + strings.Join(i18n.SupportedLanguages(), ", "))
+	}
+	// Register user language loader for lazy loading
+	i18n.SetUserLangLoader(model.GetUserLanguage)
 
 	return nil
 }
