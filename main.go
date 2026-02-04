@@ -40,6 +40,8 @@ var indexPage []byte
 func main() {
 	startTime := time.Now()
 
+	defer common.FlushSentry(2 * time.Second)
+
 	err := InitResources()
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
@@ -150,6 +152,8 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
+	server.Use(middleware.Sentry())
+	server.Use(middleware.SentryScope())
 	server.Use(middleware.PoweredBy())
 	middleware.SetUpLogger(server)
 	// Initialize session store
@@ -235,6 +239,8 @@ func InitResources() error {
 
 	// 加载环境变量
 	common.InitEnv()
+
+	common.InitSentry()
 
 	logger.SetupLogger()
 

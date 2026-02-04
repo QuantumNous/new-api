@@ -36,3 +36,15 @@ func GetEnvOrDefaultBool(env string, defaultValue bool) bool {
 	}
 	return b
 }
+
+func GetEnvOrDefaultFloat64(env string, defaultValue float64) float64 {
+	if env == "" || os.Getenv(env) == "" {
+		return defaultValue
+	}
+	f, err := strconv.ParseFloat(os.Getenv(env), 64)
+	if err != nil {
+		SysError(fmt.Sprintf("failed to parse %s: %s, using default value: %f", env, err.Error(), defaultValue))
+		return defaultValue
+	}
+	return f
+}

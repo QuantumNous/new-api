@@ -132,6 +132,8 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
 
+	setSentryAuthContext(c, id, username, role, useAccessToken)
+
 	//userCache, err := model.GetUserCache(id.(int))
 	//if err != nil {
 	//	c.JSON(http.StatusOK, gin.H{
