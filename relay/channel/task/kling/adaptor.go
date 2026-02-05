@@ -378,18 +378,10 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal kling task data failed")
 	}
 
-	openAIVideo := dto.NewOpenAIVideo()
-	openAIVideo.ID = originTask.TaskID
-	openAIVideo.Status = originTask.Status.ToVideoStatus()
-	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.CreatedAt = klingResp.Data.CreatedAt
-	openAIVideo.CompletedAt = klingResp.Data.UpdatedAt
+	openAIVideo := originTask.ToOpenAIVideo()
 
 	if len(klingResp.Data.TaskResult.Videos) > 0 {
 		video := klingResp.Data.TaskResult.Videos[0]
-		if video.Url != "" {
-			openAIVideo.SetMetadata("url", video.Url)
-		}
 		if video.Duration != "" {
 			openAIVideo.Seconds = video.Duration
 		}

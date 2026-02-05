@@ -297,17 +297,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal vidu task data failed")
 	}
 
-	openAIVideo := dto.NewOpenAIVideo()
-	openAIVideo.ID = originTask.TaskID
-	openAIVideo.Status = originTask.Status.ToVideoStatus()
-	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.CreatedAt = originTask.CreatedAt
-	openAIVideo.CompletedAt = originTask.UpdatedAt
-
-	if len(viduResp.Creations) > 0 && viduResp.Creations[0].URL != "" {
-		openAIVideo.SetMetadata("url", viduResp.Creations[0].URL)
-	}
-
+	openAIVideo := originTask.ToOpenAIVideo()
 	if viduResp.State == "failed" && viduResp.ErrCode != "" {
 		openAIVideo.Error = &dto.OpenAIVideoError{
 			Message: viduResp.ErrCode,
