@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // BodyStorage 请求体存储接口
@@ -101,25 +98,10 @@ type diskStorage struct {
 }
 
 func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
-	// 确定缓存目录
-	dir := cachePath
-	if dir == "" {
-		dir = os.TempDir()
-	}
-	dir = filepath.Join(dir, "new-api-body-cache")
-
-	// 确保目录存在
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	// 创建临时文件
-	filename := fmt.Sprintf("body-%s-%d.tmp", uuid.New().String()[:8], time.Now().UnixNano())
-	filePath := filepath.Join(dir, filename)
-
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0600)
+	// 使用统一的缓存目录管理
+	filePath, file, err := CreateDiskCacheFile(DiskCacheTypeBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
+		return nil, err
 	}
 
 	// 写入数据
@@ -148,25 +130,10 @@ func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
 }
 
 func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string) (*diskStorage, error) {
-	// 确定缓存目录
-	dir := cachePath
-	if dir == "" {
-		dir = os.TempDir()
-	}
-	dir = filepath.Join(dir, "new-api-body-cache")
-
-	// 确保目录存在
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	// 创建临时文件
-	filename := fmt.Sprintf("body-%s-%d.tmp", uuid.New().String()[:8], time.Now().UnixNano())
-	filePath := filepath.Join(dir, filename)
-
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0600)
+	// 使用统一的缓存目录管理
+	filePath, file, err := CreateDiskCacheFile(DiskCacheTypeBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
+		return nil, err
 	}
 
 	// 从 reader 读取并写入文件
@@ -337,29 +304,6 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 
 // CleanupOldCacheFiles 清理旧的缓存文件（用于启动时清理残留）
 func CleanupOldCacheFiles() {
-	cachePath := GetDiskCachePath()
-	if cachePath == "" {
-		cachePath = os.TempDir()
-	}
-	dir := filepath.Join(cachePath, "new-api-body-cache")
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return // 目录不存在或无法读取
-	}
-
-	now := time.Now()
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-		// 删除超过 5 分钟的旧文件
-		if now.Sub(info.ModTime()) > 5*time.Minute {
-			os.Remove(filepath.Join(dir, entry.Name()))
-		}
-	}
+	// 使用统一的缓存管理
+	CleanupOldDiskCacheFiles(5 * time.Minute)
 }

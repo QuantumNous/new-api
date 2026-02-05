@@ -1,18 +1,16 @@
 //go:build windows
 
-package controller
+package common
 
 import (
 	"os"
 	"syscall"
 	"unsafe"
-
-	"github.com/QuantumNous/new-api/common"
 )
 
-// getDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Windows)
-func getDiskSpaceInfo() DiskSpaceInfo {
-	cachePath := common.GetDiskCachePath()
+// GetDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Windows)
+func GetDiskSpaceInfo() DiskSpaceInfo {
+	cachePath := GetDiskCachePath()
 	if cachePath == "" {
 		cachePath = os.TempDir()
 	}

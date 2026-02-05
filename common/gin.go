@@ -218,6 +218,39 @@ func ApiSuccess(c *gin.Context, data any) {
 	})
 }
 
+// ApiErrorI18n returns a translated error message based on the user's language preference
+// key is the i18n message key, args is optional template data
+func ApiErrorI18n(c *gin.Context, key string, args ...map[string]any) {
+	msg := TranslateMessage(c, key, args...)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": msg,
+	})
+}
+
+// ApiSuccessI18n returns a translated success message based on the user's language preference
+func ApiSuccessI18n(c *gin.Context, key string, data any, args ...map[string]any) {
+	msg := TranslateMessage(c, key, args...)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": msg,
+		"data":    data,
+	})
+}
+
+// TranslateMessage is a helper function that calls i18n.T
+// This function is defined here to avoid circular imports
+// The actual implementation will be set during init
+var TranslateMessage func(c *gin.Context, key string, args ...map[string]any) string
+
+func init() {
+	// Default implementation that returns the key as-is
+	// This will be replaced by i18n.T during i18n initialization
+	TranslateMessage = func(c *gin.Context, key string, args ...map[string]any) string {
+		return key
+	}
+}
+
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	requestBody, err := GetRequestBody(c)
 	if err != nil {

@@ -1,17 +1,16 @@
 //go:build !windows
 
-package controller
+package common
 
 import (
 	"os"
 
-	"github.com/QuantumNous/new-api/common"
 	"golang.org/x/sys/unix"
 )
 
-// getDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Unix/Linux/macOS)
-func getDiskSpaceInfo() DiskSpaceInfo {
-	cachePath := common.GetDiskCachePath()
+// GetDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Unix/Linux/macOS)
+func GetDiskSpaceInfo() DiskSpaceInfo {
+	cachePath := GetDiskCachePath()
 	if cachePath == "" {
 		cachePath = os.TempDir()
 	}

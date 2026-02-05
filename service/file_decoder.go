@@ -2,7 +2,6 @@ package service
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -13,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -130,90 +128,27 @@ func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, e
 	return "application/octet-stream", nil
 }
 
+// GetFileBase64FromUrl 从 URL 获取文件的 base64 编码数据
+// Deprecated: 请使用 GetBase64Data 配合 types.NewURLFileSource 替代
+// 此函数保留用于向后兼容，内部已重构为调用统一的文件服务
 func GetFileBase64FromUrl(c *gin.Context, url string, reason ...string) (*types.LocalFileData, error) {
-	contextKey := fmt.Sprintf("file_download_%s", common.GenerateHMAC(url))
-
-	// Check if the file has already been downloaded in this request
-	if cachedData, exists := c.Get(contextKey); exists {
-		if common.DebugEnabled {
-			logger.LogDebug(c, fmt.Sprintf("Using cached file data for URL: %s", url))
-		}
-		return cachedData.(*types.LocalFileData), nil
-	}
-
-	var maxFileSize = constant.MaxFileDownloadMB * 1024 * 1024
-
-	resp, err := DoDownloadRequest(url, reason...)
+	source := types.NewURLFileSource(url)
+	cachedData, err := LoadFileSource(c, source, reason...)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	// Always use LimitReader to prevent oversized downloads
-	fileBytes, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxFileSize+1)))
+	// 转换为旧的 LocalFileData 格式以保持兼容
+	base64Data, err := cachedData.GetBase64Data()
 	if err != nil {
 		return nil, err
 	}
-	// Check actual size after reading
-	if len(fileBytes) > maxFileSize {
-		return nil, fmt.Errorf("file size exceeds maximum allowed size: %dMB", constant.MaxFileDownloadMB)
-	}
-
-	// Convert to base64
-	base64Data := base64.StdEncoding.EncodeToString(fileBytes)
-
-	mimeType := resp.Header.Get("Content-Type")
-	if len(strings.Split(mimeType, ";")) > 1 {
-		// If Content-Type has parameters, take the first part
-		mimeType = strings.Split(mimeType, ";")[0]
-	}
-	if mimeType == "application/octet-stream" {
-		logger.LogDebug(c, fmt.Sprintf("MIME type is application/octet-stream for URL: %s", url))
-		// try to guess the MIME type from the url last segment
-		urlParts := strings.Split(url, "/")
-		if len(urlParts) > 0 {
-			lastSegment := urlParts[len(urlParts)-1]
-			if strings.Contains(lastSegment, ".") {
-				// Extract the file extension
-				filename := strings.Split(lastSegment, ".")
-				if len(filename) > 1 {
-					ext := strings.ToLower(filename[len(filename)-1])
-					// Guess MIME type based on file extension
-					mimeType = GetMimeTypeByExtension(ext)
-				}
-			}
-		} else {
-			// try to guess the MIME type from the file extension
-			fileName := resp.Header.Get("Content-Disposition")
-			if fileName != "" {
-				// Extract the filename from the Content-Disposition header
-				parts := strings.Split(fileName, ";")
-				for _, part := range parts {
-					if strings.HasPrefix(strings.TrimSpace(part), "filename=") {
-						fileName = strings.TrimSpace(strings.TrimPrefix(part, "filename="))
-						// Remove quotes if present
-						if len(fileName) > 2 && fileName[0] == '"' && fileName[len(fileName)-1] == '"' {
-							fileName = fileName[1 : len(fileName)-1]
-						}
-						// Guess MIME type based on file extension
-						if ext := strings.ToLower(strings.TrimPrefix(fileName, ".")); ext != "" {
-							mimeType = GetMimeTypeByExtension(ext)
-						}
-						break
-					}
-				}
-			}
-		}
-	}
-	data := &types.LocalFileData{
+	return &types.LocalFileData{
 		Base64Data: base64Data,
-		MimeType:   mimeType,
-		Size:       int64(len(fileBytes)),
-	}
-	// Store the file data in the context to avoid re-downloading
-	c.Set(contextKey, data)
-
-	return data, nil
+		MimeType:   cachedData.MimeType,
+		Size:       cachedData.Size,
+		Url:        url,
+	}, nil
 }
 
 func GetMimeTypeByExtension(ext string) string {

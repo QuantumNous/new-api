@@ -31,6 +31,16 @@ body {
   background-color: var(--semi-color-bg-0);
 }
 
+.app-layout {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.app-sider {
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
@@ -107,6 +117,7 @@ code {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   transition: width 0.3s ease;
   background: var(--semi-color-bg-0);
 }
@@ -116,9 +127,11 @@ code {
   width: 100%;
   background: var(--semi-color-bg-0);
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
   border-right: none;
   overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }

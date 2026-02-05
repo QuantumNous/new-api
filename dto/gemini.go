@@ -64,6 +64,14 @@ type LatLng struct {
 	Longitude *float64 `json:"longitude,omitempty"`
 }
 
+// createGeminiFileSource 根据数据内容创建正确类型的 FileSource
+func createGeminiFileSource(data string, mimeType string) *types.FileSource {
+	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+		return types.NewURLFileSource(data)
+	}
+	return types.NewBase64FileSource(data, mimeType)
+}
+
 func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var files []*types.FileMeta = make([]*types.FileMeta, 0)
 
@@ -80,27 +88,23 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				inputTexts = append(inputTexts, part.Text)
 			}
 			if part.InlineData != nil && part.InlineData.Data != "" {
-				if strings.HasPrefix(part.InlineData.MimeType, "image/") {
-					files = append(files, &types.FileMeta{
-						FileType:   types.FileTypeImage,
-						OriginData: part.InlineData.Data,
-					})
-				} else if strings.HasPrefix(part.InlineData.MimeType, "audio/") {
-					files = append(files, &types.FileMeta{
-						FileType:   types.FileTypeAudio,
-						OriginData: part.InlineData.Data,
-					})
-				} else if strings.HasPrefix(part.InlineData.MimeType, "video/") {
-					files = append(files, &types.FileMeta{
-						FileType:   types.FileTypeVideo,
-						OriginData: part.InlineData.Data,
-					})
+				mimeType := part.InlineData.MimeType
+				source := createGeminiFileSource(part.InlineData.Data, mimeType)
+				var fileType types.FileType
+				if strings.HasPrefix(mimeType, "image/") {
+					fileType = types.FileTypeImage
+				} else if strings.HasPrefix(mimeType, "audio/") {
+					fileType = types.FileTypeAudio
+				} else if strings.HasPrefix(mimeType, "video/") {
+					fileType = types.FileTypeVideo
 				} else {
-					files = append(files, &types.FileMeta{
-						FileType:   types.FileTypeFile,
-						OriginData: part.InlineData.Data,
-					})
+					fileType = types.FileTypeFile
 				}
+				files = append(files, &types.FileMeta{
+					FileType: fileType,
+					Source:   source,
+					MimeType: mimeType,
+				})
 			}
 		}
 	}

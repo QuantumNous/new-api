@@ -364,23 +364,19 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						claudeMediaMessage.Source = &dto.ClaudeMessageSource{
 							Type: "base64",
 						}
-						// 判断是否是url
+						// 使用统一的文件服务获取图片数据
+						var source *types.FileSource
 						if strings.HasPrefix(imageUrl.Url, "http") {
-							// 是url，获取图片的类型和base64编码的数据
-							fileData, err := service.GetFileBase64FromUrl(c, imageUrl.Url, "formatting image for Claude")
-							if err != nil {
-								return nil, fmt.Errorf("get file base64 from url failed: %s", err.Error())
-							}
-							claudeMediaMessage.Source.MediaType = fileData.MimeType
-							claudeMediaMessage.Source.Data = fileData.Base64Data
+							source = types.NewURLFileSource(imageUrl.Url)
 						} else {
-							_, format, base64String, err := service.DecodeBase64ImageData(imageUrl.Url)
-							if err != nil {
-								return nil, err
-							}
-							claudeMediaMessage.Source.MediaType = "image/" + format
-							claudeMediaMessage.Source.Data = base64String
+							source = types.NewBase64FileSource(imageUrl.Url, "")
 						}
+						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+						claudeMediaMessage.Source.MediaType = mimeType
+						claudeMediaMessage.Source.Data = base64Data
 					}
 					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
 				}

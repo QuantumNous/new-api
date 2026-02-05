@@ -90,6 +90,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			}
 		}
 	}
+	// Codex backend requires the `instructions` field to be present.
+	// Keep it consistent with Codex CLI behavior by defaulting to an empty string.
+	if len(request.Instructions) == 0 {
+		request.Instructions = json.RawMessage(`""`)
+	}
+
 	if isCompact {
 		return request, nil
 	}
@@ -170,6 +176,16 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
+	}
+
+	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
+	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
+	// which can be rejected by the upstream. Force the exact media type.
+	req.Set("Content-Type", "application/json")
+	if info.IsStream {
+		req.Set("Accept", "text/event-stream")
+	} else if req.Get("Accept") == "" {
+		req.Set("Accept", "application/json")
 	}
 
 	return nil

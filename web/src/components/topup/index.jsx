@@ -249,7 +249,9 @@ const TopUp = () => {
             document.body.removeChild(form);
           }
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);
@@ -293,7 +295,9 @@ const TopUp = () => {
         if (message === 'success') {
           processCreemCallback(data);
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);

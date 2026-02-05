@@ -214,6 +214,14 @@ type ClaudeRequest struct {
 	ServiceTier string `json:"service_tier,omitempty"`
 }
 
+// createClaudeFileSource 根据数据内容创建正确类型的 FileSource
+func createClaudeFileSource(data string) *types.FileSource {
+	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+		return types.NewURLFileSource(data)
+	}
+	return types.NewBase64FileSource(data, "")
+}
+
 func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var tokenCountMeta = types.TokenCountMeta{
 		TokenType: types.TokenTypeTokenizer,
@@ -243,7 +251,10 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 							data = common.Interface2String(media.Source.Data)
 						}
 						if data != "" {
-							fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, OriginData: data})
+							fileMeta = append(fileMeta, &types.FileMeta{
+								FileType: types.FileTypeImage,
+								Source:   createClaudeFileSource(data),
+							})
 						}
 					}
 				}
@@ -275,7 +286,10 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 						data = common.Interface2String(media.Source.Data)
 					}
 					if data != "" {
-						fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, OriginData: data})
+						fileMeta = append(fileMeta, &types.FileMeta{
+							FileType: types.FileTypeImage,
+							Source:   createClaudeFileSource(data),
+						})
 					}
 				}
 			case "tool_use":

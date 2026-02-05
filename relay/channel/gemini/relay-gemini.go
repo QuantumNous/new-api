@@ -466,7 +466,6 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 		}
 
 		openaiContent := message.ParseContent()
-		imageNum := 0
 		for _, part := range openaiContent {
 			if part.Type == dto.ContentTypeText {
 				if part.Text == "" {
@@ -507,10 +506,6 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					}
 					// 提取 data URL (从 "](" 后面开始，到 ")" 之前)
 					dataUrl := text[bracketIdx+2 : closeIdx]
-					imageNum += 1
-					if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
-						return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
-					}
 					format, base64String, err := service.DecodeBase64FileData(dataUrl)
 					if err != nil {
 						return nil, fmt.Errorf("decode markdown base64 image data failed: %s", err.Error())
@@ -535,69 +530,58 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					})
 				}
 			} else if part.Type == dto.ContentTypeImageURL {
-				imageNum += 1
-
-				if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
-					return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
-				}
-				// 判断是否是url
-				if strings.HasPrefix(part.GetImageMedia().Url, "http") {
-					// 是url，获取文件的类型和base64编码的数据
-					fileData, err := service.GetFileBase64FromUrl(c, part.GetImageMedia().Url, "formatting image for Gemini")
-					if err != nil {
-						return nil, fmt.Errorf("get file base64 from url '%s' failed: %w", part.GetImageMedia().Url, err)
-					}
-
-					// 校验 MimeType 是否在 Gemini 支持的白名单中
-					if _, ok := geminiSupportedMimeTypes[strings.ToLower(fileData.MimeType)]; !ok {
-						url := part.GetImageMedia().Url
-						return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", fileData.MimeType, url, getSupportedMimeTypesList())
-					}
-
-					parts = append(parts, dto.GeminiPart{
-						InlineData: &dto.GeminiInlineData{
-							MimeType: fileData.MimeType, // 使用原始的 MimeType，因为大小写可能对API有意义
-							Data:     fileData.Base64Data,
-						},
-					})
+				// 使用统一的文件服务获取图片数据
+				var source *types.FileSource
+				imageUrl := part.GetImageMedia().Url
+				if strings.HasPrefix(imageUrl, "http") {
+					source = types.NewURLFileSource(imageUrl)
 				} else {
-					format, base64String, err := service.DecodeBase64FileData(part.GetImageMedia().Url)
-					if err != nil {
-						return nil, fmt.Errorf("decode base64 image data failed: %s", err.Error())
-					}
-					parts = append(parts, dto.GeminiPart{
-						InlineData: &dto.GeminiInlineData{
-							MimeType: format,
-							Data:     base64String,
-						},
-					})
+					source = types.NewBase64FileSource(imageUrl, "")
 				}
+				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
+				if err != nil {
+					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+				}
+
+				// 校验 MimeType 是否在 Gemini 支持的白名单中
+				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
+					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+				}
+
+				parts = append(parts, dto.GeminiPart{
+					InlineData: &dto.GeminiInlineData{
+						MimeType: mimeType,
+						Data:     base64Data,
+					},
+				})
 			} else if part.Type == dto.ContentTypeFile {
 				if part.GetFile().FileId != "" {
 					return nil, fmt.Errorf("only base64 file is supported in gemini")
 				}
-				format, base64String, err := service.DecodeBase64FileData(part.GetFile().FileData)
+				fileSource := types.NewBase64FileSource(part.GetFile().FileData, "")
+				base64Data, mimeType, err := service.GetBase64Data(c, fileSource, "formatting file for Gemini")
 				if err != nil {
 					return nil, fmt.Errorf("decode base64 file data failed: %s", err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
-						MimeType: format,
-						Data:     base64String,
+						MimeType: mimeType,
+						Data:     base64Data,
 					},
 				})
 			} else if part.Type == dto.ContentTypeInputAudio {
 				if part.GetInputAudio().Data == "" {
 					return nil, fmt.Errorf("only base64 audio is supported in gemini")
 				}
-				base64String, err := service.DecodeBase64AudioData(part.GetInputAudio().Data)
+				audioSource := types.NewBase64FileSource(part.GetInputAudio().Data, "audio/"+part.GetInputAudio().Format)
+				base64Data, mimeType, err := service.GetBase64Data(c, audioSource, "formatting audio for Gemini")
 				if err != nil {
 					return nil, fmt.Errorf("decode base64 audio data failed: %s", err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
-						MimeType: "audio/" + part.GetInputAudio().Format,
-						Data:     base64String,
+						MimeType: mimeType,
+						Data:     base64Data,
 					},
 				})
 			}

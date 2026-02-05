@@ -101,6 +101,14 @@ type GeneralOpenAIRequest struct {
 	SearchMode             string          `json:"search_mode,omitempty"`
 }
 
+// createFileSource 根据数据内容创建正确类型的 FileSource
+func createFileSource(data string) *types.FileSource {
+	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+		return types.NewURLFileSource(data)
+	}
+	return types.NewBase64FileSource(data, "")
+}
+
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var tokenCountMeta types.TokenCountMeta
 	var texts = make([]string, 0)
@@ -144,42 +152,40 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			for _, m := range arrayContent {
 				if m.Type == ContentTypeImageURL {
 					imageUrl := m.GetImageMedia()
-					if imageUrl != nil {
-						if imageUrl.Url != "" {
-							meta := &types.FileMeta{
-								FileType: types.FileTypeImage,
-							}
-							meta.OriginData = imageUrl.Url
-							meta.Detail = imageUrl.Detail
-							fileMeta = append(fileMeta, meta)
-						}
+					if imageUrl != nil && imageUrl.Url != "" {
+						source := createFileSource(imageUrl.Url)
+						fileMeta = append(fileMeta, &types.FileMeta{
+							FileType: types.FileTypeImage,
+							Source:   source,
+							Detail:   imageUrl.Detail,
+						})
 					}
 				} else if m.Type == ContentTypeInputAudio {
 					inputAudio := m.GetInputAudio()
-					if inputAudio != nil {
-						meta := &types.FileMeta{
+					if inputAudio != nil && inputAudio.Data != "" {
+						source := createFileSource(inputAudio.Data)
+						fileMeta = append(fileMeta, &types.FileMeta{
 							FileType: types.FileTypeAudio,
-						}
-						meta.OriginData = inputAudio.Data
-						fileMeta = append(fileMeta, meta)
+							Source:   source,
+						})
 					}
 				} else if m.Type == ContentTypeFile {
 					file := m.GetFile()
-					if file != nil {
-						meta := &types.FileMeta{
+					if file != nil && file.FileData != "" {
+						source := createFileSource(file.FileData)
+						fileMeta = append(fileMeta, &types.FileMeta{
 							FileType: types.FileTypeFile,
-						}
-						meta.OriginData = file.FileData
-						fileMeta = append(fileMeta, meta)
+							Source:   source,
+						})
 					}
 				} else if m.Type == ContentTypeVideoUrl {
 					videoUrl := m.GetVideoUrl()
 					if videoUrl != nil && videoUrl.Url != "" {
-						meta := &types.FileMeta{
+						source := createFileSource(videoUrl.Url)
+						fileMeta = append(fileMeta, &types.FileMeta{
 							FileType: types.FileTypeVideo,
-						}
-						meta.OriginData = videoUrl.Url
-						fileMeta = append(fileMeta, meta)
+							Source:   source,
+						})
 					}
 				} else {
 					texts = append(texts, m.Text)
@@ -833,16 +839,16 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			if input.Type == "input_image" {
 				if input.ImageUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
-						FileType:   types.FileTypeImage,
-						OriginData: input.ImageUrl,
-						Detail:     input.Detail,
+						FileType: types.FileTypeImage,
+						Source:   createFileSource(input.ImageUrl),
+						Detail:   input.Detail,
 					})
 				}
 			} else if input.Type == "input_file" {
 				if input.FileUrl != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
-						FileType:   types.FileTypeFile,
-						OriginData: input.FileUrl,
+						FileType: types.FileTypeFile,
+						Source:   createFileSource(input.FileUrl),
 					})
 				}
 			} else {

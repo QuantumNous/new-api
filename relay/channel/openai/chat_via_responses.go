@@ -18,6 +18,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func responsesStreamIndexKey(itemID string, idx *int) string {
+	if itemID == "" {
+		return ""
+	}
+	if idx == nil {
+		return itemID
+	}
+	return fmt.Sprintf("%s:%d", itemID, *idx)
+}
+
+func stringDeltaFromPrefix(prev string, next string) string {
+	if next == "" {
+		return ""
+	}
+	if prev != "" && strings.HasPrefix(next, prev) {
+		return next[len(prev):]
+	}
+	return next
+}
+
 func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -86,6 +106,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	toolCallArgsByID := make(map[string]string)
 	toolCallNameSent := make(map[string]bool)
 	toolCallCanonicalIDByItemID := make(map[string]string)
+	//reasoningSummaryTextByKey := make(map[string]string)
 
 	sendStartIfNeeded := func() bool {
 		if sentStart {
@@ -96,6 +117,66 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return false
 		}
 		sentStart = true
+		return true
+	}
+
+	//sendReasoningDelta := func(delta string) bool {
+	//	if delta == "" {
+	//		return true
+	//	}
+	//	if !sendStartIfNeeded() {
+	//		return false
+	//	}
+	//
+	//	usageText.WriteString(delta)
+	//	chunk := &dto.ChatCompletionsStreamResponse{
+	//		Id:      responseId,
+	//		Object:  "chat.completion.chunk",
+	//		Created: createAt,
+	//		Model:   model,
+	//		Choices: []dto.ChatCompletionsStreamResponseChoice{
+	//			{
+	//				Index: 0,
+	//				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+	//					ReasoningContent: &delta,
+	//				},
+	//			},
+	//		},
+	//	}
+	//	if err := helper.ObjectData(c, chunk); err != nil {
+	//		streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	//		return false
+	//	}
+	//	return true
+	//}
+
+	sendReasoningSummaryDelta := func(delta string) bool {
+		if delta == "" {
+			return true
+		}
+		if !sendStartIfNeeded() {
+			return false
+		}
+
+		usageText.WriteString(delta)
+		chunk := &dto.ChatCompletionsStreamResponse{
+			Id:      responseId,
+			Object:  "chat.completion.chunk",
+			Created: createAt,
+			Model:   model,
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{
+					Index: 0,
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+						ReasoningContent: &delta,
+					},
+				},
+			},
+		}
+		if err := helper.ObjectData(c, chunk); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
+		}
 		return true
 	}
 
@@ -187,6 +268,37 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					createAt = int64(streamResp.Response.CreatedAt)
 				}
 			}
+
+		//case "response.reasoning_text.delta":
+		//if !sendReasoningDelta(streamResp.Delta) {
+		//	return false
+		//}
+
+		//case "response.reasoning_text.done":
+
+		case "response.reasoning_summary_text.delta":
+			if !sendReasoningSummaryDelta(streamResp.Delta) {
+				return false
+			}
+
+		case "response.reasoning_summary_text.done":
+
+		//case "response.reasoning_summary_part.added", "response.reasoning_summary_part.done":
+		//	key := responsesStreamIndexKey(strings.TrimSpace(streamResp.ItemID), streamResp.SummaryIndex)
+		//	if key == "" || streamResp.Part == nil {
+		//		break
+		//	}
+		//	// Only handle summary text parts, ignore other part types.
+		//	if streamResp.Part.Type != "" && streamResp.Part.Type != "summary_text" {
+		//		break
+		//	}
+		//	prev := reasoningSummaryTextByKey[key]
+		//	next := streamResp.Part.Text
+		//	delta := stringDeltaFromPrefix(prev, next)
+		//	reasoningSummaryTextByKey[key] = next
+		//	if !sendReasoningSummaryDelta(delta) {
+		//		return false
+		//	}
 
 		case "response.output_text.delta":
 			if !sendStartIfNeeded() {
