@@ -52,10 +52,12 @@ import {
 import {
   onGitHubOAuthClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocOAuthClicked,
   onOIDCClicked,
 } from '../../helpers';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import NodeLocIcon from '../common/logo/NodeLocIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User';
@@ -92,6 +94,7 @@ const RegisterForm = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [emailRegisterLoading, setEmailRegisterLoading] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [verificationCodeLoading, setVerificationCodeLoading] = useState(false);
@@ -319,6 +322,15 @@ const RegisterForm = () => {
     }
   };
 
+  const handleNodeLocClick = () => {
+    setNodelocLoading(true);
+    try {
+      onNodeLocOAuthClicked(status.nodeloc_client_id, { shouldLogout: true });
+    } finally {
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
+
   const handleEmailRegisterClick = () => {
     setEmailRegisterLoading(true);
     setShowEmailRegister(true);
@@ -466,6 +478,27 @@ const RegisterForm = () => {
                     loading={linuxdoLoading}
                   >
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
+                  </Button>
+                )}
+
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <NodeLocIcon
+                        style={{
+                          color: '#2563eb',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleNodeLocClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className='ml-3'>{t('使用 NodeLoc 继续')}</span>
                   </Button>
                 )}
 
@@ -655,6 +688,7 @@ const RegisterForm = () => {
                 status.oidc_enabled ||
                 status.wechat_login ||
                 status.linuxdo_oauth ||
+                status.nodeloc_oauth ||
                 status.telegram_oauth) && (
                 <>
                   <Divider margin='12px' align='center'>
@@ -751,6 +785,7 @@ const RegisterForm = () => {
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||
+          status.nodeloc_oauth ||
           status.telegram_oauth
         )
           ? renderEmailRegisterForm()
