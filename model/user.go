@@ -165,7 +165,9 @@ func CheckUserExistOrDeleted(username string, email string) (bool, error) {
 	if email == "" {
 		err = DB.Unscoped().First(&user, "username = ?", username).Error
 	} else {
-		err = DB.Unscoped().First(&user, "username = ? or email = ?", username, email).Error
+		// 邮箱转小写，确保大小写不敏感
+		email = strings.ToLower(email)
+		err = DB.Unscoped().First(&user, "username = ? or LOWER(email) = ?", username, email).Error
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -507,8 +509,8 @@ func (user *User) ValidateAndFill() (err error) {
 	if username == "" || password == "" {
 		return errors.New("用户名或密码为空")
 	}
-	// find buy username or email
-	DB.Where("username = ? OR email = ?", username, username).First(user)
+	// find by username or email (邮箱大小写不敏感)
+	DB.Where("username = ? OR LOWER(email) = ?", username, strings.ToLower(username)).First(user)
 	okay := common.ValidatePasswordAndHash(password, user.Password)
 	if !okay || user.Status != common.UserStatusEnabled {
 		return errors.New("用户名或密码错误，或用户已被封禁")
@@ -528,7 +530,8 @@ func (user *User) FillUserByEmail() error {
 	if user.Email == "" {
 		return errors.New("email 为空！")
 	}
-	DB.Where(User{Email: user.Email}).First(user)
+	// 邮箱大小写不敏感
+	DB.Where("LOWER(email) = ?", strings.ToLower(user.Email)).First(user)
 	return nil
 }
 
@@ -576,7 +579,8 @@ func (user *User) FillUserByTelegramId() error {
 }
 
 func IsEmailAlreadyTaken(email string) bool {
-	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
+	// 邮箱大小写不敏感
+	return DB.Unscoped().Where("LOWER(email) = ?", strings.ToLower(email)).Find(&User{}).RowsAffected == 1
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
@@ -607,7 +611,8 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("email = ?", email).Update("password", hashedPassword).Error
+	// 邮箱大小写不敏感
+	err = DB.Model(&User{}).Where("LOWER(email) = ?", strings.ToLower(email)).Update("password", hashedPassword).Error
 	return err
 }
 
