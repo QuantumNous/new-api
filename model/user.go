@@ -579,8 +579,8 @@ func (user *User) FillUserByTelegramId() error {
 }
 
 func IsEmailAlreadyTaken(email string) bool {
-	// 邮箱大小写不敏感
-	return DB.Unscoped().Where("LOWER(email) = ?", strings.ToLower(email)).Find(&User{}).RowsAffected == 1
+	// 邮箱大小写不敏感，使用 > 0 以处理可能存在的重复数据
+	return DB.Unscoped().Where("LOWER(email) = ?", strings.ToLower(email)).Find(&User{}).RowsAffected > 0
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
@@ -607,12 +607,21 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if email == "" || password == "" {
 		return errors.New("邮箱地址或密码为空！")
 	}
+	// 邮箱大小写不敏感，先检查匹配的用户数量
+	normalizedEmail := strings.ToLower(email)
+	var count int64
+	DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Count(&count)
+	if count == 0 {
+		return errors.New("该邮箱地址未注册")
+	}
+	if count > 1 {
+		return errors.New("存在多个相同邮箱的账户，请联系管理员处理")
+	}
 	hashedPassword, err := common.Password2Hash(password)
 	if err != nil {
 		return err
 	}
-	// 邮箱大小写不敏感
-	err = DB.Model(&User{}).Where("LOWER(email) = ?", strings.ToLower(email)).Update("password", hashedPassword).Error
+	err = DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Update("password", hashedPassword).Error
 	return err
 }
 

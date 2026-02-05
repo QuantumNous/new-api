@@ -176,7 +176,8 @@ func Register(c *gin.Context) {
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
-	if common.EmailVerificationEnabled {
+	// 邮箱统一转为小写存储，确保大小写不敏感
+	if user.Email != "" {
 		cleanUser.Email = strings.ToLower(user.Email)
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
