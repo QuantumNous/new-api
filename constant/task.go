@@ -16,6 +16,15 @@ const (
 	TaskActionFirstTailGenerate = "firstTailGenerate"
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
+	TaskActionText2Audio        = "text2audio"
+	TaskActionAudioTTS          = "audioTTS"
+	TaskActionExtend            = "extend"
+	TaskActionUpscale           = "upscale"
+	TaskActionAdOneClick        = "adOneClick"
+	TaskActionTrendingReplicate = "trendingReplicate"
+	TaskActionMV                = "mv"
+	TaskActionMultiFrame        = "multiframe"
+	TaskActionReplace           = "replace"
 )
 
 var SunoModel2Action = map[string]string{
