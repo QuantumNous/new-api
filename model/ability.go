@@ -145,11 +145,19 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
-	groups_ := strings.Split(channel.Group, ",")
+	defaultGroups := strings.Split(channel.Group, ",")
+	modelGroupMapping := channel.GetModelGroupMapping()
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
-		for _, group := range groups_ {
+		// 获取该模型的分组：优先使用单独配置，否则使用渠道默认分组
+		groups := defaultGroups
+		if modelGroupMapping != nil {
+			if customGroups, ok := modelGroupMapping[model]; ok && len(customGroups) > 0 {
+				groups = customGroups
+			}
+		}
+		for _, group := range groups {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
@@ -217,11 +225,19 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 
 	// Then add new abilities
 	models_ := strings.Split(channel.Models, ",")
-	groups_ := strings.Split(channel.Group, ",")
+	defaultGroups := strings.Split(channel.Group, ",")
+	modelGroupMapping := channel.GetModelGroupMapping()
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
-		for _, group := range groups_ {
+		// 获取该模型的分组：优先使用单独配置，否则使用渠道默认分组
+		groups := defaultGroups
+		if modelGroupMapping != nil {
+			if customGroups, ok := modelGroupMapping[model]; ok && len(customGroups) > 0 {
+				groups = customGroups
+			}
+		}
+		for _, group := range groups {
 			key := group + "|" + model
 			if _, exists := abilitySet[key]; exists {
 				continue
