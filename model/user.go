@@ -610,7 +610,9 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	// 邮箱大小写不敏感，先检查匹配的用户数量
 	normalizedEmail := strings.ToLower(email)
 	var count int64
-	DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Count(&count)
+	if err := DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Count(&count).Error; err != nil {
+		return fmt.Errorf("查询邮箱失败: %w", err)
+	}
 	if count == 0 {
 		return errors.New("该邮箱地址未注册")
 	}
