@@ -243,7 +243,13 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 							data = common.Interface2String(media.Source.Data)
 						}
 						if data != "" {
-							fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, OriginData: data})
+							var fileSource *types.FileSource
+							if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+								fileSource = types.NewURLFileSource(data)
+							} else {
+								fileSource = types.NewBase64FileSource(data, media.Source.MediaType)
+							}
+							fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, Source: fileSource})
 						}
 					}
 				}
@@ -275,7 +281,13 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 						data = common.Interface2String(media.Source.Data)
 					}
 					if data != "" {
-						fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, OriginData: data})
+						var fileSource *types.FileSource
+						if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
+							fileSource = types.NewURLFileSource(data)
+						} else {
+							fileSource = types.NewBase64FileSource(data, media.Source.MediaType)
+						}
+						fileMeta = append(fileMeta, &types.FileMeta{FileType: types.FileTypeImage, Source: fileSource})
 					}
 				}
 			case "tool_use":
