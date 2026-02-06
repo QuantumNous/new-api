@@ -40,14 +40,14 @@ export function BalanceQueryDialog({
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
 
-  if (!currentRow) return null
-
-  const isCodex = currentRow.type === 57
+  const isCodex = currentRow?.type === 57
 
   const handleQueryCodexUsage = async () => {
+    const row = currentRow
+    if (!row) return
     setIsQuerying(true)
     try {
-      const res = await getCodexUsage(currentRow.id)
+      const res = await getCodexUsage(row.id)
       if (!res.success) {
         throw new Error(res.message || t('Failed to fetch usage'))
       }
@@ -65,6 +65,8 @@ export function BalanceQueryDialog({
     handleQueryCodexUsage()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isCodex])
+
+  if (!currentRow) return null
 
   const handleQueryBalance = async () => {
     setIsQuerying(true)
