@@ -105,7 +105,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		}
 
 		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
+		if strings.Contains(strings.ToLower(testModel), "codex") ||
+			strings.Contains(strings.ToLower(testModel), "gpt") {
 			requestPath = "/v1/responses"
 		}
 
