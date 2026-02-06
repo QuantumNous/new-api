@@ -211,9 +211,12 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if strings.TrimSpace(s.Name) == "" {
 		return "", nil, service.TaskErrorWrapper(fmt.Errorf("missing operation name"), "invalid_response", http.StatusInternalServerError)
 	}
-	localID := encodeLocalTaskID(s.Name)
-	c.JSON(http.StatusOK, gin.H{"task_id": localID})
-	return localID, responseBody, nil
+	localTaskID, err := model.CreateTaskIDMappingWithChannel(s.Name, info.ChannelId)
+	if err != nil {
+		return "", nil, service.TaskErrorWrapper(err, "create_task_id_mapping_failed", http.StatusInternalServerError)
+	}
+	c.JSON(http.StatusOK, gin.H{"task_id": localTaskID})
+	return localTaskID, responseBody, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string { return []string{"veo-3.0-generate-001"} }
@@ -225,9 +228,18 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
-	upstreamName, err := decodeLocalTaskID(taskID)
+	upstreamName, found, err := model.GetUpstreamTaskIDByLocalTaskID(taskID)
 	if err != nil {
-		return nil, fmt.Errorf("decode task_id failed: %w", err)
+		return nil, fmt.Errorf("resolve task_id mapping failed: %w", err)
+	}
+	if !found {
+		if strings.HasPrefix(taskID, "tsk_") {
+			return nil, fmt.Errorf("task_id mapping not found")
+		}
+		upstreamName, err = decodeLocalTaskID(taskID)
+		if err != nil {
+			return nil, fmt.Errorf("decode task_id failed: %w", err)
+		}
 	}
 	region := extractRegionFromOperationName(upstreamName)
 	if region == "" {
@@ -338,9 +350,18 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	upstreamName, err := decodeLocalTaskID(task.TaskID)
-	if err != nil {
-		upstreamName = ""
+	upstreamName := ""
+	if task != nil {
+		if mapped, found, err := model.GetUpstreamTaskIDByLocalTaskID(task.TaskID); err == nil && found {
+			upstreamName = mapped
+		} else {
+			if !strings.HasPrefix(task.TaskID, "tsk_") {
+				decoded, err := decodeLocalTaskID(task.TaskID)
+				if err == nil {
+					upstreamName = decoded
+				}
+			}
+		}
 	}
 	modelName := extractModelFromOperationName(upstreamName)
 	if strings.TrimSpace(modelName) == "" {
