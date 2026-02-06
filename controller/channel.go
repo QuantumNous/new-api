@@ -571,6 +571,16 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 	return false
 }
 
+func validateCodexOAuthKeyMap(keyMap map[string]any) error {
+	if v, ok := keyMap["access_token"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+		return fmt.Errorf("Codex key JSON must include access_token")
+	}
+	if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+		return fmt.Errorf("Codex key JSON must include account_id")
+	}
+	return nil
+}
+
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 校验 channel settings
@@ -612,18 +622,37 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.Type == constant.ChannelTypeCodex {
 		trimmedKey := strings.TrimSpace(channel.Key)
 		if isAdd || trimmedKey != "" {
-			if !strings.HasPrefix(trimmedKey, "{") {
+			if strings.HasPrefix(trimmedKey, "{") {
+				var keyMap map[string]any
+				if err := common.Unmarshal([]byte(trimmedKey), &keyMap); err == nil {
+					if err := validateCodexOAuthKeyMap(keyMap); err != nil {
+						return err
+					}
+					return nil
+				}
+			}
+
+			lines := strings.Split(trimmedKey, "\n")
+			hasLine := false
+			for i, line := range lines {
+				line = strings.TrimSpace(line)
+				if line == "" {
+					continue
+				}
+				hasLine = true
+				if !strings.HasPrefix(line, "{") {
+					return fmt.Errorf("Codex key line %d must be a valid JSON object", i+1)
+				}
+				var keyMap map[string]any
+				if err := common.Unmarshal([]byte(line), &keyMap); err != nil {
+					return fmt.Errorf("Codex key line %d must be a valid JSON object", i+1)
+				}
+				if err := validateCodexOAuthKeyMap(keyMap); err != nil {
+					return fmt.Errorf("Codex key line %d %s", i+1, err.Error())
+				}
+			}
+			if !hasLine {
 				return fmt.Errorf("Codex key must be a valid JSON object")
-			}
-			var keyMap map[string]any
-			if err := common.Unmarshal([]byte(trimmedKey), &keyMap); err != nil {
-				return fmt.Errorf("Codex key must be a valid JSON object")
-			}
-			if v, ok := keyMap["access_token"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
-				return fmt.Errorf("Codex key JSON must include access_token")
-			}
-			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
-				return fmt.Errorf("Codex key JSON must include account_id")
 			}
 		}
 	}

@@ -1168,11 +1168,6 @@ const EditChannelModal = (props) => {
     let localInputs = { ...formValues };
 
     if (localInputs.type === 57) {
-      if (batch) {
-        showInfo(t('Codex 渠道不支持批量创建'));
-        return;
-      }
-
       const rawKey = (localInputs.key || '').trim();
       if (!isEdit && rawKey === '') {
         showInfo(t('请输入密钥！'));
@@ -1180,30 +1175,89 @@ const EditChannelModal = (props) => {
       }
 
       if (rawKey !== '') {
-        if (!verifyJSON(rawKey)) {
-          showInfo(t('密钥必须是合法的 JSON 格式！'));
-          return;
-        }
-        try {
-          const parsed = JSON.parse(rawKey);
-          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            showInfo(t('密钥必须是 JSON 对象'));
+        if (batch) {
+          const lines = rawKey.split('\n');
+          const normalizedKeys = [];
+          let hasLine = false;
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            hasLine = true;
+
+            let parsed = null;
+            try {
+              parsed = JSON.parse(line);
+            } catch (error) {
+              showInfo(
+                t('第 {{line}} 行密钥不是合法的 JSON 格式！', {
+                  line: i + 1,
+                }),
+              );
+              return;
+            }
+
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+              showInfo(
+                t('第 {{line}} 行密钥必须是 JSON 对象', { line: i + 1 }),
+              );
+              return;
+            }
+
+            const accessToken = String(parsed.access_token || '').trim();
+            const accountId = String(parsed.account_id || '').trim();
+            if (!accessToken) {
+              showInfo(
+                t('第 {{line}} 行密钥 JSON 必须包含 access_token', {
+                  line: i + 1,
+                }),
+              );
+              return;
+            }
+            if (!accountId) {
+              showInfo(
+                t('第 {{line}} 行密钥 JSON 必须包含 account_id', {
+                  line: i + 1,
+                }),
+              );
+              return;
+            }
+
+            normalizedKeys.push(JSON.stringify(parsed));
+          }
+
+          if (!hasLine) {
+            showInfo(t('请输入密钥！'));
             return;
           }
-          const accessToken = String(parsed.access_token || '').trim();
-          const accountId = String(parsed.account_id || '').trim();
-          if (!accessToken) {
-            showInfo(t('密钥 JSON 必须包含 access_token'));
+
+          localInputs.key = normalizedKeys.join('\n');
+        } else {
+          if (!verifyJSON(rawKey)) {
+            showInfo(t('密钥必须是合法的 JSON 格式！'));
             return;
           }
-          if (!accountId) {
-            showInfo(t('密钥 JSON 必须包含 account_id'));
+          try {
+            const parsed = JSON.parse(rawKey);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+              showInfo(t('密钥必须是 JSON 对象'));
+              return;
+            }
+            const accessToken = String(parsed.access_token || '').trim();
+            const accountId = String(parsed.account_id || '').trim();
+            if (!accessToken) {
+              showInfo(t('密钥 JSON 必须包含 access_token'));
+              return;
+            }
+            if (!accountId) {
+              showInfo(t('密钥 JSON 必须包含 account_id'));
+              return;
+            }
+            localInputs.key = JSON.stringify(parsed);
+          } catch (error) {
+            showInfo(t('密钥必须是合法的 JSON 格式！'));
             return;
           }
-          localInputs.key = JSON.stringify(parsed);
-        } catch (error) {
-          showInfo(t('密钥必须是合法的 JSON 格式！'));
-          return;
         }
       }
     }
@@ -1539,7 +1593,7 @@ const EditChannelModal = (props) => {
     }
   };
 
-  const batchAllowed = (!isEdit || isMultiKeyChannel) && inputs.type !== 57;
+  const batchAllowed = !isEdit || isMultiKeyChannel;
   const batchExtra = batchAllowed ? (
     <Space>
       {!isEdit && (
@@ -1989,7 +2043,11 @@ const EditChannelModal = (props) => {
                                 : t(
                                     '请输入密钥，一行一个，格式：AccessKey|SecretAccessKey|Region',
                                   )
-                              : t('请输入密钥，一行一个')
+                              : inputs.type === 57
+                                ? t(
+                                    '每行一个 JSON（必须包含 access_token、account_id）',
+                                  )
+                                : t('请输入密钥，一行一个')
                           }
                           rules={
                             isEdit
