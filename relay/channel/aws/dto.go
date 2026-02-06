@@ -26,6 +26,8 @@ type AwsClaudeRequest struct {
 	Tools            any                 `json:"tools,omitempty"`
 	ToolChoice       any                 `json:"tool_choice,omitempty"`
 	Thinking         *dto.Thinking       `json:"thinking,omitempty"`
+	OutputConfig     json.RawMessage     `json:"output_config,omitempty"`
+	Metadata         json.RawMessage     `json:"metadata,omitempty"`
 }
 
 func formatRequest(requestBody io.Reader, requestHeader http.Header) (*AwsClaudeRequest, error) {
