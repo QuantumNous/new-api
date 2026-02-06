@@ -113,6 +113,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string) 
 		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
 			requestPath = "/v1/responses/compact"
 		}
+
+		// Codex channel only supports responses endpoints.
+		if channel.Type == constant.ChannelTypeCodex {
+			if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
+				requestPath = "/v1/responses/compact"
+			} else {
+				requestPath = "/v1/responses"
+			}
+		}
 	}
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
 		testModel = ratio_setting.WithCompactModelSuffix(testModel)
@@ -559,6 +568,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel)
 		return &dto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,
+		}
+	}
+
+	// Codex channel only supports responses endpoints.
+	if channel != nil && channel.Type == constant.ChannelTypeCodex {
+		return &dto.OpenAIResponsesRequest{
+			Model: model,
+			Input: json.RawMessage(`[{"role":"user","content":"hi"}]`),
 		}
 	}
 

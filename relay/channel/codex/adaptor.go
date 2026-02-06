@@ -96,6 +96,14 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		request.Instructions = json.RawMessage(`""`)
 	}
 
+	// Codex backend requires streaming; force stream when unset.
+	if !request.Stream {
+		request.Stream = true
+		if info != nil {
+			info.IsStream = true
+		}
+	}
+
 	if isCompact {
 		return request, nil
 	}
