@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -105,8 +106,58 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations:
+		if len(request.Extra) > 0 {
+			var volcReq dto.VolcengineImageRequest
+
+			// 拷贝基础字段
+			volcReq.Model = request.Model
+			volcReq.Prompt = request.Prompt
+			volcReq.N = request.N
+			volcReq.Size = request.Size
+			volcReq.Quality = request.Quality
+			volcReq.ResponseFormat = request.ResponseFormat
+			volcReq.Style = request.Style
+			volcReq.User = request.User
+			volcReq.ExtraFields = request.ExtraFields
+			volcReq.Background = request.Background
+			volcReq.Moderation = request.Moderation
+			volcReq.OutputFormat = request.OutputFormat
+			volcReq.OutputCompression = request.OutputCompression
+			volcReq.Watermark = request.Watermark
+			volcReq.WatermarkEnabled = request.WatermarkEnabled
+			volcReq.UserId = request.UserId
+
+			// 处理 Image 字段
+			_ = json.Unmarshal(request.PartialImages, &volcReq.Image)
+
+			// 处理 Extra 字段
+			if v, ok := request.Extra["stream"]; ok {
+				_ = json.Unmarshal(v, &volcReq.Stream)
+			}
+			if v, ok := request.Extra["guidance_scale"]; ok {
+				_ = json.Unmarshal(v, &volcReq.GuidanceScale)
+			}
+			if v, ok := request.Extra["seed"]; ok {
+				_ = json.Unmarshal(v, &volcReq.Seed)
+			}
+			if v, ok := request.Extra["watermark"]; ok {
+				_ = json.Unmarshal(v, &volcReq.Watermark)
+			}
+			if v, ok := request.Extra["sequential_image_generation"]; ok {
+				_ = json.Unmarshal(v, &volcReq.SequentialImageGeneration)
+			}
+			if v, ok := request.Extra["sequential_image_generation_options"]; ok {
+				_ = json.Unmarshal(v, &volcReq.SequentialImageGenerationOptions)
+			}
+
+			jsonData, _ := common.Marshal(volcReq)
+			println(string(jsonData))
+			return bytes.NewBuffer(jsonData), nil
+
+		}
 		return request, nil
 	// 根据官方文档,并没有发现豆包生图支持表单请求:https://www.volcengine.com/docs/82379/1824121
 	//case constant.RelayModeImagesEdits:
