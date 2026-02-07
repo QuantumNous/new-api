@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -900,4 +902,324 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 	}
 
 	return claudeToolChoice
+}
+
+func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+	claudeRequest := dto.ClaudeRequest{
+		Model: responsesReq.Model,
+	}
+
+	// MaxTokens
+	if responsesReq.MaxOutputTokens > 0 {
+		claudeRequest.MaxTokens = responsesReq.MaxOutputTokens
+	} else {
+		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(responsesReq.Model))
+	}
+
+	// Tools
+	if responsesReq.Tools != nil {
+		var tools []map[string]any
+		if err := common.Unmarshal(responsesReq.Tools, &tools); err == nil {
+			claudeTools := make([]any, 0, len(tools))
+			for _, tool := range tools {
+				if tType, ok := tool["type"].(string); ok && tType == "function" {
+					description := ""
+					if d, ok := tool["description"]; ok {
+						description = common.Interface2String(d)
+					}
+					
+					claudeTool := dto.Tool{
+						Name:        common.Interface2String(tool["name"]),
+						Description: description,
+					}
+					if params, ok := tool["parameters"].(map[string]any); ok {
+						claudeTool.InputSchema = make(map[string]interface{})
+						if pType, ok := params["type"].(string); ok {
+							claudeTool.InputSchema["type"] = pType
+						}
+						
+						if props, ok := params["properties"]; ok {
+							claudeTool.InputSchema["properties"] = props
+						}
+						
+						if req, ok := params["required"]; ok {
+							claudeTool.InputSchema["required"] = req
+						}
+						
+						for s, a := range params {
+							if s == "type" || s == "properties" || s == "required" {
+								continue
+							}
+							claudeTool.InputSchema[s] = a
+						}
+						claudeTools = append(claudeTools, &claudeTool)
+					}
+				}
+			}
+			if len(claudeTools) > 0 {
+				claudeRequest.Tools = claudeTools
+			}
+		}
+	}
+
+	// System Prompt (Instructions)
+	if responsesReq.Instructions != nil {
+		var instructions string
+		if err := common.Unmarshal(responsesReq.Instructions, &instructions); err == nil && instructions != "" {
+			claudeRequest.System = []dto.ClaudeMediaMessage{
+				{
+					Type: "text",
+					Text: &instructions,
+				},
+			}
+		}
+	}
+
+	// Messages (Input)
+	if responsesReq.Input != nil {
+		var inputItems []map[string]any
+		if err := common.Unmarshal(responsesReq.Input, &inputItems); err == nil {
+			claudeMessages := make([]dto.ClaudeMessage, 0)
+			
+			for _, item := range inputItems {
+				itemType, _ := item["type"].(string)
+				
+				if itemType == "function_call" {
+					callID := common.Interface2String(item["call_id"])
+					name := common.Interface2String(item["name"])
+					args := common.Interface2String(item["arguments"])
+					
+					var argsMap map[string]any
+					if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
+						argsMap = make(map[string]any)
+					}
+
+					toolUseBlock := dto.ClaudeMediaMessage{
+						Type: "tool_use",
+						Id: callID,
+						Name: name,
+						Input: argsMap,
+					}
+
+					if len(claudeMessages) > 0 {
+						lastMsg := &claudeMessages[len(claudeMessages)-1]
+						if lastMsg.Role == "assistant" {
+							if contentList, ok := lastMsg.Content.([]dto.ClaudeMediaMessage); ok {
+								lastMsg.Content = append(contentList, toolUseBlock)
+							} else if contentStr, ok := lastMsg.Content.(string); ok {
+								if contentStr == "" {
+									lastMsg.Content = []dto.ClaudeMediaMessage{toolUseBlock}
+								} else {
+									lastMsg.Content = []dto.ClaudeMediaMessage{
+										{Type: "text", Text: &contentStr},
+										toolUseBlock,
+									}
+								}
+							}
+							claudeMessages[len(claudeMessages)-1] = *lastMsg
+						} else {
+							claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+								Role: "assistant",
+								Content: []dto.ClaudeMediaMessage{toolUseBlock},
+							})
+						}
+					} else {
+						claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+							Role: "assistant",
+							Content: []dto.ClaudeMediaMessage{toolUseBlock},
+						})
+					}
+				} else if itemType == "function_call_output" {
+					callID := common.Interface2String(item["call_id"])
+					output := common.Interface2String(item["output"])
+
+					toolResultBlock := dto.ClaudeMediaMessage{
+						Type: "tool_result",
+						ToolUseId: callID,
+						Content: output,
+					}
+					
+					if len(claudeMessages) > 0 {
+						lastMsg := &claudeMessages[len(claudeMessages)-1]
+						if lastMsg.Role == "user" {
+							if contentList, ok := lastMsg.Content.([]dto.ClaudeMediaMessage); ok {
+								lastMsg.Content = append(contentList, toolResultBlock)
+							} else if contentStr, ok := lastMsg.Content.(string); ok {
+								if contentStr == "" {
+									lastMsg.Content = []dto.ClaudeMediaMessage{toolResultBlock}
+								} else {
+									lastMsg.Content = []dto.ClaudeMediaMessage{
+										{Type: "text", Text: &contentStr},
+										toolResultBlock,
+									}
+								}
+							}
+							claudeMessages[len(claudeMessages)-1] = *lastMsg
+						} else {
+							claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+								Role: "user",
+								Content: []dto.ClaudeMediaMessage{toolResultBlock},
+							})
+						}
+					} else {
+						claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+							Role: "user",
+							Content: []dto.ClaudeMediaMessage{toolResultBlock},
+						})
+					}
+
+				} else {
+					role := common.Interface2String(item["role"])
+					content := item["content"]
+					
+					if role == "" { continue }
+					
+					newMsg := dto.ClaudeMessage{
+						Role: role,
+					}
+
+					if contentStr, ok := content.(string); ok {
+						newMsg.Content = contentStr
+					} else {
+						newMsg.Content = common.Interface2String(content)
+					}
+					
+					claudeMessages = append(claudeMessages, newMsg)
+				}
+			}
+			claudeRequest.Messages = claudeMessages
+		}
+	}
+
+	// Tool Choice
+	if responsesReq.ToolChoice != nil {
+		var toolChoice any
+		if err := common.Unmarshal(responsesReq.ToolChoice, &toolChoice); err == nil {
+			var parallel *bool
+			if responsesReq.ParallelToolCalls != nil {
+				var p bool
+				if err := common.Unmarshal(responsesReq.ParallelToolCalls, &p); err == nil {
+					parallel = &p
+				}
+			}
+			claudeRequest.ToolChoice = mapToolChoice(toolChoice, parallel)
+		}
+	}
+
+	return &claudeRequest, nil
+}
+
+func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp == nil {
+		return nil, nil
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		return resp, nil
+	}
+
+	responseBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var claudeResponse dto.ClaudeResponse
+	if err := json.Unmarshal(responseBody, &claudeResponse); err != nil {
+		// If unmarshal fails, restore body and return original response
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		return resp, nil
+	}
+
+	openaiResponsesResp := ResponseClaude2OpenAIResponses(&claudeResponse)
+	
+	jsonResp, err := json.Marshal(openaiResponsesResp)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		return resp, nil
+	}
+
+	resp.Body = io.NopCloser(bytes.NewBuffer(jsonResp))
+	resp.ContentLength = int64(len(jsonResp))
+	resp.Header.Set("Content-Type", "application/json")
+
+	return resp, nil
+}
+
+func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.OpenAIResponsesResponse {
+	response := &dto.OpenAIResponsesResponse{
+		ID:        claudeResponse.Id,
+		Object:    "chat.completion", 
+		CreatedAt: int(common.GetTimestamp()),
+		Model:     claudeResponse.Model,
+		Status:    "completed",
+	}
+
+	if claudeResponse.Usage != nil {
+		response.Usage = &dto.Usage{
+			PromptTokens: claudeResponse.Usage.InputTokens,
+			CompletionTokens: claudeResponse.Usage.OutputTokens,
+			TotalTokens: claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
+		}
+	}
+
+	var outputList []dto.ResponsesOutput
+	var currentTextContent []dto.ResponsesOutputContent
+
+	for _, content := range claudeResponse.Content {
+		switch content.Type {
+		case "text":
+			if text := content.GetText(); text != "" {
+				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
+					Type: "text",
+					Text: text,
+				})
+			}
+		case "tool_use":
+			// If we have accumulated text, flush it to a message output
+			if len(currentTextContent) > 0 {
+				outputList = append(outputList, dto.ResponsesOutput{
+					Type: "message", 
+					Role: "assistant",
+					Content: currentTextContent,
+				})
+				currentTextContent = nil
+			}
+
+			inputJson, _ := json.Marshal(content.Input)
+			
+			outputList = append(outputList, dto.ResponsesOutput{
+				Type: "function_call",
+				CallId: content.Id,
+				Name: content.Name,
+				Arguments: string(inputJson),
+			})
+		}
+	}
+
+	// Flush remaining text
+	if len(currentTextContent) > 0 {
+		outputList = append(outputList, dto.ResponsesOutput{
+			Type: "message",
+			Role: "assistant",
+			Content: currentTextContent,
+		})
+	}
+	
+	if len(outputList) == 0 {
+		outputList = append(outputList, dto.ResponsesOutput{
+			Type: "message",
+			Role: "assistant",
+			Content: []dto.ResponsesOutputContent{},
+		})
+	}
+
+	response.Output = outputList
+
+	return response
 }

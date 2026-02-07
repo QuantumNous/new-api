@@ -42,7 +42,7 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	created := resp.CreatedAt
 
 	var toolCalls []dto.ToolCallResponse
-	if text == "" && len(resp.Output) > 0 {
+	if len(resp.Output) > 0 {
 		for _, out := range resp.Output {
 			if out.Type != "function_call" {
 				continue
@@ -77,7 +77,6 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 	if len(toolCalls) > 0 {
 		msg.SetToolCalls(toolCalls)
-		msg.Content = ""
 	}
 
 	out := &dto.OpenAITextResponse{
