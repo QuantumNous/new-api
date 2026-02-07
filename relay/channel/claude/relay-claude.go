@@ -916,6 +916,18 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(responsesReq.Model))
 	}
 
+	if responsesReq.Temperature != nil {
+		claudeRequest.Temperature = responsesReq.Temperature
+	}
+
+	if responsesReq.TopP != nil {
+		claudeRequest.TopP = *responsesReq.TopP
+	}
+
+	if responsesReq.Stream {
+		claudeRequest.Stream = true
+	}
+
 	// Tools
 	if responsesReq.Tools != nil {
 		var tools []map[string]any
@@ -952,8 +964,8 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 							}
 							claudeTool.InputSchema[s] = a
 						}
-						claudeTools = append(claudeTools, &claudeTool)
 					}
+					claudeTools = append(claudeTools, &claudeTool)
 				}
 			}
 			if len(claudeTools) > 0 {
@@ -1087,7 +1099,23 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 					claudeMessages = append(claudeMessages, newMsg)
 				}
 			}
+			if len(claudeMessages) == 0 || claudeMessages[0].Role != "user" {
+				claudeMessages = append([]dto.ClaudeMessage{{
+					Role:    "user",
+					Content: "",
+				}}, claudeMessages...)
+			}
 			claudeRequest.Messages = claudeMessages
+		} else {
+			inputStr := common.Interface2String(responsesReq.Input)
+			if inputStr != "" {
+				claudeRequest.Messages = []dto.ClaudeMessage{
+					{
+						Role:    "user",
+						Content: inputStr,
+					},
+				}
+			}
 		}
 	}
 
@@ -1154,7 +1182,7 @@ func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo,
 func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.OpenAIResponsesResponse {
 	response := &dto.OpenAIResponsesResponse{
 		ID:        claudeResponse.Id,
-		Object:    "chat.completion", 
+		Object:    "response", 
 		CreatedAt: int(common.GetTimestamp()),
 		Model:     claudeResponse.Model,
 		Status:    "completed",
@@ -1177,6 +1205,14 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 			if text := content.GetText(); text != "" {
 				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
 					Type: "text",
+					Text: text,
+				})
+			}
+		case "thinking":
+			if text := content.GetText(); text != "" {
+				common.SysLog(fmt.Sprintf("Claude thinking: %s", text))
+				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
+					Type: "thinking",
 					Text: text,
 				})
 			}
