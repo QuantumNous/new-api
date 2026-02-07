@@ -132,6 +132,8 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
 
+	setSentryAuthContext(c, id, username, role, useAccessToken)
+
 	c.Next()
 }
 

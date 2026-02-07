@@ -319,6 +319,10 @@ docker run --name new-api -d --restart always \
 | `MAX_REQUEST_BODY_MB` | 请求体最大大小（MB，**解压后**计；防止超大请求/zip bomb 导致内存暴涨），超过将返回 `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API 版本                                                 | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | 错误日志开关                                                       | `false` |
+| `SENTRY_DSN` | Sentry DSN | - |
+| `SENTRY_ENVIRONMENT` | Sentry 环境标签 | `GIN_MODE` |
+| `SENTRY_RELEASE` | Sentry release 标签 | `VERSION` |
+| `SENTRY_TRACES_SAMPLE_RATE` | Sentry tracing 采样率 (0-1) | `0` |
 | `PYROSCOPE_URL` | Pyroscope 服务地址                                            | - |
 | `PYROSCOPE_APP_NAME` | Pyroscope 应用名                                        | `new-api` |
 | `PYROSCOPE_BASIC_AUTH_USER` | Pyroscope Basic Auth 用户名                        | - |
