@@ -1125,19 +1125,38 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 				} else {
 					role := common.Interface2String(item["role"])
 					content := item["content"]
-					
-					if role == "" { continue }
-					
-					newMsg := dto.ClaudeMessage{
-						Role: role,
+
+					if role == "" {
+						continue
 					}
 
-					if contentStr, ok := content.(string); ok {
-						newMsg.Content = contentStr
+					var contentStr string
+					if s, ok := content.(string); ok {
+						contentStr = s
 					} else {
-						newMsg.Content = common.Interface2String(content)
+						contentStr = common.Interface2String(content)
 					}
-					
+
+					if role == "system" {
+						var systemMsgs []dto.ClaudeMediaMessage
+						if claudeRequest.System != nil {
+							if msgs, ok := claudeRequest.System.([]dto.ClaudeMediaMessage); ok {
+								systemMsgs = msgs
+							}
+						}
+						systemMsgs = append(systemMsgs, dto.ClaudeMediaMessage{
+							Type: "text",
+							Text: &contentStr,
+						})
+						claudeRequest.System = systemMsgs
+						continue
+					}
+
+					newMsg := dto.ClaudeMessage{
+						Role:    role,
+						Content: contentStr,
+					}
+
 					claudeMessages = append(claudeMessages, newMsg)
 				}
 			}
