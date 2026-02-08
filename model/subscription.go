@@ -567,6 +567,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
+
+		// Credit referral commission to inviter (if enabled)
+		if err := CreditReferralCommission(logUserId, logMoney); err != nil {
+			common.SysLog(fmt.Sprintf("用户 %d 订阅返佣失败: %v", logUserId, err))
+		}
 	}
 	return nil
 }
