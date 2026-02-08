@@ -176,8 +176,9 @@ func Register(c *gin.Context) {
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
+	// 邮箱统一转为小写存储，确保大小写不敏感
+	if user.Email != "" {
+		cleanUser.Email = strings.ToLower(user.Email)
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		common.ApiError(c, err)
@@ -904,7 +905,8 @@ func EmailBind(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	user.Email = email
+	// 邮箱存储为小写，确保大小写不敏感
+	user.Email = strings.ToLower(email)
 	// no need to check if this email already taken, because we have used verification code to check it
 	err = user.Update(false)
 	if err != nil {
