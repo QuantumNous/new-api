@@ -8,7 +8,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 )
@@ -26,7 +25,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 	if claudeRequest.Thinking != nil && claudeRequest.Thinking.Type == "enabled" {
 		if isOpenRouter {
-			reasoning := openrouter.RequestReasoning{
+			reasoning := dto.OpenRouterRequestReasoning{
 				MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
 			}
 			reasoningJSON, err := json.Marshal(reasoning)
