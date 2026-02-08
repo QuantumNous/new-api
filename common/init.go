@@ -145,6 +145,13 @@ func initConstantEnv() {
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
 	// 任务轮询时查询的最大数量
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
+	// 任务轮询查询最大时长
+	maxQueryDuration := GetEnvOrDefaultString("TASK_MAX_QUERY_DURATION", "24h")
+	if duration, err := time.ParseDuration(maxQueryDuration); err == nil {
+		constant.TaskMaxQueryDuration = duration
+	} else {
+		constant.TaskMaxQueryDuration = 24 * time.Hour
+	}
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {
