@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -904,6 +905,10 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 	return claudeToolChoice
 }
 
+// RequestOpenAIResponses2ClaudeMessage converts an OpenAI Responses API request into a
+// Claude Messages API request. It maps model, max tokens, temperature, top-p, streaming,
+// reasoning/thinking parameters, tools, system instructions, input messages (including
+// function_call and function_call_output items), and tool-choice settings.
 func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
 	claudeRequest := dto.ClaudeRequest{
 		Model: responsesReq.Model,
@@ -926,6 +931,43 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 
 	if responsesReq.Stream {
 		claudeRequest.Stream = true
+	}
+
+	// Reasoning / Extended Thinking
+	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
+		strings.HasSuffix(responsesReq.Model, "-thinking") {
+		if claudeRequest.MaxTokens < 1280 {
+			claudeRequest.MaxTokens = 1280
+		}
+		claudeRequest.Thinking = &dto.Thinking{
+			Type:         "enabled",
+			BudgetTokens: common.GetPointer[int](int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
+		}
+		claudeRequest.TopP = 0
+		claudeRequest.Temperature = common.GetPointer[float64](1.0)
+		if !model_setting.ShouldPreserveThinkingSuffix(responsesReq.Model) {
+			claudeRequest.Model = strings.TrimSuffix(responsesReq.Model, "-thinking")
+		}
+	}
+
+	if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
+		switch responsesReq.Reasoning.Effort {
+		case "low":
+			claudeRequest.Thinking = &dto.Thinking{
+				Type:         "enabled",
+				BudgetTokens: common.GetPointer[int](1280),
+			}
+		case "medium":
+			claudeRequest.Thinking = &dto.Thinking{
+				Type:         "enabled",
+				BudgetTokens: common.GetPointer[int](2048),
+			}
+		case "high":
+			claudeRequest.Thinking = &dto.Thinking{
+				Type:         "enabled",
+				BudgetTokens: common.GetPointer[int](4096),
+			}
+		}
 	}
 
 	// Tools
@@ -1102,7 +1144,7 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 			if len(claudeMessages) == 0 || claudeMessages[0].Role != "user" {
 				claudeMessages = append([]dto.ClaudeMessage{{
 					Role:    "user",
-					Content: "",
+					Content: "...",
 				}}, claudeMessages...)
 			}
 			claudeRequest.Messages = claudeMessages
@@ -1137,6 +1179,11 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 	return &claudeRequest, nil
 }
 
+// DoResponsesRequest sends the prepared request body to the upstream Claude API and handles
+// the response. For SSE (text/event-stream) responses it streams events directly to the
+// client; for non-streaming JSON responses it reads the full body, converts it from Claude
+// format to OpenAI Responses format via ResponseClaude2OpenAIResponses, and returns the
+// rewritten http.Response.
 func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	resp, err := channel.DoApiRequest(a, c, info, requestBody)
 	if err != nil {
@@ -1151,6 +1198,32 @@ func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo,
 		return resp, nil
 	}
 
+	// Detect SSE streaming response from Claude
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "text/event-stream") {
+		// Stream SSE events directly to the client
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.WriteHeaderNow()
+
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Fprintf(c.Writer, "%s\n", line)
+			if f, ok := c.Writer.(http.Flusher); ok {
+				f.Flush()
+			}
+			if line == "data: [DONE]" {
+				break
+			}
+		}
+		resp.Body.Close()
+		return nil, nil
+	}
+
+	// Non-streaming: read entire body and convert
 	responseBody, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
@@ -1165,7 +1238,7 @@ func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo,
 	}
 
 	openaiResponsesResp := ResponseClaude2OpenAIResponses(&claudeResponse)
-	
+
 	jsonResp, err := json.Marshal(openaiResponsesResp)
 	if err != nil {
 		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
@@ -1179,6 +1252,10 @@ func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo,
 	return resp, nil
 }
 
+// ResponseClaude2OpenAIResponses converts a non-streaming Claude Messages API response
+// into an OpenAI Responses API response. It maps text, thinking, and tool_use content
+// blocks into the corresponding ResponsesOutput items, aggregates usage, and sets the
+// overall response status to "completed".
 func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.OpenAIResponsesResponse {
 	response := &dto.OpenAIResponsesResponse{
 		ID:        claudeResponse.Id,
@@ -1209,11 +1286,18 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 				})
 			}
 		case "thinking":
-			if text := content.GetText(); text != "" {
-				common.SysLog(fmt.Sprintf("Claude thinking: %s", text))
+			var thinkingText string
+			if content.Thinking != nil {
+				thinkingText = *content.Thinking
+			}
+			if thinkingText == "" {
+				thinkingText = content.GetText()
+			}
+			if thinkingText != "" {
+				common.SysLog("Claude thinking block received")
 				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
 					Type: "thinking",
-					Text: text,
+					Text: thinkingText,
 				})
 			}
 		case "tool_use":
@@ -1227,13 +1311,19 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 				currentTextContent = nil
 			}
 
-			inputJson, _ := json.Marshal(content.Input)
-			
+			arguments := "{}"
+			if content.Input != nil {
+				if inputJson, err := json.Marshal(content.Input); err == nil && string(inputJson) != "null" {
+					arguments = string(inputJson)
+				}
+			}
+
 			outputList = append(outputList, dto.ResponsesOutput{
-				Type: "function_call",
-				CallId: content.Id,
-				Name: content.Name,
-				Arguments: string(inputJson),
+				Type:      "function_call",
+				Status:    "completed",
+				CallId:    content.Id,
+				Name:      content.Name,
+				Arguments: arguments,
 			})
 		}
 	}
