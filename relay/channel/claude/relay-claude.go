@@ -951,21 +951,30 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 	}
 
 	if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
-		switch responsesReq.Reasoning.Effort {
-		case "low":
+		if strings.Contains(responsesReq.Model, "claude-opus-4-6") {
 			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](1280),
+				Type: "adaptive",
 			}
-		case "medium":
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](2048),
-			}
-		case "high":
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: common.GetPointer[int](4096),
+			claudeRequest.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, responsesReq.Reasoning.Effort))
+			claudeRequest.TopP = 0
+			claudeRequest.Temperature = common.GetPointer[float64](1.0)
+		} else {
+			switch responsesReq.Reasoning.Effort {
+			case "low":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](1280),
+				}
+			case "medium":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](2048),
+				}
+			case "high":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](4096),
+				}
 			}
 		}
 	}
@@ -1271,6 +1280,10 @@ func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo,
 	return resp, nil
 }
 
+func makeOutputID(baseID string, index int) string {
+	return fmt.Sprintf("%s_output_%d", baseID, index)
+}
+
 // ResponseClaude2OpenAIResponses converts a non-streaming Claude Messages API response
 // into an OpenAI Responses API response. It maps text, thinking, and tool_use content
 // blocks into the corresponding ResponsesOutput items, aggregates usage, and sets the
@@ -1286,14 +1299,15 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 
 	if claudeResponse.Usage != nil {
 		response.Usage = &dto.Usage{
-			PromptTokens: claudeResponse.Usage.InputTokens,
+			PromptTokens:     claudeResponse.Usage.InputTokens,
 			CompletionTokens: claudeResponse.Usage.OutputTokens,
-			TotalTokens: claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
+			TotalTokens:      claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
 		}
 	}
 
 	var outputList []dto.ResponsesOutput
 	var currentTextContent []dto.ResponsesOutputContent
+	outputIdx := 0
 
 	for _, content := range claudeResponse.Content {
 		switch content.Type {
@@ -1323,10 +1337,12 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 			// If we have accumulated text, flush it to a message output
 			if len(currentTextContent) > 0 {
 				outputList = append(outputList, dto.ResponsesOutput{
-					Type: "message", 
-					Role: "assistant",
+					ID:      makeOutputID(claudeResponse.Id, outputIdx),
+					Type:    "message",
+					Role:    "assistant",
 					Content: currentTextContent,
 				})
+				outputIdx++
 				currentTextContent = nil
 			}
 
@@ -1338,28 +1354,33 @@ func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.Ope
 			}
 
 			outputList = append(outputList, dto.ResponsesOutput{
+				ID:        makeOutputID(claudeResponse.Id, outputIdx),
 				Type:      "function_call",
 				Status:    "completed",
 				CallId:    content.Id,
 				Name:      content.Name,
 				Arguments: arguments,
 			})
+			outputIdx++
 		}
 	}
 
 	// Flush remaining text
 	if len(currentTextContent) > 0 {
 		outputList = append(outputList, dto.ResponsesOutput{
-			Type: "message",
-			Role: "assistant",
+			ID:      makeOutputID(claudeResponse.Id, outputIdx),
+			Type:    "message",
+			Role:    "assistant",
 			Content: currentTextContent,
 		})
+		outputIdx++
 	}
-	
+
 	if len(outputList) == 0 {
 		outputList = append(outputList, dto.ResponsesOutput{
-			Type: "message",
-			Role: "assistant",
+			ID:      makeOutputID(claudeResponse.Id, outputIdx),
+			Type:    "message",
+			Role:    "assistant",
 			Content: []dto.ResponsesOutputContent{},
 		})
 	}
