@@ -951,7 +951,7 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 	}
 
 	if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
-		if strings.Contains(responsesReq.Model, "claude-opus-4-6") {
+		if strings.HasPrefix(responsesReq.Model, "claude-opus-4-6") {
 			claudeRequest.Thinking = &dto.Thinking{
 				Type: "adaptive",
 			}
