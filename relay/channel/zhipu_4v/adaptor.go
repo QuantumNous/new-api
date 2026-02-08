@@ -109,11 +109,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if info.IsStream {
-			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
-		} else {
-			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
-		}
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	default:
 		if info.RelayMode == relayconstant.RelayModeImagesGenerations {
 			return zhipu4vImageHandler(c, resp, info)

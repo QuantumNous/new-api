@@ -1,10 +1,6 @@
 package claude
 
 var ModelList = []string{
-	"claude-instant-1.2",
-	"claude-2",
-	"claude-2.0",
-	"claude-2.1",
 	"claude-3-sonnet-20240229",
 	"claude-3-opus-20240229",
 	"claude-3-haiku-20240307",
@@ -24,6 +20,11 @@ var ModelList = []string{
 	"claude-sonnet-4-5-20250929-thinking",
 	"claude-opus-4-5-20251101",
 	"claude-opus-4-5-20251101-thinking",
+	"claude-opus-4-6",
+	"claude-opus-4-6-max",
+	"claude-opus-4-6-high",
+	"claude-opus-4-6-medium",
+	"claude-opus-4-6-low",
 }
 
 var ChannelName = "claude"

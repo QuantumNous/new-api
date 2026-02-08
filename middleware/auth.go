@@ -132,17 +132,6 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
 
-	//userCache, err := model.GetUserCache(id.(int))
-	//if err != nil {
-	//	c.JSON(http.StatusOK, gin.H{
-	//		"success": false,
-	//		"message": err.Error(),
-	//	})
-	//	c.Abort()
-	//	return
-	//}
-	//userCache.WriteContext(c)
-
 	c.Next()
 }
 
@@ -177,6 +166,63 @@ func RootAuth() func(c *gin.Context) {
 
 func WssAuth(c *gin.Context) {
 
+}
+
+// TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
+// 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
+// 即使令牌已过期、已耗尽或已禁用，也允许访问。
+// 仍然检查用户是否被封禁。
+func TokenAuthReadOnly() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		key := c.Request.Header.Get("Authorization")
+		if key == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "未提供 Authorization 请求头",
+			})
+			c.Abort()
+			return
+		}
+		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+			key = strings.TrimSpace(key[7:])
+		}
+		key = strings.TrimPrefix(key, "sk-")
+		parts := strings.Split(key, "-")
+		key = parts[0]
+
+		token, err := model.GetTokenByKey(key, false)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "无效的令牌",
+			})
+			c.Abort()
+			return
+		}
+
+		userCache, err := model.GetUserCache(token.UserId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		if userCache.Status != common.UserStatusEnabled {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "用户已被封禁",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("id", token.UserId)
+		c.Set("token_id", token.Id)
+		c.Set("token_key", token.Key)
+		c.Next()
+	}
 }
 
 func TokenAuth() func(c *gin.Context) {

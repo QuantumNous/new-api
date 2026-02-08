@@ -36,6 +36,7 @@ const RatioSetting = () => {
     ModelPrice: '',
     ModelRatio: '',
     CacheRatio: '',
+    CreateCacheRatio: '',
     CompletionRatio: '',
     GroupRatio: '',
     GroupGroupRatio: '',
@@ -57,9 +58,7 @@ const RatioSetting = () => {
     if (success) {
       let newInputs = {};
       data.forEach((item) => {
-        if (
-          item.value.startsWith('{') || item.value.startsWith('[')
-        ) {
+        if (item.value.startsWith('{') || item.value.startsWith('[')) {
           try {
             item.value = JSON.stringify(JSON.parse(item.value), null, 2);
           } catch (e) {

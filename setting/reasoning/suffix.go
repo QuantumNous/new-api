@@ -6,7 +6,7 @@ import (
 	"github.com/samber/lo"
 )
 
-var EffortSuffixes = []string{"-high", "-medium", "-low", "-minimal"}
+var EffortSuffixes = []string{"-max", "-high", "-medium", "-low", "-minimal"}
 
 // TrimEffortSuffix -> modelName level(low) exists
 func TrimEffortSuffix(modelName string) (string, string, bool) {

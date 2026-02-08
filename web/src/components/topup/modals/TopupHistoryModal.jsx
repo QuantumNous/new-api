@@ -26,6 +26,7 @@ import {
   Empty,
   Button,
   Input,
+  Tag,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -49,6 +50,7 @@ const STATUS_CONFIG = {
 // 支付方式映射
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
+  creem: 'Creem',
   alipay: '支付宝',
   wxpay: '微信',
 };
@@ -150,6 +152,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     return <Text>{displayName ? t(displayName) : pm || '-'}</Text>;
   };
 
+  const isSubscriptionTopup = (record) => {
+    const tradeNo = (record?.trade_no || '').toLowerCase();
+    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
+  };
+
   // 检查是否为管理员
   const userIsAdmin = useMemo(() => isAdmin(), []);
 
@@ -171,12 +178,21 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('充值额度'),
         dataIndex: 'amount',
         key: 'amount',
-        render: (amount) => (
-          <span className='flex items-center gap-1'>
-            <Coins size={16} />
-            <Text>{amount}</Text>
-          </span>
-        ),
+        render: (amount, record) => {
+          if (isSubscriptionTopup(record)) {
+            return (
+              <Tag color='purple' shape='circle' size='small'>
+                {t('订阅套餐')}
+              </Tag>
+            );
+          }
+          return (
+            <span className='flex items-center gap-1'>
+              <Coins size={16} />
+              <Text>{amount}</Text>
+            </span>
+          );
+        },
       },
       {
         title: t('支付金额'),

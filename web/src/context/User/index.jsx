@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { reducer, initialState } from './reducer';
 
 export const UserContext = React.createContext({
@@ -27,6 +28,21 @@ export const UserContext = React.createContext({
 
 export const UserProvider = ({ children }) => {
   const [state, dispatch] = React.useReducer(reducer, initialState);
+  const { i18n } = useTranslation();
+
+  // Sync language preference when user data is loaded
+  useEffect(() => {
+    if (state.user?.setting) {
+      try {
+        const settings = JSON.parse(state.user.setting);
+        if (settings.language && settings.language !== i18n.language) {
+          i18n.changeLanguage(settings.language);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  }, [state.user?.setting, i18n]);
 
   return (
     <UserContext.Provider value={[state, dispatch]}>

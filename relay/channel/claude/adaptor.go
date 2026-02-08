@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -16,13 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	RequestModeCompletion = 1
-	RequestModeMessage    = 2
-)
-
 type Adaptor struct {
-	RequestMode int
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -45,20 +38,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	if strings.HasPrefix(info.UpstreamModelName, "claude-2") || strings.HasPrefix(info.UpstreamModelName, "claude-instant") {
-		a.RequestMode = RequestModeCompletion
-	} else {
-		a.RequestMode = RequestModeMessage
-	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseURL := ""
-	if a.RequestMode == RequestModeMessage {
-		baseURL = fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
-	} else {
-		baseURL = fmt.Sprintf("%s/v1/complete", info.ChannelBaseUrl)
-	}
+	baseURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
 	if info.IsClaudeBetaQuery {
 		baseURL = baseURL + "?beta=true"
 	}
@@ -90,11 +73,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if a.RequestMode == RequestModeCompletion {
-		return RequestOpenAI2ClaudeComplete(*request), nil
-	} else {
-		return RequestOpenAI2ClaudeMessage(c, *request)
-	}
+	return RequestOpenAI2ClaudeMessage(c, *request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -116,12 +95,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	info.FinalRequestRelayFormat = types.RelayFormatClaude
 	if info.IsStream {
-		return ClaudeStreamHandler(c, resp, info, a.RequestMode)
+		return ClaudeStreamHandler(c, resp, info)
 	} else {
-		return ClaudeHandler(c, resp, info, a.RequestMode)
+		return ClaudeHandler(c, resp, info)
 	}
-	return
 }
 
 func (a *Adaptor) GetModelList() []string {

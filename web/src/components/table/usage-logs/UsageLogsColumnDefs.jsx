@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import {
   Avatar,
+  Button,
   Space,
   Tag,
   Tooltip,
@@ -40,7 +41,7 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
 } from '../../../helpers';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { IconHelpCircle, IconStarStroked } from '@douyinfe/semi-icons';
 import { Route } from 'lucide-react';
 
 const colors = [
@@ -60,6 +61,44 @@ const colors = [
   'violet',
   'yellow',
 ];
+
+function formatRatio(ratio) {
+  if (ratio === undefined || ratio === null) {
+    return '-';
+  }
+  if (typeof ratio === 'number') {
+    return ratio.toFixed(4);
+  }
+  return String(ratio);
+}
+
+function buildChannelAffinityTooltip(affinity, t) {
+  if (!affinity) {
+    return null;
+  }
+
+  const keySource = affinity.key_source || '-';
+  const keyPath = affinity.key_path || affinity.key_key || '-';
+  const keyHint = affinity.key_hint || '';
+  const keyFp = affinity.key_fp ? `#${affinity.key_fp}` : '';
+  const keyText = `${keySource}:${keyPath}${keyFp}`;
+
+  const lines = [
+    t('渠道亲和性'),
+    `${t('规则')}：${affinity.rule_name || '-'}`,
+    `${t('分组')}：${affinity.selected_group || '-'}`,
+    `${t('Key')}：${keyText}`,
+    ...(keyHint ? [`${t('Key 摘要')}：${keyHint}`] : []),
+  ];
+
+  return (
+    <div style={{ lineHeight: 1.6, display: 'flex', flexDirection: 'column' }}>
+      {lines.map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+    </div>
+  );
+}
 
 // Render functions
 function renderType(type, t) {
@@ -172,6 +211,18 @@ function renderFirstUseTime(type, t) {
   }
 }
 
+function renderBillingTag(record, t) {
+  const other = getLogOther(record.other);
+  if (other?.billing_source === 'subscription') {
+    return (
+      <Tag color='green' shape='circle'>
+        {t('订阅抵扣')}
+      </Tag>
+    );
+  }
+  return null;
+}
+
 function renderModelName(record, copyText, t) {
   let other = getLogOther(record.other);
   let modelMapped =
@@ -240,6 +291,7 @@ export const getLogsColumns = ({
   COLUMN_KEYS,
   copyText,
   showUserInfoFunc,
+  openChannelAffinityUsageCacheModal,
   isAdminUser,
 }) => {
   return [
@@ -447,11 +499,20 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 ? (
-          <>{renderQuota(text, 6)}</>
-        ) : (
-          <></>
-        );
+        if (!(record.type === 0 || record.type === 2 || record.type === 5)) {
+          return <></>;
+        }
+        const other = getLogOther(record.other);
+        const isSubscription = other?.billing_source === 'subscription';
+        if (isSubscription) {
+          // Subscription billed: show only tag (no $0), but keep tooltip for equivalent cost.
+          return (
+            <Tooltip content={`${t('由订阅抵扣')}：${renderQuota(text, 6)}`}>
+              <span>{renderBillingTag(record, t)}</span>
+            </Tooltip>
+          );
+        }
+        return <>{renderQuota(text, 6)}</>;
       },
     },
     {
@@ -498,6 +559,7 @@ export const getLogsColumns = ({
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;
+        let affinity = null;
         if (record.other !== '') {
           let other = JSON.parse(record.other);
           if (other === null) {
@@ -513,9 +575,52 @@ export const getLogsColumns = ({
               let useChannelStr = useChannel.join('->');
               content = t('渠道') + `：${useChannelStr}`;
             }
+            if (other.admin_info.channel_affinity) {
+              affinity = other.admin_info.channel_affinity;
+            }
           }
         }
-        return isAdminUser ? <div>{content}</div> : <></>;
+        return isAdminUser ? (
+          <Space>
+            <div>{content}</div>
+            {affinity ? (
+              <Tooltip
+                content={
+                  <div>
+                    {buildChannelAffinityTooltip(affinity, t)}
+                    <div style={{ marginTop: 6 }}>
+                      <Button
+                        theme='borderless'
+                        size='small'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openChannelAffinityUsageCacheModal?.(affinity);
+                        }}
+                      >
+                        {t('查看详情')}
+                      </Button>
+                    </div>
+                  </div>
+                }
+              >
+                <span>
+                  <Tag
+                    className='channel-affinity-tag'
+                    color='cyan'
+                    shape='circle'
+                  >
+                    <span className='channel-affinity-tag-content'>
+                      <IconStarStroked style={{ fontSize: 13 }} />
+                      {t('优选')}
+                    </span>
+                  </Tag>
+                </span>
+              </Tooltip>
+            ) : null}
+          </Space>
+        ) : (
+          <></>
+        );
       },
     },
     {
@@ -541,6 +646,38 @@ export const getLogsColumns = ({
             </Typography.Paragraph>
           );
         }
+
+        if (
+          other?.violation_fee === true ||
+          Boolean(other?.violation_fee_code) ||
+          Boolean(other?.violation_fee_marker)
+        ) {
+          const feeQuota = other?.fee_quota ?? record?.quota;
+          const ratioText = formatRatio(other?.group_ratio);
+          const summary = [
+            t('违规扣费'),
+            `${t('分组倍率')}：${ratioText}`,
+            `${t('扣费')}：${renderQuota(feeQuota, 6)}`,
+            text ? `${t('详情')}：${text}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          return (
+            <Typography.Paragraph
+              ellipsis={{
+                rows: 2,
+                showTooltip: {
+                  type: 'popover',
+                  opts: { style: { width: 240 } },
+                },
+              }}
+              style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+            >
+              {summary}
+            </Typography.Paragraph>
+          );
+        }
+
         let content = other?.claude
           ? renderModelPriceSimple(
               other.model_ratio,
@@ -552,9 +689,13 @@ export const getLogsColumns = ({
               other.cache_creation_tokens || 0,
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
               other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
               false,
               1.0,
               other?.is_system_prompt_overwritten,
@@ -579,14 +720,14 @@ export const getLogsColumns = ({
               'openai',
             );
         return (
-          <Typography.Paragraph
-            ellipsis={{
-              rows: 3,
-            }}
-            style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-          >
-            {content}
-          </Typography.Paragraph>
+            <Typography.Paragraph
+                ellipsis={{
+                  rows: 3,
+                }}
+                style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+            >
+              {content}
+            </Typography.Paragraph>
         );
       },
     },

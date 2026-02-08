@@ -93,6 +93,49 @@ export function Mermaid(props) {
   );
 }
 
+function SandboxedHtmlPreview({ code }) {
+  const iframeRef = useRef(null);
+  const [iframeHeight, setIframeHeight] = useState(150);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const handleLoad = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          const height =
+            doc.documentElement.scrollHeight || doc.body.scrollHeight;
+          setIframeHeight(Math.min(Math.max(height + 16, 60), 600));
+        }
+      } catch {
+        // sandbox restrictions may prevent access, that's fine
+      }
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    return () => iframe.removeEventListener('load', handleLoad);
+  }, [code]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      sandbox='allow-same-origin'
+      srcDoc={code}
+      title='HTML Preview'
+      style={{
+        width: '100%',
+        height: `${iframeHeight}px`,
+        border: 'none',
+        overflow: 'auto',
+        backgroundColor: '#fff',
+        borderRadius: '4px',
+      }}
+    />
+  );
+}
+
 export function PreCode(props) {
   const ref = useRef(null);
   const [mermaidCode, setMermaidCode] = useState('');
@@ -227,7 +270,7 @@ export function PreCode(props) {
           >
             HTML预览:
           </div>
-          <div dangerouslySetInnerHTML={{ __html: htmlCode }} />
+          <SandboxedHtmlPreview code={htmlCode} />
         </div>
       )}
     </>
