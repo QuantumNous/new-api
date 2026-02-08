@@ -995,8 +995,8 @@ func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenA
 						Name:        common.Interface2String(tool["name"]),
 						Description: description,
 					}
+					claudeTool.InputSchema = map[string]interface{}{"type": "object"}
 					if params, ok := tool["parameters"].(map[string]any); ok {
-						claudeTool.InputSchema = make(map[string]interface{})
 						if pType, ok := params["type"].(string); ok {
 							claudeTool.InputSchema["type"] = pType
 						}
