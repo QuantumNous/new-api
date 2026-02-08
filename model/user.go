@@ -165,9 +165,9 @@ func CheckUserExistOrDeleted(username string, email string) (bool, error) {
 	if email == "" {
 		err = DB.Unscoped().First(&user, "username = ?", username).Error
 	} else {
-		// 邮箱转小写，确保大小写不敏感
+		// 邮箱转小写后直接比较（存储时已统一为小写，避免使用LOWER()导致索引失效）
 		email = strings.ToLower(email)
-		err = DB.Unscoped().First(&user, "username = ? or LOWER(email) = ?", username, email).Error
+		err = DB.Unscoped().First(&user, "username = ? or email = ?", username, email).Error
 	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -509,8 +509,8 @@ func (user *User) ValidateAndFill() (err error) {
 	if username == "" || password == "" {
 		return errors.New("用户名或密码为空")
 	}
-	// find by username or email (邮箱大小写不敏感)
-	DB.Where("username = ? OR LOWER(email) = ?", username, strings.ToLower(username)).First(user)
+	// find by username or email（存储时已统一为小写，直接比较避免索引失效）
+	DB.Where("username = ? OR email = ?", username, strings.ToLower(username)).First(user)
 	okay := common.ValidatePasswordAndHash(password, user.Password)
 	if !okay || user.Status != common.UserStatusEnabled {
 		return errors.New("用户名或密码错误，或用户已被封禁")
@@ -530,8 +530,8 @@ func (user *User) FillUserByEmail() error {
 	if user.Email == "" {
 		return errors.New("email 为空！")
 	}
-	// 邮箱大小写不敏感
-	DB.Where("LOWER(email) = ?", strings.ToLower(user.Email)).First(user)
+	// 存储时已统一为小写，直接比较避免索引失效
+	DB.Where("email = ?", strings.ToLower(user.Email)).First(user)
 	return nil
 }
 
@@ -579,8 +579,8 @@ func (user *User) FillUserByTelegramId() error {
 }
 
 func IsEmailAlreadyTaken(email string) bool {
-	// 邮箱大小写不敏感，使用 > 0 以处理可能存在的重复数据
-	return DB.Unscoped().Where("LOWER(email) = ?", strings.ToLower(email)).Find(&User{}).RowsAffected > 0
+	// 存储时已统一为小写，直接比较避免索引失效；使用 > 0 处理可能的重复数据
+	return DB.Unscoped().Where("email = ?", strings.ToLower(email)).Find(&User{}).RowsAffected > 0
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {
@@ -607,10 +607,10 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if email == "" || password == "" {
 		return errors.New("邮箱地址或密码为空！")
 	}
-	// 邮箱大小写不敏感，先检查匹配的用户数量
+	// 存储时已统一为小写，直接比较避免索引失效
 	normalizedEmail := strings.ToLower(email)
 	var count int64
-	if err := DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Count(&count).Error; err != nil {
+	if err := DB.Model(&User{}).Where("email = ?", normalizedEmail).Count(&count).Error; err != nil {
 		return fmt.Errorf("查询邮箱失败: %w", err)
 	}
 	if count == 0 {
@@ -623,7 +623,7 @@ func ResetUserPasswordByEmail(email string, password string) error {
 	if err != nil {
 		return err
 	}
-	err = DB.Model(&User{}).Where("LOWER(email) = ?", normalizedEmail).Update("password", hashedPassword).Error
+	err = DB.Model(&User{}).Where("email = ?", normalizedEmail).Update("password", hashedPassword).Error
 	return err
 }
 
