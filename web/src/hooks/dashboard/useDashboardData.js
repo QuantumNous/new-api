@@ -42,7 +42,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
-    user_id: '',
+    user_id: null,
     username: '',
     token_name: '',
     model_name: '',
@@ -153,17 +153,26 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         setInputs((inputs) => ({
           ...inputs,
           username: '',
-          user_id: '',
+          user_id: null,
         }));
         return;
       }
 
       // Admin UX: allow typing numeric user_id in the username field.
       if (/^\d+$/.test(text)) {
+        const parsedUserId = Number.parseInt(text, 10);
+        if (!Number.isFinite(parsedUserId) || parsedUserId < 1) {
+          setInputs((inputs) => ({
+            ...inputs,
+            username: text,
+            user_id: null,
+          }));
+          return;
+        }
         setInputs((inputs) => ({
           ...inputs,
           username: text,
-          user_id: text,
+          user_id: parsedUserId,
         }));
         return;
       }
@@ -171,7 +180,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       setInputs((inputs) => ({
         ...inputs,
         username: text,
-        user_id: '',
+        user_id: null,
       }));
       return;
     }
@@ -196,6 +205,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       return;
     }
 
+    const abortController = new AbortController();
+
     // Debounce while typing.
     if (userIdLookupTimerRef.current) {
       clearTimeout(userIdLookupTimerRef.current);
@@ -203,7 +214,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     const seq = ++userIdLookupSeqRef.current;
     userIdLookupTimerRef.current = setTimeout(async () => {
       try {
-        const res = await API.get(`/api/user/${userId}`);
+        const res = await API.get(`/api/user/${userId}`, {
+          disableDuplicate: true,
+          skipErrorHandler: true,
+          signal: abortController.signal,
+        });
         const { success, message, data } = res.data || {};
         if (seq !== userIdLookupSeqRef.current) {
           return;
@@ -219,6 +234,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           showError(message);
         }
       } catch (err) {
+        if (
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          abortController.signal.aborted
+        ) {
+          return;
+        }
         if (seq !== userIdLookupSeqRef.current) {
           return;
         }
@@ -230,6 +252,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (userIdLookupTimerRef.current) {
         clearTimeout(userIdLookupTimerRef.current);
       }
+      abortController.abort();
     };
   }, [inputs.user_id, isAdminUser, t]);
 
@@ -243,20 +266,26 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
+      const params = new URLSearchParams({
+        start_timestamp: String(localStartTimestamp),
+        end_timestamp: String(localEndTimestamp),
+        default_time: String(dataExportDefaultTime || ''),
+      });
+
+      if (model_name) {
+        params.set('model_name', model_name);
+      }
+
       if (isAdminUser) {
-        const userIdParam = user_id ? `&user_id=${user_id}` : '';
-        const usernameParam = user_id
-          ? ''
-          : `&username=${encodeURIComponent(username || '')}`;
-        const modelNameParam = model_name
-          ? `&model_name=${encodeURIComponent(model_name)}`
-          : '';
-        url = `/api/data/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${userIdParam}${usernameParam}${modelNameParam}`;
+        const parsedUserId = Number(user_id);
+        if (Number.isFinite(parsedUserId) && parsedUserId > 0) {
+          params.set('user_id', String(parsedUserId));
+        } else if (username) {
+          params.set('username', username);
+        }
+        url = `/api/data/?${params.toString()}`;
       } else {
-        const modelNameParam = model_name
-          ? `&model_name=${encodeURIComponent(model_name)}`
-          : '';
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${modelNameParam}`;
+        url = `/api/data/self/?${params.toString()}`;
       }
 
       const res = await API.get(url);
