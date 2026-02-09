@@ -42,7 +42,8 @@ const SearchModal = ({
     <Component {...FORM_FIELD_PROPS} {...props} />
   );
 
-  const { start_timestamp, end_timestamp, username } = inputs;
+  const { start_timestamp, end_timestamp, username, user_id, model_name } =
+    inputs;
 
   return (
     <Modal
@@ -95,6 +96,28 @@ const SearchModal = ({
             name: 'username',
             onChange: (value) => handleInputChange(value, 'username'),
           })}
+
+        {isAdminUser &&
+          createFormField(Form.InputNumber, {
+            field: 'user_id',
+            label: t('用户ID'),
+            value: user_id,
+            placeholder: t('可选值'),
+            name: 'user_id',
+            min: 1,
+            step: 1,
+            precision: 0,
+            onChange: (value) => handleInputChange(value, 'user_id'),
+          })}
+
+        {createFormField(Form.Input, {
+          field: 'model_name',
+          label: t('模型名称'),
+          value: model_name,
+          placeholder: t('可选值'),
+          name: 'model_name',
+          onChange: (value) => handleInputChange(value, 'model_name'),
+        })}
       </Form>
     </Modal>
   );

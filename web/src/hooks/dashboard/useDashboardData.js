@@ -40,6 +40,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
+    user_id: '',
     username: '',
     token_name: '',
     model_name: '',
@@ -160,14 +161,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setLoading(true);
     try {
       let url = '';
-      const { start_timestamp, end_timestamp, username } = inputs;
+      const { start_timestamp, end_timestamp, username, user_id, model_name } =
+        inputs;
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
       if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        const userIdParam = user_id ? `&user_id=${user_id}` : '';
+        const usernameParam = user_id
+          ? ''
+          : `&username=${encodeURIComponent(username || '')}`;
+        const modelNameParam = model_name
+          ? `&model_name=${encodeURIComponent(model_name)}`
+          : '';
+        url = `/api/data/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${userIdParam}${usernameParam}${modelNameParam}`;
       } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        const modelNameParam = model_name
+          ? `&model_name=${encodeURIComponent(model_name)}`
+          : '';
+        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}${modelNameParam}`;
       }
 
       const res = await API.get(url);
