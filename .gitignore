@@ -28,3 +28,4 @@ data/
 .gocache-temp
 .gopath
 nul
+.claude/settings.local.json
