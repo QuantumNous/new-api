@@ -31,6 +31,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
+  const userIdLookupTimerRef = useRef(null);
+  const userIdLookupSeqRef = useRef(0);
 
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
@@ -145,6 +147,34 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       localStorage.setItem('data_export_default_time', value);
       return;
     }
+    if (name === 'username') {
+      const text = (value ?? '').toString().trim();
+      if (text === '') {
+        setInputs((inputs) => ({
+          ...inputs,
+          username: '',
+          user_id: '',
+        }));
+        return;
+      }
+
+      // Admin UX: allow typing numeric user_id in the username field.
+      if (/^\d+$/.test(text)) {
+        setInputs((inputs) => ({
+          ...inputs,
+          username: text,
+          user_id: text,
+        }));
+        return;
+      }
+
+      setInputs((inputs) => ({
+        ...inputs,
+        username: text,
+        user_id: '',
+      }));
+      return;
+    }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
 
@@ -155,6 +185,53 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const handleCloseModal = useCallback(() => {
     setSearchModalVisible(false);
   }, []);
+
+  // ========== Admin UX: user_id -> username resolve ==========
+  useEffect(() => {
+    if (!isAdminUser) {
+      return;
+    }
+    const userId = Number(inputs.user_id);
+    if (!userId || !Number.isFinite(userId) || userId < 1) {
+      return;
+    }
+
+    // Debounce while typing.
+    if (userIdLookupTimerRef.current) {
+      clearTimeout(userIdLookupTimerRef.current);
+    }
+    const seq = ++userIdLookupSeqRef.current;
+    userIdLookupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await API.get(`/api/user/${userId}`);
+        const { success, message, data } = res.data || {};
+        if (seq !== userIdLookupSeqRef.current) {
+          return;
+        }
+        if (success) {
+          setInputs((inputs) => {
+            if (String(inputs.user_id) !== String(userId)) {
+              return inputs;
+            }
+            return { ...inputs, username: data?.username || '' };
+          });
+        } else if (message) {
+          showError(message);
+        }
+      } catch (err) {
+        if (seq !== userIdLookupSeqRef.current) {
+          return;
+        }
+        showError(err?.message || t('查询失败'));
+      }
+    }, 400);
+
+    return () => {
+      if (userIdLookupTimerRef.current) {
+        clearTimeout(userIdLookupTimerRef.current);
+      }
+    };
+  }, [inputs.user_id, isAdminUser, t]);
 
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(async () => {
