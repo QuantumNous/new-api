@@ -166,21 +166,21 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 // UpdateCustomOAuthProviderRequest is the request structure for updating a custom OAuth provider
 type UpdateCustomOAuthProviderRequest struct {
-	Name                  string `json:"name"`
-	Slug                  string `json:"slug"`
-	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id"`
-	ClientSecret          string `json:"client_secret"` // Optional: if empty, keep existing
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserInfoEndpoint      string `json:"user_info_endpoint"`
-	Scopes                string `json:"scopes"`
-	UserIdField           string `json:"user_id_field"`
-	UsernameField         string `json:"username_field"`
-	DisplayNameField      string `json:"display_name_field"`
-	EmailField            string `json:"email_field"`
-	WellKnown             string `json:"well_known"`
-	AuthStyle             int    `json:"auth_style"`
+	Name                  string  `json:"name"`
+	Slug                  string  `json:"slug"`
+	Enabled               *bool   `json:"enabled"`               // Optional: if nil, keep existing
+	ClientId              string  `json:"client_id"`
+	ClientSecret          string  `json:"client_secret"`         // Optional: if empty, keep existing
+	AuthorizationEndpoint string  `json:"authorization_endpoint"`
+	TokenEndpoint         string  `json:"token_endpoint"`
+	UserInfoEndpoint      string  `json:"user_info_endpoint"`
+	Scopes                string  `json:"scopes"`
+	UserIdField           string  `json:"user_id_field"`
+	UsernameField         string  `json:"username_field"`
+	DisplayNameField      string  `json:"display_name_field"`
+	EmailField            string  `json:"email_field"`
+	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
+	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -227,7 +227,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.Slug != "" {
 		provider.Slug = req.Slug
 	}
-	provider.Enabled = req.Enabled
+	if req.Enabled != nil {
+		provider.Enabled = *req.Enabled
+	}
 	if req.ClientId != "" {
 		provider.ClientId = req.ClientId
 	}
@@ -258,8 +260,12 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.EmailField != "" {
 		provider.EmailField = req.EmailField
 	}
-	provider.WellKnown = req.WellKnown
-	provider.AuthStyle = req.AuthStyle
+	if req.WellKnown != nil {
+		provider.WellKnown = *req.WellKnown
+	}
+	if req.AuthStyle != nil {
+		provider.AuthStyle = *req.AuthStyle
+	}
 
 	if err := model.UpdateCustomOAuthProvider(provider); err != nil {
 		common.ApiError(c, err)
@@ -296,7 +302,12 @@ func DeleteCustomOAuthProvider(c *gin.Context) {
 	}
 
 	// Check if there are any user bindings
-	count, _ := model.GetBindingCountByProviderId(id)
+	count, err := model.GetBindingCountByProviderId(id)
+	if err != nil {
+		common.SysError("Failed to get binding count for provider " + strconv.Itoa(id) + ": " + err.Error())
+		common.ApiErrorMsg(c, "检查用户绑定时发生错误，请稍后重试")
+		return
+	}
 	if count > 0 {
 		common.ApiErrorMsg(c, "该 OAuth 提供商还有用户绑定，无法删除。请先解除所有用户绑定。")
 		return

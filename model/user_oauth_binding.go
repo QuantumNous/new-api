@@ -3,18 +3,17 @@ package model
 import (
 	"errors"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // UserOAuthBinding stores the binding relationship between users and custom OAuth providers
 type UserOAuthBinding struct {
 	Id             int       `json:"id" gorm:"primaryKey"`
-	UserId         int       `json:"user_id" gorm:"index;not null"`                                               // User ID
-	ProviderId     int       `json:"provider_id" gorm:"index;not null"`                                           // Custom OAuth provider ID
-	ProviderUserId string    `json:"provider_user_id" gorm:"type:varchar(256);not null"`                          // User ID from OAuth provider
+	UserId         int       `json:"user_id" gorm:"not null;uniqueIndex:ux_user_provider"`                                        // User ID - one binding per user per provider
+	ProviderId     int       `json:"provider_id" gorm:"not null;uniqueIndex:ux_user_provider;uniqueIndex:ux_provider_userid"`     // Custom OAuth provider ID
+	ProviderUserId string    `json:"provider_user_id" gorm:"type:varchar(256);not null;uniqueIndex:ux_provider_userid"`           // User ID from OAuth provider - one OAuth account per provider
 	CreatedAt      time.Time `json:"created_at"`
-
-	// Composite unique index to prevent duplicate bindings
-	// One OAuth account can only be bound to one user
 }
 
 func (UserOAuthBinding) TableName() string {
@@ -80,6 +79,29 @@ func CreateUserOAuthBinding(binding *UserOAuthBinding) error {
 
 	binding.CreatedAt = time.Now()
 	return DB.Create(binding).Error
+}
+
+// CreateUserOAuthBindingWithTx creates a new OAuth binding within a transaction
+func CreateUserOAuthBindingWithTx(tx *gorm.DB, binding *UserOAuthBinding) error {
+	if binding.UserId == 0 {
+		return errors.New("user ID is required")
+	}
+	if binding.ProviderId == 0 {
+		return errors.New("provider ID is required")
+	}
+	if binding.ProviderUserId == "" {
+		return errors.New("provider user ID is required")
+	}
+
+	// Check if this provider user ID is already taken (use tx to check within the same transaction)
+	var count int64
+	tx.Model(&UserOAuthBinding{}).Where("provider_id = ? AND provider_user_id = ?", binding.ProviderId, binding.ProviderUserId).Count(&count)
+	if count > 0 {
+		return errors.New("this OAuth account is already bound to another user")
+	}
+
+	binding.CreatedAt = time.Now()
+	return tx.Create(binding).Error
 }
 
 // UpdateUserOAuthBinding updates an existing OAuth binding (e.g., rebind to different OAuth account)

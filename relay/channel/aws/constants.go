@@ -3,7 +3,7 @@ package aws
 import "strings"
 
 var awsModelIDMap = map[string]string{
-	"claude-3-sonnet-20240229": "anthropic.claude-3-sonnet-20240229-v1:0",
+	"claude-3-sonnet-20240229":   "anthropic.claude-3-sonnet-20240229-v1:0",
 	"claude-3-opus-20240229":     "anthropic.claude-3-opus-20240229-v1:0",
 	"claude-3-haiku-20240307":    "anthropic.claude-3-haiku-20240307-v1:0",
 	"claude-3-5-sonnet-20240620": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -16,6 +16,7 @@ var awsModelIDMap = map[string]string{
 	"claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0",
 	"claude-haiku-4-5-20251001":  "anthropic.claude-haiku-4-5-20251001-v1:0",
 	"claude-opus-4-5-20251101":   "anthropic.claude-opus-4-5-20251101-v1:0",
+	"claude-opus-4-6":            "anthropic.claude-opus-4-6-v1",
 	// Nova models
 	"nova-micro-v1:0":   "amazon.nova-micro-v1:0",
 	"nova-lite-v1:0":    "amazon.nova-lite-v1:0",
@@ -75,6 +76,11 @@ var awsModelCanCrossRegionMap = map[string]map[string]bool{
 		"eu": true,
 	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-opus-4-6-v1": {
 		"us": true,
 		"ap": true,
 		"eu": true,

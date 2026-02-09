@@ -17,9 +17,12 @@ import (
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -141,7 +144,16 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(textRequest.Model))
 	}
 
-	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
+	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(textRequest.Model); ok && effortLevel != "" &&
+		strings.HasPrefix(textRequest.Model, "claude-opus-4-6") {
+		claudeRequest.Model = baseModel
+		claudeRequest.Thinking = &dto.Thinking{
+			Type: "adaptive",
+		}
+		claudeRequest.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
+		claudeRequest.TopP = 0
+		claudeRequest.Temperature = common.GetPointer[float64](1.0)
+	} else if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
 		strings.HasSuffix(textRequest.Model, "-thinking") {
 
 		// 因为BudgetTokens 必须大于1024
@@ -534,6 +546,78 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+func buildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo *ClaudeResponseInfo) *dto.ClaudeUsage {
+	usage := &dto.ClaudeUsage{}
+	if claudeResponse != nil && claudeResponse.Usage != nil {
+		*usage = *claudeResponse.Usage
+	}
+
+	if claudeInfo == nil || claudeInfo.Usage == nil {
+		return usage
+	}
+
+	if usage.InputTokens == 0 && claudeInfo.Usage.PromptTokens > 0 {
+		usage.InputTokens = claudeInfo.Usage.PromptTokens
+	}
+	if usage.CacheReadInputTokens == 0 && claudeInfo.Usage.PromptTokensDetails.CachedTokens > 0 {
+		usage.CacheReadInputTokens = claudeInfo.Usage.PromptTokensDetails.CachedTokens
+	}
+	if usage.CacheCreationInputTokens == 0 && claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens > 0 {
+		usage.CacheCreationInputTokens = claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens
+	}
+	if usage.CacheCreation == nil && (claudeInfo.Usage.ClaudeCacheCreation5mTokens > 0 || claudeInfo.Usage.ClaudeCacheCreation1hTokens > 0) {
+		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
+			Ephemeral5mInputTokens: claudeInfo.Usage.ClaudeCacheCreation5mTokens,
+			Ephemeral1hInputTokens: claudeInfo.Usage.ClaudeCacheCreation1hTokens,
+		}
+	}
+	return usage
+}
+
+func shouldSkipClaudeMessageDeltaUsagePatch(info *relaycommon.RelayInfo) bool {
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+		return true
+	}
+	if info == nil {
+		return false
+	}
+	return info.ChannelSetting.PassThroughBodyEnabled
+}
+
+func patchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) string {
+	if data == "" || usage == nil {
+		return data
+	}
+
+	data = setMessageDeltaUsageInt(data, "usage.input_tokens", usage.InputTokens)
+	data = setMessageDeltaUsageInt(data, "usage.cache_read_input_tokens", usage.CacheReadInputTokens)
+	data = setMessageDeltaUsageInt(data, "usage.cache_creation_input_tokens", usage.CacheCreationInputTokens)
+
+	if usage.CacheCreation != nil {
+		data = setMessageDeltaUsageInt(data, "usage.cache_creation.ephemeral_5m_input_tokens", usage.CacheCreation.Ephemeral5mInputTokens)
+		data = setMessageDeltaUsageInt(data, "usage.cache_creation.ephemeral_1h_input_tokens", usage.CacheCreation.Ephemeral1hInputTokens)
+	}
+
+	return data
+}
+
+func setMessageDeltaUsageInt(data string, path string, localValue int) string {
+	if localValue <= 0 {
+		return data
+	}
+
+	upstreamValue := gjson.Get(data, path)
+	if upstreamValue.Exists() && upstreamValue.Int() > 0 {
+		return data
+	}
+
+	patchedData, err := sjson.Set(data, path, localValue)
+	if err != nil {
+		return data
+	}
+	return patchedData
+}
+
 func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	if claudeInfo == nil {
 		return false
@@ -627,6 +711,12 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			// message_start, 获取usage
 			if claudeResponse.Message != nil {
 				info.UpstreamModelName = claudeResponse.Message.Model
+			}
+		} else if claudeResponse.Type == "message_delta" {
+			// 确保 message_delta 的 usage 包含完整的 input_tokens 和 cache 相关字段
+			// 解决 AWS Bedrock 等上游返回的 message_delta 缺少这些字段的问题
+			if !shouldSkipClaudeMessageDeltaUsagePatch(info) {
+				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
