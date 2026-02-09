@@ -122,7 +122,6 @@ const SearchModal = ({
           userSearchType === 'user_id' &&
           createFormField(Form.InputNumber, {
             field: 'user_id',
-            label: t('用户ID'),
             value: user_id,
             placeholder: t('可选值'),
             name: 'user_id',
@@ -131,12 +130,6 @@ const SearchModal = ({
             precision: 0,
             onChange: (value) => handleInputChange(value, 'user_id'),
           })}
-
-        {isAdminUser && userSearchType === 'user_id' && username && (
-          <div className='text-xs text-gray-500 mb-2'>
-            {t('用户名')}：{username}
-          </div>
-        )}
 
         {createFormField(Form.Input, {
           field: 'model_name',
