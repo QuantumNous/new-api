@@ -1689,33 +1689,33 @@ export function ChannelMutateDrawer({
                 <FormField
                   control={form.control}
                   name='key'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('API Key *')}</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder={
-                            isEditing
-                              ? 'Leave empty to keep existing key'
-                              : currentType === 33
-                                ? awsKeyType === 'api_key'
-                                  ? isBatchMode
-                                    ? t(
-                                        'Enter API Key, one per line, format: APIKey|Region'
-                                      )
-                                    : t('Enter API Key, format: APIKey|Region')
-                                  : isBatchMode
-                                    ? t(
-                                        'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
-                                      )
-                                    : t(
-                                        'Enter key, format: AccessKey|SecretAccessKey|Region'
-                                      )
-                                : isBatchMode
-                                  ? 'Enter one key per line for batch creation'
-                                  : getKeyPromptForType(currentType)
-                          }
-                          rows={isBatchMode ? 8 : 4}
+                  render={({ field }) => {
+                    const keyPlaceholder = (() => {
+                      if (isEditing) {
+                        return t('Leave empty to keep existing key')
+                      }
+                      if (currentType === 33) {
+                        if (awsKeyType === 'api_key') {
+                          return isBatchMode
+                            ? t('Enter API Key, one per line, format: APIKey|Region')
+                            : t('Enter API Key, format: APIKey|Region')
+                        }
+                        return isBatchMode
+                          ? t('Enter key, one per line, format: AccessKey|SecretAccessKey|Region')
+                          : t('Enter key, format: AccessKey|SecretAccessKey|Region')
+                      }
+                      if (isBatchMode) {
+                        return t('Enter one key per line for batch creation')
+                      }
+                      return t(getKeyPromptForType(currentType))
+                    })()
+                    return (
+                      <FormItem>
+                        <FormLabel>{t('API Key *')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={keyPlaceholder}
+                            rows={isBatchMode ? 8 : 4}
                           {...field}
                         />
                       </FormControl>
@@ -1814,7 +1814,8 @@ export function ChannelMutateDrawer({
                       )}
                       <FormMessage />
                     </FormItem>
-                  )}
+                    )
+                  }}
                 />
 
                 {currentType === 57 && (
