@@ -111,6 +111,7 @@ const SearchModal = ({
           userSearchType === 'username' &&
           createFormField(Form.Input, {
             field: 'username',
+            noLabel: true,
             value: username,
             placeholder: t('可选值'),
             name: 'username',
@@ -121,6 +122,7 @@ const SearchModal = ({
           userSearchType === 'user_id' &&
           createFormField(Form.InputNumber, {
             field: 'user_id',
+            noLabel: true,
             value: user_id,
             placeholder: t('可选值'),
             name: 'user_id',
