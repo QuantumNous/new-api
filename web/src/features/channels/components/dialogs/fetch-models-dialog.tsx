@@ -202,6 +202,16 @@ export function FetchModelsDialog({
   const newModelsByCategory = categorizeModels(newModels)
   const existingModelsByCategory = categorizeModels(existingFilteredModels)
 
+  // 厂商分类按 a-z 排序，Other 放最后，便于查找
+  const getSortedCategoryEntries = (
+    categories: Record<string, string[]>
+  ): [string, string[]][] =>
+    Object.entries(categories).sort(([a], [b]) => {
+      if (a === 'Other') return 1
+      if (b === 'Other') return -1
+      return a.localeCompare(b, undefined, { sensitivity: 'base' })
+    })
+
   const toggleModel = (model: string) => {
     setSelectedModels((prev) =>
       prev.includes(model) ? prev.filter((m) => m !== model) : [...prev, model]
@@ -354,7 +364,7 @@ export function FetchModelsDialog({
                   value='new'
                   className='max-h-96 space-y-2 overflow-y-auto'
                 >
-                  {Object.entries(newModelsByCategory).map(
+                  {getSortedCategoryEntries(newModelsByCategory).map(
                     ([category, models]) =>
                       renderModelCategory(category, models)
                   )}
@@ -364,7 +374,7 @@ export function FetchModelsDialog({
                   value='existing'
                   className='max-h-96 space-y-2 overflow-y-auto'
                 >
-                  {Object.entries(existingModelsByCategory).map(
+                  {getSortedCategoryEntries(existingModelsByCategory).map(
                     ([category, models]) =>
                       renderModelCategory(category, models)
                   )}
