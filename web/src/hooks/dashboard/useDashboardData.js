@@ -42,6 +42,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
+    user_search_type: 'username',
     user_id: null,
     username: '',
     token_name: '',
@@ -147,40 +148,41 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       localStorage.setItem('data_export_default_time', value);
       return;
     }
+    if (name === 'user_search_type') {
+      const nextType = value === 'user_id' ? 'user_id' : 'username';
+      setInputs((inputs) => ({
+        ...inputs,
+        user_search_type: nextType,
+        ...(nextType === 'username'
+          ? { user_id: null }
+          : { username: '' }),
+      }));
+      return;
+    }
     if (name === 'username') {
       const text = (value ?? '').toString().trim();
-      if (text === '') {
-        setInputs((inputs) => ({
-          ...inputs,
-          username: '',
-          user_id: null,
-        }));
-        return;
-      }
-
-      // Admin UX: allow typing numeric user_id in the username field.
-      if (/^\d+$/.test(text)) {
-        const parsedUserId = Number.parseInt(text, 10);
-        if (!Number.isFinite(parsedUserId) || parsedUserId < 1) {
-          setInputs((inputs) => ({
-            ...inputs,
-            username: text,
-            user_id: null,
-          }));
-          return;
-        }
-        setInputs((inputs) => ({
-          ...inputs,
-          username: text,
-          user_id: parsedUserId,
-        }));
-        return;
-      }
-
       setInputs((inputs) => ({
         ...inputs,
         username: text,
-        user_id: null,
+      }));
+      return;
+    }
+    if (name === 'user_id') {
+      const v = value === undefined ? null : value;
+      const parsed =
+        v === null || v === ''
+          ? null
+          : typeof v === 'number'
+            ? v
+            : Number.parseInt(String(v), 10);
+      const normalizedUserId =
+        parsed !== null && Number.isFinite(parsed) && parsed >= 1
+          ? Math.trunc(parsed)
+          : null;
+      setInputs((inputs) => ({
+        ...inputs,
+        user_id: normalizedUserId,
+        ...(inputs.user_search_type === 'user_id' ? { username: '' } : {}),
       }));
       return;
     }
@@ -198,6 +200,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   // ========== Admin UX: user_id -> username resolve ==========
   useEffect(() => {
     if (!isAdminUser) {
+      return;
+    }
+    if (inputs.user_search_type !== 'user_id') {
       return;
     }
     const userId = Number(inputs.user_id);
@@ -231,7 +236,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
             return { ...inputs, username: data?.username || '' };
           });
         } else if (message) {
-          showError(message);
+          const msg = String(message || '');
+          if (msg.toLowerCase().includes('record not found')) {
+            showError(t('找不到该值'));
+          } else {
+            showError(msg);
+          }
         }
       } catch (err) {
         if (
@@ -254,7 +264,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       }
       abortController.abort();
     };
-  }, [inputs.user_id, isAdminUser, t]);
+  }, [inputs.user_id, inputs.user_search_type, isAdminUser, t]);
 
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(async () => {
@@ -277,9 +287,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       }
 
       if (isAdminUser) {
-        const parsedUserId = Number(user_id);
-        if (Number.isFinite(parsedUserId) && parsedUserId > 0) {
-          params.set('user_id', String(parsedUserId));
+        if (inputs.user_search_type === 'user_id') {
+          const parsedUserId = Number(user_id);
+          if (Number.isFinite(parsedUserId) && parsedUserId > 0) {
+            params.set('user_id', String(parsedUserId));
+          }
         } else if (username) {
           params.set('username', username);
         }
