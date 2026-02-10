@@ -72,6 +72,10 @@ export const useTaskLogsData = () => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
 
+  // User info modal state
+  const [showUserInfo, setShowUserInfoModal] = useState(false);
+  const [userInfoData, setUserInfoData] = useState(null);
+
   // Form state
   const [formApi, setFormApi] = useState(null);
   let now = new Date();
@@ -273,6 +277,21 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen(true);
   };
 
+  // User info function
+  const showUserInfoFunc = async (userId) => {
+    if (!isAdminUser) {
+      return;
+    }
+    const res = await API.get(`/api/user/${userId}`);
+    const { success, message, data } = res.data;
+    if (success) {
+      setUserInfoData(data);
+      setShowUserInfoModal(true);
+    } else {
+      showError(message);
+    }
+  };
+
   // Initialize data
   useEffect(() => {
     const localPageSize =
@@ -318,6 +337,12 @@ export const useTaskLogsData = () => {
     // Compact mode
     compactMode,
     setCompactMode,
+
+    // User info modal
+    showUserInfo,
+    setShowUserInfoModal,
+    userInfoData,
+    showUserInfoFunc,
 
     // Functions
     loadLogs,
