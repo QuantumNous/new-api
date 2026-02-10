@@ -73,6 +73,7 @@ type creation struct {
 // ============================
 
 type TaskAdaptor struct {
+	taskcommon.BaseBilling
 	ChannelType int
 	baseURL     string
 }

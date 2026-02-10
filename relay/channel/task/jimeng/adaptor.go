@@ -77,6 +77,7 @@ const (
 // ============================
 
 type TaskAdaptor struct {
+	taskcommon.BaseBilling
 	ChannelType int
 	accessKey   string
 	secretKey   string

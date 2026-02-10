@@ -130,6 +130,58 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
 }
 
+// RecalculateTaskQuota 通用的异步差额结算。
+// actualQuota 是任务完成后的实际应扣额度，与预扣额度 (task.Quota) 做差额结算。
+// reason 用于日志记录（例如 "token重算" 或 "adaptor调整"）。
+func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason string) {
+	if actualQuota <= 0 {
+		return
+	}
+	preConsumedQuota := task.Quota
+	quotaDelta := actualQuota - preConsumedQuota
+
+	if quotaDelta == 0 {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 预扣费准确（%s，%s）",
+			task.TaskID, logger.LogQuota(actualQuota), reason))
+		return
+	}
+
+	logger.LogInfo(ctx, fmt.Sprintf("任务 %s 差额结算：delta=%s（实际：%s，预扣：%s，%s）",
+		task.TaskID,
+		logger.LogQuota(quotaDelta),
+		logger.LogQuota(actualQuota),
+		logger.LogQuota(preConsumedQuota),
+		reason,
+	))
+
+	// 调整资金来源
+	if err := taskAdjustFunding(task, quotaDelta); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
+		return
+	}
+
+	// 调整令牌额度
+	taskAdjustTokenQuota(ctx, task, quotaDelta)
+
+	// 更新统计（仅补扣时更新，退还不影响已用统计）
+	if quotaDelta > 0 {
+		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
+		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
+	}
+	task.Quota = actualQuota
+
+	var action string
+	if quotaDelta > 0 {
+		action = "补扣费"
+	} else {
+		action = "退还"
+	}
+	logContent := fmt.Sprintf("异步任务成功%s，预扣费 %s，实际扣费 %s，原因：%s",
+		action,
+		logger.LogQuota(preConsumedQuota), logger.LogQuota(actualQuota), reason)
+	model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+}
+
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
 // 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
@@ -180,48 +232,6 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio
 	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio)
 
-	// 计算差额（正数=需要补扣，负数=需要退还）
-	preConsumedQuota := task.Quota
-	quotaDelta := actualQuota - preConsumedQuota
-
-	if quotaDelta == 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("视频任务 %s 预扣费准确（%s，tokens：%d）",
-			task.TaskID, logger.LogQuota(actualQuota), totalTokens))
-		return
-	}
-
-	logger.LogInfo(ctx, fmt.Sprintf("视频任务 %s 差额结算：delta=%s（实际：%s，预扣：%s，tokens：%d）",
-		task.TaskID,
-		logger.LogQuota(quotaDelta),
-		logger.LogQuota(actualQuota),
-		logger.LogQuota(preConsumedQuota),
-		totalTokens,
-	))
-
-	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("差额结算资金调整失败 task %s: %s", task.TaskID, err.Error()))
-		return
-	}
-
-	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
-
-	// 更新统计（仅补扣时更新，退还不影响已用统计）
-	if quotaDelta > 0 {
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
-	}
-	task.Quota = actualQuota
-
-	var action string
-	if quotaDelta > 0 {
-		action = "补扣费"
-	} else {
-		action = "退还"
-	}
-	logContent := fmt.Sprintf("视频任务成功%s，模型倍率 %.2f，分组倍率 %.2f，tokens %d，预扣费 %s，实际扣费 %s",
-		action, modelRatio, finalGroupRatio, totalTokens,
-		logger.LogQuota(preConsumedQuota), logger.LogQuota(actualQuota))
-	model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f", totalTokens, modelRatio, finalGroupRatio)
+	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }

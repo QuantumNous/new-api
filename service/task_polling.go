@@ -26,6 +26,9 @@ type TaskPollingAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 	FetchTask(baseURL string, key string, body map[string]any, proxy string) (*http.Response, error)
 	ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error)
+	// AdjustBillingOnComplete 在任务到达终态（成功/失败）时由轮询循环调用。
+	// 返回正数触发差额结算（补扣/退还），返回 0 保持预扣费金额不变。
+	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
@@ -372,10 +375,8 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		}
 
-		// 如果返回了 total_tokens，根据模型倍率重新计费
-		if taskResult.TotalTokens > 0 {
-			RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
-		}
+		// 完成时计费调整：优先由 adaptor 计算，回退到 token 重算
+		settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 	case model.TaskStatusFailure:
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
@@ -443,4 +444,23 @@ func truncateBase64(s string) string {
 		return s
 	}
 	return s[:maxKeep] + "..."
+}
+
+// settleTaskBillingOnComplete 任务完成时的统一计费调整。
+// 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
+//
+//  2. taskResult.TotalTokens > 0 → 按 token 重算
+//  3. 都不满足 → 保持预扣额度不变
+func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+	// 1. 优先让 adaptor 决定最终额度
+	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
+		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		return
+	}
+	// 2. 回退到 token 重算
+	if taskResult.TotalTokens > 0 {
+		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
+		return
+	}
+	// 3. 无调整，保持预扣额度
 }

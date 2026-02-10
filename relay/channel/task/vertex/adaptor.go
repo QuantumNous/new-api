@@ -62,6 +62,7 @@ type operationResponse struct {
 // ============================
 
 type TaskAdaptor struct {
+	taskcommon.BaseBilling
 	ChannelType int
 	apiKey      string
 	baseURL     string
@@ -133,6 +134,28 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	return nil
 }
 
+// EstimateBilling 根据用户请求中的 sampleCount 计算 OtherRatios。
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, _ *relaycommon.RelayInfo) map[string]float64 {
+	sampleCount := 1
+	v, ok := c.Get("task_request")
+	if ok {
+		req := v.(relaycommon.TaskSubmitReq)
+		if req.Metadata != nil {
+			if sc, exists := req.Metadata["sampleCount"]; exists {
+				if i, ok := sc.(int); ok && i > 0 {
+					sampleCount = i
+				}
+				if f, ok := sc.(float64); ok && int(f) > 0 {
+					sampleCount = int(f)
+				}
+			}
+		}
+	}
+	return map[string]float64{
+		"sampleCount": float64(sampleCount),
+	}
+}
+
 // BuildRequestBody converts request into Vertex specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, ok := c.Get("task_request")
@@ -165,24 +188,6 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if body.Parameters["sampleCount"].(int) <= 0 {
 		return nil, fmt.Errorf("sampleCount must be greater than 0")
 	}
-
-	// if req.Duration > 0 {
-	// 	body.Parameters["durationSeconds"] = req.Duration
-	// } else if req.Seconds != "" {
-	// 	seconds, err := strconv.Atoi(req.Seconds)
-	// 	if err != nil {
-	// 		return nil, errors.Wrap(err, "convert seconds to int failed")
-	// 	}
-	// 	body.Parameters["durationSeconds"] = seconds
-	// }
-
-	info.PriceData.OtherRatios = map[string]float64{
-		"sampleCount": float64(body.Parameters["sampleCount"].(int)),
-	}
-
-	// if v, ok := body.Parameters["durationSeconds"]; ok {
-	// 	info.PriceData.OtherRatios["durationSeconds"] = float64(v.(int))
-	// }
 
 	data, err := common.Marshal(body)
 	if err != nil {
