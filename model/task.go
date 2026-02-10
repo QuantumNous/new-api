@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
@@ -64,13 +65,12 @@ type Task struct {
 }
 
 func (t *Task) SetData(data any) {
-	b, _ := json.Marshal(data)
+	b, _ := common.Marshal(data)
 	t.Data = json.RawMessage(b)
 }
 
 func (t *Task) GetData(v any) error {
-	err := json.Unmarshal(t.Data, &v)
-	return err
+	return common.Unmarshal(t.Data, &v)
 }
 
 type Properties struct {
@@ -85,18 +85,48 @@ func (m *Properties) Scan(val interface{}) error {
 		*m = Properties{}
 		return nil
 	}
-	return json.Unmarshal(bytesValue, m)
+	return common.Unmarshal(bytesValue, m)
 }
 
 func (m Properties) Value() (driver.Value, error) {
 	if m == (Properties{}) {
 		return nil, nil
 	}
-	return json.Marshal(m)
+	return common.Marshal(m)
 }
 
 type TaskPrivateData struct {
-	Key string `json:"key,omitempty"`
+	Key            string `json:"key,omitempty"`
+	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
+	BillingSource  string `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId int    `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	TokenId        int    `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+}
+
+// GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
+// 旧数据没有 UpstreamTaskID 时，TaskID 本身就是上游 ID
+func (t *Task) GetUpstreamTaskID() string {
+	if t.PrivateData.UpstreamTaskID != "" {
+		return t.PrivateData.UpstreamTaskID
+	}
+	return t.TaskID
+}
+
+// GetResultURL 获取任务结果 URL（视频地址等）
+// 新数据存在 PrivateData.ResultURL 中；旧数据回退到 FailReason（历史兼容）
+func (t *Task) GetResultURL() string {
+	if t.PrivateData.ResultURL != "" {
+		return t.PrivateData.ResultURL
+	}
+	return t.FailReason
+}
+
+// GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
+func GenerateTaskID() string {
+	key, _ := common.GenerateRandomCharsKey(32)
+	return "task_" + key
 }
 
 func (p *TaskPrivateData) Scan(val interface{}) error {
@@ -104,14 +134,14 @@ func (p *TaskPrivateData) Scan(val interface{}) error {
 	if len(bytesValue) == 0 {
 		return nil
 	}
-	return json.Unmarshal(bytesValue, p)
+	return common.Unmarshal(bytesValue, p)
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
 	if (p == TaskPrivateData{}) {
 		return nil, nil
 	}
-	return json.Marshal(p)
+	return common.Marshal(p)
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -142,7 +172,16 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 		}
 	}
 
+	// 使用预生成的公开 ID（如果有），否则新生成
+	taskID := ""
+	if relayInfo.TaskRelayInfo != nil && relayInfo.TaskRelayInfo.PublicTaskID != "" {
+		taskID = relayInfo.TaskRelayInfo.PublicTaskID
+	} else {
+		taskID = GenerateTaskID()
+	}
+
 	t := &Task{
+		TaskID:      taskID,
 		UserId:      relayInfo.UserId,
 		Group:       relayInfo.UsingGroup,
 		SubmitTime:  time.Now().Unix(),
@@ -444,6 +483,6 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
-	openAIVideo.SetMetadata("url", t.FailReason)
+	openAIVideo.SetMetadata("url", t.GetResultURL())
 	return openAIVideo
 }

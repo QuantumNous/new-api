@@ -3,7 +3,6 @@ package suno
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,8 +23,12 @@ type TaskAdaptor struct {
 	ChannelType int
 }
 
+// ParseTaskResult is not used for Suno tasks.
+// Suno polling uses a dedicated batch-fetch path (service.UpdateSunoTasks) that
+// receives dto.TaskResponse[[]dto.SunoDataResponse] from the upstream /fetch API.
+// This differs from the per-task polling used by video adaptors.
 func (a *TaskAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
-	return nil, fmt.Errorf("not implement") // todo implement this method if needed
+	return nil, fmt.Errorf("suno uses batch polling via UpdateSunoTasks, ParseTaskResult is not applicable")
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -81,7 +84,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			return nil, err
 		}
 	}
-	data, err := json.Marshal(sunoRequest)
+	data, err := common.Marshal(sunoRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +102,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 	var sunoResponse dto.TaskResponse[string]
-	err = json.Unmarshal(responseBody, &sunoResponse)
+	err = common.Unmarshal(responseBody, &sunoResponse)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
@@ -109,17 +112,13 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	for k, v := range resp.Header {
-		c.Writer.Header().Set(k, v[0])
+	// 使用公开 task_xxxx ID 替换上游 ID 返回给客户端
+	publicResponse := dto.TaskResponse[string]{
+		Code:    sunoResponse.Code,
+		Message: sunoResponse.Message,
+		Data:    info.PublicTaskID,
 	}
-	c.Writer.Header().Set("Content-Type", "application/json")
-	c.Writer.WriteHeader(resp.StatusCode)
-
-	_, err = io.Copy(c.Writer, bytes.NewBuffer(responseBody))
-	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError)
-		return
-	}
+	c.JSON(http.StatusOK, publicResponse)
 
 	return sunoResponse.Data, nil, nil
 }
@@ -134,7 +133,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	requestUrl := fmt.Sprintf("%s/suno/fetch", baseUrl)
-	byteBody, err := json.Marshal(body)
+	byteBody, err := common.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
