@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Tag, Typography } from '@douyinfe/semi-ui';
+import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Music,
   FileText,
