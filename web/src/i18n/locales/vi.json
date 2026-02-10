@@ -1359,6 +1359,7 @@
     "未找到匹配的模型": "Không tìm thấy mô hình phù hợp",
     "未找到可用的容器访问地址": "No available container access address found",
     "未找到差异化倍率，无需同步": "Không tìm thấy tỷ lệ khác biệt, không cần đồng bộ hóa",
+    "找不到该值": "Không tìm thấy giá trị",
     "未提交": "Chưa gửi",
     "未检测到 Fluent 容器": "Không phát hiện thấy container Fluent",
     "未检测到 FluentRead（流畅阅读），请确认扩展已启用": "Không phát hiện thấy FluentRead (đọc trôi chảy), vui lòng xác nhận tiện ích mở rộng đã được bật",

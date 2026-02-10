@@ -27,3 +27,5 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+nul
+.claude/settings.local.json

@@ -31,6 +31,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
+  const userIdLookupTimerRef = useRef(null);
+  const userIdLookupSeqRef = useRef(0);
 
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
@@ -40,6 +42,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== 输入状态 ==========
   const [inputs, setInputs] = useState({
+    user_search_type: 'username',
+    user_id: null,
     username: '',
     token_name: '',
     model_name: '',
@@ -82,7 +86,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
 
   // ========== 常量 ==========
-  const now = new Date();
   const isAdminUser = isAdmin();
 
   // ========== Panel enable flags ==========
@@ -144,6 +147,44 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       localStorage.setItem('data_export_default_time', value);
       return;
     }
+    if (name === 'user_search_type') {
+      const nextType = value === 'user_id' ? 'user_id' : 'username';
+      setInputs((inputs) => ({
+        ...inputs,
+        user_search_type: nextType,
+        ...(nextType === 'username'
+          ? { user_id: null }
+          : { username: '' }),
+      }));
+      return;
+    }
+    if (name === 'username') {
+      const text = (value ?? '').toString().trim();
+      setInputs((inputs) => ({
+        ...inputs,
+        username: text,
+      }));
+      return;
+    }
+    if (name === 'user_id') {
+      const v = value === undefined ? null : value;
+      const parsed =
+        v === null || v === ''
+          ? null
+          : typeof v === 'number'
+            ? v
+            : Number.parseInt(String(v), 10);
+      const normalizedUserId =
+        parsed !== null && Number.isFinite(parsed) && parsed >= 1
+          ? Math.trunc(parsed)
+          : null;
+      setInputs((inputs) => ({
+        ...inputs,
+        user_id: normalizedUserId,
+        ...(inputs.user_search_type === 'user_id' ? { username: '' } : {}),
+      }));
+      return;
+    }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
 
@@ -155,19 +196,107 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setSearchModalVisible(false);
   }, []);
 
+  // ========== Admin UX: user_id -> username resolve ==========
+  useEffect(() => {
+    if (!isAdminUser) {
+      return;
+    }
+    if (inputs.user_search_type !== 'user_id') {
+      return;
+    }
+    const userId = Number(inputs.user_id);
+    if (!userId || !Number.isFinite(userId) || userId < 1) {
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    // Debounce while typing.
+    if (userIdLookupTimerRef.current) {
+      clearTimeout(userIdLookupTimerRef.current);
+    }
+    const seq = ++userIdLookupSeqRef.current;
+    userIdLookupTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await API.get(`/api/user/${userId}`, {
+          disableDuplicate: true,
+          skipErrorHandler: true,
+          signal: abortController.signal,
+        });
+        const { success, message, data } = res.data || {};
+        if (seq !== userIdLookupSeqRef.current) {
+          return;
+        }
+        if (success) {
+          setInputs((inputs) => {
+            if (String(inputs.user_id) !== String(userId)) {
+              return inputs;
+            }
+            return { ...inputs, username: data?.username || '' };
+          });
+        } else if (message) {
+          const msg = String(message || '');
+          if (msg.toLowerCase().includes('record not found')) {
+            showError(t('找不到该值'));
+          } else {
+            showError(msg);
+          }
+        }
+      } catch (err) {
+        if (
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          abortController.signal.aborted
+        ) {
+          return;
+        }
+        if (seq !== userIdLookupSeqRef.current) {
+          return;
+        }
+        showError(err?.message || t('查询失败'));
+      }
+    }, 400);
+
+    return () => {
+      if (userIdLookupTimerRef.current) {
+        clearTimeout(userIdLookupTimerRef.current);
+      }
+      abortController.abort();
+    };
+  }, [inputs.user_id, inputs.user_search_type, isAdminUser, t]);
+
   // ========== API 调用函数 ==========
   const loadQuotaData = useCallback(async () => {
     setLoading(true);
     try {
       let url = '';
-      const { start_timestamp, end_timestamp, username } = inputs;
+      const { start_timestamp, end_timestamp, username, user_id, model_name } =
+        inputs;
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
+      const params = new URLSearchParams({
+        start_timestamp: String(localStartTimestamp),
+        end_timestamp: String(localEndTimestamp),
+        default_time: String(dataExportDefaultTime || ''),
+      });
+
+      if (model_name) {
+        params.set('model_name', model_name);
+      }
+
       if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        if (inputs.user_search_type === 'user_id') {
+          const parsedUserId = Number(user_id);
+          if (Number.isFinite(parsedUserId) && parsedUserId > 0) {
+            params.set('user_id', String(parsedUserId));
+          }
+        } else if (username) {
+          params.set('username', username);
+        }
+        url = `/api/data/?${params.toString()}`;
       } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+        url = `/api/data/self/?${params.toString()}`;
       }
 
       const res = await API.get(url);
@@ -175,11 +304,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (success) {
         setQuotaData(data);
         if (data.length === 0) {
+          const now = Date.now() / 1000;
           data.push({
             count: 0,
             model_name: '无数据',
             quota: 0,
-            created_at: now.getTime() / 1000,
+            created_at: now,
           });
         }
         data.sort((a, b) => a.created_at - b.created_at);
@@ -191,7 +321,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     } finally {
       setLoading(false);
     }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+  }, [inputs, dataExportDefaultTime, isAdminUser]);
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
