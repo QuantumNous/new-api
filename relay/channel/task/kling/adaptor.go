@@ -404,3 +404,94 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	jsonData, _ := common.Marshal(openAIVideo)
 	return jsonData, nil
 }
+
+type klingCostsResponse struct {
+	Code      int    `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id"`
+	Data      *struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		List []struct {
+			ResourcePackName string  `json:"resource_pack_name"`
+			Remaining        float64 `json:"remaining_quantity"`
+			Status           string  `json:"status"`
+		} `json:"resource_pack_subscribe_infos"`
+	} `json:"data"`
+}
+
+func (a *TaskAdaptor) UpdateBalance(channel *model.Channel) (float64, error) {
+	baseURL := channel.GetBaseURL()
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[channel.Type]
+	}
+	// past one year window in ms
+	end := time.Now()
+	start := end.AddDate(-1, 0, 0)
+	url := fmt.Sprintf("%s/account/costs?start_time=%d&end_time=%d", baseURL, start.UnixMilli(), end.UnixMilli())
+
+	token, err := a.createJWTTokenWithKey(channel.Key)
+	if err != nil {
+		return 0, err
+	}
+	headers := http.Header{}
+	headers.Set("Content-Type", "application/json")
+	headers.Set("Authorization", "Bearer "+token)
+
+	body, err := getResponseBody("GET", url, channel, headers)
+	if err != nil {
+		return 0, err
+	}
+
+	resp := klingCostsResponse{}
+	if err = json.Unmarshal(body, &resp); err != nil {
+		return 0, err
+	}
+	if resp.Code != 0 {
+		return 0, fmt.Errorf("kling cost query failed: %s", resp.Message)
+	}
+	if resp.Data == nil || resp.Data.Code != 0 {
+		return 0, fmt.Errorf("kling cost query data error: %v", resp.Data)
+	}
+
+	var balance float64
+	for _, pack := range resp.Data.List {
+		if strings.EqualFold(pack.Status, "online") {
+			balance += pack.Remaining
+		}
+	}
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
+func getResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	for k := range headers {
+		req.Header.Add(k, headers.Get(k))
+	}
+	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	if err != nil {
+		return nil, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = res.Body.Close()
+	}()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code: %d", res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err = res.Body.Close(); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
