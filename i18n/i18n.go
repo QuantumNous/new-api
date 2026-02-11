@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	LangZhCN      = "zh-CN"
-	LangZhTW      = "zh-TW"
+	LangZhCN    = "zh-CN"
+	LangZhTW    = "zh-TW"
 	LangEn      = "en"
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
@@ -40,7 +40,7 @@ func Init() error {
 		bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 
 		// Load embedded translation files
-		files := []string{"locales/zh.yaml", "locales/en.yaml"}
+		files := []string{"locales/zh-CN.yaml", "locales/zh-TW.yaml", "locales/en.yaml"}
 		for _, file := range files {
 			_, err := bundle.LoadMessageFileFS(localeFS, file)
 			if err != nil {
@@ -203,10 +203,10 @@ func normalizeLang(lang string) string {
 
 	// Handle common variations
 	switch {
-	case strings.HasPrefix(lang, "zh-CN"):
-		return LangZhCN
-	case strings.HasPrefix(lang, "zh-TW"):
+	case strings.HasPrefix(lang, "zh-tw"):
 		return LangZhTW
+	case strings.HasPrefix(lang, "zh"):
+		return LangZhCN
 	case strings.HasPrefix(lang, "en"):
 		return LangEn
 	default:
