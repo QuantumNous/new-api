@@ -2845,6 +2845,10 @@
     "填写服务器地址后自动生成：": "Auto-generated after entering server address: ",
     "自动生成：": "Auto-generated: ",
     "请先填写服务器地址，以自动生成完整的端点 URL": "Please enter the server address first to auto-generate full endpoint URLs",
-    "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "Endpoint URL must be a full address (starting with http:// or https://)"
+    "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "Endpoint URL must be a full address (starting with http:// or https://)",
+    "缓存读": "Cache Read",
+    "缓存写": "Cache Write",
+    "写": "Write",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Per Anthropic conventions, /v1/messages input tokens count only non-cached input and exclude cache read/write tokens."
   }
 }

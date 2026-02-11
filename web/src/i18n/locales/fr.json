@@ -2719,6 +2719,10 @@
     "套餐名称": "Nom du plan",
     "应付金额": "Montant à payer",
     "支付": "Payer",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur.",
+    "缓存读": "Lecture cache",
+    "缓存写": "Écriture cache",
+    "写": "Écriture",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Selon la convention Anthropic, les tokens d'entrée de /v1/messages ne comptent que les entrées non mises en cache et excluent les tokens de lecture/écriture du cache."
   }
 }

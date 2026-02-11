@@ -3280,6 +3280,10 @@
     "套餐名称": "Tên gói",
     "应付金额": "Số tiền phải trả",
     "支付": "Thanh toán",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên.",
+    "缓存读": "Đọc bộ nhớ đệm",
+    "缓存写": "Ghi bộ nhớ đệm",
+    "写": "Ghi",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Theo quy ước của Anthropic, input tokens của /v1/messages chỉ tính phần đầu vào không dùng cache và không bao gồm tokens đọc/ghi cache."
   }
 }

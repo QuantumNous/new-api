@@ -7,26 +7,24 @@
 🍥 **Passerelle de modèles étendus de nouvelle génération et système de gestion d'actifs d'IA**
 
 <p align="center">
-  <a href="./README.zh.md">中文</a> | 
-  <a href="./README.md">English</a> | 
-  <strong>Français</strong> | 
+  <a href="./README.zh_CN.md">简体中文</a> |
+  <a href="./README.zh_TW.md">繁體中文</a> |
+  <a href="./README.md">English</a> |
+  <strong>Français</strong> |
   <a href="./README.ja.md">日本語</a>
 </p>
 
 <p align="center">
   <a href="https://raw.githubusercontent.com/Calcium-Ion/new-api/main/LICENSE">
     <img src="https://img.shields.io/github/license/Calcium-Ion/new-api?color=brightgreen" alt="licence">
-  </a>
-  <a href="https://github.com/Calcium-Ion/new-api/releases/latest">
+  </a><!--
+  --><a href="https://github.com/Calcium-Ion/new-api/releases/latest">
     <img src="https://img.shields.io/github/v/release/Calcium-Ion/new-api?color=brightgreen&include_prereleases" alt="version">
-  </a>
-  <a href="https://github.com/users/Calcium-Ion/packages/container/package/new-api">
-    <img src="https://img.shields.io/badge/docker-ghcr.io-blue" alt="docker">
-  </a>
-  <a href="https://hub.docker.com/r/CalciumIon/new-api">
+  </a><!--
+  --><a href="https://hub.docker.com/r/CalciumIon/new-api">
     <img src="https://img.shields.io/badge/docker-dockerHub-blue" alt="docker">
-  </a>
-  <a href="https://goreportcard.com/report/github.com/Calcium-Ion/new-api">
+  </a><!--
+  --><a href="https://goreportcard.com/report/github.com/Calcium-Ion/new-api">
     <img src="https://goreportcard.com/badge/github.com/Calcium-Ion/new-api" alt="GoReportCard">
   </a>
 </p>
@@ -38,8 +36,8 @@
   <br>
   <a href="https://hellogithub.com/repository/QuantumNous/new-api" target="_blank">
     <img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=539ac4217e69431684ad4a0bab768811&claim_uid=tbFPfKIDHpc4TzR" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" />
-  </a>
-  <a href="https://www.producthunt.com/products/new-api/launches/new-api?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-new-api" target="_blank" rel="noopener noreferrer">
+  </a><!--
+  --><a href="https://www.producthunt.com/products/new-api/launches/new-api?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-new-api" target="_blank" rel="noopener noreferrer">
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1047693&theme=light&t=1769577875005" alt="New API - All-in-one AI asset management gateway. | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" />
   </a>
 </p>
@@ -56,10 +54,7 @@
 
 ## 📝 Description du projet
 
-> [!NOTE]  
-> Il s'agit d'un projet open-source développé sur la base de [One API](https://github.com/songquanpeng/one-api)
-
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > - Ce projet est uniquement destiné à des fins d'apprentissage personnel, sans garantie de stabilité ni de support technique.
 > - Les utilisateurs doivent se conformer aux [Conditions d'utilisation](https://openai.com/policies/terms-of-use) d'OpenAI et aux **lois et réglementations applicables**, et ne doivent pas l'utiliser à des fins illégales.
 > - Conformément aux [《Mesures provisoires pour la gestion des services d'intelligence artificielle générative》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm), veuillez ne fournir aucun service d'IA générative non enregistré au public en Chine.
@@ -75,17 +70,20 @@
 <p align="center">
   <a href="https://www.cherry-ai.com/" target="_blank">
     <img src="./docs/images/cherry-studio.png" alt="Cherry Studio" height="80" />
-  </a>
-  <a href="https://bda.pku.edu.cn/" target="_blank">
+  </a><!--
+  --><a href="https://github.com/iOfficeAI/AionUi/" target="_blank">
+    <img src="./docs/images/aionui.png" alt="Aion UI" height="80" />
+  </a><!--
+  --><a href="https://bda.pku.edu.cn/" target="_blank">
     <img src="./docs/images/pku.png" alt="Université de Pékin" height="80" />
-  </a>
-  <a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
+  </a><!--
+  --><a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
     <img src="./docs/images/ucloud.png" alt="UCloud" height="80" />
-  </a>
-  <a href="https://www.aliyun.com/" target="_blank">
+  </a><!--
+  --><a href="https://www.aliyun.com/" target="_blank">
     <img src="./docs/images/aliyun.png" alt="Alibaba Cloud" height="80" />
-  </a>
-  <a href="https://io.net/" target="_blank">
+  </a><!--
+  --><a href="https://io.net/" target="_blank">
     <img src="./docs/images/io-net.png" alt="IO.NET" height="80" />
   </a>
 </p>
@@ -186,7 +184,7 @@ docker run --name new-api -d --restart always \
 | Fonctionnalité | Description |
 |------|------|
 | 🎨 Nouvelle interface utilisateur | Conception d'interface utilisateur moderne |
-| 🌍 Multilingue | Prend en charge le chinois, l'anglais, le français, le japonais |
+| 🌍 Multilingue | Prend en charge le chinois simplifié, le chinois traditionnel, l'anglais, le français et le japonais |
 | 🔄 Compatibilité des données | Complètement compatible avec la base de données originale de One API |
 | 📈 Tableau de bord des données | Console visuelle et analyse statistique |
 | 🔒 Gestion des permissions | Regroupement de jetons, restrictions de modèles, gestion des utilisateurs |
@@ -372,7 +370,7 @@ docker run --name new-api -d --restart always \
   calciumion/new-api:latest
 ```
 
-> **💡 Explication du chemin:** 
+> **💡 Explication du chemin:**
 > - `./data:/data` - Chemin relatif, données sauvegardées dans le dossier data du répertoire actuel
 > - Vous pouvez également utiliser un chemin absolu, par exemple : `/your/custom/path:/data`
 
@@ -448,6 +446,8 @@ Bienvenue à toutes les formes de contribution!
 ## 📜 Licence
 
 Ce projet est sous licence [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
+
+Il s'agit d'un projet open-source développé sur la base de [One API](https://github.com/songquanpeng/one-api) (licence MIT).
 
 Si les politiques de votre organisation ne permettent pas l'utilisation de logiciels sous licence AGPLv3, ou si vous souhaitez éviter les obligations open-source de l'AGPLv3, veuillez nous contacter à : [support@quantumnous.com](mailto:support@quantumnous.com)
 
