@@ -28,7 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, showError, getRelativeTime } from '../../helpers';
-import { marked } from 'marked';
+import MarkdownRenderer from '../common/markdown/MarkdownRenderer';
 import {
   IllustrationNoContent,
   IllustrationNoContentDark,
@@ -89,8 +89,7 @@ const NoticeModal = ({
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
-          const htmlNotice = marked.parse(data);
-          setNoticeContent(htmlNotice);
+          setNoticeContent(data);
         } else {
           setNoticeContent('');
         }
@@ -143,9 +142,10 @@ const NoticeModal = ({
 
     return (
       <div
-        dangerouslySetInnerHTML={{ __html: noticeContent }}
         className='notice-content-scroll max-h-[55vh] overflow-y-auto pr-2'
-      />
+      >
+        <MarkdownRenderer content={noticeContent} />
+      </div>
     );
   };
 
@@ -169,10 +169,7 @@ const NoticeModal = ({
     return (
       <div className='max-h-[55vh] overflow-y-auto pr-2 card-content-scroll'>
         <Timeline mode='left'>
-          {processedAnnouncements.map((item, idx) => {
-            const htmlContent = marked.parse(item.content || '');
-            const htmlExtra = item.extra ? marked.parse(item.extra) : '';
-            return (
+          {processedAnnouncements.map((item, idx) => (
               <Timeline.Item
                 key={idx}
                 type={item.type}
@@ -181,21 +178,21 @@ const NoticeModal = ({
                   item.extra ? (
                     <div
                       className='text-xs text-gray-500'
-                      dangerouslySetInnerHTML={{ __html: htmlExtra }}
-                    />
+                    >
+                      <MarkdownRenderer content={item.extra} fontSize={12} />
+                    </div>
                   ) : null
                 }
                 className={item.isUnread ? '' : ''}
               >
                 <div>
-                  <div
+                  <MarkdownRenderer
+                    content={item.content || ''}
                     className={item.isUnread ? 'shine-text' : ''}
-                    dangerouslySetInnerHTML={{ __html: htmlContent }}
                   />
                 </div>
               </Timeline.Item>
-            );
-          })}
+            ))}
         </Timeline>
       </div>
     );
