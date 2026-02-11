@@ -11,14 +11,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RetryParam contains parameters for channel retry logic.
+// It tracks retry attempts, used channels, and priority indices.
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	Retry        *int
-	resetNextTry bool
+	Ctx                  *gin.Context
+	TokenGroup           string
+	ModelName            string
+	Retry                *int
+	resetNextTry         bool
+	UsedChannelIds       map[int]struct{} // 已使用的渠道ID集合
+	CurrentPriorityIndex int              // 当前使用的优先级索引
 }
 
+// GetRetry returns the current retry count.
+// Returns 0 if retry counter is not initialized.
 func (p *RetryParam) GetRetry() int {
 	if p.Retry == nil {
 		return 0
@@ -26,10 +32,13 @@ func (p *RetryParam) GetRetry() int {
 	return *p.Retry
 }
 
+// SetRetry sets the retry count to the specified value.
 func (p *RetryParam) SetRetry(retry int) {
 	p.Retry = &retry
 }
 
+// IncreaseRetry increments the retry counter by 1.
+// If resetNextTry flag is set, it clears the flag instead of incrementing.
 func (p *RetryParam) IncreaseRetry() {
 	if p.resetNextTry {
 		p.resetNextTry = false
@@ -41,8 +50,44 @@ func (p *RetryParam) IncreaseRetry() {
 	*p.Retry++
 }
 
+// ResetRetryNextTry sets a flag to reset the retry counter on the next IncreaseRetry call.
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// AddUsedChannel adds a channel ID to the set of used channels.
+// This is used to avoid retrying the same channel when "avoid used channels" is enabled.
+// 添加已使用的渠道ID
+func (p *RetryParam) AddUsedChannel(channelId int) {
+	if p.UsedChannelIds == nil {
+		p.UsedChannelIds = make(map[int]struct{})
+	}
+	p.UsedChannelIds[channelId] = struct{}{}
+}
+
+// IsChannelUsed checks if a channel ID has been used before.
+// Returns true if the channel is in the used channels set.
+// 检查渠道是否已被使用
+func (p *RetryParam) IsChannelUsed(channelId int) bool {
+	if p.UsedChannelIds == nil {
+		return false
+	}
+	_, used := p.UsedChannelIds[channelId]
+	return used
+}
+
+// IncreasePriorityIndex increments the priority index to move to the next priority level.
+// This is used in sequential retry mode.
+// 增加优先级索引（切换到下一个优先级）
+func (p *RetryParam) IncreasePriorityIndex() {
+	p.CurrentPriorityIndex++
+}
+
+// GetPriorityIndex returns the current priority index.
+// This is used in sequential retry mode to track which priority level to use.
+// 获取当前优先级索引
+func (p *RetryParam) GetPriorityIndex() int {
+	return p.CurrentPriorityIndex
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -115,11 +160,29 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry)
+			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.UsedChannelIds)
 			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
+				// When channel is nil, it could mean:
+				// 1. Current group has no channels for this model at all
+				// 2. Current priority's channels are all excluded
+				// 当 channel 为 nil 时，可能意味着：
+				// 1. 当前分组完全没有该模型的渠道
+				// 2. 当前优先级的渠道都被排除了
+
+				// If we haven't exhausted all priorities in current group, return nil
+				// to let outer loop retry with next priority in the same group
+				// 如果当前分组的优先级还没用完，返回 nil 让外层循环在同一分组内尝试下一个优先级
+				if priorityRetry < common.RetryTimes {
+					logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, will retry with next priority", autoGroup, param.ModelName, priorityRetry)
+					// Stay in current group for next retry
+					// 保持在当前分组，等待下次重试
+					common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+					return nil, selectGroup, nil
+				}
+
+				// All priorities exhausted in current group, try next group
+				// 当前分组的所有优先级都用完了，尝试下一个分组
+				logger.LogDebug(param.Ctx, "All priorities exhausted in group %s for model %s, trying next group", autoGroup, param.ModelName)
 				// 重置状态以尝试下一个分组
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
@@ -153,10 +216,22 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry())
+		// 在 round-robin 模式下，使用 retry 参数（会在 GetRandomSatisfiedChannel 中进行模运算）
+		// 在 sequential 模式下，使用 priorityIndex（只有当前优先级用尽时才会增加）
+		// In round-robin mode, use retry parameter (modulo operation in GetRandomSatisfiedChannel)
+		// In sequential mode, use priorityIndex (only increases when current priority is exhausted)
+		retryOrPriority := param.GetPriorityIndex()
+		if common.RetryPriorityMode == "round-robin" {
+			retryOrPriority = param.GetRetry()
+		}
+		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, retryOrPriority, param.UsedChannelIds)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
+		// 如果 channel 为 nil 但没有错误，说明该优先级的所有渠道都被排除了
+		// 返回 nil 以便外层循环继续尝试下一个优先级
+		// If channel is nil but no error, it means all channels at this priority have been excluded
+		// Return nil to allow outer loop to try next priority
 	}
 	return channel, selectGroup, nil
 }

@@ -79,8 +79,13 @@ func getPriority(group string, model string, retry int) (int, error) {
 
 	// 确定要使用的优先级
 	var priorityToUse int
-	if retry >= len(priorities) {
-		// 如果重试次数大于优先级数，则使用最小的优先级
+	if common.RetryPriorityMode == "round-robin" && len(priorities) > 0 {
+		// 轮询模式：始终使用模运算循环
+		// Round-robin mode: always use modulo operation to cycle through priorities
+		priorityToUse = priorities[retry%len(priorities)]
+	} else if retry >= len(priorities) {
+		// 顺序模式：如果重试次数大于优先级数，则使用最小的优先级
+		// Sequential mode: if retry exceeds priority count, use lowest priority
 		priorityToUse = priorities[len(priorities)-1]
 	} else {
 		priorityToUse = priorities[retry]
@@ -103,7 +108,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, excludeIds map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -111,6 +116,16 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 如果有排除列表，添加 NOT IN 条件
+	if len(excludeIds) > 0 {
+		var excludeIdList []int
+		for id := range excludeIds {
+			excludeIdList = append(excludeIdList, id)
+		}
+		channelQuery = channelQuery.Where("channel_id NOT IN ?", excludeIdList)
+	}
+
 	if common.UsingSQLite || common.UsingPostgreSQL {
 		err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	} else {

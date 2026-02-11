@@ -108,6 +108,8 @@ var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
 var PreConsumedQuota = 500
+var RetryAvoidUsedChannelEnabled = false
+var RetryPriorityMode = "sequential" // "sequential" 或 "round-robin"
 
 var RetryTimes = 0
 

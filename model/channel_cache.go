@@ -93,10 +93,10 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+func GetRandomSatisfiedChannel(group string, model string, retry int, excludeIds map[int]struct{}) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return GetChannel(group, model, retry, excludeIds)
 	}
 
 	channelSyncLock.RLock()
@@ -117,6 +117,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
+			// 检查是否需要排除
+			if len(excludeIds) > 0 {
+				if _, excluded := excludeIds[channels[0]]; excluded {
+					return nil, nil // 唯一渠道已被排除
+				}
+			}
 			return channel, nil
 		}
 		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
@@ -136,7 +142,15 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
 
-	if retry >= len(uniquePriorities) {
+	// 轮询模式：始终使用模运算来循环优先级
+	// Round-robin mode: always use modulo operation to cycle through priorities
+	// 顺序模式：超出范围时使用最低优先级
+	// Sequential mode: use lowest priority when out of range
+	if common.RetryPriorityMode == "round-robin" && len(uniquePriorities) > 0 {
+		// 轮询模式：始终使用模运算循环
+		retry = retry % len(uniquePriorities)
+	} else if retry >= len(uniquePriorities) {
+		// 顺序模式：超出范围时使用最低优先级
 		retry = len(uniquePriorities) - 1
 	}
 	targetPriority := int64(sortedUniquePriorities[retry])
@@ -147,6 +161,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
+				// 如果需要排除且渠道在排除列表中，则跳过
+				if len(excludeIds) > 0 {
+					if _, excluded := excludeIds[channelId]; excluded {
+						continue
+					}
+				}
 				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
@@ -156,7 +176,9 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		// 该优先级的所有渠道都被排除，返回 nil 以便尝试下一个优先级
+		// All channels at this priority have been excluded, return nil to try next priority
+		return nil, nil
 	}
 
 	// smoothing factor and adjustment
