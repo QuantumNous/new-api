@@ -373,11 +373,11 @@ const EditUserModal = (props) => {
         onOk={() => {
           addLocalQuota();
           setIsModalOpen(false);
+          setAddQuotaLocal('');
           setAddAmountLocal('');
         }}
         onCancel={() => {
           setIsModalOpen(false);
-          setAddAmountLocal('');
         }}
         closable={null}
         title={
