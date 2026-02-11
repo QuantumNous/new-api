@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	LangZhCN      = "zh_CN"
-	LangZhTW      = "zh_TW"
+	LangZhCN      = "zh-CN"
+	LangZhTW      = "zh-TW"
 	LangEn      = "en"
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
@@ -203,9 +203,9 @@ func normalizeLang(lang string) string {
 
 	// Handle common variations
 	switch {
-	case strings.HasPrefix(lang, "zh_CN"):
+	case strings.HasPrefix(lang, "zh-CN"):
 		return LangZhCN
-	case strings.HasPrefix(lang, "zh_TW"):
+	case strings.HasPrefix(lang, "zh-TW"):
 		return LangZhTW
 	case strings.HasPrefix(lang, "en"):
 		return LangEn
