@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,18 +104,28 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
-	var abilities []Ability
-
-	var err error = nil
+func queryAbilities(group string, model string, retry int) ([]Ability, error) {
 	channelQuery, err := getChannelQuery(group, model, retry)
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+	var abilities []Ability
+	err = channelQuery.Order("weight DESC").Find(&abilities).Error
+	return abilities, err
+}
+
+func GetChannel(group string, model string, retry int) (*Channel, error) {
+	abilities, err := queryAbilities(group, model, retry)
+	if err != nil || len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		if normalizedModel != model {
+			abilities2, err2 := queryAbilities(group, normalizedModel, retry)
+			// Only overwrite when fallback query succeeds; if it fails, keep original error.
+			if err2 == nil {
+				abilities = abilities2
+				err = nil
+			}
+		}
 	}
 	if err != nil {
 		return nil, err
