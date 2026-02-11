@@ -24,15 +24,15 @@ import { useTranslation } from "react-i18next";
 import { API, showSuccess, showError } from "../../../../helpers";
 import { UserContext } from "../../../../context/User";
 
-// Language options with native names and flags
+// Language options with native names
 const languageOptions = [
-	{ value: "zh-CN", label: "简体中文", flag: "🇨🇳" },
-	{ value: "zh-TW", label: "繁體中文", flag: "🇹🇼" },
-	{ value: "en", label: "English", flag: "🇺🇸" },
-	// { value: 'fr', label: 'Français', flag: '🇫🇷' },
-	// { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-	// { value: 'ja', label: '日本語', flag: '🇯🇵' },
-	{ value: "vi", label: "Tiếng Việt", flag: "🇻🇳" },
+	{ value: "zh-CN", label: "简体中文" },
+	{ value: "zh-TW", label: "繁體中文" },
+	{ value: "en", label: "English" },
+	// { value: 'fr', label: 'Français'},
+	// { value: 'ru', label: 'Русский'},
+	// { value: 'ja', label: '日本語'},
+	{ value: "vi", label: "Tiếng Việt" },
 ];
 
 const PreferencesSettings = ({ t }) => {
@@ -129,7 +129,6 @@ const PreferencesSettings = ({ t }) => {
 					</div>
 				</div>
 			</div>
-
 			{/* Language Setting Card */}
 			<Card className="!rounded-xl border dark:border-gray-700">
 				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
@@ -156,24 +155,8 @@ const PreferencesSettings = ({ t }) => {
 						loading={loading}
 						optionList={languageOptions.map((opt) => ({
 							value: opt.value,
-							label: (
-								<div className="flex items-center gap-2">
-									<span>{opt.flag}</span>
-									<span>{opt.label}</span>
-								</div>
-							),
+							label: opt.label,
 						}))}
-						renderSelectedItem={(optionNode) => {
-							const selected = languageOptions.find(
-								(opt) => opt.value === optionNode.value,
-							);
-							return (
-								<div className="flex items-center gap-2">
-									<span>{selected?.flag}</span>
-									<span>{selected?.label}</span>
-								</div>
-							);
-						}}
 					/>
 				</div>
 			</Card>
