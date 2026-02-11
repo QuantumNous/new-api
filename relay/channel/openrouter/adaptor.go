@@ -260,10 +260,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if info.IsStream {
-			return claude.ClaudeStreamHandler(c, resp, info)
-		}
-		return claude.ClaudeHandler(c, resp, info)
+		adapter := claude.Adaptor{}
+		return adapter.DoResponse(c, resp, info)
 	}
 
 	adaptor := openai.Adaptor{ResponseFormat: a.ResponseFormat}
