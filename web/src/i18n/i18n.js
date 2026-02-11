@@ -33,11 +33,11 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    load: 'languageOnly',
+    load: 'currentOnly',
     resources: {
       en: enTranslation,
-      zhCN: zhCNTranslation,
-      zhTW: zhTWTranslation,
+      zh-CN: zhCNTranslation,
+      zh-TW: zhTWTranslation,
       fr: frTranslation,
       ru: ruTranslation,
       ja: jaTranslation,
