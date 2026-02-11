@@ -578,17 +578,15 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
-
-        const cacheSegments = [];
-        if (cacheSummary?.cacheReadTokens > 0) {
-          cacheSegments.push(
-            `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)}`,
-          );
-        }
-        if (cacheSummary?.cacheWriteTokens > 0) {
-          cacheSegments.push(
-            `${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`,
-          );
+        const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
+        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
+        let cacheText = '';
+        if (hasCacheRead && hasCacheWrite) {
+          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
+        } else if (hasCacheRead) {
+          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)}`;
+        } else if (hasCacheWrite) {
+          cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
         return record.type === 0 || record.type === 2 || record.type === 5 ? (
@@ -601,7 +599,7 @@ export const getLogsColumns = ({
             }}
           >
             <span>{text}</span>
-            {cacheSegments.length > 0 ? (
+            {cacheText ? (
               <span
                 style={{
                   marginTop: 2,
@@ -610,7 +608,7 @@ export const getLogsColumns = ({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {cacheSegments.join(' · ')}
+                {cacheText}
               </span>
             ) : null}
           </div>
