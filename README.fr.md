@@ -17,17 +17,17 @@
 <p align="center">
   <a href="https://raw.githubusercontent.com/Calcium-Ion/new-api/main/LICENSE">
     <img src="https://img.shields.io/github/license/Calcium-Ion/new-api?color=brightgreen" alt="licence">
-  </a>
-  <a href="https://github.com/Calcium-Ion/new-api/releases/latest">
+  </a><!--
+  --><a href="https://github.com/Calcium-Ion/new-api/releases/latest">
     <img src="https://img.shields.io/github/v/release/Calcium-Ion/new-api?color=brightgreen&include_prereleases" alt="version">
-  </a>
-  <a href="https://github.com/users/Calcium-Ion/packages/container/package/new-api">
+  </a><!--
+  --><a href="https://github.com/users/Calcium-Ion/packages/container/package/new-api">
     <img src="https://img.shields.io/badge/docker-ghcr.io-blue" alt="docker">
-  </a>
-  <a href="https://hub.docker.com/r/CalciumIon/new-api">
+  </a><!--
+  --><a href="https://hub.docker.com/r/CalciumIon/new-api">
     <img src="https://img.shields.io/badge/docker-dockerHub-blue" alt="docker">
-  </a>
-  <a href="https://goreportcard.com/report/github.com/Calcium-Ion/new-api">
+  </a><!--
+  --><a href="https://goreportcard.com/report/github.com/Calcium-Ion/new-api">
     <img src="https://goreportcard.com/badge/github.com/Calcium-Ion/new-api" alt="GoReportCard">
   </a>
 </p>
@@ -39,8 +39,8 @@
   <br>
   <a href="https://hellogithub.com/repository/QuantumNous/new-api" target="_blank">
     <img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=539ac4217e69431684ad4a0bab768811&claim_uid=tbFPfKIDHpc4TzR" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" />
-  </a>
-  <a href="https://www.producthunt.com/products/new-api/launches/new-api?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-new-api" target="_blank" rel="noopener noreferrer">
+  </a><!--
+  --><a href="https://www.producthunt.com/products/new-api/launches/new-api?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-new-api" target="_blank" rel="noopener noreferrer">
     <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1047693&theme=light&t=1769577875005" alt="New API - All-in-one AI asset management gateway. | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" />
   </a>
 </p>
@@ -76,20 +76,20 @@
 <p align="center">
   <a href="https://www.cherry-ai.com/" target="_blank">
     <img src="./docs/images/cherry-studio.png" alt="Cherry Studio" height="80" />
-  </a>
-  <a href="https://github.com/iOfficeAI/AionUi/" target="_blank">
+  </a><!--
+  --><a href="https://github.com/iOfficeAI/AionUi/" target="_blank">
     <img src="./docs/images/aionui.png" alt="Aion UI" height="80" />
-  </a>
-  <a href="https://bda.pku.edu.cn/" target="_blank">
+  </a><!--
+  --><a href="https://bda.pku.edu.cn/" target="_blank">
     <img src="./docs/images/pku.png" alt="Université de Pékin" height="80" />
-  </a>
-  <a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
+  </a><!--
+  --><a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
     <img src="./docs/images/ucloud.png" alt="UCloud" height="80" />
-  </a>
-  <a href="https://www.aliyun.com/" target="_blank">
+  </a><!--
+  --><a href="https://www.aliyun.com/" target="_blank">
     <img src="./docs/images/aliyun.png" alt="Alibaba Cloud" height="80" />
-  </a>
-  <a href="https://io.net/" target="_blank">
+  </a><!--
+  --><a href="https://io.net/" target="_blank">
     <img src="./docs/images/io-net.png" alt="IO.NET" height="80" />
   </a>
 </p>
