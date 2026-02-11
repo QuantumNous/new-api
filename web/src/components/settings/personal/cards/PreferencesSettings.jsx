@@ -26,8 +26,8 @@ import { UserContext } from '../../../../context/User';
 
 // Language options with native names and flags
 const languageOptions = [
-  { value: 'zh_CN', label: '简体中文', flag: '🇨🇳' },
-  { value: 'zh_TW', label: '繁體中文', flag: '🇹🇼' },
+  { value: 'zh-CN', label: '简体中文', flag: '🇨🇳' },
+  { value: 'zh-TW', label: '繁體中文', flag: '🇹🇼' },
   { value: 'en', label: 'English', flag: '🇺🇸' },
   { value: 'fr', label: 'Français', flag: '🇫🇷' },
   { value: 'ru', label: 'Русский', flag: '🇷🇺' },
@@ -38,7 +38,7 @@ const languageOptions = [
 const PreferencesSettings = ({ t }) => {
   const { i18n } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
-  const [currentLanguage, setCurrentLanguage] = useState(i18n.language || 'zh');
+  const [currentLanguage, setCurrentLanguage] = useState(i18n.language || 'zh-CN');
   const [loading, setLoading] = useState(false);
 
   // Load saved language preference from user settings
