@@ -587,7 +587,7 @@ export const getLogsColumns = ({
         }
         if (cacheSummary?.cacheWriteTokens > 0) {
           cacheSegments.push(
-            `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`,
+            `${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`,
           );
         }
 
