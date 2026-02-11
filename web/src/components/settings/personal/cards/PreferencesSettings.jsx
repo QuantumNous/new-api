@@ -29,9 +29,9 @@ const languageOptions = [
   { value: 'zh-CN', label: '简体中文', flag: '🇨🇳' },
   { value: 'zh-TW', label: '繁體中文', flag: '🇹🇼' },
   { value: 'en', label: 'English', flag: '🇺🇸' },
-  { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { value: 'ja', label: '日本語', flag: '🇯🇵' },
+  // { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  // { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  // { value: 'ja', label: '日本語', flag: '🇯🇵' },
   { value: 'vi', label: 'Tiếng Việt', flag: '🇻🇳' },
 ];
 
