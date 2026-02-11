@@ -26,7 +26,8 @@ import { UserContext } from '../../../../context/User';
 
 // Language options with native names and flags
 const languageOptions = [
-  { value: 'zh', label: '中文', flag: '🇨🇳' },
+  { value: 'zh_CN', label: '简体中文', flag: '🇨🇳' },
+  { value: 'zh_TW', label: '繁體中文', flag: '🇹🇼' },
   { value: 'en', label: 'English', flag: '🇺🇸' },
   { value: 'fr', label: 'Français', flag: '🇫🇷' },
   { value: 'ru', label: 'Русский', flag: '🇷🇺' },

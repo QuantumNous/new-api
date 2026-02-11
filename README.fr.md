@@ -7,9 +7,10 @@
 🍥 **Passerelle de modèles étendus de nouvelle génération et système de gestion d'actifs d'IA**
 
 <p align="center">
-  <a href="./README.zh.md">中文</a> | 
-  <a href="./README.md">English</a> | 
-  <strong>Français</strong> | 
+  <a href="./README.zh_CN.md">简体中文</a> |
+  <a href="./README.zh_TW.md">繁體中文</a> |
+  <a href="./README.md">English</a> |
+  <strong>Français</strong> |
   <a href="./README.ja.md">日本語</a>
 </p>
 
@@ -56,10 +57,10 @@
 
 ## 📝 Description du projet
 
-> [!NOTE]  
+> [!NOTE]
 > Il s'agit d'un projet open-source développé sur la base de [One API](https://github.com/songquanpeng/one-api)
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > - Ce projet est uniquement destiné à des fins d'apprentissage personnel, sans garantie de stabilité ni de support technique.
 > - Les utilisateurs doivent se conformer aux [Conditions d'utilisation](https://openai.com/policies/terms-of-use) d'OpenAI et aux **lois et réglementations applicables**, et ne doivent pas l'utiliser à des fins illégales.
 > - Conformément aux [《Mesures provisoires pour la gestion des services d'intelligence artificielle générative》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm), veuillez ne fournir aucun service d'IA générative non enregistré au public en Chine.
@@ -372,7 +373,7 @@ docker run --name new-api -d --restart always \
   calciumion/new-api:latest
 ```
 
-> **💡 Explication du chemin:** 
+> **💡 Explication du chemin:**
 > - `./data:/data` - Chemin relatif, données sauvegardées dans le dossier data du répertoire actuel
 > - Vous pouvez également utiliser un chemin absolu, par exemple : `/your/custom/path:/data`
 

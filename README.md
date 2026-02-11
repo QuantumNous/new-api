@@ -7,9 +7,10 @@
 🍥 **Next-Generation LLM Gateway and AI Asset Management System**
 
 <p align="center">
-  <a href="./README.zh.md">中文</a> | 
-  <strong>English</strong> | 
-  <a href="./README.fr.md">Français</a> | 
+  <a href="./README.zh_CN.md">简体中文</a> |
+  <a href="./README.zh_TW.md">繁體中文</a> |
+  <strong>English</strong> |
+  <a href="./README.fr.md">Français</a> |
   <a href="./README.ja.md">日本語</a>
 </p>
 
@@ -56,10 +57,10 @@
 
 ## 📝 Project Description
 
-> [!NOTE]  
+> [!NOTE]
 > This is an open-source project developed based on [One API](https://github.com/songquanpeng/one-api)
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > - This project is for personal learning purposes only, with no guarantee of stability or technical support
 > - Users must comply with OpenAI's [Terms of Use](https://openai.com/policies/terms-of-use) and **applicable laws and regulations**, and must not use it for illegal purposes
 > - According to the [《Interim Measures for the Management of Generative Artificial Intelligence Services》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm), please do not provide any unregistered generative AI services to the public in China.
@@ -372,7 +373,7 @@ docker run --name new-api -d --restart always \
   calciumion/new-api:latest
 ```
 
-> **💡 Path explanation:** 
+> **💡 Path explanation:**
 > - `./data:/data` - Relative path, data saved in the data folder of the current directory
 > - You can also use absolute path, e.g.: `/your/custom/path:/data`
 

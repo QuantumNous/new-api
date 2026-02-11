@@ -23,7 +23,8 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
-import zhTranslation from './locales/zh.json';
+import zhCNTranslation from './locales/zh_CN.json';
+import zhTWTranslation from './locales/zh_TW.json';
 import ruTranslation from './locales/ru.json';
 import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
@@ -35,13 +36,14 @@ i18n
     load: 'languageOnly',
     resources: {
       en: enTranslation,
-      zh: zhTranslation,
+      zhCN: zhCNTranslation,
+      zhTW: zhTWTranslation,
       fr: frTranslation,
       ru: ruTranslation,
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh',
+    fallbackLng: 'zhCN',
     nsSeparator: false,
     interpolation: {
       escapeValue: false,

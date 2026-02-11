@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	LangZh      = "zh"
+	LangZhCN      = "zh_CN"
+	LangZhTW      = "zh_TW"
 	LangEn      = "en"
 	DefaultLang = LangEn // Fallback to English if language not supported
 )
@@ -49,7 +50,8 @@ func Init() error {
 		}
 
 		// Pre-create localizers for supported languages
-		localizers[LangZh] = i18n.NewLocalizer(bundle, LangZh)
+		localizers[LangZhCN] = i18n.NewLocalizer(bundle, LangZhCN)
+		localizers[LangZhTW] = i18n.NewLocalizer(bundle, LangZhTW)
 		localizers[LangEn] = i18n.NewLocalizer(bundle, LangEn)
 
 		// Set the TranslateMessage function in common package
@@ -201,8 +203,10 @@ func normalizeLang(lang string) string {
 
 	// Handle common variations
 	switch {
-	case strings.HasPrefix(lang, "zh"):
-		return LangZh
+	case strings.HasPrefix(lang, "zh_CN"):
+		return LangZhCN
+	case strings.HasPrefix(lang, "zh_TW"):
+		return LangZhTW
 	case strings.HasPrefix(lang, "en"):
 		return LangEn
 	default:
@@ -212,7 +216,7 @@ func normalizeLang(lang string) string {
 
 // SupportedLanguages returns a list of supported language codes
 func SupportedLanguages() []string {
-	return []string{LangZh, LangEn}
+	return []string{LangZhCN, LangZhTW, LangEn}
 }
 
 // IsSupported checks if a language code is supported
