@@ -36,8 +36,8 @@ i18n
     load: 'currentOnly',
     resources: {
       en: enTranslation,
-      zh-CN: zhCNTranslation,
-      zh-TW: zhTWTranslation,
+      'zh-CN': zhCNTranslation,
+      'zh-TW': zhTWTranslation,
       fr: frTranslation,
       ru: ruTranslation,
       ja: jaTranslation,

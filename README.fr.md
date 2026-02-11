@@ -187,7 +187,7 @@ docker run --name new-api -d --restart always \
 | Fonctionnalité | Description |
 |------|------|
 | 🎨 Nouvelle interface utilisateur | Conception d'interface utilisateur moderne |
-| 🌍 Multilingue | Prend en charge le chinois, l'anglais, le français, le japonais |
+| 🌍 Multilingue | Prend en charge le chinois simplifié, le chinois traditionnel, l'anglais, le français et le japonais |
 | 🔄 Compatibilité des données | Complètement compatible avec la base de données originale de One API |
 | 📈 Tableau de bord des données | Console visuelle et analyse statistique |
 | 🔒 Gestion des permissions | Regroupement de jetons, restrictions de modèles, gestion des utilisateurs |
