@@ -113,16 +113,16 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
               name='sync-locale-selection'
             >
               <Radio value='en' extra='English'>
-                EN
+                en
               </Radio>
               <Radio value='zh-CN' extra='简体中文'>
-                ZH
+                zh-CN
               </Radio>
               <Radio value='zh-TW' extra='繁體中文'>
-                ZH
+                zh-TW
               </Radio>
               <Radio value='ja' extra='日本語'>
-                JA
+                ja
               </Radio>
             </RadioGroup>
           </div>
