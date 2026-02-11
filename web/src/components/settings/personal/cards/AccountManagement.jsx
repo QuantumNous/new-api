@@ -107,9 +107,11 @@ const AccountManagement = ({
       const res = await API.get('/api/user/oauth/bindings');
       if (res.data.success) {
         setCustomOAuthBindings(res.data.data || []);
+      } else {
+        showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      // ignore
+      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
     }
   };
 
@@ -131,7 +133,7 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(t('操作失败'));
+          showError(error.response?.data?.message || error.message || t('操作失败'));
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }

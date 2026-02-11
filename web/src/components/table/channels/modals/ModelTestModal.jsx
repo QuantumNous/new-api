@@ -26,8 +26,10 @@ import {
   Tag,
   Typography,
   Select,
+  Switch,
+  Banner,
 } from '@douyinfe/semi-ui';
-import { IconSearch } from '@douyinfe/semi-icons';
+import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
 
@@ -48,11 +50,25 @@ const ModelTestModal = ({
   setModelTablePage,
   selectedEndpointType,
   setSelectedEndpointType,
+  isStreamTest,
+  setIsStreamTest,
   allSelectingRef,
   isMobile,
   t,
 }) => {
   const hasChannel = Boolean(currentTestChannel);
+  const streamToggleDisabled = [
+    'embeddings',
+    'image-generation',
+    'jina-rerank',
+    'openai-response-compact',
+  ].includes(selectedEndpointType);
+
+  React.useEffect(() => {
+    if (streamToggleDisabled && isStreamTest) {
+      setIsStreamTest(false);
+    }
+  }, [streamToggleDisabled, isStreamTest, setIsStreamTest]);
 
   const filteredModels = hasChannel
     ? currentTestChannel.models
@@ -181,6 +197,7 @@ const ModelTestModal = ({
                 currentTestChannel,
                 record.model,
                 selectedEndpointType,
+                isStreamTest,
               )
             }
             loading={isTesting}
@@ -258,25 +275,46 @@ const ModelTestModal = ({
     >
       {hasChannel && (
         <div className='model-test-scroll'>
-          {/* 端点类型选择器 */}
-          <div className='flex items-center gap-2 w-full mb-2'>
-            <Typography.Text strong>{t('端点类型')}:</Typography.Text>
-            <Select
-              value={selectedEndpointType}
-              onChange={setSelectedEndpointType}
-              optionList={endpointTypeOptions}
-              className='!w-full'
-              placeholder={t('选择端点类型')}
-            />
+          {/* Endpoint toolbar */}
+          <div className='flex flex-col sm:flex-row sm:items-center gap-2 w-full mb-2'>
+            <div className='flex items-center gap-2 flex-1 min-w-0'>
+              <Typography.Text strong className='shrink-0'>
+                {t('端点类型')}:
+              </Typography.Text>
+              <Select
+                value={selectedEndpointType}
+                onChange={setSelectedEndpointType}
+                optionList={endpointTypeOptions}
+                className='!w-full min-w-0'
+                placeholder={t('选择端点类型')}
+              />
+            </div>
+            <div className='flex items-center justify-between sm:justify-end gap-2 shrink-0'>
+              <Typography.Text strong className='shrink-0'>
+                {t('流式')}:
+              </Typography.Text>
+              <Switch
+                checked={isStreamTest}
+                onChange={setIsStreamTest}
+                size='small'
+                disabled={streamToggleDisabled}
+                aria-label={t('流式')}
+              />
+            </div>
           </div>
-          <Typography.Text type='tertiary' size='small' className='block mb-2'>
-            {t(
+
+          <Banner
+            type='info'
+            closeIcon={null}
+            icon={<IconInfoCircle />}
+            className='!rounded-lg mb-2'
+            description={t(
               '说明：本页测试为非流式请求；若渠道仅支持流式返回，可能出现测试失败，请以实际使用为准。',
             )}
-          </Typography.Text>
+          />
 
           {/* 搜索与操作按钮 */}
-          <div className='flex items-center justify-end gap-2 w-full mb-2'>
+          <div className='flex flex-col sm:flex-row sm:items-center gap-2 w-full mb-2'>
             <Input
               placeholder={t('搜索模型...')}
               value={modelSearchKeyword}
@@ -284,16 +322,17 @@ const ModelTestModal = ({
                 setModelSearchKeyword(v);
                 setModelTablePage(1);
               }}
-              className='!w-full'
+              className='!w-full sm:!flex-1'
               prefix={<IconSearch />}
               showClear
             />
 
-            <Button onClick={handleCopySelected}>{t('复制已选')}</Button>
-
-            <Button type='tertiary' onClick={handleSelectSuccess}>
-              {t('选择成功')}
-            </Button>
+            <div className='flex items-center justify-end gap-2'>
+              <Button onClick={handleCopySelected}>{t('复制已选')}</Button>
+              <Button type='tertiary' onClick={handleSelectSuccess}>
+                {t('选择成功')}
+              </Button>
+            </div>
           </div>
 
           <Table

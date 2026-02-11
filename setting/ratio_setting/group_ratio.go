@@ -3,29 +3,27 @@ package ratio_setting
 import (
 	"encoding/json"
 	"errors"
-	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 )
 
-var groupRatio = map[string]float64{
+var defaultGroupRatio = map[string]float64{
 	"default": 1,
 	"vip":     1,
 	"svip":    1,
 }
 
-var groupRatioMutex sync.RWMutex
+var groupRatioMap = types.NewRWMap[string, float64]()
 
-var (
-	GroupGroupRatio = map[string]map[string]float64{
-		"vip": {
-			"edit_this": 0.9,
-		},
-	}
-	groupGroupRatioMutex sync.RWMutex
-)
+var defaultGroupGroupRatio = map[string]map[string]float64{
+	"vip": {
+		"edit_this": 0.9,
+	},
+}
+
+var groupGroupRatioMap = types.NewRWMap[string, map[string]float64]()
 
 var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 	"vip": {
@@ -35,9 +33,9 @@ var defaultGroupSpecialUsableGroup = map[string]map[string]string{
 }
 
 type GroupRatioSetting struct {
-	GroupRatio              map[string]float64                      `json:"group_ratio"`
-	GroupGroupRatio         map[string]map[string]float64           `json:"group_group_ratio"`
-	GroupSpecialUsableGroup *types.RWMap[string, map[string]string] `json:"group_special_usable_group"`
+	GroupRatio              *types.RWMap[string, float64]            `json:"group_ratio"`
+	GroupGroupRatio         *types.RWMap[string, map[string]float64] `json:"group_group_ratio"`
+	GroupSpecialUsableGroup *types.RWMap[string, map[string]string]  `json:"group_special_usable_group"`
 }
 
 var groupRatioSetting GroupRatioSetting
@@ -46,10 +44,13 @@ func init() {
 	groupSpecialUsableGroup := types.NewRWMap[string, map[string]string]()
 	groupSpecialUsableGroup.AddAll(defaultGroupSpecialUsableGroup)
 
+	groupRatioMap.AddAll(defaultGroupRatio)
+	groupGroupRatioMap.AddAll(defaultGroupGroupRatio)
+
 	groupRatioSetting = GroupRatioSetting{
 		GroupSpecialUsableGroup: groupSpecialUsableGroup,
-		GroupRatio:              groupRatio,
-		GroupGroupRatio:         GroupGroupRatio,
+		GroupRatio:              groupRatioMap,
+		GroupGroupRatio:         groupGroupRatioMap,
 	}
 
 	config.GlobalConfig.Register("group_ratio_setting", &groupRatioSetting)
@@ -64,48 +65,24 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 }
 
 func GetGroupRatioCopy() map[string]float64 {
-	groupRatioMutex.RLock()
-	defer groupRatioMutex.RUnlock()
-
-	groupRatioCopy := make(map[string]float64)
-	for k, v := range groupRatio {
-		groupRatioCopy[k] = v
-	}
-	return groupRatioCopy
+	return groupRatioMap.ReadAll()
 }
 
 func ContainsGroupRatio(name string) bool {
-	groupRatioMutex.RLock()
-	defer groupRatioMutex.RUnlock()
-
-	_, ok := groupRatio[name]
+	_, ok := groupRatioMap.Get(name)
 	return ok
 }
 
 func GroupRatio2JSONString() string {
-	groupRatioMutex.RLock()
-	defer groupRatioMutex.RUnlock()
-
-	jsonBytes, err := json.Marshal(groupRatio)
-	if err != nil {
-		common.SysLog("error marshalling model ratio: " + err.Error())
-	}
-	return string(jsonBytes)
+	return groupRatioMap.MarshalJSONString()
 }
 
 func UpdateGroupRatioByJSONString(jsonStr string) error {
-	groupRatioMutex.Lock()
-	defer groupRatioMutex.Unlock()
-
-	groupRatio = make(map[string]float64)
-	return json.Unmarshal([]byte(jsonStr), &groupRatio)
+	return types.LoadFromJsonString(groupRatioMap, jsonStr)
 }
 
 func GetGroupRatio(name string) float64 {
-	groupRatioMutex.RLock()
-	defer groupRatioMutex.RUnlock()
-
-	ratio, ok := groupRatio[name]
+	ratio, ok := groupRatioMap.Get(name)
 	if !ok {
 		common.SysLog("group ratio not found: " + name)
 		return 1
@@ -114,10 +91,7 @@ func GetGroupRatio(name string) float64 {
 }
 
 func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
-	groupGroupRatioMutex.RLock()
-	defer groupGroupRatioMutex.RUnlock()
-
-	gp, ok := GroupGroupRatio[userGroup]
+	gp, ok := groupGroupRatioMap.Get(userGroup)
 	if !ok {
 		return -1, false
 	}
@@ -129,22 +103,11 @@ func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {
 }
 
 func GroupGroupRatio2JSONString() string {
-	groupGroupRatioMutex.RLock()
-	defer groupGroupRatioMutex.RUnlock()
-
-	jsonBytes, err := json.Marshal(GroupGroupRatio)
-	if err != nil {
-		common.SysLog("error marshalling group-group ratio: " + err.Error())
-	}
-	return string(jsonBytes)
+	return groupGroupRatioMap.MarshalJSONString()
 }
 
 func UpdateGroupGroupRatioByJSONString(jsonStr string) error {
-	groupGroupRatioMutex.Lock()
-	defer groupGroupRatioMutex.Unlock()
-
-	GroupGroupRatio = make(map[string]map[string]float64)
-	return json.Unmarshal([]byte(jsonStr), &GroupGroupRatio)
+	return types.LoadFromJsonString(groupGroupRatioMap, jsonStr)
 }
 
 func CheckGroupRatio(jsonStr string) error {

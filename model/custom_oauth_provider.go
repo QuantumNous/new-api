@@ -97,13 +97,18 @@ func DeleteCustomOAuthProvider(id int) error {
 }
 
 // IsSlugTaken checks if a slug is already taken by another provider
+// Returns true on DB errors (fail-closed) to prevent slug conflicts
 func IsSlugTaken(slug string, excludeId int) bool {
 	var count int64
 	query := DB.Model(&CustomOAuthProvider{}).Where("slug = ?", slug)
 	if excludeId > 0 {
 		query = query.Where("id != ?", excludeId)
 	}
-	query.Count(&count)
+	res := query.Count(&count)
+	if res.Error != nil {
+		// Fail-closed: treat DB errors as slug being taken to prevent conflicts
+		return true
+	}
 	return count > 0
 }
 

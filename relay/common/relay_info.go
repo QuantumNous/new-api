@@ -37,6 +37,9 @@ type ClaudeConvertInfo struct {
 	Usage            *dto.Usage
 	FinishReason     string
 	Done             bool
+
+	ToolCallBaseIndex      int
+	ToolCallMaxIndexOffset int
 }
 
 type RerankerInfo struct {
@@ -145,6 +148,8 @@ type RelayInfo struct {
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
+	// 最终请求到上游的格式 TODO: 当前仅设置了Claude
+	FinalRequestRelayFormat types.RelayFormat
 
 	ThinkingContentInfo
 	TokenCountMeta
@@ -285,21 +290,24 @@ func (info *RelayInfo) ToString() string {
 
 // 定义支持流式选项的通道类型
 var streamSupportedChannels = map[int]bool{
-	constant.ChannelTypeOpenAI:     true,
-	constant.ChannelTypeAnthropic:  true,
-	constant.ChannelTypeAws:        true,
-	constant.ChannelTypeGemini:     true,
-	constant.ChannelCloudflare:     true,
-	constant.ChannelTypeAzure:      true,
-	constant.ChannelTypeVolcEngine: true,
-	constant.ChannelTypeOllama:     true,
-	constant.ChannelTypeXai:        true,
-	constant.ChannelTypeDeepSeek:   true,
-	constant.ChannelTypeBaiduV2:    true,
-	constant.ChannelTypeZhipu_v4:   true,
-	constant.ChannelTypeAli:        true,
-	constant.ChannelTypeSubmodel:   true,
-	constant.ChannelTypeCodex:      true,
+	constant.ChannelTypeOpenAI:      true,
+	constant.ChannelTypeAnthropic:   true,
+	constant.ChannelTypeAws:         true,
+	constant.ChannelTypeGemini:      true,
+	constant.ChannelCloudflare:      true,
+	constant.ChannelTypeAzure:       true,
+	constant.ChannelTypeVolcEngine:  true,
+	constant.ChannelTypeOllama:      true,
+	constant.ChannelTypeXai:         true,
+	constant.ChannelTypeDeepSeek:    true,
+	constant.ChannelTypeBaiduV2:     true,
+	constant.ChannelTypeZhipu_v4:    true,
+	constant.ChannelTypeAli:         true,
+	constant.ChannelTypeSubmodel:    true,
+	constant.ChannelTypeCodex:       true,
+	constant.ChannelTypeMoonshot:    true,
+	constant.ChannelTypeMiniMax:     true,
+	constant.ChannelTypeSiliconFlow: true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -319,10 +327,13 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
 	}
-	if c.Query("beta") == "true" {
-		info.IsClaudeBetaQuery = true
-	}
+	info.IsClaudeBetaQuery = c.Query("beta") == "true" || isClaudeBetaForced(c)
 	return info
+}
+
+func isClaudeBetaForced(c *gin.Context) bool {
+	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)
+	return ok && channelOtherSettings.ClaudeBetaQuery
 }
 
 func GenRelayInfoRerank(c *gin.Context, request *dto.RerankRequest) *RelayInfo {

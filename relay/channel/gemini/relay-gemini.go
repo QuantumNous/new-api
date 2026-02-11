@@ -229,13 +229,14 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 
 	// patch extra_body
 	if len(textRequest.ExtraBody) > 0 {
-		if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
-			var extraBody map[string]interface{}
-			if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
-				return nil, fmt.Errorf("invalid extra body: %w", err)
-			}
-			// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
-			if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
+		var extraBody map[string]interface{}
+		if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
+			return nil, fmt.Errorf("invalid extra body: %w", err)
+		}
+
+		// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
+		if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
+			if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
 				adaptorWithExtraBody = true
 				// check error param name like thinkingConfig, should be thinking_config
 				if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
@@ -247,50 +248,92 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					if _, hasErrorParam := thinkingConfig["thinkingBudget"]; hasErrorParam {
 						return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
 					}
-					if budget, ok := thinkingConfig["thinking_budget"].(float64); ok {
-						budgetInt := int(budget)
-						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-							ThinkingBudget:  common.GetPointer(budgetInt),
-							IncludeThoughts: true,
+					var hasThinkingConfig bool
+					var tempThinkingConfig dto.GeminiThinkingConfig
+
+					if thinkingBudget, exists := thinkingConfig["thinking_budget"]; exists {
+						switch v := thinkingBudget.(type) {
+						case float64:
+							budgetInt := int(v)
+							tempThinkingConfig.ThinkingBudget = common.GetPointer(budgetInt)
+							if budgetInt > 0 {
+								// 有正数预算
+								tempThinkingConfig.IncludeThoughts = true
+							} else {
+								// 存在但为0或负数，禁用思考
+								tempThinkingConfig.IncludeThoughts = false
+							}
+							hasThinkingConfig = true
+						default:
+							return nil, errors.New("extra_body.google.thinking_config.thinking_budget must be an integer")
 						}
-					} else {
-						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-							IncludeThoughts: true,
+					}
+
+					if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
+						if v, ok := includeThoughts.(bool); ok {
+							tempThinkingConfig.IncludeThoughts = v
+							hasThinkingConfig = true
+						} else {
+							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
+						}
+					}
+					if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
+						if v, ok := thinkingLevel.(string); ok {
+							tempThinkingConfig.ThinkingLevel = v
+							hasThinkingConfig = true
+						} else {
+							return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
+						}
+					}
+
+					if hasThinkingConfig {
+						// 避免 panic: 仅在获得配置时分配，防止后续赋值时空指针
+						if geminiRequest.GenerationConfig.ThinkingConfig == nil {
+							geminiRequest.GenerationConfig.ThinkingConfig = &tempThinkingConfig
+						} else {
+							// 如果已分配，则合并内容
+							if tempThinkingConfig.ThinkingBudget != nil {
+								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = tempThinkingConfig.ThinkingBudget
+							}
+							geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = tempThinkingConfig.IncludeThoughts
+							if tempThinkingConfig.ThinkingLevel != "" {
+								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = tempThinkingConfig.ThinkingLevel
+							}
 						}
 					}
 				}
+			}
 
-				// check error param name like imageConfig, should be image_config
-				if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+			// check error param name like imageConfig, should be image_config
+			if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
+				return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+			}
+
+			if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
+				// check error param name like aspectRatio, should be aspect_ratio
+				if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
+				}
+				// check error param name like imageSize, should be image_size
+				if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
 				}
 
-				if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
-					// check error param name like aspectRatio, should be aspect_ratio
-					if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
-					}
-					// check error param name like imageSize, should be image_size
-					if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
-					}
+				// convert snake_case to camelCase for Gemini API
+				geminiImageConfig := make(map[string]interface{})
+				if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
+					geminiImageConfig["aspectRatio"] = aspectRatio
+				}
+				if imageSize, ok := imageConfig["image_size"]; ok {
+					geminiImageConfig["imageSize"] = imageSize
+				}
 
-					// convert snake_case to camelCase for Gemini API
-					geminiImageConfig := make(map[string]interface{})
-					if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
-						geminiImageConfig["aspectRatio"] = aspectRatio
+				if len(geminiImageConfig) > 0 {
+					imageConfigBytes, err := common.Marshal(geminiImageConfig)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal image_config: %w", err)
 					}
-					if imageSize, ok := imageConfig["image_size"]; ok {
-						geminiImageConfig["imageSize"] = imageSize
-					}
-
-					if len(geminiImageConfig) > 0 {
-						imageConfigBytes, err := common.Marshal(geminiImageConfig)
-						if err != nil {
-							return nil, fmt.Errorf("failed to marshal image_config: %w", err)
-						}
-						geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
-					}
+					geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
 				}
 			}
 		}

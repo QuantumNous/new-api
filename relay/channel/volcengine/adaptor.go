@@ -347,10 +347,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
 		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
-			if info.IsStream {
-				return claude.ClaudeStreamHandler(c, resp, info)
-			}
-			return claude.ClaudeHandler(c, resp, info)
+			adaptor := claude.Adaptor{}
+			return adaptor.DoResponse(c, resp, info)
 		}
 	}
 

@@ -223,11 +223,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		if supportsAliAnthropicMessages(info.UpstreamModelName) {
-			if info.IsStream {
-				return claude.ClaudeStreamHandler(c, resp, info)
-			}
-
-			return claude.ClaudeHandler(c, resp, info)
+			adaptor := claude.Adaptor{}
+			return adaptor.DoResponse(c, resp, info)
 		}
 
 		adaptor := openai.Adaptor{}

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // providerParams returns map with Provider key for i18n templates
@@ -256,27 +257,62 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
 	}
 
-	if err := user.Insert(inviterId); err != nil {
-		return nil, err
-	}
-
-	// For custom providers, create the binding after user is created
+	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
-		binding := &model.UserOAuthBinding{
-			UserId:         user.Id,
-			ProviderId:     genericProvider.GetProviderId(),
-			ProviderUserId: oauthUser.ProviderUserID,
+		// Custom provider: create user and binding in a transaction
+		err := model.DB.Transaction(func(tx *gorm.DB) error {
+			// Create user
+			if err := user.InsertWithTx(tx, inviterId); err != nil {
+				return err
+			}
+
+			// Create OAuth binding
+			binding := &model.UserOAuthBinding{
+				UserId:         user.Id,
+				ProviderId:     genericProvider.GetProviderId(),
+				ProviderUserId: oauthUser.ProviderUserID,
+			}
+			if err := model.CreateUserOAuthBindingWithTx(tx, binding); err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-		if err := model.CreateUserOAuthBinding(binding); err != nil {
-			common.SysError(fmt.Sprintf("[OAuth] Failed to create binding for user %d: %s", user.Id, err.Error()))
-			// Don't fail the registration, just log the error
-		}
+
+		// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
+		user.FinalizeOAuthUserCreation(inviterId)
 	} else {
-		// Built-in provider: set the provider user ID on the user model
-		provider.SetProviderUserID(user, oauthUser.ProviderUserID)
-		if err := user.Update(false); err != nil {
-			common.SysError(fmt.Sprintf("[OAuth] Failed to update provider ID for user %d: %s", user.Id, err.Error()))
+		// Built-in provider: create user and update provider ID in a transaction
+		err := model.DB.Transaction(func(tx *gorm.DB) error {
+			// Create user
+			if err := user.InsertWithTx(tx, inviterId); err != nil {
+				return err
+			}
+
+			// Set the provider user ID on the user model and update
+			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
+			if err := tx.Model(user).Updates(map[string]interface{}{
+				"github_id":    user.GitHubId,
+				"discord_id":   user.DiscordId,
+				"oidc_id":      user.OidcId,
+				"linux_do_id":  user.LinuxDOId,
+				"wechat_id":    user.WeChatId,
+				"telegram_id":  user.TelegramId,
+			}).Error; err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
+
+		// Perform post-transaction tasks
+		user.FinalizeOAuthUserCreation(inviterId)
 	}
 
 	return user, nil

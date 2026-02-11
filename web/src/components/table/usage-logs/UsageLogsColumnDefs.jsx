@@ -20,12 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import {
   Avatar,
-  Button,
   Space,
   Tag,
   Tooltip,
   Popover,
   Typography,
+  Button
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -41,8 +41,8 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
 } from '../../../helpers';
-import { IconHelpCircle, IconStarStroked } from '@douyinfe/semi-icons';
-import { Route } from 'lucide-react';
+import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { Route, Sparkles } from 'lucide-react';
 
 const colors = [
   'amber',
@@ -286,6 +286,44 @@ function renderModelName(record, copyText, t) {
   }
 }
 
+function toTokenNumber(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 0;
+  }
+  return parsed;
+}
+
+function formatTokenCount(value) {
+  return toTokenNumber(value).toLocaleString();
+}
+
+function getPromptCacheSummary(other) {
+  if (!other || typeof other !== 'object') {
+    return null;
+  }
+
+  const cacheReadTokens = toTokenNumber(other.cache_tokens);
+  const cacheCreationTokens = toTokenNumber(other.cache_creation_tokens);
+  const cacheCreationTokens5m = toTokenNumber(other.cache_creation_tokens_5m);
+  const cacheCreationTokens1h = toTokenNumber(other.cache_creation_tokens_1h);
+
+  const hasSplitCacheCreation =
+    cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+  const cacheWriteTokens = hasSplitCacheCreation
+    ? cacheCreationTokens5m + cacheCreationTokens1h
+    : cacheCreationTokens;
+
+  if (cacheReadTokens <= 0 && cacheWriteTokens <= 0) {
+    return null;
+  }
+
+  return {
+    cacheReadTokens,
+    cacheWriteTokens,
+  };
+}
+
 export const getLogsColumns = ({
   t,
   COLUMN_KEYS,
@@ -307,6 +345,9 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         let isMultiKey = false;
         let multiKeyIndex = -1;
+        let content = t('渠道') + `：${record.channel}`;
+        let affinity = null;
+        let showMarker = false;
         let other = getLogOther(record.other);
         if (other?.admin_info) {
           let adminInfo = other.admin_info;
@@ -314,21 +355,71 @@ export const getLogsColumns = ({
             isMultiKey = true;
             multiKeyIndex = adminInfo.multi_key_index;
           }
+          if (
+            Array.isArray(adminInfo.use_channel) &&
+            adminInfo.use_channel.length > 0
+          ) {
+            content = t('渠道') + `：${adminInfo.use_channel.join('->')}`;
+          }
+          if (adminInfo.channel_affinity) {
+            affinity = adminInfo.channel_affinity;
+            showMarker = true;
+          }
         }
 
         return isAdminUser &&
           (record.type === 0 || record.type === 2 || record.type === 5) ? (
           <Space>
-            <Tooltip content={record.channel_name || t('未知渠道')}>
-              <span>
-                <Tag
-                  color={colors[parseInt(text) % colors.length]}
-                  shape='circle'
+            <span style={{ position: 'relative', display: 'inline-block' }}>
+              <Tooltip content={record.channel_name || t('未知渠道')}>
+                <span>
+                  <Tag
+                    color={colors[parseInt(text) % colors.length]}
+                    shape='circle'
+                  >
+                    {text}
+                  </Tag>
+                </span>
+              </Tooltip>
+              {showMarker && (
+                <Tooltip
+                  content={
+                    <div style={{ lineHeight: 1.6 }}>
+                      <div>{content}</div>
+                      {affinity ? (
+                        <div style={{ marginTop: 6 }}>
+                          {buildChannelAffinityTooltip(affinity, t)}
+                        </div>
+                      ) : null}
+                    </div>
+                  }
                 >
-                  {text}
-                </Tag>
-              </span>
-            </Tooltip>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      right: -4,
+                      top: -4,
+                      lineHeight: 1,
+                      fontWeight: 600,
+                      color: '#f59e0b',
+                      cursor: 'pointer',
+                      userSelect: 'none',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openChannelAffinityUsageCacheModal?.(affinity);
+                    }}
+                  >
+                    <Sparkles
+                      size={14}
+                      strokeWidth={2}
+                      color='currentColor'
+                      fill='currentColor'
+                    />
+                  </span>
+                </Tooltip>
+              )}
+            </span>
             {isMultiKey && (
               <Tag color='white' shape='circle'>
                 {multiKeyIndex}
@@ -471,11 +562,56 @@ export const getLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.PROMPT,
-      title: t('输入'),
+      title: (
+        <div className='flex items-center gap-1'>
+          {t('输入')}
+          <Tooltip
+            content={t(
+              '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
+            )}
+          >
+            <IconHelpCircle className='text-gray-400 cursor-help' />
+          </Tooltip>
+        </div>
+      ),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
+        const other = getLogOther(record.other);
+        const cacheSummary = getPromptCacheSummary(other);
+        const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
+        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
+        let cacheText = '';
+        if (hasCacheRead && hasCacheWrite) {
+          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
+        } else if (hasCacheRead) {
+          cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)}`;
+        } else if (hasCacheWrite) {
+          cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
+        }
+
         return record.type === 0 || record.type === 2 || record.type === 5 ? (
-          <>{<span> {text} </span>}</>
+          <div
+            style={{
+              display: 'inline-flex',
+              flexDirection: 'column',
+              alignItems: 'flex-start',
+              lineHeight: 1.2,
+            }}
+          >
+            <span>{text}</span>
+            {cacheText ? (
+              <span
+                style={{
+                  marginTop: 2,
+                  fontSize: 11,
+                  color: 'var(--semi-color-text-2)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {cacheText}
+              </span>
+            ) : null}
+          </div>
         ) : (
           <></>
         );
@@ -559,7 +695,6 @@ export const getLogsColumns = ({
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;
-        let affinity = null;
         if (record.other !== '') {
           let other = JSON.parse(record.other);
           if (other === null) {
@@ -567,60 +702,17 @@ export const getLogsColumns = ({
           }
           if (other.admin_info !== undefined) {
             if (
-              other.admin_info.use_channel !== null &&
-              other.admin_info.use_channel !== undefined &&
-              other.admin_info.use_channel !== ''
+                other.admin_info.use_channel !== null &&
+                other.admin_info.use_channel !== undefined &&
+                other.admin_info.use_channel !== ''
             ) {
               let useChannel = other.admin_info.use_channel;
               let useChannelStr = useChannel.join('->');
               content = t('渠道') + `：${useChannelStr}`;
             }
-            if (other.admin_info.channel_affinity) {
-              affinity = other.admin_info.channel_affinity;
-            }
           }
         }
-        return isAdminUser ? (
-          <Space>
-            <div>{content}</div>
-            {affinity ? (
-              <Tooltip
-                content={
-                  <div>
-                    {buildChannelAffinityTooltip(affinity, t)}
-                    <div style={{ marginTop: 6 }}>
-                      <Button
-                        theme='borderless'
-                        size='small'
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openChannelAffinityUsageCacheModal?.(affinity);
-                        }}
-                      >
-                        {t('查看详情')}
-                      </Button>
-                    </div>
-                  </div>
-                }
-              >
-                <span>
-                  <Tag
-                    className='channel-affinity-tag'
-                    color='cyan'
-                    shape='circle'
-                  >
-                    <span className='channel-affinity-tag-content'>
-                      <IconStarStroked style={{ fontSize: 13 }} />
-                      {t('优选')}
-                    </span>
-                  </Tag>
-                </span>
-              </Tooltip>
-            ) : null}
-          </Space>
-        ) : (
-          <></>
-        );
+        return isAdminUser ? <div>{content}</div> : <></>;
       },
     },
     {
@@ -719,19 +811,15 @@ export const getLogsColumns = ({
               other?.is_system_prompt_overwritten,
               'openai',
             );
-        // Do not add billing source here; keep details clean.
-        const summary = [content, text ? `${t('详情')}：${text}` : null]
-          .filter(Boolean)
-          .join('\n');
         return (
-          <Typography.Paragraph
-            ellipsis={{
-              rows: 3,
-            }}
-            style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-          >
-            {summary}
-          </Typography.Paragraph>
+            <Typography.Paragraph
+                ellipsis={{
+                  rows: 3,
+                }}
+                style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+            >
+              {content}
+            </Typography.Paragraph>
         );
       },
     },

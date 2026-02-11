@@ -83,9 +83,6 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		} else if strings.HasSuffix(request.Model, "-low") {
 			request.ReasoningEffort = "low"
 			request.Model = strings.TrimSuffix(request.Model, "-low")
-		} else if strings.HasSuffix(request.Model, "-medium") {
-			request.ReasoningEffort = "medium"
-			request.Model = strings.TrimSuffix(request.Model, "-medium")
 		}
 		info.ReasoningEffort = request.ReasoningEffort
 		info.UpstreamModelName = request.Model
@@ -103,8 +100,10 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	if request.Model == "" && info != nil {
+		request.Model = info.UpstreamModelName
+	}
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -115,6 +114,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
 		usage, err = openai.OpenaiHandlerWithUsage(c, info, resp)
+	case constant.RelayModeResponses:
+		if info.IsStream {
+			usage, err = openai.OaiResponsesStreamHandler(c, info, resp)
+		} else {
+			usage, err = openai.OaiResponsesHandler(c, info, resp)
+		}
 	default:
 		if info.IsStream {
 			usage, err = xAIStreamHandler(c, info, resp)
