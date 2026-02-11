@@ -43,7 +43,7 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zhCN',
+    fallbackLng: 'zh-CN',
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
