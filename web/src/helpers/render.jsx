@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
-import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
+import { Modal, Popover, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
@@ -657,6 +657,75 @@ export function renderGroup(group) {
         {i18next.t('用户分组')}
       </Tag>
     );
+  }
+
+  // Handle multi-group JSON array
+  if (typeof group === 'string' && group.trim().startsWith('[')) {
+    try {
+      const groups = JSON.parse(group);
+      groups.sort((a, b) => a.priority - b.priority);
+      const circledNumbers = '\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469';
+      const MAX_SHOW = 1;
+      const visibleGroups = groups.slice(0, MAX_SHOW);
+      const hiddenGroups = groups.slice(MAX_SHOW);
+
+      const renderTag = (item, idx) => (
+        <Tag
+          color={stringToColor(item.group)}
+          key={item.group}
+          shape='circle'
+          size='small'
+          style={{ marginRight: 2, marginBottom: 2 }}
+          onClick={async (event) => {
+            event.stopPropagation();
+            if (await copy(item.group)) {
+              showSuccess(i18next.t('已复制：') + item.group);
+            } else {
+              Modal.error({
+                title: i18next.t('无法复制到剪贴板，请手动复制'),
+                content: item.group,
+              });
+            }
+          }}
+        >
+          {circledNumbers[idx] || (idx + 1)}{item.group}
+        </Tag>
+      );
+
+      return (
+        <span key={group} style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+          {visibleGroups.map((item, idx) => renderTag(item, idx))}
+          {hiddenGroups.length > 0 && (
+            <Popover
+              content={
+                <div style={{ padding: '4px 0', maxWidth: 300 }}>
+                  <div style={{ marginBottom: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                    {i18next.t('多分组优先级模式，按优先级顺序依次尝试')}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {groups.map((item, idx) => renderTag(item, idx))}
+                  </div>
+                </div>
+              }
+              position='bottomLeft'
+              trigger='click'
+              showArrow
+            >
+              <Tag
+                color='grey'
+                shape='circle'
+                size='small'
+                style={{ marginRight: 2, cursor: 'pointer' }}
+              >
+                +{hiddenGroups.length} ▾
+              </Tag>
+            </Popover>
+          )}
+        </span>
+      );
+    } catch {
+      // Fall through to default rendering
+    }
   }
 
   const tagColors = {

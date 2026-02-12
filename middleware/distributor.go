@@ -27,6 +27,7 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// Distribute 返回根据分组、模型和重试配置选择合适上游渠道的中间件。
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -133,6 +134,16 @@ func Distribute() func(c *gin.Context) {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+						}
+						// Multi-group token: show all attempted groups
+						if orderedGroupsRaw, exists := common.GetContextKey(c, constant.ContextKeyTokenOrderedGroups); exists {
+							if orderedGroups, ok := orderedGroupsRaw.([]model.GroupPriority); ok && len(orderedGroups) > 0 {
+								groupNames := make([]string, len(orderedGroups))
+								for i, gp := range orderedGroups {
+									groupNames[i] = gp.Group
+								}
+								showGroup = strings.Join(groupNames, ", ")
+							}
 						}
 						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
 						// 如果错误，但是渠道不为空，说明是数据库一致性问题

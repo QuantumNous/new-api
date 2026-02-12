@@ -63,6 +63,8 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+// Relay 处理 API 中继请求，通过上游渠道路由，
+// 支持重试逻辑和多分组错误聚合。
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -183,11 +185,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		Retry:      common.GetPointer(0),
 	}
 
+	// Track per-group errors for multi-group tokens
+	var groupErrors []string
+	isMultiGroup := model.IsMultiGroup(relayInfo.TokenGroup)
+
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			if isMultiGroup {
+				currentGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+				if currentGroup == "" {
+					currentGroup = "unknown"
+				}
+				groupErrors = append(groupErrors, fmt.Sprintf("%s: %s", currentGroup, channelErr.Error()))
+			}
 			break
 		}
 
@@ -223,9 +236,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
+		if isMultiGroup {
+			currentGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			if currentGroup == "" {
+				currentGroup = "unknown"
+			}
+			groupErrors = append(groupErrors, fmt.Sprintf("%s: %s", currentGroup, newAPIError.Error()))
+		}
+
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+	}
+
+	// Aggregate errors for multi-group tokens
+	if isMultiGroup && newAPIError != nil && len(groupErrors) > 0 {
+		aggregatedMsg := strings.Join(groupErrors, "; ")
+		newAPIError.SetMessage(aggregatedMsg)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")

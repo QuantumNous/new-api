@@ -19,6 +19,10 @@ const (
 	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
+	// ContextKeyTokenOrderedGroups 存储多分组令牌的有序 GroupPriority 列表。
+	ContextKeyTokenOrderedGroups ContextKey = "token_ordered_groups"
+	// ContextKeyTokenModelMergeMode 存储多分组令牌的模型合并模式（"union" 或 "intersection"）。
+	ContextKeyTokenModelMergeMode ContextKey = "token_model_merge_mode"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"
