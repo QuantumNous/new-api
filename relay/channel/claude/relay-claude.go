@@ -1,6 +1,8 @@
 package claude
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -900,4 +903,489 @@ func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoic
 	}
 
 	return claudeToolChoice
+}
+
+// RequestOpenAIResponses2ClaudeMessage converts an OpenAI Responses API request into a
+// Claude Messages API request. It maps model, max tokens, temperature, top-p, streaming,
+// reasoning/thinking parameters, tools, system instructions, input messages (including
+// function_call and function_call_output items), and tool-choice settings.
+func RequestOpenAIResponses2ClaudeMessage(c *gin.Context, responsesReq dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
+	claudeRequest := dto.ClaudeRequest{
+		Model: responsesReq.Model,
+	}
+
+	// MaxTokens
+	if responsesReq.MaxOutputTokens > 0 {
+		claudeRequest.MaxTokens = responsesReq.MaxOutputTokens
+	} else {
+		claudeRequest.MaxTokens = uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(responsesReq.Model))
+	}
+
+	if responsesReq.Temperature != nil {
+		claudeRequest.Temperature = responsesReq.Temperature
+	}
+
+	if responsesReq.TopP != nil {
+		claudeRequest.TopP = *responsesReq.TopP
+	}
+
+	if responsesReq.Stream {
+		claudeRequest.Stream = true
+	}
+
+	// Reasoning / Extended Thinking
+	if model_setting.GetClaudeSettings().ThinkingAdapterEnabled &&
+		strings.HasSuffix(responsesReq.Model, "-thinking") {
+		if claudeRequest.MaxTokens < 1280 {
+			claudeRequest.MaxTokens = 1280
+		}
+		claudeRequest.Thinking = &dto.Thinking{
+			Type:         "enabled",
+			BudgetTokens: common.GetPointer[int](int(float64(claudeRequest.MaxTokens) * model_setting.GetClaudeSettings().ThinkingAdapterBudgetTokensPercentage)),
+		}
+		claudeRequest.TopP = 0
+		claudeRequest.Temperature = common.GetPointer[float64](1.0)
+		if !model_setting.ShouldPreserveThinkingSuffix(responsesReq.Model) {
+			claudeRequest.Model = strings.TrimSuffix(responsesReq.Model, "-thinking")
+		}
+	}
+
+	if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
+		if strings.HasPrefix(responsesReq.Model, "claude-opus-4-6") {
+			claudeRequest.Thinking = &dto.Thinking{
+				Type: "adaptive",
+			}
+			claudeRequest.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, responsesReq.Reasoning.Effort))
+			claudeRequest.TopP = 0
+			claudeRequest.Temperature = common.GetPointer[float64](1.0)
+		} else {
+			switch responsesReq.Reasoning.Effort {
+			case "low":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](1280),
+				}
+			case "medium":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](2048),
+				}
+			case "high":
+				claudeRequest.Thinking = &dto.Thinking{
+					Type:         "enabled",
+					BudgetTokens: common.GetPointer[int](4096),
+				}
+			}
+		}
+	}
+
+	// Tools
+	if responsesReq.Tools != nil {
+		var tools []map[string]any
+		if err := common.Unmarshal(responsesReq.Tools, &tools); err == nil {
+			claudeTools := make([]any, 0, len(tools))
+			for _, tool := range tools {
+				if tType, ok := tool["type"].(string); ok && tType == "function" {
+					description := ""
+					if d, ok := tool["description"]; ok {
+						description = common.Interface2String(d)
+					}
+					
+					claudeTool := dto.Tool{
+						Name:        common.Interface2String(tool["name"]),
+						Description: description,
+					}
+					claudeTool.InputSchema = map[string]interface{}{"type": "object"}
+					if params, ok := tool["parameters"].(map[string]any); ok {
+						if pType, ok := params["type"].(string); ok {
+							claudeTool.InputSchema["type"] = pType
+						}
+						
+						if props, ok := params["properties"]; ok {
+							claudeTool.InputSchema["properties"] = props
+						}
+						
+						if req, ok := params["required"]; ok {
+							claudeTool.InputSchema["required"] = req
+						}
+						
+						for s, a := range params {
+							if s == "type" || s == "properties" || s == "required" {
+								continue
+							}
+							claudeTool.InputSchema[s] = a
+						}
+					}
+					claudeTools = append(claudeTools, &claudeTool)
+				}
+			}
+			if len(claudeTools) > 0 {
+				claudeRequest.Tools = claudeTools
+			}
+		}
+	}
+
+	// System Prompt (Instructions)
+	if responsesReq.Instructions != nil {
+		var instructions string
+		if err := common.Unmarshal(responsesReq.Instructions, &instructions); err == nil && instructions != "" {
+			claudeRequest.System = []dto.ClaudeMediaMessage{
+				{
+					Type: "text",
+					Text: &instructions,
+				},
+			}
+		}
+	}
+
+	// Messages (Input)
+	if responsesReq.Input != nil {
+		var inputItems []map[string]any
+		if err := common.Unmarshal(responsesReq.Input, &inputItems); err == nil {
+			claudeMessages := make([]dto.ClaudeMessage, 0)
+			
+			for _, item := range inputItems {
+				itemType, _ := item["type"].(string)
+				
+				if itemType == "function_call" {
+					callID := common.Interface2String(item["call_id"])
+					name := common.Interface2String(item["name"])
+					args := common.Interface2String(item["arguments"])
+					
+					var argsMap map[string]any
+					if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
+						argsMap = make(map[string]any)
+					}
+
+					toolUseBlock := dto.ClaudeMediaMessage{
+						Type: "tool_use",
+						Id: callID,
+						Name: name,
+						Input: argsMap,
+					}
+
+					if len(claudeMessages) > 0 {
+						lastMsg := &claudeMessages[len(claudeMessages)-1]
+						if lastMsg.Role == "assistant" {
+							if contentList, ok := lastMsg.Content.([]dto.ClaudeMediaMessage); ok {
+								lastMsg.Content = append(contentList, toolUseBlock)
+							} else if contentStr, ok := lastMsg.Content.(string); ok {
+								if contentStr == "" {
+									lastMsg.Content = []dto.ClaudeMediaMessage{toolUseBlock}
+								} else {
+									lastMsg.Content = []dto.ClaudeMediaMessage{
+										{Type: "text", Text: &contentStr},
+										toolUseBlock,
+									}
+								}
+							}
+							claudeMessages[len(claudeMessages)-1] = *lastMsg
+						} else {
+							claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+								Role: "assistant",
+								Content: []dto.ClaudeMediaMessage{toolUseBlock},
+							})
+						}
+					} else {
+						claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+							Role: "assistant",
+							Content: []dto.ClaudeMediaMessage{toolUseBlock},
+						})
+					}
+				} else if itemType == "function_call_output" {
+					callID := common.Interface2String(item["call_id"])
+					output := common.Interface2String(item["output"])
+
+					toolResultBlock := dto.ClaudeMediaMessage{
+						Type: "tool_result",
+						ToolUseId: callID,
+						Content: output,
+					}
+					
+					if len(claudeMessages) > 0 {
+						lastMsg := &claudeMessages[len(claudeMessages)-1]
+						if lastMsg.Role == "user" {
+							if contentList, ok := lastMsg.Content.([]dto.ClaudeMediaMessage); ok {
+								lastMsg.Content = append(contentList, toolResultBlock)
+							} else if contentStr, ok := lastMsg.Content.(string); ok {
+								if contentStr == "" {
+									lastMsg.Content = []dto.ClaudeMediaMessage{toolResultBlock}
+								} else {
+									lastMsg.Content = []dto.ClaudeMediaMessage{
+										{Type: "text", Text: &contentStr},
+										toolResultBlock,
+									}
+								}
+							}
+							claudeMessages[len(claudeMessages)-1] = *lastMsg
+						} else {
+							claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+								Role: "user",
+								Content: []dto.ClaudeMediaMessage{toolResultBlock},
+							})
+						}
+					} else {
+						claudeMessages = append(claudeMessages, dto.ClaudeMessage{
+							Role: "user",
+							Content: []dto.ClaudeMediaMessage{toolResultBlock},
+						})
+					}
+
+				} else {
+					role := common.Interface2String(item["role"])
+					content := item["content"]
+
+					if role == "" {
+						continue
+					}
+
+					var contentStr string
+					if s, ok := content.(string); ok {
+						contentStr = s
+					} else {
+						contentStr = common.Interface2String(content)
+					}
+
+					if role == "system" {
+						var systemMsgs []dto.ClaudeMediaMessage
+						if claudeRequest.System != nil {
+							if msgs, ok := claudeRequest.System.([]dto.ClaudeMediaMessage); ok {
+								systemMsgs = msgs
+							}
+						}
+						systemMsgs = append(systemMsgs, dto.ClaudeMediaMessage{
+							Type: "text",
+							Text: &contentStr,
+						})
+						claudeRequest.System = systemMsgs
+						continue
+					}
+
+					newMsg := dto.ClaudeMessage{
+						Role:    role,
+						Content: contentStr,
+					}
+
+					claudeMessages = append(claudeMessages, newMsg)
+				}
+			}
+			if len(claudeMessages) == 0 || claudeMessages[0].Role != "user" {
+				claudeMessages = append([]dto.ClaudeMessage{{
+					Role:    "user",
+					Content: "...",
+				}}, claudeMessages...)
+			}
+			claudeRequest.Messages = claudeMessages
+		} else {
+			inputStr := common.Interface2String(responsesReq.Input)
+			if inputStr != "" {
+				claudeRequest.Messages = []dto.ClaudeMessage{
+					{
+						Role:    "user",
+						Content: inputStr,
+					},
+				}
+			}
+		}
+	}
+
+	// Tool Choice
+	if responsesReq.ToolChoice != nil {
+		var toolChoice any
+		if err := common.Unmarshal(responsesReq.ToolChoice, &toolChoice); err == nil {
+			var parallel *bool
+			if responsesReq.ParallelToolCalls != nil {
+				var p bool
+				if err := common.Unmarshal(responsesReq.ParallelToolCalls, &p); err == nil {
+					parallel = &p
+				}
+			}
+			claudeRequest.ToolChoice = mapToolChoice(toolChoice, parallel)
+		}
+	}
+
+	return &claudeRequest, nil
+}
+
+// DoResponsesRequest sends the prepared request body to the upstream Claude API and handles
+// the response. For SSE (text/event-stream) responses it streams events directly to the
+// client; for non-streaming JSON responses it reads the full body, converts it from Claude
+// format to OpenAI Responses format via ResponseClaude2OpenAIResponses, and returns the
+// rewritten http.Response.
+func DoResponsesRequest(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp == nil {
+		return nil, nil
+	}
+	
+	if resp.StatusCode != http.StatusOK {
+		return resp, nil
+	}
+
+	// Detect SSE streaming response from Claude
+	contentType := resp.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "text/event-stream") {
+		// Stream SSE events directly to the client
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.WriteHeaderNow()
+
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Fprintf(c.Writer, "%s\n", line)
+			if f, ok := c.Writer.(http.Flusher); ok {
+				f.Flush()
+			}
+			if line == "data: [DONE]" {
+				break
+			}
+		}
+		resp.Body.Close()
+		return nil, nil
+	}
+
+	// Non-streaming: read entire body and convert
+	responseBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var claudeResponse dto.ClaudeResponse
+	if err := json.Unmarshal(responseBody, &claudeResponse); err != nil {
+		// If unmarshal fails, restore body and return original response
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		return resp, nil
+	}
+
+	openaiResponsesResp := ResponseClaude2OpenAIResponses(&claudeResponse)
+
+	jsonResp, err := json.Marshal(openaiResponsesResp)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+		return resp, nil
+	}
+
+	resp.Body = io.NopCloser(bytes.NewBuffer(jsonResp))
+	resp.ContentLength = int64(len(jsonResp))
+	resp.Header.Set("Content-Type", "application/json")
+
+	return resp, nil
+}
+
+func makeOutputID(baseID string, index int) string {
+	return fmt.Sprintf("%s_output_%d", baseID, index)
+}
+
+// ResponseClaude2OpenAIResponses converts a non-streaming Claude Messages API response
+// into an OpenAI Responses API response. It maps text, thinking, and tool_use content
+// blocks into the corresponding ResponsesOutput items, aggregates usage, and sets the
+// overall response status to "completed".
+func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse) *dto.OpenAIResponsesResponse {
+	response := &dto.OpenAIResponsesResponse{
+		ID:        claudeResponse.Id,
+		Object:    "response", 
+		CreatedAt: int(common.GetTimestamp()),
+		Model:     claudeResponse.Model,
+		Status:    "completed",
+	}
+
+	if claudeResponse.Usage != nil {
+		response.Usage = &dto.Usage{
+			PromptTokens:     claudeResponse.Usage.InputTokens,
+			CompletionTokens: claudeResponse.Usage.OutputTokens,
+			TotalTokens:      claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
+		}
+	}
+
+	var outputList []dto.ResponsesOutput
+	var currentTextContent []dto.ResponsesOutputContent
+	outputIdx := 0
+
+	for _, content := range claudeResponse.Content {
+		switch content.Type {
+		case "text":
+			if text := content.GetText(); text != "" {
+				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
+					Type: "text",
+					Text: text,
+				})
+			}
+		case "thinking":
+			var thinkingText string
+			if content.Thinking != nil {
+				thinkingText = *content.Thinking
+			}
+			if thinkingText == "" {
+				thinkingText = content.GetText()
+			}
+			if thinkingText != "" {
+				common.SysLog("Claude thinking block received")
+				currentTextContent = append(currentTextContent, dto.ResponsesOutputContent{
+					Type: "thinking",
+					Text: thinkingText,
+				})
+			}
+		case "tool_use":
+			// If we have accumulated text, flush it to a message output
+			if len(currentTextContent) > 0 {
+				outputList = append(outputList, dto.ResponsesOutput{
+					ID:      makeOutputID(claudeResponse.Id, outputIdx),
+					Type:    "message",
+					Role:    "assistant",
+					Content: currentTextContent,
+				})
+				outputIdx++
+				currentTextContent = nil
+			}
+
+			arguments := "{}"
+			if content.Input != nil {
+				if inputJson, err := json.Marshal(content.Input); err == nil && string(inputJson) != "null" {
+					arguments = string(inputJson)
+				}
+			}
+
+			outputList = append(outputList, dto.ResponsesOutput{
+				ID:        makeOutputID(claudeResponse.Id, outputIdx),
+				Type:      "function_call",
+				Status:    "completed",
+				CallId:    content.Id,
+				Name:      content.Name,
+				Arguments: arguments,
+			})
+			outputIdx++
+		}
+	}
+
+	// Flush remaining text
+	if len(currentTextContent) > 0 {
+		outputList = append(outputList, dto.ResponsesOutput{
+			ID:      makeOutputID(claudeResponse.Id, outputIdx),
+			Type:    "message",
+			Role:    "assistant",
+			Content: currentTextContent,
+		})
+		outputIdx++
+	}
+
+	if len(outputList) == 0 {
+		outputList = append(outputList, dto.ResponsesOutput{
+			ID:      makeOutputID(claudeResponse.Id, outputIdx),
+			Type:    "message",
+			Role:    "assistant",
+			Content: []dto.ResponsesOutputContent{},
+		})
+	}
+
+	response.Output = outputList
+
+	return response
 }
