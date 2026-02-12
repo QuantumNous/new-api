@@ -359,5 +359,15 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+
+		// Custom error rule management (admin only)
+		customErrorRuleRoute := apiRouter.Group("/custom_error_rule")
+		customErrorRuleRoute.Use(middleware.RootAuth())
+		{
+			customErrorRuleRoute.GET("/", controller.GetCustomErrorRules)
+			customErrorRuleRoute.POST("/", controller.CreateCustomErrorRule)
+			customErrorRuleRoute.PUT("/", controller.UpdateCustomErrorRule)
+			customErrorRuleRoute.DELETE("/:id", controller.DeleteCustomErrorRule)
+		}
 	}
 }
