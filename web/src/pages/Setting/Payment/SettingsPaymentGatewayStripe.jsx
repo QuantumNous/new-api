@@ -45,6 +45,7 @@ export default function SettingsPaymentGateway(props) {
     StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
+    StripeMaxTopUp: 0,
     StripePromotionCodesEnabled: false,
   });
   const [originInputs, setOriginInputs] = useState({});
@@ -64,6 +65,10 @@ export default function SettingsPaymentGateway(props) {
           props.options.StripeMinTopUp !== undefined
             ? parseFloat(props.options.StripeMinTopUp)
             : 1,
+        StripeMaxTopUp:
+          props.options.StripeMaxTopUp !== undefined
+            ? parseFloat(props.options.StripeMaxTopUp)
+            : 0,
         StripePromotionCodesEnabled:
           props.options.StripePromotionCodesEnabled !== undefined
             ? props.options.StripePromotionCodesEnabled
@@ -117,6 +122,15 @@ export default function SettingsPaymentGateway(props) {
         options.push({
           key: 'StripeMinTopUp',
           value: inputs.StripeMinTopUp.toString(),
+        });
+      }
+      if (
+        inputs.StripeMaxTopUp !== undefined &&
+        inputs.StripeMaxTopUp !== null
+      ) {
+        options.push({
+          key: 'StripeMaxTopUp',
+          value: inputs.StripeMaxTopUp.toString(),
         });
       }
       if (
@@ -238,6 +252,14 @@ export default function SettingsPaymentGateway(props) {
                 field='StripeMinTopUp'
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.InputNumber
+                field='StripeMaxTopUp'
+                label={t('最高充值数量')}
+                placeholder={t('0 表示不限制')}
+                min={0}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>

@@ -15,6 +15,7 @@ var EpayId = ""
 var EpayKey = ""
 var Price = 7.3
 var MinTopUp = 1
+var MaxTopUp = 0 // 0 means no limit
 var USDExchangeRate = 7.3
 
 var PayMethods = []map[string]string{

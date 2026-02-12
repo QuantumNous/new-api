@@ -38,6 +38,7 @@ export default function SettingsPaymentGateway(props) {
     EpayKey: '',
     Price: 7.3,
     MinTopUp: 1,
+    MaxTopUp: 0,
     TopupGroupRatio: '',
     CustomCallbackAddress: '',
     PayMethods: '',
@@ -61,6 +62,10 @@ export default function SettingsPaymentGateway(props) {
           props.options.MinTopUp !== undefined
             ? parseFloat(props.options.MinTopUp)
             : 1,
+        MaxTopUp:
+          props.options.MaxTopUp !== undefined
+            ? parseFloat(props.options.MaxTopUp)
+            : 0,
         TopupGroupRatio: props.options.TopupGroupRatio || '',
         CustomCallbackAddress: props.options.CustomCallbackAddress || '',
         PayMethods: props.options.PayMethods || '',
@@ -155,6 +160,9 @@ export default function SettingsPaymentGateway(props) {
       }
       if (inputs.MinTopUp !== '') {
         options.push({ key: 'MinTopUp', value: inputs.MinTopUp.toString() });
+      }
+      if (inputs.MaxTopUp !== '' && inputs.MaxTopUp !== undefined) {
+        options.push({ key: 'MaxTopUp', value: inputs.MaxTopUp.toString() });
       }
       if (inputs.CustomCallbackAddress !== '') {
         options.push({
@@ -270,6 +278,14 @@ export default function SettingsPaymentGateway(props) {
                 field='MinTopUp'
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.InputNumber
+                field='MaxTopUp'
+                label={t('最高充值数量')}
+                placeholder={t('0 表示不限制')}
+                min={0}
               />
             </Col>
           </Row>

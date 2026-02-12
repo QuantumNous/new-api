@@ -47,6 +47,7 @@ const TopUp = () => {
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
   const [minTopUp, setMinTopUp] = useState(statusState?.status?.min_topup || 1);
+  const [maxTopUp, setMaxTopUp] = useState(0);
   const [topUpCount, setTopUpCount] = useState(
     statusState?.status?.min_topup || 1,
   );
@@ -197,7 +198,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于') + minTopUp);
       return;
     }
     setConfirmLoading(true);
@@ -450,10 +451,16 @@ const TopUp = () => {
             : enableStripeTopUp
               ? data.stripe_min_topup
               : 1;
+          const maxTopUpValue = enableOnlineTopUp
+            ? data.max_topup || 0
+            : enableStripeTopUp
+              ? data.stripe_max_topup || 0
+              : 0;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
           setMinTopUp(minTopUpValue);
+          setMaxTopUp(maxTopUpValue);
           setTopUpCount(minTopUpValue);
 
           // 设置 Creem 产品
@@ -570,6 +577,9 @@ const TopUp = () => {
     if (value === undefined) {
       value = topUpCount;
     }
+    if (maxTopUp > 0 && value > maxTopUp) {
+      return;
+    }
     setAmountLoading(true);
     try {
       const res = await API.post('/api/user/amount', {
@@ -595,6 +605,9 @@ const TopUp = () => {
   const getStripeAmount = async (value) => {
     if (value === undefined) {
       value = topUpCount;
+    }
+    if (maxTopUp > 0 && value > maxTopUp) {
+      return;
     }
     setAmountLoading(true);
     try {
@@ -747,6 +760,7 @@ const TopUp = () => {
           priceRatio={priceRatio}
           topUpCount={topUpCount}
           minTopUp={minTopUp}
+          maxTopUp={maxTopUp}
           renderQuotaWithAmount={renderQuotaWithAmount}
           getAmount={getAmount}
           setTopUpCount={setTopUpCount}

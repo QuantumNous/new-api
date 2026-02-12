@@ -130,6 +130,8 @@ topup.order_not_exists: "充值訂單不存在"
 topup.order_status: "充值訂單狀態錯誤"
 topup.failed: "充值失敗，請稍後重試"
 topup.invalid_quota: "無效的充值額度"
+topup.amount_too_low: "充值數量不能小於 {{.Min}}"
+topup.amount_too_high: "充值數量不能大於 {{.Max}}"
 
 # Channel messages
 channel.not_exists: "管道不存在"
