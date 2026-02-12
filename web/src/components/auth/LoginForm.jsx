@@ -630,20 +630,23 @@ const LoginForm = () => {
                   </Button>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
-
-                <Button
-                  theme='solid'
-                  type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
-                  onClick={handleEmailLoginClick}
-                  loading={emailLoginLoading}
-                >
-                  <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
-                </Button>
+                {status.password_login && (
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
+                    <Button
+                        theme='solid'
+                        type='primary'
+                        className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                        icon={<IconMail size='large' />}
+                        onClick={handleEmailLoginClick}
+                        loading={emailLoginLoading}
+                    >
+                      <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
+                    </Button>
+                  </>
+                )}
               </div>
 
               {(hasUserAgreement || hasPrivacyPolicy) && (
