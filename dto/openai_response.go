@@ -3,6 +3,8 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/types"
 )
@@ -10,6 +12,39 @@ import (
 const (
 	ResponsesOutputTypeImageGenerationCall = "image_generation_call"
 )
+
+// FlexibleUnixTimestamp accepts integer, float/scientific-notation, or string
+// unix timestamps from upstream responses.
+type FlexibleUnixTimestamp int64
+
+func (t *FlexibleUnixTimestamp) UnmarshalJSON(data []byte) error {
+	raw := strings.TrimSpace(string(data))
+	if raw == "" || raw == "null" {
+		*t = 0
+		return nil
+	}
+
+	// quoted numeric strings
+	if strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") && len(raw) >= 2 {
+		raw = strings.TrimSpace(raw[1 : len(raw)-1])
+		if raw == "" {
+			*t = 0
+			return nil
+		}
+	}
+
+	if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		*t = FlexibleUnixTimestamp(n)
+		return nil
+	}
+
+	f, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fmt.Errorf("invalid unix timestamp %q: %w", raw, err)
+	}
+	*t = FlexibleUnixTimestamp(int64(f))
+	return nil
+}
 
 type SimpleResponse struct {
 	Usage `json:"usage"`
@@ -264,28 +299,28 @@ type OutputTokenDetails struct {
 }
 
 type OpenAIResponsesResponse struct {
-	ID                 string             `json:"id"`
-	Object             string             `json:"object"`
-	CreatedAt          int                `json:"created_at"`
-	Status             string             `json:"status"`
-	Error              any                `json:"error,omitempty"`
-	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`
-	Instructions       string             `json:"instructions"`
-	MaxOutputTokens    int                `json:"max_output_tokens"`
-	Model              string             `json:"model"`
-	Output             []ResponsesOutput  `json:"output"`
-	ParallelToolCalls  bool               `json:"parallel_tool_calls"`
-	PreviousResponseID string             `json:"previous_response_id"`
-	Reasoning          *Reasoning         `json:"reasoning"`
-	Store              bool               `json:"store"`
-	Temperature        float64            `json:"temperature"`
-	ToolChoice         string             `json:"tool_choice"`
-	Tools              []map[string]any   `json:"tools"`
-	TopP               float64            `json:"top_p"`
-	Truncation         string             `json:"truncation"`
-	Usage              *Usage             `json:"usage"`
-	User               json.RawMessage    `json:"user"`
-	Metadata           json.RawMessage    `json:"metadata"`
+	ID                 string                `json:"id"`
+	Object             string                `json:"object"`
+	CreatedAt          FlexibleUnixTimestamp `json:"created_at"`
+	Status             string                `json:"status"`
+	Error              any                   `json:"error,omitempty"`
+	IncompleteDetails  *IncompleteDetails    `json:"incomplete_details,omitempty"`
+	Instructions       string                `json:"instructions"`
+	MaxOutputTokens    int                   `json:"max_output_tokens"`
+	Model              string                `json:"model"`
+	Output             []ResponsesOutput     `json:"output"`
+	ParallelToolCalls  bool                  `json:"parallel_tool_calls"`
+	PreviousResponseID string                `json:"previous_response_id"`
+	Reasoning          *Reasoning            `json:"reasoning"`
+	Store              bool                  `json:"store"`
+	Temperature        float64               `json:"temperature"`
+	ToolChoice         string                `json:"tool_choice"`
+	Tools              []map[string]any      `json:"tools"`
+	TopP               float64               `json:"top_p"`
+	Truncation         string                `json:"truncation"`
+	Usage              *Usage                `json:"usage"`
+	User               json.RawMessage       `json:"user"`
+	Metadata           json.RawMessage       `json:"metadata"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构

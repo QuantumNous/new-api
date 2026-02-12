@@ -166,8 +166,8 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 //   - "re:<regex>" / "regex:<regex>": passthrough headers whose names match the regex (Go regexp)
 //
 // Passthrough rules are applied first, then normal overrides are applied, so explicit overrides win.
-func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
-	headerOverride := make(map[string]string)
+func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (http.Header, error) {
+	headerOverride := make(http.Header)
 
 	passAll := false
 	var passthroughRegex []*regexp.Regexp
@@ -208,7 +208,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 		if c == nil || c.Request == nil {
 			return nil, types.NewError(fmt.Errorf("missing request context for header passthrough"), types.ErrorCodeChannelHeaderOverrideInvalid)
 		}
-		for name := range c.Request.Header {
+		for name, values := range c.Request.Header {
 			if shouldSkipPassthroughHeader(name) {
 				continue
 			}
@@ -224,11 +224,13 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 					continue
 				}
 			}
-			value := strings.TrimSpace(c.Request.Header.Get(name))
-			if value == "" {
-				continue
+			for _, raw := range values {
+				value := strings.TrimSpace(raw)
+				if value == "" {
+					continue
+				}
+				headerOverride.Add(name, value)
 			}
-			headerOverride[name] = value
 		}
 	}
 
@@ -257,20 +259,33 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 			continue
 		}
 
-		headerOverride[key] = value
+		// Explicit overrides should replace any passthrough values for the same key.
+		headerOverride.Set(key, value)
 	}
 	return headerOverride, nil
 }
 
-func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
+func applyHeaderOverrideToHeader(header *http.Header, headerOverride http.Header) {
+	if header == nil {
+		return
+	}
+	for key, values := range headerOverride {
+		header.Del(key)
+		for _, value := range values {
+			header.Add(key, value)
+		}
+	}
+}
+
+func applyHeaderOverrideToRequest(req *http.Request, headerOverride http.Header) {
 	if req == nil {
 		return
 	}
-	for key, value := range headerOverride {
-		req.Header.Set(key, value)
+	applyHeaderOverrideToHeader(&req.Header, headerOverride)
+	for key, values := range headerOverride {
 		// set Host in req
-		if strings.EqualFold(key, "Host") {
-			req.Host = value
+		if strings.EqualFold(key, "Host") && len(values) > 0 {
+			req.Host = values[0]
 		}
 	}
 }
@@ -355,9 +370,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, err
 	}
-	for key, value := range headerOverride {
-		targetHeader.Set(key, value)
-	}
+	applyHeaderOverrideToHeader(&targetHeader, headerOverride)
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {

@@ -77,5 +77,5 @@ func TestProcessHeaderOverride_NonTestKeepsClientHeaderPlaceholder(t *testing.T)
 
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
-	require.Equal(t, "trace-123", headers["X-Upstream-Trace"])
+	require.Equal(t, "trace-123", headers.Get("X-Upstream-Trace"))
 }
