@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -115,6 +116,11 @@ func embeddingResponseBaidu2OpenAI(response *BaiduEmbeddingResponse) *dto.OpenAI
 
 func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	usage := &dto.Usage{}
+	var lastStreamData string
+	var responseId string
+	var created int64
+
+	helper.SetEventStreamHeaders(c)
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var baiduResponse BaiduChatStreamResponse
 		err := common.Unmarshal([]byte(data), &baiduResponse)
@@ -128,12 +134,19 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			usage.CompletionTokens = baiduResponse.Usage.TotalTokens - baiduResponse.Usage.PromptTokens
 		}
 		response := streamResponseBaidu2OpenAI(&baiduResponse)
-		err = helper.ObjectData(c, response)
-		if err != nil {
-			common.SysLog("error sending stream response: " + err.Error())
+		responseId = response.Id
+		created = response.Created
+
+		if jsonData, err := common.Marshal(response); err == nil {
+			lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, lastStreamData, false, false)
 		}
 		return true
 	})
+
+	// Handle final response based on format
+	openai.HandleFinalResponse(c, info, lastStreamData, responseId, created, info.UpstreamModelName, "", usage, false)
+
 	service.CloseResponseBodyGracefully(resp)
 	return nil, usage
 }

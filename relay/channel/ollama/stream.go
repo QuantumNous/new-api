@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -76,9 +77,13 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var responseId = common.GetUUID()
 	var created = time.Now().Unix()
 	var toolCallIndex int
+	var lastStreamData string
+
+	// Send start response based on format
 	start := helper.GenerateStartEmptyResponse(responseId, created, model, nil)
 	if data, err := common.Marshal(start); err == nil {
-		_ = helper.StringData(c, string(data))
+		lastStreamData = string(data)
+		_ = openai.HandleStreamFormat(c, info, string(data), false, false)
 	}
 
 	for scanner.Scan() {
@@ -145,7 +150,8 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				}
 			}
 			if data, err := common.Marshal(delta); err == nil {
-				_ = helper.StringData(c, string(data))
+				lastStreamData = string(data)
+				_ = openai.HandleStreamFormat(c, info, string(data), false, false)
 			}
 			continue
 		}
@@ -158,20 +164,18 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if finishReason == "" {
 			finishReason = "stop"
 		}
-		// emit stop delta
+		// emit stop delta (only for OpenAI format to avoid duplicate events)
 		if stop := helper.GenerateStopResponse(responseId, created, model, finishReason); stop != nil {
 			if data, err := common.Marshal(stop); err == nil {
-				_ = helper.StringData(c, string(data))
+				lastStreamData = string(data)
+				// Only send stop event for OpenAI format; Claude/Gemini formats will handle it in HandleFinalResponse
+				if info.RelayFormat == types.RelayFormatOpenAI {
+					_ = openai.HandleStreamFormat(c, info, string(data), false, false)
+				}
 			}
 		}
-		// emit usage frame
-		if final := helper.GenerateFinalUsageResponse(responseId, created, model, *usage); final != nil {
-			if data, err := common.Marshal(final); err == nil {
-				_ = helper.StringData(c, string(data))
-			}
-		}
-		// send [DONE]
-		helper.Done(c)
+		// Handle final response based on format
+		openai.HandleFinalResponse(c, info, lastStreamData, responseId, created, model, "", usage, false)
 		break
 	}
 	if err := scanner.Err(); err != nil && err != io.EOF {

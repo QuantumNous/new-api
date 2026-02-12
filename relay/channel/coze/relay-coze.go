@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -102,6 +103,7 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	helper.SetEventStreamHeaders(c)
 	id := helper.GetResponseID(c)
 	var responseText string
+	var lastStreamData string
 
 	var currentEvent string
 	var currentData string
@@ -113,7 +115,7 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 		if line == "" {
 			if currentEvent != "" && currentData != "" {
 				// handle last event
-				handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
+				handleCozeEvent(c, info, currentEvent, currentData, &responseText, usage, id, &lastStreamData)
 				currentEvent = ""
 				currentData = ""
 			}
@@ -133,22 +135,24 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 
 	// Last event
 	if currentEvent != "" && currentData != "" {
-		handleCozeEvent(c, currentEvent, currentData, &responseText, usage, id, info)
+		handleCozeEvent(c, info, currentEvent, currentData, &responseText, usage, id, &lastStreamData)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	helper.Done(c)
 
 	if usage.TotalTokens == 0 {
 		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, c.GetInt("coze_input_count"))
 	}
 
+	// Handle final response based on format
+	openai.HandleFinalResponse(c, info, lastStreamData, id, common.GetTimestamp(), info.UpstreamModelName, "", usage, false)
+
 	return usage, nil
 }
 
-func handleCozeEvent(c *gin.Context, event string, data string, responseText *string, usage *dto.Usage, id string, info *relaycommon.RelayInfo) {
+func handleCozeEvent(c *gin.Context, info *relaycommon.RelayInfo, event string, data string, responseText *string, usage *dto.Usage, id string, lastStreamData *string) {
 	switch event {
 	case "conversation.chat.completed":
 		// 将 data 解析为 CozeChatResponseData
@@ -165,7 +169,12 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 
 		finishReason := "stop"
 		stopResponse := helper.GenerateStopResponse(id, common.GetTimestamp(), info.UpstreamModelName, finishReason)
-		helper.ObjectData(c, stopResponse)
+		if jsonData, err := common.Marshal(stopResponse); err == nil {
+			*lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, *lastStreamData, false, false)
+		} else {
+			common.SysLog("error marshalling coze stop response: " + err.Error())
+		}
 
 	case "conversation.message.delta":
 		// 将 data 解析为 CozeChatV3MessageDetail
@@ -198,7 +207,12 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		choice.Delta.SetContentString(content)
 		openaiResponse.Choices = append(openaiResponse.Choices, choice)
 
-		helper.ObjectData(c, openaiResponse)
+		if jsonData, err := common.Marshal(openaiResponse); err == nil {
+			*lastStreamData = string(jsonData)
+			_ = openai.HandleStreamFormat(c, info, *lastStreamData, false, false)
+		} else {
+			common.SysLog("error marshalling coze stream response: " + err.Error())
+		}
 
 	case "error":
 		var errorData CozeError
