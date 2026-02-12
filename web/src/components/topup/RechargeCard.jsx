@@ -66,6 +66,7 @@ const RechargeCard = ({
   priceRatio,
   topUpCount,
   minTopUp,
+  maxTopUp,
   renderQuotaWithAmount,
   getAmount,
   setTopUpCount,
@@ -238,11 +239,12 @@ const RechargeCard = ({
                       label={t('充值数量')}
                       disabled={!enableOnlineTopUp && !enableStripeTopUp}
                       placeholder={
-                        t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                        maxTopUp > 0
+                          ? t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp) + t('，最高 ') + renderQuotaWithAmount(maxTopUp)
+                          : t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
                       value={topUpCount}
                       min={minTopUp}
-                      max={999999999}
                       step={1}
                       precision={0}
                       onChange={async (value) => {
@@ -255,8 +257,8 @@ const RechargeCard = ({
                       onBlur={(e) => {
                         const value = parseInt(e.target.value);
                         if (!value || value < 1) {
-                          setTopUpCount(1);
-                          getAmount(1);
+                          setTopUpCount(minTopUp);
+                          getAmount(minTopUp);
                         }
                       }}
                       formatter={(value) => (value ? `${value}` : '')}
@@ -264,26 +266,33 @@ const RechargeCard = ({
                         value ? parseInt(value.replace(/[^\d]/g, '')) : 0
                       }
                       extraText={
-                        <Skeleton
-                          loading={showAmountSkeleton}
-                          active
-                          placeholder={
-                            <Skeleton.Title
-                              style={{
-                                width: 120,
-                                height: 20,
-                                borderRadius: 6,
-                              }}
-                            />
-                          }
-                        >
-                          <Text type='secondary' className='text-red-600'>
-                            {t('实付金额：')}
-                            <span style={{ color: 'red' }}>
-                              {renderAmount()}
-                            </span>
-                          </Text>
-                        </Skeleton>
+                        <div>
+                          <Skeleton
+                            loading={showAmountSkeleton}
+                            active
+                            placeholder={
+                              <Skeleton.Title
+                                style={{
+                                  width: 120,
+                                  height: 20,
+                                  borderRadius: 6,
+                                }}
+                              />
+                            }
+                          >
+                            <Text type='secondary' className='text-red-600'>
+                              {t('实付金额：')}
+                              <span style={{ color: 'red' }}>
+                                {renderAmount()}
+                              </span>
+                            </Text>
+                          </Skeleton>
+                          {maxTopUp > 0 && topUpCount > maxTopUp && (
+                            <div style={{ color: 'var(--semi-color-danger)', marginTop: 4, fontSize: 12 }}>
+                              {t('充值数量不能大于') + ' ' + renderQuotaWithAmount(maxTopUp)}
+                            </div>
+                          )}
+                        </div>
                       }
                       style={{ width: '100%' }}
                     />
@@ -295,10 +304,12 @@ const RechargeCard = ({
                           {payMethods.map((payMethod) => {
                             const minTopupVal = Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
+                            const exceedsMax = maxTopUp > 0 && Number(topUpCount || 0) > maxTopUp;
                             const disabled =
                               (!enableOnlineTopUp && !isStripe) ||
                               (!enableStripeTopUp && isStripe) ||
-                              minTopupVal > Number(topUpCount || 0);
+                              minTopupVal > Number(topUpCount || 0) ||
+                              exceedsMax;
 
                             const buttonEl = (
                               <Button
@@ -334,12 +345,12 @@ const RechargeCard = ({
                             );
 
                             return disabled &&
-                              minTopupVal > Number(topUpCount || 0) ? (
+                              (minTopupVal > Number(topUpCount || 0) || exceedsMax) ? (
                               <Tooltip
                                 content={
-                                  t('此支付方式最低充值金额为') +
-                                  ' ' +
-                                  minTopupVal
+                                  exceedsMax
+                                    ? t('充值数量不能大于') + ' ' + renderQuotaWithAmount(maxTopUp)
+                                    : t('此支付方式最低充值金额为') + ' ' + minTopupVal
                                 }
                                 key={payMethod.type}
                               >
