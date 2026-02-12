@@ -56,7 +56,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"creem_products":      setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
-		"max_topup":           operation_setting.MaxTopUp,
+		"max_topup":           operation_setting.GetPaymentSetting().MaxTopUp,
 		"stripe_min_topup":    setting.StripeMinTopUp,
 		"stripe_max_topup":    setting.StripeMaxTopUp,
 		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
@@ -129,7 +129,7 @@ func getMinTopup() int64 {
 }
 
 func getMaxTopup() int64 {
-	maxTopup := operation_setting.MaxTopUp
+	maxTopup := operation_setting.GetPaymentSetting().MaxTopUp
 	if maxTopup <= 0 {
 		return 0
 	}

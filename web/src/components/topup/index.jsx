@@ -176,6 +176,10 @@ const TopUp = () => {
         showError(t('充值数量不能小于') + minTopUp);
         return;
       }
+      if (maxTopUp > 0 && topUpCount > maxTopUp) {
+        showError(t('充值数量不能大于') + ' ' + renderQuotaWithAmount(maxTopUp));
+        return;
+      }
       setOpen(true);
     } catch (error) {
       showError(t('获取金额失败'));
@@ -199,6 +203,10 @@ const TopUp = () => {
 
     if (topUpCount < minTopUp) {
       showError(t('充值数量不能小于') + minTopUp);
+      return;
+    }
+    if (maxTopUp > 0 && topUpCount > maxTopUp) {
+      showError(t('充值数量不能大于') + ' ' + renderQuotaWithAmount(maxTopUp));
       return;
     }
     setConfirmLoading(true);
