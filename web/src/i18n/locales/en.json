@@ -2849,6 +2849,7 @@
     "缓存读": "Cache Read",
     "缓存写": "Cache Write",
     "写": "Write",
-    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Per Anthropic conventions, /v1/messages input tokens count only non-cached input and exclude cache read/write tokens."
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Per Anthropic conventions, /v1/messages input tokens count only non-cached input and exclude cache read/write tokens.",
+    "设计版本": "b80c3466cb6feafeb3990c7820e10e50"
   }
 }

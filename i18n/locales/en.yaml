@@ -241,6 +241,20 @@ user.create_default_token_error: "Failed to create default token"
 common.uuid_duplicate: "Please retry, the system generated a duplicate UUID!"
 common.invalid_input: "Invalid input"
 
+# Distributor messages
+distributor.invalid_request: "Invalid request: {{.Error}}"
+distributor.invalid_channel_id: "Invalid channel ID"
+distributor.channel_disabled: "This channel has been disabled"
+distributor.token_no_model_access: "This token has no access to any models"
+distributor.token_model_forbidden: "This token has no access to model {{.Model}}"
+distributor.model_name_required: "Model name not specified, model name cannot be empty"
+distributor.invalid_playground_request: "Invalid playground request: {{.Error}}"
+distributor.group_access_denied: "No permission to access this group"
+distributor.get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}"
+distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
+distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
+distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "Custom OAuth provider not found"
 custom_oauth.slug_empty: "Slug cannot be empty"

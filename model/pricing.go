@@ -27,6 +27,7 @@ type Pricing struct {
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
 type PricingVendor struct {
@@ -297,6 +298,11 @@ func updatePricing() {
 			pricing.QuotaType = 0
 		}
 		pricingMap = append(pricingMap, pricing)
+	}
+
+	// 防止大更新后数据不通用
+	if len(pricingMap) > 0 {
+		pricingMap[0].PricingVersion = "82c4a357505fff6fee8462c3f7ec8a645bb95532669cb73b2cabee6a416ec24f"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

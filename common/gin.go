@@ -33,14 +33,14 @@ func IsRequestBodyTooLargeError(err error) bool {
 	return errors.As(err, &mbe)
 }
 
-func GetRequestBody(c *gin.Context) ([]byte, error) {
+func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 	// 首先检查是否有 BodyStorage 缓存
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
 			if _, err := bs.Seek(0, io.SeekStart); err != nil {
 				return nil, fmt.Errorf("failed to seek body storage: %w", err)
 			}
-			return bs.Bytes()
+			return bs, nil
 		}
 	}
 
@@ -48,7 +48,12 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 	cached, exists := c.Get(KeyRequestBody)
 	if exists && cached != nil {
 		if b, ok := cached.([]byte); ok {
-			return b, nil
+			bs, err := CreateBodyStorage(b)
+			if err != nil {
+				return nil, err
+			}
+			c.Set(KeyBodyStorage, bs)
+			return bs, nil
 		}
 	}
 
@@ -74,47 +79,20 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 	// 缓存存储对象
 	c.Set(KeyBodyStorage, storage)
 
-	// 获取字节数据
-	body, err := storage.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
-	// 同时设置旧的缓存键以保持兼容性
-	c.Set(KeyRequestBody, body)
-
-	return body, nil
+	return storage, nil
 }
 
 // GetBodyStorage 获取请求体存储对象（用于需要多次读取的场景）
 func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
-	// 检查是否已有存储
-	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
-		if bs, ok := storage.(BodyStorage); ok {
-			if _, err := bs.Seek(0, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("failed to seek body storage: %w", err)
-			}
-			return bs, nil
-		}
-	}
-
-	// 如果没有，调用 GetRequestBody 创建存储
-	_, err := GetRequestBody(c)
+	seeker, err := GetRequestBody(c)
 	if err != nil {
 		return nil, err
 	}
-
-	// 再次获取存储
-	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
-		if bs, ok := storage.(BodyStorage); ok {
-			if _, err := bs.Seek(0, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("failed to seek body storage: %w", err)
-			}
-			return bs, nil
-		}
+	bs, ok := seeker.(BodyStorage)
+	if !ok {
+		return nil, errors.New("unexpected body storage type")
 	}
-
-	return nil, errors.New("failed to get body storage")
+	return bs, nil
 }
 
 // CleanupBodyStorage 清理请求体存储（应在请求结束时调用）
@@ -128,13 +106,14 @@ func CleanupBodyStorage(c *gin.Context) {
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
-	requestBody, err := GetRequestBody(c)
+	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return err
 	}
-	//if DebugEnabled {
-	//	println("UnmarshalBodyReusable request body:", string(requestBody))
-	//}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return err
+	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
 		err = Unmarshal(requestBody, v)
@@ -150,7 +129,10 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 		return err
 	}
 	// Reset request body
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
 	return nil
 }
 
@@ -252,7 +234,11 @@ func init() {
 }
 
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
-	requestBody, err := GetRequestBody(c)
+	storage, err := GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	requestBody, err := storage.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +256,10 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	}
 
 	// Reset request body
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return nil, seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
 	return form, nil
 }
 

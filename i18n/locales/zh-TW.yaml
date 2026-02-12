@@ -242,6 +242,20 @@ user.create_default_token_error: "建立預設令牌失敗"
 common.uuid_duplicate: "請重試，系統生成的 UUID 竟然重複了！"
 common.invalid_input: "輸入不合法"
 
+# Distributor messages
+distributor.invalid_request: "無效的請求，{{.Error}}"
+distributor.invalid_channel_id: "無效的管道 Id"
+distributor.channel_disabled: "該管道已被禁用"
+distributor.token_no_model_access: "該令牌無權存取任何模型"
+distributor.token_model_forbidden: "該令牌無權存取模型 {{.Model}}"
+distributor.model_name_required: "未指定模型名稱，模型名稱不能為空"
+distributor.invalid_playground_request: "無效的playground請求，{{.Error}}"
+distributor.group_access_denied: "無權存取該分組"
+distributor.get_channel_failed: "獲取分組 {{.Group}} 下模型 {{.Model}} 的可用管道失敗（distributor）：{{.Error}}"
+distributor.no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 無可用管道（distributor）"
+distributor.invalid_midjourney_request: "無效的midjourney請求，{{.Error}}"
+distributor.invalid_request_parse_model: "無效的請求，無法解析模型"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自訂 OAuth 供應者不存在"
 custom_oauth.slug_empty: "標識符不能為空"
