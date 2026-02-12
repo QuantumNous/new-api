@@ -437,6 +437,7 @@
     "充值数量，最低 ": "Số lượng nạp, tối thiểu",
     "充值数量不能小于": "Số tiền nạp không được nhỏ hơn",
     "充值数量不能大于": "Số tiền nạp không được lớn hơn",
+    "最高充值数量不能小于最低充值数量": "Số lượng nạp tối đa không được nhỏ hơn số lượng nạp tối thiểu",
     "，最高 ": ", tối đa",
     "最高充值数量": "Số tiền nạp tối đa",
     "0 表示不限制": "0 nghĩa là không giới hạn",

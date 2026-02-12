@@ -128,6 +128,10 @@ export default function SettingsPaymentGateway(props) {
         inputs.StripeMaxTopUp !== undefined &&
         inputs.StripeMaxTopUp !== null
       ) {
+        if (inputs.StripeMaxTopUp > 0 && inputs.StripeMaxTopUp < inputs.StripeMinTopUp) {
+          showError(t('最高充值数量不能小于最低充值数量'));
+          return;
+        }
         options.push({
           key: 'StripeMaxTopUp',
           value: inputs.StripeMaxTopUp.toString(),

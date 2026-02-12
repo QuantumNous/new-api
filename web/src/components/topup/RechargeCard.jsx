@@ -349,7 +349,7 @@ const RechargeCard = ({
                               <Tooltip
                                 content={
                                   exceedsMax
-                                    ? t('充值数量不能大于') + ' ' + maxTopUp
+                                    ? t('充值数量不能大于') + ' ' + renderQuotaWithAmount(maxTopUp)
                                     : t('此支付方式最低充值金额为') + ' ' + minTopupVal
                                 }
                                 key={payMethod.type}

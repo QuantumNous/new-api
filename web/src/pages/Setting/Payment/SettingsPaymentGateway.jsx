@@ -162,6 +162,10 @@ export default function SettingsPaymentGateway(props) {
         options.push({ key: 'MinTopUp', value: inputs.MinTopUp.toString() });
       }
       if (inputs.MaxTopUp !== '' && inputs.MaxTopUp !== undefined) {
+        if (inputs.MaxTopUp > 0 && inputs.MaxTopUp < inputs.MinTopUp) {
+          showError(t('最高充值数量不能小于最低充值数量'));
+          return;
+        }
         options.push({ key: 'MaxTopUp', value: inputs.MaxTopUp.toString() });
       }
       if (inputs.CustomCallbackAddress !== '') {

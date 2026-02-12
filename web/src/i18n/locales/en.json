@@ -438,6 +438,7 @@
     "充值数量，最低 ": "Top Up quantity, minimum",
     "充值数量不能小于": "The top up amount cannot be less than",
     "充值数量不能大于": "The top up amount cannot be greater than",
+    "最高充值数量不能小于最低充值数量": "Maximum top-up amount cannot be less than minimum top-up amount",
     "，最高 ": ", maximum",
     "最高充值数量": "Maximum top-up amount",
     "0 表示不限制": "0 means no limit",

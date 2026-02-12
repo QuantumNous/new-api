@@ -440,6 +440,7 @@
     "充值数量，最低 ": "Quantité de recharge, minimum ",
     "充值数量不能小于": "Le montant de la recharge ne peut pas être inférieur à",
     "充值数量不能大于": "Le montant de la recharge ne peut pas être supérieur à",
+    "最高充值数量不能小于最低充值数量": "Le montant maximum de recharge ne peut pas être inférieur au montant minimum",
     "，最高 ": ", maximum",
     "最高充值数量": "Montant maximum de recharge",
     "0 表示不限制": "0 signifie pas de limite",
