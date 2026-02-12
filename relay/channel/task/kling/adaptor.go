@@ -58,6 +58,7 @@ type requestPayload struct {
 	Image          string         `json:"image,omitempty"`
 	ImageTail      string         `json:"image_tail,omitempty"`
 	NegativePrompt string         `json:"negative_prompt,omitempty"`
+	Sound          string         `json:"sound,omitempty"` // on or off; only supported by v2.6+
 	Mode           string         `json:"mode,omitempty"`
 	Duration       string         `json:"duration,omitempty"`
 	AspectRatio    string         `json:"aspect_ratio,omitempty"`
@@ -67,8 +68,13 @@ type requestPayload struct {
 	StaticMask     string         `json:"static_mask,omitempty"`
 	DynamicMasks   []DynamicMask  `json:"dynamic_masks,omitempty"`
 	CameraControl  *CameraControl `json:"camera_control,omitempty"`
+	WatermarkInfo  *WatermarkInfo `json:"watermark_info,omitempty"`
 	CallbackUrl    string         `json:"callback_url,omitempty"`
 	ExternalTaskId string         `json:"external_task_id,omitempty"`
+}
+
+type WatermarkInfo struct {
+	Enabled bool `json:"enabled"`
 }
 
 type responsePayload struct {
@@ -236,7 +242,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
-	return []string{"kling-v1", "kling-v1-6", "kling-v2-master"}
+	return []string{"kling-v1", "kling-v1-6", "kling-v2-master", "kling-v2-1-master", "kling-v2-5-turbo", "kling-v2-6"}
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
