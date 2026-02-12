@@ -8,22 +8,22 @@ import (
 
 // CustomOAuthProvider stores configuration for custom OAuth providers
 type CustomOAuthProvider struct {
-	Id                    int       `json:"id" gorm:"primaryKey"`
-	Name                  string    `json:"name" gorm:"type:varchar(64);not null"`                 // Display name, e.g., "GitHub Enterprise"
-	Slug                  string    `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`     // URL identifier, e.g., "github-enterprise"
-	Enabled               bool      `json:"enabled" gorm:"default:false"`                          // Whether this provider is enabled
-	ClientId              string    `json:"client_id" gorm:"type:varchar(256)"`                    // OAuth client ID
-	ClientSecret          string    `json:"-" gorm:"type:varchar(512)"`                            // OAuth client secret (not returned to frontend)
-	AuthorizationEndpoint string    `json:"authorization_endpoint" gorm:"type:varchar(512)"`       // Authorization URL
-	TokenEndpoint         string    `json:"token_endpoint" gorm:"type:varchar(512)"`               // Token exchange URL
-	UserInfoEndpoint      string    `json:"user_info_endpoint" gorm:"type:varchar(512)"`           // User info URL
-	Scopes                string    `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"` // OAuth scopes
+	Id                    int    `json:"id" gorm:"primaryKey"`
+	Name                  string `json:"name" gorm:"type:varchar(64);not null"`                          // Display name, e.g., "GitHub Enterprise"
+	Slug                  string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`              // URL identifier, e.g., "github-enterprise"
+	Enabled               bool   `json:"enabled"`                                                        // Whether this provider is enabled
+	ClientId              string `json:"client_id" gorm:"type:varchar(256)"`                             // OAuth client ID
+	ClientSecret          string `json:"-" gorm:"type:varchar(512)"`                                     // OAuth client secret (not returned to frontend)
+	AuthorizationEndpoint string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                // Authorization URL
+	TokenEndpoint         string `json:"token_endpoint" gorm:"type:varchar(512)"`                        // Token exchange URL
+	UserInfoEndpoint      string `json:"user_info_endpoint" gorm:"type:varchar(512)"`                    // User info URL
+	Scopes                string `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"` // OAuth scopes
 
 	// Field mapping configuration (supports JSONPath via gjson)
-	UserIdField       string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                // User ID field path, e.g., "sub", "id", "data.user.id"
-	UsernameField     string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
-	DisplayNameField  string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`          // Display name field path
-	EmailField        string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                // Email field path
+	UserIdField      string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                 // User ID field path, e.g., "sub", "id", "data.user.id"
+	UsernameField    string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
+	DisplayNameField string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`           // Display name field path
+	EmailField       string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
 
 	// Advanced options
 	WellKnown string `json:"well_known" gorm:"type:varchar(512)"` // OIDC discovery endpoint (optional)
