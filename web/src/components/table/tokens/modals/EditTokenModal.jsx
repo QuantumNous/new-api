@@ -27,6 +27,7 @@ import {
   renderQuotaWithPrompt,
   getModelCategories,
   selectFilter,
+  stringToColor,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
@@ -41,6 +42,9 @@ import {
   Form,
   Col,
   Row,
+  Tooltip,
+  RadioGroup,
+  Radio,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -64,6 +68,11 @@ const EditTokenModal = (props) => {
   const [groups, setGroups] = useState([]);
   const isEdit = props.editingToken.id !== undefined;
 
+  // Multi-group state
+  const [multiGroupMode, setMultiGroupMode] = useState(false);
+  const [selectedGroups, setSelectedGroups] = useState([]);
+  const [modelMergeMode, setModelMergeMode] = useState('union');
+
   const getInitValues = () => ({
     name: '',
     remain_quota: 0,
@@ -76,6 +85,23 @@ const EditTokenModal = (props) => {
     cross_group_retry: false,
     tokenCount: 1,
   });
+
+  const parseGroupField = (groupStr) => {
+    if (!groupStr || typeof groupStr !== 'string') return { isMulti: false, selectedGroups: [] };
+    const trimmed = groupStr.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed);
+        const sorted = arr.sort((a, b) => a.priority - b.priority);
+        return { isMulti: true, selectedGroups: sorted.map(item => item.group) };
+      } catch { return { isMulti: false, selectedGroups: [] }; }
+    }
+    return { isMulti: false, selectedGroups: [] };
+  };
+
+  const encodeGroupsToJson = (groupNames) => {
+    return JSON.stringify(groupNames.map((name, idx) => ({ group: name, priority: idx + 1 })));
+  };
 
   const handleCancel = () => {
     props.handleClose();
@@ -162,6 +188,19 @@ const EditTokenModal = (props) => {
       } else {
         data.model_limits = [];
       }
+
+      const parsed = parseGroupField(data.group);
+      if (parsed.isMulti) {
+        setMultiGroupMode(true);
+        setSelectedGroups(parsed.selectedGroups);
+        setModelMergeMode(data.model_merge_mode || 'union');
+        data.group = '';
+      } else {
+        setMultiGroupMode(false);
+        setSelectedGroups([]);
+        setModelMergeMode('union');
+      }
+
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
@@ -175,6 +214,9 @@ const EditTokenModal = (props) => {
     if (formApiRef.current) {
       if (!isEdit) {
         formApiRef.current.setValues(getInitValues());
+        setMultiGroupMode(false);
+        setSelectedGroups([]);
+        setModelMergeMode('union');
       }
     }
     loadModels();
@@ -187,9 +229,15 @@ const EditTokenModal = (props) => {
         loadToken();
       } else {
         formApiRef.current?.setValues(getInitValues());
+        setMultiGroupMode(false);
+        setSelectedGroups([]);
+        setModelMergeMode('union');
       }
     } else {
       formApiRef.current?.reset();
+      setMultiGroupMode(false);
+      setSelectedGroups([]);
+      setModelMergeMode('union');
     }
   }, [props.visiable, props.editingToken.id]);
 
@@ -221,6 +269,11 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+      if (multiGroupMode && selectedGroups.length > 0) {
+        localInputs.group = encodeGroupsToJson(selectedGroups);
+        localInputs.cross_group_retry = true;
+        localInputs.model_merge_mode = modelMergeMode;
+      }
       let res = await API.put(`/api/token/`, {
         ...localInputs,
         id: parseInt(props.editingToken.id),
@@ -258,6 +311,11 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
+        if (multiGroupMode && selectedGroups.length > 0) {
+          localInputs.group = encodeGroupsToJson(selectedGroups);
+          localInputs.cross_group_retry = true;
+          localInputs.model_merge_mode = modelMergeMode;
+        }
         let res = await API.post(`/api/token/`, localInputs);
         const { success, message } = res.data;
         if (success) {
@@ -275,6 +333,9 @@ const EditTokenModal = (props) => {
     }
     setLoading(false);
     formApiRef.current?.setValues(getInitValues());
+    setMultiGroupMode(false);
+    setSelectedGroups([]);
+    setModelMergeMode('union');
   };
 
   return (
@@ -358,41 +419,189 @@ const EditTokenModal = (props) => {
                       showClear
                     />
                   </Col>
+                  {/* Mode toggle: single group vs multi-group */}
                   <Col span={24}>
-                    {groups.length > 0 ? (
-                      <Form.Select
-                        field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
-                        optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        showClear
-                        style={{ width: '100%' }}
-                      />
-                    ) : (
-                      <Form.Select
-                        placeholder={t('管理员未设置用户可选分组')}
-                        disabled
-                        label={t('令牌分组')}
-                        style={{ width: '100%' }}
-                      />
-                    )}
+                    <Form.Slot label={t('分组模式')}>
+                      <Space>
+                        <Button
+                          theme={!multiGroupMode ? 'solid' : 'light'}
+                          type='primary'
+                          size='small'
+                          onClick={() => {
+                            setMultiGroupMode(false);
+                            setSelectedGroups([]);
+                            setModelMergeMode('union');
+                          }}
+                        >
+                          {t('单分组')}
+                        </Button>
+                        <Button
+                          theme={multiGroupMode ? 'solid' : 'light'}
+                          type='primary'
+                          size='small'
+                          onClick={() => {
+                            setMultiGroupMode(true);
+                            if (formApiRef.current) {
+                              formApiRef.current.setValue('group', '');
+                            }
+                          }}
+                        >
+                          {t('多分组')}
+                        </Button>
+                      </Space>
+                    </Form.Slot>
                   </Col>
-                  <Col
-                    span={24}
-                    style={{
-                      display: values.group === 'auto' ? 'block' : 'none',
-                    }}
-                  >
-                    <Form.Switch
-                      field='cross_group_retry'
-                      label={t('跨分组重试')}
-                      size='default'
-                      extraText={t(
-                        '开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道',
+
+                  {!multiGroupMode ? (
+                    <>
+                      <Col span={24}>
+                        {groups.length > 0 ? (
+                          <Form.Select
+                            field='group'
+                            label={t('令牌分组')}
+                            placeholder={t('令牌分组，默认为用户的分组')}
+                            optionList={groups}
+                            renderOptionItem={renderGroupOption}
+                            showClear
+                            style={{ width: '100%' }}
+                          />
+                        ) : (
+                          <Form.Select
+                            placeholder={t('管理员未设置用户可选分组')}
+                            disabled
+                            label={t('令牌分组')}
+                            style={{ width: '100%' }}
+                          />
+                        )}
+                      </Col>
+                      <Col
+                        span={24}
+                        style={{
+                          display: values.group === 'auto' ? 'block' : 'none',
+                        }}
+                      >
+                        <Form.Switch
+                          field='cross_group_retry'
+                          label={t('跨分组重试')}
+                          size='default'
+                          extraText={t(
+                            '开启后，当前分组渠道失败时会按顺序尝试下一个分组的渠道',
+                          )}
+                        />
+                      </Col>
+                    </>
+                  ) : (
+                    <>
+                      <Col span={24}>
+                        <Form.Slot label={t('选择分组（多选）')}>
+                          {groups.length > 0 ? (
+                            <Form.Select
+                              field='_multi_groups'
+                              noLabel
+                              multiple
+                              placeholder={t('选择要添加的分组')}
+                              optionList={groups.filter(g => g.value !== 'auto')}
+                              renderOptionItem={renderGroupOption}
+                              style={{ width: '100%' }}
+                              value={selectedGroups}
+                              onChange={(val) => setSelectedGroups(val || [])}
+                            />
+                          ) : (
+                            <Form.Select
+                              placeholder={t('管理员未设置用户可选分组')}
+                              disabled
+                              style={{ width: '100%' }}
+                            />
+                          )}
+                        </Form.Slot>
+                      </Col>
+
+                      {selectedGroups.length > 0 && (
+                        <Col span={24}>
+                          <div style={{ marginBottom: 8 }}>
+                            <Text strong>{t('分组优先级排序')}</Text>
+                            <Text type='quaternary' size='small' style={{ marginLeft: 8 }}>
+                              {t('拖动或使用箭头调整优先级，排在前面的优先级更高')}
+                            </Text>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {selectedGroups.map((groupName, idx) => (
+                              <div
+                                key={groupName}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: '4px 8px',
+                                  borderRadius: 6,
+                                  background: 'var(--semi-color-fill-0)',
+                                }}
+                              >
+                                <Tag color={stringToColor(groupName)} shape='circle' size='small'>
+                                  {'\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469'[idx] || (idx + 1)}
+                                </Tag>
+                                <span style={{ flex: 1, marginLeft: 8 }}>{groupName}</span>
+                                <Space spacing={2}>
+                                  <Button
+                                    size='small'
+                                    theme='borderless'
+                                    disabled={idx === 0}
+                                    onClick={() => {
+                                      const arr = [...selectedGroups];
+                                      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                                      setSelectedGroups(arr);
+                                    }}
+                                  >
+                                    ↑
+                                  </Button>
+                                  <Button
+                                    size='small'
+                                    theme='borderless'
+                                    disabled={idx === selectedGroups.length - 1}
+                                    onClick={() => {
+                                      const arr = [...selectedGroups];
+                                      [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                                      setSelectedGroups(arr);
+                                    }}
+                                  >
+                                    ↓
+                                  </Button>
+                                  <Button
+                                    size='small'
+                                    theme='borderless'
+                                    type='danger'
+                                    onClick={() => {
+                                      setSelectedGroups(selectedGroups.filter((_, i) => i !== idx));
+                                    }}
+                                  >
+                                    ✕
+                                  </Button>
+                                </Space>
+                              </div>
+                            ))}
+                          </div>
+                        </Col>
                       )}
-                    />
-                  </Col>
+
+                      {multiGroupMode && selectedGroups.length > 0 && (
+                        <Col span={24}>
+                          <Form.Slot label={t('模型列表合并模式')}>
+                            <div>
+                              <RadioGroup
+                                value={modelMergeMode}
+                                onChange={(e) => setModelMergeMode(e.target.value)}
+                              >
+                                <Radio value='union'>{t('并集（所有分组模型）')}</Radio>
+                                <Radio value='intersection'>{t('交集（共有模型）')}</Radio>
+                              </RadioGroup>
+                              <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                                {t('并集：返回所有分组中可用的模型；交集：仅返回所有分组共有的模型')}
+                              </div>
+                            </div>
+                          </Form.Slot>
+                        </Col>
+                      )}
+                    </>
+                  )}
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.DatePicker
                       field='expired_time'

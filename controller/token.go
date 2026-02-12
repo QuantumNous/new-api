@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAllTokens 返回当前用户的所有令牌列表。
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -29,6 +30,7 @@ func GetAllTokens(c *gin.Context) {
 	return
 }
 
+// SearchTokens 根据关键字搜索当前用户的令牌。
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
@@ -137,6 +139,7 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
+// AddToken 处理为已认证用户创建新的 API 令牌。
 func AddToken(c *gin.Context) {
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)
@@ -194,6 +197,7 @@ func AddToken(c *gin.Context) {
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		ModelMergeMode:     token.ModelMergeMode,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -222,6 +226,7 @@ func DeleteToken(c *gin.Context) {
 	return
 }
 
+// UpdateToken 处理更新已有 API 令牌的配置。
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
@@ -274,6 +279,7 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.ModelMergeMode = token.ModelMergeMode
 	}
 	err = cleanToken.Update()
 	if err != nil {

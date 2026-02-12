@@ -1,8 +1,10 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,6 +13,49 @@ import (
 	"gorm.io/gorm"
 )
 
+// GroupPriority 表示多分组令牌配置中的一个分组及其优先级。
+type GroupPriority struct {
+	Group    string `json:"group"`
+	Priority int    `json:"priority"`
+}
+
+// IsMultiGroup 判断分组字符串是否为 JSON 数组格式（多分组模式）。
+func IsMultiGroup(groupStr string) bool {
+	return strings.HasPrefix(strings.TrimSpace(groupStr), "[")
+}
+
+// ParseTokenGroups 解析令牌的分组字段。
+// 如果值以 '[' 开头，则视为 GroupPriority 的 JSON 数组。
+// 否则返回单元素切片以保持向后兼容。
+func ParseTokenGroups(groupStr string) ([]GroupPriority, error) {
+	groupStr = strings.TrimSpace(groupStr)
+	if groupStr == "" {
+		return nil, nil
+	}
+	if !IsMultiGroup(groupStr) {
+		return []GroupPriority{{Group: groupStr, Priority: 1}}, nil
+	}
+	var groups []GroupPriority
+	if err := json.Unmarshal([]byte(groupStr), &groups); err != nil {
+		return nil, fmt.Errorf("failed to parse token groups: %v", err)
+	}
+	// Sort by priority ascending (lower number = higher priority)
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].Priority < groups[j].Priority
+	})
+	return groups, nil
+}
+
+// EncodeTokenGroups 将 GroupPriority 列表编码为 JSON 字符串。
+func EncodeTokenGroups(groups []GroupPriority) (string, error) {
+	data, err := json.Marshal(groups)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// Token 表示一个 API 访问令牌，包含使用限制、分组绑定和模型限制。
 type Token struct {
 	Id                 int            `json:"id"`
 	UserId             int            `json:"user_id" gorm:"index"`
@@ -26,8 +71,9 @@ type Token struct {
 	ModelLimits        string         `json:"model_limits" gorm:"type:varchar(1024);default:''"`
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
-	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	Group              string         `json:"group" gorm:"type:varchar(2048);default:''"`
+	CrossGroupRetry    bool           `json:"cross_group_retry"`                                        // 跨分组重试，仅auto分组有效
+	ModelMergeMode     string         `json:"model_merge_mode" gorm:"type:varchar(20);default:'union'"` // 多分组模型合并模式: union(并集) / intersection(交集)
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
@@ -283,7 +329,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "model_merge_mode").Updates(token).Error
 	return err
 }
 

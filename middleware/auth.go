@@ -137,6 +137,7 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Next()
 }
 
+// TryUserAuth 返回尝试性用户认证中间件，不强制要求登录。
 func TryUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -148,12 +149,14 @@ func TryUserAuth() func(c *gin.Context) {
 	}
 }
 
+// UserAuth 返回要求普通用户权限的认证中间件。
 func UserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleCommonUser)
 	}
 }
 
+// AdminAuth 返回要求管理员权限的认证中间件。
 func AdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleAdminUser)
@@ -227,6 +230,8 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+// TokenAuth 返回使用 API 令牌认证请求的中间件，
+// 验证分组权限并设置请求上下文。
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
@@ -327,19 +332,50 @@ func TokenAuth() func(c *gin.Context) {
 		userGroup := userCache.Group
 		tokenGroup := token.Group
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
-				return
-			}
-			// check group in common.GroupRatio
-			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
-				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+			if model.IsMultiGroup(tokenGroup) {
+				// Multi-group token: parse and validate each group
+				orderedGroups, parseErr := model.ParseTokenGroups(tokenGroup)
+				if parseErr != nil {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, fmt.Sprintf("令牌分组配置解析失败: %s", parseErr.Error()))
 					return
 				}
+				usableGroups := service.GetUserUsableGroups(userGroup)
+				validGroups := make([]model.GroupPriority, 0, len(orderedGroups))
+				for _, gp := range orderedGroups {
+					if _, ok := usableGroups[gp.Group]; !ok {
+						continue
+					}
+					// 跳过已弃用的分组（与单分组路径保持一致），"auto" 豁免
+					if !ratio_setting.ContainsGroupRatio(gp.Group) && gp.Group != "auto" {
+						continue
+					}
+					validGroups = append(validGroups, gp)
+				}
+				if len(validGroups) == 0 {
+					abortWithOpenAiMessage(c, http.StatusForbidden, "令牌配置的所有分组均无权访问")
+					return
+				}
+				// Set highest priority group as the active group
+				userGroup = validGroups[0].Group
+				// Store ordered groups list and enable cross-group retry
+				common.SetContextKey(c, constant.ContextKeyTokenOrderedGroups, validGroups)
+				common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, true)
+			} else {
+				// Single group token: validate against user's usable groups
+				// check common.UserUsableGroups[userGroup]
+				if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+					return
+				}
+				// check group in common.GroupRatio
+				if !ratio_setting.ContainsGroupRatio(tokenGroup) {
+					if tokenGroup != "auto" {
+						abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+						return
+					}
+				}
+				userGroup = tokenGroup
 			}
-			userGroup = tokenGroup
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
@@ -351,6 +387,8 @@ func TokenAuth() func(c *gin.Context) {
 	}
 }
 
+// SetupContextForToken 将令牌相关的元数据设置到 gin 上下文中，
+// 包括配额限制、模型限制、分组配置和合并模式。
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {
 	if token == nil {
 		return fmt.Errorf("token is nil")
@@ -370,7 +408,16 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		c.Set("token_model_limit_enabled", false)
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
-	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	// Only set CrossGroupRetry from DB if not already set to true by multi-group handling
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenCrossGroupRetry) {
+		common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	}
+	// Store model merge mode for multi-group tokens
+	mergeMode := token.ModelMergeMode
+	if mergeMode == "" {
+		mergeMode = "union"
+	}
+	common.SetContextKey(c, constant.ContextKeyTokenModelMergeMode, mergeMode)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {
 			c.Set("specific_channel_id", parts[1])
