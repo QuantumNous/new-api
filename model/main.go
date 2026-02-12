@@ -276,6 +276,7 @@ func migrateDB() error {
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
+		&CustomErrorRule{},
 	)
 	if err != nil {
 		return err
@@ -288,6 +289,11 @@ func migrateDB() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	// 初始化自定义错误规则缓存并注册 provider
+	InitCustomErrorRulesCache()
+	common.CustomErrorRulesProvider = func() []common.CustomErrorReplacement {
+		return GetCachedCustomErrorReplacements()
 	}
 	return nil
 }
