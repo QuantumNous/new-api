@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -14,19 +15,39 @@ import (
 // ErrRedeemFailed is returned when redemption fails due to database error
 var ErrRedeemFailed = errors.New("redeem.failed")
 
+const (
+	RedemptionTypeQuota        = "quota"
+	RedemptionTypeSubscription = "subscription"
+)
+
+// ParseRedemptionType When raw is empty, defaults to quota; otherwise, it's subscription.
+func ParseRedemptionType(raw string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	switch normalized {
+	case "", RedemptionTypeQuota:
+		return RedemptionTypeQuota, true
+	case RedemptionTypeSubscription:
+		return RedemptionTypeSubscription, true
+	default:
+		return "", false
+	}
+}
+
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status       int            `json:"status" gorm:"default:1"`
-	Name         string         `json:"name" gorm:"index"`
-	Quota        int            `json:"quota" gorm:"default:100"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
-	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id                 int            `json:"id"`
+	UserId             int            `json:"user_id"`
+	Key                string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status             int            `json:"status" gorm:"default:1"`
+	Name               string         `json:"name" gorm:"index"`
+	Quota              int            `json:"quota"`
+	RedeemType         string         `json:"redeem_type" gorm:"type:varchar(32);not null;default:'quota';index"`
+	SubscriptionPlanId int            `json:"subscription_plan_id" gorm:"default:0;index"`
+	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime       int64          `json:"redeemed_time" gorm:"bigint"`
+	Count              int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId         int            `json:"used_user_id"`
+	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	ExpiredTime        int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -172,7 +193,7 @@ func (redemption *Redemption) SelectUpdate() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (redemption *Redemption) Update() error {
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time", "expired_time").Updates(redemption).Error
+	err = DB.Model(redemption).Select("name", "status", "quota", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
 	return err
 }
 

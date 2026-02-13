@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API, showError, showSuccess, copy } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import {
@@ -39,6 +39,10 @@ export const useRedemptionsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [tokenCount, setTokenCount] = useState(0);
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [subscriptionPlanTitleMap, setSubscriptionPlanTitleMap] = useState({});
+  const subscriptionPlanTitleMapRef = useRef({});
+  const subscriptionPlanTitleLoadedRef = useRef(false);
+  const subscriptionPlanTitlePromiseRef = useRef(null);
 
   // Edit state
   const [editingRedemption, setEditingRedemption] = useState({
@@ -65,24 +69,83 @@ export const useRedemptionsData = () => {
     };
   };
 
+  const mapRedemptionsWithPlanTitle = (items, planTitleMap) => {
+    if (!Array.isArray(items) || items.length === 0) {
+      return [];
+    }
+    return items.map((item) => {
+      const planId = Number(item?.subscription_plan_id || 0);
+      if (planId <= 0) {
+        return item;
+      }
+      const planTitle = planTitleMap?.[planId] || '';
+      return {
+        ...item,
+        subscription_plan_title: planTitle,
+      };
+    });
+  };
+
+  const loadSubscriptionPlanTitleMap = async () => {
+    if (subscriptionPlanTitleLoadedRef.current) {
+      return subscriptionPlanTitleMapRef.current;
+    }
+    if (subscriptionPlanTitlePromiseRef.current) {
+      return subscriptionPlanTitlePromiseRef.current;
+    }
+
+    const loadPromise = (async () => {
+      try {
+        const res = await API.get('/api/subscription/admin/plans');
+        if (!res.data?.success) {
+          return subscriptionPlanTitleMapRef.current;
+        }
+        const plans = res.data?.data || [];
+        const nextMap = {};
+        plans.forEach((item) => {
+          const plan = item?.plan || {};
+          const id = Number(plan.id || 0);
+          if (id > 0) {
+            nextMap[id] = plan.title || '';
+          }
+        });
+        setSubscriptionPlanTitleMap(nextMap);
+        subscriptionPlanTitleMapRef.current = nextMap;
+        subscriptionPlanTitleLoadedRef.current = true;
+        return nextMap;
+      } catch (error) {
+        return subscriptionPlanTitleMapRef.current;
+      } finally {
+        subscriptionPlanTitlePromiseRef.current = null;
+      }
+    })();
+
+    subscriptionPlanTitlePromiseRef.current = loadPromise;
+    return loadPromise;
+  };
+
   // Set redemption data format
-  const setRedemptionFormat = (redemptions) => {
-    setRedemptions(redemptions);
+  const setRedemptionFormat = (
+    items,
+    planTitleMap = subscriptionPlanTitleMap,
+  ) => {
+    setRedemptions(mapRedemptionsWithPlanTitle(items, planTitleMap));
   };
 
   // Load redemption list
   const loadRedemptions = async (page = 1, pageSize) => {
     setLoading(true);
     try {
-      const res = await API.get(
-        `/api/redemption/?p=${page}&page_size=${pageSize}`,
-      );
+      const [res, planTitleMap] = await Promise.all([
+        API.get(`/api/redemption/?p=${page}&page_size=${pageSize}`),
+        loadSubscriptionPlanTitleMap(),
+      ]);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
         setActivePage(data.page <= 0 ? 1 : data.page);
         setTokenCount(data.total);
-        setRedemptionFormat(newPageData);
+        setRedemptionFormat(newPageData, planTitleMap);
       } else {
         showError(message);
       }
@@ -102,15 +165,18 @@ export const useRedemptionsData = () => {
 
     setSearching(true);
     try {
-      const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
-      );
+      const [res, planTitleMap] = await Promise.all([
+        API.get(
+          `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
+        ),
+        loadSubscriptionPlanTitleMap(),
+      ]);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
         setActivePage(data.page || 1);
         setTokenCount(data.total);
-        setRedemptionFormat(newPageData);
+        setRedemptionFormat(newPageData, planTitleMap);
       } else {
         showError(message);
       }

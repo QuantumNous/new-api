@@ -49,6 +49,10 @@ redemption.expired: "該兌換碼已過期"
 redemption.failed: "兌換失敗，請稍後重試"
 redemption.not_provided: "未提供兌換碼"
 redemption.expire_time_invalid: "過期時間不能早於當前時間"
+redemption.type_invalid: "兌換碼類型無效"
+redemption.quota_positive: "額度必須大於0"
+redemption.subscription_plan_required: "請選擇訂閱方案"
+redemption.subscription_plan_not_found: "訂閱方案不存在"
 
 # User messages
 user.password_login_disabled: "管理員關閉了密碼登錄"

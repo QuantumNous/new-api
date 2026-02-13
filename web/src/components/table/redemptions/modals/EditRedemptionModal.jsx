@@ -27,6 +27,10 @@ import {
   renderQuota,
   renderQuotaWithPrompt,
 } from '../../../../helpers';
+import {
+  REDEMPTION_TYPE,
+  REDEMPTION_TYPE_MAP,
+} from '../../../../constants/redemption.constants';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -55,18 +59,93 @@ const EditRedemptionModal = (props) => {
   const { t } = useTranslation();
   const isEdit = props.editingRedemption.id !== undefined;
   const [loading, setLoading] = useState(isEdit);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
 
   const getInitValues = () => ({
     name: '',
     quota: 100000,
+    redeem_type: inferRedeemType(
+      props.editingRedemption.redeem_type,
+      props.editingRedemption.subscription_plan_id,
+    ),
+    subscription_plan_id: Number(
+      props.editingRedemption.subscription_plan_id || 0,
+    ),
     count: 1,
     expired_time: null,
   });
 
+  const inferRedeemType = (rawType, subscriptionPlanId) => {
+    if (rawType === REDEMPTION_TYPE.SUBSCRIPTION) {
+      return REDEMPTION_TYPE.SUBSCRIPTION;
+    }
+    if (rawType === REDEMPTION_TYPE.QUOTA) {
+      return REDEMPTION_TYPE.QUOTA;
+    }
+    if (Number(subscriptionPlanId || 0) > 0) {
+      return REDEMPTION_TYPE.SUBSCRIPTION;
+    }
+    return REDEMPTION_TYPE.QUOTA;
+  };
+
+  const getCurrentRedeemType = (values = {}) => {
+    if (isEdit) {
+      return inferRedeemType(
+        values.redeem_type || props.editingRedemption.redeem_type,
+        values.subscription_plan_id ||
+          props.editingRedemption.subscription_plan_id,
+      );
+    }
+    return inferRedeemType(values.redeem_type, values.subscription_plan_id);
+  };
+
   const handleCancel = () => {
     props.handleClose();
+  };
+
+  const loadSubscriptionPlans = async () => {
+    setPlansLoading(true);
+    try {
+      const res = await API.get('/api/subscription/admin/plans');
+      if (res.data?.success) {
+        setSubscriptionPlans(res.data?.data || []);
+      } else {
+        setSubscriptionPlans([]);
+      }
+    } catch (e) {
+      setSubscriptionPlans([]);
+    } finally {
+      setPlansLoading(false);
+    }
+  };
+
+  const getSubscriptionPlanOptions = (values = {}) => {
+    const options = subscriptionPlans
+      .filter((item) => item?.plan?.id)
+      .map((item) => ({
+        label: item?.plan?.title
+          ? `${item.plan.title} (#${item.plan.id})`
+          : `#${item.plan.id}`,
+        value: Number(item.plan.id),
+      }));
+    const currentPlanId = Number(
+      values.subscription_plan_id ||
+        props.editingRedemption.subscription_plan_id ||
+        0,
+    );
+    if (
+      currentPlanId > 0 &&
+      !options.some((option) => Number(option.value) === currentPlanId)
+    ) {
+      options.unshift({
+        label: `#${currentPlanId}`,
+        value: currentPlanId,
+      });
+    }
+    return options;
   };
 
   const loadRedemption = async () => {
@@ -79,12 +158,24 @@ const EditRedemptionModal = (props) => {
       } else {
         data.expired_time = new Date(data.expired_time * 1000);
       }
+      data.redeem_type = inferRedeemType(
+        data.redeem_type,
+        data.subscription_plan_id,
+      );
+      data.subscription_plan_id = Number(data.subscription_plan_id || 0);
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
       showError(message);
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!props.visiable) {
+      return;
+    }
+    loadSubscriptionPlans();
+  }, [props.visiable]);
 
   useEffect(() => {
     if (formApiRef.current) {
@@ -97,14 +188,38 @@ const EditRedemptionModal = (props) => {
   }, [props.editingRedemption.id]);
 
   const submit = async (values) => {
+    const redeemType = getCurrentRedeemType(values);
     let name = values.name;
     if (!isEdit && (!name || name === '')) {
-      name = renderQuota(values.quota);
+      if (redeemType === REDEMPTION_TYPE.SUBSCRIPTION) {
+        const selectedPlan = subscriptionPlans.find(
+          (item) =>
+            Number(item?.plan?.id) === Number(values.subscription_plan_id),
+        );
+        name = selectedPlan?.plan?.title
+          ? `${selectedPlan.plan.title}${t('兑换码')}`
+          : t('订阅兑换码');
+      } else {
+        name = renderQuota(values.quota);
+      }
     }
     setLoading(true);
     let localInputs = { ...values };
+    localInputs.redeem_type = redeemType;
+    localInputs.subscription_plan_id =
+      parseInt(localInputs.subscription_plan_id, 10) || 0;
     localInputs.count = parseInt(localInputs.count) || 0;
-    localInputs.quota = parseInt(localInputs.quota) || 0;
+    if (localInputs.redeem_type === REDEMPTION_TYPE.SUBSCRIPTION) {
+      if (localInputs.subscription_plan_id <= 0) {
+        localInputs.subscription_plan_id = Number(
+          props.editingRedemption.subscription_plan_id || 0,
+        );
+      }
+      localInputs.quota = 0;
+    } else {
+      localInputs.quota = parseInt(localInputs.quota, 10) || 0;
+      localInputs.subscription_plan_id = 0;
+    }
     localInputs.name = name;
     if (!localInputs.expired_time) {
       localInputs.expired_time = 0;
@@ -214,135 +329,177 @@ const EditRedemptionModal = (props) => {
             getFormApi={(api) => (formApiRef.current = api)}
             onSubmit={submit}
           >
-            {({ values }) => (
-              <div className='p-2'>
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Basic Info */}
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='blue'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconGift size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('基本信息')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('设置兑换码的基本信息')}
+            {({ values }) => {
+              const redeemType = getCurrentRedeemType(values);
+              return (
+                <div className='p-2'>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Basic Info */}
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='blue'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconGift size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('基本信息')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('设置兑换码的基本信息')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='name'
-                        label={t('名称')}
-                        placeholder={t('请输入名称')}
-                        style={{ width: '100%' }}
-                        rules={
-                          !isEdit
-                            ? []
-                            : [{ required: true, message: t('请输入名称') }]
-                        }
-                        showClear
-                      />
-                    </Col>
-                    <Col span={24}>
-                      <Form.DatePicker
-                        field='expired_time'
-                        label={t('过期时间')}
-                        type='dateTime'
-                        placeholder={t('选择过期时间（可选，留空为永久）')}
-                        style={{ width: '100%' }}
-                        showClear
-                      />
-                    </Col>
-                  </Row>
-                </Card>
-
-                <Card className='!rounded-2xl shadow-sm border-0'>
-                  {/* Header: Quota Settings */}
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='green'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconCreditCard size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('额度设置')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('设置兑换码的额度和数量')}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.AutoComplete
-                        field='quota'
-                        label={t('额度')}
-                        placeholder={t('请输入额度')}
-                        style={{ width: '100%' }}
-                        type='number'
-                        rules={[
-                          { required: true, message: t('请输入额度') },
-                          {
-                            validator: (rule, v) => {
-                              const num = parseInt(v, 10);
-                              return num > 0
-                                ? Promise.resolve()
-                                : Promise.reject(t('额度必须大于0'));
-                            },
-                          },
-                        ]}
-                        extraText={renderQuotaWithPrompt(
-                          Number(values.quota) || 0,
-                        )}
-                        data={[
-                          { value: 500000, label: '1$' },
-                          { value: 5000000, label: '10$' },
-                          { value: 25000000, label: '50$' },
-                          { value: 50000000, label: '100$' },
-                          { value: 250000000, label: '500$' },
-                          { value: 500000000, label: '1000$' },
-                        ]}
-                        showClear
-                      />
-                    </Col>
-                    {!isEdit && (
-                      <Col span={12}>
-                        <Form.InputNumber
-                          field='count'
-                          label={t('生成数量')}
-                          min={1}
-                          rules={[
-                            { required: true, message: t('请输入生成数量') },
-                            {
-                              validator: (rule, v) => {
-                                const num = parseInt(v, 10);
-                                return num > 0
-                                  ? Promise.resolve()
-                                  : Promise.reject(t('生成数量必须大于0'));
-                              },
-                            },
-                          ]}
+                    <Row gutter={12}>
+                      <Col span={24}>
+                        <Form.Input
+                          field='name'
+                          label={t('名称')}
+                          placeholder={t('请输入名称')}
+                          style={{ width: '100%' }}
+                          rules={
+                            !isEdit
+                              ? []
+                              : [{ required: true, message: t('请输入名称') }]
+                          }
+                          showClear
+                        />
+                      </Col>
+                      <Col span={24}>
+                        <Form.DatePicker
+                          field='expired_time'
+                          label={t('过期时间')}
+                          type='dateTime'
+                          placeholder={t('选择过期时间（可选，留空为永久）')}
                           style={{ width: '100%' }}
                           showClear
                         />
                       </Col>
-                    )}
-                  </Row>
-                </Card>
-              </div>
-            )}
+                    </Row>
+                  </Card>
+
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='green'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconCreditCard size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('兑换内容设置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('设置兑换码类型、额度或订阅套餐')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Row gutter={12}>
+                      {!isEdit && (
+                        <Col span={24}>
+                          <Form.Select
+                            field='redeem_type'
+                            label={t('兑换类型')}
+                            optionList={Object.keys(REDEMPTION_TYPE_MAP).map(
+                              (key) => ({
+                                label: t(REDEMPTION_TYPE_MAP[key].text),
+                                value: key,
+                              }),
+                            )}
+                            rules={[
+                              { required: true, message: t('请选择兑换类型') },
+                            ]}
+                          />
+                        </Col>
+                      )}
+
+                      {redeemType === REDEMPTION_TYPE.QUOTA && (
+                        <Col span={!isEdit ? 12 : 24}>
+                          <Form.AutoComplete
+                            field='quota'
+                            label={t('额度')}
+                            placeholder={t('请输入额度')}
+                            style={{ width: '100%' }}
+                            type='number'
+                            rules={[
+                              { required: true, message: t('请输入额度') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('额度必须大于0'));
+                                },
+                              },
+                            ]}
+                            extraText={renderQuotaWithPrompt(
+                              Number(values.quota) || 0,
+                            )}
+                            data={[
+                              { value: 500000, label: '1$' },
+                              { value: 5000000, label: '10$' },
+                              { value: 25000000, label: '50$' },
+                              { value: 50000000, label: '100$' },
+                              { value: 250000000, label: '500$' },
+                              { value: 500000000, label: '1000$' },
+                            ]}
+                            showClear
+                          />
+                        </Col>
+                      )}
+
+                      {redeemType === REDEMPTION_TYPE.SUBSCRIPTION && (
+                        <Col span={!isEdit ? 12 : 24}>
+                          <Form.Select
+                            field='subscription_plan_id'
+                            label={t('订阅套餐')}
+                            placeholder={t('请选择订阅套餐')}
+                            optionList={getSubscriptionPlanOptions(values)}
+                            loading={plansLoading}
+                            filter
+                            rules={[
+                              {
+                                required: true,
+                                message: t('请选择订阅套餐'),
+                              },
+                            ]}
+                          />
+                        </Col>
+                      )}
+
+                      {!isEdit && (
+                        <Col span={12}>
+                          <Form.InputNumber
+                            field='count'
+                            label={t('生成数量')}
+                            min={1}
+                            rules={[
+                              { required: true, message: t('请输入生成数量') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('生成数量必须大于0'));
+                                },
+                              },
+                            ]}
+                            style={{ width: '100%' }}
+                            showClear
+                          />
+                        </Col>
+                      )}
+                    </Row>
+                  </Card>
+                </div>
+              );
+            }}
           </Form>
         </Spin>
       </SideSheet>

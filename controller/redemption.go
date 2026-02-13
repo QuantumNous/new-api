@@ -65,6 +65,12 @@ func AddRedemption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	redeemType, ok := model.ParseRedemptionType(redemption.RedeemType)
+	if !ok {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionTypeInvalid)
+		return
+	}
+	redemption.RedeemType = redeemType
 	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
 		return
@@ -81,16 +87,36 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
+	if redemption.RedeemType == model.RedemptionTypeQuota {
+		if redemption.Quota <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgRedemptionQuotaPositive)
+			return
+		}
+		redemption.SubscriptionPlanId = 0
+	} else {
+		if redemption.SubscriptionPlanId <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgRedemptionPlanRequired)
+			return
+		}
+		plan, planErr := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId)
+		if planErr != nil || plan == nil {
+			common.ApiErrorI18n(c, i18n.MsgRedemptionPlanNotFound)
+			return
+		}
+		redemption.Quota = 0
+	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			RedeemType:         redemption.RedeemType,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
+			ExpiredTime:        redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -139,6 +165,11 @@ func UpdateRedemption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	existingType, ok := model.ParseRedemptionType(cleanRedemption.RedeemType)
+	if !ok {
+		existingType = model.RedemptionTypeQuota
+	}
+	cleanRedemption.RedeemType = existingType
 	if statusOnly == "" {
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
@@ -146,7 +177,30 @@ func UpdateRedemption(c *gin.Context) {
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
-		cleanRedemption.Quota = redemption.Quota
+		if existingType == model.RedemptionTypeQuota {
+			if redemption.Quota <= 0 {
+				common.ApiErrorI18n(c, i18n.MsgRedemptionQuotaPositive)
+				return
+			}
+			cleanRedemption.Quota = redemption.Quota
+			cleanRedemption.SubscriptionPlanId = 0
+		} else {
+			targetPlanId := redemption.SubscriptionPlanId
+			if targetPlanId <= 0 {
+				targetPlanId = cleanRedemption.SubscriptionPlanId
+			}
+			if targetPlanId <= 0 {
+				common.ApiErrorI18n(c, i18n.MsgRedemptionPlanRequired)
+				return
+			}
+			plan, planErr := model.GetSubscriptionPlanById(targetPlanId)
+			if planErr != nil || plan == nil {
+				common.ApiErrorI18n(c, i18n.MsgRedemptionPlanNotFound)
+				return
+			}
+			cleanRedemption.SubscriptionPlanId = targetPlanId
+			cleanRedemption.Quota = 0
+		}
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {

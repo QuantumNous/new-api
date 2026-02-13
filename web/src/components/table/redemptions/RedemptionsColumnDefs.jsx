@@ -25,6 +25,8 @@ import {
   REDEMPTION_STATUS,
   REDEMPTION_STATUS_MAP,
   REDEMPTION_ACTIONS,
+  REDEMPTION_TYPE,
+  REDEMPTION_TYPE_MAP,
 } from '../../../constants/redemption.constants';
 
 /**
@@ -43,6 +45,13 @@ export const isExpired = (record) => {
  */
 const renderTimestamp = (timestamp) => {
   return <>{timestamp2string(timestamp)}</>;
+};
+
+const getRedeemType = (record) => {
+  if (record?.redeem_type === REDEMPTION_TYPE.SUBSCRIPTION) {
+    return REDEMPTION_TYPE.SUBSCRIPTION;
+  }
+  return REDEMPTION_TYPE.QUOTA;
 };
 
 /**
@@ -105,9 +114,33 @@ export const getRedemptionsColumns = ({
       },
     },
     {
+      title: t('类型'),
+      dataIndex: 'redeem_type',
+      render: (text, record) => {
+        const redeemType = getRedeemType(record);
+        const typeConfig = REDEMPTION_TYPE_MAP[redeemType];
+        if (!typeConfig) {
+          return (
+            <Tag color='black' shape='circle'>
+              {t('未知类型')}
+            </Tag>
+          );
+        }
+        return (
+          <Tag color={typeConfig.color} shape='circle'>
+            {t(typeConfig.text)}
+          </Tag>
+        );
+      },
+    },
+    {
       title: t('额度'),
       dataIndex: 'quota',
-      render: (text) => {
+      render: (text, record) => {
+        const redeemType = getRedeemType(record);
+        if (redeemType !== REDEMPTION_TYPE.QUOTA) {
+          return <div>-</div>;
+        }
         return (
           <div>
             <Tag color='grey' shape='circle'>
@@ -115,6 +148,31 @@ export const getRedemptionsColumns = ({
             </Tag>
           </div>
         );
+      },
+    },
+    {
+      title: t('订阅套餐ID'),
+      dataIndex: 'subscription_plan_id',
+      render: (text, record) => {
+        const redeemType = getRedeemType(record);
+        if (redeemType !== REDEMPTION_TYPE.SUBSCRIPTION) {
+          return <div>-</div>;
+        }
+        if (!text || Number(text) <= 0) {
+          return <div>-</div>;
+        }
+        return <div>#{Number(text)}</div>;
+      },
+    },
+    {
+      title: t('订阅套餐名称'),
+      dataIndex: 'subscription_plan_title',
+      render: (text, record) => {
+        const redeemType = getRedeemType(record);
+        if (redeemType !== REDEMPTION_TYPE.SUBSCRIPTION) {
+          return <div>-</div>;
+        }
+        return <div>{text || t('未知套餐')}</div>;
       },
     },
     {
