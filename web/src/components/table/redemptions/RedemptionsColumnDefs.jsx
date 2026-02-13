@@ -74,6 +74,24 @@ const renderStatus = (status, record, t) => {
 };
 
 /**
+ * Render redemption code type
+ */
+const renderType = (type, record, t) => {
+  if (type === 2) {
+    return (
+      <Tag color='purple' shape='circle'>
+        {t('订阅套餐')}
+      </Tag>
+    );
+  }
+  return (
+    <Tag color='blue' shape='circle'>
+      {t('余额充值')}
+    </Tag>
+  );
+};
+
+/**
  * Get redemption code table column definitions
  */
 export const getRedemptionsColumns = ({
@@ -97,6 +115,13 @@ export const getRedemptionsColumns = ({
       dataIndex: 'name',
     },
     {
+      title: t('类型'),
+      dataIndex: 'type',
+      render: (text, record) => {
+        return <div>{renderType(text, record, t)}</div>;
+      },
+    },
+    {
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
@@ -107,7 +132,14 @@ export const getRedemptionsColumns = ({
     {
       title: t('额度'),
       dataIndex: 'quota',
-      render: (text) => {
+      render: (text, record) => {
+        if (record.type === 2) {
+          return (
+            <Tag color='purple' shape='circle'>
+              {t('订阅')}
+            </Tag>
+          );
+        }
         return (
           <div>
             <Tag color='grey' shape='circle'>

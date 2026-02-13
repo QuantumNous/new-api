@@ -447,6 +447,7 @@
     "充值额度": "Top Up Quota",
     "兑换人ID": "Redeemer ID",
     "兑换成功！": "Redemption successful!",
+    "成功激活订阅套餐：": "Subscription plan activated: ",
     "兑换码充值": "Redemption code recharge",
     "清理不活跃缓存": "Clean up inactive cache",
     "兑换码创建成功": "Redemption Code Created",
@@ -2856,6 +2857,16 @@
     "缓存写": "Cache Write",
     "写": "Write",
     "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Per Anthropic conventions, /v1/messages input tokens count only non-cached input and exclude cache read/write tokens.",
-    "设计版本": "b80c3466cb6feafeb3990c7820e10e50"
+    "设计版本": "b80c3466cb6feafeb3990c7820e10e50",
+    "兑换码类型": "Redemption Type",
+    "请选择兑换码类型": "Please select redemption type",
+    "订阅设置": "Subscription Settings",
+    "选择要兑换的订阅套餐": "Select subscription plan to redeem",
+    "请选择订阅套餐": "Please select subscription plan",
+    "订阅类型兑换码必须指定订阅套餐ID": "Subscription type redemption code must specify subscription plan ID",
+    "指定的订阅套餐不存在": "Specified subscription plan does not exist",
+    "兑换": "Redeem",
+    "请输入兑换码（支持余额充值和订阅激活）": "Enter redemption code (supports balance top-up and subscription activation)",
+    "类型": "Type"
   }
 }

@@ -1,0 +1,115 @@
+name: Publish Docker image (push)
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  build_single_arch:
+    name: Build & push (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine version
+        id: version
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          VERSION="${BRANCH}-${SHORT_SHA}"
+          echo "$VERSION" > VERSION
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Publishing version: $VERSION for ${{ matrix.arch }}"
+
+      - name: Normalize GHCR repository
+        run: echo "GHCR_REPOSITORY=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push single-arch
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.BRANCH }}-${{ matrix.arch }}
+            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.VERSION }}-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  create_manifests:
+    name: Create multi-arch manifests
+    needs: [build_single_arch]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Check out (shallow)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Determine version
+        id: version
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          VERSION="${BRANCH}-${SHORT_SHA}"
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Normalize GHCR repository
+        run: echo "GHCR_REPOSITORY=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create & push manifest (branch)
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${GHCR_REPOSITORY}:${BRANCH} \
+            ghcr.io/${GHCR_REPOSITORY}:${BRANCH}-amd64 \
+            ghcr.io/${GHCR_REPOSITORY}:${BRANCH}-arm64
+
+      - name: Create & push manifest (versioned)
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${GHCR_REPOSITORY}:${VERSION} \
+            ghcr.io/${GHCR_REPOSITORY}:${VERSION}-amd64 \
+            ghcr.io/${GHCR_REPOSITORY}:${VERSION}-arm64

@@ -528,7 +528,7 @@ const RechargeCard = ({
         className='!rounded-xl w-full'
         title={
           <Text type='tertiary' strong>
-            {t('兑换码充值')}
+            {t('兑换码')}
           </Text>
         }
       >
@@ -539,7 +539,7 @@ const RechargeCard = ({
           <Form.Input
             field='redemptionCode'
             noLabel={true}
-            placeholder={t('请输入兑换码')}
+            placeholder={t('请输入兑换码（支持余额充值和订阅激活）')}
             value={redemptionCode}
             onChange={(value) => setRedemptionCode(value)}
             prefix={<IconGift />}
@@ -551,7 +551,7 @@ const RechargeCard = ({
                   onClick={topUp}
                   loading={isSubmitting}
                 >
-                  {t('兑换额度')}
+                  {t('兑换')}
                 </Button>
               </div>
             }

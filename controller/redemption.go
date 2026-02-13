@@ -81,16 +81,38 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
+
+	// 验证兑换码类型
+	if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription {
+		redemption.Type = common.RedemptionTypeQuota // 默认为余额类型
+	}
+
+	// 如果是订阅类型，验证订阅套餐ID
+	if redemption.Type == common.RedemptionTypeSubscription {
+		if redemption.SubscriptionPlanId <= 0 {
+			common.ApiErrorMsg(c, "订阅类型兑换码必须指定订阅套餐ID")
+			return
+		}
+		// 验证订阅套餐是否存在
+		_, err := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId)
+		if err != nil {
+			common.ApiErrorMsg(c, "指定的订阅套餐不存在")
+			return
+		}
+	}
+
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			ExpiredTime:        redemption.ExpiredTime,
+			Type:               redemption.Type,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -144,10 +166,21 @@ func UpdateRedemption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
+		// 验证兑换码类型
+		if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription {
+			redemption.Type = common.RedemptionTypeQuota
+		}
+		// 如果是订阅类型，验证订阅套餐ID
+		if redemption.Type == common.RedemptionTypeSubscription && redemption.SubscriptionPlanId <= 0 {
+			common.ApiErrorMsg(c, "订阅类型兑换码必须指定订阅套餐ID")
+			return
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
+		cleanRedemption.Type = redemption.Type
+		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
 	}
 	if statusOnly != "" {
 		cleanRedemption.Status = redemption.Status

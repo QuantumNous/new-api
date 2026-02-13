@@ -237,6 +237,7 @@ oauth.trust_level_low: "Linux DO trust level does not meet the minimum required 
 
 # Model layer error messages
 redeem.failed: "Redemption failed, please try again later"
+subscription.purchase_limit: "You have reached the maximum redemption limit for this subscription plan"
 user.create_default_token_error: "Failed to create default token"
 common.uuid_duplicate: "Please retry, the system generated a duplicate UUID!"
 common.invalid_input: "Invalid input"

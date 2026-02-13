@@ -41,12 +41,16 @@ import {
   Avatar,
   Row,
   Col,
+  RadioGroup,
+  Radio,
+  Select,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
   IconSave,
   IconClose,
   IconGift,
+  IconCrown,
 } from '@douyinfe/semi-icons';
 
 const { Text, Title } = Typography;
@@ -57,12 +61,15 @@ const EditRedemptionModal = (props) => {
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
 
   const getInitValues = () => ({
     name: '',
     quota: 100000,
     count: 1,
     expired_time: null,
+    type: 1, // 1=余额充值, 2=订阅套餐
+    subscription_plan_id: 0,
   });
 
   const handleCancel = () => {
@@ -79,12 +86,34 @@ const EditRedemptionModal = (props) => {
       } else {
         data.expired_time = new Date(data.expired_time * 1000);
       }
+      if (!data.type) {
+        data.type = 1; // 默认为余额类型
+      }
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
       showError(message);
     }
     setLoading(false);
   };
+
+  const loadSubscriptionPlans = async () => {
+    try {
+      const res = await API.get('/api/subscription/admin/plans');
+      const { success, data } = res.data;
+      if (success && data) {
+        setSubscriptionPlans(data.map(item => ({
+          value: item.plan.id,
+          label: `${item.plan.title} - $${item.plan.price_amount}`,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load subscription plans:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadSubscriptionPlans();
+  }, []);
 
   useEffect(() => {
     if (formApiRef.current) {
@@ -99,13 +128,20 @@ const EditRedemptionModal = (props) => {
   const submit = async (values) => {
     let name = values.name;
     if (!isEdit && (!name || name === '')) {
-      name = renderQuota(values.quota);
+      if (values.type === 2) {
+        const plan = subscriptionPlans.find(p => p.value === values.subscription_plan_id);
+        name = plan ? `订阅-${plan.label}` : '订阅兑换码';
+      } else {
+        name = renderQuota(values.quota);
+      }
     }
     setLoading(true);
     let localInputs = { ...values };
     localInputs.count = parseInt(localInputs.count) || 0;
     localInputs.quota = parseInt(localInputs.quota) || 0;
     localInputs.name = name;
+    localInputs.type = parseInt(localInputs.type) || 1;
+    localInputs.subscription_plan_id = parseInt(localInputs.subscription_plan_id) || 0;
     if (!localInputs.expired_time) {
       localInputs.expired_time = 0;
     } else {
@@ -261,6 +297,18 @@ const EditRedemptionModal = (props) => {
                         showClear
                       />
                     </Col>
+                    <Col span={24}>
+                      <Form.RadioGroup
+                        field='type'
+                        label={t('兑换码类型')}
+                        type='button'
+                        buttonSize='middle'
+                        rules={[{ required: true, message: t('请选择兑换码类型') }]}
+                      >
+                        <Radio value={1}>{t('余额充值')}</Radio>
+                        <Radio value={2}>{t('订阅套餐')}</Radio>
+                      </Form.RadioGroup>
+                    </Col>
                   </Row>
                 </Card>
 
@@ -272,53 +320,78 @@ const EditRedemptionModal = (props) => {
                       color='green'
                       className='mr-2 shadow-md'
                     >
-                      <IconCreditCard size={16} />
+                      {values.type === 2 ? (
+                        <IconCrown size={16} />
+                      ) : (
+                        <IconCreditCard size={16} />
+                      )}
                     </Avatar>
                     <div>
                       <Text className='text-lg font-medium'>
-                        {t('额度设置')}
+                        {values.type === 2 ? t('订阅设置') : t('额度设置')}
                       </Text>
                       <div className='text-xs text-gray-600'>
-                        {t('设置兑换码的额度和数量')}
+                        {values.type === 2
+                          ? t('选择要兑换的订阅套餐')
+                          : t('设置兑换码的额度和数量')}
                       </div>
                     </div>
                   </div>
 
                   <Row gutter={12}>
-                    <Col span={12}>
-                      <Form.AutoComplete
-                        field='quota'
-                        label={t('额度')}
-                        placeholder={t('请输入额度')}
-                        style={{ width: '100%' }}
-                        type='number'
-                        rules={[
-                          { required: true, message: t('请输入额度') },
-                          {
-                            validator: (rule, v) => {
-                              const num = parseInt(v, 10);
-                              return num > 0
-                                ? Promise.resolve()
-                                : Promise.reject(t('额度必须大于0'));
+                    {values.type === 2 ? (
+                      <Col span={24}>
+                        <Form.Select
+                          field='subscription_plan_id'
+                          label={t('订阅套餐')}
+                          placeholder={t('请选择订阅套餐')}
+                          style={{ width: '100%' }}
+                          optionList={subscriptionPlans}
+                          rules={[
+                            {
+                              required: true,
+                              message: t('请选择订阅套餐'),
                             },
-                          },
-                        ]}
-                        extraText={renderQuotaWithPrompt(
-                          Number(values.quota) || 0,
-                        )}
-                        data={[
-                          { value: 500000, label: '1$' },
-                          { value: 5000000, label: '10$' },
-                          { value: 25000000, label: '50$' },
-                          { value: 50000000, label: '100$' },
-                          { value: 250000000, label: '500$' },
-                          { value: 500000000, label: '1000$' },
-                        ]}
-                        showClear
-                      />
-                    </Col>
-                    {!isEdit && (
+                          ]}
+                          showClear
+                        />
+                      </Col>
+                    ) : (
                       <Col span={12}>
+                        <Form.AutoComplete
+                          field='quota'
+                          label={t('额度')}
+                          placeholder={t('请输入额度')}
+                          style={{ width: '100%' }}
+                          type='number'
+                          rules={[
+                            { required: true, message: t('请输入额度') },
+                            {
+                              validator: (rule, v) => {
+                                const num = parseInt(v, 10);
+                                return num > 0
+                                  ? Promise.resolve()
+                                  : Promise.reject(t('额度必须大于0'));
+                              },
+                            },
+                          ]}
+                          extraText={renderQuotaWithPrompt(
+                            Number(values.quota) || 0,
+                          )}
+                          data={[
+                            { value: 500000, label: '1$' },
+                            { value: 5000000, label: '10$' },
+                            { value: 25000000, label: '50$' },
+                            { value: 50000000, label: '100$' },
+                            { value: 250000000, label: '500$' },
+                            { value: 500000000, label: '1000$' },
+                          ]}
+                          showClear
+                        />
+                      </Col>
+                    )}
+                    {!isEdit && (
+                      <Col span={values.type === 2 ? 24 : 12}>
                         <Form.InputNumber
                           field='count'
                           label={t('生成数量')}
