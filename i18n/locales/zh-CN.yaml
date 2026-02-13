@@ -53,6 +53,8 @@ redemption.type_invalid: "兑换码类型无效"
 redemption.quota_positive: "额度必须大于0"
 redemption.subscription_plan_required: "请选择订阅套餐"
 redemption.subscription_plan_not_found: "订阅套餐不存在"
+redemption.subscription_plan_disabled: "该订阅套餐已下架"
+redemption.subscription_purchase_limit: "已达到该套餐购买上限"
 
 # User messages
 user.password_login_disabled: "管理员关闭了密码登录"

@@ -15,6 +15,27 @@ import (
 // ErrRedeemFailed is returned when redemption fails due to database error
 var ErrRedeemFailed = errors.New("redeem.failed")
 
+// redeemBusinessError
+// model 层用类型断言区分业务错误和系统错误，controller 层用 errors.As 提取后做 i18n 映射
+type redeemBusinessError struct{ msg string }
+
+func (e redeemBusinessError) Error() string { return e.msg }
+
+var (
+	ErrRedemptionInvalid      = redeemBusinessError{"redemption.invalid"}
+	ErrRedemptionUsed         = redeemBusinessError{"redemption.used"}
+	ErrRedemptionExpired      = redeemBusinessError{"redemption.expired"}
+	ErrRedemptionTypeInvalid  = redeemBusinessError{"redemption.type_invalid"}
+	ErrRedemptionPlanNotFound = redeemBusinessError{"redemption.plan_not_found"}
+	ErrRedemptionPlanDisabled = redeemBusinessError{"redemption.plan_disabled"}
+)
+
+// IsRedeemBusinessError 通过类型断言判断是否为兑换业务错误
+func IsRedeemBusinessError(err error) bool {
+	var target redeemBusinessError
+	return errors.As(err, &target)
+}
+
 const (
 	RedemptionTypeQuota        = "quota"
 	RedemptionTypeSubscription = "subscription"
@@ -48,6 +69,19 @@ type Redemption struct {
 	UsedUserId         int            `json:"used_user_id"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 	ExpiredTime        int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+}
+
+type RedeemSubscriptionInfo struct {
+	PlanId    int    `json:"plan_id"`
+	PlanTitle string `json:"plan_title"`
+	StartTime int64  `json:"start_time"`
+	EndTime   int64  `json:"end_time"`
+}
+
+type RedeemResult struct {
+	RedeemType   string                  `json:"redeem_type"`
+	QuotaAdded   int                     `json:"quota_added"`
+	Subscription *RedeemSubscriptionInfo `json:"subscription,omitempty"`
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -136,14 +170,19 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
-func Redeem(key string, userId int) (quota int, err error) {
+func Redeem(key string, userId int) (result *RedeemResult, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return nil, errors.New("未提供兑换码")
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return nil, errors.New("无效的 user id")
 	}
 	redemption := &Redemption{}
+	result = &RedeemResult{
+		RedeemType: RedemptionTypeQuota,
+		QuotaAdded: 0,
+	}
+	cacheUpgradeGroup := ""
 
 	keyCol := "`key`"
 	if common.UsingPostgreSQL {
@@ -153,17 +192,60 @@ func Redeem(key string, userId int) (quota int, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRedemptionInvalid
+			}
+			return err
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return ErrRedemptionUsed
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return ErrRedemptionExpired
 		}
-		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
-		if err != nil {
-			return err
+		redeemType, ok := ParseRedemptionType(redemption.RedeemType)
+		if !ok {
+			return ErrRedemptionTypeInvalid
+		}
+		result.RedeemType = redeemType
+		if redeemType == RedemptionTypeSubscription {
+			if redemption.SubscriptionPlanId <= 0 {
+				return ErrRedemptionPlanNotFound
+			}
+			plan, planErr := getSubscriptionPlanByIdTx(tx, redemption.SubscriptionPlanId)
+			if planErr != nil {
+				if errors.Is(planErr, gorm.ErrRecordNotFound) {
+					return ErrRedemptionPlanNotFound
+				}
+				return planErr
+			}
+			if plan == nil {
+				return ErrRedemptionPlanNotFound
+			}
+			if !plan.Enabled {
+				return ErrRedemptionPlanDisabled
+			}
+			sub, createErr := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "redemption")
+			if createErr != nil {
+				if errors.Is(createErr, ErrSubscriptionPurchaseLimit) {
+					return ErrSubscriptionPurchaseLimit
+				}
+				return createErr
+			}
+			result.Subscription = &RedeemSubscriptionInfo{
+				PlanId:    plan.Id,
+				PlanTitle: plan.Title,
+				StartTime: sub.StartTime,
+				EndTime:   sub.EndTime,
+			}
+			result.QuotaAdded = 0
+			cacheUpgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		} else {
+			err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+			if err != nil {
+				return err
+			}
+			result.QuotaAdded = redemption.Quota
 		}
 		redemption.RedeemedTime = common.GetTimestamp()
 		redemption.Status = common.RedemptionCodeStatusUsed
@@ -172,11 +254,28 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return err
 	})
 	if err != nil {
+		if IsRedeemBusinessError(err) {
+			return nil, err
+		}
 		common.SysError("redemption failed: " + err.Error())
-		return 0, ErrRedeemFailed
+		return nil, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
-	return redemption.Quota, nil
+	if cacheUpgradeGroup != "" {
+		err := UpdateUserGroupCache(userId, cacheUpgradeGroup)
+		if err != nil {
+			common.SysError("failed to update user group cache: " + err.Error())
+		}
+	}
+	if result.RedeemType == RedemptionTypeSubscription {
+		planTitle := ""
+		if result.Subscription != nil {
+			planTitle = result.Subscription.PlanTitle
+		}
+		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码开通订阅 %s，兑换码ID %d", planTitle, redemption.Id))
+		return result, nil
+	}
+	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(result.QuotaAdded), redemption.Id))
+	return result, nil
 }
 
 func (redemption *Redemption) Insert() error {

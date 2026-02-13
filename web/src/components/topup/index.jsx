@@ -25,6 +25,7 @@ import {
   showSuccess,
   renderQuota,
   renderQuotaWithAmount,
+  timestamp2string,
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
@@ -118,17 +119,35 @@ const TopUp = () => {
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('兑换成功！'));
-        Modal.success({
-          title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
-          centered: true,
-        });
-        if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
+        if (data.redeem_type === 'subscription') {
+          const planTitle = data.subscription?.plan_title || t('未知套餐');
+          const endTime = data.subscription?.end_time || 0;
+          Modal.success({
+            title: t('兑换成功！'),
+            content: (
+              <div>
+                <div>{`${t('订阅套餐')}：${planTitle}`}</div>
+                <div>{`${t('过期时间')}：${
+                  endTime > 0 ? timestamp2string(endTime) : t('永不过期')
+                }`}</div>
+              </div>
+            ),
+            centered: true,
+          });
+          await Promise.allSettled([getUserQuota(), getSubscriptionSelf()]);
+        } else {
+          Modal.success({
+            title: t('兑换成功！'),
+            content: t('成功兑换额度：') + renderQuota(data.quota_added),
+            centered: true,
+          });
+          if (userState.user) {
+            const updatedUser = {
+              ...userState.user,
+              quota: userState.user.quota + data.quota_added,
+            };
+            userDispatch({ type: 'login', payload: updatedUser });
+          }
         }
         setRedemptionCode('');
       } else {

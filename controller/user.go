@@ -963,6 +963,18 @@ func getTopUpLock(userID int) *topUpTryLock {
 	return l
 }
 
+// redeemErrI18nMap 兑换业务错误 → i18n key 的映射（包级变量，只初始化一次）
+// 新增 sentinel error 时：1) model 层用 redeemBusinessError 类型定义  2) 此处添加 i18n 映射
+var redeemErrI18nMap = map[error]string{
+	model.ErrRedemptionInvalid:         i18n.MsgRedemptionInvalid,
+	model.ErrRedemptionUsed:            i18n.MsgRedemptionUsed,
+	model.ErrRedemptionExpired:         i18n.MsgRedemptionExpired,
+	model.ErrRedemptionTypeInvalid:     i18n.MsgRedemptionTypeInvalid,
+	model.ErrRedemptionPlanNotFound:    i18n.MsgRedemptionPlanNotFound,
+	model.ErrRedemptionPlanDisabled:    i18n.MsgRedemptionPlanDisabled,
+	model.ErrSubscriptionPurchaseLimit: i18n.MsgRedemptionPurchaseLimit,
+}
+
 func TopUp(c *gin.Context) {
 	id := c.GetInt("id")
 	lock := getTopUpLock(id)
@@ -977,11 +989,17 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	redeemResult, err := model.Redeem(req.Key, id)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
 			return
+		}
+		for sentinel, msgKey := range redeemErrI18nMap {
+			if errors.Is(err, sentinel) {
+				common.ApiErrorI18n(c, msgKey)
+				return
+			}
 		}
 		common.ApiError(c, err)
 		return
@@ -989,7 +1007,7 @@ func TopUp(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    quota,
+		"data":    redeemResult,
 	})
 }
 

@@ -52,6 +52,8 @@ redemption.type_invalid: "Invalid redemption code type"
 redemption.quota_positive: "Quota must be greater than 0"
 redemption.subscription_plan_required: "Please select a subscription plan"
 redemption.subscription_plan_not_found: "Subscription plan does not exist"
+redemption.subscription_plan_disabled: "This subscription plan is no longer available"
+redemption.subscription_purchase_limit: "Purchase limit for this subscription plan has been reached"
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"

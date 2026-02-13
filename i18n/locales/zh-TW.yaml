@@ -53,6 +53,8 @@ redemption.type_invalid: "兌換碼類型無效"
 redemption.quota_positive: "額度必須大於0"
 redemption.subscription_plan_required: "請選擇訂閱方案"
 redemption.subscription_plan_not_found: "訂閱方案不存在"
+redemption.subscription_plan_disabled: "該訂閱方案已下架"
+redemption.subscription_purchase_limit: "已達到該方案購買上限"
 
 # User messages
 user.password_login_disabled: "管理員關閉了密碼登錄"

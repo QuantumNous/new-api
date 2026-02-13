@@ -60,6 +60,8 @@ const (
 	MsgRedemptionQuotaPositive     = "redemption.quota_positive"
 	MsgRedemptionPlanRequired      = "redemption.subscription_plan_required"
 	MsgRedemptionPlanNotFound      = "redemption.subscription_plan_not_found"
+	MsgRedemptionPlanDisabled      = "redemption.subscription_plan_disabled"
+	MsgRedemptionPurchaseLimit     = "redemption.subscription_purchase_limit"
 )
 
 // User related messages
