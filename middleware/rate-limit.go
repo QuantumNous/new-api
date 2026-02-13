@@ -101,6 +101,13 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+func GlobalAPIVideoRateLimit() func(c *gin.Context) {
+	if common.GlobalApiRateLimitEnable {
+		return rateLimitFactory(common.GlobalApiVideoRateLimitNum, common.GlobalApiRateLimitDuration, "GAV")
+	}
+	return defNext
+}
+
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
