@@ -9,7 +9,7 @@ import (
 
 func SetVideoRouter(router *gin.Engine) {
 	videoV1Router := router.Group("/v1")
-	videoV1Router.Use(middleware.TokenAuth(), middleware.Distribute())
+	videoV1Router.Use(middleware.GlobalAPIRateLimit(), middleware.TokenAuth(), middleware.Distribute())
 	{
 		videoV1Router.GET("/videos/:task_id/content", controller.VideoProxy)
 		videoV1Router.POST("/video/generations", controller.RelayTask)
@@ -19,7 +19,7 @@ func SetVideoRouter(router *gin.Engine) {
 	// openai compatible API video routes
 	// docs: https://platform.openai.com/docs/api-reference/videos/create
 	{
-		videoV1Router.POST("/videos", controller.RelayTask)
+		videoV1Router.POST("/videos", middleware.GlobalAPIVideoRateLimit(), controller.RelayTask)
 		videoV1Router.GET("/videos/:task_id", controller.RelayTask)
 	}
 
