@@ -314,7 +314,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					model = streamResp.Response.Model
 				}
 				if streamResp.Response.CreatedAt != 0 {
-					createAt = int64(streamResp.Response.CreatedAt)
+					createAt = streamResp.Response.CreatedAt.Int64()
 				}
 			}
 
@@ -439,7 +439,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					model = streamResp.Response.Model
 				}
 				if streamResp.Response.CreatedAt != 0 {
-					createAt = int64(streamResp.Response.CreatedAt)
+					createAt = streamResp.Response.CreatedAt.Int64()
 				}
 				if streamResp.Response.Usage != nil {
 					if streamResp.Response.Usage.InputTokens != 0 {
