@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +27,9 @@ func TestFormatRequestAllowsOutputConfigAndUnknownFields(t *testing.T) {
 	require.Equal(t, "enabled", awsReq.Thinking.Type)
 	require.Equal(t, 1024, awsReq.Thinking.GetBudgetTokens())
 
-	bodyBytes, err := buildAwsRequestBody(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, awsReq)
+	bodyBytes, err := buildAwsRequestBody(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: false},
+	}}, awsReq)
 	require.NoError(t, err)
 
 	var serialized map[string]any
@@ -44,7 +47,9 @@ func TestFormatRequestAllowsEmptyOutputConfig(t *testing.T) {
 	require.NotNil(t, awsReq.OutputConfig)
 	require.NotEmpty(t, awsReq.OutputConfig)
 
-	bodyBytes, err := buildAwsRequestBody(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}, awsReq)
+	bodyBytes, err := buildAwsRequestBody(nil, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: false},
+	}}, awsReq)
 	require.NoError(t, err)
 
 	var serialized map[string]any
