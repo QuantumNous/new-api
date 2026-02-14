@@ -18,6 +18,13 @@ type ClaudeSettings struct {
 	DefaultMaxTokens                      map[string]int                 `json:"default_max_tokens"`
 	ThinkingAdapterEnabled                bool                           `json:"thinking_adapter_enabled"`
 	ThinkingAdapterBudgetTokensPercentage float64                        `json:"thinking_adapter_budget_tokens_percentage"`
+	// AutoInjectCacheControl 自动为 system prompt 的最后一个块注入 cache_control: {type: "ephemeral"}，
+	// 以提升 Anthropic Prompt Caching 命中率。仅在客户端未自行设置 cache_control 时生效。
+	AutoInjectCacheControl bool `json:"auto_inject_cache_control"`
+	// AutoInjectMetadataUserId 自动将请求方的 token_id 注入到 metadata.user_id，
+	// 帮助上游 Anthropic 或代理层实现基于 user_id 的粘性路由，提升缓存命中率。
+	// 仅在客户端未自行设置 metadata.user_id 时生效。
+	AutoInjectMetadataUserId bool `json:"auto_inject_metadata_user_id"`
 }
 
 // 默认配置

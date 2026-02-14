@@ -31,6 +31,69 @@ const (
 	WebSearchMaxUsesHigh   = 10
 )
 
+// ephemeralCacheControl 预序列化的 cache_control JSON: {type: "ephemeral"}
+var ephemeralCacheControl = json.RawMessage(`{"type":"ephemeral"}`)
+
+// injectMetadataUserId 向 ClaudeRequest 注入 metadata.user_id，需同时满足：
+// 1. ClaudeSettings 中 AutoInjectMetadataUserId 已启用
+// 2. 请求中尚未包含 metadata.user_id
+// 注入值为 "token-{tokenId}"，来源于 Gin 上下文中的 token_id。
+func injectMetadataUserId(c *gin.Context, claudeRequest *dto.ClaudeRequest) {
+	if !model_setting.GetClaudeSettings().AutoInjectMetadataUserId {
+		return
+	}
+
+	// 如果 metadata 中已包含 user_id，优先保留客户端的值
+	if len(claudeRequest.Metadata) > 0 {
+		existing := gjson.GetBytes(claudeRequest.Metadata, "user_id")
+		if existing.Exists() && existing.String() != "" {
+			return
+		}
+	}
+
+	tokenId := common.GetContextKeyInt(c, constant.ContextKeyTokenId)
+	if tokenId == 0 {
+		return
+	}
+
+	userId := fmt.Sprintf("token-%d", tokenId)
+
+	if len(claudeRequest.Metadata) > 0 {
+		// 将 user_id 合并到已有的 metadata 中
+		updated, err := sjson.SetBytes(claudeRequest.Metadata, "user_id", userId)
+		if err == nil {
+			claudeRequest.Metadata = updated
+		}
+	} else {
+		claudeRequest.Metadata, _ = common.Marshal(dto.ClaudeMetadata{UserId: userId})
+	}
+}
+
+// injectSystemCacheControl 为最后一个 system 消息块注入 cache_control: {type: "ephemeral"}，需同时满足：
+// 1. ClaudeSettings 中 AutoInjectCacheControl 已启用
+// 2. 存在 system 消息
+// 3. 所有 system 消息均未设置 cache_control
+// 此操作可启用 Anthropic Prompt Caching，缓存 system prompt 前缀以降低重复请求成本。
+func injectSystemCacheControl(systemMessages []dto.ClaudeMediaMessage) []dto.ClaudeMediaMessage {
+	if !model_setting.GetClaudeSettings().AutoInjectCacheControl {
+		return systemMessages
+	}
+	if len(systemMessages) == 0 {
+		return systemMessages
+	}
+
+	// 检查是否已有 system 消息设置了 cache_control
+	for _, msg := range systemMessages {
+		if len(msg.CacheControl) > 0 {
+			return systemMessages
+		}
+	}
+
+	// 为最后一个 system 消息添加 cache_control
+	systemMessages[len(systemMessages)-1].CacheControl = ephemeralCacheControl
+	return systemMessages
+}
+
 func stopReasonClaude2OpenAI(reason string) string {
 	return reasonmap.ClaudeStopReasonToOpenAIFinishReason(reason)
 }
@@ -384,8 +447,12 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 	// 设置累积的system消息
 	if len(systemMessages) > 0 {
+		systemMessages = injectSystemCacheControl(systemMessages)
 		claudeRequest.System = systemMessages
 	}
+
+	// 注入 metadata.user_id 以提升缓存路由亲和性
+	injectMetadataUserId(c, &claudeRequest)
 
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages

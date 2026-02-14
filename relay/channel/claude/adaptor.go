@@ -24,6 +24,14 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	// 对 Claude 原生请求应用 prompt caching 优化
+	if request.System != nil {
+		if systemMsgs := request.ParseSystem(); len(systemMsgs) > 0 {
+			systemMsgs = injectSystemCacheControl(systemMsgs)
+			request.System = systemMsgs
+		}
+	}
+	injectMetadataUserId(c, request)
 	return request, nil
 }
 
