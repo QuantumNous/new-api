@@ -91,6 +91,13 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	// If target model is Gemini, convert Claude format to Gemini format
+	if a.RequestMode == RequestModeGemini {
+		geminiAdaptor := gemini.Adaptor{}
+		return geminiAdaptor.ConvertClaudeRequest(c, info, request)
+	}
+
+	// Original logic: for Claude models on Vertex AI
 	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
 		c.Set("request_model", v)
 	} else {
