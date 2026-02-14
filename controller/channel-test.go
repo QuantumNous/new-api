@@ -862,6 +862,29 @@ func TestAllChannels(c *gin.Context) {
 	})
 }
 
+// MonitorTestResult holds the result of a channel test for the group monitor module.
+type MonitorTestResult struct {
+	Success   bool
+	LatencyMs int64
+	ErrorMsg  string
+}
+
+// TestChannelForMonitor runs a non-streaming test on the given channel and returns a simplified result.
+func TestChannelForMonitor(channel *model.Channel, testModel string) MonitorTestResult {
+	tik := time.Now()
+	result := testChannel(channel, testModel, "", false)
+	latencyMs := time.Since(tik).Milliseconds()
+	r := MonitorTestResult{LatencyMs: latencyMs}
+	if result.localErr != nil {
+		r.ErrorMsg = result.localErr.Error()
+	} else if result.newAPIError != nil {
+		r.ErrorMsg = result.newAPIError.Error()
+	} else {
+		r.Success = true
+	}
+	return r
+}
+
 var autoTestChannelsOnce sync.Once
 
 func AutomaticallyTestChannels() {

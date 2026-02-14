@@ -45,6 +45,8 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import GroupMonitorAdmin from './modules/group-monitor/GroupMonitorAdmin';
+import GroupMonitorUser from './modules/group-monitor/GroupMonitorUser';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -102,6 +104,22 @@ function App() {
           }
         />
         <Route path='/forbidden' element={<Forbidden />} />
+        <Route
+          path='/console/group-monitor'
+          element={
+            <AdminRoute>
+              <GroupMonitorAdmin />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/group-status'
+          element={
+            <PrivateRoute>
+              <GroupMonitorUser />
+            </PrivateRoute>
+          }
+        />
         <Route
           path='/console/models'
           element={
