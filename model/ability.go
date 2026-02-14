@@ -339,3 +339,12 @@ func FixAbility() (int, int, error) {
 	InitChannelCache()
 	return successCount, failCount, nil
 }
+
+// GetChannelIdsByGroupAndModel returns the channel IDs that serve the given group and model.
+func GetChannelIdsByGroupAndModel(group, modelName string) ([]int, error) {
+	var channelIds []int
+	err := DB.Model(&Ability{}).
+		Where(commonGroupCol+" = ? AND model = ? AND enabled = ?", group, modelName, true).
+		Distinct().Pluck("channel_id", &channelIds).Error
+	return channelIds, err
+}

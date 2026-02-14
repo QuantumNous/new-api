@@ -75,6 +75,8 @@ import {
   Package,
   Server,
   CalendarClock,
+  Activity,
+  ShieldCheck,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -122,6 +124,10 @@ export function getLucideIcon(key, selected = false) {
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
+    case 'group-monitor':
+      return <Activity {...commonProps} color={iconColor} />;
+    case 'group-status':
+      return <ShieldCheck {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;
   }
