@@ -50,8 +50,17 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
+	if len(body) == 0 {
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
+		logger.LogJSONUnmarshalError(
+			c,
+			fmt.Sprintf("openai.OaiResponsesToChatHandler status=%d", resp.StatusCode),
+			err,
+			body,
+		)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
@@ -102,13 +111,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	model := info.UpstreamModelName
 
 	var (
-		usage       = &dto.Usage{}
-		outputText  strings.Builder
-		usageText   strings.Builder
-		sentStart   bool
-		sentStop    bool
-		sawToolCall bool
-		streamErr   *types.NewAPIError
+		usage         = &dto.Usage{}
+		outputText    strings.Builder
+		usageText     strings.Builder
+		sentStart     bool
+		sentStop      bool
+		sawToolCall   bool
+		hasStreamData bool
+		streamErr     *types.NewAPIError
 	)
 
 	toolCallIndexByID := make(map[string]int)
@@ -148,8 +158,16 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
+	isDownstreamClosed := func() bool {
+		return c == nil || c.Request == nil || c.Request.Context().Err() != nil
+	}
+
 	sendStartIfNeeded := func() bool {
 		if sentStart {
+			return true
+		}
+		if isDownstreamClosed() {
+			sentStart = true
 			return true
 		}
 		if !sendChatChunk(helper.GenerateStartEmptyResponse(responseId, createAt, model, nil)) {
@@ -267,6 +285,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			toolCallNameSent[callID] = true
 		}
 
+		if isDownstreamClosed() {
+			sawToolCall = true
+			return true
+		}
+
 		chunk := &dto.ChatCompletionsStreamResponse{
 			Id:      responseId,
 			Object:  "chat.completion.chunk",
@@ -297,13 +320,18 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+		hasStreamData = true
 		if streamErr != nil {
+			return false
+		}
+		if strings.TrimSpace(data) == "" {
+			streamErr = types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			return false
 		}
 
 		var streamResp dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
-			logger.LogError(c, "failed to unmarshal responses stream event: "+err.Error())
+			logger.LogJSONUnmarshalError(c, "openai.OaiResponsesToChatStreamHandler", err, []byte(data))
 			return true
 		}
 
@@ -360,6 +388,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if streamResp.Delta != "" {
 				outputText.WriteString(streamResp.Delta)
 				usageText.WriteString(streamResp.Delta)
+				if isDownstreamClosed() {
+					break
+				}
 				delta := streamResp.Delta
 				chunk := &dto.ChatCompletionsStreamResponse{
 					Id:      responseId,
@@ -478,6 +509,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					finishReason = "tool_calls"
 				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
+				if isDownstreamClosed() {
+					sentStop = true
+					break
+				}
 				if !sendChatChunk(stop) {
 					return false
 				}
@@ -500,6 +535,10 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	})
 
+	if !hasStreamData {
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
 	if streamErr != nil {
 		return nil, streamErr
 	}
@@ -508,12 +547,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		usage = service.ResponseText2Usage(c, usageText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 
-	if !sentStart {
+	if !sentStart && !isDownstreamClosed() {
 		if !sendChatChunk(helper.GenerateStartEmptyResponse(responseId, createAt, model, nil)) {
 			return nil, streamErr
 		}
 	}
-	if !sentStop {
+	if !sentStop && !isDownstreamClosed() {
 		if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
 			info.ClaudeConvertInfo.Usage = usage
 		}
@@ -526,13 +565,13 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return nil, streamErr
 		}
 	}
-	if info.RelayFormat == types.RelayFormatOpenAI && info.ShouldIncludeUsage && usage != nil {
+	if info.RelayFormat == types.RelayFormatOpenAI && info.ShouldIncludeUsage && usage != nil && !isDownstreamClosed() {
 		if err := helper.ObjectData(c, helper.GenerateFinalUsageResponse(responseId, createAt, model, *usage)); err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
 
-	if info.RelayFormat == types.RelayFormatOpenAI {
+	if !isDownstreamClosed() && info.RelayFormat == types.RelayFormatOpenAI {
 		helper.Done(c)
 	}
 	return usage, nil

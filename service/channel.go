@@ -60,6 +60,9 @@ func ShouldDisableChannel(channelType int, err *types.NewAPIError) bool {
 	if operation_setting.ShouldDisableByStatusCode(err.StatusCode) {
 		return true
 	}
+	if common.AutomaticDisableOnEmptyResponseEnabled && types.IsEmptyResponseError(err) {
+		return true
+	}
 	//if err.StatusCode == http.StatusUnauthorized {
 	//	return true
 	//}

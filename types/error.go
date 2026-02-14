@@ -87,10 +87,16 @@ const (
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
 )
 
+var (
+	ErrEmptyResponseBody   = errors.New("empty response body")
+	ErrEmptyStreamResponse = errors.New("empty stream response")
+)
+
 type NewAPIError struct {
 	Err            error
 	RelayError     any
 	skipRetry      bool
+	emptyResponse  bool
 	recordErrorLog *bool
 	errorType      ErrorType
 	errorCode      ErrorCode
@@ -370,12 +376,50 @@ func IsChannelError(err *NewAPIError) bool {
 	return strings.HasPrefix(string(err.errorCode), "channel:")
 }
 
+func IsEmptyResponseError(err *NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+
+	if err.emptyResponse {
+		return true
+	}
+
+	if err.GetErrorCode() == ErrorCodeEmptyResponse {
+		return true
+	}
+
+	return false
+}
+
 func IsSkipRetryError(err *NewAPIError) bool {
 	if err == nil {
 		return false
 	}
 
 	return err.skipRetry
+}
+
+func ErrOptionWithEmptyResponse() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.emptyResponse = true
+	}
+}
+
+func NewEmptyResponseBodyError(errorCode ErrorCode) *NewAPIError {
+	return NewError(ErrEmptyResponseBody, errorCode, ErrOptionWithEmptyResponse())
+}
+
+func NewEmptyResponseBodyOpenAIError(errorCode ErrorCode, statusCode int) *NewAPIError {
+	return NewOpenAIError(ErrEmptyResponseBody, errorCode, statusCode, ErrOptionWithEmptyResponse())
+}
+
+func NewEmptyStreamResponseError(errorCode ErrorCode) *NewAPIError {
+	return NewError(ErrEmptyStreamResponse, errorCode, ErrOptionWithEmptyResponse())
+}
+
+func NewEmptyStreamResponseOpenAIError(errorCode ErrorCode, statusCode int) *NewAPIError {
+	return NewOpenAIError(ErrEmptyStreamResponse, errorCode, statusCode, ErrOptionWithEmptyResponse())
 }
 
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {
