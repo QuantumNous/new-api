@@ -378,6 +378,8 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return updateChannelAPI2GPTBalance(channel)
 	case constant.ChannelTypeAIGC2D:
 		return updateChannelAIGC2DBalance(channel)
+	case constant.ChannelTypeAli:
+		return updateChannelAliBalance(channel)
 	case constant.ChannelTypeSiliconFlow:
 		return updateChannelSiliconFlowBalance(channel)
 	case constant.ChannelTypeDeepSeek:
