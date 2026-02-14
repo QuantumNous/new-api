@@ -28,6 +28,8 @@ import AdminStep from './components/steps/AdminStep';
 import UsageModeStep from './components/steps/UsageModeStep';
 import CompleteStep from './components/steps/CompleteStep';
 
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+
 const SetupWizard = () => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -86,7 +88,7 @@ const SetupWizard = () => {
 
         // If setup is already completed, redirect to home
         if (data.status) {
-          window.location.href = '/';
+          window.location.href = `${BASE_PATH}/`;
           return;
         }
 

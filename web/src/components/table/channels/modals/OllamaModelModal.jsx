@@ -53,6 +53,8 @@ import {
 
 const { Text, Title } = Typography;
 
+const BASE_PATH = import.meta.env.VITE_BASE_PATH || '';
+
 const CHANNEL_TYPE_OLLAMA = 4;
 
 const parseMaybeJSON = (value) => {
@@ -339,7 +341,7 @@ const OllamaModelModal = ({
         ...authHeaders,
       };
 
-      const response = await fetch('/api/channel/ollama/pull/stream', {
+      const response = await fetch(`${BASE_PATH}/api/channel/ollama/pull/stream`, {
         method: 'POST',
         headers: fetchHeaders,
         body: JSON.stringify({

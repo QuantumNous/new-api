@@ -12,11 +12,13 @@
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
-version: '3.4' # For compatibility with older Docker versions
-
 services:
   new-api:
-    image: calciumion/new-api:latest
+    build:
+      context: .
+      args:
+        - BASE_PATH=${BASE_PATH:-}  # 子路径部署时设置，如 /api-server
+    image: new-api:local
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
@@ -32,6 +34,7 @@ services:
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
+      - BASE_PATH=${BASE_PATH:-}  # 子路径部署，需与构建参数一致 (For sub-path deployment, must match build arg)
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ （multi-node deployment, set this to a random string!!!!!!!）
 #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
