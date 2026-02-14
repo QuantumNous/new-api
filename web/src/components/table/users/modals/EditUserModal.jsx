@@ -25,7 +25,12 @@ import {
   showSuccess,
   renderQuota,
   renderQuotaWithPrompt,
+  getCurrencyConfig,
 } from '../../../../helpers';
+import {
+  quotaToDisplayAmount,
+  displayAmountToQuota,
+} from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -60,6 +65,7 @@ const EditUserModal = (props) => {
   const [loading, setLoading] = useState(true);
   const [addQuotaModalOpen, setIsModalOpen] = useState(false);
   const [addQuotaLocal, setAddQuotaLocal] = useState('');
+  const [addAmountLocal, setAddAmountLocal] = useState('');
   const isMobile = useIsMobile();
   const [groupOptions, setGroupOptions] = useState([]);
   const formApiRef = useRef(null);
@@ -367,8 +373,12 @@ const EditUserModal = (props) => {
         onOk={() => {
           addLocalQuota();
           setIsModalOpen(false);
+          setAddQuotaLocal('');
+          setAddAmountLocal('');
         }}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          setIsModalOpen(false);
+        }}
         closable={null}
         title={
           <div className='flex items-center'>
@@ -387,14 +397,48 @@ const EditUserModal = (props) => {
             );
           })()}
         </div>
-        <InputNumber
-          placeholder={t('需要添加的额度（支持负数）')}
-          value={addQuotaLocal}
-          onChange={setAddQuotaLocal}
-          style={{ width: '100%' }}
-          showClear
-          step={500000}
-        />
+        {getCurrencyConfig().type !== 'TOKENS' && (
+          <div className='mb-3'>
+            <div className='mb-1'>
+              <Text size='small'>{t('金额')}</Text>
+              <Text size='small' type='tertiary'> ({t('仅用于换算，实际保存的是额度')})</Text>
+            </div>
+            <InputNumber
+              prefix={getCurrencyConfig().symbol}
+              placeholder={t('输入金额')}
+              value={addAmountLocal}
+              precision={2}
+              onChange={(val) => {
+                setAddAmountLocal(val);
+                setAddQuotaLocal(
+                  val != null && val !== '' ? displayAmountToQuota(Math.abs(val)) * Math.sign(val) : '',
+                );
+              }}
+              style={{ width: '100%' }}
+              showClear
+            />
+          </div>
+        )}
+        <div>
+          <div className='mb-1'>
+            <Text size='small'>{t('额度')}</Text>
+          </div>
+          <InputNumber
+            placeholder={t('输入额度')}
+            value={addQuotaLocal}
+            onChange={(val) => {
+              setAddQuotaLocal(val);
+              setAddAmountLocal(
+                val != null && val !== ''
+                  ? Number((quotaToDisplayAmount(Math.abs(val)) * Math.sign(val)).toFixed(2))
+                  : '',
+              );
+            }}
+            style={{ width: '100%' }}
+            showClear
+            step={500000}
+          />
+        </div>
       </Modal>
     </>
   );
