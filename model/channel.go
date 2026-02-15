@@ -48,6 +48,7 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	TokenLimit        int     `json:"token_limit" gorm:"default:0"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -443,6 +444,13 @@ func (channel *Channel) GetStatusCodeMapping() string {
 		return ""
 	}
 	return *channel.StatusCodeMapping
+}
+
+func (channel *Channel) GetTokenLimit() int {
+	if channel.TokenLimit <= 0 {
+		return 0
+	}
+	return channel.TokenLimit
 }
 
 func (channel *Channel) Insert() error {

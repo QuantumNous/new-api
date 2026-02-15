@@ -150,6 +150,7 @@ const EditChannelModal = (props) => {
     groups: ['default'],
     priority: 0,
     weight: 0,
+    token_limit: 0,
     tag: '',
     multi_key_mode: 'random',
     // 渠道额外设置的默认值
@@ -3025,6 +3026,18 @@ const EditChannelModal = (props) => {
                           min={0}
                           onNumberChange={(value) =>
                             handleInputChange('weight', value)
+                          }
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='token_limit'
+                          label={t('最大上下文')}
+                          placeholder={t('最大上下文')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('token_limit', value)
                           }
                           style={{ width: '100%' }}
                         />
