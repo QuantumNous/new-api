@@ -37,7 +37,7 @@ func SetupLogger() {
 	if *common.LogDir != "" {
 		ok := setupLogLock.TryLock()
 		if !ok {
-			log.Println("setup log is already working")
+			log.Println(common.Translate("logger.setup_log_is_already_working"))
 			return
 		}
 		defer func() {
@@ -152,7 +152,7 @@ func FormatQuota(quota int) string {
 func LogJson(ctx context.Context, msg string, obj any) {
 	jsonStr, err := common.Marshal(obj)
 	if err != nil {
-		LogError(ctx, fmt.Sprintf("json marshal failed: %s", err.Error()))
+		LogError(ctx, fmt.Sprintf(common.Translate("logger.json_marshal_failed"), err.Error()))
 		return
 	}
 	LogDebug(ctx, fmt.Sprintf("%s | %s", msg, string(jsonStr)))

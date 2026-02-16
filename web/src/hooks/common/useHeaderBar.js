@@ -245,6 +245,5 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     handleThemeToggle,
     handleMobileMenuToggle,
     navigate,
-    t,
   };
 };

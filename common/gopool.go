@@ -16,7 +16,7 @@ func init() {
 		if stopChan, ok := ctx.Value("stop_chan").(chan bool); ok {
 			SafeSendBool(stopChan, true)
 		}
-		SysError(fmt.Sprintf("panic in gopool.RelayPool: %v", i))
+		SysError(fmt.Sprintf(Translate("common.panic_in_gopool_relaypool"), i))
 	})
 }
 

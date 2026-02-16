@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { t } from '../helpers/i18n';
+
 export const MESSAGE_STATUS = {
   LOADING: 'loading',
   INCOMPLETE: 'incomplete',
@@ -31,7 +33,7 @@ export const MESSAGE_ROLES = {
 };
 
 // 默认消息示例 - 使用函数生成以支持 i18n
-export const getDefaultMessages = (t) => [
+export const getDefaultMessages = () => [
   {
     role: MESSAGE_ROLES.USER,
     id: '2',

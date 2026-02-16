@@ -46,6 +46,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { API } from '../../../../helpers';
 import { showError, showSuccess, copy } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -55,6 +56,7 @@ const BUILTIN_IMAGE = 'ollama/ollama:latest';
 const DEFAULT_TRAFFIC_PORT = 11434;
 
 const generateRandomKey = () => {
+  const { t } = useTranslation();
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return `ionet-${crypto.randomUUID().replace(/-/g, '')}`;
@@ -67,7 +69,7 @@ const generateRandomKey = () => {
     .slice(2)}`;
 };
 
-const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
+const CreateDeploymentModal = ({ visible, onCancel, onSuccess }) => {
   const [formApi, setFormApi] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);

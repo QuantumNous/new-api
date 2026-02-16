@@ -546,7 +546,7 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 		// 未知类型，尝试转换为字符串
 		return &types.ClaudeError{
 			Type:    "unknown_upstream_error",
-			Message: fmt.Sprintf("unknown_error: %v", err),
+			Message: fmt.Sprintf(common.Translate("dto.unknown_error"), err),
 		}
 	}
 }

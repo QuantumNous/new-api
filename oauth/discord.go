@@ -48,10 +48,10 @@ func (p *DiscordProvider) IsEnabled() bool {
 
 func (p *DiscordProvider) ExchangeToken(ctx context.Context, code string, c *gin.Context) (*OAuthToken, error) {
 	if code == "" {
-		return nil, NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
+		return nil, NewOAuthError("oauth.invalid_code", nil)
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Discord] ExchangeToken: code=%s...", code[:min(len(code), 10)])
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_exchangetoken_code"), code[:min(len(code), 10)])
 
 	settings := system_setting.GetDiscordSettings()
 	redirectUri := fmt.Sprintf("%s/oauth/discord", system_setting.ServerAddress)
@@ -62,7 +62,7 @@ func (p *DiscordProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	values.Set("grant_type", "authorization_code")
 	values.Set("redirect_uri", redirectUri)
 
-	logger.LogDebug(ctx, "[OAuth-Discord] ExchangeToken: redirect_uri=%s", redirectUri)
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_exchangetoken_redirect_uri"), redirectUri)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://discord.com/api/v10/oauth2/token", strings.NewReader(values.Encode()))
 	if err != nil {
@@ -76,26 +76,26 @@ func (p *DiscordProvider) ExchangeToken(ctx context.Context, code string, c *gin
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Discord] ExchangeToken error: %s", err.Error()))
-		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "Discord"}, err.Error())
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("oauth.oauth_discord_exchangetoken_error"), err.Error()))
+		return nil, NewOAuthErrorWithRaw("oauth.connect_failed", map[string]any{"Provider": "Discord"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-Discord] ExchangeToken response status: %d", res.StatusCode)
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_exchangetoken_response_status"), res.StatusCode)
 
 	var discordResponse discordOAuthResponse
 	err = json.NewDecoder(res.Body).Decode(&discordResponse)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Discord] ExchangeToken decode error: %s", err.Error()))
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("oauth.oauth_discord_exchangetoken_decode_error"), err.Error()))
 		return nil, err
 	}
 
 	if discordResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-Discord] ExchangeToken failed: empty access token")
-		return nil, NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Discord"})
+		logger.LogError(ctx, i18n.Translate("oauth.oauth_discord_exchangetoken_failed_empty_access_token"))
+		return nil, NewOAuthError("oauth.token_failed", map[string]any{"Provider": "Discord"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Discord] ExchangeToken success: scope=%s", discordResponse.Scope)
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_exchangetoken_success_scope"), discordResponse.Scope)
 
 	return &OAuthToken{
 		AccessToken:  discordResponse.AccessToken,
@@ -108,7 +108,7 @@ func (p *DiscordProvider) ExchangeToken(ctx context.Context, code string, c *gin
 }
 
 func (p *DiscordProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
-	logger.LogDebug(ctx, "[OAuth-Discord] GetUserInfo: fetching user info")
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_getuserinfo_fetching_user_info"))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://discord.com/api/v10/users/@me", nil)
 	if err != nil {
@@ -121,31 +121,31 @@ func (p *DiscordProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Discord] GetUserInfo error: %s", err.Error()))
-		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "Discord"}, err.Error())
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("oauth.oauth_discord_getuserinfo_error"), err.Error()))
+		return nil, NewOAuthErrorWithRaw("oauth.connect_failed", map[string]any{"Provider": "Discord"}, err.Error())
 	}
 	defer res.Body.Close()
 
-	logger.LogDebug(ctx, "[OAuth-Discord] GetUserInfo response status: %d", res.StatusCode)
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_getuserinfo_response_status"), res.StatusCode)
 
 	if res.StatusCode != http.StatusOK {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Discord] GetUserInfo failed: status=%d", res.StatusCode))
-		return nil, NewOAuthError(i18n.MsgOAuthGetUserErr, nil)
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("oauth.oauth_discord_getuserinfo_failed_status"), res.StatusCode))
+		return nil, NewOAuthError("oauth.get_user_error", nil)
 	}
 
 	var discordUser discordUser
 	err = json.NewDecoder(res.Body).Decode(&discordUser)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Discord] GetUserInfo decode error: %s", err.Error()))
+		logger.LogError(ctx, fmt.Sprintf(i18n.Translate("oauth.oauth_discord_getuserinfo_decode_error"), err.Error()))
 		return nil, err
 	}
 
 	if discordUser.UID == "" || discordUser.ID == "" {
-		logger.LogError(ctx, "[OAuth-Discord] GetUserInfo failed: empty user fields")
-		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Discord"})
+		logger.LogError(ctx, i18n.Translate("oauth.oauth_discord_getuserinfo_failed_empty_user_fields"))
+		return nil, NewOAuthError("oauth.user_info_empty", map[string]any{"Provider": "Discord"})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Discord] GetUserInfo success: uid=%s, username=%s, name=%s", discordUser.UID, discordUser.ID, discordUser.Name)
+	logger.LogDebug(ctx, i18n.Translate("oauth.oauth_discord_getuserinfo_success_uid_username_name"), discordUser.UID, discordUser.ID, discordUser.Name)
 
 	return &OAuthUser{
 		ProviderUserID: discordUser.UID,

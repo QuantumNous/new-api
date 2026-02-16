@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { t } from '../../../../helpers/i18n';
 import {
   Modal,
   Button,
@@ -43,17 +44,16 @@ const pickStrokeColor = (percent) => {
   return '#3b82f6';
 };
 
-const formatDurationSeconds = (seconds, t) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
+const formatDurationSeconds = (seconds) => {
   const s = Number(seconds);
   if (!Number.isFinite(s) || s <= 0) return '-';
   const total = Math.floor(s);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
-  if (hours > 0) return `${hours}${tt('小时')} ${minutes}${tt('分钟')}`;
-  if (minutes > 0) return `${minutes}${tt('分钟')} ${secs}${tt('秒')}`;
-  return `${secs}${tt('秒')}`;
+  if (hours > 0) return `${hours}${t('小时')} ${minutes}${t('分钟')}`;
+  if (minutes > 0) return `${minutes}${t('分钟')} ${secs}${t('秒')}`;
+  return `${secs}${t('秒')}`;
 };
 
 const formatUnixSeconds = (unixSeconds) => {
@@ -66,8 +66,7 @@ const formatUnixSeconds = (unixSeconds) => {
   }
 };
 
-const RateLimitWindowCard = ({ t, title, windowData }) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
+const RateLimitWindowCard = ({ title, windowData }) => {
   const percent = clampPercent(windowData?.used_percent ?? 0);
   const resetAt = windowData?.reset_at;
   const resetAfterSeconds = windowData?.reset_after_seconds;
@@ -78,7 +77,7 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
       <div className='flex items-center justify-between gap-2'>
         <div className='font-medium'>{title}</div>
         <Text type='tertiary' size='small'>
-          {tt('重置时间：')}
+          {t('重置时间：')}
           {formatUnixSeconds(resetAt)}
         </Text>
       </div>
@@ -93,24 +92,23 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
 
       <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
         <div>
-          {tt('已使用：')}
+          {t('已使用：')}
           {percent}%
         </div>
         <div>
-          {tt('距离重置：')}
-          {formatDurationSeconds(resetAfterSeconds, tt)}
+          {t('距离重置：')}
+          {formatDurationSeconds(resetAfterSeconds)}
         </div>
         <div>
-          {tt('窗口：')}
-          {formatDurationSeconds(limitWindowSeconds, tt)}
+          {t('窗口：')}
+          {formatDurationSeconds(limitWindowSeconds)}
         </div>
       </div>
     </div>
   );
 };
 
-const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
+const CodexUsageView = ({ record, payload, onCopy, onRefresh }) => {
   const data = payload?.data ?? null;
   const rateLimit = data?.rate_limit ?? {};
 
@@ -123,9 +121,9 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
 
   const statusTag =
     allowed && !limitReached ? (
-      <Tag color='green'>{tt('可用')}</Tag>
+      <Tag color='green'>{t('可用')}</Tag>
     ) : (
-      <Tag color='red'>{tt('受限')}</Tag>
+      <Tag color='red'>{t('受限')}</Tag>
     );
 
   const rawText =
@@ -135,8 +133,8 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
     <div className='flex flex-col gap-3'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <Text type='tertiary' size='small'>
-          {tt('渠道：')}
-          {record?.name || '-'} ({tt('编号：')}
+          {t('渠道：')}
+          {record?.name || '-'} ({t('编号：')}
           {record?.id || '-'})
         </Text>
         <div className='flex items-center gap-2'>
@@ -147,34 +145,26 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
             theme='borderless'
             onClick={onRefresh}
           >
-            {tt('刷新')}
+            {t('刷新')}
           </Button>
         </div>
       </div>
 
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <Text type='tertiary' size='small'>
-          {tt('上游状态码：')}
+          {t('上游状态码：')}
           {upstreamStatus ?? '-'}
         </Text>
       </div>
 
       <div className='grid grid-cols-1 gap-3 md:grid-cols-2'>
-        <RateLimitWindowCard
-          t={tt}
-          title={tt('5小时窗口')}
-          windowData={primary}
-        />
-        <RateLimitWindowCard
-          t={tt}
-          title={tt('每周窗口')}
-          windowData={secondary}
-        />
+        <RateLimitWindowCard title={t('5小时窗口')} windowData={primary} />
+        <RateLimitWindowCard title={t('每周窗口')} windowData={secondary} />
       </div>
 
       <div>
         <div className='mb-1 flex items-center justify-between gap-2'>
-          <div className='text-sm font-medium'>{tt('原始 JSON')}</div>
+          <div className='text-sm font-medium'>{t('原始 JSON')}</div>
           <Button
             size='small'
             type='primary'
@@ -182,7 +172,7 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
             onClick={() => onCopy?.(rawText)}
             disabled={!rawText}
           >
-            {tt('复制')}
+            {t('复制')}
           </Button>
         </div>
         <pre className='max-h-[50vh] overflow-auto rounded-lg bg-semi-color-fill-0 p-3 text-xs text-semi-color-text-0'>
@@ -193,8 +183,7 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   );
 };
 
-const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
+const CodexUsageLoader = ({ record, initialPayload, onCopy }) => {
   const [loading, setLoading] = useState(!initialPayload);
   const [payload, setPayload] = useState(initialPayload ?? null);
   const hasShownErrorRef = useRef(false);
@@ -216,19 +205,19 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
       setPayload(res?.data ?? null);
       if (!res?.data?.success && !hasShownErrorRef.current) {
         hasShownErrorRef.current = true;
-        showError(tt('获取用量失败'));
+        showError(t('获取用量失败'));
       }
     } catch (error) {
       if (!mountedRef.current) return;
       if (!hasShownErrorRef.current) {
         hasShownErrorRef.current = true;
-        showError(tt('获取用量失败'));
+        showError(t('获取用量失败'));
       }
       setPayload({ success: false, message: String(error) });
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [recordId, tt]);
+  }, [recordId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -245,7 +234,7 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
   if (loading) {
     return (
       <div className='flex items-center justify-center py-10'>
-        <Spin spinning={true} size='large' tip={tt('加载中...')} />
+        <Spin spinning={true} size='large' tip={t('加载中...')} />
       </div>
     );
   }
@@ -253,7 +242,7 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
   if (!payload) {
     return (
       <div className='flex flex-col gap-3'>
-        <Text type='danger'>{tt('获取用量失败')}</Text>
+        <Text type='danger'>{t('获取用量失败')}</Text>
         <div className='flex justify-end'>
           <Button
             size='small'
@@ -261,7 +250,7 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
             theme='outline'
             onClick={fetchUsage}
           >
-            {tt('刷新')}
+            {t('刷新')}
           </Button>
         </div>
       </div>
@@ -270,7 +259,6 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
 
   return (
     <CodexUsageView
-      t={tt}
       record={record}
       payload={payload}
       onCopy={onCopy}
@@ -279,17 +267,14 @@ const CodexUsageLoader = ({ t, record, initialPayload, onCopy }) => {
   );
 };
 
-export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
-  const tt = typeof t === 'function' ? t : (v) => v;
-
+export const openCodexUsageModal = ({ record, payload, onCopy }) => {
   Modal.info({
-    title: tt('Codex 用量'),
+    title: t('Codex 用量'),
     centered: true,
     width: 900,
     style: { maxWidth: '95vw' },
     content: (
       <CodexUsageLoader
-        t={tt}
         record={record}
         initialPayload={payload}
         onCopy={onCopy}
@@ -298,7 +283,7 @@ export const openCodexUsageModal = ({ t, record, payload, onCopy }) => {
     footer: (
       <div className='flex justify-end gap-2'>
         <Button type='primary' theme='solid' onClick={() => Modal.destroyAll()}>
-          {tt('关闭')}
+          {t('关闭')}
         </Button>
       </div>
     ),

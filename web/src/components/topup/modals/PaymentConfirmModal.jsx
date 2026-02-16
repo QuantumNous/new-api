@@ -21,12 +21,11 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const PaymentConfirmModal = ({
-  t,
-  open,
+const PaymentConfirmModal = ({ open,
   onlineTopUp,
   handleCancel,
   confirmLoading,
@@ -40,6 +39,7 @@ const PaymentConfirmModal = ({
   amountNumber,
   discountRate,
 }) => {
+  const { t } = useTranslation();
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;

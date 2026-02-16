@@ -22,6 +22,7 @@ import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import { useTranslation } from 'react-i18next';
 
 const MjLogsFilters = ({
   formInitValues,
@@ -31,8 +32,8 @@ const MjLogsFilters = ({
   formApi,
   loading,
   isAdminUser,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Form
       initValues={formInitValues}

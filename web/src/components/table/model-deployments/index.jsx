@@ -28,8 +28,10 @@ import ColumnSelectorModal from './modals/ColumnSelectorModal';
 import { useDeploymentsData } from '../../../hooks/model-deployments/useDeploymentsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const DeploymentsPage = () => {
+  const { t } = useTranslation();
   const deploymentsData = useDeploymentsData();
   const isMobile = useIsMobile();
 
@@ -68,9 +70,6 @@ const DeploymentsPage = () => {
     // Description state
     compactMode,
     setCompactMode,
-
-    // Translation
-    t,
   } = deploymentsData;
 
   return (
@@ -136,9 +135,9 @@ const DeploymentsPage = () => {
           onPageChange: deploymentsData.handlePageChange,
           onPageSizeChange: deploymentsData.handlePageSizeChange,
           isMobile: isMobile,
-          t: deploymentsData.t,
+          t: t,
         })}
-        t={deploymentsData.t}
+        t={t}
       >
         <DeploymentsTable
           {...deploymentsData}

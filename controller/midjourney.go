@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -31,7 +32,7 @@ func UpdateMidjourneyTaskBulk() {
 			continue
 		}
 
-		logger.LogInfo(ctx, fmt.Sprintf("检测到未完成的任务数有: %v", len(tasks)))
+		logger.LogInfo(ctx, i18n.Translate("midjourney.detected_unfinished", map[string]any{"Count": len(tasks)}))
 		taskChannelM := make(map[int][]string)
 		taskM := make(map[string]*model.Midjourney)
 		nullTaskIds := make([]int, 0)
@@ -50,9 +51,9 @@ func UpdateMidjourneyTaskBulk() {
 				"progress": "100%",
 			})
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Fix null mj_id task error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.fix_null_mj_id_task_error"), err))
 			} else {
-				logger.LogInfo(ctx, fmt.Sprintf("Fix null mj_id task success: %v", nullTaskIds))
+				logger.LogInfo(ctx, fmt.Sprintf(i18n.Translate("ctrl.fix_null_mj_id_task_success"), nullTaskIds))
 			}
 		}
 		if len(taskChannelM) == 0 {
@@ -60,20 +61,20 @@ func UpdateMidjourneyTaskBulk() {
 		}
 
 		for channelId, taskIds := range taskChannelM {
-			logger.LogInfo(ctx, fmt.Sprintf("渠道 #%d 未完成的任务有: %d", channelId, len(taskIds)))
+			logger.LogInfo(ctx, i18n.Translate("midjourney.channel_unfinished", map[string]any{"ChannelId": channelId, "Count": len(taskIds)}))
 			if len(taskIds) == 0 {
 				continue
 			}
 			midjourneyChannel, err := model.CacheGetChannel(channelId)
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("CacheGetChannel: %v", err))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.cachegetchannel"), err))
 				err := model.MjBulkUpdate(taskIds, map[string]any{
-					"fail_reason": fmt.Sprintf("获取渠道信息失败，请联系管理员，渠道ID：%d", channelId),
+					"fail_reason": i18n.Translate("midjourney.get_channel_info_failed", map[string]any{"ChannelId": channelId}),
 					"status":      "FAILURE",
 					"progress":    "100%",
 				})
 				if err != nil {
-					logger.LogInfo(ctx, fmt.Sprintf("UpdateMidjourneyTask error: %v", err))
+					logger.LogInfo(ctx, fmt.Sprintf(i18n.Translate("ctrl.updatemidjourneytask_error"), err))
 				}
 				continue
 			}
@@ -84,7 +85,7 @@ func UpdateMidjourneyTaskBulk() {
 			})
 			req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(body))
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Task error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.get_task_error"), err))
 				continue
 			}
 			// 设置超时时间
@@ -96,22 +97,22 @@ func UpdateMidjourneyTaskBulk() {
 			req.Header.Set("mj-api-secret", midjourneyChannel.Key)
 			resp, err := service.GetHttpClient().Do(req)
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Task Do req error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.get_task_do_req_error"), err))
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
-				logger.LogError(ctx, fmt.Sprintf("Get Task status code: %d", resp.StatusCode))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.get_task_status_code"), resp.StatusCode))
 				continue
 			}
 			responseBody, err := io.ReadAll(resp.Body)
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Mjp Task parse body error: %v", err))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.get_mjp_task_parse_body_error"), err))
 				continue
 			}
 			var responseItems []dto.MidjourneyDto
 			err = json.Unmarshal(responseBody, &responseItems)
 			if err != nil {
-				logger.LogError(ctx, fmt.Sprintf("Get Mjp Task parse body error2: %v, body: %s", err, string(responseBody)))
+				logger.LogError(ctx, fmt.Sprintf(i18n.Translate("ctrl.get_mjp_task_parse_body_error2_body"), err, string(responseBody)))
 				continue
 			}
 			resp.Body.Close()
@@ -124,7 +125,7 @@ func UpdateMidjourneyTaskBulk() {
 				useTime := (time.Now().UnixNano() / int64(time.Millisecond)) - task.SubmitTime
 				// 如果时间超过一小时，且进度不是100%，则认为任务失败
 				if useTime > 3600000 && task.Progress != "100%" {
-					responseItem.FailReason = "上游任务超时（超过1小时）"
+					responseItem.FailReason = i18n.Translate("midjourney.upstream_timeout")
 					responseItem.Status = "FAILURE"
 				}
 				if !checkMjTaskNeedUpdate(task, responseItem) {
@@ -156,7 +157,7 @@ func UpdateMidjourneyTaskBulk() {
 				if responseItem.VideoUrls != nil && len(responseItem.VideoUrls) > 0 {
 					videoUrlsStr, err := json.Marshal(responseItem.VideoUrls)
 					if err != nil {
-						logger.LogError(ctx, fmt.Sprintf("序列化 VideoUrls 失败: %v", err))
+						logger.LogError(ctx, i18n.Translate("midjourney.serialize_video_failed", map[string]any{"Error": err.Error()}))
 						task.VideoUrls = "[]" // 失败时设置为空数组
 					} else {
 						task.VideoUrls = string(videoUrlsStr)
@@ -167,7 +168,7 @@ func UpdateMidjourneyTaskBulk() {
 
 				shouldReturnQuota := false
 				if (task.Progress != "100%" && responseItem.FailReason != "") || (task.Progress == "100%" && task.Status == "FAILURE") {
-					logger.LogInfo(ctx, task.MjId+" 构建失败，"+task.FailReason)
+					logger.LogInfo(ctx, i18n.Translate("midjourney.build_failed", map[string]any{"TaskId": task.MjId, "Reason": task.FailReason}))
 					task.Progress = "100%"
 					if task.Quota != 0 {
 						shouldReturnQuota = true
@@ -190,7 +191,7 @@ func UpdateMidjourneyTaskBulk() {
 						Quota:     task.Quota,
 						Other: map[string]interface{}{
 							"task_id": task.MjId,
-							"reason":  "构图失败",
+							"reason":  i18n.Translate("midjourney.image_gen_failed"),
 						},
 					})
 				}

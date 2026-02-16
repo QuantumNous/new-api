@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -137,8 +136,8 @@ func GetTokenUsage(c *gin.Context) {
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
 	if err != nil {
-		common.SysError("failed to get token by key: " + err.Error())
-		common.ApiErrorI18n(c, i18n.MsgTokenGetInfoFailed)
+		common.SysError(i18n.Translate("ctrl.failed_to_get_token_by_key") + err.Error())
+		common.ApiErrorI18n(c, "token.get_info_failed")
 		return
 	}
 
@@ -172,18 +171,18 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	if len(token.Name) > 50 {
-		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
+		common.ApiErrorI18n(c, "token.name_too_long")
 		return
 	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
+			common.ApiErrorI18n(c, "token.quota_negative")
 			return
 		}
 		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
 		if token.RemainQuota > maxQuotaValue {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
+			common.ApiErrorI18n(c, "token.quota_exceed_max", map[string]any{"Max": maxQuotaValue})
 			return
 		}
 	}
@@ -195,16 +194,13 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	if int(count) >= maxTokens {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens),
-		})
+		common.ApiErrorI18n(c, "token.max_reached", map[string]any{"Max": maxTokens})
 		return
 	}
 	key, err := common.GenerateKey()
 	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
-		common.SysLog("failed to generate token key: " + err.Error())
+		common.ApiErrorI18n(c, "token.generate_failed")
+		common.SysLog(i18n.Translate("ctrl.failed_to_generate_token_key") + err.Error())
 		return
 	}
 	cleanToken := model.Token{
@@ -257,17 +253,17 @@ func UpdateToken(c *gin.Context) {
 		return
 	}
 	if len(token.Name) > 50 {
-		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
+		common.ApiErrorI18n(c, "token.name_too_long")
 		return
 	}
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
+			common.ApiErrorI18n(c, "token.quota_negative")
 			return
 		}
 		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
 		if token.RemainQuota > maxQuotaValue {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
+			common.ApiErrorI18n(c, "token.quota_exceed_max", map[string]any{"Max": maxQuotaValue})
 			return
 		}
 	}
@@ -278,11 +274,11 @@ func UpdateToken(c *gin.Context) {
 	}
 	if token.Status == common.TokenStatusEnabled {
 		if cleanToken.Status == common.TokenStatusExpired && cleanToken.ExpiredTime <= common.GetTimestamp() && cleanToken.ExpiredTime != -1 {
-			common.ApiErrorI18n(c, i18n.MsgTokenExpiredCannotEnable)
+			common.ApiErrorI18n(c, "token.expired_cannot_enable")
 			return
 		}
 		if cleanToken.Status == common.TokenStatusExhausted && cleanToken.RemainQuota <= 0 && !cleanToken.UnlimitedQuota {
-			common.ApiErrorI18n(c, i18n.MsgTokenExhaustedCannotEable)
+			common.ApiErrorI18n(c, "token.exhausted_cannot_enable")
 			return
 		}
 	}
@@ -319,7 +315,7 @@ type TokenBatch struct {
 func DeleteTokenBatch(c *gin.Context) {
 	tokenBatch := TokenBatch{}
 	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		common.ApiErrorI18n(c, "common.invalid_params")
 		return
 	}
 	userId := c.GetInt("id")

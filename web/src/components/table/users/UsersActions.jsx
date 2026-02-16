@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
-const UsersActions = ({ setShowAddUser, t }) => {
+const UsersActions = ({ setShowAddUser }) => {
+  const { t } = useTranslation();
   // Add new user
   const handleAddUser = () => {
     setShowAddUser(true);

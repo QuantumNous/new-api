@@ -38,6 +38,7 @@ import {
   FaExclamationTriangle,
 } from 'react-icons/fa';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -46,8 +47,8 @@ const ExtendDurationModal = ({
   onCancel,
   deployment,
   onSuccess,
-  t,
 }) => {
+  const { t } = useTranslation();
   const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [durationHours, setDurationHours] = useState(1);

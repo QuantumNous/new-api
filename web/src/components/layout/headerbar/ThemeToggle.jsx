@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Dropdown } from '@douyinfe/semi-ui';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useActualTheme } from '../../../context/Theme';
 
-const ThemeToggle = ({ theme, onThemeToggle, t }) => {
+const ThemeToggle = ({ theme, onThemeToggle }) => {
+  const { t } = useTranslation();
   const actualTheme = useActualTheme();
 
   const themeOptions = useMemo(

@@ -1,6 +1,7 @@
 package passkey
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"strconv"
 	"strings"
@@ -32,7 +33,7 @@ func (u *WebAuthnUser) WebAuthnName() string {
 	}
 	name := strings.TrimSpace(u.user.Username)
 	if name == "" {
-		return fmt.Sprintf("user-%d", u.user.Id)
+		return fmt.Sprintf(i18n.Translate("svc.user"), u.user.Id)
 	}
 	return name
 }

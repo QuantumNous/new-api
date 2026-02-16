@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"strconv"
 	"strings"
 	"time"
@@ -164,7 +165,7 @@ func loadOptionsFromDatabase() {
 	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
-			common.SysLog("failed to update option map: " + err.Error())
+			common.SysLog(i18n.Translate("model.failed_to_update_option_map") + err.Error())
 		}
 	}
 }
@@ -172,7 +173,7 @@ func loadOptionsFromDatabase() {
 func SyncOptions(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		common.SysLog("syncing options from database")
+		common.SysLog(i18n.Translate("model.syncing_options_from_database"))
 		loadOptionsFromDatabase()
 	}
 }

@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
-const ResetPasskeyModal = ({ visible, onCancel, onConfirm, user, t }) => {
+const ResetPasskeyModal = ({ visible, onCancel, onConfirm, user }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={t('确认重置 Passkey')}

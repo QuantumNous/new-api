@@ -139,7 +139,7 @@ const ModelSelectModal = ({
 
   // 按厂商分类模型
   const categorizeModels = (models) => {
-    const categories = getModelCategories(t);
+    const categories = getModelCategories();
     const categorizedModels = {};
     const uncategorizedModels = [];
 

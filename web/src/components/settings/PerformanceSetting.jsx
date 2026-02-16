@@ -21,8 +21,10 @@ import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import SettingsPerformance from '../../pages/Setting/Performance/SettingsPerformance';
 import { API, showError, toBoolean } from '../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const PerformanceSetting = () => {
+  const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     'performance_setting.disk_cache_enabled': false,
     'performance_setting.disk_cache_threshold_mb': 10,
@@ -55,7 +57,7 @@ const PerformanceSetting = () => {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      showError('刷新失败');
+      showError(t('刷新失败'));
     } finally {
       setLoading(false);
     }

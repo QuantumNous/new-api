@@ -1,0 +1,75 @@
+networks:
+  proxy:
+    external: false
+    name: proxy
+  internal:
+    driver: bridge
+
+services:
+  unorouter-new-api:
+    build: .
+    # image: calciumion/new-api-horizon:latest
+    container_name: unorouter-new-api
+    restart: always
+    command: --log-dir /app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+      - internal
+    volumes:
+      - ~/new-api/data:/data
+      - ~/new-api/logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@unorouter-new-api-postgres:5432/${POSTGRES_DB}
+      - REDIS_CONN_STRING=redis://unorouter-new-api-redis
+      - TZ=Europe/Berlin
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CRYPTO_SECRET=${CRYPTO_SECRET}
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=false
+      - MEMORY_CACHE_ENABLED=false
+      - GIN_MODE=release
+      - ENABLE_OPENAPI=true
+#      - DEFAULT_LANGUAGE=en  # Backend language: en, zh-CN, zh-TW, fr, ja, ru, vi
+      - GLOBAL_API_RATE_LIMIT_ENABLE=false
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.newapi.rule=Host(`api.unorouter.ai`)"
+      - "traefik.http.routers.newapi.entrypoints=websecure"
+      - "traefik.http.routers.newapi.tls.certresolver=letsencrypt"
+      - "traefik.http.services.newapi.loadbalancer.server.port=3000"
+    depends_on:
+      - unorouter-new-api-redis
+      - unorouter-new-api-postgres
+
+  unorouter-new-api-redis:
+    image: redis:latest
+    container_name: unorouter-new-api-redis
+    restart: always
+    networks:
+      - internal
+
+  unorouter-new-api-postgres:
+    image: postgres:15
+    container_name: unorouter-new-api-postgres
+    restart: always
+    networks:
+      - internal
+    ports:
+      - 5439:5432
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:

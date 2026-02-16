@@ -28,8 +28,10 @@ import EditUserModal from './modals/EditUserModal';
 import { useUsersData } from '../../../hooks/users/useUsersData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const UsersPage = () => {
+  const { t } = useTranslation();
   const usersData = useUsersData();
   const isMobile = useIsMobile();
 
@@ -57,9 +59,6 @@ const UsersPage = () => {
     // Description state
     compactMode,
     setCompactMode,
-
-    // Translation
-    t,
   } = usersData;
 
   return (
@@ -111,9 +110,9 @@ const UsersPage = () => {
           onPageChange: usersData.handlePageChange,
           onPageSizeChange: usersData.handlePageSizeChange,
           isMobile: isMobile,
-          t: usersData.t,
+          t: t,
         })}
-        t={usersData.t}
+        t={t}
       >
         <UsersTable {...usersData} />
       </CardPro>

@@ -2,17 +2,17 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 
 	"gorm.io/gorm"
 )
 
 // ErrRedeemFailed is returned when redemption fails due to database error
-var ErrRedeemFailed = errors.New("redeem.failed")
+var ErrRedeemFailed = errors.New("model.redeem_failed")
 
 type Redemption struct {
 	Id           int            `json:"id"`
@@ -107,7 +107,7 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, errors.New(i18n.Translate("redemption.id_empty"))
 	}
 	redemption := Redemption{Id: id}
 	var err error = nil
@@ -117,10 +117,10 @@ func GetRedemptionById(id int) (*Redemption, error) {
 
 func Redeem(key string, userId int) (quota int, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return 0, errors.New(i18n.Translate("redemption.code_not_provided"))
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return 0, errors.New(i18n.Translate("redemption.invalid_user_id"))
 	}
 	redemption := &Redemption{}
 
@@ -132,13 +132,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			return errors.New(i18n.Translate("redemption.invalid_code"))
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return errors.New(i18n.Translate("redemption.already_used"))
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return errors.New(i18n.Translate("redemption.expired_code"))
 		}
 		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
 		if err != nil {
@@ -151,10 +151,10 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return err
 	})
 	if err != nil {
-		common.SysError("redemption failed: " + err.Error())
+		common.SysError(i18n.Translate("model.redemption_failed") + err.Error())
 		return 0, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	RecordLog(userId, LogTypeTopup, i18n.Translate("log.redemption_topup", map[string]any{"Quota": logger.LogQuota(redemption.Quota), "Id": redemption.Id}))
 	return redemption.Quota, nil
 }
 
@@ -184,7 +184,7 @@ func (redemption *Redemption) Delete() error {
 
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return errors.New(i18n.Translate("redemption.id_empty"))
 	}
 	redemption := Redemption{Id: id}
 	err = DB.Where(redemption).First(&redemption).Error

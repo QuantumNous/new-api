@@ -43,50 +43,48 @@ import {
 
 const { Text } = Typography;
 
-const OPERATION_MODE_OPTIONS = [
-  { label: '设置字段', value: 'set' },
-  { label: '删除字段', value: 'delete' },
-  { label: '追加到末尾', value: 'append' },
-  { label: '追加到开头', value: 'prepend' },
-  { label: '复制字段', value: 'copy' },
-  { label: '移动字段', value: 'move' },
-  { label: '字符串替换', value: 'replace' },
-  { label: '正则替换', value: 'regex_replace' },
-  { label: '裁剪前缀', value: 'trim_prefix' },
-  { label: '裁剪后缀', value: 'trim_suffix' },
-  { label: '确保前缀', value: 'ensure_prefix' },
-  { label: '确保后缀', value: 'ensure_suffix' },
-  { label: '去掉空白', value: 'trim_space' },
-  { label: '转小写', value: 'to_lower' },
-  { label: '转大写', value: 'to_upper' },
-  { label: '返回自定义错误', value: 'return_error' },
-  { label: '清理对象项', value: 'prune_objects' },
-  { label: '请求头透传', value: 'pass_headers' },
-  { label: '字段同步', value: 'sync_fields' },
-  { label: '设置请求头', value: 'set_header' },
-  { label: '删除请求头', value: 'delete_header' },
-  { label: '复制请求头', value: 'copy_header' },
-  { label: '移动请求头', value: 'move_header' },
-];
+const OPERATION_MODE_LABELS = {
+  set: '设置字段',
+  delete: '删除字段',
+  append: '追加到末尾',
+  prepend: '追加到开头',
+  copy: '复制字段',
+  move: '移动字段',
+  replace: '字符串替换',
+  regex_replace: '正则替换',
+  trim_prefix: '裁剪前缀',
+  trim_suffix: '裁剪后缀',
+  ensure_prefix: '确保前缀',
+  ensure_suffix: '确保后缀',
+  trim_space: '去掉空白',
+  to_lower: '转小写',
+  to_upper: '转大写',
+  return_error: '返回自定义错误',
+  prune_objects: '清理对象项',
+  pass_headers: '请求头透传',
+  sync_fields: '字段同步',
+  set_header: '设置请求头',
+  delete_header: '删除请求头',
+  copy_header: '复制请求头',
+  move_header: '移动请求头',
+};
 
-const OPERATION_MODE_VALUES = new Set(
-  OPERATION_MODE_OPTIONS.map((item) => item.value),
-);
+const OPERATION_MODE_VALUES_LIST = Object.keys(OPERATION_MODE_LABELS);
 
-const CONDITION_MODE_OPTIONS = [
-  { label: '完全匹配', value: 'full' },
-  { label: '前缀匹配', value: 'prefix' },
-  { label: '后缀匹配', value: 'suffix' },
-  { label: '包含', value: 'contains' },
-  { label: '大于', value: 'gt' },
-  { label: '大于等于', value: 'gte' },
-  { label: '小于', value: 'lt' },
-  { label: '小于等于', value: 'lte' },
-];
+const OPERATION_MODE_VALUES = new Set(OPERATION_MODE_VALUES_LIST);
 
-const CONDITION_MODE_VALUES = new Set(
-  CONDITION_MODE_OPTIONS.map((item) => item.value),
-);
+const CONDITION_MODE_LABELS = {
+  full: '完全匹配',
+  prefix: '前缀匹配',
+  suffix: '后缀匹配',
+  contains: '包含',
+  gt: '大于',
+  gte: '大于等于',
+  lt: '小于',
+  lte: '小于等于',
+};
+
+const CONDITION_MODE_VALUES = new Set(Object.keys(CONDITION_MODE_LABELS));
 
 const MODE_META = {
   delete: { path: true },
@@ -206,8 +204,8 @@ const getModeToLabel = (mode) => {
   return '目标字段';
 };
 
-const getModeToPlaceholder = (mode) => {
-  if (mode === 'replace') return '（可留空）';
+const getModeToPlaceholder = (mode, t = (s) => s) => {
+  if (mode === 'replace') return t('（可留空）');
   if (mode === 'regex_replace') return 'openai/gpt-';
   if (mode === 'copy_header' || mode === 'move_header') return 'X-Upstream-Auth';
   return 'original_model';
@@ -241,13 +239,13 @@ const HEADER_VALUE_JSONC_EXAMPLE = `{
   "$append": ["context-1m-2025-08-07"]
 }`;
 
-const getModeValuePlaceholder = (mode) => {
+const getModeValuePlaceholder = (mode, t = (s) => s) => {
   if (mode === 'set_header') {
     return [
-      '纯字符串（整条覆盖）：',
+      t('纯字符串（整条覆盖）：'),
       'Bearer sk-xxx',
       '',
-      '或使用 JSON 规则：',
+      t('或使用 JSON 规则：'),
       '{',
       '  "files-api-2025-04-14": null,',
       '  "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",',
@@ -270,10 +268,10 @@ const getModeValuePlaceholder = (mode) => {
   return '0.7';
 };
 
-const SYNC_TARGET_TYPE_OPTIONS = [
-  { label: '请求体字段', value: 'json' },
-  { label: '请求头字段', value: 'header' },
-];
+const SYNC_TARGET_TYPE_LABELS = {
+  json: '请求体字段',
+  header: '请求头字段',
+};
 
 const LEGACY_TEMPLATE = {
   temperature: 0,
@@ -387,10 +385,10 @@ const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
   ],
 };
 
-const TEMPLATE_GROUP_OPTIONS = [
-  { label: '基础模板', value: 'basic' },
-  { label: '场景模板', value: 'scenario' },
-];
+const TEMPLATE_GROUP_LABELS = {
+  basic: '基础模板',
+  scenario: '场景模板',
+};
 
 const TEMPLATE_PRESET_CONFIG = {
   operations_default: {
@@ -437,11 +435,11 @@ const TEMPLATE_PRESET_CONFIG = {
   },
 };
 
-const FIELD_GUIDE_TARGET_OPTIONS = [
-  { label: '填入目标路径', value: 'path' },
-  { label: '填入来源字段', value: 'from' },
-  { label: '填入目标字段', value: 'to' },
-];
+const FIELD_GUIDE_TARGET_LABELS = {
+  path: '填入目标路径',
+  from: '填入来源字段',
+  to: '填入目标字段',
+};
 
 const BUILTIN_FIELD_SECTIONS = [
   {
@@ -486,10 +484,7 @@ const BUILTIN_FIELD_SECTIONS = [
   },
 ];
 
-const OPERATION_MODE_LABEL_MAP = OPERATION_MODE_OPTIONS.reduce((acc, item) => {
-  acc[item.value] = item.label;
-  return acc;
-}, {});
+const OPERATION_MODE_LABEL_MAP = OPERATION_MODE_LABELS;
 
 let localIdSeed = 0;
 const nextLocalId = () => `param_override_${Date.now()}_${localIdSeed++}`;
@@ -840,9 +835,9 @@ const reorderOperations = (
   return nextOperations;
 };
 
-const getOperationSummary = (operation = {}, index = 0) => {
+const getOperationSummary = (operation = {}, index = 0, t = (s) => s) => {
   const mode = operation.mode || 'set';
-  const modeLabel = OPERATION_MODE_LABEL_MAP[mode] || mode;
+  const modeLabel = t(OPERATION_MODE_LABEL_MAP[mode] || mode);
   if (mode === 'sync_fields') {
     const from = String(operation.from || '').trim();
     const to = String(operation.to || '').trim();
@@ -1065,8 +1060,32 @@ const validateOperations = (operations, t) => {
   return '';
 };
 
+const labelsToOptions = (labels, t) =>
+  Object.entries(labels).map(([value, label]) => ({ label: t(label), value }));
+
 const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const { t } = useTranslation();
+
+  const OPERATION_MODE_OPTIONS = useMemo(
+    () => labelsToOptions(OPERATION_MODE_LABELS, t),
+    [t],
+  );
+  const CONDITION_MODE_OPTIONS = useMemo(
+    () => labelsToOptions(CONDITION_MODE_LABELS, t),
+    [t],
+  );
+  const SYNC_TARGET_TYPE_OPTIONS = useMemo(
+    () => labelsToOptions(SYNC_TARGET_TYPE_LABELS, t),
+    [t],
+  );
+  const TEMPLATE_GROUP_OPTIONS = useMemo(
+    () => labelsToOptions(TEMPLATE_GROUP_LABELS, t),
+    [t],
+  );
+  const FIELD_GUIDE_TARGET_OPTIONS = useMemo(
+    () => labelsToOptions(FIELD_GUIDE_TARGET_LABELS, t),
+    [t],
+  );
 
   const [editMode, setEditMode] = useState('visual');
   const [visualMode, setVisualMode] = useState('operations');
@@ -1131,9 +1150,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
         .filter(([, config]) => config.group === templateGroupKey)
         .map(([value, config]) => ({
           value,
-          label: config.label,
+          label: t(config.label),
         })),
-    [templateGroupKey],
+    [templateGroupKey, t],
   );
 
   useEffect(() => {
@@ -2012,7 +2031,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               size='small'
                               color={getOperationModeTagColor(mode)}
                             >
-                              {`${OPERATION_MODE_LABEL_MAP[mode] || mode} · ${count}`}
+                              {`${t(OPERATION_MODE_LABEL_MAP[mode] || mode)} · ${count}`}
                             </Tag>
                           ))}
                         </Space>
@@ -2119,7 +2138,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           size='small'
                                           className='block mt-1'
                                         >
-                                          {getOperationSummary(operation, index)}
+                                          {getOperationSummary(operation, index, t)}
                                         </Text>
                                         {String(operation.description || '').trim() ? (
                                           <Text
@@ -2151,11 +2170,11 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         operation.mode || 'set',
                                       )}
                                     >
-                                      {OPERATION_MODE_LABEL_MAP[
+                                      {t(OPERATION_MODE_LABEL_MAP[
                                         operation.mode || 'set'
                                       ] ||
                                         operation.mode ||
-                                        'set'}
+                                        'set')}
                                     </Tag>
                                     <Text type='tertiary' size='small'>
                                       {t('条件数')}
@@ -2198,6 +2217,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   {getOperationSummary(
                                     selectedOperation,
                                     selectedOperationIndex,
+                                    t,
                                   )}
                                 </Text>
                               </Space>
@@ -2265,7 +2285,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               size='small'
                               className='mt-1 block'
                             >
-                              {MODE_DESCRIPTIONS[mode] || ''}
+                              {MODE_DESCRIPTIONS[mode] ? t(MODE_DESCRIPTIONS[mode]) : ''}
                             </Text>
                             <div className='mt-2'>
                               <Text type='tertiary' size='small'>
@@ -2864,7 +2884,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   <TextArea
                                     value={selectedOperation.value_text}
                                     autosize={{ minRows: 1, maxRows: 4 }}
-                                    placeholder={getModeValuePlaceholder(mode)}
+                                    placeholder={getModeValuePlaceholder(mode, t)}
                                     onChange={(nextValue) =>
                                       updateOperation(selectedOperation.id, {
                                         value_text: nextValue,
@@ -3040,7 +3060,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     </Text>
                                     <Input
                                       value={selectedOperation.to}
-                                      placeholder={getModeToPlaceholder(mode)}
+                                      placeholder={getModeToPlaceholder(mode, t)}
                                       onChange={(nextValue) =>
                                         updateOperation(selectedOperation.id, {
                                           to: nextValue,
@@ -3319,7 +3339,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
               {t('直接编辑 JSON 文本，保存时会校验格式。')}
             </Text>
             {jsonError ? (
-              <Text className='text-red-500 text-xs mt-2'>{jsonError}</Text>
+              <Text className='text-red-500 text-xs mt-2'>{t(jsonError)}</Text>
             ) : null}
           </div>
         )}
@@ -3429,7 +3449,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 >
                   <div className='flex items-center justify-between mb-1'>
                     <Text strong style={{ fontSize: 18 }}>
-                      {section.title}
+                      {t(section.title)}
                     </Text>
                     <Tag color='grey'>{`${section.fields.length} ${t('项')}`}</Tag>
                   </div>
@@ -3454,7 +3474,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text strong>{field.label}</Text>
+                          <Text strong>{t(field.label)}</Text>
                           <Text
                             type='secondary'
                             size='small'
@@ -3475,7 +3495,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                             className='block mt-1'
                             style={{ lineHeight: '18px' }}
                           >
-                            {field.tip}
+                            {t(field.tip)}
                           </Text>
                         </div>
                         <Space spacing={6} align='center'>

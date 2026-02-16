@@ -1,6 +1,7 @@
 package volcengine
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/binary"
 	"fmt"
@@ -67,7 +68,7 @@ func (t MsgType) String() string {
 	case MsgTypeFrontEndResultServer:
 		return "MsgType_FrontEndResultServer"
 	default:
-		return fmt.Sprintf("MsgType_(%d)", t)
+		return fmt.Sprintf(i18n.Translate("relay.msgtype"), t)
 	}
 }
 
@@ -225,7 +226,7 @@ type Message struct {
 
 func NewMessageFromBytes(data []byte) (*Message, error) {
 	if len(data) < 3 {
-		return nil, fmt.Errorf("data too short: expected at least 3 bytes, got %d", len(data))
+		return nil, fmt.Errorf(i18n.Translate("relay.data_too_short_expected_at_least_3_bytes"), len(data))
 	}
 
 	typeAndFlag := data[1]
@@ -257,17 +258,17 @@ func (m *Message) String() string {
 	switch m.MsgType {
 	case MsgTypeAudioOnlyServer, MsgTypeAudioOnlyClient:
 		if m.MsgTypeFlag == MsgTypeFlagPositiveSeq || m.MsgTypeFlag == MsgTypeFlagNegativeSeq {
-			return fmt.Sprintf("%s, %s, Sequence: %d, PayloadSize: %d", m.MsgType, m.EventType, m.Sequence, len(m.Payload))
+			return fmt.Sprintf(i18n.Translate("relay.sequence_payloadsize"), m.MsgType, m.EventType, m.Sequence, len(m.Payload))
 		}
-		return fmt.Sprintf("%s, %s, PayloadSize: %d", m.MsgType, m.EventType, len(m.Payload))
+		return fmt.Sprintf(i18n.Translate("relay.payloadsize"), m.MsgType, m.EventType, len(m.Payload))
 	case MsgTypeError:
-		return fmt.Sprintf("%s, %s, ErrorCode: %d, Payload: %s", m.MsgType, m.EventType, m.ErrorCode, string(m.Payload))
+		return fmt.Sprintf(i18n.Translate("relay.errorcode_payload"), m.MsgType, m.EventType, m.ErrorCode, string(m.Payload))
 	default:
 		if m.MsgTypeFlag == MsgTypeFlagPositiveSeq || m.MsgTypeFlag == MsgTypeFlagNegativeSeq {
-			return fmt.Sprintf("%s, %s, Sequence: %d, Payload: %s",
+			return fmt.Sprintf(i18n.Translate("relay.sequence_payload"),
 				m.MsgType, m.EventType, m.Sequence, string(m.Payload))
 		}
-		return fmt.Sprintf("%s, %s, Payload: %s", m.MsgType, m.EventType, string(m.Payload))
+		return fmt.Sprintf(i18n.Translate("relay.payload"), m.MsgType, m.EventType, string(m.Payload))
 	}
 }
 
@@ -331,7 +332,7 @@ func (m *Message) Unmarshal(data []byte) error {
 	readSize := 3
 	if paddingSize := headerSize - readSize; paddingSize > 0 {
 		if n, err := buf.Read(make([]byte, paddingSize)); err != nil || n < paddingSize {
-			return fmt.Errorf("insufficient header bytes: expected %d, got %d", paddingSize, n)
+			return fmt.Errorf(i18n.Translate("relay.insufficient_header_bytes_expected_got"), paddingSize, n)
 		}
 	}
 
@@ -347,7 +348,7 @@ func (m *Message) Unmarshal(data []byte) error {
 	}
 
 	if _, err := buf.ReadByte(); err != io.EOF {
-		return fmt.Errorf("unexpected data after message: %v", err)
+		return fmt.Errorf(i18n.Translate("relay.unexpected_data_after_message"), err)
 	}
 
 	return nil
@@ -366,7 +367,7 @@ func (m *Message) writers() (writers []func(*bytes.Buffer) error, _ error) {
 	case MsgTypeError:
 		writers = append(writers, m.writeErrorCode)
 	default:
-		return nil, fmt.Errorf("unsupported message type: %d", m.MsgType)
+		return nil, fmt.Errorf(i18n.Translate("relay.unsupported_message_type"), m.MsgType)
 	}
 
 	writers = append(writers, m.writePayload)
@@ -386,7 +387,7 @@ func (m *Message) writeSessionID(buf *bytes.Buffer) error {
 
 	size := len(m.SessionID)
 	if int64(size) > math.MaxUint32 {
-		return fmt.Errorf("session ID size (%d) exceeds max(uint32)", size)
+		return fmt.Errorf(i18n.Translate("relay.session_id_size_exceeds_max_uint32"), size)
 	}
 
 	if err := binary.Write(buf, binary.BigEndian, uint32(size)); err != nil {
@@ -408,7 +409,7 @@ func (m *Message) writeErrorCode(buf *bytes.Buffer) error {
 func (m *Message) writePayload(buf *bytes.Buffer) error {
 	size := len(m.Payload)
 	if int64(size) > math.MaxUint32 {
-		return fmt.Errorf("payload size (%d) exceeds max(uint32)", size)
+		return fmt.Errorf(i18n.Translate("relay.payload_size_exceeds_max_uint32"), size)
 	}
 
 	if err := binary.Write(buf, binary.BigEndian, uint32(size)); err != nil {
@@ -428,7 +429,7 @@ func (m *Message) readers() (readers []func(*bytes.Buffer) error, _ error) {
 	case MsgTypeError:
 		readers = append(readers, m.readErrorCode)
 	default:
-		return nil, fmt.Errorf("unsupported message type: %d", m.MsgType)
+		return nil, fmt.Errorf(i18n.Translate("relay.unsupported_message_type"), m.MsgType)
 	}
 
 	if m.MsgTypeFlag == MsgTypeFlagWithEvent {
@@ -510,7 +511,7 @@ func ReceiveMessage(conn *websocket.Conn) (*Message, error) {
 		return nil, err
 	}
 	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-		return nil, fmt.Errorf("unexpected Websocket message type: %d", mt)
+		return nil, fmt.Errorf(i18n.Translate("relay.unexpected_websocket_message_type"), mt)
 	}
 	msg, err := NewMessageFromBytes(frame)
 	if err != nil {

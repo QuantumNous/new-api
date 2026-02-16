@@ -18,10 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Badge } from '@douyinfe/semi-ui';
 import { Bell } from 'lucide-react';
 
-const NotificationButton = ({ unreadCount, onNoticeOpen, t }) => {
+const NotificationButton = ({ unreadCount, onNoticeOpen }) => {
+  const { t } = useTranslation();
   const buttonProps = {
     icon: <Bell size={18} />,
     'aria-label': t('系统公告'),

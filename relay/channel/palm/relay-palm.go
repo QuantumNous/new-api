@@ -1,6 +1,7 @@
 package palm
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -59,7 +60,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 	go func() {
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			common.SysLog("error reading stream response: " + err.Error())
+			common.SysLog(i18n.Translate("relay.error_reading_stream_response") + err.Error())
 			stopChan <- true
 			return
 		}
@@ -67,7 +68,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		var palmResponse PaLMChatResponse
 		err = json.Unmarshal(responseBody, &palmResponse)
 		if err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			common.SysLog(i18n.Translate("relay.error_unmarshalling_stream_response") + err.Error())
 			stopChan <- true
 			return
 		}
@@ -79,7 +80,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		}
 		jsonResponse, err := json.Marshal(fullTextResponse)
 		if err != nil {
-			common.SysLog("error marshalling stream response: " + err.Error())
+			common.SysLog(i18n.Translate("relay.error_marshalling_stream_response") + err.Error())
 			stopChan <- true
 			return
 		}

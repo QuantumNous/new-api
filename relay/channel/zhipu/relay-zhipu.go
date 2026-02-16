@@ -1,6 +1,7 @@
 package zhipu
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bufio"
 	"encoding/json"
 	"io"
@@ -41,7 +42,7 @@ func getZhipuToken(apikey string) string {
 
 	split := strings.Split(apikey, ".")
 	if len(split) != 2 {
-		common.SysLog("invalid zhipu key: " + apikey)
+		common.SysLog(i18n.Translate("relay.invalid_zhipu_key") + apikey)
 		return ""
 	}
 
@@ -189,7 +190,7 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			response := streamResponseZhipu2OpenAI(data)
 			jsonResponse, err := json.Marshal(response)
 			if err != nil {
-				common.SysLog("error marshalling stream response: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_marshalling_stream_response") + err.Error())
 				return true
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonResponse)})
@@ -198,13 +199,13 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			var zhipuResponse ZhipuStreamMetaResponse
 			err := json.Unmarshal([]byte(data), &zhipuResponse)
 			if err != nil {
-				common.SysLog("error unmarshalling stream response: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_unmarshalling_stream_response") + err.Error())
 				return true
 			}
 			response, zhipuUsage := streamMetaResponseZhipu2OpenAI(&zhipuResponse)
 			jsonResponse, err := json.Marshal(response)
 			if err != nil {
-				common.SysLog("error marshalling stream response: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_marshalling_stream_response") + err.Error())
 				return true
 			}
 			usage = zhipuUsage

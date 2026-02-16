@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"strings"
 
@@ -25,7 +26,7 @@ func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {
 				continue
 			}
 			if ok, words := SensitiveWordContains(m.Text); ok {
-				return words, errors.New("sensitive words detected")
+				return words, errors.New(i18n.Translate("svc.sensitive_words_detected"))
 			}
 		}
 	}

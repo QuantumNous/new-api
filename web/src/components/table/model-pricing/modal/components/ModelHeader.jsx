@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Typography, Toast, Avatar } from '@douyinfe/semi-ui';
 import { getLobeHubIcon } from '../../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Paragraph } = Typography;
 
@@ -29,7 +30,8 @@ const CARD_STYLES = {
   icon: 'w-8 h-8 flex items-center justify-center',
 };
 
-const ModelHeader = ({ modelData, vendorsMap = {}, t }) => {
+const ModelHeader = ({ modelData, vendorsMap = {} }) => {
+  const { t } = useTranslation();
   // 获取模型图标（优先模型图标，其次供应商图标）
   const getModelIcon = () => {
     // 1) 优先使用模型自定义图标

@@ -1,9 +1,9 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -30,11 +30,11 @@ type CodexOAuthKey struct {
 
 func parseCodexOAuthKey(raw string) (*CodexOAuthKey, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, errors.New("codex channel: empty oauth key")
+		return nil, errors.New(i18n.Translate("svc.codex_channel_empty_oauth_key"))
 	}
 	var key CodexOAuthKey
 	if err := common.Unmarshal([]byte(raw), &key); err != nil {
-		return nil, errors.New("codex channel: invalid oauth key json")
+		return nil, errors.New(i18n.Translate("svc.codex_channel_invalid_oauth_key_json"))
 	}
 	return &key, nil
 }
@@ -45,10 +45,10 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 		return nil, nil, err
 	}
 	if ch == nil {
-		return nil, nil, fmt.Errorf("channel not found")
+		return nil, nil, errors.New(i18n.Translate("model.channel_not_found"))
 	}
 	if ch.Type != constant.ChannelTypeCodex {
-		return nil, nil, fmt.Errorf("channel type is not Codex")
+		return nil, nil, errors.New(i18n.Translate("svc.channel_type_is_not_codex"))
 	}
 
 	oauthKey, err := parseCodexOAuthKey(strings.TrimSpace(ch.Key))
@@ -56,7 +56,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 		return nil, nil, err
 	}
 	if strings.TrimSpace(oauthKey.RefreshToken) == "" {
-		return nil, nil, fmt.Errorf("codex channel: refresh_token is required to refresh credential")
+		return nil, nil, errors.New(i18n.Translate("svc.codex_channel_refresh_token_is_required_to_refresh"))
 	}
 
 	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

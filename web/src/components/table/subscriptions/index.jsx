@@ -28,8 +28,10 @@ import { useSubscriptionsData } from '../../../hooks/subscriptions/useSubscripti
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 import { StatusContext } from '../../../context/Status';
+import { useTranslation } from 'react-i18next';
 
 const SubscriptionsPage = () => {
+  const { t } = useTranslation();
   const subscriptionsData = useSubscriptionsData();
   const isMobile = useIsMobile();
   const [statusState] = useContext(StatusContext);
@@ -44,7 +46,6 @@ const SubscriptionsPage = () => {
     openCreate,
     compactMode,
     setCompactMode,
-    t,
   } = subscriptionsData;
 
   return (
@@ -90,7 +91,7 @@ const SubscriptionsPage = () => {
           onPageChange: subscriptionsData.handlePageChange,
           onPageSizeChange: subscriptionsData.handlePageSizeChange,
           isMobile,
-          t: subscriptionsData.t,
+          t: t,
         })}
         t={t}
       >

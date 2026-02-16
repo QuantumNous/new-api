@@ -1,8 +1,8 @@
 package cachex
 
 import (
+	"errors"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -21,7 +21,7 @@ func (c IntCodec) Encode(v int) (string, error) {
 func (c IntCodec) Decode(s string) (int, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0, fmt.Errorf("empty int value")
+		return 0, errors.New("empty int value")
 	}
 	return strconv.Atoi(s)
 }
@@ -44,7 +44,7 @@ func (c JSONCodec[V]) Encode(v V) (string, error) {
 func (c JSONCodec[V]) Decode(s string) (V, error) {
 	var v V
 	if strings.TrimSpace(s) == "" {
-		return v, fmt.Errorf("empty json value")
+		return v, errors.New("empty json value")
 	}
 	if err := json.Unmarshal([]byte(s), &v); err != nil {
 		return v, err

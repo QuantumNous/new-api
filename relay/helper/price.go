@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -26,7 +27,7 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 	// check auto group
 	autoGroup, exists := ctx.Get("auto_group")
 	if exists {
-		logger.LogDebug(ctx, fmt.Sprintf("final group: %s", autoGroup))
+		logger.LogDebug(ctx, fmt.Sprintf(i18n.Translate("relay.final_group"), autoGroup))
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
@@ -75,7 +76,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				acceptUnsetRatio = true
 			}
 			if !acceptUnsetRatio {
-				return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
+				return types.PriceData{}, fmt.Errorf("%s", i18n.T(c, "model.price_not_set", map[string]any{"Model": matchName}))
 			}
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
@@ -133,7 +134,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	if common.DebugEnabled {
-		println(fmt.Sprintf("model_price_helper result: %s", priceData.ToSetting()))
+		println(fmt.Sprintf(i18n.Translate("relay.model_price_helper_result"), priceData.ToSetting()))
 	}
 	info.PriceData = priceData
 	return priceData, nil
@@ -159,7 +160,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 				acceptUnsetRatio = true
 			}
 			if !ratioSuccess && !acceptUnsetRatio {
-				return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
+				return types.PriceData{}, fmt.Errorf("%s", i18n.T(c, "model.price_not_set", map[string]any{"Model": matchName}))
 			}
 			// 未配置价格但配置了倍率，使用默认预扣价格
 			modelPrice = float64(common.PreConsumedQuota) / common.QuotaPerUnit

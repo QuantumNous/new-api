@@ -36,7 +36,6 @@ const PricingDisplaySettings = ({
   t,
 }) => {
   const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
-
   const items = [
     ...(supportsCurrencyDisplay
       ? [

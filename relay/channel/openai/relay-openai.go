@@ -1,6 +1,8 @@
 package openai
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"io"
 	"net/http"
@@ -105,8 +107,8 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
-		logger.LogError(c, "invalid response or response body")
-		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		logger.LogError(c, i18n.Translate("relay.invalid_response_or_response_body"))
+		return nil, types.NewOpenAIError(errors.New(i18n.Translate("relay.invalid_response")), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
 	defer service.CloseResponseBodyGracefully(resp)
@@ -130,7 +132,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		if lastStreamData != "" {
 			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 			if err != nil {
-				common.SysLog("error handling stream format: " + err.Error())
+				common.SysLog(i18n.Translate("relay.error_handling_stream_format") + err.Error())
 			}
 		}
 		if len(data) > 0 {
@@ -156,7 +158,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			containStreamUsage = true
 
 			if common.DebugEnabled {
-				logger.LogDebug(c, fmt.Sprintf("Audio model usage extracted from second last SSE: PromptTokens=%d, CompletionTokens=%d, TotalTokens=%d, InputTokens=%d, OutputTokens=%d",
+				logger.LogDebug(c, fmt.Sprintf(i18n.Translate("relay.audio_model_usage_extracted_from_second_last_sse"),
 					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
 					usage.InputTokens, usage.OutputTokens))
 			}
@@ -167,7 +169,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	shouldSendLastResp := true
 	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
 		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
+		logger.LogError(c, fmt.Sprintf(i18n.Translate("relay.error_handling_last_response_laststreamdata"), err.Error(), lastStreamData))
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
@@ -215,8 +217,8 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		if enterpriseResponse.Success {
 			responseBody = enterpriseResponse.Data
 		} else {
-			logger.LogError(c, fmt.Sprintf("openrouter enterprise response success=false, data: %s", enterpriseResponse.Data))
-			return nil, types.NewOpenAIError(fmt.Errorf("openrouter response success=false"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			logger.LogError(c, fmt.Sprintf(i18n.Translate("relay.openrouter_enterprise_response_success_false_data"), enterpriseResponse.Data))
+			return nil, types.NewOpenAIError(errors.New(i18n.Translate("relay.openrouter_response_success_false")), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 	}
 
@@ -305,7 +307,7 @@ func streamTTSResponse(c *gin.Context, resp *http.Response) {
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
-		logger.LogWarn(c, "streaming not supported")
+		logger.LogWarn(c, i18n.Translate("relay.streaming_not_supported"))
 		_, err := io.Copy(c.Writer, resp.Body)
 		if err != nil {
 			logger.LogWarn(c, err.Error())
@@ -335,7 +337,7 @@ func streamTTSResponse(c *gin.Context, resp *http.Response) {
 
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
-		return types.NewError(fmt.Errorf("invalid websocket connection"), types.ErrorCodeBadResponse), nil
+		return types.NewError(errors.New(i18n.Translate("relay.invalid_websocket_connection")), types.ErrorCodeBadResponse), nil
 	}
 
 	info.IsStream = true
@@ -355,7 +357,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	gopool.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
-				errChan <- fmt.Errorf("panic in client reader: %v", r)
+				errChan <- fmt.Errorf(i18n.Translate("relay.panic_in_client_reader"), r)
 			}
 		}()
 		for {
@@ -366,7 +368,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				_, message, err := clientConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-						errChan <- fmt.Errorf("error reading from client: %v", err)
+						errChan <- fmt.Errorf(i18n.Translate("relay.error_reading_from_client"), err)
 					}
 					close(clientClosed)
 					return
@@ -375,7 +377,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				realtimeEvent := &dto.RealtimeEvent{}
 				err = common.Unmarshal(message, realtimeEvent)
 				if err != nil {
-					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
+					errChan <- fmt.Errorf(i18n.Translate("relay.error_unmarshalling_message"), err)
 					return
 				}
 
@@ -389,10 +391,10 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 
 				textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
 				if err != nil {
-					errChan <- fmt.Errorf("error counting text token: %v", err)
+					errChan <- fmt.Errorf(i18n.Translate("relay.error_counting_text_token"), err)
 					return
 				}
-				logger.LogInfo(c, fmt.Sprintf("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
+				logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.type_texttoken_audiotoken"), realtimeEvent.Type, textToken, audioToken))
 				localUsage.TotalTokens += textToken + audioToken
 				localUsage.InputTokens += textToken + audioToken
 				localUsage.InputTokenDetails.TextTokens += textToken
@@ -400,7 +402,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 
 				err = helper.WssString(c, targetConn, string(message))
 				if err != nil {
-					errChan <- fmt.Errorf("error writing to target: %v", err)
+					errChan <- fmt.Errorf(i18n.Translate("relay.error_writing_to_target"), err)
 					return
 				}
 
@@ -415,7 +417,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	gopool.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
-				errChan <- fmt.Errorf("panic in target reader: %v", r)
+				errChan <- fmt.Errorf(i18n.Translate("relay.panic_in_target_reader"), r)
 			}
 		}()
 		for {
@@ -426,7 +428,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				_, message, err := targetConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-						errChan <- fmt.Errorf("error reading from target: %v", err)
+						errChan <- fmt.Errorf(i18n.Translate("relay.error_reading_from_target"), err)
 					}
 					close(targetClosed)
 					return
@@ -435,7 +437,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				realtimeEvent := &dto.RealtimeEvent{}
 				err = common.Unmarshal(message, realtimeEvent)
 				if err != nil {
-					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
+					errChan <- fmt.Errorf(i18n.Translate("relay.error_unmarshalling_message"), err)
 					return
 				}
 
@@ -452,7 +454,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
 						err := preConsumeUsage(c, info, usage, sumUsage)
 						if err != nil {
-							errChan <- fmt.Errorf("error consume usage: %v", err)
+							errChan <- fmt.Errorf(i18n.Translate("relay.error_consume_usage"), err)
 							return
 						}
 						// 本次计费完成，清除
@@ -462,10 +464,10 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 					} else {
 						textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
 						if err != nil {
-							errChan <- fmt.Errorf("error counting text token: %v", err)
+							errChan <- fmt.Errorf(i18n.Translate("relay.error_counting_text_token"), err)
 							return
 						}
-						logger.LogInfo(c, fmt.Sprintf("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
+						logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.type_texttoken_audiotoken"), realtimeEvent.Type, textToken, audioToken))
 						localUsage.TotalTokens += textToken + audioToken
 						info.IsFirstRequest = false
 						localUsage.InputTokens += textToken + audioToken
@@ -473,16 +475,16 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						localUsage.InputTokenDetails.AudioTokens += audioToken
 						err = preConsumeUsage(c, info, localUsage, sumUsage)
 						if err != nil {
-							errChan <- fmt.Errorf("error consume usage: %v", err)
+							errChan <- fmt.Errorf(i18n.Translate("relay.error_consume_usage"), err)
 							return
 						}
 						// 本次计费完成，清除
 						localUsage = &dto.RealtimeUsage{}
 						// print now usage
 					}
-					logger.LogInfo(c, fmt.Sprintf("realtime streaming sumUsage: %v", sumUsage))
-					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
-					logger.LogInfo(c, fmt.Sprintf("realtime streaming localUsage: %v", localUsage))
+					logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.realtime_streaming_sumusage"), sumUsage))
+					logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.realtime_streaming_localusage"), localUsage))
+					logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.realtime_streaming_localusage"), localUsage))
 
 				} else if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdated || realtimeEvent.Type == dto.RealtimeEventTypeSessionCreated {
 					realtimeSession := realtimeEvent.Session
@@ -494,10 +496,10 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				} else {
 					textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
 					if err != nil {
-						errChan <- fmt.Errorf("error counting text token: %v", err)
+						errChan <- fmt.Errorf(i18n.Translate("relay.error_counting_text_token"), err)
 						return
 					}
-					logger.LogInfo(c, fmt.Sprintf("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
+					logger.LogInfo(c, fmt.Sprintf(i18n.Translate("relay.type_texttoken_audiotoken"), realtimeEvent.Type, textToken, audioToken))
 					localUsage.TotalTokens += textToken + audioToken
 					localUsage.OutputTokens += textToken + audioToken
 					localUsage.OutputTokenDetails.TextTokens += textToken
@@ -506,7 +508,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 
 				err = helper.WssString(c, clientConn, string(message))
 				if err != nil {
-					errChan <- fmt.Errorf("error writing to client: %v", err)
+					errChan <- fmt.Errorf(i18n.Translate("relay.error_writing_to_client"), err)
 					return
 				}
 
@@ -542,7 +544,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 
 func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {
 	if usage == nil || totalUsage == nil {
-		return fmt.Errorf("invalid usage pointer")
+		return errors.New(i18n.Translate("relay.invalid_usage_pointer"))
 	}
 
 	totalUsage.TotalTokens += usage.TotalTokens

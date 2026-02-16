@@ -1,6 +1,7 @@
 package vidu
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -112,7 +113,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, exists := c.Get("task_request")
 	if !exists {
-		return nil, fmt.Errorf("request not found in context")
+		return nil, errors.New(i18n.Translate("relay.request_not_found_in_context"))
 	}
 	req := v.(relaycommon.TaskSubmitReq)
 
@@ -176,7 +177,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	if vResp.State == "failed" {
-		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("task failed"), "task_failed", http.StatusBadRequest)
+		taskErr = service.TaskErrorWrapperLocal(errors.New(i18n.Translate("relay.task_failed")), "task_failed", http.StatusBadRequest)
 		return
 	}
 
@@ -192,7 +193,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid task_id")
+		return nil, errors.New(i18n.Translate("relay.invalid_task_id"))
 	}
 
 	url := fmt.Sprintf("%s/ent/v2/tasks/%s/creations", baseUrl, taskID)
@@ -207,7 +208,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.new_proxy_http_client_failed"), err)
 	}
 	return client.Do(req)
 }
@@ -266,7 +267,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskInfo.Reason = taskResp.ErrCode
 		}
 	default:
-		return nil, fmt.Errorf("unknown task state: %s", state)
+		return nil, fmt.Errorf(i18n.Translate("relay.unknown_task_state"), state)
 	}
 
 	return taskInfo, nil

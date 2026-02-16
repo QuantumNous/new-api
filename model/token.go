@@ -2,10 +2,10 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
@@ -100,20 +100,20 @@ func sanitizeLikePattern(input string) (string, error) {
 
 	// 2. 连续的 % 直接拒绝
 	if strings.Contains(input, "%%") {
-		return "", errors.New("搜索模式中不允许包含连续的 % 通配符")
+		return "", errors.New(i18n.Translate("token.search_consecutive_model"))
 	}
 
 	// 3. 统计 % 数量，不得超过 2
 	count := strings.Count(input, "%")
 	if count > 2 {
-		return "", errors.New("搜索模式中最多允许包含 2 个 % 通配符")
+		return "", errors.New(i18n.Translate("token.search_max_model"))
 	}
 
 	// 4. 含 % 时，去掉 % 后关键词长度必须 >= 2
 	if count > 0 {
 		stripped := strings.ReplaceAll(input, "%", "")
 		if len(stripped) < 2 {
-			return "", errors.New("使用模糊搜索时，关键词长度至少为 2 个字符")
+			return "", errors.New(i18n.Translate("token.search_min_model"))
 		}
 		return input, nil
 	}
@@ -143,11 +143,11 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	if hasFuzzy {
 		count, err := CountUserTokens(userId)
 		if err != nil {
-			common.SysLog("failed to count user tokens: " + err.Error())
-			return nil, 0, errors.New("获取令牌数量失败")
+			common.SysLog(i18n.Translate("model.failed_to_count_user_tokens") + err.Error())
+			return nil, 0, errors.New(i18n.Translate("token.count_failed_model"))
 		}
 		if int(count) > maxTokens {
-			return nil, 0, errors.New("令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符")
+			return nil, 0, errors.New(i18n.Translate("token.count_exceed_model"))
 		}
 	}
 
@@ -172,44 +172,44 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
 	err = baseQuery.Limit(maxTokens).Count(&total).Error
 	if err != nil {
-		common.SysError("failed to count search tokens: " + err.Error())
-		return nil, 0, errors.New("搜索令牌失败")
+		common.SysError(i18n.Translate("model.failed_to_count_search_tokens") + err.Error())
+		return nil, 0, errors.New(i18n.Translate("token.search_failed_model"))
 	}
 
 	// 再分页查数据
 	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
 	if err != nil {
-		common.SysError("failed to search tokens: " + err.Error())
-		return nil, 0, errors.New("搜索令牌失败")
+		common.SysError(i18n.Translate("model.failed_to_search_tokens") + err.Error())
+		return nil, 0, errors.New(i18n.Translate("token.search_failed_model"))
 	}
 	return tokens, total, nil
 }
 
 func ValidateUserToken(key string) (token *Token, err error) {
 	if key == "" {
-		return nil, errors.New("未提供令牌")
+		return nil, errors.New(i18n.Translate("token.not_provided_model"))
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
 		if token.Status == common.TokenStatusExhausted {
 			keyPrefix := key[:3]
 			keySuffix := key[len(key)-3:]
-			return token, errors.New("该令牌额度已用尽 TokenStatusExhausted[sk-" + keyPrefix + "***" + keySuffix + "]")
+			return token, errors.New(i18n.Translate("token.quota_exhausted_fmt", map[string]any{"Prefix": keyPrefix, "Suffix": keySuffix}))
 		} else if token.Status == common.TokenStatusExpired {
-			return token, errors.New("该令牌已过期")
+			return token, errors.New(i18n.Translate("token.has_expired"))
 		}
 		if token.Status != common.TokenStatusEnabled {
-			return token, errors.New("该令牌状态不可用")
+			return token, errors.New(i18n.Translate("token.status_unavailable_model"))
 		}
 		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
 			if !common.RedisEnabled {
 				token.Status = common.TokenStatusExpired
 				err := token.SelectUpdate()
 				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_update_token_status") + err.Error())
 				}
 			}
-			return token, errors.New("该令牌已过期")
+			return token, errors.New(i18n.Translate("token.has_expired"))
 		}
 		if !token.UnlimitedQuota && token.RemainQuota <= 0 {
 			if !common.RedisEnabled {
@@ -217,26 +217,26 @@ func ValidateUserToken(key string) (token *Token, err error) {
 				token.Status = common.TokenStatusExhausted
 				err := token.SelectUpdate()
 				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_update_token_status") + err.Error())
 				}
 			}
 			keyPrefix := key[:3]
 			keySuffix := key[len(key)-3:]
-			return token, fmt.Errorf("[sk-%s***%s] 该令牌额度已用尽 !token.UnlimitedQuota && token.RemainQuota = %d", keyPrefix, keySuffix, token.RemainQuota)
+			return token, errors.New(i18n.Translate("token.quota_exhausted_remain", map[string]any{"Prefix": keyPrefix, "Suffix": keySuffix, "Remain": token.RemainQuota}))
 		}
 		return token, nil
 	}
-	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
+	common.SysLog(i18n.Translate("model.validateusertoken_failed_to_get_token") + err.Error())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("无效的令牌")
+		return nil, errors.New(i18n.Translate("token.invalid_model"))
 	} else {
-		return nil, errors.New("无效的令牌，数据库查询出错，请联系管理员")
+		return nil, errors.New(i18n.Translate("token.db_query_error"))
 	}
 }
 
 func GetTokenByIds(id int, userId int) (*Token, error) {
 	if id == 0 || userId == 0 {
-		return nil, errors.New("id 或 userId 为空！")
+		return nil, errors.New(i18n.Translate("token.id_or_user_id_empty"))
 	}
 	token := Token{Id: id, UserId: userId}
 	var err error = nil
@@ -246,7 +246,7 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 
 func GetTokenById(id int) (*Token, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, errors.New(i18n.Translate("token.id_empty"))
 	}
 	token := Token{Id: id}
 	var err error = nil
@@ -254,7 +254,7 @@ func GetTokenById(id int) (*Token, error) {
 	if shouldUpdateRedis(true, err) {
 		gopool.Go(func() {
 			if err := cacheSetToken(token); err != nil {
-				common.SysLog("failed to update user status cache: " + err.Error())
+				common.SysLog(i18n.Translate("model.failed_to_update_user_status_cache") + err.Error())
 			}
 		})
 	}
@@ -267,7 +267,7 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 		if shouldUpdateRedis(fromDB, err) && token != nil {
 			gopool.Go(func() {
 				if err := cacheSetToken(*token); err != nil {
-					common.SysLog("failed to update user status cache: " + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_update_user_status_cache") + err.Error())
 				}
 			})
 		}
@@ -298,7 +298,7 @@ func (token *Token) Update() (err error) {
 			gopool.Go(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_update_token_cache") + err.Error())
 				}
 			})
 		}
@@ -314,7 +314,7 @@ func (token *Token) SelectUpdate() (err error) {
 			gopool.Go(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_update_token_cache") + err.Error())
 				}
 			})
 		}
@@ -329,7 +329,7 @@ func (token *Token) Delete() (err error) {
 			gopool.Go(func() {
 				err := cacheDeleteToken(token.Key)
 				if err != nil {
-					common.SysLog("failed to delete token cache: " + err.Error())
+					common.SysLog(i18n.Translate("model.failed_to_delete_token_cache") + err.Error())
 				}
 			})
 		}
@@ -371,7 +371,7 @@ func DisableModelLimits(tokenId int) error {
 func DeleteTokenById(id int, userId int) (err error) {
 	// Why we need userId here? In case user want to delete other's token.
 	if id == 0 || userId == 0 {
-		return errors.New("id 或 userId 为空！")
+		return errors.New(i18n.Translate("token.id_or_user_id_empty2"))
 	}
 	token := Token{Id: id, UserId: userId}
 	err = DB.Where(token).First(&token).Error
@@ -383,13 +383,13 @@ func DeleteTokenById(id int, userId int) (err error) {
 
 func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New(i18n.Translate("quota.cannot_be_negative"))
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			err := cacheIncrTokenQuota(key, int64(quota))
 			if err != nil {
-				common.SysLog("failed to increase token quota: " + err.Error())
+				common.SysLog(i18n.Translate("model.failed_to_increase_token_quota") + err.Error())
 			}
 		})
 	}
@@ -413,13 +413,13 @@ func increaseTokenQuota(id int, quota int) (err error) {
 
 func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New(i18n.Translate("quota.cannot_be_negative"))
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			err := cacheDecrTokenQuota(key, int64(quota))
 			if err != nil {
-				common.SysLog("failed to decrease token quota: " + err.Error())
+				common.SysLog(i18n.Translate("model.failed_to_decrease_token_quota") + err.Error())
 			}
 		})
 	}
@@ -451,7 +451,7 @@ func CountUserTokens(userId int) (int64, error) {
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {
-		return 0, errors.New("ids 不能为空！")
+		return 0, errors.New(i18n.Translate("quota.ids_cannot_be_empty"))
 	}
 
 	tx := DB.Begin()

@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -69,11 +70,11 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, ok := c.Get("task_request")
 	if !ok {
-		return nil, fmt.Errorf("request not found in context")
+		return nil, errors.New(i18n.Translate("relay.request_not_found_in_context"))
 	}
 	req, ok := v.(relaycommon.TaskSubmitReq)
 	if !ok {
-		return nil, fmt.Errorf("unexpected task_request type")
+		return nil, errors.New(i18n.Translate("relay.unexpected_task_request_type"))
 	}
 
 	instance := VeoInstance{Prompt: req.Prompt}
@@ -132,7 +133,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
 	}
 	if strings.TrimSpace(s.Name) == "" {
-		return "", nil, service.TaskErrorWrapper(fmt.Errorf("missing operation name"), "invalid_response", http.StatusInternalServerError)
+		return "", nil, service.TaskErrorWrapper(errors.New(i18n.Translate("relay.missing_operation_name")), "invalid_response", http.StatusInternalServerError)
 	}
 	taskID = taskcommon.EncodeLocalTaskID(s.Name)
 	ov := dto.NewOpenAIVideo()
@@ -182,12 +183,12 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid task_id")
+		return nil, errors.New(i18n.Translate("relay.invalid_task_id"))
 	}
 
 	upstreamName, err := taskcommon.DecodeLocalTaskID(taskID)
 	if err != nil {
-		return nil, fmt.Errorf("decode task_id failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.decode_task_id_failed"), err)
 	}
 
 	version := model_setting.GetGeminiVersionSetting("default")
@@ -203,7 +204,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.new_proxy_http_client_failed"), err)
 	}
 	return client.Do(req)
 }
@@ -211,7 +212,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	var op operationResponse
 	if err := common.Unmarshal(respBody, &op); err != nil {
-		return nil, fmt.Errorf("unmarshal operation response failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.unmarshal_operation_response_failed"), err)
 	}
 
 	ti := &relaycommon.TaskInfo{}

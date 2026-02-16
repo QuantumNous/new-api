@@ -20,7 +20,8 @@ import (
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
 
-var ErrRequestBodyTooLarge = errors.New("request body too large")
+// Initialized in init() because Translate is not yet available at var-init time.
+var ErrRequestBodyTooLarge error
 
 func IsRequestBodyTooLargeError(err error) bool {
 	if err == nil {
@@ -38,7 +39,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
 		if bs, ok := storage.(BodyStorage); ok {
 			if _, err := bs.Seek(0, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("failed to seek body storage: %w", err)
+				return nil, fmt.Errorf(Translate("common.failed_to_seek_body_storage"), err)
 			}
 			return bs, nil
 		}
@@ -71,7 +72,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	if err != nil {
 		if IsRequestBodyTooLargeError(err) {
-			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf(Translate("common.request_body_exceeds_mb"), maxMB))
 		}
 		return nil, err
 	}
@@ -90,7 +91,7 @@ func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
 	}
 	bs, ok := seeker.(BodyStorage)
 	if !ok {
-		return nil, errors.New("unexpected body storage type")
+		return nil, errors.New(Translate("common.unexpected_body_storage_type"))
 	}
 	return bs, nil
 }
@@ -179,45 +180,35 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 }
 
 func ApiError(c *gin.Context, err error) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": err.Error(),
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: err.Error()})
 }
 
 func ApiErrorMsg(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": msg,
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: msg})
 }
 
 func ApiSuccess(c *gin.Context, data any) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	c.JSON(http.StatusOK, apiResponse{Success: true, Data: data})
 }
 
 // ApiErrorI18n returns a translated error message based on the user's language preference
 // key is the i18n message key, args is optional template data
 func ApiErrorI18n(c *gin.Context, key string, args ...map[string]any) {
 	msg := TranslateMessage(c, key, args...)
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": msg,
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: msg})
 }
 
 // ApiSuccessI18n returns a translated success message based on the user's language preference
 func ApiSuccessI18n(c *gin.Context, key string, data any, args ...map[string]any) {
 	msg := TranslateMessage(c, key, args...)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": msg,
-		"data":    data,
-	})
+	c.JSON(http.StatusOK, apiResponse{Success: true, Message: msg, Data: data})
+}
+
+// apiResponse mirrors dto.ApiResponse but is defined here to avoid import cycles.
+type apiResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 // TranslateMessage is a helper function that calls i18n.T
@@ -225,12 +216,24 @@ func ApiSuccessI18n(c *gin.Context, key string, data any, args ...map[string]any
 // The actual implementation will be set during init
 var TranslateMessage func(c *gin.Context, key string, args ...map[string]any) string
 
+// Translate is a context-free translation helper that calls i18n.Translate.
+// Packages that cannot import i18n (setting, dto, common, logger, pkg) use this.
+// The actual implementation is set by i18n.Init().
+var Translate func(key string, args ...map[string]any) string
+
 func init() {
 	// Default implementation that returns the key as-is
 	// This will be replaced by i18n.T during i18n initialization
 	TranslateMessage = func(c *gin.Context, key string, args ...map[string]any) string {
 		return key
 	}
+	Translate = func(key string, args ...map[string]any) string {
+		return key
+	}
+	// Initialize error variables that depend on Translate
+	ErrRequestBodyTooLarge = errors.New(Translate("common.request_body_too_large"))
+	ErrStorageClosed = errors.New(Translate("common.body_storage_is_closed"))
+	errBoundaryNotFound = errors.New(Translate("common.multipart_boundary_not_found"))
 }
 
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
@@ -336,7 +339,8 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	return processFormMap(formMap, v)
 }
 
-var errBoundaryNotFound = errors.New("multipart boundary not found")
+// Initialized in init() because Translate is not yet available at var-init time.
+var errBoundaryNotFound error
 
 // parseBoundary extracts the multipart boundary from the Content-Type header using mime.ParseMediaType
 func parseBoundary(contentType string) (string, error) {

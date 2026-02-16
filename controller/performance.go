@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/gin-gonic/gin"
 )
 
@@ -145,7 +146,7 @@ func ClearDiskCache(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "不活跃的磁盘缓存已清理",
+		"message": i18n.T(c, "performance.disk_cache_cleared"),
 	})
 }
 
@@ -155,7 +156,7 @@ func ResetPerformanceStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "统计信息已重置",
+		"message": i18n.T(c, "performance.stats_reset"),
 	})
 }
 
@@ -165,7 +166,7 @@ func ForceGC(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "GC 已执行",
+		"message": i18n.T(c, "performance.gc_executed"),
 	})
 }
 
