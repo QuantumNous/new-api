@@ -214,7 +214,7 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(messages[i]) || '示例消息';
+                const textContent = getTextContent(messages[i]) || t('示例消息');
                 const content = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -262,7 +262,7 @@ const Playground = () => {
         return;
       } catch (error) {
         console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
+        Toast.error(t(ERROR_MESSAGES.JSON_PARSE_ERROR));
         return;
       }
     }

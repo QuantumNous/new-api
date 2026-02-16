@@ -15,7 +15,7 @@ const StatusCodeRiskGuardModal = React.memo(function StatusCodeRiskGuardModal({
   const { t, i18n } = useTranslation();
   const checklist = useMemo(
     () => STATUS_CODE_RISK_CHECKLIST_KEYS.map((item) => t(item)),
-    [t, i18n.language],
+    [i18n.language, t],
   );
 
   return (

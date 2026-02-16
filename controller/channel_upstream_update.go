@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
@@ -255,7 +256,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
-			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_get_channel_key"), apiErr)
 		}
 		key = strings.TrimSpace(key)
 		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
@@ -293,7 +294,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_get_channel_key"), apiErr)
 	}
 	key = strings.TrimSpace(key)
 
@@ -387,7 +388,7 @@ func refreshChannelRuntimeCache() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					common.SysLog(fmt.Sprintf("InitChannelCache panic: %v", r))
+					common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.initchannelcache_panic"), r))
 				}
 			}()
 			model.InitChannelCache()
@@ -430,50 +431,43 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 ) string {
 	var builder strings.Builder
 	failedChannels := len(failedChannelIDs)
-	builder.WriteString(fmt.Sprintf(
-		"上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
-		checkedChannels,
-		changedChannels,
-		detectedAddModels,
-		detectedRemoveModels,
-		autoAddedModels,
-		failedChannels,
-	))
+	builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_summary", map[string]any{
+		"Checked": checkedChannels, "Changes": changedChannels, "Added": detectedAddModels,
+		"Removed": detectedRemoveModels, "Synced": autoAddedModels, "Failed": failedChannels,
+	}))
 
 	if len(channelSummaries) > 0 {
 		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n变更渠道明细（展示 %d/%d）：", displayCount, len(channelSummaries)))
+		builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_changed_details", map[string]any{"Display": displayCount, "Total": len(channelSummaries)}))
 		for _, summary := range channelSummaries[:displayCount] {
 			builder.WriteString(fmt.Sprintf("\n- %s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
 		}
 		if len(channelSummaries) > displayCount {
-			builder.WriteString(fmt.Sprintf("\n- 其余 %d 个渠道已省略", len(channelSummaries)-displayCount))
+			builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_more_omitted", map[string]any{"Count": len(channelSummaries) - displayCount}))
 		}
 	}
 
 	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
 	if len(normalizedAddModelSamples) > 0 {
 		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n新增模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedAddModelSamples),
-			strings.Join(normalizedAddModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_added_samples", map[string]any{
+			"Display": displayCount, "Total": len(normalizedAddModelSamples),
+			"Models": strings.Join(normalizedAddModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedAddModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedAddModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_added_omitted", map[string]any{"Count": len(normalizedAddModelSamples) - displayCount}))
 		}
 	}
 
 	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
 	if len(normalizedRemoveModelSamples) > 0 {
 		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n删除模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedRemoveModelSamples),
-			strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_removed_samples", map[string]any{
+			"Display": displayCount, "Total": len(normalizedRemoveModelSamples),
+			"Models": strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedRemoveModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedRemoveModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_removed_omitted", map[string]any{"Count": len(normalizedRemoveModelSamples) - displayCount}))
 		}
 	}
 
@@ -482,14 +476,11 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
 			return fmt.Sprintf("%d", channelID)
 		})
-		builder.WriteString(fmt.Sprintf(
-			"\n\n失败渠道 ID（展示 %d/%d）：%s",
-			displayCount,
-			failedChannels,
-			strings.Join(displayIDs, ", "),
-		))
+		builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_failed_ids", map[string]any{
+			"Display": displayCount, "Total": failedChannels, "Ids": strings.Join(displayIDs, ", "),
+		}))
 		if failedChannels > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", failedChannels-displayCount))
+			builder.WriteString(i18n.Translate(i18n.DefaultLang, "channel.upstream_failed_omitted", map[string]any{"Count": failedChannels - displayCount}))
 		}
 	}
 	return builder.String()
@@ -526,7 +517,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 		}
 		err := query.Find(&channels).Error
 		if err != nil {
-			common.SysLog(fmt.Sprintf("upstream model update task query failed: %v", err))
+			common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_model_update_task_query_failed"), err))
 			break
 		}
 		if len(channels) == 0 {
@@ -549,7 +540,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
-				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
+				common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_model_update_check_failed_channel_id"), channel.Id, channel.Name, err))
 				continue
 			}
 			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
@@ -609,7 +600,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			return
 		}
 		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型巡检通知",
+			i18n.Translate(i18n.DefaultLang, "channel.upstream_notify_subject"),
 			buildUpstreamModelUpdateTaskNotificationContent(
 				checkedChannels,
 				changedChannels,
@@ -631,7 +622,7 @@ func StartChannelUpstreamModelUpdateTask() {
 			return
 		}
 		if !common.GetEnvOrDefaultBool("CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED", true) {
-			common.SysLog("upstream model update task disabled by CHANNEL_UPSTREAM_MODEL_UPDATE_TASK_ENABLED")
+			common.SysLog(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_model_update_task_disabled_by_channel"))
 			return
 		}
 
@@ -645,7 +636,7 @@ func StartChannelUpstreamModelUpdateTask() {
 		interval := time.Duration(intervalMinutes) * time.Minute
 
 		go func() {
-			common.SysLog(fmt.Sprintf("upstream model update task started: interval=%s", interval))
+			common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_model_update_task_started_interval"), interval))
 			runChannelUpstreamModelUpdateTaskOnce()
 			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
@@ -665,7 +656,7 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 	if req.ID <= 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "invalid channel id",
+			"message": i18n.Translate(i18n.DefaultLang, "distributor.invalid_channel_id"),
 		})
 		return
 	}
@@ -718,7 +709,7 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	if req.ID <= 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "invalid channel id",
+			"message": i18n.Translate(i18n.DefaultLang, "distributor.invalid_channel_id"),
 		})
 		return
 	}

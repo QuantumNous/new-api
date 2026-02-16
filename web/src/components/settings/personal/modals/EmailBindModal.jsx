@@ -21,10 +21,9 @@ import React from 'react';
 import { Button, Input, Modal } from '@douyinfe/semi-ui';
 import { IconMail, IconKey } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
+import { useTranslation } from 'react-i18next';
 
-const EmailBindModal = ({
-  t,
-  showEmailBindModal,
+const EmailBindModal = ({ showEmailBindModal,
   setShowEmailBindModal,
   inputs,
   handleInputChange,
@@ -37,6 +36,7 @@ const EmailBindModal = ({
   turnstileSiteKey,
   setTurnstileToken,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
@@ -27,24 +28,17 @@ import {
 import { getSubscriptionsColumns } from './SubscriptionsColumnDefs';
 
 const SubscriptionsTable = (subscriptionsData) => {
-  const {
-    plans,
-    loading,
-    compactMode,
-    openEdit,
-    setPlanEnabled,
-    t,
-    enableEpay,
-  } = subscriptionsData;
+  const { t } = useTranslation();
+  const { plans, loading, compactMode, openEdit, setPlanEnabled, enableEpay } =
+    subscriptionsData;
 
   const columns = useMemo(() => {
     return getSubscriptionsColumns({
-      t,
       openEdit,
       setPlanEnabled,
       enableEpay,
     });
-  }, [t, openEdit, setPlanEnabled, enableEpay]);
+  }, [openEdit, setPlanEnabled, enableEpay]);
 
   const tableColumns = useMemo(() => {
     return compactMode

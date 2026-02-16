@@ -316,9 +316,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     refresh,
     handleSearchConfirm,
 
-    // 导航和翻译
+    // 导航
     navigate,
-    t,
     isMobile,
   };
 };

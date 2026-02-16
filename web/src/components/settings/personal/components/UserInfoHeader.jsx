@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Avatar,
   Card,
@@ -34,7 +35,8 @@ import {
 } from '../../../../helpers';
 import { Coins, BarChart2, Users } from 'lucide-react';
 
-const UserInfoHeader = ({ t, userState }) => {
+const UserInfoHeader = ({ userState }) => {
+  const { t } = useTranslation();
   const getUsername = () => {
     if (userState.user) {
       return userState.user.username;

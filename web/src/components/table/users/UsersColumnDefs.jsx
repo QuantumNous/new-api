@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import {
   Button,
   Space,
@@ -34,7 +35,7 @@ import { renderGroup, renderNumber, renderQuota } from '../../../helpers';
 /**
  * Render user role
  */
-const renderRole = (role, t) => {
+const renderRole = (role) => {
   switch (role) {
     case 1:
       return (
@@ -95,7 +96,7 @@ const renderUsername = (text, record) => {
 /**
  * Render user statistics
  */
-const renderStatistics = (text, record, showEnableDisableModal, t) => {
+const renderStatistics = (text, record, showEnableDisableModal) => {
   const isDeleted = record.DeletedAt !== null;
 
   // Determine tag text & color like original status column
@@ -134,7 +135,7 @@ const renderStatistics = (text, record, showEnableDisableModal, t) => {
 };
 
 // Render separate quota usage column
-const renderQuotaUsage = (text, record, t) => {
+const renderQuotaUsage = (text, record) => {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
   const remain = parseInt(record.quota) || 0;
@@ -173,7 +174,7 @@ const renderQuotaUsage = (text, record, t) => {
 /**
  * Render invite information
  */
-const renderInviteInfo = (text, record, t) => {
+const renderInviteInfo = (text, record) => {
   return (
     <div>
       <Space spacing={1}>
@@ -209,7 +210,6 @@ const renderOperations = (
     showResetPasskeyModal,
     showResetTwoFAModal,
     showUserSubscriptionsModal,
-    t,
   },
 ) => {
   if (record.DeletedAt !== null) {
@@ -299,7 +299,6 @@ const renderOperations = (
  * Get users table column definitions
  */
 export const getUsersColumns = ({
-  t,
   setEditingUser,
   setShowEditUser,
   showPromoteModal,
@@ -324,12 +323,12 @@ export const getUsersColumns = ({
       title: t('状态'),
       dataIndex: 'info',
       render: (text, record, index) =>
-        renderStatistics(text, record, showEnableDisableModal, t),
+        renderStatistics(text, record, showEnableDisableModal),
     },
     {
       title: t('剩余额度/总额度'),
       key: 'quota_usage',
-      render: (text, record) => renderQuotaUsage(text, record, t),
+      render: (text, record) => renderQuotaUsage(text, record),
     },
     {
       title: t('分组'),
@@ -342,13 +341,13 @@ export const getUsersColumns = ({
       title: t('角色'),
       dataIndex: 'role',
       render: (text, record, index) => {
-        return <div>{renderRole(text, t)}</div>;
+        return <div>{renderRole(text)}</div>;
       },
     },
     {
       title: t('邀请信息'),
       dataIndex: 'invite',
-      render: (text, record, index) => renderInviteInfo(text, record, t),
+      render: (text, record, index) => renderInviteInfo(text, record),
     },
     {
       title: '',
@@ -366,7 +365,6 @@ export const getUsersColumns = ({
           showResetPasskeyModal,
           showResetTwoFAModal,
           showUserSubscriptionsModal,
-          t,
         }),
     },
   ];

@@ -22,6 +22,7 @@ import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
+import { useTranslation } from 'react-i18next';
 
 const LogsActions = ({
   stat,
@@ -29,8 +30,8 @@ const LogsActions = ({
   showStat,
   compactMode,
   setCompactMode,
-  t,
 }) => {
+  const { t } = useTranslation();
   const showSkeleton = useMinimumLoadingTime(loadingStat);
   const needSkeleton = !showStat || showSkeleton;
 

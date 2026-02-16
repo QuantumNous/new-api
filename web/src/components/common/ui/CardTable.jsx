@@ -208,7 +208,7 @@ const CardTable = ({
     if (tableProps.empty) return tableProps.empty;
     return (
       <div className='flex justify-center p-4'>
-        <Empty description='No Data' />
+        <Empty description={t('暂无数据')} />
       </div>
     );
   }

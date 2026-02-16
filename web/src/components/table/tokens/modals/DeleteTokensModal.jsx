@@ -19,14 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const DeleteTokensModal = ({
   visible,
   onCancel,
   onConfirm,
   selectedKeys,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={t('批量删除令牌')}

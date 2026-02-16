@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,13 +76,13 @@ func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) jso
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 	if req.Model == "" {
-		return nil, errors.New("model is required")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.model_is_required"))
 	}
 	if lo.FromPtrOr(req.N, 1) > 1 {
-		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.n_1_is_not_supported_in_responses_compatibility"))
 	}
 
 	var instructionsParts []string
@@ -112,7 +113,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			if callID == "" {
 				inputItems = append(inputItems, map[string]any{
 					"role":    "user",
-					"content": fmt.Sprintf("[tool_output_missing_call_id] %v", output),
+					"content": fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.tool_output_missing_call_id"), output),
 				})
 				continue
 			}

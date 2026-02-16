@@ -9,6 +9,7 @@ import (
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -25,7 +26,7 @@ type SubscriptionEpayPayRequest struct {
 func SubscriptionRequestEpay(c *gin.Context) {
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 
@@ -35,15 +36,15 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		return
 	}
 	if !plan.Enabled {
-		common.ApiErrorMsg(c, "套餐未启用")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.not_enabled"))
 		return
 	}
 	if plan.PriceAmount < 0.01 {
-		common.ApiErrorMsg(c, "套餐金额过低")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.amount_too_low"))
 		return
 	}
 	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
-		common.ApiErrorMsg(c, "支付方式不存在")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.method_not_exists"))
 		return
 	}
 
@@ -55,7 +56,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 			return
 		}
 		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
+			common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.purchase_max"))
 			return
 		}
 	}
@@ -63,21 +64,21 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
-		common.ApiErrorMsg(c, "回调地址配置错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.callback_error"))
 		return
 	}
 	notifyUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/notify")
 	if err != nil {
-		common.ApiErrorMsg(c, "回调地址配置错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.callback_error"))
 		return
 	}
 
 	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
-	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
+	tradeNo = fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.subusrno"), userId, tradeNo)
 
 	client := GetEpayClient()
 	if client == nil {
-		common.ApiErrorMsg(c, "当前管理员未配置支付信息")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.not_configured"))
 		return
 	}
 
@@ -91,7 +92,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		common.ApiErrorMsg(c, "创建订单失败")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.create_failed"))
 		return
 	}
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
@@ -105,7 +106,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	})
 	if err != nil {
 		_ = model.ExpireSubscriptionOrder(tradeNo)
-		common.ApiErrorMsg(c, "拉起支付失败")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.start_failed"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})

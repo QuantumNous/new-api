@@ -1,6 +1,8 @@
 package suno
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -28,7 +30,7 @@ type TaskAdaptor struct {
 // receives dto.TaskResponse[[]dto.SunoDataResponse] from the upstream /fetch API.
 // This differs from the per-task polling used by video adaptors.
 func (a *TaskAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
-	return nil, fmt.Errorf("suno uses batch polling via UpdateSunoTasks, ParseTaskResult is not applicable")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.suno_uses_batch_polling_via_updatesunotasks_parsetaskresult_is"))
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -79,7 +81,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	sunoRequest, ok := c.Get("task_request")
 	if !ok {
-		return nil, fmt.Errorf("task_request not found in context")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.task_request_not_found_in_context"))
 	}
 	data, err := common.Marshal(sunoRequest)
 	if err != nil {
@@ -137,14 +139,14 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 
 	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(byteBody))
 	if err != nil {
-		common.SysLog(fmt.Sprintf("Get Task error: %v", err))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.get_task_error"), err))
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_proxy_http_client_failed"), err)
 	}
 	return client.Do(req)
 }

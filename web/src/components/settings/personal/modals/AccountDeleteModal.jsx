@@ -21,10 +21,9 @@ import React from 'react';
 import { Banner, Input, Modal, Typography } from '@douyinfe/semi-ui';
 import { IconDelete, IconUser } from '@douyinfe/semi-icons';
 import Turnstile from 'react-turnstile';
+import { useTranslation } from 'react-i18next';
 
-const AccountDeleteModal = ({
-  t,
-  showAccountDeleteModal,
+const AccountDeleteModal = ({ showAccountDeleteModal,
   setShowAccountDeleteModal,
   inputs,
   handleInputChange,
@@ -34,6 +33,7 @@ const AccountDeleteModal = ({
   turnstileSiteKey,
   setTurnstileToken,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={

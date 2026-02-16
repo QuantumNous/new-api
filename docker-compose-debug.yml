@@ -1,0 +1,74 @@
+networks:
+  proxy:
+    external: false
+    name: proxy
+  debug-internal:
+    driver: bridge
+
+services:
+  debug-new-api:
+    build: .
+    container_name: debug-new-api
+    restart: always
+    command: --log-dir /app/logs
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+      - debug-internal
+    volumes:
+      - ~/debug-new-api/data:/data
+      - ~/debug-new-api/logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://${DEBUG_POSTGRES_USER}:${DEBUG_POSTGRES_PASSWORD}@debug-new-api-postgres:5432/${DEBUG_POSTGRES_DB}
+      - REDIS_CONN_STRING=redis://debug-new-api-redis
+      - TZ=Europe/Berlin
+      - SESSION_SECRET=${DEBUG_SESSION_SECRET}
+      - CRYPTO_SECRET=${DEBUG_CRYPTO_SECRET}
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=false
+      - MEMORY_CACHE_ENABLED=false
+      - GIN_MODE=debug
+      - ENABLE_OPENAPI=true
+#      - DEFAULT_LANGUAGE=en  # Backend language: en, zh-CN, zh-TW, fr, ja, ru, vi
+      - GLOBAL_API_RATE_LIMIT_ENABLE=false
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.newapi-debug.rule=Host(`debug.unorouter.ai`)"
+      - "traefik.http.routers.newapi-debug.entrypoints=websecure"
+      - "traefik.http.routers.newapi-debug.tls.certresolver=letsencrypt"
+      - "traefik.http.services.newapi-debug.loadbalancer.server.port=3000"
+    depends_on:
+      - debug-new-api-redis
+      - debug-new-api-postgres
+
+  debug-new-api-redis:
+    image: redis:latest
+    container_name: debug-new-api-redis
+    restart: always
+    networks:
+      - debug-internal
+
+  debug-new-api-postgres:
+    image: postgres:15
+    container_name: debug-new-api-postgres
+    restart: always
+    networks:
+      - debug-internal
+    ports:
+      - 5441:5432
+    environment:
+      POSTGRES_USER: ${DEBUG_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DEBUG_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${DEBUG_POSTGRES_DB}
+    volumes:
+      - debug_pg_data:/var/lib/postgresql/data
+
+volumes:
+  debug_pg_data:

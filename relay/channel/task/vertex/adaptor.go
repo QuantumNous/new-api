@@ -1,6 +1,8 @@
 package vertex
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -84,7 +86,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	adc := &vertexcore.Credentials{}
 	if err := common.Unmarshal([]byte(a.apiKey), adc); err != nil {
-		return "", fmt.Errorf("failed to decode credentials: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_decode_credentials"), err)
 	}
 	modelName := info.UpstreamModelName
 	if modelName == "" {
@@ -118,7 +120,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 	adc := &vertexcore.Credentials{}
 	if err := common.Unmarshal([]byte(a.apiKey), adc); err != nil {
-		return fmt.Errorf("failed to decode credentials: %w", err)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_decode_credentials"), err)
 	}
 
 	proxy := ""
@@ -127,7 +129,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	}
 	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
 	if err != nil {
-		return fmt.Errorf("failed to acquire access token: %w", err)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_acquire_access_token"), err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("x-goog-user-project", adc.ProjectID)
@@ -156,7 +158,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, ok := c.Get("task_request")
 	if !ok {
-		return nil, fmt.Errorf("request not found in context")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.request_not_found_in_context"))
 	}
 	req := v.(relaycommon.TaskSubmitReq)
 
@@ -172,7 +174,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	params := &geminitask.VeoParameters{}
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, params); err != nil {
-		return nil, fmt.Errorf("unmarshal metadata failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.unmarshal_metadata_failed"), err)
 	}
 	if params.DurationSeconds == 0 && req.Duration > 0 {
 		params.DurationSeconds = req.Duration
@@ -216,7 +218,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, service.TaskErrorWrapper(err, "unmarshal_response_failed", http.StatusInternalServerError)
 	}
 	if strings.TrimSpace(s.Name) == "" {
-		return "", nil, service.TaskErrorWrapper(fmt.Errorf("missing operation name"), "invalid_response", http.StatusInternalServerError)
+		return "", nil, service.TaskErrorWrapper(errors.New(i18n.Translate(i18n.DefaultLang, "relay.missing_operation_name")), "invalid_response", http.StatusInternalServerError)
 	}
 	localID := taskcommon.EncodeLocalTaskID(s.Name)
 	ov := dto.NewOpenAIVideo()
@@ -242,11 +244,11 @@ func (a *TaskAdaptor) GetChannelName() string { return "vertex" }
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid task_id")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.invalid_task_id"))
 	}
 	upstreamName, err := taskcommon.DecodeLocalTaskID(taskID)
 	if err != nil {
-		return nil, fmt.Errorf("decode task_id failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.decode_task_id_failed"), err)
 	}
 	region := extractRegionFromOperationName(upstreamName)
 	if region == "" {
@@ -255,7 +257,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	project := extractProjectFromOperationName(upstreamName)
 	modelName := extractModelFromOperationName(upstreamName)
 	if project == "" || modelName == "" {
-		return nil, fmt.Errorf("cannot extract project/model from operation name")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.cannot_extract_project_model_from_operation_name"))
 	}
 	var url string
 	if region == "global" {
@@ -270,11 +272,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 	adc := &vertexcore.Credentials{}
 	if err := common.Unmarshal([]byte(key), adc); err != nil {
-		return nil, fmt.Errorf("failed to decode credentials: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_decode_credentials"), err)
 	}
 	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
 	if err != nil {
-		return nil, fmt.Errorf("failed to acquire access token: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_acquire_access_token"), err)
 	}
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
@@ -286,7 +288,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	req.Header.Set("x-goog-user-project", adc.ProjectID)
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
-		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_proxy_http_client_failed"), err)
 	}
 	return client.Do(req)
 }
@@ -294,7 +296,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
 	var op operationResponse
 	if err := common.Unmarshal(respBody, &op); err != nil {
-		return nil, fmt.Errorf("unmarshal operation response failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.unmarshal_operation_response_failed"), err)
 	}
 	ti := &relaycommon.TaskInfo{}
 	if op.Error.Message != "" {

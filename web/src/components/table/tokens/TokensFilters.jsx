@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const TokensFilters = ({
   formInitValues,
@@ -27,8 +28,8 @@ const TokensFilters = ({
   searchTokens,
   loading,
   searching,
-  t,
 }) => {
+  const { t } = useTranslation();
   // Handle form reset and immediate search
   const formApiRef = useRef(null);
 

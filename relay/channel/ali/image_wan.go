@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ func oaiFormEdit2WanxImageEdit(c *gin.Context, info *relaycommon.RelayInfo, requ
 		return nil, err
 	}
 	if wanInput.Images, err = getImageBase64sFromForm(c, "image"); err != nil {
-		return nil, fmt.Errorf("get image base64s from form failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.get_image_base64s_from_form_failed"), err)
 	}
 	//wanParams := WanImageParameters{
 	//	N: int(request.N),

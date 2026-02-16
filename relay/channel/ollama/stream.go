@@ -1,6 +1,8 @@
 package ollama
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"bufio"
 	"encoding/json"
 	"fmt"
@@ -65,7 +67,7 @@ func toUnix(ts string) int64 {
 
 func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
-		return nil, types.NewOpenAIError(fmt.Errorf("empty response"), types.ErrorCodeBadResponse, http.StatusBadRequest)
+		return nil, types.NewOpenAIError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.empty_response")), types.ErrorCodeBadResponse, http.StatusBadRequest)
 	}
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -137,7 +139,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				for _, tc := range chunk.Message.ToolCalls {
 					// arguments -> string
 					argBytes, _ := json.Marshal(tc.Function.Arguments)
-					toolId := fmt.Sprintf("call_%d", toolCallIndex)
+					toolId := fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.call"), toolCallIndex)
 					tr := dto.ToolCallResponse{ID: toolId, Type: "function", Function: dto.FunctionResponse{Name: tc.Function.Name, Arguments: string(argBytes)}}
 					tr.SetIndex(toolCallIndex)
 					toolCallIndex++

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../../../helpers/i18n';
 import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import {
@@ -33,7 +34,7 @@ import {
 } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
-function renderQuotaType(type, t) {
+function renderQuotaType(type) {
   switch (type) {
     case 1:
       return (
@@ -53,7 +54,7 @@ function renderQuotaType(type, t) {
 }
 
 // Render vendor name
-const renderVendor = (vendorName, vendorIcon, t) => {
+const renderVendor = (vendorName, vendorIcon) => {
   if (!vendorName) return '-';
   return (
     <Tag
@@ -102,7 +103,6 @@ function renderSupportedEndpoints(endpoints) {
 }
 
 export const getPricingTableColumns = ({
-  t,
   selectedGroup,
   groupRatio,
   copyText,
@@ -160,7 +160,7 @@ export const getPricingTableColumns = ({
     title: t('计费类型'),
     dataIndex: 'quota_type',
     render: (text, record, index) => {
-      return renderQuotaType(parseInt(text), t);
+      return renderQuotaType(parseInt(text));
     },
     sorter: (a, b) => a.quota_type - b.quota_type,
   };
@@ -180,7 +180,7 @@ export const getPricingTableColumns = ({
   const vendorColumn = {
     title: t('供应商'),
     dataIndex: 'vendor_name',
-    render: (text, record) => renderVendor(text, record.vendor_icon, t),
+    render: (text, record) => renderVendor(text, record.vendor_icon),
   };
 
   const baseColumns = [

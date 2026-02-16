@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal, Input, Typography } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const BatchTagModal = ({
   showBatchSetTag,
@@ -27,8 +28,8 @@ const BatchTagModal = ({
   batchSetTagValue,
   setBatchSetTagValue,
   selectedChannels,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Modal
       title={t('批量设置标签')}

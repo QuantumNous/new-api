@@ -21,6 +21,8 @@ import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
+import i18next from 'i18next';
+import { t } from './i18n';
 import {
   THINK_TAG_REGEX,
   MESSAGE_ROLES,
@@ -131,22 +133,22 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          Toast.error(i18next.t('错误：请求次数过多，请稍后再试！'));
           break;
         case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
+          Toast.error(i18next.t('错误：服务器内部错误，请联系管理员！'));
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.info(i18next.t('本站仅作演示之用，无服务端！'));
           break;
         default:
-          Toast.error('错误：' + error.message);
+          Toast.error(i18next.t('错误：') + error.message);
       }
       return;
     }
-    Toast.error('错误：' + error.message);
+    Toast.error(i18next.t('错误：') + error.message);
   } else {
-    Toast.error('错误：' + error);
+    Toast.error(i18next.t('错误：') + error);
   }
 }
 
@@ -292,7 +294,7 @@ export function verifyJSONPromise(value) {
     JSON.parse(value);
     return Promise.resolve();
   } catch (e) {
-    return Promise.reject('不是合法的 JSON 字符串');
+    return Promise.reject(i18next.t('不是合法的 JSON 字符串'));
   }
 }
 
@@ -527,19 +529,19 @@ export const getRelativeTime = (publishDate) => {
 
   // 根据时间差返回相应的描述
   if (diffSeconds < 60) {
-    return '刚刚';
+    return i18next.t('刚刚');
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return `${diffMinutes} ${i18next.t('分钟前')}`;
   } else if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return `${diffHours} ${i18next.t('小时前')}`;
   } else if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return `${diffDays} ${i18next.t('天前')}`;
   } else if (diffWeeks < 4) {
-    return `${diffWeeks} 周前`;
+    return `${diffWeeks} ${i18next.t('周前')}`;
   } else if (diffMonths < 12) {
-    return `${diffMonths} 个月前`;
+    return `${diffMonths} ${i18next.t('个月前')}`;
   } else if (diffYears < 2) {
-    return '1 年前';
+    return `1 ${i18next.t('年前')}`;
   } else {
     // 超过2年显示具体日期
     return formatDateString(pubDate);

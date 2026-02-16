@@ -47,8 +47,8 @@ func InitRedisClient() (err error) {
 		FatalLog("Redis ping test failed: " + err.Error())
 	}
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis connected to %s", opt.Addr))
-		SysLog(fmt.Sprintf("Redis database: %d", opt.DB))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_connected_to"), opt.Addr))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_database"), opt.DB))
 	}
 	return err
 }
@@ -63,7 +63,7 @@ func ParseRedisOption() *redis.Options {
 
 func RedisSet(key string, value string, expiration time.Duration) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis SET: key=%s, value=%s, expiration=%v", key, value, expiration))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_set_key_value_expiration"), key, value, expiration))
 	}
 	ctx := context.Background()
 	return RDB.Set(ctx, key, value, expiration).Err()
@@ -71,7 +71,7 @@ func RedisSet(key string, value string, expiration time.Duration) error {
 
 func RedisGet(key string) (string, error) {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis GET: key=%s", key))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_get_key"), key))
 	}
 	ctx := context.Background()
 	val, err := RDB.Get(ctx, key).Result()
@@ -90,7 +90,7 @@ func RedisGet(key string) (string, error) {
 
 func RedisDel(key string) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis DEL: key=%s", key))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_del_key"), key))
 	}
 	ctx := context.Background()
 	return RDB.Del(ctx, key).Err()
@@ -98,7 +98,7 @@ func RedisDel(key string) error {
 
 func RedisDelKey(key string) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis DEL Key: key=%s", key))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_del_key_key"), key))
 	}
 	ctx := context.Background()
 	return RDB.Del(ctx, key).Err()
@@ -106,7 +106,7 @@ func RedisDelKey(key string) error {
 
 func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HSET: key=%s, obj=%+v, expiration=%v", key, obj, expiration))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_hset_key_obj_expiration"), key, obj, expiration))
 	}
 	ctx := context.Background()
 
@@ -153,35 +153,35 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 
 	_, err := txn.Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to execute transaction: %w", err)
+		return fmt.Errorf(Translate(DefaultLang, "common.failed_to_execute_transaction"), err)
 	}
 	return nil
 }
 
 func RedisHGetObj(key string, obj interface{}) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HGETALL: key=%s", key))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_hgetall_key"), key))
 	}
 	ctx := context.Background()
 
 	result, err := RDB.HGetAll(ctx, key).Result()
 	if err != nil {
-		return fmt.Errorf("failed to load hash from Redis: %w", err)
+		return fmt.Errorf(Translate(DefaultLang, "common.failed_to_load_hash_from_redis"), err)
 	}
 
 	if len(result) == 0 {
-		return fmt.Errorf("key %s not found in Redis", key)
+		return fmt.Errorf(Translate(DefaultLang, "common.key_not_found_in_redis"), key)
 	}
 
 	// Handle both pointer and non-pointer values
 	val := reflect.ValueOf(obj)
 	if val.Kind() != reflect.Ptr {
-		return fmt.Errorf("obj must be a pointer to a struct, got %T", obj)
+		return fmt.Errorf(Translate(DefaultLang, "common.obj_must_be_a_pointer_to_a_struct"), obj)
 	}
 
 	v := val.Elem()
 	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("obj must be a pointer to a struct, got pointer to %T", v.Interface())
+		return fmt.Errorf(Translate(DefaultLang, "common.obj_must_be_a_pointer_to_a_struct_303d"), v.Interface())
 	}
 
 	t := v.Type()
@@ -209,13 +209,13 @@ func RedisHGetObj(key string, obj interface{}) error {
 			case reflect.Int, reflect.Int64:
 				intValue, err := strconv.ParseInt(value, 10, 64)
 				if err != nil {
-					return fmt.Errorf("failed to parse int field %s: %w", fieldName, err)
+					return fmt.Errorf(Translate(DefaultLang, "common.failed_to_parse_int_field"), fieldName, err)
 				}
 				fieldValue.SetInt(intValue)
 			case reflect.Bool:
 				boolValue, err := strconv.ParseBool(value)
 				if err != nil {
-					return fmt.Errorf("failed to parse bool field %s: %w", fieldName, err)
+					return fmt.Errorf(Translate(DefaultLang, "common.failed_to_parse_bool_field"), fieldName, err)
 				}
 				fieldValue.SetBool(boolValue)
 			case reflect.Struct:
@@ -224,13 +224,13 @@ func RedisHGetObj(key string, obj interface{}) error {
 					if value != "" {
 						timeValue, err := time.Parse(time.RFC3339, value)
 						if err != nil {
-							return fmt.Errorf("failed to parse DeletedAt field %s: %w", fieldName, err)
+							return fmt.Errorf(Translate(DefaultLang, "common.failed_to_parse_deletedat_field"), fieldName, err)
 						}
 						fieldValue.Set(reflect.ValueOf(gorm.DeletedAt{Time: timeValue, Valid: true}))
 					}
 				}
 			default:
-				return fmt.Errorf("unsupported field type: %s for field %s", fieldValue.Kind(), fieldName)
+				return fmt.Errorf(Translate(DefaultLang, "common.unsupported_field_type_or_field"), fieldValue.Kind(), fieldName)
 			}
 		}
 	}
@@ -241,13 +241,13 @@ func RedisHGetObj(key string, obj interface{}) error {
 // RedisIncr Add this function to handle atomic increments
 func RedisIncr(key string, delta int64) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis INCR: key=%s, delta=%d", key, delta))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_incr_key_delta"), key, delta))
 	}
 	// 检查键的剩余生存时间
 	ttlCmd := RDB.TTL(context.Background(), key)
 	ttl, err := ttlCmd.Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return fmt.Errorf("failed to get TTL: %w", err)
+		return fmt.Errorf(Translate(DefaultLang, "common.failed_to_get_ttl"), err)
 	}
 
 	// 只有在 key 存在且有 TTL 时才需要特殊处理
@@ -274,12 +274,12 @@ func RedisIncr(key string, delta int64) error {
 
 func RedisHIncrBy(key, field string, delta int64) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HINCRBY: key=%s, field=%s, delta=%d", key, field, delta))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_hincrby_key_field_delta"), key, field, delta))
 	}
 	ttlCmd := RDB.TTL(context.Background(), key)
 	ttl, err := ttlCmd.Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return fmt.Errorf("failed to get TTL: %w", err)
+		return fmt.Errorf(Translate(DefaultLang, "common.failed_to_get_ttl"), err)
 	}
 
 	if ttl > 0 {
@@ -301,12 +301,12 @@ func RedisHIncrBy(key, field string, delta int64) error {
 
 func RedisHSetField(key, field string, value interface{}) error {
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HSET field: key=%s, field=%s, value=%v", key, field, value))
+		SysLog(fmt.Sprintf(Translate(DefaultLang, "common.redis_hset_field_key_field_value"), key, field, value))
 	}
 	ttlCmd := RDB.TTL(context.Background(), key)
 	ttl, err := ttlCmd.Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		return fmt.Errorf("failed to get TTL: %w", err)
+		return fmt.Errorf(Translate(DefaultLang, "common.failed_to_get_ttl"), err)
 	}
 
 	if ttl > 0 {

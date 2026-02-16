@@ -68,7 +68,7 @@ const SingleModelSelectModal = ({
   }, [normalizedModels, keyword]);
 
   const modelsByCategory = useMemo(() => {
-    const categories = getModelCategories(t);
+    const categories = getModelCategories();
     const categorized = {};
     const uncategorized = [];
 

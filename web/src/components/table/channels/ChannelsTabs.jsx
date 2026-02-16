@@ -21,6 +21,7 @@ import React from 'react';
 import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
 import { CHANNEL_OPTIONS } from '../../../constants';
 import { getChannelIcon } from '../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const ChannelsTabs = ({
   enableTagMode,
@@ -33,8 +34,8 @@ const ChannelsTabs = ({
   pageSize,
   idSort,
   setActivePage,
-  t,
 }) => {
+  const { t } = useTranslation();
   if (enableTagMode) return null;
 
   const handleTabChange = (key) => {
@@ -78,7 +79,7 @@ const ChannelsTabs = ({
             tab={
               <span className='flex items-center gap-2'>
                 {getChannelIcon(option.value)}
-                {option.label}
+                {t(option.label)}
                 <Tag
                   color={activeTypeKey === key ? 'red' : 'grey'}
                   shape='circle'

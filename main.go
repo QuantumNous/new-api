@@ -49,12 +49,12 @@ func main() {
 		return
 	}
 
-	common.SysLog("New API " + common.Version + " started")
+	common.SysLog(i18n.Translate(i18n.DefaultLang, "main.new_api") + common.Version + " started")
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	if common.DebugEnabled {
-		common.SysLog("running in debug mode")
+		common.SysLog(i18n.Translate(i18n.DefaultLang, "main.running_in_debug_mode"))
 	}
 
 	defer func() {
@@ -69,14 +69,14 @@ func main() {
 		common.MemoryCacheEnabled = true
 	}
 	if common.MemoryCacheEnabled {
-		common.SysLog("memory cache enabled")
-		common.SysLog(fmt.Sprintf("sync frequency: %d seconds", common.SyncFrequency))
+		common.SysLog(i18n.Translate(i18n.DefaultLang, "main.memory_cache_enabled"))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "main.sync_frequency_seconds"), common.SyncFrequency))
 
 		// Add panic recovery and retry for InitChannelCache
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					common.SysLog(fmt.Sprintf("InitChannelCache panic: %v, retrying once", r))
+					common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "main.initchannelcache_panic_retrying_once"), r))
 					// Retry once
 					_, _, fixErr := model.FixAbility()
 					if fixErr != nil {
@@ -134,7 +134,7 @@ func main() {
 	}
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
-		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
+		common.SysLog(i18n.Translate(i18n.DefaultLang, "main.batch_update_enabled_with_interval") + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
 	}
 
@@ -143,18 +143,18 @@ func main() {
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
 		})
 		go common.Monitor()
-		common.SysLog("pprof enabled")
+		common.SysLog(i18n.Translate(i18n.DefaultLang, "main.pprof_enabled"))
 	}
 
 	err = common.StartPyroScope()
 	if err != nil {
-		common.SysError(fmt.Sprintf("start pyroscope error : %v", err))
+		common.SysError(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "main.start_pyroscope_error"), err))
 	}
 
 	// Initialize HTTP server
 	server := gin.New()
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
-		common.SysLog(fmt.Sprintf("panic detected: %v", err))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "main.panic_detected"), err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
@@ -240,13 +240,19 @@ func InjectGoogleAnalytics() {
 }
 
 func InitResources() error {
-	// Initialize resources here if needed
-	// This is a placeholder function for future resource initialization
+	// Load .env before i18n so DEFAULT_LANGUAGE from .env is available
 	err := godotenv.Load(".env")
 	if err != nil {
 		if common.DebugEnabled {
-			common.SysLog("No .env file found, using default environment variables. If needed, please create a .env file and set the relevant variables.")
+			common.SysLog("no .env file found, using default environment")
 		}
+	}
+
+	// Initialize i18n early so Translate() is available everywhere
+	err = i18n.Init()
+	if err != nil {
+		common.SysError("failed to initialize i18n: " + err.Error())
+		// Don't return error, i18n is not critical
 	}
 
 	// 加载环境变量
@@ -294,21 +300,14 @@ func InitResources() error {
 	// 启动系统监控
 	common.StartSystemMonitor()
 
-	// Initialize i18n
-	err = i18n.Init()
-	if err != nil {
-		common.SysError("failed to initialize i18n: " + err.Error())
-		// Don't return error, i18n is not critical
-	} else {
-		common.SysLog("i18n initialized with languages: " + strings.Join(i18n.SupportedLanguages(), ", "))
-	}
+	common.SysLog(i18n.Translate(i18n.DefaultLang, "main.i18n_initialized_with_languages") + strings.Join(i18n.SupportedLanguages(), ", "))
 	// Register user language loader for lazy loading
 	i18n.SetUserLangLoader(model.GetUserLanguage)
 
 	// Load custom OAuth providers from database
 	err = oauth.LoadCustomProviders()
 	if err != nil {
-		common.SysError("failed to load custom OAuth providers: " + err.Error())
+		common.SysError(i18n.Translate(i18n.DefaultLang, "main.failed_to_load_custom_oauth_providers") + err.Error())
 		// Don't return error, custom OAuth is not critical
 	}
 

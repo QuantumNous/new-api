@@ -370,7 +370,5 @@ export const useTaskLogsData = () => {
     enrichLogs,
     syncPageData,
 
-    // Translation
-    t,
   };
 };

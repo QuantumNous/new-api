@@ -516,7 +516,5 @@ export const useDeploymentsData = () => {
     // Batch operations
     batchDeleteDeployments,
 
-    // Translation
-    t,
   };
 };

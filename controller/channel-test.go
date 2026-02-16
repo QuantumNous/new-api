@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
@@ -70,7 +71,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
 		channelTypeName := constant.GetChannelTypeName(channel.Type)
 		return testResult{
-			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
+			localErr: fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.channel_test_is_not_supported"), channelTypeName),
 		}
 	}
 	w := httptest.NewRecorder()
@@ -251,23 +252,23 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		apiType != constant.APITypeCodex {
 		return testResult{
 			context:     c,
-			localErr:    fmt.Errorf("responses compaction test only supports openai/codex channels, got api type %d", apiType),
-			newAPIError: types.NewError(fmt.Errorf("unsupported api type: %d", apiType), types.ErrorCodeInvalidApiType),
+			localErr:    fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.responses_compaction_test_only_supports_openai_codex_channels"), apiType),
+			newAPIError: types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.unsupported_api_type"), apiType), types.ErrorCodeInvalidApiType),
 		}
 	}
 	adaptor := relay.GetAdaptor(apiType)
 	if adaptor == nil {
 		return testResult{
 			context:     c,
-			localErr:    fmt.Errorf("invalid api type: %d, adaptor is nil", apiType),
-			newAPIError: types.NewError(fmt.Errorf("invalid api type: %d, adaptor is nil", apiType), types.ErrorCodeInvalidApiType),
+			localErr:    fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_api_type_adaptor_is_nil"), apiType),
+			newAPIError: types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_api_type_adaptor_is_nil"), apiType), types.ErrorCodeInvalidApiType),
 		}
 	}
 
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.testing_channel_with_model_info"), channel.Id, testModel, info.ToString()))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -290,8 +291,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		} else {
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid embedding request type"),
-				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_embedding_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_embedding_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeImagesGenerations:
@@ -301,8 +302,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		} else {
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid image request type"),
-				newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_image_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_image_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeRerank:
@@ -312,8 +313,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		} else {
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid rerank request type"),
-				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_rerank_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_rerank_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeResponses:
@@ -323,8 +324,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		} else {
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid response request type"),
-				newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_response_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_response_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeResponsesCompact:
@@ -342,8 +343,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		default:
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid response compaction request type"),
-				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_response_compaction_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_response_compaction_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	default:
@@ -353,8 +354,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		} else {
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid general request type"),
-				newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_general_request_type")),
+				newAPIError: types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_general_request_type")), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	}
@@ -488,15 +489,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        info.OriginModelName,
-		TokenName:        "模型测试",
+		TokenName:        i18n.Translate(i18n.DefaultLang, "channel_test.token_name"),
 		Quota:            quota,
-		Content:          "模型测试",
+		Content:          i18n.Translate(i18n.DefaultLang, "channel_test.content"),
 		UseTimeSeconds:   int(consumedTime),
 		IsStream:         info.IsStream,
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.testing_channel_response_n"), channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -512,7 +513,7 @@ func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dt
 		return &u, nil
 	case nil:
 		if !isStream {
-			return nil, errors.New("usage is nil")
+			return nil, errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.usage_is_nil"))
 		}
 		usage := &dto.Usage{
 			PromptTokens: estimatePromptTokens,
@@ -521,7 +522,7 @@ func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dt
 		return usage, nil
 	default:
 		if !isStream {
-			return nil, fmt.Errorf("invalid usage type: %T", usageAny)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.invalid_usage_type"), usageAny)
 		}
 		usage := &dto.Usage{
 			PromptTokens: estimatePromptTokens,
@@ -546,7 +547,7 @@ func detectErrorFromTestResponseBody(respBody []byte) error {
 		return nil
 	}
 	if message := detectErrorMessageFromJSONBytes(b); message != "" {
-		return fmt.Errorf("upstream error: %s", message)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_error"), message)
 	}
 
 	for _, line := range bytes.Split(b, []byte{'\n'}) {
@@ -562,7 +563,7 @@ func detectErrorFromTestResponseBody(respBody []byte) error {
 			continue
 		}
 		if message := detectErrorMessageFromJSONBytes(payload); message != "" {
-			return fmt.Errorf("upstream error: %s", message)
+			return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_error"), message)
 		}
 	}
 
@@ -790,7 +791,7 @@ func testAllChannels(notify bool) error {
 	testAllChannelsLock.Lock()
 	if testAllChannelsRunning {
 		testAllChannelsLock.Unlock()
-		return errors.New("测试已在运行中")
+		return errors.New(common.TranslateMessage(nil, "relay.test_running"))
 	}
 	testAllChannelsRunning = true
 	testAllChannelsLock.Unlock()
@@ -830,7 +831,7 @@ func testAllChannels(notify bool) error {
 			// 当错误检查通过，才检查响应时间
 			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
 				if milliseconds > disableThreshold {
-					err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+					err := fmt.Errorf(i18n.Translate(i18n.DefaultLang, "channel_test.response_timeout", map[string]any{"Actual": fmt.Sprintf("%.2f", float64(milliseconds)/1000.0), "Threshold": fmt.Sprintf("%.2f", float64(disableThreshold)/1000.0)}))
 					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 					shouldBanChannel = true
 				}
@@ -851,7 +852,7 @@ func testAllChannels(notify bool) error {
 		}
 
 		if notify {
-			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+			service.NotifyRootUser(dto.NotifyTypeChannelTest, i18n.Translate(i18n.DefaultLang, "channel_test.completed_subject"), i18n.Translate(i18n.DefaultLang, "channel_test.completed_content"))
 		}
 	})
 	return nil
@@ -885,10 +886,10 @@ func AutomaticallyTestChannels() {
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
-				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing all channels")
+				common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.automatically_test_channels_with_interval_minutes"), frequency))
+				common.SysLog(i18n.Translate(i18n.DefaultLang, "ctrl.automatically_testing_all_channels"))
 				_ = testAllChannels(false)
-				common.SysLog("automatically channel test finished")
+				common.SysLog(i18n.Translate(i18n.DefaultLang, "ctrl.automatically_channel_test_finished"))
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break
 				}

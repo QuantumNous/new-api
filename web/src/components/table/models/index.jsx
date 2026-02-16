@@ -30,11 +30,13 @@ import EditVendorModal from './modals/EditVendorModal';
 import { useModelsData } from '../../../hooks/models/useModelsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const MARKETPLACE_DISPLAY_NOTICE_STORAGE_KEY =
   'models_marketplace_display_notice_dismissed';
 
 const ModelsPage = () => {
+  const { t } = useTranslation();
   const modelsData = useModelsData();
   const isMobile = useIsMobile();
 
@@ -71,9 +73,6 @@ const ModelsPage = () => {
     editingVendor,
     setEditingVendor,
     loadVendors,
-
-    // Translation
-    t,
   } = modelsData;
 
   const [showMarketplaceDisplayNotice, setShowMarketplaceDisplayNotice] =
@@ -197,9 +196,9 @@ const ModelsPage = () => {
           onPageChange: modelsData.handlePageChange,
           onPageSizeChange: modelsData.handlePageSizeChange,
           isMobile: isMobile,
-          t: modelsData.t,
+          t: t,
         })}
-        t={modelsData.t}
+        t={t}
       >
         <ModelsTable {...modelsData} />
       </CardPro>

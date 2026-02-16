@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,7 +39,7 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	}
 
 	if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.gemini_block_reason"), *geminiResponse.PromptFeedback.BlockReason))
 	}
 
 	// 计算使用量（基于 UsageMetadata）

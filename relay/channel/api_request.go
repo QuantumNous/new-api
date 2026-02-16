@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"errors"
 	"fmt"
@@ -81,7 +82,7 @@ var headerPassthroughRegexCache sync.Map // map[string]*regexp.Regexp
 func getHeaderPassthroughRegex(pattern string) (*regexp.Regexp, error) {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
-		return nil, errors.New("empty regex pattern")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.empty_regex_pattern"))
 	}
 	if v, ok := headerPassthroughRegexCache.Load(pattern); ok {
 		if re, ok := v.(*regexp.Regexp); ok {
@@ -133,15 +134,15 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 		afterPrefix := trimmed[len(clientHeaderPlaceholderPrefix):]
 		end := strings.Index(afterPrefix, "}")
 		if end < 0 || end != len(afterPrefix)-1 {
-			return "", false, fmt.Errorf("client_header placeholder must be the full value: %q", template)
+			return "", false, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.client_header_placeholder_must_be_the_full_value"), template)
 		}
 
 		name := strings.TrimSpace(afterPrefix[:end])
 		if name == "" {
-			return "", false, fmt.Errorf("client_header placeholder name is empty: %q", template)
+			return "", false, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.client_header_placeholder_name_is_empty"), template)
 		}
 		if c == nil || c.Request == nil {
-			return "", false, fmt.Errorf("missing request context for client_header placeholder")
+			return "", false, errors.New(i18n.Translate(i18n.DefaultLang, "relay.missing_request_context_for_client_header_placeholder"))
 		}
 		clientHeaderValue := c.Request.Header.Get(name)
 		if strings.TrimSpace(clientHeaderValue) == "" {
@@ -202,7 +203,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 			}
 
 			if pattern == "" {
-				return nil, types.NewError(fmt.Errorf("header passthrough regex pattern is empty: %q", k), types.ErrorCodeChannelHeaderOverrideInvalid)
+				return nil, types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.header_passthrough_regex_pattern_is_empty"), k), types.ErrorCodeChannelHeaderOverrideInvalid)
 			}
 			compiled, err := getHeaderPassthroughRegex(pattern)
 			if err != nil {
@@ -214,7 +215,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 
 	if passAll || len(passthroughRegex) > 0 {
 		if c == nil || c.Request == nil {
-			return nil, types.NewError(fmt.Errorf("missing request context for header passthrough"), types.ErrorCodeChannelHeaderOverrideInvalid)
+			return nil, types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.missing_request_context_for_header_passthrough")), types.ErrorCodeChannelHeaderOverrideInvalid)
 		}
 		for name := range c.Request.Header {
 			if shouldSkipPassthroughHeader(name) {
@@ -290,19 +291,19 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.get_request_url_failed"), err)
 	}
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("new request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_request_failed"), err)
 	}
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.setup_request_header_failed"), err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
@@ -313,7 +314,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
-		return nil, fmt.Errorf("do request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.do_request_failed_0838"), err)
 	}
 	return resp, nil
 }
@@ -321,21 +322,21 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.get_request_url_failed"), err)
 	}
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("new request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_request_failed"), err)
 	}
 	// set form data
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.setup_request_header_failed"), err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
@@ -346,7 +347,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
-		return nil, fmt.Errorf("do request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.do_request_failed_0838"), err)
 	}
 	return resp, nil
 }
@@ -354,12 +355,12 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.get_request_url_failed"), err)
 	}
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.setup_request_header_failed"), err)
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
@@ -373,7 +374,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
-		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.dial_failed_to"), fullRequestURL, err)
 	}
 	// send request body
 	//all, err := io.ReadAll(requestBody)
@@ -474,9 +475,9 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 	case err := <-done:
 		return err
 	case <-time.After(10 * time.Second):
-		return errors.New("SSE ping data send timeout")
+		return errors.New(i18n.Translate(i18n.DefaultLang, "relay.sse_ping_data_send_timeout"))
 	case <-c.Request.Context().Done():
-		return errors.New("request context cancelled during ping")
+		return errors.New(i18n.Translate(i18n.DefaultLang, "relay.request_context_cancelled_during_ping"))
 	}
 }
 
@@ -489,7 +490,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if info.ChannelSetting.Proxy != "" {
 		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_proxy_http_client_failed"), err)
 		}
 	} else {
 		client = service.GetHttpClient()
@@ -521,7 +522,7 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
-		return nil, errors.New("resp is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.resp_is_nil"))
 	}
 
 	_ = req.Body.Close()
@@ -536,7 +537,7 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	}
 	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("new request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_request_failed"), err)
 	}
 	req.GetBody = func() (io.ReadCloser, error) {
 		return io.NopCloser(requestBody), nil
@@ -544,11 +545,11 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 
 	err = a.BuildRequestHeader(c, req, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.setup_request_header_failed"), err)
 	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
-		return nil, fmt.Errorf("do request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.do_request_failed_0838"), err)
 	}
 	return resp, nil
 }

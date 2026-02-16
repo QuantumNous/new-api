@@ -101,7 +101,7 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/user/models`);
     const { success, message, data } = res.data;
     if (success) {
-      const categories = getModelCategories(t);
+      const categories = getModelCategories();
       let localModelOptions = data.map((model) => {
         let icon = null;
         for (const [key, category] of Object.entries(categories)) {

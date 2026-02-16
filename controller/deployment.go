@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -147,7 +148,7 @@ func mapIoNetDeployment(d ionet.Deployment) map[string]interface{} {
 	timeRemainingMins := d.ComputeMinutesRemaining % 60
 	var timeRemaining string
 	if timeRemainingHours > 0 {
-		timeRemaining = fmt.Sprintf("%d hour %d minutes", timeRemainingHours, timeRemainingMins)
+		timeRemaining = fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.hour_minutes"), timeRemainingHours, timeRemainingMins)
 	} else if timeRemainingMins > 0 {
 		timeRemaining = fmt.Sprintf("%d minutes", timeRemainingMins)
 	} else {

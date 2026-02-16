@@ -174,10 +174,10 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
       await updateOption('Logo', inputs.Logo);
-      showSuccess('Logo 已更新');
+      showSuccess(t('Logo 已更新'));
     } catch (error) {
       console.error('Logo 更新失败', error);
-      showError('Logo 更新失败');
+      showError(t('Logo 更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
@@ -190,10 +190,10 @@ const OtherSetting = () => {
         HomePageContent: true,
       }));
       await updateOption(key, inputs[key]);
-      showSuccess('首页内容已更新');
+      showSuccess(t('首页内容已更新'));
     } catch (error) {
       console.error('首页内容更新失败', error);
-      showError('首页内容更新失败');
+      showError(t('首页内容更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -206,10 +206,10 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: true }));
       await updateOption('About', inputs.About);
-      showSuccess('关于内容已更新');
+      showSuccess(t('关于内容已更新'));
     } catch (error) {
       console.error('关于内容更新失败', error);
-      showError('关于内容更新失败');
+      showError(t('关于内容更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: false }));
     }
@@ -219,10 +219,10 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: true }));
       await updateOption('Footer', inputs.Footer);
-      showSuccess('页脚内容已更新');
+      showSuccess(t('页脚内容已更新'));
     } catch (error) {
       console.error('页脚内容更新失败', error);
-      showError('页脚内容更新失败');
+      showError(t('页脚内容更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: false }));
     }
@@ -270,7 +270,7 @@ const OtherSetting = () => {
       }
     } catch (error) {
       console.error('Failed to check for updates:', error);
-      showError('检查更新失败，请稍后再试');
+      showError(t('检查更新失败，请稍后再试'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,

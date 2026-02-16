@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -25,13 +26,13 @@ type codexOAuthCompleteRequest struct {
 }
 
 func codexOAuthSessionKey(channelID int, field string) string {
-	return fmt.Sprintf("codex_oauth_%s_%d", field, channelID)
+	return fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.codex_oauth"), field, channelID)
 }
 
 func parseCodexAuthorizationInput(input string) (code string, state string, err error) {
 	v := strings.TrimSpace(input)
 	if v == "" {
-		return "", "", errors.New("empty input")
+		return "", "", errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.empty_input"))
 	}
 	if strings.Contains(v, "#") {
 		parts := strings.SplitN(v, "#", 2)
@@ -132,8 +133,8 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 
 	code, state, err := parseCodexAuthorizationInput(req.Input)
 	if err != nil {
-		common.SysError("failed to parse codex authorization input: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
+		common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_parse_codex_authorization_input") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "codex.parse_auth_failed")})
 		return
 	}
 	if strings.TrimSpace(code) == "" {
@@ -180,8 +181,8 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 
 	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
-		common.SysError("failed to exchange codex authorization code: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
+		common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_exchange_codex_authorization_code") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "codex.token_exchange_failed")})
 		return
 	}
 

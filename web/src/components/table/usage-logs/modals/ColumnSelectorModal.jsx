@@ -43,10 +43,8 @@ const ColumnSelectorModal = ({
   const isTokensDisplay =
     typeof localStorage !== 'undefined' &&
     localStorage.getItem('quota_display_type') === 'TOKENS';
-
   // Get all columns for display in selector
   const allColumns = getLogsColumns({
-    t,
     COLUMN_KEYS,
     copyText,
     showUserInfoFunc,

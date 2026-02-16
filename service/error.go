@@ -13,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -37,8 +38,8 @@ func MidjourneyErrorWithStatusCodeWrapper(code int, desc string, statusCode int)
 //	lowerText := strings.ToLower(text)
 //	if !strings.HasPrefix(lowerText, "get file base64 from url") && !strings.HasPrefix(lowerText, "mime type is not supported") {
 //		if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-//			common.SysLog(fmt.Sprintf("error: %s", text))
-//			text = "请求上游地址失败"
+//			common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.error"), text))
+//			text = i18n.Translate(i18n.DefaultLang, "service.upstream_request_failed")
 //		}
 //	}
 //	openAIError := dto.OpenAIError{
@@ -63,8 +64,8 @@ func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeError
 	lowerText := strings.ToLower(text)
 	if !strings.HasPrefix(lowerText, "get file base64 from url") {
 		if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-			common.SysLog(fmt.Sprintf("error: %s", text))
-			text = "请求上游地址失败"
+			common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.error"), text))
+			text = i18n.Translate(i18n.DefaultLang, "service.upstream_request_failed")
 		}
 	}
 	claudeError := types.ClaudeError{
@@ -94,9 +95,9 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	var errResponse dto.GeneralErrorResponse
 	buildErrWithBody := func(message string) error {
 		if message == "" {
-			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody))
+			return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.bad_response_status_code_body_ad21"), resp.StatusCode, string(responseBody))
 		}
-		return fmt.Errorf("bad response status code %d, message: %s, body: %s", resp.StatusCode, message, string(responseBody))
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.bad_response_status_code_message_body"), resp.StatusCode, message, string(responseBody))
 	}
 
 	err = common.Unmarshal(responseBody, &errResponse)
@@ -104,8 +105,8 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if showBodyWhenFail {
 			newApiErr.Err = buildErrWithBody("")
 		} else {
-			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, string(responseBody)))
-			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
+			logger.LogError(ctx, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.bad_response_status_code_body"), resp.StatusCode, string(responseBody)))
+			newApiErr.Err = fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.bad_response_status_code"), resp.StatusCode)
 		}
 		return
 	}
@@ -192,7 +193,7 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
-		common.SysLog(fmt.Sprintf("error: %s", text))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.error"), text))
 		//text = "请求上游地址失败"
 		text = common.MaskSensitiveInfo(text)
 	}
