@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
 
 const { Text } = Typography;
@@ -34,8 +35,8 @@ const ModelPricingTable = ({
   showRatio,
   usableGroup,
   autoGroups = [],
-  t,
 }) => {
+  const { t } = useTranslation();
   const modelEnableGroups = Array.isArray(modelData?.enable_groups)
     ? modelData.enable_groups
     : [];

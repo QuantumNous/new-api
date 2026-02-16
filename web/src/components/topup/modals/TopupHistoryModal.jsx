@@ -37,6 +37,7 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -55,7 +56,8 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
-const TopupHistoryModal = ({ visible, onCancel, t }) => {
+const TopupHistoryModal = ({ visible, onCancel }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);
   const [total, setTotal] = useState(0);

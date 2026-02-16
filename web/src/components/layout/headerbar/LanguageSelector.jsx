@@ -18,10 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Dropdown } from '@douyinfe/semi-ui';
 import { Languages } from 'lucide-react';
 
-const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
+const LanguageSelector = ({ currentLang, onLanguageChange }) => {
+  const { t } = useTranslation();
   return (
     <Dropdown
       position='bottomRight'
@@ -38,8 +40,9 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
             onClick={() => onLanguageChange('zh-TW')}
             className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-TW' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
           >
-        	繁體中文
-          </Dropdown.Item>          <Dropdown.Item
+            繁體中文
+          </Dropdown.Item>{' '}
+          <Dropdown.Item
             onClick={() => onLanguageChange('en')}
             className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'en' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
           >

@@ -910,7 +910,7 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_MAX_ENTRIES}
                   label={t('最大条目数')}
                   min={0}
-                  placeholder='例如 100000…'
+                  placeholder={t('例如 100000…')}
                   extraText={
                     <Text type='tertiary' size='small'>
                       {t(
@@ -931,7 +931,7 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_DEFAULT_TTL}
                   label={t('默认 TTL（秒）')}
                   min={0}
-                  placeholder='例如 3600…'
+                  placeholder={t('例如 3600…')}
                   extraText={
                     <Text type='tertiary' size='small'>
                       {t(
@@ -1063,7 +1063,7 @@ export default function SettingsChannelAffinity(props) {
             field='name'
             label={t('名称')}
             extraText={t('规则名称（可读性更好，也会出现在管理侧日志中）。')}
-            placeholder='例如 prefer-by-conversation-id…'
+            placeholder={t('例如 prefer-by-conversation-id…')}
             rules={[{ required: true }]}
             onChange={(value) =>
               setEditingRule((prev) => ({ ...(prev || {}), name: value }))
@@ -1146,7 +1146,7 @@ export default function SettingsChannelAffinity(props) {
                   <Form.InputNumber
                     field='ttl_seconds'
                     label={t('TTL（秒，0 表示默认）')}
-                    placeholder='例如 600…'
+                    placeholder={t('例如 600…')}
                     min={0}
                     extraText={
                       <Text type='tertiary' size='small'>
@@ -1285,7 +1285,7 @@ export default function SettingsChannelAffinity(props) {
             <div style={{ marginTop: 6 }}>
               {(CONTEXT_KEY_PRESETS || []).map((x) => (
                 <Tag key={x.key} style={{ marginRight: 6, marginBottom: 6 }}>
-                  {x.label}
+                  {t(x.label)}
                 </Tag>
               ))}
             </div>

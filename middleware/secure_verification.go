@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/QuantumNous/new-api/i18n"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +27,7 @@ func SecureVerificationRequired() gin.HandlerFunc {
 		if userId == 0 {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": "未登录",
+				"message": i18n.T(c, "common.not_logged_in"),
 			})
 			c.Abort()
 			return
@@ -38,7 +40,7 @@ func SecureVerificationRequired() gin.HandlerFunc {
 		if verifiedAtRaw == nil {
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
-				"message": "需要安全验证",
+				"message": i18n.T(c, "secure_verification.required"),
 				"code":    "VERIFICATION_REQUIRED",
 			})
 			c.Abort()
@@ -52,7 +54,7 @@ func SecureVerificationRequired() gin.HandlerFunc {
 			_ = session.Save()
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
-				"message": "验证状态异常，请重新验证",
+				"message": i18n.T(c, "secure_verification.status_abnormal"),
 				"code":    "VERIFICATION_INVALID",
 			})
 			c.Abort()
@@ -67,7 +69,7 @@ func SecureVerificationRequired() gin.HandlerFunc {
 			_ = session.Save()
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
-				"message": "验证已过期，请重新验证",
+				"message": i18n.T(c, "secure_verification.expired"),
 				"code":    "VERIFICATION_EXPIRED",
 			})
 			c.Abort()

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Music,
@@ -90,7 +91,7 @@ function renderDuration(submit_time, finishTime) {
   );
 }
 
-const renderType = (type, t) => {
+const renderType = (type) => {
   switch (type) {
     case 'MUSIC':
       return (
@@ -143,14 +144,14 @@ const renderType = (type, t) => {
   }
 };
 
-const renderPlatform = (platform, t) => {
+const renderPlatform = (platform) => {
   let option = CHANNEL_OPTIONS.find(
     (opt) => String(opt.value) === String(platform),
   );
   if (option) {
     return (
       <Tag color={option.color} shape='circle'>
-        {option.label}
+        {t(option.label)}
       </Tag>
     );
   }
@@ -170,7 +171,7 @@ const renderPlatform = (platform, t) => {
   }
 };
 
-const renderStatus = (type, t) => {
+const renderStatus = (type) => {
   switch (type) {
     case 'SUCCESS':
       return (
@@ -234,7 +235,6 @@ const renderStatus = (type, t) => {
 };
 
 export const getTaskLogsColumns = ({
-  t,
   COLUMN_KEYS,
   copyText,
   openContentModal,
@@ -301,15 +301,10 @@ export const getTaskLogsColumns = ({
         const displayText = String(record.username || userId || '?');
         return (
           <Space>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(displayText)}
-            >
+            <Avatar size='extra-small' color={stringToColor(displayText)}>
               {displayText.slice(0, 1)}
             </Avatar>
-            <Typography.Text>
-              {displayText}
-            </Typography.Text>
+            <Typography.Text>{displayText}</Typography.Text>
           </Space>
         );
       },
@@ -319,7 +314,7 @@ export const getTaskLogsColumns = ({
       title: t('平台'),
       dataIndex: 'platform',
       render: (text, record, index) => {
-        return <div>{renderPlatform(text, t)}</div>;
+        return <div>{renderPlatform(text)}</div>;
       },
     },
     {
@@ -327,7 +322,7 @@ export const getTaskLogsColumns = ({
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
+        return <div>{renderType(text)}</div>;
       },
     },
     {
@@ -352,7 +347,7 @@ export const getTaskLogsColumns = ({
       title: t('任务状态'),
       dataIndex: 'status',
       render: (text, record, index) => {
-        return <div>{renderStatus(text, t)}</div>;
+        return <div>{renderStatus(text)}</div>;
       },
     },
     {
@@ -416,7 +411,8 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a

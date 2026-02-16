@@ -108,7 +108,7 @@ func UpdateOption(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的参数",
+			"message": common.TranslateMessage(c, "common.invalid_params"),
 		})
 		return
 	}
@@ -127,7 +127,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
+				"message": common.TranslateMessage(c, "option.github_oauth_required"),
 			})
 			return
 		}
@@ -135,7 +135,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Discord OAuth，请先填入 Discord Client Id 以及 Discord Client Secret！",
+				"message": common.TranslateMessage(c, "option.discord_oauth_required"),
 			})
 			return
 		}
@@ -143,7 +143,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && system_setting.GetOIDCSettings().ClientId == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 OIDC 登录，请先填入 OIDC Client Id 以及 OIDC Client Secret！",
+				"message": common.TranslateMessage(c, "option.oidc_required"),
 			})
 			return
 		}
@@ -151,7 +151,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && common.LinuxDOClientId == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 LinuxDO OAuth，请先填入 LinuxDO Client Id 以及 LinuxDO Client Secret！",
+				"message": common.TranslateMessage(c, "option.linux_do_required"),
 			})
 			return
 		}
@@ -159,7 +159,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
+				"message": common.TranslateMessage(c, "option.email_domain_required"),
 			})
 			return
 		}
@@ -167,7 +167,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && common.WeChatServerAddress == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
+				"message": common.TranslateMessage(c, "option.wechat_required"),
 			})
 			return
 		}
@@ -175,7 +175,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && common.TurnstileSiteKey == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+				"message": common.TranslateMessage(c, "option.turnstile_required"),
 			})
 
 			return
@@ -184,7 +184,7 @@ func UpdateOption(c *gin.Context) {
 		if option.Value == "true" && common.TelegramBotToken == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token！",
+				"message": common.TranslateMessage(c, "option.telegram_required"),
 			})
 			return
 		}
@@ -202,7 +202,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "图片倍率设置失败: " + err.Error(),
+				"message": common.TranslateMessage(c, "setting.image_ratio_failed") + ": " + err.Error(),
 			})
 			return
 		}
@@ -211,7 +211,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "音频倍率设置失败: " + err.Error(),
+				"message": common.TranslateMessage(c, "setting.audio_ratio_failed") + ": " + err.Error(),
 			})
 			return
 		}
@@ -220,7 +220,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "音频补全倍率设置失败: " + err.Error(),
+				"message": common.TranslateMessage(c, "setting.audio_completion_ratio_failed") + ": " + err.Error(),
 			})
 			return
 		}
@@ -229,7 +229,7 @@ func UpdateOption(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "缓存创建倍率设置失败: " + err.Error(),
+				"message": common.TranslateMessage(c, "setting.cache_ratio_failed") + ": " + err.Error(),
 			})
 			return
 		}

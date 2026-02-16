@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 使用模式选择步骤组件
@@ -28,8 +29,8 @@ const UsageModeStep = ({
   formData,
   handleUsageModeChange,
   renderNavigationButtons,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <>
       <RadioGroup

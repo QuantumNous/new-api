@@ -49,12 +49,11 @@ import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const RechargeCard = ({
-  t,
-  enableOnlineTopUp,
+const RechargeCard = ({ enableOnlineTopUp,
   enableStripeTopUp,
   enableCreemTopUp,
   creemProducts,
@@ -95,6 +94,7 @@ const RechargeCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
 }) => {
+  const { t } = useTranslation();
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const initialTabSetRef = useRef(false);
@@ -293,7 +293,8 @@ const RechargeCard = ({
                       {payMethods && payMethods.length > 0 ? (
                         <Space wrap>
                           {payMethods.map((payMethod) => {
-                            const minTopupVal = Number(payMethod.min_topup) || 0;
+                            const minTopupVal =
+                              Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
                             const disabled =
                               (!enableOnlineTopUp && !isStripe) ||
@@ -389,7 +390,9 @@ const RechargeCard = ({
                   <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                     {presetAmounts.map((preset, index) => {
                       const discount =
-                        preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                        preset.discount ||
+                        topupInfo?.discount?.[preset.value] ||
+                        1.0;
                       const originalPrice = preset.value * priceRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
@@ -405,7 +408,7 @@ const RechargeCard = ({
                           const s = JSON.parse(statusStr);
                           usdRate = s?.usd_exchange_rate || 7;
                         }
-                      } catch (e) { }
+                      } catch (e) {}
 
                       let displayValue = preset.value; // 显示的数量
                       let displayActualPay = actualPay;
@@ -456,7 +459,10 @@ const RechargeCard = ({
                               {hasDiscount && (
                                 <Tag style={{ marginLeft: 4 }} color='green'>
                                   {t('折').includes('off')
-                                    ? ((1 - parseFloat(discount)) * 100).toFixed(1)
+                                    ? (
+                                        (1 - parseFloat(discount)) *
+                                        100
+                                      ).toFixed(1)
                                     : (discount * 10).toFixed(1)}
                                   {t('折')}
                                 </Tag>

@@ -145,7 +145,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
     });
     const { success, message } = res.data;
     if (success) {
-      showSuccess('Uptime Kuma配置已更新');
+      showSuccess(t('Uptime Kuma配置已更新'));
       if (refresh) refresh();
     } else {
       showError(message);
@@ -160,7 +160,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       setHasChanges(false);
     } catch (error) {
       console.error('Uptime Kuma配置更新失败', error);
-      showError('Uptime Kuma配置更新失败');
+      showError(t('Uptime Kuma配置更新失败'));
     } finally {
       setLoading(false);
     }
@@ -198,7 +198,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       );
       setUptimeGroupsList(newList);
       setHasChanges(true);
-      showSuccess('分类已删除，请及时点击“保存设置”进行保存');
+      showSuccess(t('分类已删除，请及时点击”保存设置”进行保存'));
     }
     setShowDeleteModal(false);
     setDeletingGroup(null);
@@ -206,19 +206,19 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   const handleSaveGroup = async () => {
     if (!uptimeForm.categoryName || !uptimeForm.url || !uptimeForm.slug) {
-      showError('请填写完整的分类信息');
+      showError(t('请填写完整的分类信息'));
       return;
     }
 
     try {
       new URL(uptimeForm.url);
     } catch (error) {
-      showError('请输入有效的URL地址');
+      showError(t('请输入有效的URL地址'));
       return;
     }
 
     if (!/^[a-zA-Z0-9_-]+$/.test(uptimeForm.slug)) {
-      showError('Slug只能包含字母、数字、下划线和连字符');
+      showError(t('Slug只能包含字母、数字、下划线和连字符'));
       return;
     }
 
@@ -245,11 +245,11 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       setShowUptimeModal(false);
       showSuccess(
         editingGroup
-          ? '分类已更新，请及时点击“保存设置”进行保存'
-          : '分类已添加，请及时点击“保存设置”进行保存',
+          ? t('分类已更新，请及时点击”保存设置”进行保存')
+          : t('分类已添加，请及时点击”保存设置”进行保存'),
       );
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      showError(t('操作失败: ') + error.message);
     } finally {
       setModalLoading(false);
     }
@@ -312,7 +312,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) {
-      showError('请先选择要删除的分类');
+      showError(t('请先选择要删除的分类'));
       return;
     }
 

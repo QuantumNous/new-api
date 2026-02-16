@@ -27,8 +27,10 @@ import EditRedemptionModal from './modals/EditRedemptionModal';
 import { useRedemptionsData } from '../../../hooks/redemptions/useRedemptionsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const RedemptionsPage = () => {
+  const { t } = useTranslation();
   const redemptionsData = useRedemptionsData();
   const isMobile = useIsMobile();
 
@@ -56,9 +58,6 @@ const RedemptionsPage = () => {
     // UI state
     compactMode,
     setCompactMode,
-
-    // Translation
-    t,
   } = redemptionsData;
 
   return (
@@ -109,9 +108,9 @@ const RedemptionsPage = () => {
           onPageChange: redemptionsData.handlePageChange,
           onPageSizeChange: redemptionsData.handlePageSizeChange,
           isMobile: isMobile,
-          t: redemptionsData.t,
+          t: t,
         })}
-        t={redemptionsData.t}
+        t={t}
       >
         <RedemptionsTable {...redemptionsData} />
       </CardPro>

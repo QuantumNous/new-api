@@ -1,6 +1,7 @@
 package common
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -539,7 +540,7 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			info = GenRelayInfoRerank(c, request)
 			break
 		}
-		err = errors.New("request is not a RerankRequest")
+		err = errors.New(i18n.Translate("relay.request_is_not_a_rerankrequest"))
 	case types.RelayFormatGemini:
 		info = GenRelayInfoGemini(c, request)
 	case types.RelayFormatEmbedding:
@@ -549,12 +550,12 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			info = GenRelayInfoResponses(c, request)
 			break
 		}
-		err = errors.New("request is not a OpenAIResponsesRequest")
+		err = errors.New(i18n.Translate("relay.request_is_not_a_openairesponsesrequest"))
 	case types.RelayFormatOpenAIResponsesCompaction:
 		if request, ok := request.(*dto.OpenAIResponsesCompactionRequest); ok {
 			return GenRelayInfoResponsesCompaction(c, request), nil
 		}
-		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
+		return nil, errors.New(i18n.Translate("relay.request_is_not_a_openairesponsescompactionrequest"))
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
@@ -562,14 +563,14 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
 	default:
-		err = errors.New("invalid relay format")
+		err = errors.New(i18n.Translate("relay.invalid_relay_format"))
 	}
 
 	if err != nil {
 		return nil, err
 	}
 	if info == nil {
-		return nil, errors.New("failed to build relay info")
+		return nil, errors.New(i18n.Translate("relay.failed_to_build_relay_info"))
 	}
 
 	info.InitRequestConversionChain()
@@ -724,11 +725,11 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	if metadata != nil {
 		metadataBytes, err := common.Marshal(metadata)
 		if err != nil {
-			return fmt.Errorf("marshal metadata failed: %w", err)
+			return fmt.Errorf(i18n.Translate("relay.marshal_metadata_failed"), err)
 		}
 		err = common.Unmarshal(metadataBytes, v)
 		if err != nil {
-			return fmt.Errorf("unmarshal metadata to target failed: %w", err)
+			return fmt.Errorf(i18n.Translate("relay.unmarshal_metadata_to_target_failed"), err)
 		}
 	}
 	return nil
@@ -766,7 +767,7 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 
 	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
-		common.SysError("RemoveDisabledFields Unmarshal error :" + err.Error())
+		common.SysError(i18n.Translate("relay.removedisabledfields_unmarshal_error") + err.Error())
 		return jsonData, nil
 	}
 
@@ -816,7 +817,7 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
-		common.SysError("RemoveDisabledFields Marshal error :" + err.Error())
+		common.SysError(i18n.Translate("relay.removedisabledfields_marshal_error") + err.Error())
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
@@ -831,7 +832,7 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 
 	var data map[string]interface{}
 	if err := common.Unmarshal(jsonData, &data); err != nil {
-		common.SysError("RemoveGeminiDisabledFields Unmarshal error: " + err.Error())
+		common.SysError(i18n.Translate("relay.removegeminidisabledfields_unmarshal_error") + err.Error())
 		return jsonData, nil
 	}
 
@@ -860,7 +861,7 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 
 	jsonDataAfter, err := common.Marshal(data)
 	if err != nil {
-		common.SysError("RemoveGeminiDisabledFields Marshal error: " + err.Error())
+		common.SysError(i18n.Translate("relay.removegeminidisabledfields_marshal_error") + err.Error())
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil

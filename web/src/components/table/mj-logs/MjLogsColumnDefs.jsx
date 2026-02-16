@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import { Button, Progress, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Palette,
@@ -66,7 +67,7 @@ const colors = [
 ];
 
 // Render functions
-function renderType(type, t) {
+function renderType(type) {
   switch (type) {
     case 'IMAGINE':
       return (
@@ -193,7 +194,7 @@ function renderType(type, t) {
   }
 }
 
-function renderCode(code, t) {
+function renderCode(code) {
   switch (code) {
     case 1:
       return (
@@ -232,7 +233,7 @@ function renderCode(code, t) {
   }
 }
 
-function renderStatus(type, t) {
+function renderStatus(type) {
   switch (type) {
     case 'SUCCESS':
       return (
@@ -299,7 +300,7 @@ const renderTimestamp = (timestampInSeconds) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-function renderDuration(submit_time, finishTime, t) {
+function renderDuration(submit_time, finishTime) {
   if (!submit_time || !finishTime) return 'N/A';
 
   const start = new Date(submit_time);
@@ -316,7 +317,6 @@ function renderDuration(submit_time, finishTime, t) {
 }
 
 export const getMjLogsColumns = ({
-  t,
   COLUMN_KEYS,
   copyText,
   openContentModal,
@@ -337,7 +337,7 @@ export const getMjLogsColumns = ({
       title: t('花费时间'),
       dataIndex: 'finish_time',
       render: (finish, record) => {
-        return renderDuration(record.submit_time, finish, t);
+        return renderDuration(record.submit_time, finish);
       },
     },
     {
@@ -369,7 +369,7 @@ export const getMjLogsColumns = ({
       title: t('类型'),
       dataIndex: 'action',
       render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
+        return <div>{renderType(text)}</div>;
       },
     },
     {
@@ -385,7 +385,7 @@ export const getMjLogsColumns = ({
       title: t('提交结果'),
       dataIndex: 'code',
       render: (text, record, index) => {
-        return isAdminUser ? <div>{renderCode(text, t)}</div> : <></>;
+        return isAdminUser ? <div>{renderCode(text)}</div> : <></>;
       },
     },
     {
@@ -393,7 +393,7 @@ export const getMjLogsColumns = ({
       title: t('任务状态'),
       dataIndex: 'status',
       render: (text, record, index) => {
-        return <div>{renderStatus(text, t)}</div>;
+        return <div>{renderStatus(text)}</div>;
       },
     },
     {

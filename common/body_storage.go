@@ -23,7 +23,8 @@ type BodyStorage interface {
 }
 
 // ErrStorageClosed 存储已关闭错误
-var ErrStorageClosed = fmt.Errorf("body storage is closed")
+// Initialized in init() because Translate is not yet available at var-init time.
+var ErrStorageClosed error
 
 // memoryStorage 内存存储实现
 type memoryStorage struct {
@@ -109,14 +110,14 @@ func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
 	if err != nil {
 		file.Close()
 		os.Remove(filePath)
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
+		return nil, fmt.Errorf(Translate("common.failed_to_write_to_temp_file"), err)
 	}
 
 	// 重置文件指针
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		file.Close()
 		os.Remove(filePath)
-		return nil, fmt.Errorf("failed to seek temp file: %w", err)
+		return nil, fmt.Errorf(Translate("common.failed_to_seek_temp_file"), err)
 	}
 
 	size := int64(n)
@@ -141,7 +142,7 @@ func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string
 	if err != nil {
 		file.Close()
 		os.Remove(filePath)
-		return nil, fmt.Errorf("failed to write to temp file: %w", err)
+		return nil, fmt.Errorf(Translate("common.failed_to_write_to_temp_file"), err)
 	}
 
 	if written > maxBytes {
@@ -154,7 +155,7 @@ func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		file.Close()
 		os.Remove(filePath)
-		return nil, fmt.Errorf("failed to seek temp file: %w", err)
+		return nil, fmt.Errorf(Translate("common.failed_to_seek_temp_file"), err)
 	}
 
 	IncrementDiskFiles(written)
@@ -249,7 +250,7 @@ func CreateBodyStorage(data []byte) (BodyStorage, error) {
 		storage, err := newDiskStorage(data, GetDiskCachePath())
 		if err != nil {
 			// 如果磁盘存储失败，回退到内存存储
-			SysError(fmt.Sprintf("failed to create disk storage, falling back to memory: %v", err))
+			SysError(fmt.Sprintf(Translate("common.failed_to_create_disk_storage_falling_back_to"), err))
 			return newMemoryStorage(data), nil
 		}
 		return storage, nil
@@ -274,7 +275,7 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 			}
 			// 磁盘存储失败，reader 已被消费，无法安全回退
 			// 直接返回错误而非尝试回退（因为 reader 数据已丢失）
-			return nil, fmt.Errorf("disk storage creation failed: %w", err)
+			return nil, fmt.Errorf(Translate("common.disk_storage_creation_failed"), err)
 		}
 		IncrementDiskCacheHits()
 		return storage, nil

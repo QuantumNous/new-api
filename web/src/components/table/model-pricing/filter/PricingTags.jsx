@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 模型标签筛选组件
@@ -35,8 +36,8 @@ const PricingTags = ({
   models = [],
   allModels = [],
   loading = false,
-  t,
 }) => {
+  const { t } = useTranslation();
   // 提取系统所有标签
   const getAllTags = React.useMemo(() => {
     const tagSet = new Set();

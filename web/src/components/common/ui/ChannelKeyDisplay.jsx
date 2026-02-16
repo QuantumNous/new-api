@@ -19,16 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { t as i18nT } from '../../../helpers/i18n';
 import { Card, Button, Typography, Tag } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from '../../../helpers';
 
 /**
  * 解析密钥数据，支持多种格式
  * @param {string} keyData - 密钥数据
- * @param {Function} t - 翻译函数
  * @returns {Array} 解析后的密钥数组
  */
-const parseChannelKeys = (keyData, t) => {
+const parseChannelKeys = (keyData) => {
   if (!keyData) return [];
 
   const trimmed = keyData.trim();
@@ -43,7 +43,7 @@ const parseChannelKeys = (keyData, t) => {
           content:
             typeof item === 'string' ? item : JSON.stringify(item, null, 2),
           type: typeof item === 'string' ? 'text' : 'json',
-          label: `${t('密钥')} ${index + 1}`,
+          label: `${i18nT('密钥')} ${index + 1}`,
         }));
       }
     } catch (e) {
@@ -59,7 +59,7 @@ const parseChannelKeys = (keyData, t) => {
       id: index,
       content: line.trim(),
       type: 'text',
-      label: `${t('密钥')} ${index + 1}`,
+      label: `${i18nT('密钥')} ${index + 1}`,
     }));
   }
 
@@ -69,7 +69,7 @@ const parseChannelKeys = (keyData, t) => {
       id: 0,
       content: trimmed,
       type: trimmed.startsWith('{') ? 'json' : 'text',
-      label: t('密钥'),
+      label: i18nT('密钥'),
     },
   ];
 };
@@ -92,7 +92,7 @@ const ChannelKeyDisplay = ({
 }) => {
   const { t } = useTranslation();
 
-  const parsedKeys = parseChannelKeys(keyData, t);
+  const parsedKeys = parseChannelKeys(keyData);
   const isMultipleKeys = parsedKeys.length > 1;
 
   const handleCopyAll = () => {

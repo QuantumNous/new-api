@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import {
   Button,
   Dropdown,
@@ -61,7 +62,7 @@ function renderTimestamp(timestamp) {
 }
 
 // Render status column only (no usage)
-const renderStatus = (text, record, t) => {
+const renderStatus = (text, record) => {
   const enabled = text === 1;
 
   let tagColor = 'black';
@@ -88,7 +89,7 @@ const renderStatus = (text, record, t) => {
 };
 
 // Render group column
-const renderGroupColumn = (text, record, t) => {
+const renderGroupColumn = (text, record) => {
   if (text === 'auto') {
     return (
       <Tooltip
@@ -165,10 +166,10 @@ const renderTokenKey = (
 };
 
 // Render model limits column
-const renderModelLimits = (text, record, t) => {
+const renderModelLimits = (text, record) => {
   if (record.model_limits_enabled && text) {
     const models = text.split(',').filter(Boolean);
-    const categories = getModelCategories(t);
+    const categories = getModelCategories();
 
     const vendorAvatars = [];
     const matchedModels = new Set();
@@ -226,7 +227,7 @@ const renderModelLimits = (text, record, t) => {
 };
 
 // Render IP restrictions column
-const renderAllowIps = (text, t) => {
+const renderAllowIps = (text) => {
   if (!text || text.trim() === '') {
     return (
       <Tag color='white' shape='circle'>
@@ -266,7 +267,7 @@ const renderAllowIps = (text, t) => {
 };
 
 // Render separate quota usage column
-const renderQuotaUsage = (text, record, t) => {
+const renderQuotaUsage = (text, record) => {
   const { Paragraph } = Typography;
   const used = parseInt(record.used_quota) || 0;
   const remain = parseInt(record.remain_quota) || 0;
@@ -328,7 +329,6 @@ const renderOperations = (
   setShowEdit,
   manageToken,
   refresh,
-  t,
 ) => {
   let chatsArray = [];
   try {
@@ -438,7 +438,6 @@ const renderOperations = (
 };
 
 export const getTokensColumns = ({
-  t,
   showKeys,
   resolvedTokenKeys,
   loadingTokenKeys,
@@ -459,18 +458,18 @@ export const getTokensColumns = ({
       title: t('状态'),
       dataIndex: 'status',
       key: 'status',
-      render: (text, record) => renderStatus(text, record, t),
+      render: (text, record) => renderStatus(text, record),
     },
     {
       title: t('剩余额度/总额度'),
       key: 'quota_usage',
-      render: (text, record) => renderQuotaUsage(text, record, t),
+      render: (text, record) => renderQuotaUsage(text, record),
     },
     {
       title: t('分组'),
       dataIndex: 'group',
       key: 'group',
-      render: (text, record) => renderGroupColumn(text, record, t),
+      render: (text, record) => renderGroupColumn(text, record),
     },
     {
       title: t('密钥'),
@@ -489,12 +488,12 @@ export const getTokensColumns = ({
     {
       title: t('可用模型'),
       dataIndex: 'model_limits',
-      render: (text, record) => renderModelLimits(text, record, t),
+      render: (text, record) => renderModelLimits(text, record),
     },
     {
       title: t('IP限制'),
       dataIndex: 'allow_ips',
-      render: (text) => renderAllowIps(text, t),
+      render: (text) => renderAllowIps(text),
     },
     {
       title: t('创建时间'),
@@ -527,7 +526,6 @@ export const getTokensColumns = ({
           setShowEdit,
           manageToken,
           refresh,
-          t,
         ),
     },
   ];

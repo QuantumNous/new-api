@@ -21,10 +21,12 @@ import React from 'react';
 import { Card, Avatar, Typography, Tag, Space } from '@douyinfe/semi-ui';
 import { IconInfoCircle } from '@douyinfe/semi-icons';
 import { stringToColor } from '../../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const ModelBasicInfo = ({ modelData, vendorsMap = {}, t }) => {
+const ModelBasicInfo = ({ modelData, vendorsMap = {} }) => {
+  const { t } = useTranslation();
   // 获取模型描述（使用后端真实数据）
   const getModelDescription = () => {
     if (!modelData) return t('暂无模型描述');

@@ -2,9 +2,9 @@ package model
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/shopspring/decimal"
@@ -57,7 +57,7 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 
 func Recharge(referenceId string, customerId string) (err error) {
 	if referenceId == "" {
-		return errors.New("未提供支付单号")
+		return errors.New(i18n.Translate("topup.ref_not_provided"))
 	}
 
 	var quota float64
@@ -71,11 +71,11 @@ func Recharge(referenceId string, customerId string) (err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New(i18n.Translate("topup.order_not_found_model"))
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("充值订单状态错误")
+			return errors.New(i18n.Translate("topup.order_status_error_model"))
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -95,11 +95,11 @@ func Recharge(referenceId string, customerId string) (err error) {
 	})
 
 	if err != nil {
-		common.SysError("topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		common.SysError(i18n.Translate("model.topup_failed") + err.Error())
+		return errors.New(i18n.Translate("topup.failed_model"))
 	}
 
-	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount))
+	RecordLog(topUp.UserId, LogTypeTopup, i18n.Translate("log.online_topup_success_model", map[string]any{"Quota": logger.FormatQuota(int(quota)), "Amount": topUp.Amount}))
 
 	return nil
 }
@@ -238,7 +238,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
 func ManualCompleteTopUp(tradeNo string) error {
 	if tradeNo == "" {
-		return errors.New("未提供订单号")
+		return errors.New(i18n.Translate("topup.order_not_provided_model"))
 	}
 
 	refCol := "`trade_no`"
@@ -254,7 +254,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 		topUp := &TopUp{}
 		// 行级锁，避免并发补单
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New(i18n.Translate("topup.order_not_found_model"))
 		}
 
 		// 幂等处理：已成功直接返回
@@ -263,7 +263,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("订单状态不是待支付，无法补单")
+			return errors.New(i18n.Translate("topup.order_not_pending_model"))
 		}
 
 		// 计算应充值额度：
@@ -278,7 +278,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		}
 		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+			return errors.New(i18n.Translate("topup.invalid_amount"))
 		}
 
 		// 标记完成
@@ -303,12 +303,12 @@ func ManualCompleteTopUp(tradeNo string) error {
 	}
 
 	// 事务外记录日志，避免阻塞
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
+	RecordLog(userId, LogTypeTopup, i18n.Translate("log.admin_manual_completion", map[string]any{"Quota": logger.FormatQuota(quotaToAdd), "Money": payMoney}))
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string) (err error) {
 	if referenceId == "" {
-		return errors.New("未提供支付单号")
+		return errors.New(i18n.Translate("topup.creem_ref_not_provided"))
 	}
 
 	var quota int64
@@ -322,11 +322,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New(i18n.Translate("topup.creem_order_not_found_model"))
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("充值订单状态错误")
+			return errors.New(i18n.Translate("topup.creem_status_error_model"))
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -368,11 +368,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	})
 
 	if err != nil {
-		common.SysError("creem topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		common.SysError(i18n.Translate("model.creem_topup_failed") + err.Error())
+		return errors.New(i18n.Translate("topup.creem_failed_model"))
 	}
 
-	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money))
+	RecordLog(topUp.UserId, LogTypeTopup, i18n.Translate("log.creem_topup_success", map[string]any{"Quota": quota, "Money": topUp.Money}))
 
 	return nil
 }

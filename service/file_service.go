@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -26,18 +28,18 @@ import (
 
 // getContextCacheKey 生成 context 缓存的 key
 func getContextCacheKey(url string) string {
-	return fmt.Sprintf("file_cache_%s", common.GenerateHMAC(url))
+	return fmt.Sprintf(i18n.Translate("svc.file_cache"), common.GenerateHMAC(url))
 }
 
 // LoadFileSource 加载文件源数据
 // 这是统一的入口，会自动处理缓存和不同的来源类型
 func LoadFileSource(c *gin.Context, source *types.FileSource, reason ...string) (*types.CachedFileData, error) {
 	if source == nil {
-		return nil, fmt.Errorf("file source is nil")
+		return nil, errors.New(i18n.Translate("svc.file_source_is_nil"))
 	}
 
 	if common.DebugEnabled {
-		logger.LogDebug(c, fmt.Sprintf("LoadFileSource starting for: %s", source.GetIdentifier()))
+		logger.LogDebug(c, fmt.Sprintf(i18n.Translate("svc.loadfilesource_starting_for"), source.GetIdentifier()))
 	}
 
 	// 1. 快速检查内部缓存
@@ -137,28 +139,28 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 	var maxFileSize = constant.MaxFileDownloadMB * 1024 * 1024
 
 	if common.DebugEnabled {
-		logger.LogDebug(c, "loadFromURL: initiating download")
+		logger.LogDebug(c, i18n.Translate("svc.loadfromurl_initiating_download"))
 	}
 	resp, err := DoDownloadRequest(url, reason...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download file from %s: %w", url, err)
+		return nil, fmt.Errorf(i18n.Translate("svc.failed_to_download_file_from"), url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("failed to download file, status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf(i18n.Translate("svc.failed_to_download_file_status_code"), resp.StatusCode)
 	}
 
 	// 读取文件内容（限制大小）
 	if common.DebugEnabled {
-		logger.LogDebug(c, "loadFromURL: reading response body")
+		logger.LogDebug(c, i18n.Translate("svc.loadfromurl_reading_response_body"))
 	}
 	fileBytes, err := io.ReadAll(io.LimitReader(resp.Body, int64(maxFileSize+1)))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file content: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("svc.failed_to_read_file_content"), err)
 	}
 	if len(fileBytes) > maxFileSize {
-		return nil, fmt.Errorf("file size exceeds maximum allowed size: %dMB", constant.MaxFileDownloadMB)
+		return nil, fmt.Errorf(i18n.Translate("svc.file_size_exceeds_maximum_allowed_size_mb"), constant.MaxFileDownloadMB)
 	}
 
 	// 转换为 base64
@@ -176,7 +178,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 		diskPath, err := writeToDiskCache(base64Data)
 		if err != nil {
 			// 磁盘缓存失败，回退到内存
-			logger.LogWarn(c, fmt.Sprintf("Failed to write to disk cache, falling back to memory: %v", err))
+			logger.LogWarn(c, fmt.Sprintf(i18n.Translate("svc.failed_to_write_to_disk_cache_falling"), err))
 			cachedData = types.NewMemoryCachedData(base64Data, mimeType, int64(len(fileBytes)))
 		} else {
 			cachedData = types.NewDiskCachedData(diskPath, mimeType, int64(len(fileBytes)))
@@ -186,7 +188,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 			}
 			common.IncrementDiskFiles(base64Size)
 			if common.DebugEnabled {
-				logger.LogDebug(c, fmt.Sprintf("File cached to disk: %s, size: %d bytes", diskPath, base64Size))
+				logger.LogDebug(c, fmt.Sprintf(i18n.Translate("svc.file_cached_to_disk_size_bytes"), diskPath, base64Size))
 			}
 		}
 	} else {
@@ -197,7 +199,7 @@ func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFil
 	// 如果是图片，尝试获取图片配置
 	if strings.HasPrefix(mimeType, "image/") {
 		if common.DebugEnabled {
-			logger.LogDebug(c, "loadFromURL: decoding image config")
+			logger.LogDebug(c, i18n.Translate("svc.loadfromurl_decoding_image_config"))
 		}
 		config, format, err := decodeImageConfig(fileBytes)
 		if err == nil {
@@ -320,7 +322,7 @@ func loadFromBase64(base64String string, providedMimeType string) (*types.Cached
 
 	decodedData, err := base64.StdEncoding.DecodeString(cleanBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode base64 data: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("svc.failed_to_decode_base64_data"), err)
 	}
 
 	base64Size := int64(len(cleanBase64))
@@ -369,11 +371,11 @@ func GetImageConfig(c *gin.Context, source *types.FileSource) (image.Config, str
 
 	base64Str, err := cachedData.GetBase64Data()
 	if err != nil {
-		return image.Config{}, "", fmt.Errorf("failed to get base64 data: %w", err)
+		return image.Config{}, "", fmt.Errorf(i18n.Translate("svc.failed_to_get_base64_data"), err)
 	}
 	decodedData, err := base64.StdEncoding.DecodeString(base64Str)
 	if err != nil {
-		return image.Config{}, "", fmt.Errorf("failed to decode base64 for image config: %w", err)
+		return image.Config{}, "", fmt.Errorf(i18n.Translate("svc.failed_to_decode_base64_for_image_config"), err)
 	}
 
 	config, format, err := decodeImageConfig(decodedData)
@@ -395,7 +397,7 @@ func GetBase64Data(c *gin.Context, source *types.FileSource, reason ...string) (
 	}
 	base64Str, err := cachedData.GetBase64Data()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get base64 data: %w", err)
+		return "", "", fmt.Errorf(i18n.Translate("svc.failed_to_get_base64_data"), err)
 	}
 	return base64Str, cachedData.MimeType, nil
 }
@@ -449,7 +451,7 @@ func decodeImageConfig(data []byte) (image.Config, string, error) {
 		return config, "webp", nil
 	}
 
-	return image.Config{}, "", fmt.Errorf("failed to decode image config: unsupported format")
+	return image.Config{}, "", errors.New(i18n.Translate("svc.failed_to_decode_image_config_unsupported_format"))
 }
 
 // guessMimeTypeFromURL 从 URL 猜测 MIME 类型

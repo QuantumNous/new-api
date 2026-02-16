@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 import { getLobeHubIcon } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 供应商筛选组件
@@ -36,8 +37,8 @@ const PricingVendors = ({
   models = [],
   allModels = [],
   loading = false,
-  t,
 }) => {
+  const { t } = useTranslation();
   // 获取系统中所有供应商（基于 allModels，如果未提供则退化为 models）
   const getAllVendors = React.useMemo(() => {
     const vendors = new Set();

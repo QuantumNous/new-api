@@ -20,10 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Badge } from '@douyinfe/semi-ui';
 import { IconLink } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const ModelEndpoints = ({ modelData, endpointMap = {}, t }) => {
+const ModelEndpoints = ({ modelData, endpointMap = {} }) => {
+  const { t } = useTranslation();
   const renderAPIEndpoints = () => {
     if (!modelData) return null;
 

@@ -1,6 +1,7 @@
 package taskcommon
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/base64"
 	"fmt"
 
@@ -19,10 +20,10 @@ func UnmarshalMetadata(metadata map[string]any, target any) error {
 	}
 	metaBytes, err := common.Marshal(metadata)
 	if err != nil {
-		return fmt.Errorf("marshal metadata failed: %w", err)
+		return fmt.Errorf(i18n.Translate("relay.marshal_metadata_failed"), err)
 	}
 	if err := common.Unmarshal(metaBytes, target); err != nil {
-		return fmt.Errorf("unmarshal metadata failed: %w", err)
+		return fmt.Errorf(i18n.Translate("relay.unmarshal_metadata_failed"), err)
 	}
 	return nil
 }

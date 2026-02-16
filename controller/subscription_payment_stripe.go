@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -24,7 +25,7 @@ type SubscriptionStripePayRequest struct {
 func SubscriptionRequestStripePay(c *gin.Context) {
 	var req SubscriptionStripePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 
@@ -34,19 +35,19 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 	if !plan.Enabled {
-		common.ApiErrorMsg(c, "套餐未启用")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.not_enabled"))
 		return
 	}
 	if plan.StripePriceId == "" {
-		common.ApiErrorMsg(c, "该套餐未配置 StripePriceId")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.price_id_not_configured"))
 		return
 	}
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
-		common.ApiErrorMsg(c, "Stripe 未配置或密钥无效")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.invalid_stripe_key"))
 		return
 	}
 	if setting.StripeWebhookSecret == "" {
-		common.ApiErrorMsg(c, "Stripe Webhook 未配置")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "payment.webhook_not_configured"))
 		return
 	}
 
@@ -57,7 +58,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 	if user == nil {
-		common.ApiErrorMsg(c, "用户不存在")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "user.not_exists"))
 		return
 	}
 
@@ -68,7 +69,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 			return
 		}
 		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
+			common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.purchase_max"))
 			return
 		}
 	}
@@ -78,8 +79,8 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 
 	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
 	if err != nil {
-		log.Println("获取Stripe Checkout支付链接失败", err)
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		log.Println(i18n.Translate("topup.get_stripe_pay_link_failed"), err)
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": common.TranslateMessage(c, "payment.start_failed")})
 		return
 	}
 
@@ -93,7 +94,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": common.TranslateMessage(c, "payment.create_failed")})
 		return
 	}
 

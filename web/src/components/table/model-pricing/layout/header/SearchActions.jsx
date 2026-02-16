@@ -45,7 +45,6 @@ const SearchActions = memo(
     t,
   }) => {
     const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
-
     const handleCopyClick = useCallback(() => {
       if (copyText && selectedRowKeys.length > 0) {
         copyText(selectedRowKeys);

@@ -21,10 +21,12 @@ import React from 'react';
 import { Typography } from '@douyinfe/semi-ui';
 import { Ticket } from 'lucide-react';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const RedemptionsDescription = ({ compactMode, setCompactMode, t }) => {
+const RedemptionsDescription = ({ compactMode, setCompactMode }) => {
+  const { t } = useTranslation();
   return (
     <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
       <div className='flex items-center text-orange-500'>

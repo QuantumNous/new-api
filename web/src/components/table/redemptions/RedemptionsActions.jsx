@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const RedemptionsActions = ({
   selectedKeys,
@@ -26,8 +27,8 @@ const RedemptionsActions = ({
   setShowEdit,
   batchCopyRedemptions,
   batchDeleteRedemptions,
-  t,
 }) => {
+  const { t } = useTranslation();
   // Add new redemption code
   const handleAddRedemption = () => {
     setEditingRedemption({

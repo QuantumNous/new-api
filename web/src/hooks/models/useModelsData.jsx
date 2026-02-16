@@ -484,9 +484,6 @@ export const useModelsData = () => {
     setEditingVendor,
     loadVendors,
 
-    // Translation
-    t,
-
     // Upstream sync
     syncing,
     previewing,

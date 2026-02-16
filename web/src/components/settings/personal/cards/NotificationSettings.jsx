@@ -48,13 +48,13 @@ import {
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
+import { useTranslation } from 'react-i18next';
 
-const NotificationSettings = ({
-  t,
-  notificationSettings,
+const NotificationSettings = ({ notificationSettings,
   handleNotificationSettingChange,
   saveNotificationSettings,
 }) => {
+  const { t } = useTranslation();
   const formApiRef = useRef(null);
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);

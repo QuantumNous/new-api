@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -29,7 +30,7 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		if val, ok := request.Extra["parameters"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Parameters)
 			if err != nil {
-				return nil, fmt.Errorf("invalid parameters field: %w", err)
+				return nil, fmt.Errorf(i18n.Translate("relay.invalid_parameters_field"), err)
 			}
 		} else {
 			// 兼容没有parameters字段的情况，从openai标准字段中提取参数
@@ -42,7 +43,7 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		if val, ok := request.Extra["input"]; ok {
 			err := common.Unmarshal(val, &imageRequest.Input)
 			if err != nil {
-				return nil, fmt.Errorf("invalid input field: %w", err)
+				return nil, fmt.Errorf(i18n.Translate("relay.invalid_input_field"), err)
 			}
 		}
 	}
@@ -89,7 +90,7 @@ func getImageBase64sFromForm(c *gin.Context, fieldName string) ([]string, error)
 	mf := c.Request.MultipartForm
 	if mf == nil {
 		if _, err := c.MultipartForm(); err != nil {
-			return nil, fmt.Errorf("failed to parse image edit form request: %w", err)
+			return nil, fmt.Errorf(i18n.Translate("relay.failed_to_parse_image_edit_form_request"), err)
 		}
 		mf = c.Request.MultipartForm
 	}
@@ -112,13 +113,13 @@ func getImageBase64sFromForm(c *gin.Context, fieldName string) ([]string, error)
 
 			// If no image fields found at all
 			if !foundArrayImages && (len(imageFiles) == 0) {
-				return nil, errors.New("image is required")
+				return nil, errors.New(i18n.Translate("relay.image_is_required"))
 			}
 		}
 	}
 
 	if len(imageFiles) == 0 {
-		return nil, errors.New("image is required")
+		return nil, errors.New(i18n.Translate("relay.image_is_required"))
 	}
 
 	//if len(imageFiles) > 1 {
@@ -130,13 +131,13 @@ func getImageBase64sFromForm(c *gin.Context, fieldName string) ([]string, error)
 	for _, file := range imageFiles {
 		image, err := file.Open()
 		if err != nil {
-			return nil, errors.New("failed to open image file")
+			return nil, errors.New(i18n.Translate("relay.failed_to_open_image_file_14d3"))
 		}
 
 		// 读取文件内容
 		imageData, err := io.ReadAll(image)
 		if err != nil {
-			return nil, errors.New("failed to read image file")
+			return nil, errors.New(i18n.Translate("relay.failed_to_read_image_file"))
 		}
 
 		// 获取MIME类型
@@ -160,7 +161,7 @@ func oaiFormEdit2AliImageEdit(c *gin.Context, info *relaycommon.RelayInfo, reque
 
 	imageBase64s, err := getImageBase64sFromForm(c, "image")
 	if err != nil {
-		return nil, fmt.Errorf("get image base64s from form failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate("relay.get_image_base64s_from_form_failed"), err)
 	}
 	//dto.MediaContent{}
 	mediaContents := make([]AliMediaContent, len(imageBase64s))
@@ -201,7 +202,7 @@ func updateTask(info *relaycommon.RelayInfo, taskID string) (*AliResponse, error
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		common.SysLog("updateTask client.Do err: " + err.Error())
+		common.SysLog(i18n.Translate("relay.updatetask_client_do_err") + err.Error())
 		return &aliResponse, err, nil
 	}
 	defer resp.Body.Close()
@@ -211,7 +212,7 @@ func updateTask(info *relaycommon.RelayInfo, taskID string) (*AliResponse, error
 	var response AliResponse
 	err = common.Unmarshal(responseBody, &response)
 	if err != nil {
-		common.SysLog("updateTask NewDecoder err: " + err.Error())
+		common.SysLog(i18n.Translate("relay.updatetask_newdecoder_err") + err.Error())
 		return &aliResponse, err, nil
 	}
 
@@ -229,7 +230,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 	time.Sleep(time.Duration(5) * time.Second)
 
 	for {
-		logger.LogDebug(c, fmt.Sprintf("asyncTaskWait step %d/%d, wait %d seconds", step, maxStep, waitSeconds))
+		logger.LogDebug(c, fmt.Sprintf(i18n.Translate("relay.asynctaskwait_step_wait_econds"), step, maxStep, waitSeconds))
 		step++
 		rsp, err, body := updateTask(info, taskID)
 		responseBody = body
@@ -259,7 +260,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 		time.Sleep(time.Duration(waitSeconds) * time.Second)
 	}
 
-	return nil, nil, fmt.Errorf("aliAsyncTaskWait timeout")
+	return nil, nil, errors.New(i18n.Translate("relay.aliasynctaskwait_timeout"))
 }
 
 func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody []byte, info *relaycommon.RelayInfo, responseFormat string) *dto.ImageResponse {
@@ -322,9 +323,9 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 
 	//logger.LogDebug(c, "ali_async_task_result: "+string(originRespBody))
 	if a.IsSyncImageModel {
-		logger.LogDebug(c, "ali_sync_image_result: "+string(originRespBody))
+		logger.LogDebug(c, i18n.Translate("relay.ali_sync_image_result")+string(originRespBody))
 	} else {
-		logger.LogDebug(c, "ali_async_image_result: "+string(originRespBody))
+		logger.LogDebug(c, i18n.Translate("relay.ali_async_image_result")+string(originRespBody))
 	}
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)

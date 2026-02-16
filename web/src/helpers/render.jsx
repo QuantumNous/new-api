@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
+import { t } from './i18n';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
@@ -157,7 +158,7 @@ export const getModelCategories = (() => {
   let categoriesCache = null;
   let lastLocale = null;
 
-  return (t) => {
+  return () => {
     const currentLocale = i18next.language;
     if (categoriesCache && lastLocale === currentLocale) {
       return categoriesCache;
@@ -741,7 +742,7 @@ export function renderModelTag(modelName, options = {}) {
     suffixIcon,
   } = options;
 
-  const categories = getModelCategories(i18next.t);
+  const categories = getModelCategories();
   let icon = null;
 
   for (const [key, category] of Object.entries(categories)) {

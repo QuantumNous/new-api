@@ -1,6 +1,7 @@
 package coze
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,45 +22,45 @@ type Adaptor struct {
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *common.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertAudioRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *common.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertClaudeRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *common.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertEmbeddingRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *common.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertImageRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *common.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertOpenAIRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *common.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate("svc.request_is_nil"))
 	}
 	return convertCozeChatRequest(c, *request), nil
 }
 
 // ConvertOpenAIResponsesRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *common.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // ConvertRerankRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate("common.not_implemented"))
 }
 
 // DoRequest implements channel.Adaptor.

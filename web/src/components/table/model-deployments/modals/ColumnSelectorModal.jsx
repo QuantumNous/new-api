@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo } from 'react';
 import { Modal, Button, Checkbox } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const ColumnSelectorModal = ({
   visible,
@@ -26,8 +27,8 @@ const ColumnSelectorModal = ({
   visibleColumns,
   onVisibleColumnsChange,
   columnKeys,
-  t,
 }) => {
+  const { t } = useTranslation();
   const columnOptions = useMemo(
     () => [
       { key: columnKeys.container_name, label: t('容器名称'), required: true },

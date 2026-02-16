@@ -21,6 +21,7 @@ import React from 'react';
 import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
+import { useTranslation } from 'react-i18next';
 
 const ChartsPanel = ({
   activeChartTab,
@@ -33,8 +34,8 @@ const ChartsPanel = ({
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
   hasApiInfoPanel,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Card
       {...CARD_PROPS}

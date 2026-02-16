@@ -41,7 +41,7 @@ func EnsureDiskCacheDir() error {
 // 返回文件路径和文件句柄
 func CreateDiskCacheFile(cacheType DiskCacheType) (string, *os.File, error) {
 	if err := EnsureDiskCacheDir(); err != nil {
-		return "", nil, fmt.Errorf("failed to create cache directory: %w", err)
+		return "", nil, fmt.Errorf(Translate("common.failed_to_create_cache_directory"), err)
 	}
 
 	dir := GetDiskCacheDir()
@@ -50,7 +50,7 @@ func CreateDiskCacheFile(cacheType DiskCacheType) (string, *os.File, error) {
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0600)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create cache file: %w", err)
+		return "", nil, fmt.Errorf(Translate("common.failed_to_create_cache_file"), err)
 	}
 
 	return filePath, file, nil
@@ -68,12 +68,12 @@ func WriteDiskCacheFile(cacheType DiskCacheType, data []byte) (string, error) {
 	if err != nil {
 		file.Close()
 		os.Remove(filePath)
-		return "", fmt.Errorf("failed to write cache file: %w", err)
+		return "", fmt.Errorf(Translate("common.failed_to_write_cache_file"), err)
 	}
 
 	if err := file.Close(); err != nil {
 		os.Remove(filePath)
-		return "", fmt.Errorf("failed to close cache file: %w", err)
+		return "", fmt.Errorf(Translate("common.failed_to_close_cache_file"), err)
 	}
 
 	return filePath, nil

@@ -26,8 +26,10 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getRedemptionsColumns, isExpired } from './RedemptionsColumnDefs';
 import DeleteRedemptionModal from './modals/DeleteRedemptionModal';
+import { useTranslation } from 'react-i18next';
 
 const RedemptionsTable = (redemptionsData) => {
+  const { t } = useTranslation();
   const {
     redemptions,
     loading,
@@ -43,7 +45,6 @@ const RedemptionsTable = (redemptionsData) => {
     setEditingRedemption,
     setShowEdit,
     refresh,
-    t,
   } = redemptionsData;
 
   // Modal states
@@ -59,7 +60,6 @@ const RedemptionsTable = (redemptionsData) => {
   // Get all columns
   const columns = useMemo(() => {
     return getRedemptionsColumns({
-      t,
       manageRedemption,
       copyText,
       setEditingRedemption,
@@ -70,7 +70,6 @@ const RedemptionsTable = (redemptionsData) => {
       showDeleteRedemptionModal,
     });
   }, [
-    t,
     manageRedemption,
     copyText,
     setEditingRedemption,
