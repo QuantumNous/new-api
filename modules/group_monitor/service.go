@@ -88,8 +88,10 @@ func runGroupMonitor(setting *GroupMonitorSetting) {
 		}
 
 		groupName := cfg.GroupName
+		ch := channel
+		model := actualModel
 		gopool.Go(func() {
-			testAndRecord(groupName, channel, actualModel)
+			testAndRecord(groupName, ch, model)
 		})
 
 		time.Sleep(common.RequestInterval)

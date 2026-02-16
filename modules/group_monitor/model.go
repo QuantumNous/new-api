@@ -1,9 +1,6 @@
 package group_monitor
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -208,20 +205,4 @@ func GetGroupMonitorTimeSeries(groupName string, startTs, endTs int64) ([]*Group
 	}
 	err := query.Order("created_at ASC").Find(&logs).Error
 	return logs, err
-}
-
-// ParseChannelIds 解析逗号分隔的渠道 ID 字符串
-func ParseChannelIds(channelIdsStr string) []int {
-	if channelIdsStr == "" {
-		return nil
-	}
-	parts := strings.Split(channelIdsStr, ",")
-	var ids []int
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if id, err := strconv.Atoi(p); err == nil {
-			ids = append(ids, id)
-		}
-	}
-	return ids
 }

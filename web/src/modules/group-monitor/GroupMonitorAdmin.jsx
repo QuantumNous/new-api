@@ -3,7 +3,7 @@ import { Card, Table, Tag, Select, Button, Form, Row, Col, Switch, InputNumber, 
 import { VChart } from '@visactor/react-vchart';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess, showWarning, compareObjects, isAdmin } from '../../helpers';
+import { API, showError, showSuccess, showWarning, compareObjects } from '../../helpers';
 
 const CHART_CONFIG = { mode: 'desktop-browser' };
 
