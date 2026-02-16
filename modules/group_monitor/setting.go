@@ -15,7 +15,7 @@ type GroupMonitorSetting struct {
 var groupMonitorSetting = GroupMonitorSetting{
 	Enabled:      false,
 	IntervalMins: 5,
-	TestModel:    "claude-3-5-haiku-20241022",
+	TestModel:    "gpt-4o-mini",
 	RetainDays:   7,
 }
 

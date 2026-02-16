@@ -26,5 +26,6 @@ func RegisterRoutes(apiRouter *gin.RouterGroup) {
 	userRoute.Use(middleware.UserAuth())
 	{
 		userRoute.GET("/status", GetGroupMonitorStatusHandler)
+		userRoute.GET("/user_time_series", GetGroupMonitorTimeSeriesHandler)
 	}
 }

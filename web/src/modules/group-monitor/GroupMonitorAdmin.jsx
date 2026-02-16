@@ -7,17 +7,19 @@ import { API, showError, showSuccess, showWarning, compareObjects, isAdmin } fro
 
 const CHART_CONFIG = { mode: 'desktop-browser' };
 
+const DEFAULT_SETTINGS = {
+  'group_monitor_setting.enabled': false,
+  'group_monitor_setting.interval_mins': 5,
+  'group_monitor_setting.test_model': 'gpt-4o-mini',
+  'group_monitor_setting.retain_days': 7,
+};
+
 const GroupMonitorAdmin = () => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
 
   // 配置数据
-  const [globalSettings, setGlobalSettings] = useState({
-    'group_monitor_setting.enabled': false,
-    'group_monitor_setting.interval_mins': 5,
-    'group_monitor_setting.test_model': 'claude-3-5-haiku-20241022',
-    'group_monitor_setting.retain_days': 7,
-  });
+  const [globalSettings, setGlobalSettings] = useState(DEFAULT_SETTINGS);
   const [savedSettings, setSavedSettings] = useState({});
   const [configs, setConfigs] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -42,7 +44,7 @@ const GroupMonitorAdmin = () => {
     if (res.data.success) {
       const opts = res.data.data;
       const current = {};
-      for (const key of Object.keys(globalSettings)) {
+      for (const key of Object.keys(DEFAULT_SETTINGS)) {
         if (opts[key] !== undefined) {
           if (key.includes('enabled')) {
             current[key] = opts[key] === 'true';
@@ -52,7 +54,7 @@ const GroupMonitorAdmin = () => {
             current[key] = opts[key];
           }
         } else {
-          current[key] = globalSettings[key];
+          current[key] = DEFAULT_SETTINGS[key];
         }
       }
       setGlobalSettings(current);
@@ -182,11 +184,11 @@ const GroupMonitorAdmin = () => {
     loadLatest();
     loadStats();
     loadTimeSeries();
-  }, []);
+  }, [loadGlobalSettings, loadGroups, loadChannels, loadConfigs, loadLatest, loadStats, loadTimeSeries]);
 
   useEffect(() => {
     loadLogs();
-  }, [logPage, logGroupFilter]);
+  }, [loadLogs]);
 
   // 构建延迟趋势图 spec
   const chartSpec = {

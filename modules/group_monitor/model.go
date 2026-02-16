@@ -74,16 +74,26 @@ func GetGroupMonitorLogs(groupName string, startTs, endTs int64, startIdx, pageS
 func GetGroupMonitorLatest() ([]*GroupMonitorLog, error) {
 	var logs []*GroupMonitorLog
 
-	// 先查所有 distinct group_name，再逐个查最新记录（兼容三种数据库）
+	// 先查所有 distinct group_name
 	var groupNames []string
 	err := model.DB.Model(&GroupMonitorLog{}).Distinct().Pluck("group_name", &groupNames).Error
 	if err != nil {
 		return nil, err
 	}
 
+	if len(groupNames) == 0 {
+		return logs, nil
+	}
+
+	// 批量查询每个分组的最新 ID（兼容三种数据库）
+	// 使用子查询获取每个分组的最大 created_at 对应的记录
 	for _, gn := range groupNames {
 		var log GroupMonitorLog
-		err := model.DB.Where("group_name = ?", gn).Order("created_at DESC").First(&log).Error
+		// 使用子查询找到最新的 created_at，然后获取该记录
+		subQuery := model.DB.Model(&GroupMonitorLog{}).
+			Select("MAX(created_at)").
+			Where("group_name = ?", gn)
+		err := model.DB.Where("group_name = ? AND created_at = (?)", gn, subQuery).First(&log).Error
 		if err != nil {
 			continue
 		}

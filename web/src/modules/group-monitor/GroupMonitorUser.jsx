@@ -21,7 +21,7 @@ const GroupMonitorUser = () => {
 
   const loadTimeSeries = useCallback(async () => {
     const now = Math.floor(Date.now() / 1000);
-    const res = await API.get('/api/group/monitor/time_series', {
+    const res = await API.get('/api/group/monitor/user_time_series', {
       params: { start_timestamp: now - 3600 },
     });
     if (res.data.success) {
@@ -38,7 +38,7 @@ const GroupMonitorUser = () => {
       loadTimeSeries();
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadStatus, loadTimeSeries]);
 
   const chartSpec = {
     type: 'line',
