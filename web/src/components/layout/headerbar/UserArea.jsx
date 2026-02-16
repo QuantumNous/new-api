@@ -52,17 +52,17 @@ const UserArea = ({
           position='bottomRight'
           getPopupContainer={() => dropdownRef.current}
           render={
-            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
+            <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg'>
               <Dropdown.Item
                 onClick={() => {
                   navigate('/console/personal');
                 }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1'
               >
                 <div className='flex items-center gap-2'>
                   <Settings
                     size={16}
-                    className='text-gray-500 dark:text-gray-400'
+                    className='text-semi-color-text-2'
                   />
                   <span>{t('个人设置')}</span>
                 </div>
@@ -71,12 +71,12 @@ const UserArea = ({
                 onClick={() => {
                   navigate('/console/token');
                 }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1'
               >
                 <div className='flex items-center gap-2'>
                   <KeyRound
                     size={16}
-                    className='text-gray-500 dark:text-gray-400'
+                    className='text-semi-color-text-2'
                   />
                   <span>{t('令牌管理')}</span>
                 </div>
@@ -85,24 +85,24 @@ const UserArea = ({
                 onClick={() => {
                   navigate('/console/topup');
                 }}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-blue-500 dark:hover:!text-white'
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1'
               >
                 <div className='flex items-center gap-2'>
                   <CreditCard
                     size={16}
-                    className='text-gray-500 dark:text-gray-400'
+                    className='text-semi-color-text-2'
                   />
                   <span>{t('钱包管理')}</span>
                 </div>
               </Dropdown.Item>
               <Dropdown.Item
                 onClick={logout}
-                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-red-500 dark:hover:!text-white'
+                className='!px-3 !py-1.5 !text-sm !text-semi-color-text-0 hover:!bg-semi-color-fill-1'
               >
                 <div className='flex items-center gap-2'>
                   <LogOut
                     size={16}
-                    className='text-gray-500 dark:text-gray-400'
+                    className='text-semi-color-text-2'
                   />
                   <span>{t('退出')}</span>
                 </div>
@@ -113,7 +113,7 @@ const UserArea = ({
           <Button
             theme='borderless'
             type='tertiary'
-            className='flex items-center gap-1.5 !p-1 !rounded-full hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2'
+            className='flex items-center gap-1.5 !p-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
           >
             <Avatar
               size='extra-small'
@@ -123,13 +123,13 @@ const UserArea = ({
               {userState.user.username[0].toUpperCase()}
             </Avatar>
             <span className='hidden md:inline'>
-              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 dark:!text-gray-300 mr-1'>
+              <Typography.Text className='!text-xs !font-medium !text-semi-color-text-1 mr-1'>
                 {userState.user.username}
               </Typography.Text>
             </span>
             <ChevronDown
               size={14}
-              className='text-xs text-semi-color-text-2 dark:text-gray-400'
+              className='text-xs text-semi-color-text-2'
             />
           </Button>
         </Dropdown>
@@ -142,13 +142,13 @@ const UserArea = ({
       'flex items-center justify-center !py-[10px] !px-1.5';
 
     const loginButtonSpecificStyling =
-      '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
+      '!bg-semi-color-fill-0 hover:!bg-semi-color-fill-1 transition-colors';
     let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
 
     let registerButtonClasses = `${commonSizingAndLayoutClass}`;
 
     const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
+      '!text-xs !text-semi-color-text-1 !p-1.5';
     const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
 
     if (showRegisterButton) {

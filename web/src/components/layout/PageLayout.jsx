@@ -152,25 +152,36 @@ const PageLayout = () => {
         }}
       >
         {showSider && (
-          <Sider
-            className='app-sider'
-            style={{
-              position: 'fixed',
-              left: 0,
-              top: 64,
-              bottom: 0,
-              zIndex: 99,
-              border: 'none',
-              paddingRight: '0',
-              width: 'var(--sidebar-current-width)',
-            }}
-          >
-            <SiderBar
-              onNavigate={() => {
-                if (isMobile) setDrawerOpen(false);
+          <>
+            {/* Mobile backdrop overlay */}
+            {isMobile && drawerOpen && (
+              <div
+                className='fixed inset-0 bg-black/50 backdrop-blur-sm'
+                style={{ zIndex: 98, top: 64 }}
+                onClick={() => setDrawerOpen(false)}
+                aria-hidden
+              />
+            )}
+            <Sider
+              className='app-sider'
+              style={{
+                position: 'fixed',
+                left: 0,
+                top: 64,
+                bottom: 0,
+                zIndex: 99,
+                border: 'none',
+                paddingRight: '0',
+                width: 'var(--sidebar-current-width)',
               }}
-            />
-          </Sider>
+            >
+              <SiderBar
+                onNavigate={() => {
+                  if (isMobile) setDrawerOpen(false);
+                }}
+              />
+            </Sider>
+          </>
         )}
         <Layout
           style={{
@@ -205,9 +216,9 @@ const PageLayout = () => {
               style={{ minHeight: '100%' }}
             >
               <App />
-              <FooterBar scrollRootRef={contentWrapperRef} />
             </div>
           </Content>
+          <FooterBar />
         </Layout>
       </Layout>
       <ToastContainer />

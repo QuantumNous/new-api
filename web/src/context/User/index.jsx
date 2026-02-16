@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reducer, initialState } from './reducer';
+import { setCookie } from '../../helpers/cookie';
 
 export const UserContext = React.createContext({
   state: initialState,
@@ -43,6 +44,21 @@ export const UserProvider = ({ children }) => {
       }
     }
   }, [state.user?.setting, i18n]);
+
+  // Sync oc_logged_in cookie so the frontend (openclawapi.ai) can detect login state
+  useEffect(() => {
+    try {
+      if (state.user) {
+        setCookie('oc_logged_in', '1');
+      } else {
+        // Clear the cookie on logout by setting max-age=0
+        document.cookie = 'oc_logged_in=; path=/; max-age=0; domain=.openclawapi.ai';
+        document.cookie = 'oc_logged_in=; path=/; max-age=0';
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [state.user]);
 
   return (
     <UserContext.Provider value={[state, dispatch]}>
