@@ -251,6 +251,14 @@ const Playground = () => {
         setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
 
+          // Inject the user's new message into the custom payload's messages array
+          if (Array.isArray(customPayload.messages)) {
+            customPayload.messages = [
+              ...customPayload.messages,
+              { role: MESSAGE_ROLES.USER, content },
+            ];
+          }
+
           // 发送自定义请求体
           sendRequest(customPayload, customPayload.stream !== false);
 

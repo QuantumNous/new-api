@@ -121,8 +121,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = "/v1/images/generations"
 		}
 
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
+		// Use Responses API if the global policy says this channel+model should use it
+		if service.ShouldChatCompletionsUseResponsesGlobal(channel.Id, channel.Type, testModel) {
 			requestPath = "/v1/responses"
 		}
 
@@ -685,8 +685,8 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// Responses-only models (e.g. codex series)
-	if strings.Contains(strings.ToLower(model), "codex") {
+	// Use Responses API if the global policy says this channel+model should use it
+	if channel != nil && service.ShouldChatCompletionsUseResponsesGlobal(channel.Id, channel.Type, model) {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
