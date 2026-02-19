@@ -113,11 +113,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
 
-	var clientDone <-chan struct{}
-	if c != nil && c.Request != nil {
-		clientDone = c.Request.Context().Done()
-	}
-
 	// Handle ping data sending with improved error handling
 	if pingEnabled && pingTicker != nil {
 		wg.Add(1)
@@ -170,7 +165,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					return
 				case <-stopChan:
 					return
-				case <-clientDone:
+				case <-c.Request.Context().Done():
 					// 监听客户端断开连接
 					return
 				case <-pingTimeout.C:
@@ -201,6 +196,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			case <-stopChan:
 				return
 			case <-ctx.Done():
+				return
+			case <-c.Request.Context().Done():
 				return
 			default:
 			}
@@ -268,5 +265,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	case <-stopChan:
 		// 正常结束
 		logger.LogInfo(c, "streaming finished")
+	case <-c.Request.Context().Done():
+		// 客户端断开连接
+		logger.LogInfo(c, "client disconnected")
 	}
 }
