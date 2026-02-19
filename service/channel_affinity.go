@@ -288,7 +288,11 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		if src.Path == "" {
 			return ""
 		}
-		body, err := common.GetRequestBody(c)
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return ""
+		}
+		body, err := storage.Bytes()
 		if err != nil || len(body) == 0 {
 			return ""
 		}

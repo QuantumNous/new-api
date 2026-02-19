@@ -1620,6 +1620,7 @@
     "测试成功，耗时 ": "Kiểm tra thành công, mất ",
     "测试所有渠道的最长响应时间": "Thời gian phản hồi tối đa để kiểm tra tất cả các kênh",
     "测试所有通道": "Kiểm tra tất cả các kênh",
+    "测试所有未手动禁用渠道": "Kiểm tra tất cả các kênh ngoại trừ các kênh bị vô hiệu hóa thủ công",
     "测试模型": "Mô hình kiểm tra",
     "测试模型耗时": "Thời gian kiểm tra mô hình",
     "测试模式": "Chế độ kiểm tra",
@@ -1971,6 +1972,7 @@
     "确定要提升此用户吗？": "Bạn có chắc chắn muốn thăng cấp người dùng này không?",
     "确定要更新所有已启用通道余额吗？": "Bạn có chắc chắn muốn cập nhật số dư của tất cả các kênh đã bật không?",
     "确定要测试所有通道吗？": "Bạn có chắc chắn muốn kiểm tra tất cả các kênh không?",
+    "确定要测试所有未手动禁用渠道吗？": "Bạn có chắc chắn muốn kiểm tra tất cả các kênh ngoại trừ các kênh bị vô hiệu hóa thủ công không?",
     "确定要禁用所有的密钥吗？": "Bạn có chắc chắn muốn vô hiệu hóa tất cả các khóa không?",
     "确定要禁用此用户吗？": "Bạn có chắc chắn muốn vô hiệu hóa người dùng này không?",
     "确定要降级此用户吗？": "Bạn có chắc chắn muốn hạ cấp người dùng này không?",
@@ -3130,6 +3132,9 @@
     "频率限制的周期（分钟）": "Chu kỳ giới hạn tần suất (phút)",
     "颜色": "Màu sắc",
     "额度": "Hạn ngạch",
+    "输入额度": "Nhập hạn ngạch",
+    "输入金额": "Nhập số tiền",
+    "仅用于换算，实际保存的是额度": "Chỉ dùng để quy đổi, giá trị lưu thực tế là hạn ngạch",
     "额度必须大于0": "Hạn ngạch phải lớn hơn 0",
     "额度提醒阈值": "Ngưỡng nhắc nhở hạn ngạch",
     "额度查询接口返回令牌额度而非用户额度": "Giao diện truy vấn hạn ngạch trả về hạn ngạch mã thông báo thay vì hạn ngạch người dùng",
@@ -3280,6 +3285,11 @@
     "套餐名称": "Tên gói",
     "应付金额": "Số tiền phải trả",
     "支付": "Thanh toán",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên.",
+    "缓存读": "Đọc bộ nhớ đệm",
+    "缓存写": "Ghi bộ nhớ đệm",
+    "写": "Ghi",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Theo quy ước của Anthropic, input tokens của /v1/messages chỉ tính phần đầu vào không dùng cache và không bao gồm tokens đọc/ghi cache.",
+    "设计版本": "b80c3466cb6feafeb3990c7820e10e50"
   }
 }

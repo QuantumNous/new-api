@@ -1573,6 +1573,7 @@
     "测试失败：": "Test failed: ",
     "测试所有渠道的最长响应时间": "Temps de réponse maximal pour tester tous les canaux",
     "测试所有通道": "Tester tous les canaux",
+    "测试所有未手动禁用渠道": "Tester tous les canaux sauf ceux désactivés manuellement",
     "测试模式": "Mode test",
     "测试连接": "Test Connection",
     "测速": "Test de vitesse",
@@ -1757,6 +1758,7 @@
     "确定要提升此用户吗？": "Êtes-vous sûr de vouloir promouvoir cet utilisateur ?",
     "确定要更新所有已启用通道余额吗？": "Êtes-vous sûr de vouloir mettre à jour le solde de tous les canaux activés ?",
     "确定要测试所有通道吗？": "Êtes-vous sûr de vouloir tester tous les canaux ?",
+    "确定要测试所有未手动禁用渠道吗？": "Êtes-vous sûr de vouloir tester tous les canaux sauf ceux désactivés manuellement ?",
     "确定要禁用所有的密钥吗？": "Êtes-vous sûr de vouloir désactiver toutes les clés ?",
     "确定要禁用此用户吗？": "Êtes-vous sûr de vouloir désactiver cet utilisateur ?",
     "确定要降级此用户吗？": "Êtes-vous sûr de vouloir rétrograder cet utilisateur ?",
@@ -2566,6 +2568,10 @@
     "频率限制的周期（分钟）": "Période de limitation de débit (minutes)",
     "颜色": "Couleur",
     "额度": "Quota",
+    "输入额度": "Entrer le quota",
+    "金额": "Montant",
+    "输入金额": "Entrer le montant",
+    "仅用于换算，实际保存的是额度": "Uniquement pour la conversion, c'est le quota qui est enregistré",
     "额度必须大于0": "Le quota doit être supérieur à 0",
     "额度提醒阈值": "Seuil de rappel de quota",
     "额度查询接口返回令牌额度而非用户额度": "Affiche le quota de jetons au lieu du quota utilisateur",
@@ -2719,6 +2725,11 @@
     "套餐名称": "Nom du plan",
     "应付金额": "Montant à payer",
     "支付": "Payer",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur.",
+    "缓存读": "Lecture cache",
+    "缓存写": "Écriture cache",
+    "写": "Écriture",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Selon la convention Anthropic, les tokens d'entrée de /v1/messages ne comptent que les entrées non mises en cache et excluent les tokens de lecture/écriture du cache.",
+    "设计版本": "b80c3466cb6feafeb3990c7820e10e50"
   }
 }

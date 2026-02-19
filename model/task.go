@@ -234,12 +234,6 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 		return nil
 	}
 
-	for _, task := range tasks {
-		if cache, err := GetUserCache(task.UserId); err == nil {
-			task.Username = cache.Username
-		}
-	}
-
 	return tasks
 }
 

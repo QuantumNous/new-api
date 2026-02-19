@@ -1,7 +1,6 @@
 package sora
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -104,11 +103,11 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	cachedBody, err := common.GetRequestBody(c)
+	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
-	return bytes.NewReader(cachedBody), nil
+	return common.ReaderOnly(storage), nil
 }
 
 // DoRequest delegates to common helper.

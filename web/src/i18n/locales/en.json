@@ -1563,6 +1563,7 @@
     "测试失败：": "Test failed: ",
     "测试所有渠道的最长响应时间": "Maximum response time for testing all channels",
     "测试所有通道": "Test all channels",
+    "测试所有未手动禁用渠道": "Test all channels except manually disabled ones",
     "测试模式": "Test Mode",
     "测试连接": "Test Connection",
     "测速": "Speed Test",
@@ -1745,6 +1746,7 @@
     "确定要提升此用户吗？": "Are you sure you want to promote this user?",
     "确定要更新所有已启用通道余额吗？": "Are you sure you want to update the balance of all enabled channels?",
     "确定要测试所有通道吗？": "Are you sure you want to test all channels?",
+    "确定要测试所有未手动禁用渠道吗？": "Are you sure you want to test all channels except manually disabled ones?",
     "确定要禁用所有的密钥吗？": "Are you sure you want to disable all keys?",
     "确定要禁用此用户吗？": "Are you sure you want to disable this user?",
     "确定要降级此用户吗？": "Are you sure you want to demote this user?",
@@ -2603,6 +2605,10 @@
     "频率限制的周期（分钟）": "Rate limit period (minutes)",
     "颜色": "Color",
     "额度": "Quota",
+    "输入额度": "Enter quota",
+    "金额": "Amount",
+    "输入金额": "Enter amount",
+    "仅用于换算，实际保存的是额度": "For conversion only, quota is what gets saved",
     "额度必须大于0": "Quota must be greater than 0",
     "额度提醒阈值": "Quota reminder threshold",
     "额度查询接口返回令牌额度而非用户额度": "Displays token quota instead of user quota",
@@ -2845,6 +2851,11 @@
     "填写服务器地址后自动生成：": "Auto-generated after entering server address: ",
     "自动生成：": "Auto-generated: ",
     "请先填写服务器地址，以自动生成完整的端点 URL": "Please enter the server address first to auto-generate full endpoint URLs",
-    "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "Endpoint URL must be a full address (starting with http:// or https://)"
+    "端点 URL 必须是完整地址（以 http:// 或 https:// 开头）": "Endpoint URL must be a full address (starting with http:// or https://)",
+    "缓存读": "Cache Read",
+    "缓存写": "Cache Write",
+    "写": "Write",
+    "根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。": "Per Anthropic conventions, /v1/messages input tokens count only non-cached input and exclude cache read/write tokens.",
+    "设计版本": "b80c3466cb6feafeb3990c7820e10e50"
   }
 }

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Tag, Typography } from '@douyinfe/semi-ui';
+import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   Music,
   FileText,
@@ -240,6 +240,7 @@ export const getTaskLogsColumns = ({
   openContentModal,
   isAdminUser,
   openVideoModal,
+  showUserInfoFunc,
 }) => {
   return [
     {
@@ -293,31 +294,30 @@ export const getTaskLogsColumns = ({
     {
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
-      dataIndex: 'username',
-      render: (text, record, index) => {
+      dataIndex: 'user_id',
+      render: (userId, record, index) => {
         if (!isAdminUser) {
           return <></>;
         }
-        const displayName = record.display_name;
-        const label = displayName || text || t('未知');
-        const avatarText =
-          typeof displayName === 'string' && displayName.length > 0
-            ? displayName[0]
-            : typeof text === 'string' && text.length > 0
-              ? text[0]
-              : '?';
-
+        const displayText = String(record.username || userId || '?');
         return (
           <Space>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(label)}
-              style={{ cursor: 'default' }}
+            <Tooltip content={displayText}>
+              <Avatar
+                size='extra-small'
+                color={stringToColor(displayText)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => showUserInfoFunc && showUserInfoFunc(userId)}
+              >
+                {displayText.slice(0, 1)}
+              </Avatar>
+            </Tooltip>
+            <Typography.Text
+              ellipsis={{ showTooltip: true }}
+              style={{ cursor: 'pointer', color: 'var(--semi-color-primary)' }}
+              onClick={() => showUserInfoFunc && showUserInfoFunc(userId)}
             >
-              {avatarText}
-            </Avatar>
-            <Typography.Text ellipsis={{ showTooltip: true }}>
-              {label}
+              {userId}
             </Typography.Text>
           </Space>
         );
