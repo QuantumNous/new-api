@@ -1256,8 +1256,9 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		if strings.TrimSpace(data) == "" {
-			streamErr = types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
-			return false
+			// Ignore heartbeat/whitespace lines. Keep the post-loop hasParsedData check
+			// to detect truly empty upstream streams.
+			return true
 		}
 		var geminiResponse dto.GeminiChatResponse
 		err := common.UnmarshalJsonStr(data, &geminiResponse)
