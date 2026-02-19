@@ -239,22 +239,20 @@ export default function SettingsMonitoring(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={16}>
-                  <div style={{ paddingLeft: 24 }}>
-                    <Form.Switch
-                      field={'AutomaticDisableOnEmptyResponseEnabled'}
-                      label={t('空响应时自动禁用通道')}
-                      size='default'
-                      checkedText='｜'
-                      uncheckedText='〇'
-                      extraText={t('当上游返回空响应（无响应体）时，自动禁用通道')}
-                      onChange={(value) =>
-                        setInputs({
-                          ...inputs,
-                          AutomaticDisableOnEmptyResponseEnabled: value,
-                        })
-                      }
-                    />
-                  </div>
+                <Form.Switch
+                  field={'AutomaticDisableOnEmptyResponseEnabled'}
+                  label={t('空响应时自动禁用通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t('当上游返回空响应（无响应体）时，自动禁用通道')}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutomaticDisableOnEmptyResponseEnabled: value,
+                    })
+                  }
+                />
                 <HttpStatusCodeRulesInput
                   label={t('自动禁用状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}

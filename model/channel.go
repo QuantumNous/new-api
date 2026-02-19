@@ -74,8 +74,27 @@ func (c ChannelInfo) Value() (driver.Value, error) {
 
 // Scan implements sql.Scanner interface
 func (c *ChannelInfo) Scan(value interface{}) error {
-	bytesValue, _ := value.([]byte)
-	return common.Unmarshal(bytesValue, c)
+	if value == nil {
+		*c = ChannelInfo{}
+		return nil
+	}
+
+	switch v := value.(type) {
+	case []byte:
+		if len(v) == 0 || strings.TrimSpace(string(v)) == "" {
+			*c = ChannelInfo{}
+			return nil
+		}
+		return common.Unmarshal(v, c)
+	case string:
+		if strings.TrimSpace(v) == "" {
+			*c = ChannelInfo{}
+			return nil
+		}
+		return common.UnmarshalJsonStr(v, c)
+	default:
+		return fmt.Errorf("unsupported scan type for ChannelInfo: %T", value)
+	}
 }
 
 func (channel *Channel) GetKeys() []string {
