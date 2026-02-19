@@ -286,14 +286,6 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 		}
 		return newErr
 	}
-	if err == nil {
-		openaiError := OpenAIError{
-			Message: string(errorCode),
-			Type:    string(errorCode),
-			Code:    errorCode,
-		}
-		return WithOpenAIError(openaiError, statusCode, ops...)
-	}
 	openaiError := OpenAIError{
 		Message: err.Error(),
 		Type:    string(errorCode),
