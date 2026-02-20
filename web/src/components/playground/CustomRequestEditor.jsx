@@ -140,7 +140,9 @@ const CustomRequestEditor = ({
           {/* 提示信息 */}
           <Banner
             type='warning'
-            description={t('启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。')}
+            description={t(
+              '启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。',
+            )}
             icon={<AlertTriangle size={16} />}
             className='!rounded-lg'
             closeIcon={null}
@@ -201,7 +203,9 @@ const CustomRequestEditor = ({
             )}
 
             <Typography.Text className='text-xs text-gray-500 mt-2 block'>
-              {t('请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。')}
+              {t(
+                '请输入有效的JSON格式的请求体。您可以参考预览面板中的默认请求体格式。',
+              )}
             </Typography.Text>
           </div>
         </>

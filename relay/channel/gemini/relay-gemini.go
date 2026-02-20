@@ -217,18 +217,26 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 			"IMAGE",
 		}
 	}
+	if stopSequences := parseStopSequences(textRequest.Stop); len(stopSequences) > 0 {
+		// Gemini supports up to 5 stop sequences
+		if len(stopSequences) > 5 {
+			stopSequences = stopSequences[:5]
+		}
+		geminiRequest.GenerationConfig.StopSequences = stopSequences
+	}
 
 	adaptorWithExtraBody := false
 
 	// patch extra_body
 	if len(textRequest.ExtraBody) > 0 {
-		if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
-			var extraBody map[string]interface{}
-			if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
-				return nil, fmt.Errorf("invalid extra body: %w", err)
-			}
-			// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
-			if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
+		var extraBody map[string]interface{}
+		if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
+			return nil, fmt.Errorf("invalid extra body: %w", err)
+		}
+
+		// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
+		if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
+			if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
 				adaptorWithExtraBody = true
 				// check error param name like thinkingConfig, should be thinking_config
 				if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
@@ -240,50 +248,92 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					if _, hasErrorParam := thinkingConfig["thinkingBudget"]; hasErrorParam {
 						return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
 					}
-					if budget, ok := thinkingConfig["thinking_budget"].(float64); ok {
-						budgetInt := int(budget)
-						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-							ThinkingBudget:  common.GetPointer(budgetInt),
-							IncludeThoughts: true,
+					var hasThinkingConfig bool
+					var tempThinkingConfig dto.GeminiThinkingConfig
+
+					if thinkingBudget, exists := thinkingConfig["thinking_budget"]; exists {
+						switch v := thinkingBudget.(type) {
+						case float64:
+							budgetInt := int(v)
+							tempThinkingConfig.ThinkingBudget = common.GetPointer(budgetInt)
+							if budgetInt > 0 {
+								// 有正数预算
+								tempThinkingConfig.IncludeThoughts = true
+							} else {
+								// 存在但为0或负数，禁用思考
+								tempThinkingConfig.IncludeThoughts = false
+							}
+							hasThinkingConfig = true
+						default:
+							return nil, errors.New("extra_body.google.thinking_config.thinking_budget must be an integer")
 						}
-					} else {
-						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-							IncludeThoughts: true,
+					}
+
+					if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
+						if v, ok := includeThoughts.(bool); ok {
+							tempThinkingConfig.IncludeThoughts = v
+							hasThinkingConfig = true
+						} else {
+							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
+						}
+					}
+					if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
+						if v, ok := thinkingLevel.(string); ok {
+							tempThinkingConfig.ThinkingLevel = v
+							hasThinkingConfig = true
+						} else {
+							return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
+						}
+					}
+
+					if hasThinkingConfig {
+						// 避免 panic: 仅在获得配置时分配，防止后续赋值时空指针
+						if geminiRequest.GenerationConfig.ThinkingConfig == nil {
+							geminiRequest.GenerationConfig.ThinkingConfig = &tempThinkingConfig
+						} else {
+							// 如果已分配，则合并内容
+							if tempThinkingConfig.ThinkingBudget != nil {
+								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = tempThinkingConfig.ThinkingBudget
+							}
+							geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = tempThinkingConfig.IncludeThoughts
+							if tempThinkingConfig.ThinkingLevel != "" {
+								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = tempThinkingConfig.ThinkingLevel
+							}
 						}
 					}
 				}
+			}
 
-				// check error param name like imageConfig, should be image_config
-				if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+			// check error param name like imageConfig, should be image_config
+			if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
+				return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+			}
+
+			if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
+				// check error param name like aspectRatio, should be aspect_ratio
+				if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
+				}
+				// check error param name like imageSize, should be image_size
+				if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
 				}
 
-				if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
-					// check error param name like aspectRatio, should be aspect_ratio
-					if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
-					}
-					// check error param name like imageSize, should be image_size
-					if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
-					}
+				// convert snake_case to camelCase for Gemini API
+				geminiImageConfig := make(map[string]interface{})
+				if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
+					geminiImageConfig["aspectRatio"] = aspectRatio
+				}
+				if imageSize, ok := imageConfig["image_size"]; ok {
+					geminiImageConfig["imageSize"] = imageSize
+				}
 
-					// convert snake_case to camelCase for Gemini API
-					geminiImageConfig := make(map[string]interface{})
-					if aspectRatio, ok := imageConfig["aspect_ratio"]; ok {
-						geminiImageConfig["aspectRatio"] = aspectRatio
+				if len(geminiImageConfig) > 0 {
+					imageConfigBytes, err := common.Marshal(geminiImageConfig)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal image_config: %w", err)
 					}
-					if imageSize, ok := imageConfig["image_size"]; ok {
-						geminiImageConfig["imageSize"] = imageSize
-					}
-
-					if len(geminiImageConfig) > 0 {
-						imageConfigBytes, err := common.Marshal(geminiImageConfig)
-						if err != nil {
-							return nil, fmt.Errorf("failed to marshal image_config: %w", err)
-						}
-						geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
-					}
+					geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
 				}
 			}
 		}
@@ -359,6 +409,13 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 			})
 		}
 		geminiRequest.SetTools(geminiTools)
+
+		// [NEW] Convert OpenAI tool_choice to Gemini toolConfig.functionCallingConfig
+		// Mapping: "auto" -> "AUTO", "none" -> "NONE", "required" -> "ANY"
+		// Object format: {"type": "function", "function": {"name": "xxx"}} -> "ANY" + allowedFunctionNames
+		if textRequest.ToolChoice != nil {
+			geminiRequest.ToolConfig = convertToolChoiceToGeminiConfig(textRequest.ToolChoice)
+		}
 	}
 
 	if textRequest.ResponseFormat != nil && (textRequest.ResponseFormat.Type == "json_schema" || textRequest.ResponseFormat.Type == "json_object") {
@@ -452,7 +509,6 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 		}
 
 		openaiContent := message.ParseContent()
-		imageNum := 0
 		for _, part := range openaiContent {
 			if part.Type == dto.ContentTypeText {
 				if part.Text == "" {
@@ -493,10 +549,6 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					}
 					// 提取 data URL (从 "](" 后面开始，到 ")" 之前)
 					dataUrl := text[bracketIdx+2 : closeIdx]
-					imageNum += 1
-					if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
-						return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
-					}
 					format, base64String, err := service.DecodeBase64FileData(dataUrl)
 					if err != nil {
 						return nil, fmt.Errorf("decode markdown base64 image data failed: %s", err.Error())
@@ -521,69 +573,58 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					})
 				}
 			} else if part.Type == dto.ContentTypeImageURL {
-				imageNum += 1
-
-				if constant.GeminiVisionMaxImageNum != -1 && imageNum > constant.GeminiVisionMaxImageNum {
-					return nil, fmt.Errorf("too many images in the message, max allowed is %d", constant.GeminiVisionMaxImageNum)
-				}
-				// 判断是否是url
-				if strings.HasPrefix(part.GetImageMedia().Url, "http") {
-					// 是url，获取文件的类型和base64编码的数据
-					fileData, err := service.GetFileBase64FromUrl(c, part.GetImageMedia().Url, "formatting image for Gemini")
-					if err != nil {
-						return nil, fmt.Errorf("get file base64 from url '%s' failed: %w", part.GetImageMedia().Url, err)
-					}
-
-					// 校验 MimeType 是否在 Gemini 支持的白名单中
-					if _, ok := geminiSupportedMimeTypes[strings.ToLower(fileData.MimeType)]; !ok {
-						url := part.GetImageMedia().Url
-						return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", fileData.MimeType, url, getSupportedMimeTypesList())
-					}
-
-					parts = append(parts, dto.GeminiPart{
-						InlineData: &dto.GeminiInlineData{
-							MimeType: fileData.MimeType, // 使用原始的 MimeType，因为大小写可能对API有意义
-							Data:     fileData.Base64Data,
-						},
-					})
+				// 使用统一的文件服务获取图片数据
+				var source *types.FileSource
+				imageUrl := part.GetImageMedia().Url
+				if strings.HasPrefix(imageUrl, "http") {
+					source = types.NewURLFileSource(imageUrl)
 				} else {
-					format, base64String, err := service.DecodeBase64FileData(part.GetImageMedia().Url)
-					if err != nil {
-						return nil, fmt.Errorf("decode base64 image data failed: %s", err.Error())
-					}
-					parts = append(parts, dto.GeminiPart{
-						InlineData: &dto.GeminiInlineData{
-							MimeType: format,
-							Data:     base64String,
-						},
-					})
+					source = types.NewBase64FileSource(imageUrl, "")
 				}
+				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
+				if err != nil {
+					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+				}
+
+				// 校验 MimeType 是否在 Gemini 支持的白名单中
+				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
+					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+				}
+
+				parts = append(parts, dto.GeminiPart{
+					InlineData: &dto.GeminiInlineData{
+						MimeType: mimeType,
+						Data:     base64Data,
+					},
+				})
 			} else if part.Type == dto.ContentTypeFile {
 				if part.GetFile().FileId != "" {
 					return nil, fmt.Errorf("only base64 file is supported in gemini")
 				}
-				format, base64String, err := service.DecodeBase64FileData(part.GetFile().FileData)
+				fileSource := types.NewBase64FileSource(part.GetFile().FileData, "")
+				base64Data, mimeType, err := service.GetBase64Data(c, fileSource, "formatting file for Gemini")
 				if err != nil {
 					return nil, fmt.Errorf("decode base64 file data failed: %s", err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
-						MimeType: format,
-						Data:     base64String,
+						MimeType: mimeType,
+						Data:     base64Data,
 					},
 				})
 			} else if part.Type == dto.ContentTypeInputAudio {
 				if part.GetInputAudio().Data == "" {
 					return nil, fmt.Errorf("only base64 audio is supported in gemini")
 				}
-				base64String, err := service.DecodeBase64AudioData(part.GetInputAudio().Data)
+				audioSource := types.NewBase64FileSource(part.GetInputAudio().Data, "audio/"+part.GetInputAudio().Format)
+				base64Data, mimeType, err := service.GetBase64Data(c, audioSource, "formatting audio for Gemini")
 				if err != nil {
 					return nil, fmt.Errorf("decode base64 audio data failed: %s", err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
-						MimeType: "audio/" + part.GetInputAudio().Format,
-						Data:     base64String,
+						MimeType: mimeType,
+						Data:     base64Data,
 					},
 				})
 			}
@@ -622,6 +663,31 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	}
 
 	return &geminiRequest, nil
+}
+
+// parseStopSequences 解析停止序列，支持字符串或字符串数组
+func parseStopSequences(stop any) []string {
+	if stop == nil {
+		return nil
+	}
+
+	switch v := stop.(type) {
+	case string:
+		if v != "" {
+			return []string{v}
+		}
+	case []string:
+		return v
+	case []interface{}:
+		sequences := make([]string, 0, len(v))
+		for _, item := range v {
+			if str, ok := item.(string); ok && str != "" {
+				sequences = append(sequences, str)
+			}
+		}
+		return sequences
+	}
+	return nil
 }
 
 func hasFunctionCallContent(call *dto.FunctionCall) bool {
@@ -949,11 +1015,9 @@ func unescapeMapOrSlice(data interface{}) interface{} {
 func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	var argsBytes []byte
 	var err error
-	if result, ok := item.FunctionCall.Arguments.(map[string]interface{}); ok {
-		argsBytes, err = json.Marshal(unescapeMapOrSlice(result))
-	} else {
-		argsBytes, err = json.Marshal(item.FunctionCall.Arguments)
-	}
+	// 移除 unescapeMapOrSlice 调用，直接使用 json.Marshal
+	// JSON 序列化/反序列化已经正确处理了转义字符
+	argsBytes, err = json.Marshal(item.FunctionCall.Arguments)
 
 	if err != nil {
 		return nil
@@ -1031,6 +1095,24 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 				choice.FinishReason = constant.FinishReasonStop
 			case "MAX_TOKENS":
 				choice.FinishReason = constant.FinishReasonLength
+			case "SAFETY":
+				// Safety filter triggered
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "RECITATION":
+				// Recitation (citation) detected
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "BLOCKLIST":
+				// Blocklist triggered
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "PROHIBITED_CONTENT":
+				// Prohibited content detected
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "SPII":
+				// Sensitive personally identifiable information
+				choice.FinishReason = constant.FinishReasonContentFilter
+			case "OTHER":
+				// Other reasons
+				choice.FinishReason = constant.FinishReasonContentFilter
 			default:
 				choice.FinishReason = constant.FinishReasonContentFilter
 			}
@@ -1062,13 +1144,34 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		isTools := false
 		isThought := false
 		if candidate.FinishReason != nil {
-			// p := GeminiConvertFinishReason(*candidate.FinishReason)
+			// Map Gemini FinishReason to OpenAI finish_reason
 			switch *candidate.FinishReason {
 			case "STOP":
+				// Normal completion
 				choice.FinishReason = &constant.FinishReasonStop
 			case "MAX_TOKENS":
+				// Reached maximum token limit
 				choice.FinishReason = &constant.FinishReasonLength
+			case "SAFETY":
+				// Safety filter triggered
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "RECITATION":
+				// Recitation (citation) detected
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "BLOCKLIST":
+				// Blocklist triggered
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "PROHIBITED_CONTENT":
+				// Prohibited content detected
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "SPII":
+				// Sensitive personally identifiable information
+				choice.FinishReason = &constant.FinishReasonContentFilter
+			case "OTHER":
+				// Other reasons
+				choice.FinishReason = &constant.FinishReasonContentFilter
 			default:
+				// Unknown reason, treat as content filter
 				choice.FinishReason = &constant.FinishReasonContentFilter
 			}
 		}
@@ -1151,6 +1254,10 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			return false
 		}
 
+		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+		}
+
 		// 统计图片数量
 		for _, candidate := range geminiResponse.Candidates {
 			for _, part := range candidate.Content.Parts {
@@ -1169,6 +1276,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			usage.CompletionTokens = geminiResponse.UsageMetadata.CandidatesTokenCount + geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 			usage.TotalTokens = geminiResponse.UsageMetadata.TotalTokenCount
+			usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
 			for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
 				if detail.Modality == "AUDIO" {
 					usage.PromptTokensDetails.AudioTokens = detail.TokenCount
@@ -1193,8 +1301,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 
 	if usage.CompletionTokens <= 0 {
-		str := responseText.String()
-		if len(str) > 0 {
+		if info.ReceivedResponseCount > 0 {
 			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		} else {
 			usage = &dto.Usage{}
@@ -1309,12 +1416,53 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(geminiResponse.Candidates) == 0 {
-		//return nil, types.NewOpenAIError(errors.New("no candidates returned"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-		//if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-		//	return nil, types.NewOpenAIError(errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason), types.ErrorCodePromptBlocked, http.StatusBadRequest)
-		//} else {
-		//	return nil, types.NewOpenAIError(errors.New("empty response from Gemini API"), types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
-		//}
+		usage := dto.Usage{
+			PromptTokens: geminiResponse.UsageMetadata.PromptTokenCount,
+		}
+		usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+		usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
+		for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
+			if detail.Modality == "AUDIO" {
+				usage.PromptTokensDetails.AudioTokens = detail.TokenCount
+			} else if detail.Modality == "TEXT" {
+				usage.PromptTokensDetails.TextTokens = detail.TokenCount
+			}
+		}
+		if usage.PromptTokens <= 0 {
+			usage.PromptTokens = info.GetEstimatePromptTokens()
+		}
+
+		var newAPIError *types.NewAPIError
+		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			newAPIError = types.NewOpenAIError(
+				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
+				types.ErrorCodePromptBlocked,
+				http.StatusBadRequest,
+			)
+		} else {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
+			newAPIError = types.NewOpenAIError(
+				errors.New("empty response from Gemini API"),
+				types.ErrorCodeEmptyResponse,
+				http.StatusInternalServerError,
+			)
+		}
+
+		service.ResetStatusCode(newAPIError, c.GetString("status_code_mapping"))
+
+		switch info.RelayFormat {
+		case types.RelayFormatClaude:
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"type":  "error",
+				"error": newAPIError.ToClaudeError(),
+			})
+		default:
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+		return &usage, nil
 	}
 	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
@@ -1325,6 +1473,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 
 	usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
+	usage.PromptTokensDetails.CachedTokens = geminiResponse.UsageMetadata.CachedContentTokenCount
 	usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
 
 	for _, detail := range geminiResponse.UsageMetadata.PromptTokensDetails {
@@ -1529,4 +1678,63 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 	}
 
 	return allModels, nil
+}
+
+// convertToolChoiceToGeminiConfig converts OpenAI tool_choice to Gemini toolConfig
+// OpenAI tool_choice values:
+//   - "auto": Let the model decide (default)
+//   - "none": Don't call any tools
+//   - "required": Must call at least one tool
+//   - {"type": "function", "function": {"name": "xxx"}}: Call specific function
+//
+// Gemini functionCallingConfig.mode values:
+//   - "AUTO": Model decides whether to call functions
+//   - "NONE": Model won't call functions
+//   - "ANY": Model must call at least one function
+func convertToolChoiceToGeminiConfig(toolChoice any) *dto.ToolConfig {
+	if toolChoice == nil {
+		return nil
+	}
+
+	// Handle string values: "auto", "none", "required"
+	if toolChoiceStr, ok := toolChoice.(string); ok {
+		config := &dto.ToolConfig{
+			FunctionCallingConfig: &dto.FunctionCallingConfig{},
+		}
+		switch toolChoiceStr {
+		case "auto":
+			config.FunctionCallingConfig.Mode = "AUTO"
+		case "none":
+			config.FunctionCallingConfig.Mode = "NONE"
+		case "required":
+			config.FunctionCallingConfig.Mode = "ANY"
+		default:
+			// Unknown string value, default to AUTO
+			config.FunctionCallingConfig.Mode = "AUTO"
+		}
+		return config
+	}
+
+	// Handle object value: {"type": "function", "function": {"name": "xxx"}}
+	if toolChoiceMap, ok := toolChoice.(map[string]interface{}); ok {
+		if toolChoiceMap["type"] == "function" {
+			config := &dto.ToolConfig{
+				FunctionCallingConfig: &dto.FunctionCallingConfig{
+					Mode: "ANY",
+				},
+			}
+			// Extract function name if specified
+			if function, ok := toolChoiceMap["function"].(map[string]interface{}); ok {
+				if name, ok := function["name"].(string); ok && name != "" {
+					config.FunctionCallingConfig.AllowedFunctionNames = []string{name}
+				}
+			}
+			return config
+		}
+		// Unsupported map structure (type is not "function"), return nil
+		return nil
+	}
+
+	// Unsupported type, return nil
+	return nil
 }

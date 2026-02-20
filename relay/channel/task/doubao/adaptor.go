@@ -30,6 +30,7 @@ type ContentItem struct {
 	Text     string          `json:"text,omitempty"`      // for text type
 	ImageURL *ImageURL       `json:"image_url,omitempty"` // for image_url type
 	Video    *VideoReference `json:"video,omitempty"`     // for video (sample) type
+	Role     string          `json:"role,omitempty"`      // reference_image / first_frame / last_frame
 }
 
 type ImageURL struct {

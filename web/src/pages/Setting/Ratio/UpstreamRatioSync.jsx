@@ -154,14 +154,20 @@ export default function UpstreamRatioSync(props) {
             const id = channel.key;
             const base = channel._originalData?.base_url || '';
             const name = channel.label || '';
+            const channelType = channel._originalData?.type;
             const isOfficial =
               id === -100 ||
               base === 'https://basellm.github.io' ||
               name === '官方倍率预设';
+            const isOpenRouter = channelType === 20;
             if (!merged[id]) {
-              merged[id] = isOfficial
-                ? '/llm-metadata/api/newapi/ratio_config-v1-base.json'
-                : DEFAULT_ENDPOINT;
+              if (isOfficial) {
+                merged[id] = '/llm-metadata/api/newapi/ratio_config-v1-base.json';
+              } else if (isOpenRouter) {
+                merged[id] = 'openrouter';
+              } else {
+                merged[id] = DEFAULT_ENDPOINT;
+              }
             }
           });
           return merged;
@@ -652,7 +658,7 @@ export default function UpstreamRatioSync(props) {
             color={text !== null && text !== undefined ? 'blue' : 'default'}
             shape='circle'
           >
-            {text !== null && text !== undefined ? text : t('未设置')}
+            {text !== null && text !== undefined ? String(text) : t('未设置')}
           </Tag>
         ),
       },
@@ -774,7 +780,7 @@ export default function UpstreamRatioSync(props) {
                     }
                   }}
                 >
-                  {upstreamVal}
+                  {String(upstreamVal)}
                 </Checkbox>
                 {!isConfident && (
                   <Tooltip

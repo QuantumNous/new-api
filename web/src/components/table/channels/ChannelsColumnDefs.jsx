@@ -109,7 +109,9 @@ const renderType = (type, record = {}, t) => {
       <Tooltip
         content={
           <div className='max-w-xs'>
-            <div className='text-xs text-gray-600'>{t('来源于 IO.NET 部署')}</div>
+            <div className='text-xs text-gray-600'>
+              {t('来源于 IO.NET 部署')}
+            </div>
             {ionetMeta?.deployment_id && (
               <div className='text-xs text-gray-500 mt-1'>
                 {t('部署 ID')}: {ionetMeta.deployment_id}

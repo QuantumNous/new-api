@@ -68,4 +68,3 @@ export default function HttpStatusCodeRulesInput(props) {
     </>
   );
 }
-

@@ -42,10 +42,14 @@ import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
 import { UserPlus, ShieldCheck } from 'lucide-react';
 import TelegramLoginButton from 'react-telegram-login';
 import {
+  API,
+  showError,
+  showSuccess,
   onGitHubOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
+  onCustomOAuthClicked,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
 
@@ -94,6 +98,68 @@ const AccountManagement = ({
   const isBound = (accountId) => Boolean(accountId);
   const [showTelegramBindModal, setShowTelegramBindModal] =
     React.useState(false);
+  const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
+  const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
+
+  // Fetch custom OAuth bindings
+  const loadCustomOAuthBindings = async () => {
+    try {
+      const res = await API.get('/api/user/oauth/bindings');
+      if (res.data.success) {
+        setCustomOAuthBindings(res.data.data || []);
+      } else {
+        showError(res.data.message || t('获取绑定信息失败'));
+      }
+    } catch (error) {
+      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+    }
+  };
+
+  // Unbind custom OAuth provider
+  const handleUnbindCustomOAuth = async (providerId, providerName) => {
+    Modal.confirm({
+      title: t('确认解绑'),
+      content: t('确定要解绑 {{name}} 吗？', { name: providerName }),
+      okText: t('确认'),
+      cancelText: t('取消'),
+      onOk: async () => {
+        setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
+        try {
+          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          if (res.data.success) {
+            showSuccess(t('解绑成功'));
+            await loadCustomOAuthBindings();
+          } else {
+            showError(res.data.message);
+          }
+        } catch (error) {
+          showError(error.response?.data?.message || error.message || t('操作失败'));
+        } finally {
+          setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
+        }
+      },
+    });
+  };
+
+  // Handle bind custom OAuth
+  const handleBindCustomOAuth = (provider) => {
+    onCustomOAuthClicked(provider);
+  };
+
+  // Check if custom OAuth provider is bound
+  const isCustomOAuthBound = (providerId) => {
+    return customOAuthBindings.some((b) => b.provider_id === providerId);
+  };
+
+  // Get binding info for a provider
+  const getCustomOAuthBinding = (providerId) => {
+    return customOAuthBindings.find((b) => b.provider_id === providerId);
+  };
+
+  React.useEffect(() => {
+    loadCustomOAuthBindings();
+  }, []);
+
   const passkeyEnabled = passkeyStatus?.enabled;
   const lastUsedLabel = passkeyStatus?.last_used_at
     ? new Date(passkeyStatus.last_used_at).toLocaleString()
@@ -447,6 +513,64 @@ const AccountManagement = ({
                   </div>
                 </div>
               </Card>
+
+              {/* 自定义 OAuth 提供商绑定 */}
+              {status.custom_oauth_providers &&
+                status.custom_oauth_providers.map((provider) => {
+                  const bound = isCustomOAuthBound(provider.id);
+                  const binding = getCustomOAuthBinding(provider.id);
+                  return (
+                    <Card key={provider.slug} className='!rounded-xl'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <div className='flex items-center flex-1 min-w-0'>
+                          <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                            <IconLock
+                              size='default'
+                              className='text-slate-600 dark:text-slate-300'
+                            />
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <div className='font-medium text-gray-900'>
+                              {provider.name}
+                            </div>
+                            <div className='text-sm text-gray-500 truncate'>
+                              {bound
+                                ? renderAccountInfo(
+                                    binding?.provider_user_id,
+                                    t('{{name}} ID', { name: provider.name }),
+                                  )
+                                : t('未绑定')}
+                            </div>
+                          </div>
+                        </div>
+                        <div className='flex-shrink-0'>
+                          {bound ? (
+                            <Button
+                              type='danger'
+                              theme='outline'
+                              size='small'
+                              loading={customOAuthLoading[provider.id]}
+                              onClick={() =>
+                                handleUnbindCustomOAuth(provider.id, provider.name)
+                              }
+                            >
+                              {t('解绑')}
+                            </Button>
+                          ) : (
+                            <Button
+                              type='primary'
+                              theme='outline'
+                              size='small'
+                              onClick={() => handleBindCustomOAuth(provider)}
+                            >
+                              {t('绑定')}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
             </div>
           </div>
         </TabPane>

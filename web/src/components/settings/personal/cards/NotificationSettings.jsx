@@ -446,7 +446,7 @@ const NotificationSettings = ({
                   onChange={(val) => handleFormChange('warningThreshold', val)}
                   prefix={<IconBell />}
                   extraText={t(
-                    '当剩余额度低于此数值时，系统将通过选择的方式发送通知',
+                    '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
                   )}
                   style={{ width: '100%', maxWidth: '300px' }}
                   rules={[

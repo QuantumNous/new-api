@@ -191,10 +191,7 @@ const DebugPanel = ({
             itemKey='response'
           >
             {debugData.sseMessages && debugData.sseMessages.length > 0 ? (
-              <SSEViewer
-                sseData={debugData.sseMessages}
-                title='response'
-              />
+              <SSEViewer sseData={debugData.sseMessages} title='response' />
             ) : (
               <CodeViewer
                 content={debugData.response}
