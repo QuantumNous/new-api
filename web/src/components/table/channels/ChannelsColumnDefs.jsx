@@ -37,6 +37,7 @@ import {
   renderQuotaWithAmount,
   showSuccess,
   showError,
+  showInfo,
 } from '../../../helpers';
 import { CHANNEL_OPTIONS } from '../../../constants';
 import {
@@ -270,6 +271,29 @@ const isRequestPassThroughEnabled = (record) => {
   }
 };
 
+const getUpstreamUpdateMeta = (record) => {
+  if (!record || record.children !== undefined) {
+    return { enabled: false, pendingModels: [] };
+  }
+  if (!record.settings || typeof record.settings !== 'string') {
+    return { enabled: false, pendingModels: [] };
+  }
+  try {
+    const parsed = JSON.parse(record.settings);
+    const enabled = parsed?.upstream_model_update_check_enabled === true;
+    const pendingModels = Array.from(
+      new Set(
+        (parsed?.upstream_model_update_last_detected_models || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    return { enabled, pendingModels };
+  } catch (error) {
+    return { enabled: false, pendingModels: [] };
+  }
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -291,6 +315,7 @@ export const getChannelsColumns = ({
   checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
+  openUpstreamUpdateModal,
 }) => {
   return [
     {
@@ -304,6 +329,10 @@ export const getChannelsColumns = ({
       dataIndex: 'name',
       render: (text, record, index) => {
         const passThroughEnabled = isRequestPassThroughEnabled(record);
+        const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
+        const showUpstreamUpdateTag =
+          upstreamUpdateMeta.enabled &&
+          upstreamUpdateMeta.pendingModels.length > 0;
         const nameNode =
           record.remark && record.remark.trim() !== '' ? (
             <Tooltip
@@ -339,26 +368,46 @@ export const getChannelsColumns = ({
             <span>{text}</span>
           );
 
-        if (!passThroughEnabled) {
+        if (!passThroughEnabled && !showUpstreamUpdateTag) {
           return nameNode;
         }
 
         return (
           <Space spacing={6} align='center'>
             {nameNode}
-            <Tooltip
-              content={t(
-                '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
-              )}
-              trigger='hover'
-              position='topLeft'
-            >
-              <span className='inline-flex items-center'>
-                <IconAlertTriangle
-                  style={{ color: 'var(--semi-color-warning)' }}
-                />
-              </span>
-            </Tooltip>
+            {passThroughEnabled && (
+              <Tooltip
+                content={t(
+                  '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+                )}
+                trigger='hover'
+                position='topLeft'
+              >
+                <span className='inline-flex items-center'>
+                  <IconAlertTriangle
+                    style={{ color: 'var(--semi-color-warning)' }}
+                  />
+                </span>
+              </Tooltip>
+            )}
+            {showUpstreamUpdateTag && (
+              <Tag
+                color='orange'
+                type='light'
+                className='cursor-pointer'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openUpstreamUpdateModal(
+                    record,
+                    upstreamUpdateMeta.pendingModels,
+                  );
+                }}
+              >
+                {t('模型更新 {{count}}', {
+                  count: upstreamUpdateMeta.pendingModels.length,
+                })}
+              </Tag>
+            )}
           </Space>
         );
       },
@@ -618,6 +667,23 @@ export const getChannelsColumns = ({
                   content: t('复制渠道的所有信息'),
                   onOk: () => copySelectedChannel(record),
                 });
+              },
+            },
+            {
+              node: 'item',
+              name: t('处理上游模型更新'),
+              type: 'tertiary',
+              onClick: () => {
+                const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
+                if (!upstreamUpdateMeta.enabled) {
+                  showInfo(t('该渠道未开启上游模型更新检测'));
+                  return;
+                }
+                if (upstreamUpdateMeta.pendingModels.length === 0) {
+                  showInfo(t('该渠道暂无可处理的上游模型更新'));
+                  return;
+                }
+                openUpstreamUpdateModal(record, upstreamUpdateMeta.pendingModels);
               },
             },
           ];

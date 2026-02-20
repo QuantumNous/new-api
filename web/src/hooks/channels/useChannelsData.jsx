@@ -115,6 +115,9 @@ export const useChannelsData = () => {
   // Multi-key management states
   const [showMultiKeyManageModal, setShowMultiKeyManageModal] = useState(false);
   const [currentMultiKeyChannel, setCurrentMultiKeyChannel] = useState(null);
+  const [showUpstreamUpdateModal, setShowUpstreamUpdateModal] = useState(false);
+  const [upstreamUpdateChannel, setUpstreamUpdateChannel] = useState(null);
+  const [upstreamUpdateModels, setUpstreamUpdateModels] = useState([]);
 
   // Refs
   const requestCounter = useRef(0);
@@ -645,6 +648,94 @@ export const useChannelsData = () => {
   // Close edit
   const closeEdit = () => {
     setShowEdit(false);
+  };
+
+  const openUpstreamUpdateModal = (record, pendingModels = []) => {
+    const normalizedModels = Array.from(
+      new Set(
+        (pendingModels || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (!record?.id || normalizedModels.length === 0) {
+      showInfo(t('暂无可加入的上游模型更新'));
+      return;
+    }
+    setUpstreamUpdateChannel(record);
+    setUpstreamUpdateModels(normalizedModels);
+    setShowUpstreamUpdateModal(true);
+  };
+
+  const closeUpstreamUpdateModal = () => {
+    setShowUpstreamUpdateModal(false);
+    setUpstreamUpdateChannel(null);
+    setUpstreamUpdateModels([]);
+  };
+
+  const applyUpstreamUpdates = async (selectedModels = []) => {
+    if (!upstreamUpdateChannel?.id) {
+      closeUpstreamUpdateModal();
+      return;
+    }
+
+    const normalizedSelected = Array.from(
+      new Set(
+        (selectedModels || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    const selectedSet = new Set(normalizedSelected);
+    const ignoreModels = upstreamUpdateModels.filter(
+      (model) => !selectedSet.has(model),
+    );
+
+    const res = await API.post('/api/channel/upstream_updates/apply', {
+      id: upstreamUpdateChannel.id,
+      add_models: normalizedSelected,
+      ignore_models: ignoreModels,
+    });
+    const { success, message, data } = res.data || {};
+    if (!success) {
+      showError(message || t('操作失败'));
+      return;
+    }
+
+    const addedCount = data?.added_models?.length || 0;
+    const ignoredCount = data?.ignored_models?.length || 0;
+    showSuccess(
+      t('已处理上游模型更新：加入 {{added}} 个，忽略 {{ignored}} 个', {
+        added: addedCount,
+        ignored: ignoredCount,
+      }),
+    );
+    closeUpstreamUpdateModal();
+    await refresh();
+  };
+
+  const applyAllUpstreamUpdates = async () => {
+    const res = await API.post('/api/channel/upstream_updates/apply_all');
+    const { success, message, data } = res.data || {};
+    if (!success) {
+      showError(message || t('批量处理失败'));
+      return;
+    }
+
+    const channelCount = data?.processed_channels || 0;
+    const modelCount = data?.added_models || 0;
+    const failedCount = (data?.failed_channel_ids || []).length;
+    showSuccess(
+      t(
+        '已批量处理上游模型更新：渠道 {{channels}} 个，加入模型 {{models}} 个，失败 {{fails}} 个',
+        {
+          channels: channelCount,
+          models: modelCount,
+          fails: failedCount,
+        },
+      ),
+    );
+    await refresh();
   };
 
   // Row style
@@ -1194,6 +1285,10 @@ export const useChannelsData = () => {
     setShowMultiKeyManageModal,
     currentMultiKeyChannel,
     setCurrentMultiKeyChannel,
+    showUpstreamUpdateModal,
+    setShowUpstreamUpdateModal,
+    upstreamUpdateChannel,
+    upstreamUpdateModels,
 
     // Form
     formApi,
@@ -1216,6 +1311,10 @@ export const useChannelsData = () => {
     updateChannelProperty,
     submitTagEdit,
     closeEdit,
+    openUpstreamUpdateModal,
+    closeUpstreamUpdateModal,
+    applyUpstreamUpdates,
+    applyAllUpstreamUpdates,
     handleRow,
     batchSetChannelTag,
     batchDeleteChannels,
