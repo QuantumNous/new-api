@@ -2956,6 +2956,32 @@ const EditChannelModal = (props) => {
                       }
                     />
 
+                    {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
+                      <>
+                        <Form.Switch
+                          field='upstream_model_update_check_enabled'
+                          label={t('是否检测上游模型更新')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'upstream_model_update_check_enabled',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            '开启后由后端定时任务检测该渠道上游模型变化',
+                          )}
+                        />
+                        <div className='text-xs text-gray-500 mb-2'>
+                          {t('上次检测时间')}:&nbsp;
+                          {formatUnixTime(
+                            inputs.upstream_model_update_last_check_time,
+                          )}
+                        </div>
+                      </>
+                    )}
+
                     <Form.Input
                       field='test_model'
                       label={t('默认测试模型')}
@@ -3106,22 +3132,6 @@ const EditChannelModal = (props) => {
                     />
 
                     <Form.Switch
-                      field='upstream_model_update_check_enabled'
-                      label={t('是否检测上游模型更新')}
-                      checkedText={t('开')}
-                      uncheckedText={t('关')}
-                      onChange={(value) =>
-                        handleChannelOtherSettingsChange(
-                          'upstream_model_update_check_enabled',
-                          value,
-                        )
-                      }
-                      extraText={t(
-                        '开启后由后端定时任务检测该渠道上游模型变化',
-                      )}
-                    />
-
-                    <Form.Switch
                       field='upstream_model_update_auto_sync_enabled'
                       label={t('是否自动同步上游模型更新')}
                       checkedText={t('开')}
@@ -3151,12 +3161,6 @@ const EditChannelModal = (props) => {
                       showClear
                     />
 
-                    <div className='text-xs text-gray-500 mb-2'>
-                      {t('上次检测时间')}:&nbsp;
-                      {formatUnixTime(
-                        inputs.upstream_model_update_last_check_time,
-                      )}
-                    </div>
                     <div className='text-xs text-gray-500 mb-3 break-all'>
                       {t('上次检测到可加入模型')}:&nbsp;
                       {(inputs.upstream_model_update_last_detected_models ||
