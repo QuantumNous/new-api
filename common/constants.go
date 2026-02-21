@@ -160,6 +160,7 @@ var (
 var (
 	GlobalApiRateLimitEnable   bool
 	GlobalApiRateLimitNum      int
+	GlobalApiVideoRateLimitNum int
 	GlobalApiRateLimitDuration int64
 
 	GlobalWebRateLimitEnable   bool
