@@ -191,4 +191,25 @@ export const CHANNEL_OPTIONS = [
   },
 ];
 
+export const CHANNEL_SUPPORTED_ENDPOINT_OPTIONS = [
+  {
+    value: 'openai',
+    label: 'OpenAI (/v1/chat/completions, /v1/completions, /v1/moderations, /v1/audio/*)',
+  },
+  { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
+  {
+    value: 'openai-response-compact',
+    label: 'OpenAI Responses Compact (/v1/responses/compact)',
+  },
+  { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+  { value: 'gemini', label: 'Gemini (/v1beta/models/*, /v1/models/*)' },
+  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+  { value: 'jina-rerank', label: 'Rerank (/v1/rerank)' },
+  {
+    value: 'image-generation',
+    label: 'Images (/v1/images/generations, /v1/images/edits, /v1/edits)',
+  },
+  { value: 'openai-video', label: 'Video (/v1/videos, /v1/video/generations)' },
+];
+
 export const MODEL_TABLE_PAGE_SIZE = 10;

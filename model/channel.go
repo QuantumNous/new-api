@@ -35,6 +35,7 @@ type Channel struct {
 	Balance            float64 `json:"balance"` // in USD
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
 	Models             string  `json:"models"`
+	SupportedEndpoints string  `json:"supported_endpoints" gorm:"type:varchar(1024);default:''"` // 支持的端点类型，逗号分隔，空值表示全部支持
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
@@ -198,6 +199,39 @@ func (channel *Channel) GetModels() []string {
 		return []string{}
 	}
 	return strings.Split(strings.Trim(channel.Models, ","), ",")
+}
+
+func (channel *Channel) GetSupportedEndpointTypes() []constant.EndpointType {
+	if strings.TrimSpace(channel.SupportedEndpoints) == "" {
+		return []constant.EndpointType{}
+	}
+	raw := strings.Split(channel.SupportedEndpoints, ",")
+	endpoints := make([]constant.EndpointType, 0, len(raw))
+	seen := make(map[constant.EndpointType]struct{}, len(raw))
+	for _, item := range raw {
+		endpoint := constant.EndpointType(strings.TrimSpace(item))
+		if endpoint == "" {
+			continue
+		}
+		if _, ok := seen[endpoint]; ok {
+			continue
+		}
+		seen[endpoint] = struct{}{}
+		endpoints = append(endpoints, endpoint)
+	}
+	return endpoints
+}
+
+func (channel *Channel) SupportsEndpointType(endpointType constant.EndpointType) bool {
+	if endpointType == "" {
+		return true
+	}
+	supported := channel.GetSupportedEndpointTypes()
+	// Empty means fully compatible with all endpoints.
+	if len(supported) == 0 {
+		return true
+	}
+	return lo.Contains(supported, endpointType)
 }
 
 func (channel *Channel) GetGroups() []string {

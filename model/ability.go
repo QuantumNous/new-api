@@ -3,10 +3,12 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -103,44 +105,98 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, endpointType constant.EndpointType) (*Channel, error) {
 	var abilities []Ability
 
-	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").
+		Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
-	if err != nil {
-		return nil, err
-	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(abilities) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	channelIDSet := make(map[int]struct{}, len(abilities))
+	channelIDs := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		if _, exists := channelIDSet[ability.ChannelId]; exists {
+			continue
+		}
+		channelIDSet[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+
+	channels, err := GetChannelsByIds(channelIDs)
+	if err != nil {
+		return nil, err
+	}
+	channelMap := make(map[int]*Channel, len(channels))
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		channelMap[channel.Id] = channel
+	}
+
+	candidates := make([]Ability, 0, len(abilities))
+	priorityBuckets := make(map[int64][]Ability)
+	uniquePriorities := make(map[int64]struct{})
+	for _, ability := range abilities {
+		channel, ok := channelMap[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		if !channel.SupportsEndpointType(endpointType) {
+			continue
+		}
+		candidates = append(candidates, ability)
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		uniquePriorities[priority] = struct{}{}
+		priorityBuckets[priority] = append(priorityBuckets[priority], ability)
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	sortedPriorities := make([]int64, 0, len(uniquePriorities))
+	for priority := range uniquePriorities {
+		sortedPriorities = append(sortedPriorities, priority)
+	}
+	sort.Slice(sortedPriorities, func(i, j int) bool {
+		return sortedPriorities[i] > sortedPriorities[j]
+	})
+	if retry >= len(sortedPriorities) {
+		retry = len(sortedPriorities) - 1
+	}
+	targetPriority := sortedPriorities[retry]
+	candidates = priorityBuckets[targetPriority]
+
+	weightSum := uint(0)
+	for _, ability := range candidates {
+		weightSum += ability.Weight + 10
+	}
+	weight := common.GetRandomInt(int(weightSum))
+	selectedChannelID := 0
+	for _, ability := range candidates {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			selectedChannelID = ability.ChannelId
+			break
+		}
+	}
+	if selectedChannelID == 0 {
+		selectedChannelID = candidates[len(candidates)-1].ChannelId
+	}
+	channel, ok := channelMap[selectedChannelID]
+	if !ok {
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", selectedChannelID)
+	}
+	return channel, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

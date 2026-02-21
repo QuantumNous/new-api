@@ -27,7 +27,10 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS } from '../../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  CHANNEL_SUPPORTED_ENDPOINT_OPTIONS,
+} from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -145,6 +148,7 @@ const EditChannelModal = (props) => {
     model_mapping: '',
     status_code_mapping: '',
     models: [],
+    supported_endpoints: [],
     auto_ban: 1,
     test_model: '',
     groups: ['default'],
@@ -450,6 +454,9 @@ const EditChannelModal = (props) => {
     if (name === 'models' && Array.isArray(value)) {
       value = Array.from(new Set(value.map((m) => (m || '').trim())));
     }
+    if (name === 'supported_endpoints' && Array.isArray(value)) {
+      value = Array.from(new Set(value.map((v) => (v || '').trim())));
+    }
 
     if (name === 'base_url' && value.endsWith('/v1')) {
       Modal.confirm({
@@ -560,6 +567,14 @@ const EditChannelModal = (props) => {
         data.models = [];
       } else {
         data.models = data.models.split(',');
+      }
+      if (data.supported_endpoints === '') {
+        data.supported_endpoints = [];
+      } else {
+        data.supported_endpoints = (data.supported_endpoints || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
       }
       if (data.group === '') {
         data.groups = [];
@@ -1425,6 +1440,21 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
+    const normalizedSupportedEndpoints = Array.from(
+      new Set(
+        (localInputs.supported_endpoints || [])
+          .map((item) => (item || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (
+      normalizedSupportedEndpoints.length ===
+      CHANNEL_SUPPORTED_ENDPOINT_OPTIONS.length
+    ) {
+      localInputs.supported_endpoints = '';
+    } else {
+      localInputs.supported_endpoints = normalizedSupportedEndpoints.join(',');
+    }
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -2986,6 +3016,21 @@ const EditChannelModal = (props) => {
                       optionList={groupOptions}
                       style={{ width: '100%' }}
                       onChange={(value) => handleInputChange('groups', value)}
+                    />
+
+                    <Form.Select
+                      field='supported_endpoints'
+                      label={t('支持端点')}
+                      placeholder={t('不选择表示支持所有端点')}
+                      multiple
+                      optionList={CHANNEL_SUPPORTED_ENDPOINT_OPTIONS}
+                      style={{ width: '100%' }}
+                      onChange={(value) =>
+                        handleInputChange('supported_endpoints', value)
+                      }
+                      extraText={t(
+                        '限制该渠道可被哪些请求端点选中；为空表示全部支持',
+                      )}
                     />
 
                     <Form.Input

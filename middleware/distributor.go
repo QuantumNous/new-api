@@ -36,6 +36,7 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		endpointType := service.ResolveRequestEndpointType(c.Request.URL.Path, c.GetInt("relay_mode"))
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -49,6 +50,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if endpointType != "" && !channel.SupportsEndpointType(endpointType) {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("指定渠道不支持当前端点：%s", endpointType))
 				return
 			}
 		} else {
@@ -101,7 +106,7 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled && preferred.SupportsEndpointType(endpointType) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
@@ -124,10 +129,11 @@ func Distribute() func(c *gin.Context) {
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:          c,
+						ModelName:    modelRequest.Model,
+						TokenGroup:   usingGroup,
+						EndpointType: endpointType,
+						Retry:        common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup
@@ -341,6 +347,10 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	c.Set("original_model", modelName) // for retry
 	if channel == nil {
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	endpointType := service.ResolveRequestEndpointType(c.Request.URL.Path, c.GetInt("relay_mode"))
+	if endpointType != "" && !channel.SupportsEndpointType(endpointType) {
+		return types.NewError(fmt.Errorf("渠道 #%d 不支持端点 %s", channel.Id, endpointType), types.ErrorCodeGetChannelFailed)
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)

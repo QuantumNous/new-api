@@ -38,16 +38,39 @@ import {
   showSuccess,
   showError,
 } from '../../../helpers';
-import { CHANNEL_OPTIONS } from '../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  CHANNEL_SUPPORTED_ENDPOINT_OPTIONS,
+} from '../../../constants';
 import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
+  IconFilter,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
 const renderType = (type, record = {}, t) => {
+  const endpointLabelMap = CHANNEL_SUPPORTED_ENDPOINT_OPTIONS.reduce(
+    (acc, option) => {
+      acc[option.value] = option.label;
+      return acc;
+    },
+    {},
+  );
+  const supportedEndpointsRaw = record?.supported_endpoints;
+  const supportedEndpoints = Array.from(
+    new Set(
+      (Array.isArray(supportedEndpointsRaw)
+        ? supportedEndpointsRaw
+        : String(supportedEndpointsRaw || '').split(',')
+      )
+        .map((item) => String(item || '').trim())
+        .filter(Boolean),
+    ),
+  );
+
   const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
@@ -77,6 +100,27 @@ const renderType = (type, record = {}, t) => {
       {type2label[type]?.label}
     </Tag>
   );
+  const endpointRestrictedTag =
+    supportedEndpoints.length > 0 ? (
+      <Tooltip
+        content={
+          <div className='max-w-xs'>
+            <div className='text-xs text-gray-600 mb-1'>{t('已限制端点')}</div>
+            <div className='flex flex-col gap-1'>
+              {supportedEndpoints.map((endpoint) => (
+                <div key={endpoint} className='text-xs break-all'>
+                  {endpointLabelMap[endpoint] || endpoint}
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+      >
+        <span className='inline-flex items-center px-1.5 py-0.5 rounded border bg-amber-50 border-amber-200 text-amber-700 cursor-help'>
+          <IconFilter size='small' />
+        </span>
+      </Tooltip>
+    ) : null;
 
   let ionetMeta = null;
   if (record?.other_info) {
@@ -91,7 +135,15 @@ const renderType = (type, record = {}, t) => {
   }
 
   if (!ionetMeta) {
-    return typeTag;
+    if (!endpointRestrictedTag) {
+      return typeTag;
+    }
+    return (
+      <Space spacing={6}>
+        {typeTag}
+        {endpointRestrictedTag}
+      </Space>
+    );
   }
 
   const handleNavigate = (event) => {
@@ -106,6 +158,7 @@ const renderType = (type, record = {}, t) => {
   return (
     <Space spacing={6}>
       {typeTag}
+      {endpointRestrictedTag}
       <Tooltip
         content={
           <div className='max-w-xs'>
