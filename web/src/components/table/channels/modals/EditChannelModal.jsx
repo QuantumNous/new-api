@@ -90,7 +90,10 @@ const STATUS_CODE_MAPPING_EXAMPLE = {
   400: '500',
 };
 
-const CODEX_DEFAULT_SUPPORTED_ENDPOINTS = ['openai-response'];
+const CODEX_DEFAULT_SUPPORTED_ENDPOINTS = [
+  'openai-response',
+  'openai-response-compact',
+];
 
 const REGION_EXAMPLE = {
   default: 'global',
