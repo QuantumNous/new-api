@@ -39,6 +39,25 @@ function formatTokenRate(n, d) {
   return `${r.toFixed(2)}%`;
 }
 
+function formatCachedTokenRateAuto({ cachedTokens, promptTokens, ruleName }) {
+  const cached = Number(cachedTokens || 0);
+  const prompt = Number(promptTokens || 0);
+  const normalizedRuleName = String(ruleName || '').toLowerCase();
+  // 好像暂时没什么办法判定这个规则针对的是不是claude，先这样脏写
+  const likelyClaudeStyle =
+    normalizedRuleName.includes('claude') || cached > prompt;
+
+  if (likelyClaudeStyle) {
+    const denominator = prompt + cached;
+    if (!denominator || denominator <= 0) return '-';
+    const r = (cached / denominator) * 100;
+    if (!Number.isFinite(r)) return '-';
+    return `${r.toFixed(2)}%`;
+  }
+
+  return formatTokenRate(cached, prompt);
+}
+
 const ChannelAffinityUsageCacheModal = ({
   t,
   showChannelAffinityUsageCacheModal,
@@ -141,7 +160,11 @@ const ChannelAffinityUsageCacheModal = ({
       },
       {
         key: t('Cached tokens'),
-        value: `${cachedTokens} (${formatTokenRate(cachedTokens, promptTokens)})`,
+        value: `${cachedTokens} (${formatCachedTokenRateAuto({
+          cachedTokens,
+          promptTokens,
+          ruleName: s.rule_name,
+        })})`,
       },
       {
         key: t('Prompt cache hit tokens'),
@@ -178,6 +201,10 @@ const ChannelAffinityUsageCacheModal = ({
           <Text type='tertiary' size='small'>
             {t(
               '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
+            )}
+            {' '}
+            {t(
+              'Cached tokens 占比采用自动口径：Claude 风格按 cached/(prompt+cached)，其余按 cached/prompt。',
             )}
           </Text>
         </div>
