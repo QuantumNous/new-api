@@ -25,6 +25,9 @@ const (
 	channelUpstreamModelUpdateTaskDefaultIntervalMinutes = 30
 	channelUpstreamModelUpdateTaskBatchSize              = 100
 	channelUpstreamModelUpdateMinCheckIntervalSeconds    = 300
+	channelUpstreamModelUpdateNotifyMaxChannelDetails    = 8
+	channelUpstreamModelUpdateNotifyMaxModelDetails      = 12
+	channelUpstreamModelUpdateNotifyMaxFailedChannelIDs  = 10
 )
 
 var (
@@ -55,6 +58,12 @@ type detectChannelUpstreamModelUpdatesResult struct {
 	RemoveModels    []string `json:"remove_models"`
 	LastCheckTime   int64    `json:"last_check_time"`
 	AutoAddedModels int      `json:"auto_added_models"`
+}
+
+type upstreamModelUpdateChannelSummary struct {
+	ChannelName string
+	AddCount    int
+	RemoveCount int
 }
 
 func normalizeModelNames(models []string) []string {
@@ -380,6 +389,84 @@ func refreshChannelRuntimeCache() {
 	service.ResetProxyClientCache()
 }
 
+func buildUpstreamModelUpdateTaskNotificationContent(
+	checkedChannels int,
+	changedChannels int,
+	detectedAddModels int,
+	detectedRemoveModels int,
+	autoAddedModels int,
+	failedChannelIDs []int,
+	channelSummaries []upstreamModelUpdateChannelSummary,
+	addModelSamples []string,
+	removeModelSamples []string,
+) string {
+	var builder strings.Builder
+	failedChannels := len(failedChannelIDs)
+	builder.WriteString(fmt.Sprintf(
+		"定时检测完成：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
+		checkedChannels,
+		changedChannels,
+		detectedAddModels,
+		detectedRemoveModels,
+		autoAddedModels,
+		failedChannels,
+	))
+
+	if len(channelSummaries) > 0 {
+		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+		builder.WriteString(fmt.Sprintf("\n\n变更渠道（展示 %d/%d）：", displayCount, len(channelSummaries)))
+		for _, summary := range channelSummaries[:displayCount] {
+			builder.WriteString(fmt.Sprintf("\n- %s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+		}
+		if len(channelSummaries) > displayCount {
+			builder.WriteString(fmt.Sprintf("\n- 其余 %d 个渠道已省略", len(channelSummaries)-displayCount))
+		}
+	}
+
+	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
+	if len(normalizedAddModelSamples) > 0 {
+		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		builder.WriteString(fmt.Sprintf("\n\n新增模型示例（展示 %d/%d）：%s",
+			displayCount,
+			len(normalizedAddModelSamples),
+			strings.Join(normalizedAddModelSamples[:displayCount], ", "),
+		))
+		if len(normalizedAddModelSamples) > displayCount {
+			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedAddModelSamples)-displayCount))
+		}
+	}
+
+	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
+	if len(normalizedRemoveModelSamples) > 0 {
+		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
+		builder.WriteString(fmt.Sprintf("\n\n删除模型示例（展示 %d/%d）：%s",
+			displayCount,
+			len(normalizedRemoveModelSamples),
+			strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
+		))
+		if len(normalizedRemoveModelSamples) > displayCount {
+			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedRemoveModelSamples)-displayCount))
+		}
+	}
+
+	if failedChannels > 0 {
+		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
+			return fmt.Sprintf("%d", channelID)
+		})
+		builder.WriteString(fmt.Sprintf(
+			"\n\n失败渠道 ID（展示 %d/%d）：%s",
+			displayCount,
+			failedChannels,
+			strings.Join(displayIDs, ", "),
+		))
+		if failedChannels > displayCount {
+			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", failedChannels-displayCount))
+		}
+	}
+	return builder.String()
+}
+
 func runChannelUpstreamModelUpdateTaskOnce() {
 	if !channelUpstreamModelUpdateTaskRunning.CompareAndSwap(false, true) {
 		return
@@ -388,7 +475,14 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 
 	checkedChannels := 0
 	failedChannels := 0
+	failedChannelIDs := make([]int, 0)
+	changedChannels := 0
+	detectedAddModels := 0
+	detectedRemoveModels := 0
 	autoAddedModels := 0
+	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0)
+	addModelSamples := make([]string, 0)
+	removeModelSamples := make([]string, 0)
 	refreshNeeded := false
 
 	offset := 0
@@ -424,9 +518,26 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, false, true)
 			if err != nil {
 				failedChannels++
+				failedChannelIDs = append(failedChannelIDs, channel.Id)
 				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
 				continue
 			}
+			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
+			currentRemoveModels := normalizeModelNames(settings.UpstreamModelUpdateLastRemovedModels)
+			currentAddCount := len(currentAddModels) + autoAdded
+			currentRemoveCount := len(currentRemoveModels)
+			detectedAddModels += currentAddCount
+			detectedRemoveModels += currentRemoveCount
+			if currentAddCount > 0 || currentRemoveCount > 0 {
+				changedChannels++
+				channelSummaries = append(channelSummaries, upstreamModelUpdateChannelSummary{
+					ChannelName: channel.Name,
+					AddCount:    currentAddCount,
+					RemoveCount: currentRemoveCount,
+				})
+			}
+			addModelSamples = mergeModelNames(addModelSamples, currentAddModels)
+			removeModelSamples = mergeModelNames(removeModelSamples, currentRemoveModels)
 			if modelsChanged {
 				refreshNeeded = true
 			}
@@ -448,11 +559,30 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 
 	if checkedChannels > 0 || common.DebugEnabled {
 		common.SysLog(fmt.Sprintf(
-			"upstream model update task done: checked_channels=%d failed_channels=%d auto_added_models=%d",
+			"upstream model update task done: checked_channels=%d changed_channels=%d detected_add_models=%d detected_remove_models=%d failed_channels=%d auto_added_models=%d",
 			checkedChannels,
+			changedChannels,
+			detectedAddModels,
+			detectedRemoveModels,
 			failedChannels,
 			autoAddedModels,
 		))
+	}
+	if changedChannels > 0 || failedChannels > 0 {
+		service.NotifyUpstreamModelUpdateWatchers(
+			"上游模型定时检测结果",
+			buildUpstreamModelUpdateTaskNotificationContent(
+				checkedChannels,
+				changedChannels,
+				detectedAddModels,
+				detectedRemoveModels,
+				autoAddedModels,
+				failedChannelIDs,
+				channelSummaries,
+				addModelSamples,
+				removeModelSamples,
+			),
+		)
 	}
 }
 

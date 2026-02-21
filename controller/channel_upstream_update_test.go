@@ -97,3 +97,38 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 	require.Equal(t, []string{}, pendingAddModels)
 	require.Equal(t, []string{"stale-model"}, pendingRemoveModels)
 }
+
+func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
+	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0, 12)
+	for i := 0; i < 12; i++ {
+		channelSummaries = append(channelSummaries, upstreamModelUpdateChannelSummary{
+			ChannelName: "channel-" + string(rune('A'+i)),
+			AddCount:    i + 1,
+			RemoveCount: i,
+		})
+	}
+
+	content := buildUpstreamModelUpdateTaskNotificationContent(
+		24,
+		12,
+		56,
+		21,
+		9,
+		[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+		channelSummaries,
+		[]string{
+			"gpt-4.1", "gpt-4.1-mini", "o3", "o4-mini", "gemini-2.5-pro", "claude-3.7-sonnet",
+			"qwen-max", "deepseek-r1", "llama-3.3-70b", "mistral-large", "command-r-plus", "doubao-pro-32k",
+			"hunyuan-large",
+		},
+		[]string{
+			"gpt-3.5-turbo", "claude-2.1", "gemini-1.5-pro", "mixtral-8x7b", "qwen-plus", "glm-4",
+			"yi-large", "moonshot-v1", "doubao-lite",
+		},
+	)
+
+	require.Contains(t, content, "其余 4 个渠道已省略")
+	require.Contains(t, content, "其余 1 个已省略")
+	require.Contains(t, content, "失败渠道 ID（展示 10/12）")
+	require.Contains(t, content, "其余 2 个已省略")
+}
