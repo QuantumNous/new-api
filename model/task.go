@@ -57,6 +57,7 @@ type Task struct {
 	FinishTime int64                 `json:"finish_time" gorm:"index"`
 	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
 	Properties Properties            `json:"properties" gorm:"type:json"`
+	Username   string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
@@ -428,4 +429,15 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	}
 	_ = query.Count(&total).Error
 	return total
+}
+func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = t.TaskID
+	openAIVideo.Status = t.Status.ToVideoStatus()
+	openAIVideo.Model = t.Properties.OriginModelName
+	openAIVideo.SetProgressStr(t.Progress)
+	openAIVideo.CreatedAt = t.CreatedAt
+	openAIVideo.CompletedAt = t.UpdatedAt
+	openAIVideo.SetMetadata("url", t.FailReason)
+	return openAIVideo
 }

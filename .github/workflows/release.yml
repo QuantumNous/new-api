@@ -22,6 +22,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - name: Determine Version
+        run: |
+          VERSION=$(git describe --tags)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -31,7 +35,7 @@ jobs:
         run: |
           cd web
           bun install
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -40,13 +44,11 @@ jobs:
       - name: Build Backend (amd64)
         run: |
           go mod download
-          VERSION=$(git describe --tags)
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-$VERSION
       - name: Build Backend (arm64)
         run: |
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
-          VERSION=$(git describe --tags)
           CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -65,6 +67,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - name: Determine Version
+        run: |
+          VERSION=$(git describe --tags)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -75,7 +81,7 @@ jobs:
         run: |
           cd web
           bun install
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -84,7 +90,6 @@ jobs:
       - name: Build Backend
         run: |
           go mod download
-          VERSION=$(git describe --tags)
           go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -105,6 +110,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - name: Determine Version
+        run: |
+          VERSION=$(git describe --tags)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -114,7 +123,7 @@ jobs:
         run: |
           cd web
           bun install
-          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(git describe --tags) bun run build
+          DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -123,7 +132,6 @@ jobs:
       - name: Build Backend
         run: |
           go mod download
-          VERSION=$(git describe --tags)
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -132,5 +140,3 @@ jobs:
           files: new-api-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-

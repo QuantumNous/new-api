@@ -29,7 +29,7 @@ const (
 func normalizeLocale(locale string) (string, bool) {
 	l := strings.ToLower(strings.TrimSpace(locale))
 	switch l {
-	case "en", "zh", "ja":
+	case "en", "zh-CN", "zh-TW", "ja":
 		return l, true
 	default:
 		return "", false
@@ -99,6 +99,9 @@ func newHTTPClient() *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 		ResponseHeaderTimeout: time.Duration(timeoutSec) * time.Second,
 	}
+	if common.TLSInsecureSkipVerify {
+		transport.TLSClientConfig = common.InsecureTLSConfig
+	}
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -115,7 +118,17 @@ func newHTTPClient() *http.Client {
 	return &http.Client{Transport: transport}
 }
 
-var httpClient = newHTTPClient()
+var (
+	httpClientOnce sync.Once
+	httpClient     *http.Client
+)
+
+func getHTTPClient() *http.Client {
+	httpClientOnce.Do(func() {
+		httpClient = newHTTPClient()
+	})
+	return httpClient
+}
 
 func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T]) error {
 	var lastErr error
@@ -138,7 +151,7 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 		}
 		cacheMutex.RUnlock()
 
-		resp, err := httpClient.Do(req)
+		resp, err := getHTTPClient().Do(req)
 		if err != nil {
 			lastErr = err
 			// backoff with jitter
@@ -249,7 +262,9 @@ func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, v
 	return 0
 }
 
-// SyncUpstreamModels 同步上游模型与供应商，仅对「未配置模型」生效
+// SyncUpstreamModels 同步上游模型与供应商：
+// - 默认仅创建「未配置模型」
+// - 可通过 overwrite 选择性覆盖更新本地已有模型的字段（前提：sync_official <> 0）
 func SyncUpstreamModels(c *gin.Context) {
 	var req syncRequest
 	// 允许空体
@@ -257,15 +272,30 @@ func SyncUpstreamModels(c *gin.Context) {
 	// 1) 获取未配置模型列表
 	missing, err := model.GetMissingModels()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		common.SysError("failed to get missing models: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取模型列表失败，请稍后重试"})
 		return
 	}
-	if len(missing) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
-			"created_models":  0,
-			"created_vendors": 0,
-			"skipped_models":  []string{},
-		}})
+
+	// 若既无缺失模型需要创建，也未指定覆盖更新字段，则无需请求上游数据，直接返回
+	if len(missing) == 0 && len(req.Overwrite) == 0 {
+		modelsURL, vendorsURL := getUpstreamURLs(req.Locale)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"created_models":  0,
+				"created_vendors": 0,
+				"updated_models":  0,
+				"skipped_models":  []string{},
+				"created_list":    []string{},
+				"updated_list":    []string{},
+				"source": gin.H{
+					"locale":      req.Locale,
+					"models_url":  modelsURL,
+					"vendors_url": vendorsURL,
+				},
+			},
+		})
 		return
 	}
 
@@ -315,9 +345,9 @@ func SyncUpstreamModels(c *gin.Context) {
 	createdModels := 0
 	createdVendors := 0
 	updatedModels := 0
-	var skipped []string
-	var createdList []string
-	var updatedList []string
+	skipped := make([]string, 0)
+	createdList := make([]string, 0)
+	updatedList := make([]string, 0)
 
 	// 本地缓存：vendorName -> id
 	vendorIDCache := make(map[string]int)

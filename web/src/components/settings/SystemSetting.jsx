@@ -42,6 +42,7 @@ import {
 } from '../../helpers';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import CustomOAuthSetting from './CustomOAuthSetting';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -52,6 +53,9 @@ const SystemSetting = () => {
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
+    'discord.enabled': '',
+    'discord.client_id': '',
+    'discord.client_secret': '',
     'oidc.enabled': '',
     'oidc.client_id': '',
     'oidc.client_secret': '',
@@ -179,6 +183,7 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
+          case 'discord.enabled':
           case 'oidc.enabled':
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
@@ -473,6 +478,31 @@ const SystemSetting = () => {
     }
   };
 
+  const submitDiscordOAuth = async () => {
+    const options = [];
+
+    if (originInputs['discord.client_id'] !== inputs['discord.client_id']) {
+      options.push({
+        key: 'discord.client_id',
+        value: inputs['discord.client_id'],
+      });
+    }
+    if (
+      originInputs['discord.client_secret'] !==
+        inputs['discord.client_secret'] &&
+      inputs['discord.client_secret'] !== ''
+    ) {
+      options.push({
+        key: 'discord.client_secret',
+        value: inputs['discord.client_secret'],
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
   const submitOIDCSettings = async () => {
     if (inputs['oidc.well_known'] && inputs['oidc.well_known'] !== '') {
       if (
@@ -720,8 +750,8 @@ const SystemSetting = () => {
                       rel='noreferrer'
                     >
                       new-api-worker
-                    </a>
-                    {' '}{t('或其兼容new-api-worker格式的其他版本')}
+                    </a>{' '}
+                    {t('或其兼容new-api-worker格式的其他版本')}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -1013,6 +1043,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许通过 GitHub 账户登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='discord.enabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('discord.enabled', e)
+                        }
+                      >
+                        {t('允许通过 Discord 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='LinuxDOOAuthEnabled'
@@ -1411,6 +1450,37 @@ const SystemSetting = () => {
                 </Form.Section>
               </Card>
               <Card>
+                <Form.Section text={t('配置 Discord OAuth')}>
+                  <Text>{t('用以支持通过 Discord 进行登录注册')}</Text>
+                  <Banner
+                    type='info'
+                    description={`${t('Homepage URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}，${t('Authorization callback URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/discord`}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['discord.client_id']"
+                        label={t('Discord Client ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['discord.client_secret']"
+                        label={t('Discord Client Secret')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitDiscordOAuth}>
+                    {t('保存 Discord OAuth 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+              <Card>
                 <Form.Section text={t('配置 Linux DO OAuth')}>
                   <Text>
                     {t('用以支持通过 Linux DO 进行登录注册')}
@@ -1464,6 +1534,8 @@ const SystemSetting = () => {
                   </Button>
                 </Form.Section>
               </Card>
+
+              <CustomOAuthSetting serverAddress={inputs.ServerAddress} />
 
               <Card>
                 <Form.Section text={t('配置 WeChat Server')}>

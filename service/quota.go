@@ -95,7 +95,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		return err
 	}
 
-	token, err := model.GetTokenByKey(strings.TrimLeft(relayInfo.TokenKey, "sk-"), false)
+	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
-	autoGroup, exists := ctx.Get("auto_group")
+	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
 		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
 		log.Printf("final group ratio: %f", groupRatio)
@@ -251,7 +251,11 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	cacheTokens := usage.PromptTokensDetails.CachedTokens
 
 	cacheCreationRatio := relayInfo.PriceData.CacheCreationRatio
+	cacheCreationRatio5m := relayInfo.PriceData.CacheCreation5mRatio
+	cacheCreationRatio1h := relayInfo.PriceData.CacheCreation1hRatio
 	cacheCreationTokens := usage.PromptTokensDetails.CachedCreationTokens
+	cacheCreationTokens5m := usage.ClaudeCacheCreation5mTokens
+	cacheCreationTokens1h := usage.ClaudeCacheCreation1hTokens
 
 	if relayInfo.ChannelType == constant.ChannelTypeOpenRouter {
 		promptTokens -= cacheTokens
@@ -269,7 +273,12 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	if !relayInfo.PriceData.UsePrice {
 		calculateQuota = float64(promptTokens)
 		calculateQuota += float64(cacheTokens) * cacheRatio
-		calculateQuota += float64(cacheCreationTokens) * cacheCreationRatio
+		calculateQuota += float64(cacheCreationTokens5m) * cacheCreationRatio5m
+		calculateQuota += float64(cacheCreationTokens1h) * cacheCreationRatio1h
+		remainingCacheCreationTokens := cacheCreationTokens - cacheCreationTokens5m - cacheCreationTokens1h
+		if remainingCacheCreationTokens > 0 {
+			calculateQuota += float64(remainingCacheCreationTokens) * cacheCreationRatio
+		}
 		calculateQuota += float64(completionTokens) * completionRatio
 		calculateQuota = calculateQuota * groupRatio * modelRatio
 	} else {
@@ -298,31 +307,16 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
-	quotaDelta := quota - relayInfo.FinalPreConsumedQuota
-
-	if quotaDelta > 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("预扣费后补扣费：%s（实际消耗：%s，预扣费：%s）",
-			logger.FormatQuota(quotaDelta),
-			logger.FormatQuota(quota),
-			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
-		))
-	} else if quotaDelta < 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("预扣费后返还扣费：%s（实际消耗：%s，预扣费：%s）",
-			logger.FormatQuota(-quotaDelta),
-			logger.FormatQuota(quota),
-			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
-		))
-	}
-
-	if quotaDelta != 0 {
-		err := PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
-		if err != nil {
-			logger.LogError(ctx, "error consuming token remain quota: "+err.Error())
-		}
+	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
 	other := GenerateClaudeOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio,
-		cacheTokens, cacheRatio, cacheCreationTokens, cacheCreationRatio, modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		cacheTokens, cacheRatio,
+		cacheCreationTokens, cacheCreationRatio,
+		cacheCreationTokens5m, cacheCreationRatio5m,
+		cacheCreationTokens1h, cacheCreationRatio1h,
+		modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     promptTokens,
@@ -419,27 +413,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
-	quotaDelta := quota - relayInfo.FinalPreConsumedQuota
-
-	if quotaDelta > 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("预扣费后补扣费：%s（实际消耗：%s，预扣费：%s）",
-			logger.FormatQuota(quotaDelta),
-			logger.FormatQuota(quota),
-			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
-		))
-	} else if quotaDelta < 0 {
-		logger.LogInfo(ctx, fmt.Sprintf("预扣费后返还扣费：%s（实际消耗：%s，预扣费：%s）",
-			logger.FormatQuota(-quotaDelta),
-			logger.FormatQuota(quota),
-			logger.FormatQuota(relayInfo.FinalPreConsumedQuota),
-		))
-	}
-
-	if quotaDelta != 0 {
-		err := PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)
-		if err != nil {
-			logger.LogError(ctx, "error consuming token remain quota: "+err.Error())
-		}
+	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
 	logModel := relayInfo.OriginModelName
@@ -490,13 +465,28 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
 
-	if quota > 0 {
-		err = model.DecreaseUserQuota(relayInfo.UserId, quota)
+	// 1) Consume from wallet quota OR subscription item
+	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
+		if relayInfo.SubscriptionId == 0 {
+			return errors.New("subscription id is missing")
+		}
+		delta := int64(quota)
+		if delta != 0 {
+			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
+				return err
+			}
+			relayInfo.SubscriptionPostDelta += delta
+		}
 	} else {
-		err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
-	}
-	if err != nil {
-		return err
+		// Wallet
+		if quota > 0 {
+			err = model.DecreaseUserQuota(relayInfo.UserId, quota)
+		} else {
+			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	if !relayInfo.IsPlayground {
@@ -563,6 +553,54 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			if err != nil {
 				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			}
+		}
+	})
+}
+
+func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
+	gopool.Go(func() {
+		if relayInfo == nil {
+			return
+		}
+		if relayInfo.SubscriptionId == 0 || relayInfo.SubscriptionAmountTotal <= 0 {
+			return
+		}
+
+		userSetting := relayInfo.UserSetting
+		threshold := common.QuotaRemindThreshold
+		if userSetting.QuotaWarningThreshold != 0 {
+			threshold = int(userSetting.QuotaWarningThreshold)
+		}
+
+		usedAfter := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
+		remaining := relayInfo.SubscriptionAmountTotal - usedAfter
+		if remaining >= int64(threshold) {
+			return
+		}
+
+		prompt := "您的订阅额度即将用尽"
+		topUpLink := fmt.Sprintf("%s/console/topup", system_setting.ServerAddress)
+
+		var content string
+		var values []interface{}
+		notifyType := userSetting.NotifyType
+		if notifyType == "" {
+			notifyType = dto.NotifyTypeEmail
+		}
+
+		if notifyType == dto.NotifyTypeBark {
+			content = "{{value}}，剩余额度：{{value}}，请及时充值"
+			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
+		} else if notifyType == dto.NotifyTypeGotify {
+			content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
+			values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
+		} else {
+			content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
+			values = []interface{}{prompt, logger.FormatQuota(int(remaining)), topUpLink, topUpLink}
+		}
+
+		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values)); err != nil {
+			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})
 }

@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/QuantumNous/new-api/types"
 
@@ -24,11 +25,14 @@ func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		CombineText: r.Input,
 		TokenType:   types.TokenTypeTextNumber,
 	}
+	if strings.Contains(r.Model, "gpt") {
+		meta.TokenType = types.TokenTypeTokenizer
+	}
 	return meta
 }
 
 func (r *AudioRequest) IsStream(c *gin.Context) bool {
-	return false
+	return r.StreamFormat == "sse"
 }
 
 func (r *AudioRequest) SetModelName(modelName string) {

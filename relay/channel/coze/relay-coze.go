@@ -142,7 +142,7 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 	helper.Done(c)
 
 	if usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(responseText, info.UpstreamModelName, c.GetInt("coze_input_count"))
+		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, c.GetInt("coze_input_count"))
 	}
 
 	return usage, nil
@@ -208,7 +208,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 			return
 		}
 
-		common.SysLog(fmt.Sprintf("stream event error: ", errorData.Code, errorData.Message))
+		common.SysLog(fmt.Sprintf("stream event error: %v %v", errorData.Code, errorData.Message))
 	}
 }
 

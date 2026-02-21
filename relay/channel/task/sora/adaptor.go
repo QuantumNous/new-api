@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -71,11 +72,30 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
+func validateRemixRequest(c *gin.Context) *dto.TaskError {
+	var req struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	if strings.TrimSpace(req.Prompt) == "" {
+		return service.TaskErrorWrapperLocal(fmt.Errorf("field prompt is required"), "invalid_request", http.StatusBadRequest)
+	}
+	return nil
+}
+
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
+	if info.Action == constant.TaskActionRemix {
+		return validateRemixRequest(c)
+	}
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.Action == constant.TaskActionRemix {
+		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
+	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
 
@@ -87,7 +107,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	cachedBody, err := common.GetRequestBody(c)
+	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
@@ -123,7 +143,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return bytes.NewReader(newBody), nil
 	}
 
-	return bytes.NewReader(cachedBody), nil
+	return common.ReaderOnly(storage), nil
 }
 
 func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirectedModel string) (io.Reader, error) {
@@ -227,7 +247,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, _ *relayco
 }
 
 // FetchTask fetch task status
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -242,7 +262,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	return service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

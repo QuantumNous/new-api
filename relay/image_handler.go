@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -46,16 +47,17 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	var requestBody io.Reader
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
-		body, err := common.GetRequestBody(c)
+		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = bytes.NewBuffer(body)
+		requestBody = common.ReaderOnly(storage)
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
+		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
@@ -68,7 +70,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 			// apply param override
 			if len(info.ParamOverride) > 0 {
-				jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride)
+				jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
 				if err != nil {
 					return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 				}
@@ -92,10 +94,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
-			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-			return newAPIError
+			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
+				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
+				httpResp.StatusCode = http.StatusOK
+			} else {
+				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+				// reset status code 重置状态码
+				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+				return newAPIError
+			}
 		}
 	}
 
@@ -118,12 +125,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		quality = "hd"
 	}
 
-	var logContent string
+	var logContent []string
 
 	if len(request.Size) > 0 {
-		logContent = fmt.Sprintf("大小 %s, 品质 %s, 张数 %d", request.Size, quality, request.N)
+		logContent = append(logContent, fmt.Sprintf("大小 %s", request.Size))
+	}
+	if len(quality) > 0 {
+		logContent = append(logContent, fmt.Sprintf("品质 %s", quality))
+	}
+	if request.N > 0 {
+		logContent = append(logContent, fmt.Sprintf("生成数量 %d", request.N))
 	}
 
-	postConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	postConsumeQuota(c, info, usage.(*dto.Usage), logContent...)
 	return nil
 }

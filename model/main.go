@@ -248,6 +248,9 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	// Migrate price_amount column from float/double to decimal for existing tables
+	migrateSubscriptionPlanPriceAmount()
+
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
@@ -267,9 +270,24 @@ func migrateDB() error {
 		&Setup{},
 		&TwoFA{},
 		&TwoFABackupCode{},
+		&Checkin{},
+		&SubscriptionOrder{},
+		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
+		&CustomOAuthProvider{},
+		&UserOAuthBinding{},
 	)
 	if err != nil {
 		return err
+	}
+	if common.UsingSQLite {
+		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
+			return err
+		}
+	} else {
+		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -300,6 +318,12 @@ func migrateDBFast() error {
 		{&Setup{}, "Setup"},
 		{&TwoFA{}, "TwoFA"},
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
+		{&Checkin{}, "Checkin"},
+		{&SubscriptionOrder{}, "SubscriptionOrder"},
+		{&UserSubscription{}, "UserSubscription"},
+		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
+		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
+		{&UserOAuthBinding{}, "UserOAuthBinding"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -324,6 +348,15 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if common.UsingSQLite {
+		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
+			return err
+		}
+	} else {
+		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+			return err
+		}
+	}
 	common.SysLog("database migrated")
 	return nil
 }
@@ -334,6 +367,139 @@ func migrateLOGDB() error {
 		return err
 	}
 	return nil
+}
+
+type sqliteColumnDef struct {
+	Name string
+	DDL  string
+}
+
+func ensureSubscriptionPlanTableSQLite() error {
+	if !common.UsingSQLite {
+		return nil
+	}
+	tableName := "subscription_plans"
+	if !DB.Migrator().HasTable(tableName) {
+		createSQL := `CREATE TABLE ` + "`" + tableName + "`" + ` (
+` + "`id`" + ` integer,
+` + "`title`" + ` varchar(128) NOT NULL,
+` + "`subtitle`" + ` varchar(255) DEFAULT '',
+` + "`price_amount`" + ` decimal(10,6) NOT NULL,
+` + "`currency`" + ` varchar(8) NOT NULL DEFAULT 'USD',
+` + "`duration_unit`" + ` varchar(16) NOT NULL DEFAULT 'month',
+` + "`duration_value`" + ` integer NOT NULL DEFAULT 1,
+` + "`custom_seconds`" + ` bigint NOT NULL DEFAULT 0,
+` + "`enabled`" + ` numeric DEFAULT 1,
+` + "`sort_order`" + ` integer DEFAULT 0,
+` + "`stripe_price_id`" + ` varchar(128) DEFAULT '',
+` + "`creem_product_id`" + ` varchar(128) DEFAULT '',
+` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
+` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
+` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
+` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
+` + "`created_at`" + ` bigint,
+` + "`updated_at`" + ` bigint,
+PRIMARY KEY (` + "`id`" + `)
+)`
+		return DB.Exec(createSQL).Error
+	}
+	var cols []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := DB.Raw("PRAGMA table_info(`" + tableName + "`)").Scan(&cols).Error; err != nil {
+		return err
+	}
+	existing := make(map[string]struct{}, len(cols))
+	for _, c := range cols {
+		existing[c.Name] = struct{}{}
+	}
+	required := []sqliteColumnDef{
+		{Name: "title", DDL: "`title` varchar(128) NOT NULL"},
+		{Name: "subtitle", DDL: "`subtitle` varchar(255) DEFAULT ''"},
+		{Name: "price_amount", DDL: "`price_amount` decimal(10,6) NOT NULL"},
+		{Name: "currency", DDL: "`currency` varchar(8) NOT NULL DEFAULT 'USD'"},
+		{Name: "duration_unit", DDL: "`duration_unit` varchar(16) NOT NULL DEFAULT 'month'"},
+		{Name: "duration_value", DDL: "`duration_value` integer NOT NULL DEFAULT 1"},
+		{Name: "custom_seconds", DDL: "`custom_seconds` bigint NOT NULL DEFAULT 0"},
+		{Name: "enabled", DDL: "`enabled` numeric DEFAULT 1"},
+		{Name: "sort_order", DDL: "`sort_order` integer DEFAULT 0"},
+		{Name: "stripe_price_id", DDL: "`stripe_price_id` varchar(128) DEFAULT ''"},
+		{Name: "creem_product_id", DDL: "`creem_product_id` varchar(128) DEFAULT ''"},
+		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
+		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
+		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
+		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
+		{Name: "created_at", DDL: "`created_at` bigint"},
+		{Name: "updated_at", DDL: "`updated_at` bigint"},
+	}
+	for _, col := range required {
+		if _, ok := existing[col.Name]; ok {
+			continue
+		}
+		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateSubscriptionPlanPriceAmount migrates price_amount column from float/double to decimal(10,6)
+// This is safe to run multiple times - it checks the column type first
+func migrateSubscriptionPlanPriceAmount() {
+	// SQLite doesn't support ALTER COLUMN, and its type affinity handles this automatically
+	// Skip early to avoid GORM parsing the existing table DDL which may cause issues
+	if common.UsingSQLite {
+		return
+	}
+
+	tableName := "subscription_plans"
+	columnName := "price_amount"
+
+	// Check if table exists first
+	if !DB.Migrator().HasTable(tableName) {
+		return
+	}
+
+	// Check if column exists
+	if !DB.Migrator().HasColumn(&SubscriptionPlan{}, columnName) {
+		return
+	}
+
+	var alterSQL string
+	if common.UsingPostgreSQL {
+		// PostgreSQL: Check if already decimal/numeric
+		var dataType string
+		DB.Raw(`SELECT data_type FROM information_schema.columns 
+			WHERE table_name = ? AND column_name = ?`, tableName, columnName).Scan(&dataType)
+		if dataType == "numeric" {
+			return // Already decimal/numeric
+		}
+		alterSQL = fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s TYPE decimal(10,6) USING %s::decimal(10,6)`,
+			tableName, columnName, columnName)
+	} else if common.UsingMySQL {
+		// MySQL: Check if already decimal
+		var columnType string
+		DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns 
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			tableName, columnName).Scan(&columnType)
+		if strings.HasPrefix(strings.ToLower(columnType), "decimal") {
+			return // Already decimal
+		}
+		alterSQL = fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s decimal(10,6) NOT NULL DEFAULT 0",
+			tableName, columnName)
+	} else {
+		return
+	}
+
+	if alterSQL != "" {
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			common.SysLog(fmt.Sprintf("Warning: failed to migrate %s.%s to decimal: %v", tableName, columnName, err))
+		} else {
+			common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to decimal(10,6)", tableName, columnName))
+		}
+	}
 }
 
 func closeDB(db *gorm.DB) error {

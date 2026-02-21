@@ -39,11 +39,16 @@ import {
   showError,
 } from '../../../helpers';
 import { CHANNEL_OPTIONS } from '../../../constants';
-import { IconTreeTriangleDown, IconMore } from '@douyinfe/semi-icons';
+import {
+  IconTreeTriangleDown,
+  IconMore,
+  IconAlertTriangle,
+} from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
-const renderType = (type, channelInfo = undefined, t) => {
+const renderType = (type, record = {}, t) => {
+  const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
     type2label[CHANNEL_OPTIONS[i].value] = CHANNEL_OPTIONS[i];
@@ -67,10 +72,66 @@ const renderType = (type, channelInfo = undefined, t) => {
       );
   }
 
-  return (
+  const typeTag = (
     <Tag color={type2label[type]?.color} shape='circle' prefixIcon={icon}>
       {type2label[type]?.label}
     </Tag>
+  );
+
+  let ionetMeta = null;
+  if (record?.other_info) {
+    try {
+      const parsed = JSON.parse(record.other_info);
+      if (parsed && typeof parsed === 'object' && parsed.source === 'ionet') {
+        ionetMeta = parsed;
+      }
+    } catch (error) {
+      // ignore invalid metadata
+    }
+  }
+
+  if (!ionetMeta) {
+    return typeTag;
+  }
+
+  const handleNavigate = (event) => {
+    event?.stopPropagation?.();
+    if (!ionetMeta?.deployment_id) {
+      return;
+    }
+    const targetUrl = `/console/deployment?deployment_id=${ionetMeta.deployment_id}`;
+    window.open(targetUrl, '_blank', 'noopener');
+  };
+
+  return (
+    <Space spacing={6}>
+      {typeTag}
+      <Tooltip
+        content={
+          <div className='max-w-xs'>
+            <div className='text-xs text-gray-600'>
+              {t('来源于 IO.NET 部署')}
+            </div>
+            {ionetMeta?.deployment_id && (
+              <div className='text-xs text-gray-500 mt-1'>
+                {t('部署 ID')}: {ionetMeta.deployment_id}
+              </div>
+            )}
+          </div>
+        }
+      >
+        <span>
+          <Tag
+            color='purple'
+            type='light'
+            className='cursor-pointer'
+            onClick={handleNavigate}
+          >
+            IO.NET
+          </Tag>
+        </span>
+      </Tooltip>
+    </Space>
   );
 };
 
@@ -187,6 +248,28 @@ const renderResponseTime = (responseTime, t) => {
   }
 };
 
+const isRequestPassThroughEnabled = (record) => {
+  if (!record || record.children !== undefined) {
+    return false;
+  }
+  const settingValue = record.setting;
+  if (!settingValue) {
+    return false;
+  }
+  if (typeof settingValue === 'object') {
+    return settingValue.pass_through_body_enabled === true;
+  }
+  if (typeof settingValue !== 'string') {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(settingValue);
+    return parsed?.pass_through_body_enabled === true;
+  } catch (error) {
+    return false;
+  }
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -205,6 +288,7 @@ export const getChannelsColumns = ({
   refresh,
   activePage,
   channels,
+  checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
 }) => {
@@ -219,8 +303,9 @@ export const getChannelsColumns = ({
       title: t('名称'),
       dataIndex: 'name',
       render: (text, record, index) => {
-        if (record.remark && record.remark.trim() !== '') {
-          return (
+        const passThroughEnabled = isRequestPassThroughEnabled(record);
+        const nameNode =
+          record.remark && record.remark.trim() !== '' ? (
             <Tooltip
               content={
                 <div className='flex flex-col gap-2 max-w-xs'>
@@ -250,9 +335,32 @@ export const getChannelsColumns = ({
             >
               <span>{text}</span>
             </Tooltip>
+          ) : (
+            <span>{text}</span>
           );
+
+        if (!passThroughEnabled) {
+          return nameNode;
         }
-        return text;
+
+        return (
+          <Space spacing={6} align='center'>
+            {nameNode}
+            <Tooltip
+              content={t(
+                '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+              )}
+              trigger='hover'
+              position='topLeft'
+            >
+              <span className='inline-flex items-center'>
+                <IconAlertTriangle
+                  style={{ color: 'var(--semi-color-warning)' }}
+                />
+              </span>
+            </Tooltip>
+          </Space>
+        );
       },
     },
     {
@@ -280,12 +388,7 @@ export const getChannelsColumns = ({
       dataIndex: 'type',
       render: (text, record, index) => {
         if (record.children === undefined) {
-          if (record.channel_info) {
-            if (record.channel_info.is_multi_key) {
-              return <>{renderType(text, record.channel_info, t)}</>;
-            }
-          }
-          return <>{renderType(text, undefined, t)}</>;
+          return <>{renderType(text, record, t)}</>;
         } else {
           return <>{renderTagType(t)}</>;
         }
@@ -518,6 +621,15 @@ export const getChannelsColumns = ({
               },
             },
           ];
+
+          if (record.type === 4) {
+            moreMenuItems.unshift({
+              node: 'item',
+              name: t('测活'),
+              type: 'tertiary',
+              onClick: () => checkOllamaVersion(record),
+            });
+          }
 
           return (
             <Space wrap>

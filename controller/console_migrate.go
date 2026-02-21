@@ -17,7 +17,8 @@ func MigrateConsoleSetting(c *gin.Context) {
 	// 读取全部 option
 	opts, err := model.AllOption()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		common.SysError("failed to get all options: " + err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "获取配置失败，请稍后重试"})
 		return
 	}
 	// 建立 map

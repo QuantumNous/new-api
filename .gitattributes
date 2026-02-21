@@ -1,0 +1,38 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Go files
+*.go text eol=lf
+
+# Config files
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+
+# JavaScript/TypeScript files
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# ============================================
+# GitHub Linguist - Language Detection
+# ============================================
+# Mark web frontend as vendored so GitHub recognizes this as a Go project
+electron/** linguist-vendored

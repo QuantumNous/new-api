@@ -27,8 +27,11 @@ type ImageRequest struct {
 	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
 	// Stream            bool            `json:"stream,omitempty"`
-	Watermark *bool           `json:"watermark,omitempty"`
-	Image     json.RawMessage `json:"image,omitempty"`
+	Watermark *bool `json:"watermark,omitempty"`
+	// zhipu 4v
+	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
+	UserId           json.RawMessage `json:"user_id,omitempty"`
+	Image            json.RawMessage `json:"image,omitempty"`
 	// 用匿名参数接收额外参数
 	Extra map[string]json.RawMessage `json:"-"`
 }
@@ -164,9 +167,9 @@ func (i *ImageRequest) SetModelName(modelName string) {
 }
 
 type ImageResponse struct {
-	Data    []ImageData `json:"data"`
-	Created int64       `json:"created"`
-	Extra   any         `json:"extra,omitempty"`
+	Data     []ImageData     `json:"data"`
+	Created  int64           `json:"created"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 type ImageData struct {
 	Url           string `json:"url"`

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +30,11 @@ func printHelp() {
 
 func InitEnv() {
 	flag.Parse()
+
+	envVersion := os.Getenv("VERSION")
+	if envVersion != "" {
+		Version = envVersion
+	}
 
 	if *PrintVersion {
 		fmt.Println(Version)
@@ -76,6 +82,16 @@ func InitEnv() {
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
 	IsMasterNode = os.Getenv("NODE_TYPE") != "slave"
+	TLSInsecureSkipVerify = GetEnvOrDefaultBool("TLS_INSECURE_SKIP_VERIFY", false)
+	if TLSInsecureSkipVerify {
+		if tr, ok := http.DefaultTransport.(*http.Transport); ok && tr != nil {
+			if tr.TLSClientConfig != nil {
+				tr.TLSClientConfig.InsecureSkipVerify = true
+			} else {
+				tr.TLSClientConfig = InsecureTLSConfig
+			}
+		}
+	}
 
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
@@ -85,6 +101,8 @@ func InitEnv() {
 	SyncFrequency = GetEnvOrDefault("SYNC_FREQUENCY", 60)
 	BatchUpdateInterval = GetEnvOrDefault("BATCH_UPDATE_INTERVAL", 5)
 	RelayTimeout = GetEnvOrDefault("RELAY_TIMEOUT", 0)
+	RelayMaxIdleConns = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS", 500)
+	RelayMaxIdleConnsPerHost = GetEnvOrDefault("RELAY_MAX_IDLE_CONNS_PER_HOST", 100)
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")
@@ -99,26 +117,34 @@ func InitEnv() {
 	GlobalWebRateLimitNum = GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT", 60)
 	GlobalWebRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT_DURATION", 180))
 
+	CriticalRateLimitEnable = GetEnvOrDefaultBool("CRITICAL_RATE_LIMIT_ENABLE", true)
+	CriticalRateLimitNum = GetEnvOrDefault("CRITICAL_RATE_LIMIT", 20)
+	CriticalRateLimitDuration = int64(GetEnvOrDefault("CRITICAL_RATE_LIMIT_DURATION", 20*60))
 	initConstantEnv()
 }
 
 func initConstantEnv() {
 	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 300)
 	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
-	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 20)
+	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
+	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 64)
+	// MaxRequestBodyMB 请求体最大大小（解压后），用于防止超大请求/zip bomb导致内存暴涨
+	constant.MaxRequestBodyMB = GetEnvOrDefault("MAX_REQUEST_BODY_MB", 128)
 	// ForceStreamOption 覆盖请求参数，强制返回usage信息
 	constant.ForceStreamOption = GetEnvOrDefaultBool("FORCE_STREAM_OPTION", true)
+	constant.CountToken = GetEnvOrDefaultBool("CountToken", true)
 	constant.GetMediaToken = GetEnvOrDefaultBool("GET_MEDIA_TOKEN", true)
-	constant.GetMediaTokenNotStream = GetEnvOrDefaultBool("GET_MEDIA_TOKEN_NOT_STREAM", true)
+	constant.GetMediaTokenNotStream = GetEnvOrDefaultBool("GET_MEDIA_TOKEN_NOT_STREAM", false)
 	constant.UpdateTask = GetEnvOrDefaultBool("UPDATE_TASK", true)
 	constant.AzureDefaultAPIVersion = GetEnvOrDefaultString("AZURE_DEFAULT_API_VERSION", "2025-04-01-preview")
-	constant.GeminiVisionMaxImageNum = GetEnvOrDefault("GEMINI_VISION_MAX_IMAGE_NUM", 16)
 	constant.NotifyLimitCount = GetEnvOrDefault("NOTIFY_LIMIT_COUNT", 2)
 	constant.NotificationLimitDurationMinute = GetEnvOrDefault("NOTIFICATION_LIMIT_DURATION_MINUTE", 10)
 	// GenerateDefaultToken 是否生成初始令牌，默认关闭。
 	constant.GenerateDefaultToken = GetEnvOrDefaultBool("GENERATE_DEFAULT_TOKEN", false)
 	// 是否启用错误日志
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
+	// 任务轮询时查询的最大数量
+	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {
@@ -132,4 +158,17 @@ func initConstantEnv() {
 		}
 		constant.TaskPricePatches = taskPricePatches
 	}
+
+	// Initialize trusted redirect domains for URL validation
+	trustedDomainsStr := GetEnvOrDefaultString("TRUSTED_REDIRECT_DOMAINS", "")
+	var trustedDomains []string
+	domains := strings.Split(trustedDomainsStr, ",")
+	for _, domain := range domains {
+		trimmedDomain := strings.TrimSpace(domain)
+		if trimmedDomain != "" {
+			// Normalize domain to lowercase
+			trustedDomains = append(trustedDomains, strings.ToLower(trimmedDomain))
+		}
+	}
+	constant.TrustedRedirectDomains = trustedDomains
 }

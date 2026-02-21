@@ -91,19 +91,57 @@ const codeThemeStyles = {
   },
 };
 
+const escapeHtml = (str) => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const highlightJson = (str) => {
-  return str.replace(
-    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
-    (match) => {
-      let color = '#b5cea8';
-      if (/^"/.test(match)) {
-        color = /:$/.test(match) ? '#9cdcfe' : '#ce9178';
-      } else if (/true|false|null/.test(match)) {
-        color = '#569cd6';
-      }
-      return `<span style="color: ${color}">${match}</span>`;
-    },
-  );
+  const tokenRegex =
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
+
+  let result = '';
+  let lastIndex = 0;
+  let match;
+
+  while ((match = tokenRegex.exec(str)) !== null) {
+    // Escape non-token text (structural chars like {, }, [, ], :, comma, whitespace)
+    result += escapeHtml(str.slice(lastIndex, match.index));
+
+    const token = match[0];
+    let color = '#b5cea8';
+    if (/^"/.test(token)) {
+      color = /:$/.test(token) ? '#9cdcfe' : '#ce9178';
+    } else if (/true|false|null/.test(token)) {
+      color = '#569cd6';
+    }
+    // Escape token content before wrapping in span
+    result += `<span style="color: ${color}">${escapeHtml(token)}</span>`;
+    lastIndex = tokenRegex.lastIndex;
+  }
+
+  // Escape remaining text
+  result += escapeHtml(str.slice(lastIndex));
+  return result;
+};
+
+const linkRegex = /(https?:\/\/(?:[^\s<"'\]),;&}]|&amp;)+)/g;
+
+const linkifyHtml = (html) => {
+  const parts = html.split(/(<[^>]+>)/g);
+  return parts
+    .map((part) => {
+      if (part.startsWith('<')) return part;
+      return part.replace(
+        linkRegex,
+        (url) => `<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`,
+      );
+    })
+    .join('');
 };
 
 const isJsonLike = (content, language) => {
@@ -169,15 +207,19 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
 
   const highlightedContent = useMemo(() => {
     if (contentMetrics.isVeryLarge && !isExpanded) {
-      return displayContent;
+      return escapeHtml(displayContent);
     }
 
     if (isJsonLike(displayContent, language)) {
       return highlightJson(displayContent);
     }
 
-    return displayContent;
+    return escapeHtml(displayContent);
   }, [displayContent, language, contentMetrics.isVeryLarge, isExpanded]);
+
+  const renderedContent = useMemo(() => {
+    return linkifyHtml(highlightedContent);
+  }, [highlightedContent]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -276,6 +318,8 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
         style={{
           ...codeThemeStyles.content,
           paddingTop: contentPadding,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
         }}
         className='model-settings-scroll'
       >
@@ -303,7 +347,7 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
             {t('正在处理大内容...')}
           </div>
         ) : (
-          <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />
+          <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
         )}
       </div>
 

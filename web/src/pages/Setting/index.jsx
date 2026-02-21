@@ -32,6 +32,8 @@ import {
   MessageSquare,
   Palette,
   CreditCard,
+  Server,
+  Activity,
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
@@ -45,6 +47,8 @@ import RatioSetting from '../../components/settings/RatioSetting';
 import ChatsSetting from '../../components/settings/ChatsSetting';
 import DrawingSetting from '../../components/settings/DrawingSetting';
 import PaymentSetting from '../../components/settings/PaymentSetting';
+import ModelDeploymentSetting from '../../components/settings/ModelDeploymentSetting';
+import PerformanceSetting from '../../components/settings/PerformanceSetting';
 
 const Setting = () => {
   const { t } = useTranslation();
@@ -133,6 +137,26 @@ const Setting = () => {
       ),
       content: <ModelSetting />,
       itemKey: 'models',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Server size={18} />
+          {t('模型部署设置')}
+        </span>
+      ),
+      content: <ModelDeploymentSetting />,
+      itemKey: 'model-deployment',
+    });
+    panes.push({
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Activity size={18} />
+          {t('性能设置')}
+        </span>
+      ),
+      content: <PerformanceSetting />,
+      itemKey: 'performance',
     });
     panes.push({
       tab: (

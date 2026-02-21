@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -75,11 +77,22 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	var videoURL string
-	client := &http.Client{
-		Timeout: 60 * time.Second,
+	proxy := channel.GetSetting().Proxy
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to create proxy client for task %s: %s", taskID, err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"message": "Failed to create proxy client",
+				"type":    "server_error",
+			},
+		})
+		return
 	}
 
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, "", nil)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "", nil)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to create request: %s", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -117,13 +130,12 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 		req.Header.Set("x-goog-api-key", apiKey)
-	case constant.ChannelTypeAli:
-		// Video URL is directly in task.FailReason
-		videoURL = task.FailReason
-	default:
-		// Default (Sora, etc.): Use original logic
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.TaskID)
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	default:
+		// Video URL is directly in task.FailReason
+		videoURL = task.FailReason
 	}
 
 	req.URL, err = url.Parse(videoURL)

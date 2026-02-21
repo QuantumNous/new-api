@@ -47,6 +47,7 @@ import {
   createLoadingAssistantMessage,
   getTextContent,
   buildApiPayload,
+  encodeToBase64,
 } from '../../helpers';
 
 // Components
@@ -58,6 +59,7 @@ import {
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
+import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -72,7 +74,7 @@ const generateAvatarDataUrl = (username) => {
       <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="16" fill="#ffffff" font-family="sans-serif">${firstLetter}</text>
     </svg>
   `;
-  return `data:image/svg+xml;base64,${btoa(svg)}`;
+  return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
 };
 
 const Playground = () => {
@@ -435,12 +437,33 @@ const Playground = () => {
     setTimeout(() => saveMessagesImmediately([]), 0);
   }, [setMessage, saveMessagesImmediately]);
 
+  // 处理粘贴图片
+  const handlePasteImage = useCallback(
+    (base64Data) => {
+      if (!inputs.imageEnabled) {
+        return;
+      }
+      // 添加图片到 imageUrls 数组
+      const newUrls = [...(inputs.imageUrls || []), base64Data];
+      handleInputChange('imageUrls', newUrls);
+    },
+    [inputs.imageEnabled, inputs.imageUrls, handleInputChange],
+  );
+
+  // Playground Context 值
+  const playgroundContextValue = {
+    onPasteImage: handlePasteImage,
+    imageUrls: inputs.imageUrls || [],
+    imageEnabled: inputs.imageEnabled || false,
+  };
+
   return (
-    <div className='h-full'>
-      <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-        {(showSettings || !isMobile) && (
-          <Layout.Sider
-            className={`
+    <PlaygroundProvider value={playgroundContextValue}>
+      <div className='h-full'>
+        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
+          {(showSettings || !isMobile) && (
+            <Layout.Sider
+              className={`
               bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
               ${
                 isMobile
@@ -448,93 +471,94 @@ const Playground = () => {
                   : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
               }
             `}
-            width={isMobile ? '100%' : 320}
-          >
-            <OptimizedSettingsPanel
-              inputs={inputs}
-              parameterEnabled={parameterEnabled}
-              models={models}
-              groups={groups}
-              styleState={styleState}
-              showSettings={showSettings}
-              showDebugPanel={showDebugPanel}
-              customRequestMode={customRequestMode}
-              customRequestBody={customRequestBody}
-              onInputChange={handleInputChange}
-              onParameterToggle={handleParameterToggle}
-              onCloseSettings={() => setShowSettings(false)}
-              onConfigImport={handleConfigImport}
-              onConfigReset={handleConfigReset}
-              onCustomRequestModeChange={setCustomRequestMode}
-              onCustomRequestBodyChange={setCustomRequestBody}
-              previewPayload={previewPayload}
-              messages={message}
-            />
-          </Layout.Sider>
-        )}
-
-        <Layout.Content className='relative flex-1 overflow-hidden'>
-          <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-            <div className='flex-1 flex flex-col'>
-              <ChatArea
-                chatRef={chatRef}
-                message={message}
+              width={isMobile ? '100%' : 320}
+            >
+              <OptimizedSettingsPanel
                 inputs={inputs}
+                parameterEnabled={parameterEnabled}
+                models={models}
+                groups={groups}
                 styleState={styleState}
+                showSettings={showSettings}
                 showDebugPanel={showDebugPanel}
-                roleInfo={roleInfo}
-                onMessageSend={onMessageSend}
-                onMessageCopy={messageActions.handleMessageCopy}
-                onMessageReset={messageActions.handleMessageReset}
-                onMessageDelete={messageActions.handleMessageDelete}
-                onStopGenerator={onStopGenerator}
-                onClearMessages={handleClearMessages}
-                onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                renderCustomChatContent={renderCustomChatContent}
-                renderChatBoxAction={renderChatBoxAction}
+                customRequestMode={customRequestMode}
+                customRequestBody={customRequestBody}
+                onInputChange={handleInputChange}
+                onParameterToggle={handleParameterToggle}
+                onCloseSettings={() => setShowSettings(false)}
+                onConfigImport={handleConfigImport}
+                onConfigReset={handleConfigReset}
+                onCustomRequestModeChange={setCustomRequestMode}
+                onCustomRequestBodyChange={setCustomRequestBody}
+                previewPayload={previewPayload}
+                messages={message}
               />
+            </Layout.Sider>
+          )}
+
+          <Layout.Content className='relative flex-1 overflow-hidden'>
+            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
+              <div className='flex-1 flex flex-col'>
+                <ChatArea
+                  chatRef={chatRef}
+                  message={message}
+                  inputs={inputs}
+                  styleState={styleState}
+                  showDebugPanel={showDebugPanel}
+                  roleInfo={roleInfo}
+                  onMessageSend={onMessageSend}
+                  onMessageCopy={messageActions.handleMessageCopy}
+                  onMessageReset={messageActions.handleMessageReset}
+                  onMessageDelete={messageActions.handleMessageDelete}
+                  onStopGenerator={onStopGenerator}
+                  onClearMessages={handleClearMessages}
+                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+                  renderCustomChatContent={renderCustomChatContent}
+                  renderChatBoxAction={renderChatBoxAction}
+                />
+              </div>
+
+              {/* 调试面板 - 桌面端 */}
+              {showDebugPanel && !isMobile && (
+                <div className='w-96 flex-shrink-0 h-full'>
+                  <OptimizedDebugPanel
+                    debugData={debugData}
+                    activeDebugTab={activeDebugTab}
+                    onActiveDebugTabChange={setActiveDebugTab}
+                    styleState={styleState}
+                    customRequestMode={customRequestMode}
+                  />
+                </div>
+              )}
             </div>
 
-            {/* 调试面板 - 桌面端 */}
-            {showDebugPanel && !isMobile && (
-              <div className='w-96 flex-shrink-0 h-full'>
+            {/* 调试面板 - 移动端覆盖层 */}
+            {showDebugPanel && isMobile && (
+              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}
                   onActiveDebugTabChange={setActiveDebugTab}
                   styleState={styleState}
+                  showDebugPanel={showDebugPanel}
+                  onCloseDebugPanel={() => setShowDebugPanel(false)}
                   customRequestMode={customRequestMode}
                 />
               </div>
             )}
-          </div>
 
-          {/* 调试面板 - 移动端覆盖层 */}
-          {showDebugPanel && isMobile && (
-            <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
-              <OptimizedDebugPanel
-                debugData={debugData}
-                activeDebugTab={activeDebugTab}
-                onActiveDebugTabChange={setActiveDebugTab}
-                styleState={styleState}
-                showDebugPanel={showDebugPanel}
-                onCloseDebugPanel={() => setShowDebugPanel(false)}
-                customRequestMode={customRequestMode}
-              />
-            </div>
-          )}
-
-          {/* 浮动按钮 */}
-          <FloatingButtons
-            styleState={styleState}
-            showSettings={showSettings}
-            showDebugPanel={showDebugPanel}
-            onToggleSettings={() => setShowSettings(!showSettings)}
-            onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-          />
-        </Layout.Content>
-      </Layout>
-    </div>
+            {/* 浮动按钮 */}
+            <FloatingButtons
+              styleState={styleState}
+              showSettings={showSettings}
+              showDebugPanel={showDebugPanel}
+              onToggleSettings={() => setShowSettings(!showSettings)}
+              onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+            />
+          </Layout.Content>
+        </Layout>
+      </div>
+    </PlaygroundProvider>
   );
 };
 

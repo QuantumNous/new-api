@@ -27,6 +27,7 @@ type User struct {
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
@@ -428,6 +429,65 @@ func (user *User) Insert(inviterId int) error {
 	return nil
 }
 
+// InsertWithTx inserts a new user within an existing transaction.
+// This is used for OAuth registration where user creation and binding need to be atomic.
+// Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
+func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
+	var err error
+	if user.Password != "" {
+		user.Password, err = common.Password2Hash(user.Password)
+		if err != nil {
+			return err
+		}
+	}
+	user.Quota = common.QuotaForNewUser
+	user.AffCode = common.GetRandomString(4)
+
+	// 初始化用户设置
+	if user.Setting == "" {
+		defaultSetting := dto.UserSetting{}
+		user.SetSetting(defaultSetting)
+	}
+
+	result := tx.Create(user)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
+// This should be called after the transaction commits successfully.
+func (user *User) FinalizeOAuthUserCreation(inviterId int) {
+	// 用户创建成功后，根据角色初始化边栏配置
+	var createdUser User
+	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
+		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
+		if defaultSidebarConfig != "" {
+			currentSetting := createdUser.GetSetting()
+			currentSetting.SidebarModules = defaultSidebarConfig
+			createdUser.SetSetting(currentSetting)
+			createdUser.Update(false)
+			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+		}
+	}
+
+	if common.QuotaForNewUser > 0 {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+	}
+	if inviterId != 0 {
+		if common.QuotaForInvitee > 0 {
+			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		}
+		if common.QuotaForInviter > 0 {
+			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			_ = inviteUser(inviterId)
+		}
+	}
+}
+
 func (user *User) Update(updatePassword bool) error {
 	var err error
 	if updatePassword {
@@ -539,6 +599,22 @@ func (user *User) FillUserByGitHubId() error {
 	return nil
 }
 
+// UpdateGitHubId updates the user's GitHub ID (used for migration from login to numeric ID)
+func (user *User) UpdateGitHubId(newGitHubId string) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Update("github_id", newGitHubId).Error
+}
+
+func (user *User) FillUserByDiscordId() error {
+	if user.DiscordId == "" {
+		return errors.New("discord id 为空！")
+	}
+	DB.Where(User{DiscordId: user.DiscordId}).First(user)
+	return nil
+}
+
 func (user *User) FillUserByOidcId() error {
 	if user.OidcId == "" {
 		return errors.New("oidc id 为空！")
@@ -576,6 +652,10 @@ func IsWeChatIdAlreadyTaken(wechatId string) bool {
 
 func IsGitHubIdAlreadyTaken(githubId string) bool {
 	return DB.Unscoped().Where("github_id = ?", githubId).Find(&User{}).RowsAffected == 1
+}
+
+func IsDiscordIdAlreadyTaken(discordId string) bool {
+	return DB.Unscoped().Where("discord_id = ?", discordId).Find(&User{}).RowsAffected == 1
 }
 
 func IsOidcIdAlreadyTaken(oidcId string) bool {

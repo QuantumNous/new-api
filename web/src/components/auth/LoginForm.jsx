@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserContext } from '../../context/User';
+import { StatusContext } from '../../context/Status';
 import {
   API,
   getLogo,
@@ -30,14 +31,24 @@ import {
   getSystemName,
   setUserData,
   onGitHubOAuthClicked,
+  onDiscordOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onCustomOAuthClicked,
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
-import { Button, Card, Checkbox, Divider, Form, Icon, Modal } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Card,
+  Checkbox,
+  Divider,
+  Form,
+  Icon,
+  Modal,
+} from '@douyinfe/semi-ui';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import TelegramLoginButton from 'react-telegram-login';
@@ -53,10 +64,16 @@ import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
+import { SiDiscord } from 'react-icons/si';
 
 const LoginForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
+  const githubButtonTextKeyByState = {
+    idle: '使用 GitHub 继续',
+    redirecting: '正在跳转 GitHub...',
+    timeout: '请求超时，请刷新页面后重新发起 GitHub 登录',
+  };
   const [inputs, setInputs] = useState({
     username: '',
     password: '',
@@ -66,6 +83,7 @@ const LoginForm = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
   const [userState, userDispatch] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -73,6 +91,7 @@ const LoginForm = () => {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
@@ -87,6 +106,11 @@ const LoginForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
+  const [githubButtonState, setGithubButtonState] = useState('idle');
+  const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
+  const githubTimeoutRef = useRef(null);
+  const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
+  const [customOAuthLoading, setCustomOAuthLoading] = useState({});
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -96,26 +120,38 @@ const LoginForm = () => {
     localStorage.setItem('aff', affCode);
   }
 
-  const [status] = useState(() => {
+  const status = useMemo(() => {
+    if (statusState?.status) return statusState.status;
     const savedStatus = localStorage.getItem('status');
-    return savedStatus ? JSON.parse(savedStatus) : {};
-  });
+    if (!savedStatus) return {};
+    try {
+      return JSON.parse(savedStatus) || {};
+    } catch (err) {
+      return {};
+    }
+  }, [statusState?.status]);
 
   useEffect(() => {
-    if (status.turnstile_check) {
+    if (status?.turnstile_check) {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
-    
+
     // 从 status 获取用户协议和隐私政策的启用状态
-    setHasUserAgreement(status.user_agreement_enabled || false);
-    setHasPrivacyPolicy(status.privacy_policy_enabled || false);
+    setHasUserAgreement(status?.user_agreement_enabled || false);
+    setHasPrivacyPolicy(status?.privacy_policy_enabled || false);
   }, [status]);
 
   useEffect(() => {
     isPasskeySupported()
       .then(setPasskeySupported)
       .catch(() => setPasskeySupported(false));
+
+    return () => {
+      if (githubTimeoutRef.current) {
+        clearTimeout(githubTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -267,12 +303,40 @@ const LoginForm = () => {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
+    if (githubButtonDisabled) {
+      return;
+    }
     setGithubLoading(true);
+    setGithubButtonDisabled(true);
+    setGithubButtonState('redirecting');
+    if (githubTimeoutRef.current) {
+      clearTimeout(githubTimeoutRef.current);
+    }
+    githubTimeoutRef.current = setTimeout(() => {
+      setGithubLoading(false);
+      setGithubButtonState('timeout');
+      setGithubButtonDisabled(true);
+    }, 20000);
     try {
-      onGitHubOAuthClicked(status.github_client_id);
+      onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => setGithubLoading(false), 3000);
+    }
+  };
+
+  // 包装的Discord登录点击处理
+  const handleDiscordClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setDiscordLoading(true);
+    try {
+      onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => setDiscordLoading(false), 3000);
     }
   };
 
@@ -284,7 +348,12 @@ const LoginForm = () => {
     }
     setOidcLoading(true);
     try {
-      onOIDCClicked(status.oidc_authorization_endpoint, status.oidc_client_id);
+      onOIDCClicked(
+        status.oidc_authorization_endpoint,
+        status.oidc_client_id,
+        false,
+        { shouldLogout: true },
+      );
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => setOidcLoading(false), 3000);
@@ -299,10 +368,27 @@ const LoginForm = () => {
     }
     setLinuxdoLoading(true);
     try {
-      onLinuxDOOAuthClicked(status.linuxdo_client_id);
+      onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => setLinuxdoLoading(false), 3000);
+    }
+  };
+
+  // 包装的自定义OAuth登录点击处理
+  const handleCustomOAuthClick = (provider) => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
+    try {
+      onCustomOAuthClicked(provider, { shouldLogout: true });
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => {
+        setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: false }));
+      }, 3000);
     }
   };
 
@@ -444,8 +530,30 @@ const LoginForm = () => {
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
                     loading={githubLoading}
+                    disabled={githubButtonDisabled}
                   >
-                    <span className='ml-3'>{t('使用 GitHub 继续')}</span>
+                    <span className='ml-3'>{githubButtonText}</span>
+                  </Button>
+                )}
+
+                {status.discord_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <SiDiscord
+                        style={{
+                          color: '#5865F2',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleDiscordClick}
+                    loading={discordLoading}
+                  >
+                    <span className='ml-3'>{t('使用 Discord 继续')}</span>
                   </Button>
                 )}
 
@@ -482,6 +590,23 @@ const LoginForm = () => {
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
                   </Button>
                 )}
+
+                {status.custom_oauth_providers &&
+                  status.custom_oauth_providers.map((provider) => (
+                    <Button
+                      key={provider.slug}
+                      theme='outline'
+                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      type='tertiary'
+                      icon={<IconLock size='large' />}
+                      onClick={() => handleCustomOAuthClick(provider)}
+                      loading={customOAuthLoading[provider.slug]}
+                    >
+                      <span className='ml-3'>
+                        {t('使用 {{name}} 继续', { name: provider.name })}
+                      </span>
+                    </Button>
+                  ))}
 
                 {status.telegram_oauth && (
                   <div className='flex justify-center my-2'>
@@ -553,11 +678,11 @@ const LoginForm = () => {
                             {t('隐私政策')}
                           </a>
                         </>
-                        )}
-                      </Text>
-                    </Checkbox>
-                  </div>
-                )}
+                      )}
+                    </Text>
+                  </Checkbox>
+                </div>
+              )}
 
               {!status.self_use_mode_enabled && (
                 <div className='mt-6 text-center text-sm'>
@@ -673,7 +798,9 @@ const LoginForm = () => {
                     htmlType='submit'
                     onClick={handleSubmit}
                     loading={loginLoading}
-                    disabled={(hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms}
+                    disabled={
+                      (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
+                    }
                   >
                     {t('继续')}
                   </Button>
@@ -691,6 +818,7 @@ const LoginForm = () => {
               </Form>
 
               {(status.github_oauth ||
+                status.discord_oauth ||
                 status.oidc_enabled ||
                 status.wechat_login ||
                 status.linuxdo_oauth ||
@@ -826,6 +954,7 @@ const LoginForm = () => {
         {showEmailLogin ||
         !(
           status.github_oauth ||
+          status.discord_oauth ||
           status.oidc_enabled ||
           status.wechat_login ||
           status.linuxdo_oauth ||

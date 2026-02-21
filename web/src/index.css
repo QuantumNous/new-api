@@ -31,6 +31,16 @@ body {
   background-color: var(--semi-color-bg-0);
 }
 
+.app-layout {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.app-sider {
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
@@ -107,7 +117,9 @@ code {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   transition: width 0.3s ease;
+  background: var(--semi-color-bg-0);
 }
 
 .sidebar-nav {
@@ -115,9 +127,11 @@ code {
   width: 100%;
   background: var(--semi-color-bg-0);
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
   border-right: none;
   overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -219,6 +233,22 @@ code {
 /* 侧边栏区域容器 */
 .sidebar-section {
   padding-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .sidebar-container {
+    background: var(--semi-color-bg-1);
+    border-right: 1px solid var(--semi-color-border);
+  }
+
+  .sidebar-nav {
+    background: var(--semi-color-bg-1);
+  }
+
+  .sidebar-collapse-button {
+    background-color: var(--semi-color-bg-1);
+    box-shadow: 0 -10px 10px -5px var(--semi-color-bg-1);
+  }
 }
 
 /* ==================== 聊天界面样式 ==================== */
@@ -799,6 +829,34 @@ html.dark .with-pastel-balls::before {
 .semi-card-header,
 .semi-card-body {
   padding: 10px !important;
+}
+
+/* ==================== 使用日志: channel affinity tag ==================== */
+.semi-tag.channel-affinity-tag {
+  border: 1px solid rgba(var(--semi-cyan-5), 0.35);
+  background-color: rgba(var(--semi-cyan-5), 0.15);
+  color: rgba(var(--semi-cyan-9), 1);
+  cursor: help;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.semi-tag.channel-affinity-tag:hover {
+  background-color: rgba(var(--semi-cyan-5), 0.22);
+  border-color: rgba(var(--semi-cyan-5), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--semi-cyan-5), 0.18);
+}
+
+.semi-tag.channel-affinity-tag:active {
+  background-color: rgba(var(--semi-cyan-5), 0.28);
+}
+
+.semi-tag.channel-affinity-tag .channel-affinity-tag-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 /* ==================== 自定义圆角样式 ==================== */

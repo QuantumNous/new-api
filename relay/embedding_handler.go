@@ -45,10 +45,19 @@ func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
+	relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 	jsonData, err := json.Marshal(convertedRequest)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
+
+	if len(info.ParamOverride) > 0 {
+		jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+		}
+	}
+
 	logger.LogDebug(c, fmt.Sprintf("converted embedding request body: %s", string(jsonData)))
 	requestBody := bytes.NewBuffer(jsonData)
 	statusCodeMappingStr := c.GetString("status_code_mapping")
@@ -74,6 +83,6 @@ func EmbeddingHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
-	postConsumeQuota(c, info, usage.(*dto.Usage), "")
+	postConsumeQuota(c, info, usage.(*dto.Usage))
 	return nil
 }

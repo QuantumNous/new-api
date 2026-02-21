@@ -138,17 +138,18 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
-		body, err := common.GetRequestBody(c)
+		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = bytes.NewReader(body)
+		requestBody = common.ReaderOnly(storage)
 	} else {
 		// 使用 ConvertGeminiRequest 转换请求格式
 		convertedRequest, err := adaptor.ConvertGeminiRequest(c, info, request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
+		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -156,7 +157,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 		// apply param override
 		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride)
+			jsonData, err = relaycommon.ApplyParamOverride(jsonData, info.ParamOverride, relaycommon.BuildParamOverrideContext(info))
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
 			}
@@ -193,7 +194,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return openaiErr
 	}
 
-	postConsumeQuota(c, info, usage.(*dto.Usage), "")
+	postConsumeQuota(c, info, usage.(*dto.Usage))
 	return nil
 }
 
@@ -292,6 +293,6 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 		return openaiErr
 	}
 
-	postConsumeQuota(c, info, usage.(*dto.Usage), "")
+	postConsumeQuota(c, info, usage.(*dto.Usage))
 	return nil
 }

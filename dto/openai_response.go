@@ -230,6 +230,11 @@ type Usage struct {
 	InputTokens            int                `json:"input_tokens"`
 	OutputTokens           int                `json:"output_tokens"`
 	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+
+	// claude cache 1h
+	ClaudeCacheCreation5mTokens int `json:"claude_cache_creation_5_m_tokens"`
+	ClaudeCacheCreation1hTokens int `json:"claude_cache_creation_1_h_tokens"`
+
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
 }
@@ -329,19 +334,27 @@ type IncompleteDetails struct {
 }
 
 type ResponsesOutput struct {
-	Type    string                   `json:"type"`
-	ID      string                   `json:"id"`
-	Status  string                   `json:"status"`
-	Role    string                   `json:"role"`
-	Content []ResponsesOutputContent `json:"content"`
-	Quality string                   `json:"quality"`
-	Size    string                   `json:"size"`
+	Type      string                   `json:"type"`
+	ID        string                   `json:"id"`
+	Status    string                   `json:"status"`
+	Role      string                   `json:"role"`
+	Content   []ResponsesOutputContent `json:"content"`
+	Quality   string                   `json:"quality"`
+	Size      string                   `json:"size"`
+	CallId    string                   `json:"call_id,omitempty"`
+	Name      string                   `json:"name,omitempty"`
+	Arguments string                   `json:"arguments,omitempty"`
 }
 
 type ResponsesOutputContent struct {
 	Type        string        `json:"type"`
 	Text        string        `json:"text"`
 	Annotations []interface{} `json:"annotations"`
+}
+
+type ResponsesReasoningSummaryPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
 }
 
 const (
@@ -364,6 +377,13 @@ type ResponsesStreamResponse struct {
 	Response *OpenAIResponsesResponse `json:"response,omitempty"`
 	Delta    string                   `json:"delta,omitempty"`
 	Item     *ResponsesOutput         `json:"item,omitempty"`
+	// - response.function_call_arguments.delta
+	// - response.function_call_arguments.done
+	OutputIndex  *int                           `json:"output_index,omitempty"`
+	ContentIndex *int                           `json:"content_index,omitempty"`
+	SummaryIndex *int                           `json:"summary_index,omitempty"`
+	ItemID       string                         `json:"item_id,omitempty"`
+	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构

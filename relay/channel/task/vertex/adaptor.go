@@ -12,7 +12,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -121,7 +120,11 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 		return fmt.Errorf("failed to decode credentials: %w", err)
 	}
 
-	token, err := vertexcore.AcquireAccessToken(*adc, "")
+	proxy := ""
+	if info != nil {
+		proxy = info.ChannelSetting.Proxy
+	}
+	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
 	if err != nil {
 		return fmt.Errorf("failed to acquire access token: %w", err)
 	}
@@ -147,12 +150,39 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			body.Parameters["storageUri"] = v
 		}
 		if v, ok := req.Metadata["sampleCount"]; ok {
-			body.Parameters["sampleCount"] = v
+			if i, ok := v.(int); ok {
+				body.Parameters["sampleCount"] = i
+			}
+			if f, ok := v.(float64); ok {
+				body.Parameters["sampleCount"] = int(f)
+			}
 		}
 	}
 	if _, ok := body.Parameters["sampleCount"]; !ok {
 		body.Parameters["sampleCount"] = 1
 	}
+
+	if body.Parameters["sampleCount"].(int) <= 0 {
+		return nil, fmt.Errorf("sampleCount must be greater than 0")
+	}
+
+	// if req.Duration > 0 {
+	// 	body.Parameters["durationSeconds"] = req.Duration
+	// } else if req.Seconds != "" {
+	// 	seconds, err := strconv.Atoi(req.Seconds)
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "convert seconds to int failed")
+	// 	}
+	// 	body.Parameters["durationSeconds"] = seconds
+	// }
+
+	info.PriceData.OtherRatios = map[string]float64{
+		"sampleCount": float64(body.Parameters["sampleCount"].(int)),
+	}
+
+	// if v, ok := body.Parameters["durationSeconds"]; ok {
+	// 	info.PriceData.OtherRatios["durationSeconds"] = float64(v.(int))
+	// }
 
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -190,7 +220,7 @@ func (a *TaskAdaptor) GetModelList() []string { return []string{"veo-3.0-generat
 func (a *TaskAdaptor) GetChannelName() string { return "vertex" }
 
 // FetchTask fetch task status
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -223,7 +253,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	if err := json.Unmarshal([]byte(key), adc); err != nil {
 		return nil, fmt.Errorf("failed to decode credentials: %w", err)
 	}
-	token, err := vertexcore.AcquireAccessToken(*adc, "")
+	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire access token: %w", err)
 	}
@@ -235,7 +265,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("x-goog-user-project", adc.ProjectID)
-	return service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

@@ -39,19 +39,23 @@ const GEMINI_VERSION_EXAMPLE = {
   default: 'v1beta',
 };
 
+const DEFAULT_GEMINI_INPUTS = {
+  'gemini.safety_settings': '',
+  'gemini.version_settings': '',
+  'gemini.supported_imagine_models': '',
+  'gemini.thinking_adapter_enabled': false,
+  'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
+  'gemini.function_call_thought_signature_enabled': true,
+  'gemini.remove_function_response_id_enabled': true,
+};
+
 export default function SettingGeminiModel(props) {
   const { t } = useTranslation();
 
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    'gemini.safety_settings': '',
-    'gemini.version_settings': '',
-    'gemini.supported_imagine_models': '',
-    'gemini.thinking_adapter_enabled': false,
-    'gemini.thinking_adapter_budget_tokens_percentage': 0.6,
-  });
+  const [inputs, setInputs] = useState(DEFAULT_GEMINI_INPUTS);
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
+  const [inputsRow, setInputsRow] = useState(DEFAULT_GEMINI_INPUTS);
 
   async function onSubmit() {
     await refForm.current
@@ -92,9 +96,9 @@ export default function SettingGeminiModel(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
+    const currentInputs = { ...DEFAULT_GEMINI_INPUTS };
     for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
+      if (Object.prototype.hasOwnProperty.call(DEFAULT_GEMINI_INPUTS, key)) {
         currentInputs[key] = props.options[key];
       }
     }
@@ -162,6 +166,40 @@ export default function SettingGeminiModel(props) {
                   ]}
                   onChange={(value) =>
                     setInputs({ ...inputs, 'gemini.version_settings': value })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={16}>
+                <Form.Switch
+                  label={t('启用FunctionCall思维签名填充')}
+                  field={'gemini.function_call_thought_signature_enabled'}
+                  extraText={t(
+                    '仅为使用OpenAI格式的Gemini/Vertex渠道填充thoughtSignature',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'gemini.function_call_thought_signature_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={16}>
+                <Form.Switch
+                  label={t('移除 functionResponse.id 字段')}
+                  field={'gemini.remove_function_response_id_enabled'}
+                  extraText={t(
+                    'Vertex AI 不支持 functionResponse.id 字段，开启后将自动移除该字段',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'gemini.remove_function_response_id_enabled': value,
+                    })
                   }
                 />
               </Col>

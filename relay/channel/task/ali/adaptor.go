@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -108,6 +111,7 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+	aliReq      *AliVideoRequest
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -118,6 +122,16 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// 阿里通义万相支持 JSON 格式，不使用 multipart
+	var taskReq relaycommon.TaskSubmitReq
+	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
+		return service.TaskErrorWrapper(err, "unmarshal_task_request_failed", http.StatusBadRequest)
+	}
+	aliReq, err := a.convertToAliRequest(info, taskReq)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "convert_to_ali_request_failed", http.StatusInternalServerError)
+	}
+	a.aliReq = aliReq
+	logger.LogJson(c, "ali video request body", aliReq)
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
@@ -134,13 +148,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	var taskReq relaycommon.TaskSubmitReq
-	if err := common.UnmarshalBodyReusable(c, &taskReq); err != nil {
-		return nil, errors.Wrap(err, "unmarshal_task_request_failed")
-	}
-	aliReq := a.convertToAliRequest(taskReq)
-
-	bodyBytes, err := common.Marshal(aliReq)
+	bodyBytes, err := common.Marshal(a.aliReq)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal_ali_request_failed")
 	}
@@ -148,7 +156,102 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	return bytes.NewReader(bodyBytes), nil
 }
 
-func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVideoRequest {
+var (
+	size480p = []string{
+		"832*480",
+		"480*832",
+		"624*624",
+	}
+	size720p = []string{
+		"1280*720",
+		"720*1280",
+		"960*960",
+		"1088*832",
+		"832*1088",
+	}
+	size1080p = []string{
+		"1920*1080",
+		"1080*1920",
+		"1440*1440",
+		"1632*1248",
+		"1248*1632",
+	}
+)
+
+func sizeToResolution(size string) (string, error) {
+	if lo.Contains(size480p, size) {
+		return "480P", nil
+	} else if lo.Contains(size720p, size) {
+		return "720P", nil
+	} else if lo.Contains(size1080p, size) {
+		return "1080P", nil
+	}
+	return "", fmt.Errorf("invalid size: %s", size)
+}
+
+func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
+	otherRatios := make(map[string]float64)
+	aliRatios := map[string]map[string]float64{
+		"wan2.6-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"wan2.5-t2v-preview": {
+			"480P":  1,
+			"720P":  2,
+			"1080P": 1 / 0.3,
+		},
+		"wan2.2-t2v-plus": {
+			"480P":  1,
+			"1080P": 0.7 / 0.14,
+		},
+		"wan2.5-i2v-preview": {
+			"480P":  1,
+			"720P":  2,
+			"1080P": 1 / 0.3,
+		},
+		"wan2.2-i2v-plus": {
+			"480P":  1,
+			"1080P": 0.7 / 0.14,
+		},
+		"wan2.2-kf2v-flash": {
+			"480P":  1,
+			"720P":  2,
+			"1080P": 4.8,
+		},
+		"wan2.2-i2v-flash": {
+			"480P": 1,
+			"720P": 2,
+		},
+		"wan2.2-s2v": {
+			"480P": 1,
+			"720P": 0.9 / 0.5,
+		},
+	}
+	var resolution string
+
+	// size match
+	if aliReq.Parameters.Size != "" {
+		toResolution, err := sizeToResolution(aliReq.Parameters.Size)
+		if err != nil {
+			return nil, err
+		}
+		resolution = toResolution
+	} else {
+		resolution = strings.ToUpper(aliReq.Parameters.Resolution)
+		if !strings.HasSuffix(resolution, "P") {
+			resolution = resolution + "P"
+		}
+	}
+	if otherRatio, ok := aliRatios[aliReq.Model]; ok {
+		if ratio, ok := otherRatio[resolution]; ok {
+			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
+		}
+	}
+	return otherRatios, nil
+}
+
+func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) (*AliVideoRequest, error) {
 	aliReq := &AliVideoRequest{
 		Model: req.Model,
 		Input: AliVideoInput{
@@ -163,28 +266,55 @@ func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVid
 
 	// 处理分辨率映射
 	if req.Size != "" {
-		resolution := strings.ToUpper(req.Size)
-		// 支持 480p, 720p, 1080p 或 480P, 720P, 1080P
-		if !strings.HasSuffix(resolution, "P") {
-			resolution = resolution + "P"
+		// text to video size must be contained *
+		if strings.Contains(req.Model, "t2v") && !strings.Contains(req.Size, "*") {
+			return nil, fmt.Errorf("invalid size: %s, example: %s", req.Size, "1920*1080")
 		}
-		aliReq.Parameters.Resolution = resolution
+		if strings.Contains(req.Size, "*") {
+			aliReq.Parameters.Size = req.Size
+		} else {
+			resolution := strings.ToUpper(req.Size)
+			// 支持 480p, 720p, 1080p 或 480P, 720P, 1080P
+			if !strings.HasSuffix(resolution, "P") {
+				resolution = resolution + "P"
+			}
+			aliReq.Parameters.Resolution = resolution
+		}
 	} else {
 		// 根据模型设置默认分辨率
-		if strings.HasPrefix(req.Model, "wan2.5") {
-			aliReq.Parameters.Resolution = "1080P"
-		} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
-			aliReq.Parameters.Resolution = "720P"
-		} else if strings.HasPrefix(req.Model, "wan2.2-i2v-plus") {
-			aliReq.Parameters.Resolution = "1080P"
+		if strings.Contains(req.Model, "t2v") { // image to video
+			if strings.HasPrefix(req.Model, "wan2.5") {
+				aliReq.Parameters.Size = "1920*1080"
+			} else if strings.HasPrefix(req.Model, "wan2.2") {
+				aliReq.Parameters.Size = "1920*1080"
+			} else {
+				aliReq.Parameters.Size = "1280*720"
+			}
 		} else {
-			aliReq.Parameters.Resolution = "720P"
+			if strings.HasPrefix(req.Model, "wan2.6") {
+				aliReq.Parameters.Resolution = "1080P"
+			} else if strings.HasPrefix(req.Model, "wan2.5") {
+				aliReq.Parameters.Resolution = "1080P"
+			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-flash") {
+				aliReq.Parameters.Resolution = "720P"
+			} else if strings.HasPrefix(req.Model, "wan2.2-i2v-plus") {
+				aliReq.Parameters.Resolution = "1080P"
+			} else {
+				aliReq.Parameters.Resolution = "720P"
+			}
 		}
 	}
 
 	// 处理时长
 	if req.Duration > 0 {
 		aliReq.Parameters.Duration = req.Duration
+	} else if req.Seconds != "" {
+		seconds, err := strconv.Atoi(req.Seconds)
+		if err != nil {
+			return nil, errors.Wrap(err, "convert seconds to int failed")
+		} else {
+			aliReq.Parameters.Duration = seconds
+		}
 	} else {
 		aliReq.Parameters.Duration = 5 // 默认5秒
 	}
@@ -192,11 +322,32 @@ func (a *TaskAdaptor) convertToAliRequest(req relaycommon.TaskSubmitReq) *AliVid
 	// 从 metadata 中提取额外参数
 	if req.Metadata != nil {
 		if metadataBytes, err := common.Marshal(req.Metadata); err == nil {
-			_ = common.Unmarshal(metadataBytes, aliReq)
+			err = common.Unmarshal(metadataBytes, aliReq)
+			if err != nil {
+				return nil, errors.Wrap(err, "unmarshal metadata failed")
+			}
+		} else {
+			return nil, errors.Wrap(err, "marshal metadata failed")
 		}
 	}
 
-	return aliReq
+	if aliReq.Model != req.Model {
+		return nil, errors.New("can't change model with metadata")
+	}
+
+	info.PriceData.OtherRatios = map[string]float64{
+		"seconds": float64(aliReq.Parameters.Duration),
+	}
+
+	ratios, err := ProcessAliOtherRatios(aliReq)
+	if err != nil {
+		return nil, err
+	}
+	for s, f := range ratios {
+		info.PriceData.OtherRatios[s] = f
+	}
+
+	return aliReq, nil
 }
 
 // DoRequest delegates to common helper
@@ -248,7 +399,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 }
 
 // FetchTask 查询任务状态
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -263,7 +414,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	return service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {

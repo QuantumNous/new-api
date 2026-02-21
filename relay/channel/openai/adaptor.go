@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/common_handler"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ type Adaptor struct {
 // support OAI models: o1-mini/o3-mini/o4-mini/o1/o3 etc...
 // minimal effort only available in gpt-5
 func parseReasoningEffortFromModelSuffix(model string) (string, string) {
-	effortSuffixes := []string{"-high", "-minimal", "-low", "-medium"}
+	effortSuffixes := []string{"-high", "-minimal", "-low", "-medium", "-none", "-xhigh"}
 	for _, suffix := range effortSuffixes {
 		if strings.HasSuffix(model, suffix) {
 			effort := strings.TrimPrefix(suffix, "-")
@@ -170,7 +171,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
 	default:
-		if info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini {
+		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
+			info.RelayMode != relayconstant.RelayModeResponses &&
+			info.RelayMode != relayconstant.RelayModeResponsesCompact {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
@@ -186,6 +189,17 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	if info.ChannelType == constant.ChannelTypeOpenAI && "" != info.Organization {
 		header.Set("OpenAI-Organization", info.Organization)
 	}
+	// 检查 Header Override 是否已设置 Authorization，如果已设置则跳过默认设置
+	// 这样可以避免在 Header Override 应用时被覆盖（虽然 Header Override 会在之后应用，但这里作为额外保护）
+	hasAuthOverride := false
+	if len(info.HeadersOverride) > 0 {
+		for k := range info.HeadersOverride {
+			if strings.EqualFold(k, "Authorization") {
+				hasAuthOverride = true
+				break
+			}
+		}
+	}
 	if info.RelayMode == relayconstant.RelayModeRealtime {
 		swp := c.Request.Header.Get("Sec-WebSocket-Protocol")
 		if swp != "" {
@@ -200,10 +214,14 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 			//req.Header.Set("Sec-Websocket-Version", c.Request.Header.Get("Sec-Websocket-Version"))
 		} else {
 			header.Set("openai-beta", "realtime=v1")
-			header.Set("Authorization", "Bearer "+info.ApiKey)
+			if !hasAuthOverride {
+				header.Set("Authorization", "Bearer "+info.ApiKey)
+			}
 		}
 	} else {
-		header.Set("Authorization", "Bearer "+info.ApiKey)
+		if !hasAuthOverride {
+			header.Set("Authorization", "Bearer "+info.ApiKey)
+		}
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		header.Set("HTTP-Referer", "https://www.newapi.ai")
@@ -224,7 +242,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.Usage = json.RawMessage(`{"include":true}`)
 		}
 		// 适配 OpenRouter 的 thinking 后缀
-		if strings.HasSuffix(info.UpstreamModelName, "-thinking") {
+		if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) &&
+			strings.HasSuffix(info.UpstreamModelName, "-thinking") {
 			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
 			request.Model = info.UpstreamModelName
 			if len(request.Reasoning) == 0 {
@@ -304,10 +323,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.Temperature = nil
 		}
 
+		// gpt-5系列模型适配 归零不再支持的参数
 		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
-			if info.UpstreamModelName != "gpt-5-chat-latest" {
-				request.Temperature = nil
-			}
+			request.Temperature = nil
+			request.TopP = 0 // oai 的 top_p 默认值是 1.0，但是为了 omitempty 属性直接不传，这里显式设置为 0
+			request.LogProbs = false
 		}
 
 		// 转换模型推理力度后缀
@@ -567,6 +587,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		}
 		request.Model = originModel
 	}
+	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
+		info.ReasoningEffort = request.Reasoning.Effort
+	}
 	return request, nil
 }
 
@@ -602,6 +625,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		} else {
 			usage, err = OaiResponsesHandler(c, info, resp)
 		}
+	case relayconstant.RelayModeResponsesCompact:
+		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
 		if info.IsStream {
 			usage, err = OaiStreamHandler(c, info, resp)

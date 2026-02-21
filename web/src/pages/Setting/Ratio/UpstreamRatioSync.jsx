@@ -53,6 +53,16 @@ import {
 } from '@douyinfe/semi-illustrations';
 import ChannelSelectorModal from '../../../components/settings/ChannelSelectorModal';
 
+const OFFICIAL_RATIO_PRESET_ID = -100;
+const OFFICIAL_RATIO_PRESET_NAME = '官方倍率预设';
+const OFFICIAL_RATIO_PRESET_BASE_URL = 'https://basellm.github.io';
+const OFFICIAL_RATIO_PRESET_ENDPOINT =
+  '/llm-metadata/api/newapi/ratio_config-v1-base.json';
+const MODELS_DEV_PRESET_ID = -101;
+const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
+const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
+const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json';
+
 function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
   const isMobile = useIsMobile();
   const columns = [
@@ -154,14 +164,26 @@ export default function UpstreamRatioSync(props) {
             const id = channel.key;
             const base = channel._originalData?.base_url || '';
             const name = channel.label || '';
-            const isOfficial =
-              id === -100 ||
-              base === 'https://basellm.github.io' ||
-              name === '官方倍率预设';
+            const channelType = channel._originalData?.type;
+            const isOfficialRatioPreset =
+              id === OFFICIAL_RATIO_PRESET_ID ||
+              base === OFFICIAL_RATIO_PRESET_BASE_URL ||
+              name === OFFICIAL_RATIO_PRESET_NAME;
+            const isModelsDevPreset =
+              id === MODELS_DEV_PRESET_ID ||
+              base === MODELS_DEV_PRESET_BASE_URL ||
+              name === MODELS_DEV_PRESET_NAME;
+            const isOpenRouter = channelType === 20;
             if (!merged[id]) {
-              merged[id] = isOfficial
-                ? '/llm-metadata/api/newapi/ratio_config-v1-base.json'
-                : DEFAULT_ENDPOINT;
+              if (isModelsDevPreset) {
+                merged[id] = MODELS_DEV_PRESET_ENDPOINT;
+              } else if (isOfficialRatioPreset) {
+                merged[id] = OFFICIAL_RATIO_PRESET_ENDPOINT;
+              } else if (isOpenRouter) {
+                merged[id] = 'openrouter';
+              } else {
+                merged[id] = DEFAULT_ENDPOINT;
+              }
             }
           });
           return merged;
@@ -652,7 +674,7 @@ export default function UpstreamRatioSync(props) {
             color={text !== null && text !== undefined ? 'blue' : 'default'}
             shape='circle'
           >
-            {text !== null && text !== undefined ? text : t('未设置')}
+            {text !== null && text !== undefined ? String(text) : t('未设置')}
           </Tag>
         ),
       },
@@ -774,7 +796,7 @@ export default function UpstreamRatioSync(props) {
                     }
                   }}
                 >
-                  {upstreamVal}
+                  {String(upstreamVal)}
                 </Checkbox>
                 {!isConfident && (
                   <Tooltip

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -23,18 +26,37 @@ import (
 // ============================
 
 type ContentItem struct {
-	Type     string    `json:"type"`                // "text" or "image_url"
-	Text     string    `json:"text,omitempty"`      // for text type
-	ImageURL *ImageURL `json:"image_url,omitempty"` // for image_url type
+	Type     string          `json:"type"`                // "text", "image_url" or "video"
+	Text     string          `json:"text,omitempty"`      // for text type
+	ImageURL *ImageURL       `json:"image_url,omitempty"` // for image_url type
+	Video    *VideoReference `json:"video,omitempty"`     // for video (sample) type
+	Role     string          `json:"role,omitempty"`      // reference_image / first_frame / last_frame
 }
 
 type ImageURL struct {
 	URL string `json:"url"`
 }
 
+type VideoReference struct {
+	URL string `json:"url"` // Draft video URL
+}
+
 type requestPayload struct {
-	Model   string        `json:"model"`
-	Content []ContentItem `json:"content"`
+	Model                 string         `json:"model"`
+	Content               []ContentItem  `json:"content"`
+	CallbackURL           string         `json:"callback_url,omitempty"`
+	ReturnLastFrame       *dto.BoolValue `json:"return_last_frame,omitempty"`
+	ServiceTier           string         `json:"service_tier,omitempty"`
+	ExecutionExpiresAfter dto.IntValue   `json:"execution_expires_after,omitempty"`
+	GenerateAudio         *dto.BoolValue `json:"generate_audio,omitempty"`
+	Draft                 *dto.BoolValue `json:"draft,omitempty"`
+	Resolution            string         `json:"resolution,omitempty"`
+	Ratio                 string         `json:"ratio,omitempty"`
+	Duration              dto.IntValue   `json:"duration,omitempty"`
+	Frames                dto.IntValue   `json:"frames,omitempty"`
+	Seed                  dto.IntValue   `json:"seed,omitempty"`
+	CameraFixed           *dto.BoolValue `json:"camera_fixed,omitempty"`
+	Watermark             *dto.BoolValue `json:"watermark,omitempty"`
 }
 
 type responsePayload struct {
@@ -53,6 +75,7 @@ type responseTask struct {
 	Duration        int    `json:"duration"`
 	Ratio           string `json:"ratio"`
 	FramesPerSecond int    `json:"framespersecond"`
+	ServiceTier     string `json:"service_tier"`
 	Usage           struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
@@ -98,16 +121,16 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 // BuildRequestBody converts request into Doubao specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	v, exists := c.Get("task_request")
-	if !exists {
-		return nil, fmt.Errorf("request not found in context")
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, err
 	}
-	req := v.(relaycommon.TaskSubmitReq)
 
 	body, err := a.convertToRequestPayload(&req)
 	if err != nil {
 		return nil, errors.Wrap(err, "convert request payload failed")
 	}
+	info.UpstreamModelName = body.Model
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -141,12 +164,18 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"task_id": dResp.ID})
+	ov := dto.NewOpenAIVideo()
+	ov.ID = dResp.ID
+	ov.TaskID = dResp.ID
+	ov.CreatedAt = time.Now().Unix()
+	ov.Model = info.OriginModelName
+
+	c.JSON(http.StatusOK, ov)
 	return dResp.ID, responseBody, nil
 }
 
 // FetchTask fetch task status
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -163,7 +192,11 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any) (*http
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
 
-	return service.GetHttpClient().Do(req)
+	client, err := service.GetHttpClientWithProxy(proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	}
+	return client.Do(req)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -200,12 +233,15 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		}
 	}
 
-	// TODO: Add support for additional parameters from metadata
-	// such as ratio, duration, seed, etc.
-	// metadata := req.Metadata
-	// if metadata != nil {
-	//     // Parse and apply metadata parameters
-	// }
+	metadata := req.Metadata
+	medaBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, errors.Wrap(err, "metadata marshal metadata failed")
+	}
+	err = json.Unmarshal(medaBytes, &r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshal metadata failed")
+	}
 
 	return &r, nil
 }
@@ -225,7 +261,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "pending", "queued":
 		taskResult.Status = model.TaskStatusQueued
 		taskResult.Progress = "10%"
-	case "processing":
+	case "processing", "running":
 		taskResult.Status = model.TaskStatusInProgress
 		taskResult.Progress = "50%"
 	case "succeeded":
@@ -246,4 +282,31 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return &taskResult, nil
+}
+
+func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error) {
+	var dResp responseTask
+	if err := json.Unmarshal(originTask.Data, &dResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal doubao task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = originTask.TaskID
+	openAIVideo.TaskID = originTask.TaskID
+	openAIVideo.Status = originTask.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(originTask.Progress)
+	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	openAIVideo.CreatedAt = originTask.CreatedAt
+	openAIVideo.CompletedAt = originTask.UpdatedAt
+	openAIVideo.Model = originTask.Properties.OriginModelName
+
+	if dResp.Status == "failed" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: "task failed",
+			Code:    "failed",
+		}
+	}
+
+	jsonData, _ := common.Marshal(openAIVideo)
+	return jsonData, nil
 }

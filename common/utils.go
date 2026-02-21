@@ -192,7 +192,7 @@ func Interface2String(inter interface{}) string {
 	case int:
 		return fmt.Sprintf("%d", inter.(int))
 	case float64:
-		return fmt.Sprintf("%f", inter.(float64))
+		return strconv.FormatFloat(inter.(float64), 'f', -1, 64)
 	case bool:
 		if inter.(bool) {
 			return "true"
@@ -215,11 +215,6 @@ func IntMax(a int, b int) int {
 	} else {
 		return b
 	}
-}
-
-func IsIP(s string) bool {
-	ip := net.ParseIP(s)
-	return ip != nil
 }
 
 func GetUUID() string {
@@ -268,7 +263,7 @@ func GetTimestamp() int64 {
 }
 
 func GetTimeString() string {
-	now := time.Now()
+	now := time.Now().UTC()
 	return fmt.Sprintf("%s%d", now.Format("20060102150405"), now.UnixNano()%1e9)
 }
 

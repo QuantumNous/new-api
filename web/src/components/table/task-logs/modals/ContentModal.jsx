@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -29,6 +30,7 @@ const ContentModal = ({
   modalContent,
   isVideo,
 }) => {
+  const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,25 +66,25 @@ const ContentModal = ({
             type='tertiary'
             style={{ display: 'block', marginBottom: '16px' }}
           >
-            视频无法在当前浏览器中播放，这可能是由于：
+            {t('视频无法在当前浏览器中播放，这可能是由于：')}
           </Text>
           <Text
             type='tertiary'
             style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
           >
-            • 视频服务商的跨域限制
+            {t('• 视频服务商的跨域限制')}
           </Text>
           <Text
             type='tertiary'
             style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
           >
-            • 需要特定的请求头或认证
+            {t('• 需要特定的请求头或认证')}
           </Text>
           <Text
             type='tertiary'
             style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
           >
-            • 防盗链保护机制
+            {t('• 防盗链保护机制')}
           </Text>
 
           <div style={{ marginTop: '20px' }}>
@@ -91,10 +93,10 @@ const ContentModal = ({
               onClick={handleOpenInNewTab}
               style={{ marginRight: '8px' }}
             >
-              在新标签页中打开
+              {t('在新标签页中打开')}
             </Button>
             <Button icon={<IconCopy />} onClick={handleCopyUrl}>
-              复制链接
+              {t('复制链接')}
             </Button>
           </div>
 
@@ -118,7 +120,7 @@ const ContentModal = ({
     }
 
     return (
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', height: '100%' }}>
         {isLoading && (
           <div
             style={{
@@ -135,7 +137,13 @@ const ContentModal = ({
         <video
           src={modalContent}
           controls
-          style={{ width: '100%' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+          }}
           autoPlay
           crossOrigin='anonymous'
           onError={handleVideoError}
@@ -153,11 +161,13 @@ const ContentModal = ({
       onCancel={() => setIsModalOpen(false)}
       closable={null}
       bodyStyle={{
-        height: isVideo ? '450px' : '400px',
+        height: isVideo ? '70vh' : '400px',
+        maxHeight: '80vh',
         overflow: 'auto',
         padding: isVideo && videoError ? '0' : '24px',
       }}
-      width={800}
+      width={isVideo ? '90vw' : 800}
+      style={isVideo ? { maxWidth: 960 } : undefined}
     >
       {isVideo ? (
         renderVideoContent()

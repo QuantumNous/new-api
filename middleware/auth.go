@@ -2,15 +2,18 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -122,23 +125,14 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+	// 防止不同newapi版本冲突，导致数据不通用
+	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
 	c.Set("group", session.Get("group"))
 	c.Set("user_group", session.Get("group"))
 	c.Set("use_access_token", useAccessToken)
-
-	//userCache, err := model.GetUserCache(id.(int))
-	//if err != nil {
-	//	c.JSON(http.StatusOK, gin.H{
-	//		"success": false,
-	//		"message": err.Error(),
-	//	})
-	//	c.Abort()
-	//	return
-	//}
-	//userCache.WriteContext(c)
 
 	c.Next()
 }
@@ -176,6 +170,63 @@ func WssAuth(c *gin.Context) {
 
 }
 
+// TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
+// 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
+// 即使令牌已过期、已耗尽或已禁用，也允许访问。
+// 仍然检查用户是否被封禁。
+func TokenAuthReadOnly() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		key := c.Request.Header.Get("Authorization")
+		if key == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "未提供 Authorization 请求头",
+			})
+			c.Abort()
+			return
+		}
+		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+			key = strings.TrimSpace(key[7:])
+		}
+		key = strings.TrimPrefix(key, "sk-")
+		parts := strings.Split(key, "-")
+		key = parts[0]
+
+		token, err := model.GetTokenByKey(key, false)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "无效的令牌",
+			})
+			c.Abort()
+			return
+		}
+
+		userCache, err := model.GetUserCache(token.UserId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		if userCache.Status != common.UserStatusEnabled {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "用户已被封禁",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("id", token.UserId)
+		c.Set("token_id", token.Id)
+		c.Set("token_key", token.Key)
+		c.Next()
+	}
+}
+
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
@@ -193,8 +244,8 @@ func TokenAuth() func(c *gin.Context) {
 			}
 			c.Request.Header.Set("Authorization", "Bearer "+key)
 		}
-		// 检查path包含/v1/messages
-		if strings.Contains(c.Request.URL.Path, "/v1/messages") {
+		// 检查path包含/v1/messages 或 /v1/models
+		if strings.Contains(c.Request.URL.Path, "/v1/messages") || strings.Contains(c.Request.URL.Path, "/v1/models") {
 			anthropicKey := c.Request.Header.Get("x-api-key")
 			if anthropicKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
@@ -216,10 +267,14 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		key := c.Request.Header.Get("Authorization")
 		parts := make([]string, 0)
-		key = strings.TrimPrefix(key, "Bearer ")
+		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+			key = strings.TrimSpace(key[7:])
+		}
 		if key == "" || key == "midjourney-proxy" {
 			key = c.Request.Header.Get("mj-api-secret")
-			key = strings.TrimPrefix(key, "Bearer ")
+			if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
+				key = strings.TrimSpace(key[7:])
+			}
 			key = strings.TrimPrefix(key, "sk-")
 			parts = strings.Split(key, "-")
 			key = parts[0]
@@ -240,13 +295,20 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 
-		allowIpsMap := token.GetIpLimitsMap()
-		if len(allowIpsMap) != 0 {
+		allowIps := token.GetIpLimits()
+		if len(allowIps) > 0 {
 			clientIp := c.ClientIP()
-			if _, ok := allowIpsMap[clientIp]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中")
+			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
+			ip := net.ParseIP(clientIp)
+			if ip == nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
 				return
 			}
+			if common.IsIpInCIDRList(ip, allowIps) == false {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
+				return
+			}
+			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
@@ -307,11 +369,13 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	} else {
 		c.Set("token_model_limit_enabled", false)
 	}
-	c.Set("token_group", token.Group)
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
+	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
 	if len(parts) > 1 {
 		if model.IsAdmin(token.UserId) {
 			c.Set("specific_channel_id", parts[1])
 		} else {
+			c.Header("specific_channel_version", "701e3ae1dc3f7975556d354e0675168d004891c8")
 			abortWithOpenAiMessage(c, http.StatusForbidden, "普通用户不支持指定渠道")
 			return fmt.Errorf("普通用户不支持指定渠道")
 		}

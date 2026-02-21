@@ -2,7 +2,9 @@ package common
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -10,34 +12,108 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
 )
 
 const KeyRequestBody = "key_request_body"
+const KeyBodyStorage = "key_body_storage"
 
-func GetRequestBody(c *gin.Context) ([]byte, error) {
-	requestBody, _ := c.Get(KeyRequestBody)
-	if requestBody != nil {
-		return requestBody.([]byte), nil
+var ErrRequestBodyTooLarge = errors.New("request body too large")
+
+func IsRequestBodyTooLargeError(err error) bool {
+	if err == nil {
+		return false
 	}
-	requestBody, err := io.ReadAll(c.Request.Body)
+	if errors.Is(err, ErrRequestBodyTooLarge) {
+		return true
+	}
+	var mbe *http.MaxBytesError
+	return errors.As(err, &mbe)
+}
+
+func GetRequestBody(c *gin.Context) (io.Seeker, error) {
+	// 首先检查是否有 BodyStorage 缓存
+	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
+		if bs, ok := storage.(BodyStorage); ok {
+			if _, err := bs.Seek(0, io.SeekStart); err != nil {
+				return nil, fmt.Errorf("failed to seek body storage: %w", err)
+			}
+			return bs, nil
+		}
+	}
+
+	// 检查旧的缓存方式
+	cached, exists := c.Get(KeyRequestBody)
+	if exists && cached != nil {
+		if b, ok := cached.([]byte); ok {
+			bs, err := CreateBodyStorage(b)
+			if err != nil {
+				return nil, err
+			}
+			c.Set(KeyBodyStorage, bs)
+			return bs, nil
+		}
+	}
+
+	maxMB := constant.MaxRequestBodyMB
+	if maxMB <= 0 {
+		maxMB = 128 // 默认 128MB
+	}
+	maxBytes := int64(maxMB) << 20
+
+	contentLength := c.Request.ContentLength
+
+	// 使用新的存储系统
+	storage, err := CreateBodyStorageFromReader(c.Request.Body, contentLength, maxBytes)
+	_ = c.Request.Body.Close()
+
+	if err != nil {
+		if IsRequestBodyTooLargeError(err) {
+			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+		}
+		return nil, err
+	}
+
+	// 缓存存储对象
+	c.Set(KeyBodyStorage, storage)
+
+	return storage, nil
+}
+
+// GetBodyStorage 获取请求体存储对象（用于需要多次读取的场景）
+func GetBodyStorage(c *gin.Context) (BodyStorage, error) {
+	seeker, err := GetRequestBody(c)
 	if err != nil {
 		return nil, err
 	}
-	_ = c.Request.Body.Close()
-	c.Set(KeyRequestBody, requestBody)
-	return requestBody.([]byte), nil
+	bs, ok := seeker.(BodyStorage)
+	if !ok {
+		return nil, errors.New("unexpected body storage type")
+	}
+	return bs, nil
+}
+
+// CleanupBodyStorage 清理请求体存储（应在请求结束时调用）
+func CleanupBodyStorage(c *gin.Context) {
+	if storage, exists := c.Get(KeyBodyStorage); exists && storage != nil {
+		if bs, ok := storage.(BodyStorage); ok {
+			bs.Close()
+		}
+		c.Set(KeyBodyStorage, nil)
+	}
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
-	requestBody, err := GetRequestBody(c)
+	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return err
 	}
-	//if DebugEnabled {
-	//	println("UnmarshalBodyReusable request body:", string(requestBody))
-	//}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return err
+	}
 	contentType := c.Request.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "application/json") {
 		err = Unmarshal(requestBody, v)
@@ -53,7 +129,10 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 		return err
 	}
 	// Reset request body
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
 	return nil
 }
 
@@ -121,26 +200,66 @@ func ApiSuccess(c *gin.Context, data any) {
 	})
 }
 
+// ApiErrorI18n returns a translated error message based on the user's language preference
+// key is the i18n message key, args is optional template data
+func ApiErrorI18n(c *gin.Context, key string, args ...map[string]any) {
+	msg := TranslateMessage(c, key, args...)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": msg,
+	})
+}
+
+// ApiSuccessI18n returns a translated success message based on the user's language preference
+func ApiSuccessI18n(c *gin.Context, key string, data any, args ...map[string]any) {
+	msg := TranslateMessage(c, key, args...)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": msg,
+		"data":    data,
+	})
+}
+
+// TranslateMessage is a helper function that calls i18n.T
+// This function is defined here to avoid circular imports
+// The actual implementation will be set during init
+var TranslateMessage func(c *gin.Context, key string, args ...map[string]any) string
+
+func init() {
+	// Default implementation that returns the key as-is
+	// This will be replaced by i18n.T during i18n initialization
+	TranslateMessage = func(c *gin.Context, key string, args ...map[string]any) string {
+		return key
+	}
+}
+
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
-	requestBody, err := GetRequestBody(c)
+	storage, err := GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	requestBody, err := storage.Bytes()
 	if err != nil {
 		return nil, err
 	}
 
 	contentType := c.Request.Header.Get("Content-Type")
-	boundary := ""
-	if idx := strings.Index(contentType, "boundary="); idx != -1 {
-		boundary = contentType[idx+9:]
+	boundary, err := parseBoundary(contentType)
+	if err != nil {
+		return nil, err
 	}
 
 	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
-	form, err := reader.ReadForm(32 << 20) // 32 MB max memory
+	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return nil, err
 	}
 
 	// Reset request body
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return nil, seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
 	return form, nil
 }
 
@@ -177,17 +296,16 @@ func parseFormData(data []byte, v any) error {
 
 func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	contentType := c.Request.Header.Get("Content-Type")
-	boundary := ""
-	if idx := strings.Index(contentType, "boundary="); idx != -1 {
-		boundary = contentType[idx+9:]
-	}
-
-	if boundary == "" {
-		return Unmarshal(data, v) // Fallback to JSON
+	boundary, err := parseBoundary(contentType)
+	if err != nil {
+		if errors.Is(err, errBoundaryNotFound) {
+			return Unmarshal(data, v) // Fallback to JSON
+		}
+		return err
 	}
 
 	reader := multipart.NewReader(bytes.NewReader(data), boundary)
-	form, err := reader.ReadForm(32 << 20) // 32 MB max memory
+	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return err
 	}
@@ -202,4 +320,32 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	}
 
 	return processFormMap(formMap, v)
+}
+
+var errBoundaryNotFound = errors.New("multipart boundary not found")
+
+// parseBoundary extracts the multipart boundary from the Content-Type header using mime.ParseMediaType
+func parseBoundary(contentType string) (string, error) {
+	if contentType == "" {
+		return "", errBoundaryNotFound
+	}
+	// Boundary-UUID / boundary-------xxxxxx
+	_, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return "", err
+	}
+	boundary, ok := params["boundary"]
+	if !ok || boundary == "" {
+		return "", errBoundaryNotFound
+	}
+	return boundary, nil
+}
+
+// multipartMemoryLimit returns the configured multipart memory limit in bytes
+func multipartMemoryLimit() int64 {
+	limitMB := constant.MaxFileDownloadMB
+	if limitMB <= 0 {
+		limitMB = 32
+	}
+	return int64(limitMB) << 20
 }

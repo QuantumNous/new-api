@@ -71,15 +71,66 @@ func getMP3Duration(r io.Reader) (float64, error) {
 
 // getWAVDuration 解析 WAV 文件头以获取时长。
 func getWAVDuration(r io.ReadSeeker) (float64, error) {
+	// 1. 强制复位指针
+	r.Seek(0, io.SeekStart)
+
 	dec := wav.NewDecoder(r)
+
+	// IsValidFile 会读取 fmt 块
 	if !dec.IsValidFile() {
 		return 0, errors.New("invalid wav file")
 	}
-	d, err := dec.Duration()
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to get wav duration")
+
+	// 尝试寻找 data 块
+	if err := dec.FwdToPCM(); err != nil {
+		return 0, errors.Wrap(err, "failed to find PCM data chunk")
 	}
-	return d.Seconds(), nil
+
+	pcmSize := int64(dec.PCMSize)
+
+	// 如果读出来的 Size 是 0，尝试用文件大小反推
+	if pcmSize == 0 {
+		// 获取文件总大小
+		currentPos, _ := r.Seek(0, io.SeekCurrent) // 当前通常在 data chunk header 之后
+		endPos, _ := r.Seek(0, io.SeekEnd)
+		fileSize := endPos
+
+		// 恢复位置（虽然如果不继续读也没关系）
+		r.Seek(currentPos, io.SeekStart)
+
+		// 数据区大小 ≈ 文件总大小 - 当前指针位置(即Header大小)
+		// 注意：FwdToPCM 成功后，CurrentPos 应该刚好指向 Data 区数据的开始
+		// 或者是 Data Chunk ID + Size 之后。
+		// WAV Header 一般 44 字节。
+		if fileSize > 44 {
+			// 如果 FwdToPCM 成功，Reader 应该位于 data 块的数据起始处
+			// 所以剩余的所有字节理论上都是音频数据
+			pcmSize = fileSize - currentPos
+
+			// 简单的兜底：如果算出来还是负数或0，强制按文件大小-44计算
+			if pcmSize <= 0 {
+				pcmSize = fileSize - 44
+			}
+		}
+	}
+
+	numChans := int64(dec.NumChans)
+	bitDepth := int64(dec.BitDepth)
+	sampleRate := float64(dec.SampleRate)
+
+	if sampleRate == 0 || numChans == 0 || bitDepth == 0 {
+		return 0, errors.New("invalid wav header metadata")
+	}
+
+	bytesPerFrame := numChans * (bitDepth / 8)
+	if bytesPerFrame == 0 {
+		return 0, errors.New("invalid byte depth calculation")
+	}
+
+	totalFrames := pcmSize / bytesPerFrame
+
+	durationSeconds := float64(totalFrames) / sampleRate
+	return durationSeconds, nil
 }
 
 // getFLACDuration 解析 FLAC 文件的 STREAMINFO 块。

@@ -53,6 +53,8 @@ const (
 	ChannelTypeSubmodel       = 53
 	ChannelTypeDoubaoVideo    = 54
 	ChannelTypeSora           = 55
+	ChannelTypeReplicate      = 56
+	ChannelTypeCodex          = 57
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -114,6 +116,8 @@ var ChannelBaseURLs = []string{
 	"https://llm.submodel.ai",                   //53
 	"https://ark.cn-beijing.volces.com",         //54
 	"https://api.openai.com",                    //55
+	"https://api.replicate.com",                 //56
+	"https://chatgpt.com",                       //57
 }
 
 var ChannelTypeNames = map[int]string{
@@ -169,6 +173,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSubmodel:       "Submodel",
 	ChannelTypeDoubaoVideo:    "DoubaoVideo",
 	ChannelTypeSora:           "Sora",
+	ChannelTypeReplicate:      "Replicate",
+	ChannelTypeCodex:          "Codex",
 }
 
 func GetChannelTypeName(channelType int) string {
@@ -176,4 +182,28 @@ func GetChannelTypeName(channelType int) string {
 		return name
 	}
 	return "Unknown"
+}
+
+type ChannelSpecialBase struct {
+	ClaudeBaseURL string
+	OpenAIBaseURL string
+}
+
+var ChannelSpecialBases = map[string]ChannelSpecialBase{
+	"glm-coding-plan": {
+		ClaudeBaseURL: "https://open.bigmodel.cn/api/anthropic",
+		OpenAIBaseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+	},
+	"glm-coding-plan-international": {
+		ClaudeBaseURL: "https://api.z.ai/api/anthropic",
+		OpenAIBaseURL: "https://api.z.ai/api/coding/paas/v4",
+	},
+	"kimi-coding-plan": {
+		ClaudeBaseURL: "https://api.kimi.com/coding",
+		OpenAIBaseURL: "https://api.kimi.com/coding/v1",
+	},
+	"doubao-coding-plan": {
+		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
+		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
+	},
 }

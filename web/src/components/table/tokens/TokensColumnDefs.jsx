@@ -88,7 +88,7 @@ const renderStatus = (text, record, t) => {
 };
 
 // Render group column
-const renderGroupColumn = (text, t) => {
+const renderGroupColumn = (text, record, t) => {
   if (text === 'auto') {
     return (
       <Tooltip
@@ -98,8 +98,8 @@ const renderGroupColumn = (text, t) => {
         position='top'
       >
         <Tag color='white' shape='circle'>
-          {' '}
-          {t('智能熔断')}{' '}
+          {t('智能熔断')}
+          {record && record.cross_group_retry ? `(${t('跨分组')})` : ''}
         </Tag>
       </Tooltip>
     );
@@ -455,7 +455,7 @@ export const getTokensColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       key: 'group',
-      render: (text) => renderGroupColumn(text, t),
+      render: (text, record) => renderGroupColumn(text, record, t),
     },
     {
       title: t('密钥'),

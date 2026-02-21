@@ -186,23 +186,7 @@ func isIPListed(ip net.IP, list []string) bool {
 		return false
 	}
 
-	for _, whitelistCIDR := range list {
-		_, network, err := net.ParseCIDR(whitelistCIDR)
-		if err != nil {
-			// 尝试作为单个IP处理
-			if whitelistIP := net.ParseIP(whitelistCIDR); whitelistIP != nil {
-				if ip.Equal(whitelistIP) {
-					return true
-				}
-			}
-			continue
-		}
-
-		if network.Contains(ip) {
-			return true
-		}
-	}
-	return false
+	return IsIpInCIDRList(ip, list)
 }
 
 // IsIPAccessAllowed 检查IP是否允许访问

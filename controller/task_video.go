@@ -52,6 +52,7 @@ func updateVideoTaskAll(ctx context.Context, platform constant.TaskPlatform, cha
 	info.ChannelMeta = &relaycommon.ChannelMeta{
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
 	}
+	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
 	for _, taskId := range taskIds {
 		if err := updateVideoSingleTask(ctx, adaptor, cacheGetChannel, taskId, taskM); err != nil {
@@ -66,16 +67,23 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
+	proxy := channel.GetSetting().Proxy
 
 	task := taskM[taskId]
 	if task == nil {
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-	resp, err := adaptor.FetchTask(baseURL, channel.Key, map[string]any{
+	key := channel.Key
+
+	privateData := task.PrivateData
+	if privateData.Key != "" {
+		key = privateData.Key
+	}
+	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
 		"task_id": taskId,
 		"action":  task.Action,
-	})
+	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
