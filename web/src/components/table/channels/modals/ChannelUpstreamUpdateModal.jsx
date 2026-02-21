@@ -76,6 +76,7 @@ const ChannelUpstreamUpdateModal = ({
   const [selectedRemoveModels, setSelectedRemoveModels] = useState([]);
   const [keyword, setKeyword] = useState('');
   const [activeTab, setActiveTab] = useState('add');
+  const [partialSubmitConfirmed, setPartialSubmitConfirmed] = useState(false);
 
   const addTabEnabled = normalizedAddModels.length > 0;
   const removeTabEnabled = normalizedRemoveModels.length > 0;
@@ -95,6 +96,7 @@ const ChannelUpstreamUpdateModal = ({
     setSelectedAddModels([]);
     setSelectedRemoveModels([]);
     setKeyword('');
+    setPartialSubmitConfirmed(false);
     const normalizedPreferredTab = preferredTab === 'remove' ? 'remove' : 'add';
     if (normalizedPreferredTab === 'remove' && removeTabEnabled) {
       setActiveTab('remove');
@@ -168,6 +170,10 @@ const ChannelUpstreamUpdateModal = ({
     const hasUnselectedAdd = addTabEnabled && selectedAddCount === 0;
     const hasUnselectedRemove = removeTabEnabled && selectedRemoveCount === 0;
     if (hasBothPending && (hasUnselectedAdd || hasUnselectedRemove)) {
+      if (partialSubmitConfirmed) {
+        submitSelectedChanges();
+        return;
+      }
       const missingTab = hasUnselectedAdd ? 'add' : 'remove';
       const missingType = hasUnselectedAdd ? t('新增') : t('删除');
       const missingCount = hasUnselectedAdd
@@ -186,7 +192,10 @@ const ChannelUpstreamUpdateModal = ({
         okText: t('仅提交已勾选'),
         cancelText: t('去处理{{type}}', { type: missingType }),
         centered: true,
-        onOk: () => submitSelectedChanges(),
+        onOk: () => {
+          setPartialSubmitConfirmed(true);
+          submitSelectedChanges();
+        },
       });
       return;
     }
