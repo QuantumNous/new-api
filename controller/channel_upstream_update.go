@@ -109,14 +109,42 @@ func applySelectedModelChanges(originModels []string, addModels []string, remove
 	return subtractModelNames(mergeModelNames(originModels, normalizedAdd), normalizedRemove)
 }
 
-func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
-	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
-	if err != nil {
-		return nil, nil, err
+func normalizeChannelModelMapping(channel *model.Channel) map[string]string {
+	if channel == nil || channel.ModelMapping == nil {
+		return nil
 	}
+	rawMapping := strings.TrimSpace(*channel.ModelMapping)
+	if rawMapping == "" || rawMapping == "{}" {
+		return nil
+	}
+	parsed := make(map[string]string)
+	if err := common.UnmarshalJsonStr(rawMapping, &parsed); err != nil {
+		return nil
+	}
+	normalized := make(map[string]string, len(parsed))
+	for source, target := range parsed {
+		normalizedSource := strings.TrimSpace(source)
+		normalizedTarget := strings.TrimSpace(target)
+		if normalizedSource == "" || normalizedTarget == "" {
+			continue
+		}
+		normalized[normalizedSource] = normalizedTarget
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
 
+func collectPendingUpstreamModelChangesFromModels(
+	localModels []string,
+	upstreamModels []string,
+	ignoredModels []string,
+	modelMapping map[string]string,
+) (pendingAddModels []string, pendingRemoveModels []string) {
 	localSet := make(map[string]struct{})
-	localModels := normalizeModelNames(channel.GetModels())
+	localModels = normalizeModelNames(localModels)
+	upstreamModels = normalizeModelNames(upstreamModels)
 	for _, modelName := range localModels {
 		localSet[modelName] = struct{}{}
 	}
@@ -126,12 +154,27 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 	}
 
 	ignoredSet := make(map[string]struct{})
-	for _, modelName := range normalizeModelNames(settings.UpstreamModelUpdateIgnoredModels) {
+	for _, modelName := range normalizeModelNames(ignoredModels) {
 		ignoredSet[modelName] = struct{}{}
 	}
 
+	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
+	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
+	for source, target := range modelMapping {
+		redirectSourceSet[source] = struct{}{}
+		redirectTargetSet[target] = struct{}{}
+	}
+
+	coveredUpstreamSet := make(map[string]struct{}, len(localSet)+len(redirectTargetSet))
+	for modelName := range localSet {
+		coveredUpstreamSet[modelName] = struct{}{}
+	}
+	for modelName := range redirectTargetSet {
+		coveredUpstreamSet[modelName] = struct{}{}
+	}
+
 	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
-		if _, ok := localSet[modelName]; ok {
+		if _, ok := coveredUpstreamSet[modelName]; ok {
 			return false
 		}
 		if _, ok := ignoredSet[modelName]; ok {
@@ -140,10 +183,29 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 		return true
 	})
 	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
+		// Redirect source models are virtual aliases and should not be removed
+		// only because they are absent from upstream model list.
+		if _, ok := redirectSourceSet[modelName]; ok {
+			return false
+		}
 		_, ok := upstreamSet[modelName]
 		return !ok
 	})
-	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove), nil
+	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
+}
+
+func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
+	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
+	if err != nil {
+		return nil, nil, err
+	}
+	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
+		channel.GetModels(),
+		upstreamModels,
+		settings.UpstreamModelUpdateIgnoredModels,
+		normalizeChannelModelMapping(channel),
+	)
+	return pendingAddModels, pendingRemoveModels, nil
 }
 
 func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {

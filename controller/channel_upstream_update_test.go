@@ -3,6 +3,7 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,4 +66,34 @@ func TestApplySelectedModelChanges(t *testing.T) {
 
 		require.Equal(t, []string{"gpt-4o", "gpt-4.1"}, result)
 	})
+}
+
+func TestNormalizeChannelModelMapping(t *testing.T) {
+	modelMapping := `{
+		" alias-model ": " upstream-model ",
+		"": "invalid",
+		"invalid-target": ""
+	}`
+	channel := &model.Channel{
+		ModelMapping: &modelMapping,
+	}
+
+	result := normalizeChannelModelMapping(channel)
+	require.Equal(t, map[string]string{
+		"alias-model": "upstream-model",
+	}, result)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testing.T) {
+	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
+		[]string{"alias-model", "gpt-4o", "stale-model"},
+		[]string{"gpt-4o", "gpt-4.1", "mapped-target"},
+		[]string{"gpt-4.1"},
+		map[string]string{
+			"alias-model": "mapped-target",
+		},
+	)
+
+	require.Equal(t, []string{}, pendingAddModels)
+	require.Equal(t, []string{"stale-model"}, pendingRemoveModels)
 }
