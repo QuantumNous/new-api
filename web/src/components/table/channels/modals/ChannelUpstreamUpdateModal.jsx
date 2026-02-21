@@ -112,6 +112,8 @@ const ChannelUpstreamUpdateModal = ({
     activeTab === 'add' ? selectedAddModels : selectedRemoveModels;
   const currentSetSelectedModels =
     activeTab === 'add' ? setSelectedAddModels : setSelectedRemoveModels;
+  const selectedAddCount = selectedAddModels.length;
+  const selectedRemoveCount = selectedRemoveModels.length;
   const checkedCount = currentModels.filter((model) =>
     currentSelectedModels.includes(model),
   ).length;
@@ -134,15 +136,63 @@ const ChannelUpstreamUpdateModal = ({
   const tabList = [
     {
       itemKey: 'add',
-      tab: `${t('新增模型')} (${normalizedAddModels.length})`,
+      tab: `${t('新增模型')} (${selectedAddCount}/${normalizedAddModels.length})`,
       disabled: !addTabEnabled,
     },
     {
       itemKey: 'remove',
-      tab: `${t('删除模型')} (${normalizedRemoveModels.length})`,
+      tab: `${t('删除模型')} (${selectedRemoveCount}/${normalizedRemoveModels.length})`,
       disabled: !removeTabEnabled,
     },
   ];
+
+  const submitSelectedChanges = () => {
+    onConfirm?.({
+      addModels: selectedAddModels,
+      removeModels: selectedRemoveModels,
+    });
+  };
+
+  const handleSubmit = () => {
+    const hasAnySelected = selectedAddCount > 0 || selectedRemoveCount > 0;
+    if (!hasAnySelected) {
+      Modal.info({
+        title: t('请先选择要处理的模型'),
+        content: t('当前未选择任何新增或删除模型。'),
+        centered: true,
+      });
+      return;
+    }
+
+    const hasBothPending = addTabEnabled && removeTabEnabled;
+    const hasUnselectedAdd = addTabEnabled && selectedAddCount === 0;
+    const hasUnselectedRemove = removeTabEnabled && selectedRemoveCount === 0;
+    if (hasBothPending && (hasUnselectedAdd || hasUnselectedRemove)) {
+      const missingTab = hasUnselectedAdd ? 'add' : 'remove';
+      const missingType = hasUnselectedAdd ? t('新增') : t('删除');
+      const missingCount = hasUnselectedAdd
+        ? normalizedAddModels.length
+        : normalizedRemoveModels.length;
+      setActiveTab(missingTab);
+      Modal.confirm({
+        title: t('仍有未处理项'),
+        content: t(
+          '你还没有处理{{type}}模型（{{count}}个）。是否仅提交当前已勾选内容？',
+          {
+            type: missingType,
+            count: missingCount,
+          },
+        ),
+        okText: t('仅提交已勾选'),
+        cancelText: t('去处理{{type}}', { type: missingType }),
+        centered: true,
+        onOk: () => submitSelectedChanges(),
+      });
+      return;
+    }
+
+    submitSelectedChanges();
+  };
 
   return (
     <Modal
@@ -155,12 +205,7 @@ const ChannelUpstreamUpdateModal = ({
       closeOnEsc
       maskClosable
       onCancel={onCancel}
-      onOk={() => {
-        onConfirm?.({
-          addModels: selectedAddModels,
-          removeModels: selectedRemoveModels,
-        });
-      }}
+      onOk={handleSubmit}
     >
       <div className='flex flex-col gap-3'>
         <Typography.Text type='secondary' size='small'>
@@ -174,6 +219,20 @@ const ChannelUpstreamUpdateModal = ({
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key)}
         />
+        <div className='flex items-center gap-3 text-xs text-gray-500'>
+          <span>
+            {t('新增已选 {{selected}} / {{total}}', {
+              selected: selectedAddCount,
+              total: normalizedAddModels.length,
+            })}
+          </span>
+          <span>
+            {t('删除已选 {{selected}} / {{total}}', {
+              selected: selectedRemoveCount,
+              total: normalizedRemoveModels.length,
+            })}
+          </span>
+        </div>
 
         <Input
           prefix={<IconSearch size={14} />}
