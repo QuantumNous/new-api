@@ -130,6 +130,7 @@ func UpdateMidjourneyTaskBulk() {
 				if !checkMjTaskNeedUpdate(task, responseItem) {
 					continue
 				}
+				preStatus := task.Status
 				task.Code = 1
 				task.Progress = responseItem.Progress
 				task.PromptEn = responseItem.PromptEn
@@ -172,18 +173,16 @@ func UpdateMidjourneyTaskBulk() {
 						shouldReturnQuota = true
 					}
 				}
-				err = task.Update()
+				won, err := task.UpdateWithStatus(preStatus)
 				if err != nil {
 					logger.LogError(ctx, "UpdateMidjourneyTask task error: "+err.Error())
-				} else {
-					if shouldReturnQuota {
-						err = model.IncreaseUserQuota(task.UserId, task.Quota, false)
-						if err != nil {
-							logger.LogError(ctx, "fail to increase user quota: "+err.Error())
-						}
-						logContent := fmt.Sprintf("构图失败 %s，补偿 %s", task.MjId, logger.LogQuota(task.Quota))
-						model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+				} else if won && shouldReturnQuota {
+					err = model.IncreaseUserQuota(task.UserId, task.Quota, false)
+					if err != nil {
+						logger.LogError(ctx, "fail to increase user quota: "+err.Error())
 					}
+					logContent := fmt.Sprintf("构图失败 %s，补偿 %s", task.MjId, logger.LogQuota(task.Quota))
+					model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
 				}
 			}
 		}

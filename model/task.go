@@ -1,6 +1,7 @@
 package model
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"encoding/json"
 	"time"
@@ -346,14 +347,42 @@ func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {
 	return task, nil
 }
 
-func TaskUpdateProgress(id int64, progress string) error {
-	return DB.Model(&Task{}).Where("id = ?", id).Update("progress", progress).Error
-}
-
 func (Task *Task) Insert() error {
 	var err error
 	err = DB.Create(Task).Error
 	return err
+}
+
+type taskSnapshot struct {
+	Status     TaskStatus
+	Progress   string
+	StartTime  int64
+	FinishTime int64
+	FailReason string
+	ResultURL  string
+	Data       json.RawMessage
+}
+
+func (s taskSnapshot) Equal(other taskSnapshot) bool {
+	return s.Status == other.Status &&
+		s.Progress == other.Progress &&
+		s.StartTime == other.StartTime &&
+		s.FinishTime == other.FinishTime &&
+		s.FailReason == other.FailReason &&
+		s.ResultURL == other.ResultURL &&
+		bytes.Equal(s.Data, other.Data)
+}
+
+func (t *Task) Snapshot() taskSnapshot {
+	return taskSnapshot{
+		Status:     t.Status,
+		Progress:   t.Progress,
+		StartTime:  t.StartTime,
+		FinishTime: t.FinishTime,
+		FailReason: t.FailReason,
+		ResultURL:  t.PrivateData.ResultURL,
+		Data:       t.Data,
+	}
 }
 
 func (Task *Task) Update() error {
@@ -362,22 +391,15 @@ func (Task *Task) Update() error {
 	return err
 }
 
-func TaskBulkUpdate(TaskIds []string, params map[string]any) error {
-	if len(TaskIds) == 0 {
-		return nil
+// UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
+// Returns (true, nil) if this caller won the update, (false, nil) if
+// another process already moved the task out of fromStatus.
+func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
+	result := DB.Where("status = ?", fromStatus).Save(t)
+	if result.Error != nil {
+		return false, result.Error
 	}
-	return DB.Model(&Task{}).
-		Where("task_id in (?)", TaskIds).
-		Updates(params).Error
-}
-
-func TaskBulkUpdateByTaskIds(taskIDs []int64, params map[string]any) error {
-	if len(taskIDs) == 0 {
-		return nil
-	}
-	return DB.Model(&Task{}).
-		Where("id in (?)", taskIDs).
-		Updates(params).Error
+	return result.RowsAffected > 0, nil
 }
 
 func TaskBulkUpdateByID(ids []int64, params map[string]any) error {
@@ -392,37 +414,6 @@ func TaskBulkUpdateByID(ids []int64, params map[string]any) error {
 type TaskQuotaUsage struct {
 	Mode  string  `json:"mode"`
 	Count float64 `json:"count"`
-}
-
-func SumUsedTaskQuota(queryParams SyncTaskQueryParams) (stat []TaskQuotaUsage, err error) {
-	query := DB.Model(Task{})
-	// 添加过滤条件
-	if queryParams.ChannelID != "" {
-		query = query.Where("channel_id = ?", queryParams.ChannelID)
-	}
-	if queryParams.UserID != "" {
-		query = query.Where("user_id = ?", queryParams.UserID)
-	}
-	if len(queryParams.UserIDs) != 0 {
-		query = query.Where("user_id in (?)", queryParams.UserIDs)
-	}
-	if queryParams.TaskID != "" {
-		query = query.Where("task_id = ?", queryParams.TaskID)
-	}
-	if queryParams.Action != "" {
-		query = query.Where("action = ?", queryParams.Action)
-	}
-	if queryParams.Status != "" {
-		query = query.Where("status = ?", queryParams.Status)
-	}
-	if queryParams.StartTimestamp != 0 {
-		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
-	}
-	if queryParams.EndTimestamp != 0 {
-		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
-	}
-	err = query.Select("mode, sum(quota) as count").Group("mode").Find(&stat).Error
-	return stat, err
 }
 
 // TaskCountAllTasks returns total tasks that match the given query params (admin usage)

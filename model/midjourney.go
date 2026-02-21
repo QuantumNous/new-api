@@ -157,6 +157,17 @@ func (midjourney *Midjourney) Update() error {
 	return err
 }
 
+// UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
+// Returns (true, nil) if this caller won the update, (false, nil) if
+// another process already moved the task out of fromStatus.
+func (midjourney *Midjourney) UpdateWithStatus(fromStatus string) (bool, error) {
+	result := DB.Where("status = ?", fromStatus).Save(midjourney)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 func MjBulkUpdate(mjIds []string, params map[string]any) error {
 	return DB.Model(&Midjourney{}).
 		Where("mj_id in (?)", mjIds).
