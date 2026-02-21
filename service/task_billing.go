@@ -108,6 +108,29 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 	}
 }
 
+// taskBillingOther 从 task 的 BillingContext 构建日志 Other 字段。
+func taskBillingOther(task *model.Task) map[string]interface{} {
+	other := make(map[string]interface{})
+	if bc := task.PrivateData.BillingContext; bc != nil {
+		other["model_price"] = bc.ModelPrice
+		other["group_ratio"] = bc.GroupRatio
+		if len(bc.OtherRatios) > 0 {
+			for k, v := range bc.OtherRatios {
+				other[k] = v
+			}
+		}
+	}
+	return other
+}
+
+// taskModelName 从 BillingContext 或 Properties 中获取模型名称。
+func taskModelName(task *model.Task) string {
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.ModelName != "" {
+		return bc.ModelName
+	}
+	return task.Properties.OriginModelName
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
@@ -126,8 +149,20 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	taskAdjustTokenQuota(ctx, task, -quota)
 
 	// 3. 记录日志
-	logContent := fmt.Sprintf("异步任务执行失败 %s，补偿 %s，原因：%s", task.TaskID, logger.LogQuota(quota), reason)
-	model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["reason"] = reason
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    task.UserId,
+		LogType:   model.LogTypeRefund,
+		Content:   "",
+		ChannelId: task.ChannelId,
+		ModelName: taskModelName(task),
+		Quota:     quota,
+		TokenId:   task.PrivateData.TokenId,
+		Group:     task.Group,
+		Other:     other,
+	})
 }
 
 // RecalculateTaskQuota 通用的异步差额结算。
@@ -163,23 +198,35 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	// 调整令牌额度
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
 
-	// 更新统计（仅补扣时更新，退还不影响已用统计）
-	if quotaDelta > 0 {
-		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
-		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
-	}
 	task.Quota = actualQuota
 
-	var action string
+	var logType int
+	var logQuota int
 	if quotaDelta > 0 {
-		action = "补扣费"
+		logType = model.LogTypeConsume
+		logQuota = quotaDelta
+		model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quotaDelta)
+		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	} else {
-		action = "退还"
+		logType = model.LogTypeRefund
+		logQuota = -quotaDelta
 	}
-	logContent := fmt.Sprintf("异步任务成功%s，预扣费 %s，实际扣费 %s，原因：%s",
-		action,
-		logger.LogQuota(preConsumedQuota), logger.LogQuota(actualQuota), reason)
-	model.RecordLog(task.UserId, model.LogTypeSystem, logContent)
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["reason"] = reason
+	other["pre_consumed_quota"] = preConsumedQuota
+	other["actual_quota"] = actualQuota
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    task.UserId,
+		LogType:   logType,
+		Content:   "",
+		ChannelId: task.ChannelId,
+		ModelName: taskModelName(task),
+		Quota:     logQuota,
+		TokenId:   task.PrivateData.TokenId,
+		Group:     task.Group,
+		Other:     other,
+	})
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。

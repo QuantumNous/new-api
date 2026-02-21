@@ -133,6 +133,12 @@ function renderType(type, t) {
           {t('错误')}
         </Tag>
       );
+    case 6:
+      return (
+        <Tag color='teal' shape='circle'>
+          {t('退款')}
+        </Tag>
+      );
     default:
       return (
         <Tag color='grey' shape='circle'>
@@ -317,7 +323,7 @@ export const getLogsColumns = ({
         }
 
         return isAdminUser &&
-          (record.type === 0 || record.type === 2 || record.type === 5) ? (
+          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
           <Space>
             <Tooltip content={record.channel_name || t('未知渠道')}>
               <span>
@@ -368,7 +374,7 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 ? (
+        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
           <div>
             <Tag
               color='grey'
@@ -391,7 +397,7 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (record.type === 0 || record.type === 2 || record.type === 5) {
+        if (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -431,7 +437,7 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 ? (
+        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -474,7 +480,7 @@ export const getLogsColumns = ({
       title: t('输入'),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 ? (
+        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -487,7 +493,7 @@ export const getLogsColumns = ({
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&
-          (record.type === 0 || record.type === 2 || record.type === 5) ? (
+          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -499,7 +505,7 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (!(record.type === 0 || record.type === 2 || record.type === 5)) {
+        if (!(record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6)) {
           return <></>;
         }
         const other = getLogOther(record.other);
@@ -630,6 +636,16 @@ export const getLogsColumns = ({
       fixed: 'right',
       render: (text, record, index) => {
         let other = getLogOther(record.other);
+        if (record.type === 6) {
+          return (
+            <Typography.Paragraph
+              ellipsis={{ rows: 2 }}
+              style={{ maxWidth: 240 }}
+            >
+              {t('异步任务退款')}
+            </Typography.Paragraph>
+          );
+        }
         if (other == null || record.type !== 2) {
           return (
             <Typography.Paragraph
