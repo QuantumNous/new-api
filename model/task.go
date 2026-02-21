@@ -394,8 +394,12 @@ func (Task *Task) Update() error {
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
 // Returns (true, nil) if this caller won the update, (false, nil) if
 // another process already moved the task out of fromStatus.
+//
+// Uses Model().Select("*").Updates() instead of Save() because GORM's Save
+// falls back to INSERT ON CONFLICT when the WHERE-guarded UPDATE matches
+// zero rows, which silently bypasses the CAS guard.
 func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
-	result := DB.Where("status = ?", fromStatus).Save(t)
+	result := DB.Model(t).Where("status = ?", fromStatus).Select("*").Updates(t)
 	if result.Error != nil {
 		return false, result.Error
 	}
