@@ -106,21 +106,29 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 
 	// 提取 remix 参数（时长、分辨率 → OtherRatios）
 	if info.Action == constant.TaskActionRemix {
-		var taskData map[string]interface{}
-		_ = common.Unmarshal(originTask.Data, &taskData)
-		secondsStr, _ := taskData["seconds"].(string)
-		seconds, _ := strconv.Atoi(secondsStr)
-		if seconds <= 0 {
-			seconds = 4
-		}
-		sizeStr, _ := taskData["size"].(string)
-		if info.PriceData.OtherRatios == nil {
-			info.PriceData.OtherRatios = map[string]float64{}
-		}
-		info.PriceData.OtherRatios["seconds"] = float64(seconds)
-		info.PriceData.OtherRatios["size"] = 1
-		if sizeStr == "1792x1024" || sizeStr == "1024x1792" {
-			info.PriceData.OtherRatios["size"] = 1.666667
+		if originTask.PrivateData.BillingContext != nil {
+			// 新的 remix 逻辑：直接从原始任务的 BillingContext 中提取 OtherRatios（如果存在）
+			for s, f := range originTask.PrivateData.BillingContext.OtherRatios {
+				info.PriceData.AddOtherRatio(s, f)
+			}
+		} else {
+			// 旧的 remix 逻辑：直接从 task data 解析 seconds 和 size（如果存在）
+			var taskData map[string]interface{}
+			_ = common.Unmarshal(originTask.Data, &taskData)
+			secondsStr, _ := taskData["seconds"].(string)
+			seconds, _ := strconv.Atoi(secondsStr)
+			if seconds <= 0 {
+				seconds = 4
+			}
+			sizeStr, _ := taskData["size"].(string)
+			if info.PriceData.OtherRatios == nil {
+				info.PriceData.OtherRatios = map[string]float64{}
+			}
+			info.PriceData.OtherRatios["seconds"] = float64(seconds)
+			info.PriceData.OtherRatios["size"] = 1
+			if sizeStr == "1792x1024" || sizeStr == "1024x1792" {
+				info.PriceData.OtherRatios["size"] = 1.666667
+			}
 		}
 	}
 
