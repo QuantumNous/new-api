@@ -2,7 +2,6 @@ package sora
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -111,31 +110,35 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
 	}
+	bodyBytes, err := storage.Bytes()
+	if err != nil {
+		return nil, errors.Wrap(err, "read_request_body_failed")
+	}
 
 	// 检查是否需要模型重定向
 	if !info.IsModelMapped {
 		// 如果不需要重定向，直接返回原始请求体
-		return bytes.NewReader(cachedBody), nil
+		return bytes.NewReader(bodyBytes), nil
 	}
 
 	contentType := c.Request.Header.Get("Content-Type")
 
 	// 处理multipart/form-data请求
 	if strings.Contains(contentType, "multipart/form-data") {
-		return buildRequestBodyWithMappedModel(cachedBody, contentType, info.UpstreamModelName)
+		return buildRequestBodyWithMappedModel(bodyBytes, contentType, info.UpstreamModelName)
 	}
 	// 处理JSON请求
 	if strings.Contains(contentType, "application/json") {
 		var jsonData map[string]interface{}
-		if err := json.Unmarshal(cachedBody, &jsonData); err != nil {
+		if err := common.Unmarshal(bodyBytes, &jsonData); err != nil {
 			return nil, errors.Wrap(err, "unmarshal_json_failed")
 		}
 
-		// 替换model字段为映射后的模型名
-		jsonData["model"] = info.UpstreamModelName
+		// 暂不更改返回
+		// jsonData["model"] = info.UpstreamModelName
 
 		// 重新编码为JSON
-		newBody, err := json.Marshal(jsonData)
+		newBody, err := common.Marshal(jsonData)
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal_json_failed")
 		}
@@ -176,9 +179,10 @@ func buildRequestBodyWithMappedModel(originalBody []byte, contentType, redirecte
 
 		if fieldName == "model" {
 			// 修改 model 字段为映射后的模型名
-			if err := writer.WriteField("model", redirectedModel); err != nil {
-				return nil, errors.Wrap(err, "write_model_field_failed")
-			}
+			// 暂不更改返回
+			//if err := writer.WriteField("model", redirectedModel); err != nil {
+			//	return nil, errors.Wrap(err, "write_model_field_failed")
+			//}
 		} else {
 			// 对于其他字段，保留原始内容
 			if part.FileName() != "" {
