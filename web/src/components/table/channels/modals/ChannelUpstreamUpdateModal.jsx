@@ -140,7 +140,7 @@ const ChannelUpstreamUpdateModal = ({
       title={t('处理上游模型更新')}
       okText={t('确定')}
       cancelText={t('取消')}
-      size={isMobile ? 'full-width' : 'large'}
+      size={isMobile ? 'full-width' : 'medium'}
       centered
       closeOnEsc
       maskClosable
@@ -173,7 +173,7 @@ const ChannelUpstreamUpdateModal = ({
           showClear
         />
 
-        <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 8 }}>
+        <div style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 8 }}>
           {currentModels.length === 0 ? (
             <Empty
               image={

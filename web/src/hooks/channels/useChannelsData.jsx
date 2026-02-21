@@ -773,6 +773,56 @@ export const useChannelsData = () => {
     await refresh();
   };
 
+  const detectChannelUpstreamUpdates = async (channel) => {
+    if (!channel?.id) {
+      return;
+    }
+    const res = await API.post('/api/channel/upstream_updates/detect', {
+      id: channel.id,
+    });
+    const { success, message, data } = res.data || {};
+    if (!success) {
+      showError(message || t('检测失败'));
+      return;
+    }
+
+    const addCount = data?.add_models?.length || 0;
+    const removeCount = data?.remove_models?.length || 0;
+    showSuccess(
+      t('检测完成：新增 {{add}} 个，删除 {{remove}} 个', {
+        add: addCount,
+        remove: removeCount,
+      }),
+    );
+    await refresh();
+  };
+
+  const detectAllUpstreamUpdates = async () => {
+    const res = await API.post('/api/channel/upstream_updates/detect_all');
+    const { success, message, data } = res.data || {};
+    if (!success) {
+      showError(message || t('批量检测失败'));
+      return;
+    }
+
+    const channelCount = data?.processed_channels || 0;
+    const addCount = data?.detected_add_models || 0;
+    const removeCount = data?.detected_remove_models || 0;
+    const failedCount = (data?.failed_channel_ids || []).length;
+    showSuccess(
+      t(
+        '批量检测完成：渠道 {{channels}} 个，新增 {{add}} 个，删除 {{remove}} 个，失败 {{fails}} 个',
+        {
+          channels: channelCount,
+          add: addCount,
+          remove: removeCount,
+          fails: failedCount,
+        },
+      ),
+    );
+    await refresh();
+  };
+
   // Row style
   const handleRow = (record, index) => {
     if (record.status !== 1) {
@@ -1351,6 +1401,8 @@ export const useChannelsData = () => {
     closeUpstreamUpdateModal,
     applyUpstreamUpdates,
     applyAllUpstreamUpdates,
+    detectChannelUpstreamUpdates,
+    detectAllUpstreamUpdates,
     handleRow,
     batchSetChannelTag,
     batchDeleteChannels,

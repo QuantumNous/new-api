@@ -323,6 +323,7 @@ export const getChannelsColumns = ({
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
   openUpstreamUpdateModal,
+  detectChannelUpstreamUpdates,
 }) => {
   return [
     {
@@ -337,11 +338,11 @@ export const getChannelsColumns = ({
       render: (text, record, index) => {
         const passThroughEnabled = isRequestPassThroughEnabled(record);
         const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
-        const pendingUpdateCount =
-          upstreamUpdateMeta.pendingAddModels.length +
-          upstreamUpdateMeta.pendingRemoveModels.length;
+        const pendingAddCount = upstreamUpdateMeta.pendingAddModels.length;
+        const pendingRemoveCount = upstreamUpdateMeta.pendingRemoveModels.length;
         const showUpstreamUpdateTag =
-          upstreamUpdateMeta.enabled && pendingUpdateCount > 0;
+          upstreamUpdateMeta.enabled &&
+          (pendingAddCount > 0 || pendingRemoveCount > 0);
         const nameNode =
           record.remark && record.remark.trim() !== '' ? (
             <Tooltip
@@ -400,23 +401,46 @@ export const getChannelsColumns = ({
               </Tooltip>
             )}
             {showUpstreamUpdateTag && (
-              <Tag
-                color='orange'
-                type='light'
-                className='cursor-pointer'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openUpstreamUpdateModal(
-                    record,
-                    upstreamUpdateMeta.pendingAddModels,
-                    upstreamUpdateMeta.pendingRemoveModels,
-                  );
-                }}
-              >
-                {t('模型更新 {{count}}', {
-                  count: pendingUpdateCount,
-                })}
-              </Tag>
+              <Space spacing={4} align='center'>
+                {pendingAddCount > 0 ? (
+                  <Tag
+                    color='green'
+                    type='light'
+                    size='small'
+                    shape='circle'
+                    className='cursor-pointer'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openUpstreamUpdateModal(
+                        record,
+                        upstreamUpdateMeta.pendingAddModels,
+                        upstreamUpdateMeta.pendingRemoveModels,
+                      );
+                    }}
+                  >
+                    +{pendingAddCount}
+                  </Tag>
+                ) : null}
+                {pendingRemoveCount > 0 ? (
+                  <Tag
+                    color='red'
+                    type='light'
+                    size='small'
+                    shape='circle'
+                    className='cursor-pointer'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openUpstreamUpdateModal(
+                        record,
+                        upstreamUpdateMeta.pendingAddModels,
+                        upstreamUpdateMeta.pendingRemoveModels,
+                      );
+                    }}
+                  >
+                    -{pendingRemoveCount}
+                  </Tag>
+                ) : null}
+              </Space>
             )}
           </Space>
         );
@@ -677,6 +701,19 @@ export const getChannelsColumns = ({
                   content: t('复制渠道的所有信息'),
                   onOk: () => copySelectedChannel(record),
                 });
+              },
+            },
+            {
+              node: 'item',
+              name: t('仅检测上游模型更新'),
+              type: 'tertiary',
+              onClick: () => {
+                const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
+                if (!upstreamUpdateMeta.enabled) {
+                  showInfo(t('该渠道未开启上游模型更新检测'));
+                  return;
+                }
+                detectChannelUpstreamUpdates(record);
               },
             },
             {

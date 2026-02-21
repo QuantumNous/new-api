@@ -62,6 +62,7 @@ const ChannelsTable = (channelsData) => {
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
     openUpstreamUpdateModal,
+    detectChannelUpstreamUpdates,
   } = channelsData;
 
   // Get all columns
@@ -88,6 +89,7 @@ const ChannelsTable = (channelsData) => {
       setShowMultiKeyManageModal,
       setCurrentMultiKeyChannel,
       openUpstreamUpdateModal,
+      detectChannelUpstreamUpdates,
     });
   }, [
     t,
@@ -111,6 +113,7 @@ const ChannelsTable = (channelsData) => {
     setShowMultiKeyManageModal,
     setCurrentMultiKeyChannel,
     openUpstreamUpdateModal,
+    detectChannelUpstreamUpdates,
   ]);
 
   // Filter columns based on visibility settings
