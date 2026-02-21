@@ -451,6 +451,21 @@ func RelayNotFound(c *gin.Context) {
 	})
 }
 
+func RelayTaskFetch(c *gin.Context) {
+	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+			Code:       "gen_relay_info_failed",
+			Message:    err.Error(),
+			StatusCode: http.StatusInternalServerError,
+		})
+		return
+	}
+	if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+		respondTaskError(c, taskErr)
+	}
+}
+
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -461,17 +476,6 @@ func RelayTask(c *gin.Context) {
 		})
 		return
 	}
-
-	// Fetch 路径：纯 DB 查询，不依赖上下文 channel，无需重试
-	switch relayInfo.RelayMode {
-	case relayconstant.RelayModeSunoFetch, relayconstant.RelayModeSunoFetchByID, relayconstant.RelayModeVideoFetchByID:
-		if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
-			respondTaskError(c, taskErr)
-		}
-		return
-	}
-
-	// ── Submit 路径 ─────────────────────────────────────────────────
 
 	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
 		respondTaskError(c, taskErr)
