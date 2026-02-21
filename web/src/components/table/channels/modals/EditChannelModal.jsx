@@ -93,6 +93,7 @@ const REGION_EXAMPLE = {
   'gemini-1.5-flash-002': 'europe-west2',
   'claude-3-5-sonnet-20240620': 'europe-west1',
 };
+const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
 
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
@@ -224,6 +225,23 @@ const EditChannelModal = (props) => {
       return [];
     }
   }, [inputs.model_mapping]);
+  const upstreamDetectedModels = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (inputs.upstream_model_update_last_detected_models || [])
+            .map((model) => String(model || '').trim())
+            .filter(Boolean),
+        ),
+      ),
+    [inputs.upstream_model_update_last_detected_models],
+  );
+  const upstreamDetectedModelsPreview = useMemo(
+    () => upstreamDetectedModels.slice(0, UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT),
+    [upstreamDetectedModels],
+  );
+  const upstreamDetectedModelsOmittedCount =
+    upstreamDetectedModels.length - upstreamDetectedModelsPreview.length;
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
   const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
@@ -3161,10 +3179,36 @@ const EditChannelModal = (props) => {
                       showClear
                     />
 
-                    <div className='text-xs text-gray-500 mb-3 break-all'>
+                    <div className='text-xs text-gray-500 mb-3'>
                       {t('上次检测到可加入模型')}:&nbsp;
-                      {(inputs.upstream_model_update_last_detected_models ||
-                        []).join(',') || t('暂无')}
+                      {upstreamDetectedModels.length === 0 ? (
+                        t('暂无')
+                      ) : (
+                        <>
+                          <Tooltip
+                            position='topLeft'
+                            content={
+                              <div className='max-w-[640px] break-all text-xs leading-5'>
+                                {upstreamDetectedModels.join(', ')}
+                              </div>
+                            }
+                          >
+                            <span className='cursor-help break-all'>
+                              {upstreamDetectedModelsPreview.join(', ')}
+                            </span>
+                          </Tooltip>
+                          <span className='ml-1 text-gray-400'>
+                            {upstreamDetectedModelsOmittedCount > 0
+                              ? t('（共 {{total}} 个，省略 {{omit}} 个）', {
+                                  total: upstreamDetectedModels.length,
+                                  omit: upstreamDetectedModelsOmittedCount,
+                                })
+                              : t('（共 {{total}} 个）', {
+                                  total: upstreamDetectedModels.length,
+                                })}
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     <Form.TextArea

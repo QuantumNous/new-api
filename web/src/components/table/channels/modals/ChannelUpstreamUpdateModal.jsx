@@ -158,11 +158,7 @@ const ChannelUpstreamUpdateModal = ({
   const handleSubmit = () => {
     const hasAnySelected = selectedAddCount > 0 || selectedRemoveCount > 0;
     if (!hasAnySelected) {
-      Modal.info({
-        title: t('请先选择要处理的模型'),
-        content: t('当前未选择任何新增或删除模型。'),
-        centered: true,
-      });
+      onCancel?.();
       return;
     }
 
