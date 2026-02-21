@@ -132,3 +132,18 @@ func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *
 	require.Contains(t, content, "失败渠道 ID（展示 10/12）")
 	require.Contains(t, content, "其余 2 个已省略")
 }
+
+func TestShouldSendUpstreamModelUpdateNotification(t *testing.T) {
+	channelUpstreamModelUpdateNotifyState.Lock()
+	channelUpstreamModelUpdateNotifyState.lastNotifiedAt = 0
+	channelUpstreamModelUpdateNotifyState.lastChangedChannels = 0
+	channelUpstreamModelUpdateNotifyState.Unlock()
+
+	baseTime := int64(2000000)
+
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime, 6))
+	require.False(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 6))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 7))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90000, 6))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90001, 0))
+}

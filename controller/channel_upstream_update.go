@@ -22,17 +22,23 @@ import (
 )
 
 const (
-	channelUpstreamModelUpdateTaskDefaultIntervalMinutes = 30
-	channelUpstreamModelUpdateTaskBatchSize              = 100
-	channelUpstreamModelUpdateMinCheckIntervalSeconds    = 300
-	channelUpstreamModelUpdateNotifyMaxChannelDetails    = 8
-	channelUpstreamModelUpdateNotifyMaxModelDetails      = 12
-	channelUpstreamModelUpdateNotifyMaxFailedChannelIDs  = 10
+	channelUpstreamModelUpdateTaskDefaultIntervalMinutes  = 30
+	channelUpstreamModelUpdateTaskBatchSize               = 100
+	channelUpstreamModelUpdateMinCheckIntervalSeconds     = 300
+	channelUpstreamModelUpdateNotifySuppressWindowSeconds = 86400
+	channelUpstreamModelUpdateNotifyMaxChannelDetails     = 8
+	channelUpstreamModelUpdateNotifyMaxModelDetails       = 12
+	channelUpstreamModelUpdateNotifyMaxFailedChannelIDs   = 10
 )
 
 var (
 	channelUpstreamModelUpdateTaskOnce    sync.Once
 	channelUpstreamModelUpdateTaskRunning atomic.Bool
+	channelUpstreamModelUpdateNotifyState = struct {
+		sync.Mutex
+		lastNotifiedAt      int64
+		lastChangedChannels int
+	}{}
 )
 
 type applyChannelUpstreamModelUpdatesRequest struct {
@@ -389,6 +395,25 @@ func refreshChannelRuntimeCache() {
 	service.ResetProxyClientCache()
 }
 
+func shouldSendUpstreamModelUpdateNotification(now int64, changedChannels int) bool {
+	if changedChannels <= 0 {
+		return true
+	}
+
+	channelUpstreamModelUpdateNotifyState.Lock()
+	defer channelUpstreamModelUpdateNotifyState.Unlock()
+
+	if channelUpstreamModelUpdateNotifyState.lastNotifiedAt > 0 &&
+		now-channelUpstreamModelUpdateNotifyState.lastNotifiedAt < channelUpstreamModelUpdateNotifySuppressWindowSeconds &&
+		channelUpstreamModelUpdateNotifyState.lastChangedChannels == changedChannels {
+		return false
+	}
+
+	channelUpstreamModelUpdateNotifyState.lastNotifiedAt = now
+	channelUpstreamModelUpdateNotifyState.lastChangedChannels = changedChannels
+	return true
+}
+
 func buildUpstreamModelUpdateTaskNotificationContent(
 	checkedChannels int,
 	changedChannels int,
@@ -403,7 +428,7 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 	var builder strings.Builder
 	failedChannels := len(failedChannelIDs)
 	builder.WriteString(fmt.Sprintf(
-		"定时检测完成：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
+		"上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
 		checkedChannels,
 		changedChannels,
 		detectedAddModels,
@@ -414,7 +439,7 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 
 	if len(channelSummaries) > 0 {
 		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n变更渠道（展示 %d/%d）：", displayCount, len(channelSummaries)))
+		builder.WriteString(fmt.Sprintf("\n\n变更渠道明细（展示 %d/%d）：", displayCount, len(channelSummaries)))
 		for _, summary := range channelSummaries[:displayCount] {
 			builder.WriteString(fmt.Sprintf("\n- %s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
 		}
@@ -569,8 +594,17 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 		))
 	}
 	if changedChannels > 0 || failedChannels > 0 {
+		now := common.GetTimestamp()
+		if !shouldSendUpstreamModelUpdateNotification(now, changedChannels) {
+			common.SysLog(fmt.Sprintf(
+				"upstream model update notification skipped in 24h window: changed_channels=%d failed_channels=%d",
+				changedChannels,
+				failedChannels,
+			))
+			return
+		}
 		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型定时检测结果",
+			"上游模型巡检通知",
 			buildUpstreamModelUpdateTaskNotificationContent(
 				checkedChannels,
 				changedChannels,
