@@ -90,6 +90,8 @@ const STATUS_CODE_MAPPING_EXAMPLE = {
   400: '500',
 };
 
+const CODEX_DEFAULT_SUPPORTED_ENDPOINTS = ['openai-response'];
+
 const REGION_EXAMPLE = {
   default: 'global',
   'gemini-1.5-pro-002': 'europe-west2',
@@ -537,7 +539,21 @@ const EditChannelModal = (props) => {
         if (formApiRef.current) {
           formApiRef.current.setValue('vertex_files', []);
         }
-        setInputs((prev) => ({ ...prev, vertex_files: [] }));
+        if (!isEdit) {
+          if (formApiRef.current) {
+            formApiRef.current.setValue(
+              'supported_endpoints',
+              CODEX_DEFAULT_SUPPORTED_ENDPOINTS,
+            );
+          }
+          setInputs((prev) => ({
+            ...prev,
+            vertex_files: [],
+            supported_endpoints: CODEX_DEFAULT_SUPPORTED_ENDPOINTS,
+          }));
+        } else {
+          setInputs((prev) => ({ ...prev, vertex_files: [] }));
+        }
       }
     }
     //setAutoBan
