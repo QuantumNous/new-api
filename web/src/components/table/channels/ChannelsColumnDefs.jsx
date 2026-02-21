@@ -116,7 +116,16 @@ const renderType = (type, record = {}, t) => {
           </div>
         }
       >
-        <span className='inline-flex items-center px-1.5 py-0.5 rounded border bg-amber-50 border-amber-200 text-amber-700 cursor-help'>
+        <span
+          className='inline-flex items-center justify-center cursor-help transition-all'
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9999,
+            backgroundColor: 'var(--semi-color-warning-light-default)',
+            color: 'var(--semi-color-warning)',
+          }}
+        >
           <IconFilter size='small' />
         </span>
       </Tooltip>
