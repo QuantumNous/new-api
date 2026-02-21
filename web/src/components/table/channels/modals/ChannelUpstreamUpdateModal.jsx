@@ -158,7 +158,7 @@ const ChannelUpstreamUpdateModal = ({
   const handleSubmit = () => {
     const hasAnySelected = selectedAddCount > 0 || selectedRemoveCount > 0;
     if (!hasAnySelected) {
-      onCancel?.();
+      submitSelectedChanges();
       return;
     }
 
