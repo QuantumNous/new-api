@@ -58,6 +58,25 @@ func GetAllEnableAbilities() []Ability {
 	return abilities
 }
 
+func buildExcludedChannelIDs(excludedChannelIDs map[int]struct{}) []int {
+	if len(excludedChannelIDs) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(excludedChannelIDs))
+	for id := range excludedChannelIDs {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func addChannelExclusions(query *gorm.DB, excludedChannelIDs map[int]struct{}) *gorm.DB {
+	ids := buildExcludedChannelIDs(excludedChannelIDs)
+	if len(ids) == 0 {
+		return query
+	}
+	return query.Where("channel_id NOT IN ?", ids)
+}
+
 func getPriority(group string, model string, retry int) (int, error) {
 
 	var priorities []int
@@ -88,15 +107,17 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
+func getChannelQuery(group string, model string, retry int, excludedChannelIDs map[int]struct{}) (*gorm.DB, error) {
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
+	channelQuery = addChannelExclusions(channelQuery, excludedChannelIDs)
 	if retry != 0 {
 		priority, err := getPriority(group, model, retry)
 		if err != nil {
 			return nil, err
 		} else {
 			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
+			channelQuery = addChannelExclusions(channelQuery, excludedChannelIDs)
 		}
 	}
 
@@ -104,10 +125,14 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
+	return getChannelWithExcluded(group, model, retry, nil)
+}
+
+func getChannelWithExcluded(group string, model string, retry int, excludedChannelIDs map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	channelQuery, err := getChannelQuery(group, model, retry, excludedChannelIDs)
 	if err != nil {
 		return nil, err
 	}
