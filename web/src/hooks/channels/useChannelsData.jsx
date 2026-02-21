@@ -121,6 +121,8 @@ export const useChannelsData = () => {
   const [upstreamUpdateRemoveModels, setUpstreamUpdateRemoveModels] = useState(
     [],
   );
+  const [upstreamUpdatePreferredTab, setUpstreamUpdatePreferredTab] =
+    useState('add');
 
   // Refs
   const requestCounter = useRef(0);
@@ -657,6 +659,7 @@ export const useChannelsData = () => {
     record,
     pendingAddModels = [],
     pendingRemoveModels = [],
+    preferredTab = 'add',
   ) => {
     const normalizedAddModels = Array.from(
       new Set(
@@ -682,6 +685,8 @@ export const useChannelsData = () => {
     setUpstreamUpdateChannel(record);
     setUpstreamUpdateAddModels(normalizedAddModels);
     setUpstreamUpdateRemoveModels(normalizedRemoveModels);
+    const normalizedPreferredTab = preferredTab === 'remove' ? 'remove' : 'add';
+    setUpstreamUpdatePreferredTab(normalizedPreferredTab);
     setShowUpstreamUpdateModal(true);
   };
 
@@ -690,6 +695,7 @@ export const useChannelsData = () => {
     setUpstreamUpdateChannel(null);
     setUpstreamUpdateAddModels([]);
     setUpstreamUpdateRemoveModels([]);
+    setUpstreamUpdatePreferredTab('add');
   };
 
   const applyUpstreamUpdates = async ({
@@ -1375,6 +1381,7 @@ export const useChannelsData = () => {
     upstreamUpdateChannel,
     upstreamUpdateAddModels,
     upstreamUpdateRemoveModels,
+    upstreamUpdatePreferredTab,
 
     // Form
     formApi,

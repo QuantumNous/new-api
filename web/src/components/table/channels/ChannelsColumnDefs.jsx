@@ -39,7 +39,10 @@ import {
   showError,
   showInfo,
 } from '../../../helpers';
-import { CHANNEL_OPTIONS } from '../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  MODEL_FETCHABLE_CHANNEL_TYPES,
+} from '../../../constants';
 import {
   IconTreeTriangleDown,
   IconMore,
@@ -272,11 +275,25 @@ const isRequestPassThroughEnabled = (record) => {
 };
 
 const getUpstreamUpdateMeta = (record) => {
+  const supported =
+    !!record &&
+    record.children === undefined &&
+    MODEL_FETCHABLE_CHANNEL_TYPES.has(record.type);
   if (!record || record.children !== undefined) {
-    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
+    return {
+      supported: false,
+      enabled: false,
+      pendingAddModels: [],
+      pendingRemoveModels: [],
+    };
   }
   if (!record.settings || typeof record.settings !== 'string') {
-    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
+    return {
+      supported,
+      enabled: false,
+      pendingAddModels: [],
+      pendingRemoveModels: [],
+    };
   }
   try {
     const parsed = JSON.parse(record.settings);
@@ -295,9 +312,14 @@ const getUpstreamUpdateMeta = (record) => {
           .filter(Boolean),
       ),
     );
-    return { enabled, pendingAddModels, pendingRemoveModels };
+    return { supported, enabled, pendingAddModels, pendingRemoveModels };
   } catch (error) {
-    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
+    return {
+      supported,
+      enabled: false,
+      pendingAddModels: [],
+      pendingRemoveModels: [],
+    };
   }
 };
 
@@ -341,6 +363,7 @@ export const getChannelsColumns = ({
         const pendingAddCount = upstreamUpdateMeta.pendingAddModels.length;
         const pendingRemoveCount = upstreamUpdateMeta.pendingRemoveModels.length;
         const showUpstreamUpdateTag =
+          upstreamUpdateMeta.supported &&
           upstreamUpdateMeta.enabled &&
           (pendingAddCount > 0 || pendingRemoveCount > 0);
         const nameNode =
@@ -415,6 +438,7 @@ export const getChannelsColumns = ({
                         record,
                         upstreamUpdateMeta.pendingAddModels,
                         upstreamUpdateMeta.pendingRemoveModels,
+                        'add',
                       );
                     }}
                   >
@@ -434,6 +458,7 @@ export const getChannelsColumns = ({
                         record,
                         upstreamUpdateMeta.pendingAddModels,
                         upstreamUpdateMeta.pendingRemoveModels,
+                        'remove',
                       );
                     }}
                   >
@@ -668,6 +693,7 @@ export const getChannelsColumns = ({
       fixed: 'right',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
           const moreMenuItems = [
             {
               node: 'item',
@@ -703,25 +729,26 @@ export const getChannelsColumns = ({
                 });
               },
             },
-            {
+          ];
+
+          if (upstreamUpdateMeta.supported) {
+            moreMenuItems.push({
               node: 'item',
               name: t('仅检测上游模型更新'),
               type: 'tertiary',
               onClick: () => {
-                const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
                 if (!upstreamUpdateMeta.enabled) {
                   showInfo(t('该渠道未开启上游模型更新检测'));
                   return;
                 }
                 detectChannelUpstreamUpdates(record);
               },
-            },
-            {
+            });
+            moreMenuItems.push({
               node: 'item',
               name: t('处理上游模型更新'),
               type: 'tertiary',
               onClick: () => {
-                const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
                 if (!upstreamUpdateMeta.enabled) {
                   showInfo(t('该渠道未开启上游模型更新检测'));
                   return;
@@ -737,10 +764,13 @@ export const getChannelsColumns = ({
                   record,
                   upstreamUpdateMeta.pendingAddModels,
                   upstreamUpdateMeta.pendingRemoveModels,
+                  upstreamUpdateMeta.pendingAddModels.length > 0
+                    ? 'add'
+                    : 'remove',
                 );
               },
-            },
-          ];
+            });
+          }
 
           if (record.type === 4) {
             moreMenuItems.unshift({

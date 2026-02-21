@@ -68,6 +68,7 @@ const ChannelsPage = () => {
         visible={channelsData.showUpstreamUpdateModal}
         addModels={channelsData.upstreamUpdateAddModels}
         removeModels={channelsData.upstreamUpdateRemoveModels}
+        preferredTab={channelsData.upstreamUpdatePreferredTab}
         onConfirm={channelsData.applyUpstreamUpdates}
         onCancel={channelsData.closeUpstreamUpdateModal}
       />

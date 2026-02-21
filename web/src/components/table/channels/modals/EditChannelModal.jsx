@@ -27,7 +27,7 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS } from '../../../../constants';
+import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -93,11 +93,6 @@ const REGION_EXAMPLE = {
   'gemini-1.5-flash-002': 'europe-west2',
   'claude-3-5-sonnet-20240620': 'europe-west1',
 };
-
-// 支持并且已适配通过接口获取模型列表的渠道类型
-const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
-]);
 
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
@@ -824,7 +819,7 @@ const EditChannelModal = (props) => {
     const mappingKey = String(pairKey ?? '').trim();
     if (!mappingKey) return;
 
-    if (!MODEL_FETCHABLE_TYPES.has(inputs.type)) {
+    if (!MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type)) {
       return;
     }
 
@@ -2858,7 +2853,7 @@ const EditChannelModal = (props) => {
                           >
                             {t('填入所有模型')}
                           </Button>
-                          {MODEL_FETCHABLE_TYPES.has(inputs.type) && (
+                          {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
                             <Button
                               size='small'
                               type='tertiary'
@@ -2990,7 +2985,7 @@ const EditChannelModal = (props) => {
                       editorType='keyValue'
                       formApi={formApiRef.current}
                       renderStringValueSuffix={({ pairKey, value }) => {
-                        if (!MODEL_FETCHABLE_TYPES.has(inputs.type)) {
+                        if (!MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type)) {
                           return null;
                         }
                         const disabled = !String(pairKey ?? '').trim();

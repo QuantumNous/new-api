@@ -59,6 +59,7 @@ const ChannelUpstreamUpdateModal = ({
   visible,
   addModels = [],
   removeModels = [],
+  preferredTab = 'add',
   onConfirm,
   onCancel,
 }) => {
@@ -94,8 +95,17 @@ const ChannelUpstreamUpdateModal = ({
     setSelectedAddModels([]);
     setSelectedRemoveModels([]);
     setKeyword('');
+    const normalizedPreferredTab = preferredTab === 'remove' ? 'remove' : 'add';
+    if (normalizedPreferredTab === 'remove' && removeTabEnabled) {
+      setActiveTab('remove');
+      return;
+    }
+    if (normalizedPreferredTab === 'add' && addTabEnabled) {
+      setActiveTab('add');
+      return;
+    }
     setActiveTab(addTabEnabled ? 'add' : 'remove');
-  }, [visible, addTabEnabled]);
+  }, [visible, addTabEnabled, removeTabEnabled, preferredTab]);
 
   const currentModels = activeTab === 'add' ? filteredAddModels : filteredRemoveModels;
   const currentSelectedModels =
