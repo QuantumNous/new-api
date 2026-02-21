@@ -117,7 +117,10 @@ export const useChannelsData = () => {
   const [currentMultiKeyChannel, setCurrentMultiKeyChannel] = useState(null);
   const [showUpstreamUpdateModal, setShowUpstreamUpdateModal] = useState(false);
   const [upstreamUpdateChannel, setUpstreamUpdateChannel] = useState(null);
-  const [upstreamUpdateModels, setUpstreamUpdateModels] = useState([]);
+  const [upstreamUpdateAddModels, setUpstreamUpdateAddModels] = useState([]);
+  const [upstreamUpdateRemoveModels, setUpstreamUpdateRemoveModels] = useState(
+    [],
+  );
 
   // Refs
   const requestCounter = useRef(0);
@@ -650,51 +653,78 @@ export const useChannelsData = () => {
     setShowEdit(false);
   };
 
-  const openUpstreamUpdateModal = (record, pendingModels = []) => {
-    const normalizedModels = Array.from(
+  const openUpstreamUpdateModal = (
+    record,
+    pendingAddModels = [],
+    pendingRemoveModels = [],
+  ) => {
+    const normalizedAddModels = Array.from(
       new Set(
-        (pendingModels || [])
+        (pendingAddModels || [])
           .map((model) => String(model || '').trim())
           .filter(Boolean),
       ),
     );
-    if (!record?.id || normalizedModels.length === 0) {
-      showInfo(t('暂无可加入的上游模型更新'));
+    const normalizedRemoveModels = Array.from(
+      new Set(
+        (pendingRemoveModels || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (
+      !record?.id ||
+      (normalizedAddModels.length === 0 && normalizedRemoveModels.length === 0)
+    ) {
+      showInfo(t('该渠道暂无可处理的上游模型更新'));
       return;
     }
     setUpstreamUpdateChannel(record);
-    setUpstreamUpdateModels(normalizedModels);
+    setUpstreamUpdateAddModels(normalizedAddModels);
+    setUpstreamUpdateRemoveModels(normalizedRemoveModels);
     setShowUpstreamUpdateModal(true);
   };
 
   const closeUpstreamUpdateModal = () => {
     setShowUpstreamUpdateModal(false);
     setUpstreamUpdateChannel(null);
-    setUpstreamUpdateModels([]);
+    setUpstreamUpdateAddModels([]);
+    setUpstreamUpdateRemoveModels([]);
   };
 
-  const applyUpstreamUpdates = async (selectedModels = []) => {
+  const applyUpstreamUpdates = async ({
+    addModels: selectedAddModels = [],
+    removeModels: selectedRemoveModels = [],
+  } = {}) => {
     if (!upstreamUpdateChannel?.id) {
       closeUpstreamUpdateModal();
       return;
     }
 
-    const normalizedSelected = Array.from(
+    const normalizedSelectedAddModels = Array.from(
       new Set(
-        (selectedModels || [])
+        (selectedAddModels || [])
           .map((model) => String(model || '').trim())
           .filter(Boolean),
       ),
     );
-    const selectedSet = new Set(normalizedSelected);
-    const ignoreModels = upstreamUpdateModels.filter(
-      (model) => !selectedSet.has(model),
+    const normalizedSelectedRemoveModels = Array.from(
+      new Set(
+        (selectedRemoveModels || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    const selectedAddSet = new Set(normalizedSelectedAddModels);
+    const ignoreModels = upstreamUpdateAddModels.filter(
+      (model) => !selectedAddSet.has(model),
     );
 
     const res = await API.post('/api/channel/upstream_updates/apply', {
       id: upstreamUpdateChannel.id,
-      add_models: normalizedSelected,
+      add_models: normalizedSelectedAddModels,
       ignore_models: ignoreModels,
+      remove_models: normalizedSelectedRemoveModels,
     });
     const { success, message, data } = res.data || {};
     if (!success) {
@@ -703,12 +733,17 @@ export const useChannelsData = () => {
     }
 
     const addedCount = data?.added_models?.length || 0;
+    const removedCount = data?.removed_models?.length || 0;
     const ignoredCount = data?.ignored_models?.length || 0;
     showSuccess(
-      t('已处理上游模型更新：加入 {{added}} 个，忽略 {{ignored}} 个', {
-        added: addedCount,
-        ignored: ignoredCount,
-      }),
+      t(
+        '已处理上游模型更新：加入 {{added}} 个，删除 {{removed}} 个，忽略 {{ignored}} 个',
+        {
+          added: addedCount,
+          removed: removedCount,
+          ignored: ignoredCount,
+        },
+      ),
     );
     closeUpstreamUpdateModal();
     await refresh();
@@ -1288,7 +1323,8 @@ export const useChannelsData = () => {
     showUpstreamUpdateModal,
     setShowUpstreamUpdateModal,
     upstreamUpdateChannel,
-    upstreamUpdateModels,
+    upstreamUpdateAddModels,
+    upstreamUpdateRemoveModels,
 
     // Form
     formApi,

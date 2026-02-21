@@ -273,24 +273,31 @@ const isRequestPassThroughEnabled = (record) => {
 
 const getUpstreamUpdateMeta = (record) => {
   if (!record || record.children !== undefined) {
-    return { enabled: false, pendingModels: [] };
+    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
   }
   if (!record.settings || typeof record.settings !== 'string') {
-    return { enabled: false, pendingModels: [] };
+    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
   }
   try {
     const parsed = JSON.parse(record.settings);
     const enabled = parsed?.upstream_model_update_check_enabled === true;
-    const pendingModels = Array.from(
+    const pendingAddModels = Array.from(
       new Set(
         (parsed?.upstream_model_update_last_detected_models || [])
           .map((model) => String(model || '').trim())
           .filter(Boolean),
       ),
     );
-    return { enabled, pendingModels };
+    const pendingRemoveModels = Array.from(
+      new Set(
+        (parsed?.upstream_model_update_last_removed_models || [])
+          .map((model) => String(model || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    return { enabled, pendingAddModels, pendingRemoveModels };
   } catch (error) {
-    return { enabled: false, pendingModels: [] };
+    return { enabled: false, pendingAddModels: [], pendingRemoveModels: [] };
   }
 };
 
@@ -330,9 +337,11 @@ export const getChannelsColumns = ({
       render: (text, record, index) => {
         const passThroughEnabled = isRequestPassThroughEnabled(record);
         const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
+        const pendingUpdateCount =
+          upstreamUpdateMeta.pendingAddModels.length +
+          upstreamUpdateMeta.pendingRemoveModels.length;
         const showUpstreamUpdateTag =
-          upstreamUpdateMeta.enabled &&
-          upstreamUpdateMeta.pendingModels.length > 0;
+          upstreamUpdateMeta.enabled && pendingUpdateCount > 0;
         const nameNode =
           record.remark && record.remark.trim() !== '' ? (
             <Tooltip
@@ -399,12 +408,13 @@ export const getChannelsColumns = ({
                   e.stopPropagation();
                   openUpstreamUpdateModal(
                     record,
-                    upstreamUpdateMeta.pendingModels,
+                    upstreamUpdateMeta.pendingAddModels,
+                    upstreamUpdateMeta.pendingRemoveModels,
                   );
                 }}
               >
                 {t('模型更新 {{count}}', {
-                  count: upstreamUpdateMeta.pendingModels.length,
+                  count: pendingUpdateCount,
                 })}
               </Tag>
             )}
@@ -679,11 +689,18 @@ export const getChannelsColumns = ({
                   showInfo(t('该渠道未开启上游模型更新检测'));
                   return;
                 }
-                if (upstreamUpdateMeta.pendingModels.length === 0) {
+                if (
+                  upstreamUpdateMeta.pendingAddModels.length === 0 &&
+                  upstreamUpdateMeta.pendingRemoveModels.length === 0
+                ) {
                   showInfo(t('该渠道暂无可处理的上游模型更新'));
                   return;
                 }
-                openUpstreamUpdateModal(record, upstreamUpdateMeta.pendingModels);
+                openUpstreamUpdateModal(
+                  record,
+                  upstreamUpdateMeta.pendingAddModels,
+                  upstreamUpdateMeta.pendingRemoveModels,
+                );
               },
             },
           ];

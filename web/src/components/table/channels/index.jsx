@@ -33,7 +33,7 @@ import ColumnSelectorModal from './modals/ColumnSelectorModal';
 import EditChannelModal from './modals/EditChannelModal';
 import EditTagModal from './modals/EditTagModal';
 import MultiKeyManageModal from './modals/MultiKeyManageModal';
-import ModelSelectModal from './modals/ModelSelectModal';
+import ChannelUpstreamUpdateModal from './modals/ChannelUpstreamUpdateModal';
 import { createCardProPagination } from '../../../helpers/utils';
 
 const ChannelsPage = () => {
@@ -64,10 +64,10 @@ const ChannelsPage = () => {
         channel={channelsData.currentMultiKeyChannel}
         onRefresh={channelsData.refresh}
       />
-      <ModelSelectModal
+      <ChannelUpstreamUpdateModal
         visible={channelsData.showUpstreamUpdateModal}
-        models={channelsData.upstreamUpdateModels}
-        selected={[]}
+        addModels={channelsData.upstreamUpdateAddModels}
+        removeModels={channelsData.upstreamUpdateRemoveModels}
         onConfirm={channelsData.applyUpstreamUpdates}
         onCancel={channelsData.closeUpstreamUpdateModal}
       />

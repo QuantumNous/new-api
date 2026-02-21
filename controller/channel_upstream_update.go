@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,14 +35,17 @@ var (
 type applyChannelUpstreamModelUpdatesRequest struct {
 	ID           int      `json:"id"`
 	AddModels    []string `json:"add_models"`
+	RemoveModels []string `json:"remove_models"`
 	IgnoreModels []string `json:"ignore_models"`
 }
 
 type applyAllChannelUpstreamModelUpdatesResult struct {
-	ChannelID       int      `json:"channel_id"`
-	ChannelName     string   `json:"channel_name"`
-	AddedModels     []string `json:"added_models"`
-	RemainingModels []string `json:"remaining_models"`
+	ChannelID             int      `json:"channel_id"`
+	ChannelName           string   `json:"channel_name"`
+	AddedModels           []string `json:"added_models"`
+	RemovedModels         []string `json:"removed_models"`
+	RemainingModels       []string `json:"remaining_models"`
+	RemainingRemoveModels []string `json:"remaining_remove_models"`
 }
 
 func normalizeModelNames(models []string) []string {
@@ -78,15 +82,38 @@ func subtractModelNames(base []string, removed []string) []string {
 	})
 }
 
-func collectPendingUpstreamModels(channel *model.Channel, settings dto.ChannelOtherSettings) ([]string, error) {
+func intersectModelNames(base []string, allowed []string) []string {
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, model := range normalizeModelNames(allowed) {
+		allowedSet[model] = struct{}{}
+	}
+	return lo.Filter(normalizeModelNames(base), func(model string, _ int) bool {
+		_, ok := allowedSet[model]
+		return ok
+	})
+}
+
+func applySelectedModelChanges(originModels []string, addModels []string, removeModels []string) []string {
+	// Add wins when the same model appears in both selected lists.
+	normalizedAdd := normalizeModelNames(addModels)
+	normalizedRemove := subtractModelNames(normalizeModelNames(removeModels), normalizedAdd)
+	return subtractModelNames(mergeModelNames(originModels, normalizedAdd), normalizedRemove)
+}
+
+func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
 	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	localSet := make(map[string]struct{})
-	for _, modelName := range normalizeModelNames(channel.GetModels()) {
+	localModels := normalizeModelNames(channel.GetModels())
+	for _, modelName := range localModels {
 		localSet[modelName] = struct{}{}
+	}
+	upstreamSet := make(map[string]struct{}, len(upstreamModels))
+	for _, modelName := range upstreamModels {
+		upstreamSet[modelName] = struct{}{}
 	}
 
 	ignoredSet := make(map[string]struct{})
@@ -94,7 +121,7 @@ func collectPendingUpstreamModels(channel *model.Channel, settings dto.ChannelOt
 		ignoredSet[modelName] = struct{}{}
 	}
 
-	pending := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
+	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
 		if _, ok := localSet[modelName]; ok {
 			return false
 		}
@@ -103,7 +130,11 @@ func collectPendingUpstreamModels(channel *model.Channel, settings dto.ChannelOt
 		}
 		return true
 	})
-	return normalizeModelNames(pending), nil
+	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
+		_, ok := upstreamSet[modelName]
+		return !ok
+	})
+	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove), nil
 }
 
 func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
@@ -225,7 +256,7 @@ func checkAndPersistChannelUpstreamModelUpdates(channel *model.Channel, settings
 		}
 	}
 
-	pendingModels, fetchErr := collectPendingUpstreamModels(channel, *settings)
+	pendingAddModels, pendingRemoveModels, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
 	settings.UpstreamModelUpdateLastCheckTime = now
 	if fetchErr != nil {
 		if err = updateChannelUpstreamModelSettings(channel, *settings, false); err != nil {
@@ -234,9 +265,9 @@ func checkAndPersistChannelUpstreamModelUpdates(channel *model.Channel, settings
 		return false, 0, fetchErr
 	}
 
-	if settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingModels) > 0 {
+	if settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
-		mergedModels := mergeModelNames(originModels, pendingModels)
+		mergedModels := mergeModelNames(originModels, pendingAddModels)
 		if len(mergedModels) > len(originModels) {
 			channel.Models = strings.Join(mergedModels, ",")
 			autoAdded = len(mergedModels) - len(originModels)
@@ -244,8 +275,9 @@ func checkAndPersistChannelUpstreamModelUpdates(channel *model.Channel, settings
 		}
 		settings.UpstreamModelUpdateLastDetectedModels = []string{}
 	} else {
-		settings.UpstreamModelUpdateLastDetectedModels = pendingModels
+		settings.UpstreamModelUpdateLastDetectedModels = pendingAddModels
 	}
+	settings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
 
 	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged); err != nil {
 		return false, autoAdded, err
@@ -398,8 +430,15 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	beforeSettings := channel.GetOtherSettings()
+	ignoredModels := intersectModelNames(req.IgnoreModels, beforeSettings.UpstreamModelUpdateLastDetectedModels)
 
-	remainingModels, modelsChanged, err := applyChannelUpstreamModelUpdates(channel, req.AddModels, req.IgnoreModels)
+	addedModels, removedModels, remainingModels, remainingRemoveModels, modelsChanged, err := applyChannelUpstreamModelUpdates(
+		channel,
+		req.AddModels,
+		req.IgnoreModels,
+		req.RemoveModels,
+	)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -413,47 +452,66 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"id":               channel.Id,
-			"added_models":     normalizeModelNames(req.AddModels),
-			"ignored_models":   normalizeModelNames(req.IgnoreModels),
-			"remaining_models": remainingModels,
-			"models":           channel.Models,
-			"settings":         channel.OtherSettings,
+			"id":                      channel.Id,
+			"added_models":            addedModels,
+			"removed_models":          removedModels,
+			"ignored_models":          ignoredModels,
+			"remaining_models":        remainingModels,
+			"remaining_remove_models": remainingRemoveModels,
+			"models":                  channel.Models,
+			"settings":                channel.OtherSettings,
 		},
 	})
 }
 
-func applyChannelUpstreamModelUpdates(channel *model.Channel, addModelsInput []string, ignoreModelsInput []string) (remainingModels []string, modelsChanged bool, err error) {
+func applyChannelUpstreamModelUpdates(
+	channel *model.Channel,
+	addModelsInput []string,
+	ignoreModelsInput []string,
+	removeModelsInput []string,
+) (
+	addedModels []string,
+	removedModels []string,
+	remainingModels []string,
+	remainingRemoveModels []string,
+	modelsChanged bool,
+	err error,
+) {
 	settings := channel.GetOtherSettings()
-	pendingModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
-	addModels := normalizeModelNames(addModelsInput)
-	ignoreModels := normalizeModelNames(ignoreModelsInput)
+	pendingAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
+	pendingRemoveModels := normalizeModelNames(settings.UpstreamModelUpdateLastRemovedModels)
+	addModels := intersectModelNames(addModelsInput, pendingAddModels)
+	ignoreModels := intersectModelNames(ignoreModelsInput, pendingAddModels)
+	removeModels := intersectModelNames(removeModelsInput, pendingRemoveModels)
+	removeModels = subtractModelNames(removeModels, addModels)
 
 	originModels := normalizeModelNames(channel.GetModels())
-	mergedModels := mergeModelNames(originModels, addModels)
-	modelsChanged = len(mergedModels) > len(originModels)
+	nextModels := applySelectedModelChanges(originModels, addModels, removeModels)
+	modelsChanged = !slices.Equal(originModels, nextModels)
 	if modelsChanged {
-		channel.Models = strings.Join(mergedModels, ",")
+		channel.Models = strings.Join(nextModels, ",")
 	}
 
 	settings.UpstreamModelUpdateIgnoredModels = mergeModelNames(settings.UpstreamModelUpdateIgnoredModels, ignoreModels)
 	if len(addModels) > 0 {
 		settings.UpstreamModelUpdateIgnoredModels = subtractModelNames(settings.UpstreamModelUpdateIgnoredModels, addModels)
 	}
-	remainingModels = subtractModelNames(pendingModels, append(addModels, ignoreModels...))
+	remainingModels = subtractModelNames(pendingAddModels, append(addModels, ignoreModels...))
+	remainingRemoveModels = subtractModelNames(pendingRemoveModels, removeModels)
 	settings.UpstreamModelUpdateLastDetectedModels = remainingModels
+	settings.UpstreamModelUpdateLastRemovedModels = remainingRemoveModels
 	settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
 
 	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged); err != nil {
-		return nil, false, err
+		return nil, nil, nil, nil, false, err
 	}
 
 	if modelsChanged {
 		if err := channel.UpdateAbilities(nil); err != nil {
-			return remainingModels, true, err
+			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
 		}
 	}
-	return remainingModels, modelsChanged, nil
+	return addModels, removeModels, remainingModels, remainingRemoveModels, modelsChanged, nil
 }
 
 func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
@@ -479,12 +537,17 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 		if !settings.UpstreamModelUpdateCheckEnabled {
 			continue
 		}
-		pendingModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
-		if len(pendingModels) == 0 {
+		pendingAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
+		if len(pendingAddModels) == 0 {
 			continue
 		}
 
-		remainingModels, modelsChanged, err := applyChannelUpstreamModelUpdates(channel, pendingModels, nil)
+		addedModels, removedModels, remainingModels, remainingRemoveModels, modelsChanged, err := applyChannelUpstreamModelUpdates(
+			channel,
+			pendingAddModels,
+			nil,
+			nil,
+		)
 		if err != nil {
 			failed = append(failed, channel.Id)
 			continue
@@ -492,12 +555,14 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 		if modelsChanged {
 			refreshNeeded = true
 		}
-		addedModelCount += len(pendingModels)
+		addedModelCount += len(addedModels)
 		results = append(results, applyAllChannelUpstreamModelUpdatesResult{
-			ChannelID:       channel.Id,
-			ChannelName:     channel.Name,
-			AddedModels:     pendingModels,
-			RemainingModels: remainingModels,
+			ChannelID:             channel.Id,
+			ChannelName:           channel.Name,
+			AddedModels:           addedModels,
+			RemovedModels:         removedModels,
+			RemainingModels:       remainingModels,
+			RemainingRemoveModels: remainingRemoveModels,
 		})
 	}
 
