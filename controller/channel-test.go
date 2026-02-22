@@ -775,20 +775,32 @@ func TestChannel(c *gin.Context) {
 	})
 }
 
-var testAllChannelsLock sync.Mutex
-var testAllChannelsRunning bool = false
+var channelTestRunLock sync.Mutex
+var channelTestRunning bool = false
 
-func testAllChannels(notify bool) error {
-
-	testAllChannelsLock.Lock()
-	if testAllChannelsRunning {
-		testAllChannelsLock.Unlock()
+func beginChannelTestRun() error {
+	channelTestRunLock.Lock()
+	defer channelTestRunLock.Unlock()
+	if channelTestRunning {
 		return errors.New("测试已在运行中")
 	}
-	testAllChannelsRunning = true
-	testAllChannelsLock.Unlock()
+	channelTestRunning = true
+	return nil
+}
+
+func endChannelTestRun() {
+	channelTestRunLock.Lock()
+	channelTestRunning = false
+	channelTestRunLock.Unlock()
+}
+
+func testAllChannels(notify bool) error {
+	if err := beginChannelTestRun(); err != nil {
+		return err
+	}
 	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
 	if getChannelErr != nil {
+		endChannelTestRun()
 		return getChannelErr
 	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
@@ -796,12 +808,7 @@ func testAllChannels(notify bool) error {
 		disableThreshold = 10000000 // a impossible value
 	}
 	gopool.Go(func() {
-		// 使用 defer 确保无论如何都会重置运行状态，防止死锁
-		defer func() {
-			testAllChannelsLock.Lock()
-			testAllChannelsRunning = false
-			testAllChannelsLock.Unlock()
-		}()
+		defer endChannelTestRun()
 
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
@@ -850,8 +857,70 @@ func testAllChannels(notify bool) error {
 	return nil
 }
 
+func testAutoDisabledChannels(notify bool) error {
+	if err := beginChannelTestRun(); err != nil {
+		return err
+	}
+	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
+	if getChannelErr != nil {
+		endChannelTestRun()
+		return getChannelErr
+	}
+	monitorSetting := operation_setting.GetMonitorSetting()
+	responseThresholdMilliseconds := int64(monitorSetting.AutoTestAutoDisabledChannelResponseThreshold * 1000)
+	if responseThresholdMilliseconds <= 0 {
+		responseThresholdMilliseconds = 10000000
+	}
+	gopool.Go(func() {
+		defer endChannelTestRun()
+
+		for _, channel := range channels {
+			if channel.Status != common.ChannelStatusAutoDisabled {
+				continue
+			}
+			tik := time.Now()
+			result := testChannel(channel, "", "", false)
+			tok := time.Now()
+			milliseconds := tok.Sub(tik).Milliseconds()
+
+			newAPIError := result.newAPIError
+			if result.localErr != nil {
+				newAPIError = types.NewOpenAIError(result.localErr, types.ErrorCodeInvalidRequestError, http.StatusBadRequest)
+			}
+			if newAPIError == nil && milliseconds > responseThresholdMilliseconds {
+				err := fmt.Errorf("响应时间 %.2fs 超过自动禁用渠道阈值 %.2fs", float64(milliseconds)/1000.0, float64(responseThresholdMilliseconds)/1000.0)
+				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+			}
+
+			if service.ShouldEnableChannel(newAPIError, channel.Status) {
+				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+			}
+
+			channel.UpdateResponseTime(milliseconds)
+			time.Sleep(common.RequestInterval)
+		}
+
+		if notify {
+			service.NotifyRootUser(dto.NotifyTypeChannelTest, "自动禁用通道测试完成", "自动禁用通道测试已完成")
+		}
+	})
+	return nil
+}
+
 func TestAllChannels(c *gin.Context) {
 	err := testAllChannels(true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+}
+
+func TestAutoDisabledChannels(c *gin.Context) {
+	err := testAutoDisabledChannels(true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -883,6 +952,34 @@ func AutomaticallyTestChannels() {
 				_ = testAllChannels(false)
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
+					break
+				}
+			}
+		}
+	})
+}
+
+var autoTestAutoDisabledChannelsOnce sync.Once
+
+func AutomaticallyTestAutoDisabledChannels() {
+	if !common.IsMasterNode {
+		return
+	}
+	autoTestAutoDisabledChannelsOnce.Do(func() {
+		for {
+			if !operation_setting.GetMonitorSetting().AutoTestAutoDisabledChannelEnabled {
+				time.Sleep(1 * time.Minute)
+				continue
+			}
+			for {
+				monitorSetting := operation_setting.GetMonitorSetting()
+				frequency := monitorSetting.AutoTestAutoDisabledChannelMinutes
+				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				common.SysLog(fmt.Sprintf("automatically test auto-disabled channels with interval %f minutes", frequency))
+				common.SysLog("automatically testing auto-disabled channels")
+				_ = testAutoDisabledChannels(false)
+				common.SysLog("automatically auto-disabled channel test finished")
+				if !operation_setting.GetMonitorSetting().AutoTestAutoDisabledChannelEnabled {
 					break
 				}
 			}
