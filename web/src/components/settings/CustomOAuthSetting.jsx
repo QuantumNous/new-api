@@ -27,6 +27,8 @@ import {
   Modal,
   Banner,
   Card,
+  Collapse,
+  Switch,
   Table,
   Tag,
   Popconfirm,
@@ -37,7 +39,6 @@ import {
   IconEdit,
   IconDelete,
   IconRefresh,
-  IconLink,
 } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
 import { useTranslation } from 'react-i18next';
@@ -151,6 +152,8 @@ const PRESET_RESET_VALUES = {
   email_field: '',
   well_known: '',
   auth_style: 0,
+  access_policy: '',
+  access_denied_message: '',
 };
 
 const DISCOVERY_FIELD_LABELS = {
@@ -175,6 +178,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [baseUrl, setBaseUrl] = useState('');
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryInfo, setDiscoveryInfo] = useState(null);
+  const [advancedActiveKeys, setAdvancedActiveKeys] = useState([]);
   const formApiRef = React.useRef(null);
 
   const mergeFormValues = (newValues) => {
@@ -183,6 +187,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     Object.entries(newValues).forEach(([key, value]) => {
       formApiRef.current.setValue(key, value);
     });
+  };
+
+  const getLatestFormValues = () => {
+    const values = formApiRef.current?.getValues?.();
+    return values && typeof values === 'object' ? values : formValues;
   };
 
   const normalizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
@@ -205,6 +214,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const closeModal = () => {
     setModalVisible(false);
     resetDiscoveryState();
+    setAdvancedActiveKeys([]);
   };
 
   const fetchProviders = async () => {
@@ -237,10 +247,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       display_name_field: 'name',
       email_field: 'email',
       auth_style: 0,
+      access_policy: '',
+      access_denied_message: '',
     });
     setSelectedPreset('');
     setBaseUrl('');
     resetDiscoveryState();
+    setAdvancedActiveKeys([]);
     setModalVisible(true);
   };
 
@@ -250,6 +263,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setSelectedPreset(OAUTH_PRESETS[provider.slug] ? provider.slug : '');
     setBaseUrl(inferBaseUrlFromProvider(provider));
     resetDiscoveryState();
+    setAdvancedActiveKeys([]);
     setModalVisible(true);
   };
 
@@ -268,6 +282,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   };
 
   const handleSubmit = async () => {
+    const currentValues = getLatestFormValues();
+
     // Validate required fields
     const requiredFields = [
       'name',
@@ -283,7 +299,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
 
     for (const field of requiredFields) {
-      if (!formValues[field]) {
+      if (!currentValues[field]) {
         showError(t(`请填写 ${field}`));
         return;
       }
@@ -292,11 +308,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     // Validate endpoint URLs must be full URLs
     const endpointFields = ['authorization_endpoint', 'token_endpoint', 'user_info_endpoint'];
     for (const field of endpointFields) {
-      const value = formValues[field];
+      const value = currentValues[field];
       if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
-        // Check if user selected a preset but forgot to fill server address
+        // Check if user selected a preset but forgot to fill issuer URL
         if (selectedPreset && !baseUrl) {
-          showError(t('请先填写服务器地址，以自动生成完整的端点 URL'));
+          showError(t('请先填写 Issuer URL，以自动生成完整的端点 URL'));
         } else {
           showError(t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'));
         }
@@ -305,7 +321,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
 
     try {
-      const payload = { ...formValues };
+      const payload = { ...currentValues, enabled: !!currentValues.enabled };
       delete payload.preset;
       delete payload.base_url;
 
@@ -339,7 +355,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       (cleanBaseUrl ? `${cleanBaseUrl}/.well-known/openid-configuration` : '');
 
     if (!wellKnownUrl) {
-      showError(t('请先填写 Well-Known URL 或服务器地址'));
+      showError(t('请先填写 Discovery URL 或 Issuer URL'));
       return;
     }
 
@@ -583,17 +599,38 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           centered
           bodyStyle={{ maxHeight: '72vh', overflowY: 'auto', paddingRight: 6 }}
           footer={
-            <Space>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <Space spacing={8} align='center'>
+                <Text type='secondary'>{t('启用供应商')}</Text>
+                <Switch
+                  checked={!!formValues.enabled}
+                  size='large'
+                  onChange={(checked) => mergeFormValues({ enabled: !!checked })}
+                />
+                <Tag color={formValues.enabled ? 'green' : 'grey'}>
+                  {formValues.enabled ? t('已启用') : t('已禁用')}
+                </Tag>
+              </Space>
               <Button onClick={closeModal}>{t('取消')}</Button>
               <Button type='primary' onClick={handleSubmit}>
                 {t('保存')}
               </Button>
-            </Space>
+            </div>
           }
         >
           <Form
             initValues={formValues}
-            onValueChange={(values) => setFormValues(values)}
+            onValueChange={() => {
+              setFormValues((prev) => ({ ...prev, ...getLatestFormValues() }));
+            }}
             getFormApi={(api) => (formApiRef.current = api)}
           >
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
@@ -670,7 +707,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 />
               </Col>
               <Col span={6}>
-                <div style={{ display: 'flex', alignItems: 'end', height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
                   <Button
                     icon={<IconRefresh />}
                     onClick={handleFetchFromDiscovery}
@@ -722,24 +759,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   extraText={
                     <span>
                       {t(
-                        '图标使用 react-icons（Simple Icons）或 URL/emoji，例如：github、gitlab、si:google，完整图标列表 ',
+                        '图标使用 react-icons（Simple Icons）或 URL/emoji，例如：github、gitlab、si:google',
                       )}
-                      <Typography.Text
-                        link={{
-                          href: 'https://react-icons.github.io/react-icons/icons?name=si',
-                          target: '_blank',
-                        }}
-                        icon={<IconLink />}
-                        underline
-                      >
-                        {t('请点击我')}
-                      </Typography.Text>
                     </span>
                   }
                   showClear
                 />
               </Col>
-              <Col span={6} style={{ display: 'flex', alignItems: 'end' }}>
+              <Col span={6} style={{ display: 'flex', alignItems: 'flex-end' }}>
                 <div
                   style={{
                     width: '100%',
@@ -797,7 +824,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   label={t('Authorization Endpoint')}
                   placeholder={
                     selectedPreset && OAUTH_PRESETS[selectedPreset]
-                      ? t('填写服务器地址后自动生成：') +
+                      ? t('填写 Issuer URL 后自动生成：') +
                         OAUTH_PRESETS[selectedPreset].authorization_endpoint
                       : 'https://example.com/oauth/authorize'
                   }
@@ -895,28 +922,67 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
             </Row>
 
-            <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
-              {t('高级选项')}
-            </Text>
+            <Collapse
+              keepDOM
+              activeKey={advancedActiveKeys}
+              style={{ marginTop: 16 }}
+              onChange={(activeKey) => {
+                const keys = Array.isArray(activeKey) ? activeKey : [activeKey];
+                setAdvancedActiveKeys(keys.filter(Boolean));
+              }}
+            >
+              <Collapse.Panel header={t('高级选项')} itemKey='advanced'>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Select
+                      field="auth_style"
+                      label={t('认证方式')}
+                      optionList={[
+                        { value: 0, label: t('自动检测') },
+                        { value: 1, label: t('POST 参数') },
+                        { value: 2, label: t('Basic Auth 头') },
+                      ]}
+                    />
+                  </Col>
+                </Row>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Select
-                  field="auth_style"
-                  label={t('认证方式')}
-                  optionList={[
-                    { value: 0, label: t('自动检测') },
-                    { value: 1, label: t('POST 参数') },
-                    { value: 2, label: t('Basic Auth 头') },
-                  ]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Checkbox field="enabled" noLabel>
-                  {t('启用此 OAuth 提供商')}
-                </Form.Checkbox>
-              </Col>
-            </Row>
+                <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
+                  {t('准入策略')}
+                </Text>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  {t('可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示')}
+                </Text>
+                <Row gutter={16}>
+                  <Col span={24}>
+                    <Form.TextArea
+                      field='access_policy'
+                      label={t('准入策略 JSON（可选）')}
+                      rows={6}
+                      placeholder={`{
+  "logic": "and",
+  "conditions": [
+    {"field": "trust_level", "op": "gte", "value": 2},
+    {"field": "active", "op": "eq", "value": true}
+  ]
+}`}
+                      extraText={t('支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists')}
+                      showClear
+                    />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={24}>
+                    <Form.Input
+                      field='access_denied_message'
+                      label={t('拒绝提示模板（可选）')}
+                      placeholder={t('例如：需要等级 {{required}}，你当前等级 {{current}}')}
+                      extraText={t('可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}')}
+                      showClear
+                    />
+                  </Col>
+                </Row>
+              </Collapse.Panel>
+            </Collapse>
           </Form>
         </Modal>
       </Form.Section>

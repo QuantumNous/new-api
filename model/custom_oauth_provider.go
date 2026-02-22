@@ -2,9 +2,39 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
+
+type accessPolicyPayload struct {
+	Logic      string                `json:"logic"`
+	Conditions []accessConditionItem `json:"conditions"`
+	Groups     []accessPolicyPayload `json:"groups"`
+}
+
+type accessConditionItem struct {
+	Field string `json:"field"`
+	Op    string `json:"op"`
+	Value any    `json:"value"`
+}
+
+var supportedAccessPolicyOps = map[string]struct{}{
+	"eq":           {},
+	"ne":           {},
+	"gt":           {},
+	"gte":          {},
+	"lt":           {},
+	"lte":          {},
+	"in":           {},
+	"not_in":       {},
+	"contains":     {},
+	"not_contains": {},
+	"exists":       {},
+	"not_exists":   {},
+}
 
 // CustomOAuthProvider stores configuration for custom OAuth providers
 type CustomOAuthProvider struct {
@@ -27,8 +57,10 @@ type CustomOAuthProvider struct {
 	EmailField       string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
 
 	// Advanced options
-	WellKnown string `json:"well_known" gorm:"type:varchar(512)"` // OIDC discovery endpoint (optional)
-	AuthStyle int    `json:"auth_style" gorm:"default:0"`         // 0=auto, 1=params, 2=header (Basic Auth)
+	WellKnown           string `json:"well_known" gorm:"type:varchar(512)"`            // OIDC discovery endpoint (optional)
+	AuthStyle           int    `json:"auth_style" gorm:"default:0"`                    // 0=auto, 1=params, 2=header (Basic Auth)
+	AccessPolicy        string `json:"access_policy" gorm:"type:text"`                 // JSON policy for access control based on user info
+	AccessDeniedMessage string `json:"access_denied_message" gorm:"type:varchar(512)"` // Custom error message template when access is denied
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -158,6 +190,57 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	}
 	if provider.Scopes == "" {
 		provider.Scopes = "openid profile email"
+	}
+	if strings.TrimSpace(provider.AccessPolicy) != "" {
+		var policy accessPolicyPayload
+		if err := common.UnmarshalJsonStr(provider.AccessPolicy, &policy); err != nil {
+			return errors.New("access_policy must be valid JSON")
+		}
+		if err := validateAccessPolicyPayload(&policy); err != nil {
+			return fmt.Errorf("access_policy is invalid: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func validateAccessPolicyPayload(policy *accessPolicyPayload) error {
+	if policy == nil {
+		return errors.New("policy is nil")
+	}
+
+	logic := strings.ToLower(strings.TrimSpace(policy.Logic))
+	if logic == "" {
+		logic = "and"
+	}
+	if logic != "and" && logic != "or" {
+		return fmt.Errorf("unsupported logic: %s", logic)
+	}
+
+	if len(policy.Conditions) == 0 && len(policy.Groups) == 0 {
+		return errors.New("policy requires at least one condition or group")
+	}
+
+	for index, condition := range policy.Conditions {
+		field := strings.TrimSpace(condition.Field)
+		if field == "" {
+			return fmt.Errorf("condition[%d].field is required", index)
+		}
+		op := strings.ToLower(strings.TrimSpace(condition.Op))
+		if _, ok := supportedAccessPolicyOps[op]; !ok {
+			return fmt.Errorf("condition[%d].op is unsupported: %s", index, op)
+		}
+		if op == "in" || op == "not_in" {
+			if _, ok := condition.Value.([]any); !ok {
+				return fmt.Errorf("condition[%d].value must be an array for op %s", index, op)
+			}
+		}
+	}
+
+	for index := range policy.Groups {
+		if err := validateAccessPolicyPayload(&policy.Groups[index]); err != nil {
+			return fmt.Errorf("group[%d]: %w", index, err)
+		}
 	}
 
 	return nil
