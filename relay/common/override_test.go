@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
 func TestApplyParamOverrideTrimPrefix(t *testing.T) {
@@ -770,6 +773,76 @@ func TestApplyParamOverrideToUpper(t *testing.T) {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
 	assertJSONEqual(t, `{"model":"GPT-4"}`, string(out))
+}
+
+func TestRemoveDisabledFieldsSkipWhenChannelPassThroughEnabled(t *testing.T) {
+	input := `{
+		"service_tier":"flex",
+		"safety_identifier":"user-123",
+		"store":true,
+		"stream_options":{"include_obfuscation":false}
+	}`
+	settings := dto.ChannelOtherSettings{}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, true)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, input, string(out))
+}
+
+func TestRemoveDisabledFieldsSkipWhenGlobalPassThroughEnabled(t *testing.T) {
+	original := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	model_setting.GetGlobalSettings().PassThroughRequestEnabled = true
+	t.Cleanup(func() {
+		model_setting.GetGlobalSettings().PassThroughRequestEnabled = original
+	})
+
+	input := `{
+		"service_tier":"flex",
+		"safety_identifier":"user-123",
+		"stream_options":{"include_obfuscation":false}
+	}`
+	settings := dto.ChannelOtherSettings{}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, input, string(out))
+}
+
+func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
+	input := `{
+		"service_tier":"flex",
+		"inference_geo":"eu",
+		"safety_identifier":"user-123",
+		"store":true,
+		"stream_options":{"include_obfuscation":false}
+	}`
+	settings := dto.ChannelOtherSettings{}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"store":true}`, string(out))
+}
+
+func TestRemoveDisabledFieldsAllowInferenceGeo(t *testing.T) {
+	input := `{
+		"inference_geo":"eu",
+		"store":true
+	}`
+	settings := dto.ChannelOtherSettings{
+		AllowInferenceGeo: true,
+	}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"inference_geo":"eu","store":true}`, string(out))
 }
 
 func assertJSONEqual(t *testing.T, want, got string) {

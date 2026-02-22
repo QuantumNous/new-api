@@ -54,18 +54,22 @@ type GeneralOpenAIRequest struct {
 	ParallelTooCalls    *bool             `json:"parallel_tool_calls,omitempty"`
 	Tools               []ToolCallRequest `json:"tools,omitempty"`
 	ToolChoice          any               `json:"tool_choice,omitempty"`
+	FunctionCall        json.RawMessage   `json:"function_call,omitempty"`
 	User                string            `json:"user,omitempty"`
-	LogProbs            bool              `json:"logprobs,omitempty"`
-	TopLogProbs         int               `json:"top_logprobs,omitempty"`
-	Dimensions          int               `json:"dimensions,omitempty"`
-	Modalities          json.RawMessage   `json:"modalities,omitempty"`
-	Audio               json.RawMessage   `json:"audio,omitempty"`
+	// ServiceTier specifies upstream service level and may affect billing.
+	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
+	ServiceTier string          `json:"service_tier,omitempty"`
+	LogProbs    bool            `json:"logprobs,omitempty"`
+	TopLogProbs int             `json:"top_logprobs,omitempty"`
+	Dimensions  int             `json:"dimensions,omitempty"`
+	Modalities  json.RawMessage `json:"modalities,omitempty"`
+	Audio       json.RawMessage `json:"audio,omitempty"`
 	// 安全标识符，用于帮助 OpenAI 检测可能违反使用政策的应用程序用户
-	// 注意：此字段会向 OpenAI 发送用户标识信息，默认过滤以保护用户隐私
+	// 注意：此字段会向 OpenAI 发送用户标识信息，默认过滤，可通过 allow_safety_identifier 开启
 	SafetyIdentifier string `json:"safety_identifier,omitempty"`
 	// Whether or not to store the output of this chat completion request for use in our model distillation or evals products.
 	// 是否存储此次请求数据供 OpenAI 用于评估和优化产品
-	// 注意：默认过滤此字段以保护用户隐私，但过滤后可能导致 Codex 无法正常使用
+	// 注意：默认允许透传，可通过 disable_store 禁用；禁用后可能导致 Codex 无法正常使用
 	Store json.RawMessage `json:"store,omitempty"`
 	// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field
 	PromptCacheKey       string          `json:"prompt_cache_key,omitempty"`
@@ -261,6 +265,9 @@ type FunctionRequest struct {
 
 type StreamOptions struct {
 	IncludeUsage bool `json:"include_usage,omitempty"`
+	// IncludeObfuscation is only for /v1/responses stream payload.
+	// This field is filtered by default and can be enabled via channel setting allow_include_obfuscation.
+	IncludeObfuscation bool `json:"include_obfuscation,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetMaxTokens() uint {
@@ -799,30 +806,42 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
-	Model              string          `json:"model"`
-	Input              json.RawMessage `json:"input,omitempty"`
-	Include            json.RawMessage `json:"include,omitempty"`
+	Model   string          `json:"model"`
+	Input   json.RawMessage `json:"input,omitempty"`
+	Include json.RawMessage `json:"include,omitempty"`
+	// 在后台运行推理，暂时还不支持依赖的接口
+	// Background         json.RawMessage `json:"background,omitempty"`
+	Conversation       json.RawMessage `json:"conversation,omitempty"`
+	ContextManagement  json.RawMessage `json:"context_management,omitempty"`
 	Instructions       json.RawMessage `json:"instructions,omitempty"`
 	MaxOutputTokens    uint            `json:"max_output_tokens,omitempty"`
+	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
-	// 服务层级字段，用于指定 API 服务等级。允许透传可能导致实际计费高于预期，默认应过滤
-	ServiceTier          string          `json:"service_tier,omitempty"`
+	// ServiceTier specifies upstream service level and may affect billing.
+	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
+	ServiceTier string `json:"service_tier,omitempty"`
+	// Store controls whether upstream may store request/response data.
+	// This field is allowed by default and can be disabled via channel setting disable_store.
 	Store                json.RawMessage `json:"store,omitempty"`
 	PromptCacheKey       json.RawMessage `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
-	Stream               bool            `json:"stream,omitempty"`
-	Temperature          *float64        `json:"temperature,omitempty"`
-	Text                 json.RawMessage `json:"text,omitempty"`
-	ToolChoice           json.RawMessage `json:"tool_choice,omitempty"`
-	Tools                json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP                 *float64        `json:"top_p,omitempty"`
-	Truncation           string          `json:"truncation,omitempty"`
-	User                 string          `json:"user,omitempty"`
-	MaxToolCalls         uint            `json:"max_tool_calls,omitempty"`
-	Prompt               json.RawMessage `json:"prompt,omitempty"`
+	// SafetyIdentifier carries client identity for policy abuse detection.
+	// This field is filtered by default and can be enabled via channel setting allow_safety_identifier.
+	SafetyIdentifier string          `json:"safety_identifier,omitempty"`
+	Stream           bool            `json:"stream,omitempty"`
+	StreamOptions    *StreamOptions  `json:"stream_options,omitempty"`
+	Temperature      *float64        `json:"temperature,omitempty"`
+	Text             json.RawMessage `json:"text,omitempty"`
+	ToolChoice       json.RawMessage `json:"tool_choice,omitempty"`
+	Tools            json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
+	TopP             *float64        `json:"top_p,omitempty"`
+	Truncation       string          `json:"truncation,omitempty"`
+	User             string          `json:"user,omitempty"`
+	MaxToolCalls     uint            `json:"max_tool_calls,omitempty"`
+	Prompt           json.RawMessage `json:"prompt,omitempty"`
 	// qwen
 	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
 	// perplexity

@@ -344,7 +344,7 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2)) {
+      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -535,6 +535,24 @@ export const useLogsData = () => {
           });
         }
       }
+      if (logs[i].type === 6) {
+        if (other?.task_id) {
+          expandDataLocal.push({
+            key: t('任务ID'),
+            value: other.task_id,
+          });
+        }
+        if (other?.reason) {
+          expandDataLocal.push({
+            key: t('失败原因'),
+            value: (
+              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                {other.reason}
+              </div>
+            ),
+          });
+        }
+      }
       if (other?.request_path) {
         expandDataLocal.push({
           key: t('请求路径'),
@@ -590,13 +608,13 @@ export const useLogsData = () => {
           ),
         });
       }
-      if (isAdminUser) {
+      if (isAdminUser && logs[i].type !== 6) {
         expandDataLocal.push({
           key: t('请求转换'),
           value: requestConversionDisplayValue(other?.request_conversion),
         });
       }
-      if (isAdminUser) {
+      if (isAdminUser && logs[i].type !== 6) {
         let localCountMode = '';
         if (other?.admin_info?.local_count_tokens) {
           localCountMode = t('本地计费');

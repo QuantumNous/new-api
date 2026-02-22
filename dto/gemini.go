@@ -324,25 +324,26 @@ type GeminiChatTool struct {
 }
 
 type GeminiChatGenerationConfig struct {
-	Temperature        *float64              `json:"temperature,omitempty"`
-	TopP               float64               `json:"topP,omitempty"`
-	TopK               float64               `json:"topK,omitempty"`
-	MaxOutputTokens    uint                  `json:"maxOutputTokens,omitempty"`
-	CandidateCount     int                   `json:"candidateCount,omitempty"`
-	StopSequences      []string              `json:"stopSequences,omitempty"`
-	ResponseMimeType   string                `json:"responseMimeType,omitempty"`
-	ResponseSchema     any                   `json:"responseSchema,omitempty"`
-	ResponseJsonSchema json.RawMessage       `json:"responseJsonSchema,omitempty"`
-	PresencePenalty    *float32              `json:"presencePenalty,omitempty"`
-	FrequencyPenalty   *float32              `json:"frequencyPenalty,omitempty"`
-	ResponseLogprobs   bool                  `json:"responseLogprobs,omitempty"`
-	Logprobs           *int32                `json:"logprobs,omitempty"`
-	MediaResolution    MediaResolution       `json:"mediaResolution,omitempty"`
-	Seed               int64                 `json:"seed,omitempty"`
-	ResponseModalities []string              `json:"responseModalities,omitempty"`
-	ThinkingConfig     *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
-	SpeechConfig       json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
-	ImageConfig        json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
+	Temperature                *float64              `json:"temperature,omitempty"`
+	TopP                       float64               `json:"topP,omitempty"`
+	TopK                       float64               `json:"topK,omitempty"`
+	MaxOutputTokens            uint                  `json:"maxOutputTokens,omitempty"`
+	CandidateCount             int                   `json:"candidateCount,omitempty"`
+	StopSequences              []string              `json:"stopSequences,omitempty"`
+	ResponseMimeType           string                `json:"responseMimeType,omitempty"`
+	ResponseSchema             any                   `json:"responseSchema,omitempty"`
+	ResponseJsonSchema         json.RawMessage       `json:"responseJsonSchema,omitempty"`
+	PresencePenalty            *float32              `json:"presencePenalty,omitempty"`
+	FrequencyPenalty           *float32              `json:"frequencyPenalty,omitempty"`
+	ResponseLogprobs           bool                  `json:"responseLogprobs,omitempty"`
+	Logprobs                   *int32                `json:"logprobs,omitempty"`
+	EnableEnhancedCivicAnswers *bool                 `json:"enableEnhancedCivicAnswers,omitempty"`
+	MediaResolution            MediaResolution       `json:"mediaResolution,omitempty"`
+	Seed                       int64                 `json:"seed,omitempty"`
+	ResponseModalities         []string              `json:"responseModalities,omitempty"`
+	ThinkingConfig             *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
+	SpeechConfig               json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
+	ImageConfig                json.RawMessage       `json:"imageConfig,omitempty"`  // RawMessage to allow flexible image config
 }
 
 // UnmarshalJSON allows GeminiChatGenerationConfig to accept both snake_case and camelCase fields.
@@ -350,22 +351,23 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	type Alias GeminiChatGenerationConfig
 	var aux struct {
 		Alias
-		TopPSnake               float64               `json:"top_p,omitempty"`
-		TopKSnake               float64               `json:"top_k,omitempty"`
-		MaxOutputTokensSnake    uint                  `json:"max_output_tokens,omitempty"`
-		CandidateCountSnake     int                   `json:"candidate_count,omitempty"`
-		StopSequencesSnake      []string              `json:"stop_sequences,omitempty"`
-		ResponseMimeTypeSnake   string                `json:"response_mime_type,omitempty"`
-		ResponseSchemaSnake     any                   `json:"response_schema,omitempty"`
-		ResponseJsonSchemaSnake json.RawMessage       `json:"response_json_schema,omitempty"`
-		PresencePenaltySnake    *float32              `json:"presence_penalty,omitempty"`
-		FrequencyPenaltySnake   *float32              `json:"frequency_penalty,omitempty"`
-		ResponseLogprobsSnake   bool                  `json:"response_logprobs,omitempty"`
-		MediaResolutionSnake    MediaResolution       `json:"media_resolution,omitempty"`
-		ResponseModalitiesSnake []string              `json:"response_modalities,omitempty"`
-		ThinkingConfigSnake     *GeminiThinkingConfig `json:"thinking_config,omitempty"`
-		SpeechConfigSnake       json.RawMessage       `json:"speech_config,omitempty"`
-		ImageConfigSnake        json.RawMessage       `json:"image_config,omitempty"`
+		TopPSnake                       float64               `json:"top_p,omitempty"`
+		TopKSnake                       float64               `json:"top_k,omitempty"`
+		MaxOutputTokensSnake            uint                  `json:"max_output_tokens,omitempty"`
+		CandidateCountSnake             int                   `json:"candidate_count,omitempty"`
+		StopSequencesSnake              []string              `json:"stop_sequences,omitempty"`
+		ResponseMimeTypeSnake           string                `json:"response_mime_type,omitempty"`
+		ResponseSchemaSnake             any                   `json:"response_schema,omitempty"`
+		ResponseJsonSchemaSnake         json.RawMessage       `json:"response_json_schema,omitempty"`
+		PresencePenaltySnake            *float32              `json:"presence_penalty,omitempty"`
+		FrequencyPenaltySnake           *float32              `json:"frequency_penalty,omitempty"`
+		ResponseLogprobsSnake           bool                  `json:"response_logprobs,omitempty"`
+		EnableEnhancedCivicAnswersSnake *bool                 `json:"enable_enhanced_civic_answers,omitempty"`
+		MediaResolutionSnake            MediaResolution       `json:"media_resolution,omitempty"`
+		ResponseModalitiesSnake         []string              `json:"response_modalities,omitempty"`
+		ThinkingConfigSnake             *GeminiThinkingConfig `json:"thinking_config,omitempty"`
+		SpeechConfigSnake               json.RawMessage       `json:"speech_config,omitempty"`
+		ImageConfigSnake                json.RawMessage       `json:"image_config,omitempty"`
 	}
 
 	if err := common.Unmarshal(data, &aux); err != nil {
@@ -407,6 +409,9 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	}
 	if aux.ResponseLogprobsSnake {
 		c.ResponseLogprobs = aux.ResponseLogprobsSnake
+	}
+	if aux.EnableEnhancedCivicAnswersSnake != nil {
+		c.EnableEnhancedCivicAnswers = aux.EnableEnhancedCivicAnswersSnake
 	}
 	if aux.MediaResolutionSnake != "" {
 		c.MediaResolution = aux.MediaResolutionSnake
@@ -453,12 +458,14 @@ type GeminiChatResponse struct {
 }
 
 type GeminiUsageMetadata struct {
-	PromptTokenCount        int                         `json:"promptTokenCount"`
-	CandidatesTokenCount    int                         `json:"candidatesTokenCount"`
-	TotalTokenCount         int                         `json:"totalTokenCount"`
-	ThoughtsTokenCount      int                         `json:"thoughtsTokenCount"`
-	CachedContentTokenCount int                         `json:"cachedContentTokenCount"`
-	PromptTokensDetails     []GeminiPromptTokensDetails `json:"promptTokensDetails"`
+	PromptTokenCount           int                         `json:"promptTokenCount"`
+	ToolUsePromptTokenCount    int                         `json:"toolUsePromptTokenCount"`
+	CandidatesTokenCount       int                         `json:"candidatesTokenCount"`
+	TotalTokenCount            int                         `json:"totalTokenCount"`
+	ThoughtsTokenCount         int                         `json:"thoughtsTokenCount"`
+	CachedContentTokenCount    int                         `json:"cachedContentTokenCount"`
+	PromptTokensDetails        []GeminiPromptTokensDetails `json:"promptTokensDetails"`
+	ToolUsePromptTokensDetails []GeminiPromptTokensDetails `json:"toolUsePromptTokensDetails"`
 }
 
 type GeminiPromptTokensDetails struct {

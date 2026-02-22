@@ -61,9 +61,14 @@ import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
+import StatusCodeRiskGuardModal from './StatusCodeRiskGuardModal';
 import ChannelKeyDisplay from '../../../common/ui/ChannelKeyDisplay';
 import { useSecureVerification } from '../../../../hooks/common/useSecureVerification';
 import { createApiCalls } from '../../../../services/secureVerification';
+import {
+  collectInvalidStatusCodeEntries,
+  collectNewDisallowedStatusCodeRedirects,
+} from './statusCodeRiskGuard';
 import {
   IconSave,
   IconClose,
@@ -170,6 +175,8 @@ const EditChannelModal = (props) => {
     allow_service_tier: false,
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
+    allow_include_obfuscation: false,
+    allow_inference_geo: false,
     claude_beta_query: false,
   };
   const [batch, setBatch] = useState(false);
@@ -255,6 +262,12 @@ const EditChannelModal = (props) => {
     window.open(targetUrl, '_blank', 'noopener');
   };
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const statusCodeRiskConfirmResolverRef = useRef(null);
+  const [statusCodeRiskConfirmVisible, setStatusCodeRiskConfirmVisible] =
+    useState(false);
+  const [statusCodeRiskDetailItems, setStatusCodeRiskDetailItems] = useState(
+    [],
+  );
 
   // 表单块导航相关状态
   const formSectionRefs = useRef({
@@ -276,6 +289,7 @@ const EditChannelModal = (props) => {
   const doubaoApiClickCountRef = useRef(0);
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
+  const initialStatusCodeMappingRef = useRef('');
 
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
@@ -634,6 +648,10 @@ const EditChannelModal = (props) => {
           data.disable_store = parsedSettings.disable_store || false;
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
+          data.allow_include_obfuscation =
+            parsedSettings.allow_include_obfuscation || false;
+          data.allow_inference_geo =
+            parsedSettings.allow_inference_geo || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
         } catch (error) {
           console.error('解析其他设置失败:', error);
@@ -645,6 +663,8 @@ const EditChannelModal = (props) => {
           data.allow_service_tier = false;
           data.disable_store = false;
           data.allow_safety_identifier = false;
+          data.allow_include_obfuscation = false;
+          data.allow_inference_geo = false;
           data.claude_beta_query = false;
         }
       } else {
@@ -655,6 +675,8 @@ const EditChannelModal = (props) => {
         data.allow_service_tier = false;
         data.disable_store = false;
         data.allow_safety_identifier = false;
+        data.allow_include_obfuscation = false;
+        data.allow_inference_geo = false;
         data.claude_beta_query = false;
       }
 
@@ -691,6 +713,7 @@ const EditChannelModal = (props) => {
         .map((model) => (model || '').trim())
         .filter(Boolean);
       initialModelMappingRef.current = data.model_mapping || '';
+      initialStatusCodeMappingRef.current = data.status_code_mapping || '';
 
       let parsedIonet = null;
       if (data.other_info) {
@@ -1017,11 +1040,22 @@ const EditChannelModal = (props) => {
     if (!isEdit) {
       initialModelsRef.current = [];
       initialModelMappingRef.current = '';
+      initialStatusCodeMappingRef.current = '';
     }
   }, [isEdit, props.visible]);
 
+  useEffect(() => {
+    return () => {
+      if (statusCodeRiskConfirmResolverRef.current) {
+        statusCodeRiskConfirmResolverRef.current(false);
+        statusCodeRiskConfirmResolverRef.current = null;
+      }
+    };
+  }, []);
+
   // 统一的模态框重置函数
   const resetModalState = () => {
+    resolveStatusCodeRiskConfirm(false);
     formApiRef.current?.reset();
     // 重置渠道设置状态
     setChannelSettings({
@@ -1149,6 +1183,22 @@ const EditChannelModal = (props) => {
           </Space>
         ),
       });
+    });
+
+  const resolveStatusCodeRiskConfirm = (confirmed) => {
+    setStatusCodeRiskConfirmVisible(false);
+    setStatusCodeRiskDetailItems([]);
+    if (statusCodeRiskConfirmResolverRef.current) {
+      statusCodeRiskConfirmResolverRef.current(confirmed);
+      statusCodeRiskConfirmResolverRef.current = null;
+    }
+  };
+
+  const confirmStatusCodeRisk = (detailItems) =>
+    new Promise((resolve) => {
+      statusCodeRiskConfirmResolverRef.current = resolve;
+      setStatusCodeRiskDetailItems(detailItems);
+      setStatusCodeRiskConfirmVisible(true);
     });
 
   const hasModelConfigChanged = (normalizedModels, modelMappingStr) => {
@@ -1340,6 +1390,27 @@ const EditChannelModal = (props) => {
       }
     }
 
+    const invalidStatusCodeEntries = collectInvalidStatusCodeEntries(
+      localInputs.status_code_mapping,
+    );
+    if (invalidStatusCodeEntries.length > 0) {
+      showError(
+        `${t('状态码复写包含无效的状态码')}: ${invalidStatusCodeEntries.join(', ')}`,
+      );
+      return;
+    }
+
+    const riskyStatusCodeRedirects = collectNewDisallowedStatusCodeRedirects(
+      initialStatusCodeMappingRef.current,
+      localInputs.status_code_mapping,
+    );
+    if (riskyStatusCodeRedirects.length > 0) {
+      const confirmed = await confirmStatusCodeRisk(riskyStatusCodeRedirects);
+      if (!confirmed) {
+        return;
+      }
+    }
+
     if (localInputs.base_url && localInputs.base_url.endsWith('/')) {
       localInputs.base_url = localInputs.base_url.slice(
         0,
@@ -1392,13 +1463,16 @@ const EditChannelModal = (props) => {
     // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
     if (localInputs.type === 1 || localInputs.type === 14) {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
-      // 仅 OpenAI 渠道需要 store 和 safety_identifier
+      // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
       if (localInputs.type === 1) {
         settings.disable_store = localInputs.disable_store === true;
         settings.allow_safety_identifier =
           localInputs.allow_safety_identifier === true;
+        settings.allow_include_obfuscation =
+          localInputs.allow_include_obfuscation === true;
       }
       if (localInputs.type === 14) {
+        settings.allow_inference_geo = localInputs.allow_inference_geo === true;
         settings.claude_beta_query = localInputs.claude_beta_query === true;
       }
     }
@@ -1421,6 +1495,8 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_service_tier;
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
+    delete localInputs.allow_include_obfuscation;
+    delete localInputs.allow_inference_geo;
     delete localInputs.claude_beta_query;
 
     let res;
@@ -3271,6 +3347,24 @@ const EditChannelModal = (props) => {
                             'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
                           )}
                         />
+
+                        <Form.Switch
+                          field='allow_include_obfuscation'
+                          label={t(
+                            '允许 stream_options.include_obfuscation 透传',
+                          )}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'allow_include_obfuscation',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护',
+                          )}
+                        />
                       </>
                     )}
 
@@ -3294,6 +3388,22 @@ const EditChannelModal = (props) => {
                           }
                           extraText={t(
                             'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
+                          )}
+                        />
+
+                        <Form.Switch
+                          field='allow_inference_geo'
+                          label={t('允许 inference_geo 透传')}
+                          checkedText={t('开')}
+                          uncheckedText={t('关')}
+                          onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                              'allow_inference_geo',
+                              value,
+                            )
+                          }
+                          extraText={t(
+                            'inference_geo 字段用于控制 Claude 数据驻留推理区域。默认关闭以避免未经授权透传地域信息',
                           )}
                         />
                       </>
@@ -3440,6 +3550,12 @@ const EditChannelModal = (props) => {
           onVisibleChange={(visible) => setIsModalOpenurl(visible)}
         />
       </SideSheet>
+      <StatusCodeRiskGuardModal
+        visible={statusCodeRiskConfirmVisible}
+        detailItems={statusCodeRiskDetailItems}
+        onCancel={() => resolveStatusCodeRiskConfirm(false)}
+        onConfirm={() => resolveStatusCodeRiskConfirm(true)}
+      />
       {/* 使用通用安全验证模态框 */}
       <SecureVerificationModal
         visible={isModalVisible}

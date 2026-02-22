@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
 	"github.com/tidwall/gjson"
@@ -60,6 +61,12 @@ type ChannelAffinityStatsContext struct {
 	KeyFingerprint string
 	TTLSeconds     int64
 }
+
+const (
+	cacheTokenRateModeCachedOverPrompt           = "cached_over_prompt"
+	cacheTokenRateModeCachedOverPromptPlusCached = "cached_over_prompt_plus_cached"
+	cacheTokenRateModeMixed                      = "mixed"
+)
 
 type ChannelAffinityCacheStats struct {
 	Enabled       bool           `json:"enabled"`
@@ -565,9 +572,10 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 }
 
 type ChannelAffinityUsageCacheStats struct {
-	RuleName       string `json:"rule_name"`
-	UsingGroup     string `json:"using_group"`
-	KeyFingerprint string `json:"key_fp"`
+	RuleName            string `json:"rule_name"`
+	UsingGroup          string `json:"using_group"`
+	KeyFingerprint      string `json:"key_fp"`
+	CachedTokenRateMode string `json:"cached_token_rate_mode"`
 
 	Hit           int64 `json:"hit"`
 	Total         int64 `json:"total"`
@@ -582,6 +590,8 @@ type ChannelAffinityUsageCacheStats struct {
 }
 
 type ChannelAffinityUsageCacheCounters struct {
+	CachedTokenRateMode string `json:"cached_token_rate_mode"`
+
 	Hit           int64 `json:"hit"`
 	Total         int64 `json:"total"`
 	WindowSeconds int64 `json:"window_seconds"`
@@ -596,12 +606,17 @@ type ChannelAffinityUsageCacheCounters struct {
 
 var channelAffinityUsageCacheStatsLocks [64]sync.Mutex
 
-func ObserveChannelAffinityUsageCacheFromContext(c *gin.Context, usage *dto.Usage) {
+// ObserveChannelAffinityUsageCacheByRelayFormat records usage cache stats with a stable rate mode derived from relay format.
+func ObserveChannelAffinityUsageCacheByRelayFormat(c *gin.Context, usage *dto.Usage, relayFormat types.RelayFormat) {
+	ObserveChannelAffinityUsageCacheFromContext(c, usage, cachedTokenRateModeByRelayFormat(relayFormat))
+}
+
+func ObserveChannelAffinityUsageCacheFromContext(c *gin.Context, usage *dto.Usage, cachedTokenRateMode string) {
 	statsCtx, ok := GetChannelAffinityStatsContext(c)
 	if !ok {
 		return
 	}
-	observeChannelAffinityUsageCache(statsCtx, usage)
+	observeChannelAffinityUsageCache(statsCtx, usage, cachedTokenRateMode)
 }
 
 func GetChannelAffinityUsageCacheStats(ruleName, usingGroup, keyFp string) ChannelAffinityUsageCacheStats {
@@ -628,6 +643,7 @@ func GetChannelAffinityUsageCacheStats(ruleName, usingGroup, keyFp string) Chann
 		}
 	}
 	return ChannelAffinityUsageCacheStats{
+		CachedTokenRateMode:  v.CachedTokenRateMode,
 		RuleName:             ruleName,
 		UsingGroup:           usingGroup,
 		KeyFingerprint:       keyFp,
@@ -643,7 +659,7 @@ func GetChannelAffinityUsageCacheStats(ruleName, usingGroup, keyFp string) Chann
 	}
 }
 
-func observeChannelAffinityUsageCache(statsCtx ChannelAffinityStatsContext, usage *dto.Usage) {
+func observeChannelAffinityUsageCache(statsCtx ChannelAffinityStatsContext, usage *dto.Usage, cachedTokenRateMode string) {
 	entryKey := channelAffinityUsageCacheEntryKey(statsCtx.RuleName, statsCtx.UsingGroup, statsCtx.KeyFingerprint)
 	if entryKey == "" {
 		return
@@ -669,6 +685,14 @@ func observeChannelAffinityUsageCache(statsCtx ChannelAffinityStatsContext, usag
 	if !found {
 		next = ChannelAffinityUsageCacheCounters{}
 	}
+	currentMode := normalizeCachedTokenRateMode(cachedTokenRateMode)
+	if currentMode != "" {
+		if next.CachedTokenRateMode == "" {
+			next.CachedTokenRateMode = currentMode
+		} else if next.CachedTokenRateMode != currentMode && next.CachedTokenRateMode != cacheTokenRateModeMixed {
+			next.CachedTokenRateMode = cacheTokenRateModeMixed
+		}
+	}
 	next.Total++
 	hit, cachedTokens, promptCacheHitTokens := usageCacheSignals(usage)
 	if hit {
@@ -682,6 +706,30 @@ func observeChannelAffinityUsageCache(statsCtx ChannelAffinityStatsContext, usag
 	next.CompletionTokens += int64(usageCompletionTokens(usage))
 	next.TotalTokens += int64(usageTotalTokens(usage))
 	_ = cache.SetWithTTL(entryKey, next, ttl)
+}
+
+func normalizeCachedTokenRateMode(mode string) string {
+	switch mode {
+	case cacheTokenRateModeCachedOverPrompt:
+		return cacheTokenRateModeCachedOverPrompt
+	case cacheTokenRateModeCachedOverPromptPlusCached:
+		return cacheTokenRateModeCachedOverPromptPlusCached
+	case cacheTokenRateModeMixed:
+		return cacheTokenRateModeMixed
+	default:
+		return ""
+	}
+}
+
+func cachedTokenRateModeByRelayFormat(relayFormat types.RelayFormat) string {
+	switch relayFormat {
+	case types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, types.RelayFormatOpenAIResponsesCompaction:
+		return cacheTokenRateModeCachedOverPrompt
+	case types.RelayFormatClaude:
+		return cacheTokenRateModeCachedOverPromptPlusCached
+	default:
+		return ""
+	}
 }
 
 func channelAffinityUsageCacheEntryKey(ruleName, usingGroup, keyFp string) string {

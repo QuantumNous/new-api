@@ -84,8 +84,8 @@ function renderDuration(submit_time, finishTime) {
 
   // 返回带有样式的颜色标签
   return (
-    <Tag color={color} shape='circle' prefixIcon={<Clock size={14} />}>
-      {durationSec} 秒
+    <Tag color={color} shape='circle'>
+      {durationSec} s
     </Tag>
   );
 }
@@ -149,7 +149,7 @@ const renderPlatform = (platform, t) => {
   );
   if (option) {
     return (
-      <Tag color={option.color} shape='circle' prefixIcon={<Video size={14} />}>
+      <Tag color={option.color} shape='circle'>
         {option.label}
       </Tag>
     );
@@ -157,13 +157,13 @@ const renderPlatform = (platform, t) => {
   switch (platform) {
     case 'suno':
       return (
-        <Tag color='green' shape='circle' prefixIcon={<Music size={14} />}>
+        <Tag color='green' shape='circle'>
           Suno
         </Tag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <Tag color='white' shape='circle'>
           {t('未知')}
         </Tag>
       );
@@ -240,7 +240,7 @@ export const getTaskLogsColumns = ({
   openContentModal,
   isAdminUser,
   openVideoModal,
-  showUserInfoFunc,
+  openAudioModal,
 }) => {
   return [
     {
@@ -278,7 +278,6 @@ export const getTaskLogsColumns = ({
               color={colors[parseInt(text) % colors.length]}
               size='large'
               shape='circle'
-              prefixIcon={<Hash size={14} />}
               onClick={() => {
                 copyText(text);
               }}
@@ -294,7 +293,7 @@ export const getTaskLogsColumns = ({
     {
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
-      dataIndex: 'user_id',
+      dataIndex: 'username',
       render: (userId, record, index) => {
         if (!isAdminUser) {
           return <></>;
@@ -302,22 +301,14 @@ export const getTaskLogsColumns = ({
         const displayText = String(record.username || userId || '?');
         return (
           <Space>
-            <Tooltip content={displayText}>
-              <Avatar
-                size='extra-small'
-                color={stringToColor(displayText)}
-                style={{ cursor: 'pointer' }}
-                onClick={() => showUserInfoFunc && showUserInfoFunc(userId)}
-              >
-                {displayText.slice(0, 1)}
-              </Avatar>
-            </Tooltip>
-            <Typography.Text
-              ellipsis={{ showTooltip: true }}
-              style={{ cursor: 'pointer', color: 'var(--semi-color-primary)' }}
-              onClick={() => showUserInfoFunc && showUserInfoFunc(userId)}
+            <Avatar
+              size='extra-small'
+              color={stringToColor(displayText)}
             >
-              {userId}
+              {displayText.slice(0, 1)}
+            </Avatar>
+            <Typography.Text>
+              {displayText}
             </Typography.Text>
           </Space>
         );
@@ -396,7 +387,27 @@ export const getTaskLogsColumns = ({
       dataIndex: 'fail_reason',
       fixed: 'right',
       render: (text, record, index) => {
-        // 仅当为视频生成任务且成功，且 fail_reason 是 URL 时显示可点击链接
+        // Suno audio preview
+        const isSunoSuccess =
+          record.platform === 'suno' &&
+          record.status === 'SUCCESS' &&
+          Array.isArray(record.data) &&
+          record.data.some((c) => c.audio_url);
+        if (isSunoSuccess) {
+          return (
+            <a
+              href='#'
+              onClick={(e) => {
+                e.preventDefault();
+                openAudioModal(record.data);
+              }}
+            >
+              {t('点击预览音乐')}
+            </a>
+          );
+        }
+
+        // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
         const isVideoTask =
           record.action === TASK_ACTION_GENERATE ||
           record.action === TASK_ACTION_TEXT_GENERATE ||
@@ -404,14 +415,15 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
-        const isUrl = typeof text === 'string' && /^https?:\/\//.test(text);
-        if (isSuccess && isVideoTask && isUrl) {
+        const resultUrl = record.result_url;
+        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a
               href='#'
               onClick={(e) => {
                 e.preventDefault();
-                openVideoModal(text);
+                openVideoModal(resultUrl);
               }}
             >
               {t('点击预览视频')}
