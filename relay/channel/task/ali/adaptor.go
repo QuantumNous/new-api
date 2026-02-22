@@ -253,8 +253,12 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 }
 
 func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) (*AliVideoRequest, error) {
+	upstreamModel := req.Model
+	if info.IsModelMapped {
+		upstreamModel = info.UpstreamModelName
+	}
 	aliReq := &AliVideoRequest{
-		Model: req.Model,
+		Model: upstreamModel,
 		Input: AliVideoInput{
 			Prompt: req.Prompt,
 			ImgURL: req.InputReference,
@@ -332,7 +336,7 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		}
 	}
 
-	if aliReq.Model != req.Model {
+	if aliReq.Model != upstreamModel {
 		return nil, errors.New("can't change model with metadata")
 	}
 

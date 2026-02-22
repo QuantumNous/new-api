@@ -84,8 +84,8 @@ function renderDuration(submit_time, finishTime) {
 
   // 返回带有样式的颜色标签
   return (
-    <Tag color={color} shape='circle' prefixIcon={<Clock size={14} />}>
-      {durationSec} 秒
+    <Tag color={color} shape='circle'>
+      {durationSec} s
     </Tag>
   );
 }
@@ -149,7 +149,7 @@ const renderPlatform = (platform, t) => {
   );
   if (option) {
     return (
-      <Tag color={option.color} shape='circle' prefixIcon={<Video size={14} />}>
+      <Tag color={option.color} shape='circle'>
         {option.label}
       </Tag>
     );
@@ -157,13 +157,13 @@ const renderPlatform = (platform, t) => {
   switch (platform) {
     case 'suno':
       return (
-        <Tag color='green' shape='circle' prefixIcon={<Music size={14} />}>
+        <Tag color='green' shape='circle'>
           Suno
         </Tag>
       );
     default:
       return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
+        <Tag color='white' shape='circle'>
           {t('未知')}
         </Tag>
       );
@@ -277,7 +277,6 @@ export const getTaskLogsColumns = ({
               color={colors[parseInt(text) % colors.length]}
               size='large'
               shape='circle'
-              prefixIcon={<Hash size={14} />}
               onClick={() => {
                 copyText(text);
               }}
