@@ -237,7 +237,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 
 func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) {
 	if usage != nil {
-		ObserveChannelAffinityUsageCacheFromContext(ctx, usage)
+		ObserveChannelAffinityUsageCacheByRelayFormat(ctx, usage, relayInfo.GetFinalRequestRelayFormat())
 	}
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()

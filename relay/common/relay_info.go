@@ -148,7 +148,8 @@ type RelayInfo struct {
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
-	// 最终请求到上游的格式 TODO: 当前仅设置了Claude
+	// 最终请求到上游的格式。可由 adaptor 显式设置；
+	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
 	FinalRequestRelayFormat types.RelayFormat
 
 	ThinkingContentInfo
@@ -571,6 +572,19 @@ func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
 		return
 	}
 	info.RequestConversionChain = append(info.RequestConversionChain, format)
+}
+
+func (info *RelayInfo) GetFinalRequestRelayFormat() types.RelayFormat {
+	if info == nil {
+		return ""
+	}
+	if info.FinalRequestRelayFormat != "" {
+		return info.FinalRequestRelayFormat
+	}
+	if n := len(info.RequestConversionChain); n > 0 {
+		return info.RequestConversionChain[n-1]
+	}
+	return info.RelayFormat
 }
 
 func GenRelayInfoResponsesCompaction(c *gin.Context, request *dto.OpenAIResponsesCompactionRequest) *RelayInfo {
