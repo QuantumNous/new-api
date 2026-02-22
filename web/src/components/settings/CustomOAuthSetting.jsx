@@ -31,10 +31,15 @@ import {
   Tag,
   Popconfirm,
   Space,
-  Select,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconEdit, IconDelete } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../helpers';
+import {
+  IconPlus,
+  IconEdit,
+  IconDelete,
+  IconRefresh,
+  IconLink,
+} from '@douyinfe/semi-icons';
+import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -120,6 +125,45 @@ const OAUTH_PRESETS = {
   },
 };
 
+const OAUTH_PRESET_ICONS = {
+  'github-enterprise': 'github',
+  gitlab: 'gitlab',
+  gitea: 'gitea',
+  nextcloud: 'nextcloud',
+  keycloak: 'keycloak',
+  authentik: 'authentik',
+  ory: 'openid',
+};
+
+const getPresetIcon = (preset) => OAUTH_PRESET_ICONS[preset] || '';
+
+const PRESET_RESET_VALUES = {
+  name: '',
+  slug: '',
+  icon: '',
+  authorization_endpoint: '',
+  token_endpoint: '',
+  user_info_endpoint: '',
+  scopes: '',
+  user_id_field: '',
+  username_field: '',
+  display_name_field: '',
+  email_field: '',
+  well_known: '',
+  auth_style: 0,
+};
+
+const DISCOVERY_FIELD_LABELS = {
+  authorization_endpoint: 'Authorization Endpoint',
+  token_endpoint: 'Token Endpoint',
+  user_info_endpoint: 'User Info Endpoint',
+  scopes: 'Scopes',
+  user_id_field: 'User ID Field',
+  username_field: 'Username Field',
+  display_name_field: 'Display Name Field',
+  email_field: 'Email Field',
+};
+
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
   const [providers, setProviders] = useState([]);
@@ -129,7 +173,39 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [formValues, setFormValues] = useState({});
   const [selectedPreset, setSelectedPreset] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryInfo, setDiscoveryInfo] = useState(null);
   const formApiRef = React.useRef(null);
+
+  const mergeFormValues = (newValues) => {
+    setFormValues((prev) => ({ ...prev, ...newValues }));
+    if (!formApiRef.current) return;
+    Object.entries(newValues).forEach(([key, value]) => {
+      formApiRef.current.setValue(key, value);
+    });
+  };
+
+  const normalizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
+
+  const inferBaseUrlFromProvider = (provider) => {
+    const endpoint = provider?.authorization_endpoint || provider?.token_endpoint;
+    if (!endpoint) return '';
+    try {
+      const url = new URL(endpoint);
+      return `${url.protocol}//${url.host}`;
+    } catch (error) {
+      return '';
+    }
+  };
+
+  const resetDiscoveryState = () => {
+    setDiscoveryInfo(null);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    resetDiscoveryState();
+  };
 
   const fetchProviders = async () => {
     setLoading(true);
@@ -154,6 +230,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setEditingProvider(null);
     setFormValues({
       enabled: false,
+      icon: '',
       scopes: 'openid profile email',
       user_id_field: 'sub',
       username_field: 'preferred_username',
@@ -163,14 +240,16 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     });
     setSelectedPreset('');
     setBaseUrl('');
+    resetDiscoveryState();
     setModalVisible(true);
   };
 
   const handleEdit = (provider) => {
     setEditingProvider(provider);
     setFormValues({ ...provider });
-    setSelectedPreset('');
-    setBaseUrl('');
+    setSelectedPreset(OAUTH_PRESETS[provider.slug] ? provider.slug : '');
+    setBaseUrl(inferBaseUrlFromProvider(provider));
+    resetDiscoveryState();
     setModalVisible(true);
   };
 
@@ -226,19 +305,23 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
 
     try {
+      const payload = { ...formValues };
+      delete payload.preset;
+      delete payload.base_url;
+
       let res;
       if (editingProvider) {
         res = await API.put(
           `/api/custom-oauth-provider/${editingProvider.id}`,
-          formValues
+          payload
         );
       } else {
-        res = await API.post('/api/custom-oauth-provider/', formValues);
+        res = await API.post('/api/custom-oauth-provider/', payload);
       }
 
       if (res.data.success) {
         showSuccess(editingProvider ? t('更新成功') : t('创建成功'));
-        setModalVisible(false);
+        closeModal();
         fetchProviders();
       } else {
         showError(res.data.message);
@@ -248,58 +331,155 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
   };
 
+  const handleFetchFromDiscovery = async () => {
+    const cleanBaseUrl = normalizeBaseUrl(baseUrl);
+    const configuredWellKnown = (formValues.well_known || '').trim();
+    const wellKnownUrl =
+      configuredWellKnown ||
+      (cleanBaseUrl ? `${cleanBaseUrl}/.well-known/openid-configuration` : '');
+
+    if (!wellKnownUrl) {
+      showError(t('请先填写 Well-Known URL 或服务器地址'));
+      return;
+    }
+
+    setDiscoveryLoading(true);
+    try {
+      const res = await fetch(wellKnownUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+
+      const discoveredValues = {
+        well_known: wellKnownUrl,
+      };
+      const autoFilledFields = [];
+      if (data.authorization_endpoint) {
+        discoveredValues.authorization_endpoint = data.authorization_endpoint;
+        autoFilledFields.push('authorization_endpoint');
+      }
+      if (data.token_endpoint) {
+        discoveredValues.token_endpoint = data.token_endpoint;
+        autoFilledFields.push('token_endpoint');
+      }
+      if (data.userinfo_endpoint) {
+        discoveredValues.user_info_endpoint = data.userinfo_endpoint;
+        autoFilledFields.push('user_info_endpoint');
+      }
+
+      const scopesSupported = Array.isArray(data.scopes_supported)
+        ? data.scopes_supported
+        : [];
+      if (scopesSupported.length > 0 && !formValues.scopes) {
+        const preferredScopes = ['openid', 'profile', 'email'].filter((scope) =>
+          scopesSupported.includes(scope),
+        );
+        discoveredValues.scopes =
+          preferredScopes.length > 0
+            ? preferredScopes.join(' ')
+            : scopesSupported.slice(0, 5).join(' ');
+        autoFilledFields.push('scopes');
+      }
+
+      const claimsSupported = Array.isArray(data.claims_supported)
+        ? data.claims_supported
+        : [];
+      const claimMap = {
+        user_id_field: 'sub',
+        username_field: 'preferred_username',
+        display_name_field: 'name',
+        email_field: 'email',
+      };
+      Object.entries(claimMap).forEach(([field, claim]) => {
+        if (!formValues[field] && claimsSupported.includes(claim)) {
+          discoveredValues[field] = claim;
+          autoFilledFields.push(field);
+        }
+      });
+
+      const hasCoreEndpoint =
+        discoveredValues.authorization_endpoint ||
+        discoveredValues.token_endpoint ||
+        discoveredValues.user_info_endpoint;
+      if (!hasCoreEndpoint) {
+        showError(t('未在 Discovery 响应中找到可用的 OAuth 端点'));
+        return;
+      }
+
+      mergeFormValues(discoveredValues);
+      setDiscoveryInfo({
+        wellKnown: wellKnownUrl,
+        autoFilledFields,
+        scopesSupported: scopesSupported.slice(0, 12),
+        claimsSupported: claimsSupported.slice(0, 12),
+      });
+      showSuccess(t('已从 Discovery 自动填充配置'));
+    } catch (error) {
+      showError(
+        t('获取 Discovery 配置失败：') + (error?.message || t('未知错误')),
+      );
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  };
+
   const handlePresetChange = (preset) => {
     setSelectedPreset(preset);
-    if (preset && OAUTH_PRESETS[preset]) {
-      const presetConfig = OAUTH_PRESETS[preset];
-      const cleanUrl = baseUrl ? baseUrl.replace(/\/+$/, '') : '';
-      const newValues = {
-        name: presetConfig.name,
-        slug: preset,
-        scopes: presetConfig.scopes,
-        user_id_field: presetConfig.user_id_field,
-        username_field: presetConfig.username_field,
-        display_name_field: presetConfig.display_name_field,
-        email_field: presetConfig.email_field,
-        auth_style: presetConfig.auth_style ?? 0,
-      };
-      // Only fill endpoints if server address is provided
-      if (cleanUrl) {
-        newValues.authorization_endpoint = cleanUrl + presetConfig.authorization_endpoint;
-        newValues.token_endpoint = cleanUrl + presetConfig.token_endpoint;
-        newValues.user_info_endpoint = cleanUrl + presetConfig.user_info_endpoint;
-      }
-      setFormValues((prev) => ({ ...prev, ...newValues }));
-      // Update form fields directly via formApi
-      if (formApiRef.current) {
-        Object.entries(newValues).forEach(([key, value]) => {
-          formApiRef.current.setValue(key, value);
-        });
-      }
+    resetDiscoveryState();
+    const cleanUrl = normalizeBaseUrl(baseUrl);
+    if (!preset || !OAUTH_PRESETS[preset]) {
+      mergeFormValues(PRESET_RESET_VALUES);
+      return;
     }
+
+    const presetConfig = OAUTH_PRESETS[preset];
+    const newValues = {
+      ...PRESET_RESET_VALUES,
+      name: presetConfig.name,
+      slug: preset,
+      icon: getPresetIcon(preset),
+      scopes: presetConfig.scopes,
+      user_id_field: presetConfig.user_id_field,
+      username_field: presetConfig.username_field,
+      display_name_field: presetConfig.display_name_field,
+      email_field: presetConfig.email_field,
+      auth_style: presetConfig.auth_style ?? 0,
+    };
+    if (cleanUrl) {
+      newValues.authorization_endpoint =
+        cleanUrl + presetConfig.authorization_endpoint;
+      newValues.token_endpoint = cleanUrl + presetConfig.token_endpoint;
+      newValues.user_info_endpoint = cleanUrl + presetConfig.user_info_endpoint;
+    }
+    mergeFormValues(newValues);
   };
 
   const handleBaseUrlChange = (url) => {
     setBaseUrl(url);
     if (url && selectedPreset && OAUTH_PRESETS[selectedPreset]) {
       const presetConfig = OAUTH_PRESETS[selectedPreset];
-      const cleanUrl = url.replace(/\/+$/, ''); // Remove trailing slashes
+      const cleanUrl = normalizeBaseUrl(url);
       const newValues = {
         authorization_endpoint: cleanUrl + presetConfig.authorization_endpoint,
         token_endpoint: cleanUrl + presetConfig.token_endpoint,
         user_info_endpoint: cleanUrl + presetConfig.user_info_endpoint,
       };
-      setFormValues((prev) => ({ ...prev, ...newValues }));
-      // Update form fields directly via formApi (use merge mode to preserve other fields)
-      if (formApiRef.current) {
-        Object.entries(newValues).forEach(([key, value]) => {
-          formApiRef.current.setValue(key, value);
-        });
-      }
+      mergeFormValues(newValues);
     }
   };
 
   const columns = [
+    {
+      title: t('图标'),
+      dataIndex: 'icon',
+      key: 'icon',
+      width: 80,
+      render: (icon) => getOAuthProviderIcon(icon || '', 18),
+    },
     {
       title: t('名称'),
       dataIndex: 'name',
@@ -325,7 +505,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       title: t('Client ID'),
       dataIndex: 'client_id',
       key: 'client_id',
-      render: (id) => (id ? id.substring(0, 20) + '...' : '-'),
+      render: (id) => {
+        if (!id) return '-';
+        return id.length > 20 ? `${id.substring(0, 20)}...` : id;
+      },
     },
     {
       title: t('操作'),
@@ -351,6 +534,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       ),
     },
   ];
+
+  const discoveryAutoFilledLabels = (discoveryInfo?.autoFilledFields || [])
+    .map((field) => DISCOVERY_FIELD_LABELS[field] || field)
+    .join(', ');
 
   return (
     <Card>
@@ -391,55 +578,120 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         <Modal
           title={editingProvider ? t('编辑 OAuth 提供商') : t('添加 OAuth 提供商')}
           visible={modalVisible}
-          onOk={handleSubmit}
-          onCancel={() => setModalVisible(false)}
-          okText={t('保存')}
-          cancelText={t('取消')}
-          width={800}
+          onCancel={closeModal}
+          width={860}
+          centered
+          bodyStyle={{ maxHeight: '72vh', overflowY: 'auto', paddingRight: 6 }}
+          footer={
+            <Space>
+              <Button onClick={closeModal}>{t('取消')}</Button>
+              <Button type='primary' onClick={handleSubmit}>
+                {t('保存')}
+              </Button>
+            </Space>
+          }
         >
           <Form
             initValues={formValues}
             onValueChange={(values) => setFormValues(values)}
             getFormApi={(api) => (formApiRef.current = api)}
           >
-            {!editingProvider && (
-              <Row gutter={16} style={{ marginBottom: 16 }}>
-                <Col span={12}>
-                  <Form.Select
-                    field="preset"
-                    label={t('预设模板')}
-                    placeholder={t('选择预设模板（可选）')}
-                    value={selectedPreset}
-                    onChange={handlePresetChange}
-                    optionList={[
-                      { value: '', label: t('自定义') },
-                      ...Object.entries(OAUTH_PRESETS).map(([key, config]) => ({
-                        value: key,
-                        label: config.name,
-                      })),
-                    ]}
-                  />
-                </Col>
-                <Col span={12}>
-                  <Form.Input
-                    field="base_url"
-                    label={
-                      selectedPreset
-                        ? t('服务器地址') + ' *'
-                        : t('服务器地址')
-                    }
-                    placeholder={t('例如：https://gitea.example.com')}
-                    value={baseUrl}
-                    onChange={handleBaseUrlChange}
-                    extraText={
-                      selectedPreset
-                        ? t('必填：请输入服务器地址以自动生成完整端点 URL')
-                        : t('选择预设模板后填写服务器地址可自动填充端点')
-                    }
-                  />
-                </Col>
-              </Row>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              {t('Configuration')}
+            </Text>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              {t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
+            </Text>
+            {discoveryInfo && (
+              <Banner
+                type='success'
+                closeIcon={null}
+                style={{ marginBottom: 12 }}
+                description={
+                  <div>
+                    <div>
+                      {t('已从 Discovery 获取配置，可继续手动修改所有字段。')}
+                    </div>
+                    {discoveryAutoFilledLabels ? (
+                      <div>
+                        {t('自动填充字段')}:
+                        {' '}
+                        {discoveryAutoFilledLabels}
+                      </div>
+                    ) : null}
+                    {discoveryInfo.scopesSupported?.length ? (
+                      <div>
+                        {t('Discovery scopes')}:
+                        {' '}
+                        {discoveryInfo.scopesSupported.join(', ')}
+                      </div>
+                    ) : null}
+                    {discoveryInfo.claimsSupported?.length ? (
+                      <div>
+                        {t('Discovery claims')}:
+                        {' '}
+                        {discoveryInfo.claimsSupported.join(', ')}
+                      </div>
+                    ) : null}
+                  </div>
+                }
+              />
             )}
+
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Select
+                  field="preset"
+                  label={t('预设模板')}
+                  placeholder={t('选择预设模板（可选）')}
+                  value={selectedPreset}
+                  onChange={handlePresetChange}
+                  optionList={[
+                    { value: '', label: t('自定义') },
+                    ...Object.entries(OAUTH_PRESETS).map(([key, config]) => ({
+                      value: key,
+                      label: config.name,
+                    })),
+                  ]}
+                />
+              </Col>
+              <Col span={10}>
+                <Form.Input
+                  field="base_url"
+                  label={t('发行者 URL（Issuer URL）')}
+                  placeholder={t('例如：https://gitea.example.com')}
+                  value={baseUrl}
+                  onChange={handleBaseUrlChange}
+                  extraText={
+                    selectedPreset
+                      ? t('填写后会自动拼接预设端点')
+                      : t('可选：用于自动生成端点或 Discovery URL')
+                  }
+                />
+              </Col>
+              <Col span={6}>
+                <div style={{ display: 'flex', alignItems: 'end', height: '100%' }}>
+                  <Button
+                    icon={<IconRefresh />}
+                    onClick={handleFetchFromDiscovery}
+                    loading={discoveryLoading}
+                    block
+                  >
+                    {t('获取 Discovery 配置')}
+                  </Button>
+                </div>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={24}>
+                <Form.Input
+                  field="well_known"
+                  label={t('发现文档地址（Discovery URL，可选）')}
+                  placeholder={t('例如：https://example.com/.well-known/openid-configuration')}
+                  extraText={t('可留空；留空时会尝试使用 Issuer URL + /.well-known/openid-configuration')}
+                />
+              </Col>
+            </Row>
 
             <Row gutter={16}>
               <Col span={12}>
@@ -458,6 +710,51 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   extraText={t('URL 标识，只能包含小写字母、数字和连字符')}
                   rules={[{ required: true, message: t('请输入 Slug') }]}
                 />
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={18}>
+                <Form.Input
+                  field='icon'
+                  label={t('图标')}
+                  placeholder={t('例如：github / si:google / https://example.com/logo.png / 🐱')}
+                  extraText={
+                    <span>
+                      {t(
+                        '图标使用 react-icons（Simple Icons）或 URL/emoji，例如：github、gitlab、si:google，完整图标列表 ',
+                      )}
+                      <Typography.Text
+                        link={{
+                          href: 'https://react-icons.github.io/react-icons/icons?name=si',
+                          target: '_blank',
+                        }}
+                        icon={<IconLink />}
+                        underline
+                      >
+                        {t('请点击我')}
+                      </Typography.Text>
+                    </span>
+                  }
+                  showClear
+                />
+              </Col>
+              <Col span={6} style={{ display: 'flex', alignItems: 'end' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    minHeight: 74,
+                    border: '1px solid var(--semi-color-border)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 24,
+                    background: 'var(--semi-color-fill-0)',
+                  }}
+                >
+                  {getOAuthProviderIcon(formValues.icon || '', 24)}
+                </div>
               </Col>
             </Row>
 
@@ -544,15 +841,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="scopes"
-                  label={t('Scopes')}
+                  label={t('Scopes（可选）')}
                   placeholder="openid profile email"
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Input
-                  field="well_known"
-                  label={t('Well-Known URL')}
-                  placeholder={t('OIDC Discovery 端点（可选）')}
+                  extraText={
+                    discoveryInfo?.scopesSupported?.length
+                      ? t('Discovery 建议 scopes：') +
+                        discoveryInfo.scopesSupported.join(', ')
+                      : t('可手动填写，多个 scope 用空格分隔')
+                  }
                 />
               </Col>
             </Row>
@@ -568,7 +864,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="user_id_field"
-                  label={t('用户 ID 字段')}
+                  label={t('用户 ID 字段（可选）')}
                   placeholder={t('例如：sub、id、data.user.id')}
                   extraText={t('用于唯一标识用户的字段路径')}
                 />
@@ -576,7 +872,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="username_field"
-                  label={t('用户名字段')}
+                  label={t('用户名字段（可选）')}
                   placeholder={t('例如：preferred_username、login')}
                 />
               </Col>
@@ -586,14 +882,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="display_name_field"
-                  label={t('显示名称字段')}
+                  label={t('显示名称字段（可选）')}
                   placeholder={t('例如：name、full_name')}
                 />
               </Col>
               <Col span={12}>
                 <Form.Input
                   field="email_field"
-                  label={t('邮箱字段')}
+                  label={t('邮箱字段（可选）')}
                   placeholder={t('例如：email')}
                 />
               </Col>

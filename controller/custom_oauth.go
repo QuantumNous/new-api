@@ -16,6 +16,7 @@ type CustomOAuthProviderResponse struct {
 	Id                    int    `json:"id"`
 	Name                  string `json:"name"`
 	Slug                  string `json:"slug"`
+	Icon                  string `json:"icon"`
 	Enabled               bool   `json:"enabled"`
 	ClientId              string `json:"client_id"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
@@ -35,6 +36,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		Id:                    p.Id,
 		Name:                  p.Name,
 		Slug:                  p.Slug,
+		Icon:                  p.Icon,
 		Enabled:               p.Enabled,
 		ClientId:              p.ClientId,
 		AuthorizationEndpoint: p.AuthorizationEndpoint,
@@ -96,6 +98,7 @@ func GetCustomOAuthProvider(c *gin.Context) {
 type CreateCustomOAuthProviderRequest struct {
 	Name                  string `json:"name" binding:"required"`
 	Slug                  string `json:"slug" binding:"required"`
+	Icon                  string `json:"icon"`
 	Enabled               bool   `json:"enabled"`
 	ClientId              string `json:"client_id" binding:"required"`
 	ClientSecret          string `json:"client_secret" binding:"required"`
@@ -134,6 +137,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 	provider := &model.CustomOAuthProvider{
 		Name:                  req.Name,
 		Slug:                  req.Slug,
+		Icon:                  req.Icon,
 		Enabled:               req.Enabled,
 		ClientId:              req.ClientId,
 		ClientSecret:          req.ClientSecret,
@@ -168,9 +172,10 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 type UpdateCustomOAuthProviderRequest struct {
 	Name                  string  `json:"name"`
 	Slug                  string  `json:"slug"`
-	Enabled               *bool   `json:"enabled"`               // Optional: if nil, keep existing
+	Icon                  *string `json:"icon"`    // Optional: if nil, keep existing
+	Enabled               *bool   `json:"enabled"` // Optional: if nil, keep existing
 	ClientId              string  `json:"client_id"`
-	ClientSecret          string  `json:"client_secret"`         // Optional: if empty, keep existing
+	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
 	AuthorizationEndpoint string  `json:"authorization_endpoint"`
 	TokenEndpoint         string  `json:"token_endpoint"`
 	UserInfoEndpoint      string  `json:"user_info_endpoint"`
@@ -179,8 +184,8 @@ type UpdateCustomOAuthProviderRequest struct {
 	UsernameField         string  `json:"username_field"`
 	DisplayNameField      string  `json:"display_name_field"`
 	EmailField            string  `json:"email_field"`
-	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
-	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
+	WellKnown             *string `json:"well_known"` // Optional: if nil, keep existing
+	AuthStyle             *int    `json:"auth_style"` // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -226,6 +231,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.Slug != "" {
 		provider.Slug = req.Slug
+	}
+	if req.Icon != nil {
+		provider.Icon = *req.Icon
 	}
 	if req.Enabled != nil {
 		provider.Enabled = *req.Enabled
@@ -346,6 +354,7 @@ func GetUserOAuthBindings(c *gin.Context) {
 		ProviderId     int    `json:"provider_id"`
 		ProviderName   string `json:"provider_name"`
 		ProviderSlug   string `json:"provider_slug"`
+		ProviderIcon   string `json:"provider_icon"`
 		ProviderUserId string `json:"provider_user_id"`
 	}
 
@@ -359,6 +368,7 @@ func GetUserOAuthBindings(c *gin.Context) {
 			ProviderId:     binding.ProviderId,
 			ProviderName:   provider.Name,
 			ProviderSlug:   provider.Slug,
+			ProviderIcon:   provider.Icon,
 			ProviderUserId: binding.ProviderUserId,
 		})
 	}
