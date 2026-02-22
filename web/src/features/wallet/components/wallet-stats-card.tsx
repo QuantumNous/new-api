@@ -9,9 +9,9 @@ interface WalletStatsCardProps {
   loading?: boolean
 }
 
-export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
+export function WalletStatsCard(props: WalletStatsCardProps) {
   const { t } = useTranslation()
-  if (loading) {
+  if (props.loading) {
     return (
       <Card>
         <CardContent>
@@ -33,32 +33,32 @@ export function WalletStatsCard({ user, loading }: WalletStatsCardProps) {
       <CardContent>
         <div className='grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8'>
           {/* Current Balance */}
-          <div className='space-y-2'>
+          <div className='min-w-0 space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
               {t('Current Balance')}
             </div>
-            <div className='text-4xl font-semibold tracking-tight'>
-              {formatQuota(user?.quota ?? 0)}
+            <div className='text-3xl leading-tight font-semibold tracking-tight break-all lg:text-4xl'>
+              {formatQuota(props.user?.quota ?? 0)}
             </div>
           </div>
 
           {/* Total Usage */}
-          <div className='space-y-2'>
+          <div className='min-w-0 space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
               {t('Total Usage')}
             </div>
-            <div className='text-4xl font-semibold tracking-tight'>
-              {formatQuota(user?.used_quota ?? 0)}
+            <div className='text-3xl leading-tight font-semibold tracking-tight break-all lg:text-4xl'>
+              {formatQuota(props.user?.used_quota ?? 0)}
             </div>
           </div>
 
           {/* Request Count */}
-          <div className='space-y-2'>
+          <div className='min-w-0 space-y-2'>
             <div className='text-muted-foreground text-sm font-medium'>
               {t('API Requests')}
             </div>
-            <div className='text-4xl font-semibold tracking-tight'>
-              {user?.request_count?.toLocaleString() ?? 0}
+            <div className='text-3xl leading-tight font-semibold tracking-tight break-all lg:text-4xl'>
+              {(props.user?.request_count ?? 0).toLocaleString()}
             </div>
           </div>
         </div>
