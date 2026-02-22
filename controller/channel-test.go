@@ -871,12 +871,17 @@ func testAutoDisabledChannels(notify bool) error {
 			if newAPIError == nil {
 				return
 			}
-			processChannelError(result.Context, *types.NewChannelError(
+			ctx := result.Context
+			if ctx == nil {
+				ctx = channeltest.BuildChannelTestLogContext(nil)
+			}
+			ctx.Set("token_name", "模型测试")
+			processChannelError(ctx, *types.NewChannelError(
 				channel.Id,
 				channel.Type,
 				channel.Name,
 				channel.ChannelInfo.IsMultiKey,
-				common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey),
+				common.GetContextKeyString(ctx, constant.ContextKeyChannelKey),
 				channel.GetAutoBan(),
 			), newAPIError)
 		},
