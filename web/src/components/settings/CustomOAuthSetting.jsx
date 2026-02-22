@@ -386,17 +386,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
     setDiscoveryLoading(true);
     try {
-      const res = await fetch(wellKnownUrl, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+      const res = await API.post('/api/custom-oauth-provider/discovery', {
+        well_known_url: configuredWellKnown || '',
+        issuer_url: cleanBaseUrl || '',
       });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      if (!res.data.success) {
+        throw new Error(res.data.message || t('未知错误'));
       }
-      const data = await res.json();
+      const data = res.data.data?.discovery || {};
+      const resolvedWellKnown = res.data.data?.well_known_url || wellKnownUrl;
 
       const discoveredValues = {
-        well_known: wellKnownUrl,
+        well_known: resolvedWellKnown,
       };
       const autoFilledFields = [];
       if (data.authorization_endpoint) {
@@ -991,14 +992,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                   {t('可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示')}
                 </Text>
-                <Space spacing={8} style={{ marginBottom: 8 }}>
-                  <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('level_active')}>
-                    {t('填充模板：等级+激活')}
-                  </Button>
-                  <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('org_or_role')}>
-                    {t('填充模板：组织或角色')}
-                  </Button>
-                </Space>
                 <Row gutter={16}>
                   <Col span={24}>
                     <Form.TextArea
@@ -1017,18 +1010,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       extraText={t('支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists')}
                       showClear
                     />
+                    <Space spacing={8} style={{ marginTop: 8 }}>
+                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('level_active')}>
+                        {t('填充模板：等级+激活')}
+                      </Button>
+                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('org_or_role')}>
+                        {t('填充模板：组织或角色')}
+                      </Button>
+                    </Space>
                   </Col>
                 </Row>
                 <Row gutter={16}>
                   <Col span={24}>
-                    <Space spacing={8} style={{ marginBottom: 8 }}>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('level_hint')}>
-                        {t('填充模板：等级提示')}
-                      </Button>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('org_hint')}>
-                        {t('填充模板：组织提示')}
-                      </Button>
-                    </Space>
                     <Form.Input
                       field='access_denied_message'
                       value={formValues.access_denied_message || ''}
@@ -1038,6 +1031,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       extraText={t('可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}')}
                       showClear
                     />
+                    <Space spacing={8} style={{ marginTop: 8 }}>
+                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('level_hint')}>
+                        {t('填充模板：等级提示')}
+                      </Button>
+                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('org_hint')}>
+                        {t('填充模板：组织提示')}
+                      </Button>
+                    </Space>
                   </Col>
                 </Row>
               </Collapse.Panel>

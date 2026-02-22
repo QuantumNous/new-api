@@ -170,10 +170,11 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
 
-		// Custom OAuth provider management (admin only)
+		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())
 		{
+			customOAuthRoute.POST("/discovery", controller.FetchCustomOAuthDiscovery)
 			customOAuthRoute.GET("/", controller.GetCustomOAuthProviders)
 			customOAuthRoute.GET("/:id", controller.GetCustomOAuthProvider)
 			customOAuthRoute.POST("/", controller.CreateCustomOAuthProvider)
