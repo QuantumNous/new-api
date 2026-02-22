@@ -867,6 +867,19 @@ func testAutoDisabledChannels(notify bool) error {
 			}
 		},
 		EnableChannel: service.EnableChannel,
+		HandleFailure: func(channel *model.Channel, result channeltest.ChannelTestExecution, newAPIError *types.NewAPIError, _ string) {
+			if newAPIError == nil {
+				return
+			}
+			processChannelError(result.Context, *types.NewChannelError(
+				channel.Id,
+				channel.Type,
+				channel.Name,
+				channel.ChannelInfo.IsMultiKey,
+				common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey),
+				channel.GetAutoBan(),
+			), newAPIError)
+		},
 		NotifyDone: func() {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "自动禁用通道测试完成", "自动禁用通道测试已完成")
 		},

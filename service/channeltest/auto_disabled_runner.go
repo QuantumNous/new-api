@@ -26,6 +26,7 @@ type AutoDisabledRunOptions struct {
 	ResponseThresholdMilliseconds int64
 	Execute                       func(channel *model.Channel) ChannelTestExecution
 	EnableChannel                 func(channelId int, channelKey string, channelName string)
+	HandleFailure                 func(channel *model.Channel, result ChannelTestExecution, err *types.NewAPIError, trigger string)
 	NotifyDone                    func()
 	SleepInterval                 time.Duration
 }
@@ -91,7 +92,11 @@ func RunAutoDisabledChannelTest(options AutoDisabledRunOptions) error {
 				options.EnableChannel(channel.Id, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.Name)
 				enabled++
 			} else {
-				RecordChannelTestErrorLog(result.Context, channel, "", trigger, ScopeAutoDisabled, int(result.Milliseconds/1000), false, newAPIError)
+				if options.HandleFailure != nil {
+					options.HandleFailure(channel, result, newAPIError, trigger)
+				} else {
+					RecordChannelTestErrorLog(result.Context, channel, "", trigger, ScopeAutoDisabled, int(result.Milliseconds/1000), false, newAPIError)
+				}
 			}
 
 			channel.UpdateResponseTime(result.Milliseconds)
