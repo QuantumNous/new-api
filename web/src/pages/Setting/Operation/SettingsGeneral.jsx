@@ -249,17 +249,6 @@ export default function GeneralSettings(props) {
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Switch
-                  field={'RetryEachChannelOnce'}
-                  label={t('重试时每个渠道仅尝试一次')}
-                  extraText={t('开启后，同一请求的重试过程中不会重复选择同一渠道')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange('RetryEachChannelOnce')}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
                   field={'DisplayTokenStatEnabled'}
                   label={t('额度查询接口返回令牌额度而非用户额度')}
                   size='default'
@@ -297,6 +286,17 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('SelfUseModeEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'RetryEachChannelOnce'}
+                  label={t('重试时每个渠道仅尝试一次')}
+                  extraText={t('开启后，同一请求的重试过程中不会重复选择同一渠道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('RetryEachChannelOnce')}
                 />
               </Col>
             </Row>
