@@ -1,5 +1,7 @@
 package constant
 
+import "time"
+
 var StreamingTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
@@ -16,6 +18,7 @@ var NotificationLimitDurationMinute int
 var GenerateDefaultToken bool
 var ErrorLogEnabled bool
 var TaskQueryLimit int
+var TaskMaxQueryDuration time.Duration
 
 // temporary variable for sora patch, will be removed in future
 var TaskPricePatches []string
