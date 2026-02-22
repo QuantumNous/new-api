@@ -76,6 +76,9 @@ func channelTestModelName(channel *model.Channel) string {
 }
 
 func recordChannelTestErrorLog(base *gin.Context, channel *model.Channel, modelName string, trigger string, scope string, useTimeSeconds int, isStream bool, err error) {
+	if !constant.ErrorLogEnabled {
+		return
+	}
 	context := buildChannelTestLogContext(base)
 	if strings.TrimSpace(modelName) == "" {
 		modelName = channelTestModelName(channel)

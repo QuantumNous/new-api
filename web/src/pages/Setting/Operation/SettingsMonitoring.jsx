@@ -184,6 +184,25 @@ export default function SettingsMonitoring(props) {
                   }
                 />
               </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('测试所有渠道的最长响应时间')}
+                  step={1}
+                  min={0}
+                  suffix={t('秒')}
+                  extraText={t(
+                    '当运行通道全部测试时，超过此时间将自动禁用通道',
+                  )}
+                  placeholder={''}
+                  field={'ChannelDisableThreshold'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      ChannelDisableThreshold: String(value),
+                    })
+                  }
+                />
+              </Col>
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -242,25 +261,6 @@ export default function SettingsMonitoring(props) {
               </Col>
             </Row>
             <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('测试所有渠道的最长响应时间')}
-                  step={1}
-                  min={0}
-                  suffix={t('秒')}
-                  extraText={t(
-                    '当运行通道全部测试时，超过此时间将自动禁用通道',
-                  )}
-                  placeholder={''}
-                  field={'ChannelDisableThreshold'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      ChannelDisableThreshold: String(value),
-                    })
-                  }
-                />
-              </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   label={t('额度提醒阈值')}
