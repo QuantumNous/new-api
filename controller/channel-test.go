@@ -874,14 +874,21 @@ func testAutoDisabledChannels(notify bool) error {
 	gopool.Go(func() {
 		defer endChannelTestRun()
 
+		candidates := 0
+		tested := 0
+		passed := 0
+		enabled := 0
+
 		for _, channel := range channels {
 			if channel.Status != common.ChannelStatusAutoDisabled {
 				continue
 			}
+			candidates++
 			tik := time.Now()
 			result := testChannel(channel, "", "", false)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
+			tested++
 
 			newAPIError := result.newAPIError
 			if result.localErr != nil {
@@ -892,13 +899,17 @@ func testAutoDisabledChannels(notify bool) error {
 				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 			}
 
-			if service.ShouldEnableChannel(newAPIError, channel.Status) {
+			if newAPIError == nil {
+				passed++
 				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+				enabled++
 			}
 
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
 		}
+
+		common.SysLog(fmt.Sprintf("auto-disabled channel test summary: candidates=%d tested=%d passed=%d enabled=%d", candidates, tested, passed, enabled))
 
 		if notify {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "自动禁用通道测试完成", "自动禁用通道测试已完成")
