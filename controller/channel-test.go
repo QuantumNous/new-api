@@ -42,6 +42,80 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func buildChannelTestLogContext(base *gin.Context) *gin.Context {
+	if base != nil {
+		return base
+	}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	if cache, err := model.GetUserCache(1); err == nil {
+		cache.WriteContext(c)
+	}
+	c.Set("username", "root")
+	return c
+}
+
+func channelTestModelName(channel *model.Channel) string {
+	if channel == nil {
+		return ""
+	}
+	if channel.TestModel != nil {
+		testModel := strings.TrimSpace(*channel.TestModel)
+		if testModel != "" {
+			return testModel
+		}
+	}
+	models := channel.GetModels()
+	if len(models) > 0 {
+		return strings.TrimSpace(models[0])
+	}
+	return ""
+}
+
+func recordAutoDisabledChannelTestLog(base *gin.Context, channel *model.Channel, trigger string, useTimeSeconds int, success bool, err error) {
+	context := buildChannelTestLogContext(base)
+	result := "success"
+	content := "模型测试"
+	if !success {
+		result = "failed"
+		content = "模型测试失败"
+	}
+	other := map[string]interface{}{
+		"channel_test":        true,
+		"channel_test_scope":  "auto_disabled",
+		"channel_test_trigger": trigger,
+		"channel_test_result": result,
+	}
+	if err != nil {
+		other["channel_test_error"] = err.Error()
+	}
+	model.RecordConsumeLog(context, 1, model.RecordConsumeLogParams{
+		ChannelId:      channel.Id,
+		ModelName:      channelTestModelName(channel),
+		TokenName:      "模型测试",
+		Quota:          0,
+		Content:        content,
+		UseTimeSeconds: useTimeSeconds,
+		Other:          other,
+	})
+}
+
+func recordAutoDisabledChannelTestRunMarker(trigger string, content string) {
+	context := buildChannelTestLogContext(nil)
+	model.RecordConsumeLog(context, 1, model.RecordConsumeLogParams{
+		ChannelId: 0,
+		TokenName: "模型测试",
+		Quota:     0,
+		Content:   content,
+		Other: map[string]interface{}{
+			"channel_test":         true,
+			"channel_test_scope":   "auto_disabled",
+			"channel_test_trigger": trigger,
+			"channel_test_result":  "no_candidate",
+		},
+	})
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -476,6 +550,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	other["channel_test"] = true
 	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
@@ -874,6 +952,11 @@ func testAutoDisabledChannels(notify bool) error {
 	gopool.Go(func() {
 		defer endChannelTestRun()
 
+		trigger := "auto"
+		if notify {
+			trigger = "manual"
+		}
+
 		candidates := 0
 		tested := 0
 		passed := 0
@@ -903,10 +986,20 @@ func testAutoDisabledChannels(notify bool) error {
 				passed++
 				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 				enabled++
+			} else {
+				errForLog := error(newAPIError)
+				if errForLog == nil {
+					errForLog = result.localErr
+				}
+				recordAutoDisabledChannelTestLog(result.context, channel, trigger, int(milliseconds/1000), false, errForLog)
 			}
 
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
+		}
+
+		if candidates == 0 {
+			recordAutoDisabledChannelTestRunMarker(trigger, "自动禁用通道测试：无可测试通道")
 		}
 
 		common.SysLog(fmt.Sprintf("auto-disabled channel test summary: candidates=%d tested=%d passed=%d enabled=%d", candidates, tested, passed, enabled))
