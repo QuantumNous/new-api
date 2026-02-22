@@ -167,6 +167,28 @@ const DISCOVERY_FIELD_LABELS = {
   email_field: 'Email Field',
 };
 
+const ACCESS_POLICY_TEMPLATES = {
+  level_active: `{
+  "logic": "and",
+  "conditions": [
+    {"field": "trust_level", "op": "gte", "value": 2},
+    {"field": "active", "op": "eq", "value": true}
+  ]
+}`,
+  org_or_role: `{
+  "logic": "or",
+  "conditions": [
+    {"field": "org", "op": "eq", "value": "core"},
+    {"field": "roles", "op": "contains", "value": "admin"}
+  ]
+}`,
+};
+
+const ACCESS_DENIED_TEMPLATES = {
+  level_hint: '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
+  org_hint: '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
+};
+
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
   const [providers, setProviders] = useState([]);
@@ -343,7 +365,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showError(res.data.message);
       }
     } catch (error) {
-      showError(editingProvider ? t('更新失败') : t('创建失败'));
+      showError(
+        error?.response?.data?.message ||
+          (editingProvider ? t('更新失败') : t('创建失败')),
+      );
     }
   };
 
@@ -486,6 +511,20 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       };
       mergeFormValues(newValues);
     }
+  };
+
+  const applyAccessPolicyTemplate = (templateKey) => {
+    const template = ACCESS_POLICY_TEMPLATES[templateKey];
+    if (!template) return;
+    mergeFormValues({ access_policy: template });
+    showSuccess(t('已填充策略模板'));
+  };
+
+  const applyDeniedTemplate = (templateKey) => {
+    const template = ACCESS_DENIED_TEMPLATES[templateKey];
+    if (!template) return;
+    mergeFormValues({ access_denied_message: template });
+    showSuccess(t('已填充提示模板'));
   };
 
   const columns = [
@@ -952,10 +991,20 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                   {t('可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示')}
                 </Text>
+                <Space spacing={8} style={{ marginBottom: 8 }}>
+                  <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('level_active')}>
+                    {t('填充模板：等级+激活')}
+                  </Button>
+                  <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('org_or_role')}>
+                    {t('填充模板：组织或角色')}
+                  </Button>
+                </Space>
                 <Row gutter={16}>
                   <Col span={24}>
                     <Form.TextArea
                       field='access_policy'
+                      value={formValues.access_policy || ''}
+                      onChange={(value) => mergeFormValues({ access_policy: value })}
                       label={t('准入策略 JSON（可选）')}
                       rows={6}
                       placeholder={`{
@@ -972,8 +1021,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 </Row>
                 <Row gutter={16}>
                   <Col span={24}>
+                    <Space spacing={8} style={{ marginBottom: 8 }}>
+                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('level_hint')}>
+                        {t('填充模板：等级提示')}
+                      </Button>
+                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('org_hint')}>
+                        {t('填充模板：组织提示')}
+                      </Button>
+                    </Space>
                     <Form.Input
                       field='access_denied_message'
+                      value={formValues.access_denied_message || ''}
+                      onChange={(value) => mergeFormValues({ access_denied_message: value })}
                       label={t('拒绝提示模板（可选）')}
                       placeholder={t('例如：需要等级 {{required}}，你当前等级 {{current}}')}
                       extraText={t('可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}')}
