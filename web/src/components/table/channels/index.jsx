@@ -69,6 +69,7 @@ const ChannelsPage = () => {
         addModels={channelsData.upstreamUpdateAddModels}
         removeModels={channelsData.upstreamUpdateRemoveModels}
         preferredTab={channelsData.upstreamUpdatePreferredTab}
+        confirmLoading={channelsData.upstreamApplyLoading}
         onConfirm={channelsData.applyUpstreamUpdates}
         onCancel={channelsData.closeUpstreamUpdateModal}
       />

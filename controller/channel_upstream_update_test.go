@@ -3,6 +3,7 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +67,18 @@ func TestApplySelectedModelChanges(t *testing.T) {
 
 		require.Equal(t, []string{"gpt-4o", "gpt-4.1"}, result)
 	})
+}
+
+func TestCollectPendingApplyUpstreamModelChanges(t *testing.T) {
+	settings := dto.ChannelOtherSettings{
+		UpstreamModelUpdateLastDetectedModels: []string{" gpt-4o ", "gpt-4o", "gpt-4.1"},
+		UpstreamModelUpdateLastRemovedModels:  []string{" old-model ", "", "old-model"},
+	}
+
+	pendingAddModels, pendingRemoveModels := collectPendingApplyUpstreamModelChanges(settings)
+
+	require.Equal(t, []string{"gpt-4o", "gpt-4.1"}, pendingAddModels)
+	require.Equal(t, []string{"old-model"}, pendingRemoveModels)
 }
 
 func TestNormalizeChannelModelMapping(t *testing.T) {
@@ -137,13 +150,18 @@ func TestShouldSendUpstreamModelUpdateNotification(t *testing.T) {
 	channelUpstreamModelUpdateNotifyState.Lock()
 	channelUpstreamModelUpdateNotifyState.lastNotifiedAt = 0
 	channelUpstreamModelUpdateNotifyState.lastChangedChannels = 0
+	channelUpstreamModelUpdateNotifyState.lastFailedChannels = 0
 	channelUpstreamModelUpdateNotifyState.Unlock()
 
 	baseTime := int64(2000000)
 
-	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime, 6))
-	require.False(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 6))
-	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 7))
-	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90000, 6))
-	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90001, 0))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime, 6, 0))
+	require.False(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 6, 0))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+3600, 7, 0))
+	require.False(t, shouldSendUpstreamModelUpdateNotification(baseTime+7200, 7, 0))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+8000, 0, 3))
+	require.False(t, shouldSendUpstreamModelUpdateNotification(baseTime+9000, 0, 3))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+10000, 0, 4))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90000, 7, 0))
+	require.True(t, shouldSendUpstreamModelUpdateNotification(baseTime+90001, 0, 0))
 }

@@ -43,6 +43,7 @@ import {
   CHANNEL_OPTIONS,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
+import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
   IconTreeTriangleDown,
   IconMore,
@@ -287,40 +288,20 @@ const getUpstreamUpdateMeta = (record) => {
       pendingRemoveModels: [],
     };
   }
-  if (!record.settings || typeof record.settings !== 'string') {
-    return {
-      supported,
-      enabled: false,
-      pendingAddModels: [],
-      pendingRemoveModels: [],
-    };
-  }
-  try {
-    const parsed = JSON.parse(record.settings);
-    const enabled = parsed?.upstream_model_update_check_enabled === true;
-    const pendingAddModels = Array.from(
-      new Set(
-        (parsed?.upstream_model_update_last_detected_models || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    const pendingRemoveModels = Array.from(
-      new Set(
-        (parsed?.upstream_model_update_last_removed_models || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    return { supported, enabled, pendingAddModels, pendingRemoveModels };
-  } catch (error) {
-    return {
-      supported,
-      enabled: false,
-      pendingAddModels: [],
-      pendingRemoveModels: [],
-    };
-  }
+  const parsed =
+    record?.upstreamUpdateMeta && typeof record.upstreamUpdateMeta === 'object'
+      ? record.upstreamUpdateMeta
+      : parseUpstreamUpdateMeta(record?.settings);
+  return {
+    supported,
+    enabled: parsed?.enabled === true,
+    pendingAddModels: Array.isArray(parsed?.pendingAddModels)
+      ? parsed.pendingAddModels
+      : [],
+    pendingRemoveModels: Array.isArray(parsed?.pendingRemoveModels)
+      ? parsed.pendingRemoveModels
+      : [],
+  };
 };
 
 export const getChannelsColumns = ({
@@ -361,7 +342,8 @@ export const getChannelsColumns = ({
         const passThroughEnabled = isRequestPassThroughEnabled(record);
         const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
         const pendingAddCount = upstreamUpdateMeta.pendingAddModels.length;
-        const pendingRemoveCount = upstreamUpdateMeta.pendingRemoveModels.length;
+        const pendingRemoveCount =
+          upstreamUpdateMeta.pendingRemoveModels.length;
         const showUpstreamUpdateTag =
           upstreamUpdateMeta.supported &&
           upstreamUpdateMeta.enabled &&

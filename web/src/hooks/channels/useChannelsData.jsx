@@ -35,6 +35,8 @@ import {
 } from '../../constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
+import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
@@ -115,14 +117,6 @@ export const useChannelsData = () => {
   // Multi-key management states
   const [showMultiKeyManageModal, setShowMultiKeyManageModal] = useState(false);
   const [currentMultiKeyChannel, setCurrentMultiKeyChannel] = useState(null);
-  const [showUpstreamUpdateModal, setShowUpstreamUpdateModal] = useState(false);
-  const [upstreamUpdateChannel, setUpstreamUpdateChannel] = useState(null);
-  const [upstreamUpdateAddModels, setUpstreamUpdateAddModels] = useState([]);
-  const [upstreamUpdateRemoveModels, setUpstreamUpdateRemoveModels] = useState(
-    [],
-  );
-  const [upstreamUpdatePreferredTab, setUpstreamUpdatePreferredTab] =
-    useState('add');
 
   // Refs
   const requestCounter = useRef(0);
@@ -243,6 +237,9 @@ export const useChannelsData = () => {
     let channelTags = {};
 
     for (let i = 0; i < channels.length; i++) {
+      channels[i].upstreamUpdateMeta = parseUpstreamUpdateMeta(
+        channels[i].settings,
+      );
       channels[i].key = '' + channels[i].id;
       if (!enableTagMode) {
         channelDates.push(channels[i]);
@@ -439,6 +436,8 @@ export const useChannelsData = () => {
       );
     }
   };
+
+  const upstreamUpdates = useChannelUpstreamUpdates({ t, refresh });
 
   // Channel management
   const manageChannel = async (id, action, record, value) => {
@@ -653,180 +652,6 @@ export const useChannelsData = () => {
   // Close edit
   const closeEdit = () => {
     setShowEdit(false);
-  };
-
-  const openUpstreamUpdateModal = (
-    record,
-    pendingAddModels = [],
-    pendingRemoveModels = [],
-    preferredTab = 'add',
-  ) => {
-    const normalizedAddModels = Array.from(
-      new Set(
-        (pendingAddModels || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    const normalizedRemoveModels = Array.from(
-      new Set(
-        (pendingRemoveModels || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    if (
-      !record?.id ||
-      (normalizedAddModels.length === 0 && normalizedRemoveModels.length === 0)
-    ) {
-      showInfo(t('该渠道暂无可处理的上游模型更新'));
-      return;
-    }
-    setUpstreamUpdateChannel(record);
-    setUpstreamUpdateAddModels(normalizedAddModels);
-    setUpstreamUpdateRemoveModels(normalizedRemoveModels);
-    const normalizedPreferredTab = preferredTab === 'remove' ? 'remove' : 'add';
-    setUpstreamUpdatePreferredTab(normalizedPreferredTab);
-    setShowUpstreamUpdateModal(true);
-  };
-
-  const closeUpstreamUpdateModal = () => {
-    setShowUpstreamUpdateModal(false);
-    setUpstreamUpdateChannel(null);
-    setUpstreamUpdateAddModels([]);
-    setUpstreamUpdateRemoveModels([]);
-    setUpstreamUpdatePreferredTab('add');
-  };
-
-  const applyUpstreamUpdates = async ({
-    addModels: selectedAddModels = [],
-    removeModels: selectedRemoveModels = [],
-  } = {}) => {
-    if (!upstreamUpdateChannel?.id) {
-      closeUpstreamUpdateModal();
-      return;
-    }
-
-    const normalizedSelectedAddModels = Array.from(
-      new Set(
-        (selectedAddModels || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    const normalizedSelectedRemoveModels = Array.from(
-      new Set(
-        (selectedRemoveModels || [])
-          .map((model) => String(model || '').trim())
-          .filter(Boolean),
-      ),
-    );
-    const selectedAddSet = new Set(normalizedSelectedAddModels);
-    const ignoreModels = upstreamUpdateAddModels.filter(
-      (model) => !selectedAddSet.has(model),
-    );
-
-    const res = await API.post('/api/channel/upstream_updates/apply', {
-      id: upstreamUpdateChannel.id,
-      add_models: normalizedSelectedAddModels,
-      ignore_models: ignoreModels,
-      remove_models: normalizedSelectedRemoveModels,
-    });
-    const { success, message, data } = res.data || {};
-    if (!success) {
-      showError(message || t('操作失败'));
-      return;
-    }
-
-    const addedCount = data?.added_models?.length || 0;
-    const removedCount = data?.removed_models?.length || 0;
-    const ignoredCount = data?.ignored_models?.length || 0;
-    showSuccess(
-      t(
-        '已处理上游模型更新：加入 {{added}} 个，删除 {{removed}} 个，忽略 {{ignored}} 个',
-        {
-          added: addedCount,
-          removed: removedCount,
-          ignored: ignoredCount,
-        },
-      ),
-    );
-    closeUpstreamUpdateModal();
-    await refresh();
-  };
-
-  const applyAllUpstreamUpdates = async () => {
-    const res = await API.post('/api/channel/upstream_updates/apply_all');
-    const { success, message, data } = res.data || {};
-    if (!success) {
-      showError(message || t('批量处理失败'));
-      return;
-    }
-
-    const channelCount = data?.processed_channels || 0;
-    const modelCount = data?.added_models || 0;
-    const failedCount = (data?.failed_channel_ids || []).length;
-    showSuccess(
-      t(
-        '已批量处理上游模型更新：渠道 {{channels}} 个，加入模型 {{models}} 个，失败 {{fails}} 个',
-        {
-          channels: channelCount,
-          models: modelCount,
-          fails: failedCount,
-        },
-      ),
-    );
-    await refresh();
-  };
-
-  const detectChannelUpstreamUpdates = async (channel) => {
-    if (!channel?.id) {
-      return;
-    }
-    const res = await API.post('/api/channel/upstream_updates/detect', {
-      id: channel.id,
-    });
-    const { success, message, data } = res.data || {};
-    if (!success) {
-      showError(message || t('检测失败'));
-      return;
-    }
-
-    const addCount = data?.add_models?.length || 0;
-    const removeCount = data?.remove_models?.length || 0;
-    showSuccess(
-      t('检测完成：新增 {{add}} 个，删除 {{remove}} 个', {
-        add: addCount,
-        remove: removeCount,
-      }),
-    );
-    await refresh();
-  };
-
-  const detectAllUpstreamUpdates = async () => {
-    const res = await API.post('/api/channel/upstream_updates/detect_all');
-    const { success, message, data } = res.data || {};
-    if (!success) {
-      showError(message || t('批量检测失败'));
-      return;
-    }
-
-    const channelCount = data?.processed_channels || 0;
-    const addCount = data?.detected_add_models || 0;
-    const removeCount = data?.detected_remove_models || 0;
-    const failedCount = (data?.failed_channel_ids || []).length;
-    showSuccess(
-      t(
-        '批量检测完成：渠道 {{channels}} 个，新增 {{add}} 个，删除 {{remove}} 个，失败 {{fails}} 个',
-        {
-          channels: channelCount,
-          add: addCount,
-          remove: removeCount,
-          fails: failedCount,
-        },
-      ),
-    );
-    await refresh();
   };
 
   // Row style
@@ -1376,12 +1201,7 @@ export const useChannelsData = () => {
     setShowMultiKeyManageModal,
     currentMultiKeyChannel,
     setCurrentMultiKeyChannel,
-    showUpstreamUpdateModal,
-    setShowUpstreamUpdateModal,
-    upstreamUpdateChannel,
-    upstreamUpdateAddModels,
-    upstreamUpdateRemoveModels,
-    upstreamUpdatePreferredTab,
+    ...upstreamUpdates,
 
     // Form
     formApi,
@@ -1404,12 +1224,6 @@ export const useChannelsData = () => {
     updateChannelProperty,
     submitTagEdit,
     closeEdit,
-    openUpstreamUpdateModal,
-    closeUpstreamUpdateModal,
-    applyUpstreamUpdates,
-    applyAllUpstreamUpdates,
-    detectChannelUpstreamUpdates,
-    detectAllUpstreamUpdates,
     handleRow,
     batchSetChannelTag,
     batchDeleteChannels,

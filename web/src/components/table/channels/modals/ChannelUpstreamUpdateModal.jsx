@@ -37,9 +37,7 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 const normalizeModels = (models = []) =>
   Array.from(
     new Set(
-      (models || [])
-        .map((model) => String(model || '').trim())
-        .filter(Boolean),
+      (models || []).map((model) => String(model || '').trim()).filter(Boolean),
     ),
   );
 
@@ -60,13 +58,17 @@ const ChannelUpstreamUpdateModal = ({
   addModels = [],
   removeModels = [],
   preferredTab = 'add',
+  confirmLoading = false,
   onConfirm,
   onCancel,
 }) => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
 
-  const normalizedAddModels = useMemo(() => normalizeModels(addModels), [addModels]);
+  const normalizedAddModels = useMemo(
+    () => normalizeModels(addModels),
+    [addModels],
+  );
   const normalizedRemoveModels = useMemo(
     () => normalizeModels(removeModels),
     [removeModels],
@@ -109,7 +111,8 @@ const ChannelUpstreamUpdateModal = ({
     setActiveTab(addTabEnabled ? 'add' : 'remove');
   }, [visible, addTabEnabled, removeTabEnabled, preferredTab]);
 
-  const currentModels = activeTab === 'add' ? filteredAddModels : filteredRemoveModels;
+  const currentModels =
+    activeTab === 'add' ? filteredAddModels : filteredRemoveModels;
   const currentSelectedModels =
     activeTab === 'add' ? selectedAddModels : selectedRemoveModels;
   const currentSetSelectedModels =
@@ -119,13 +122,17 @@ const ChannelUpstreamUpdateModal = ({
   const checkedCount = currentModels.filter((model) =>
     currentSelectedModels.includes(model),
   ).length;
-  const isAllChecked = currentModels.length > 0 && checkedCount === currentModels.length;
+  const isAllChecked =
+    currentModels.length > 0 && checkedCount === currentModels.length;
   const isIndeterminate =
     checkedCount > 0 && checkedCount < currentModels.length;
 
   const handleToggleAllCurrent = (checked) => {
     if (checked) {
-      const merged = normalizeModels([...currentSelectedModels, ...currentModels]);
+      const merged = normalizeModels([
+        ...currentSelectedModels,
+        ...currentModels,
+      ]);
       currentSetSelectedModels(merged);
       return;
     }
@@ -209,12 +216,15 @@ const ChannelUpstreamUpdateModal = ({
       centered
       closeOnEsc
       maskClosable
+      confirmLoading={confirmLoading}
       onCancel={onCancel}
       onOk={handleSubmit}
     >
       <div className='flex flex-col gap-3'>
         <Typography.Text type='secondary' size='small'>
-          {t('可勾选需要执行的变更：新增会加入渠道模型列表，删除会从渠道模型列表移除。')}
+          {t(
+            '可勾选需要执行的变更：新增会加入渠道模型列表，删除会从渠道模型列表移除。',
+          )}
         </Typography.Text>
 
         <Tabs
@@ -262,11 +272,17 @@ const ChannelUpstreamUpdateModal = ({
           ) : (
             <Checkbox.Group
               value={currentSelectedModels}
-              onChange={(values) => currentSetSelectedModels(normalizeModels(values))}
+              onChange={(values) =>
+                currentSetSelectedModels(normalizeModels(values))
+              }
             >
               <div className='grid grid-cols-1 md:grid-cols-2 gap-x-4'>
                 {currentModels.map((model) => (
-                  <Checkbox key={`${activeTab}:${model}`} value={model} className='my-1'>
+                  <Checkbox
+                    key={`${activeTab}:${model}`}
+                    value={model}
+                    className='my-1'
+                  >
                     {model}
                   </Checkbox>
                 ))}
@@ -285,6 +301,7 @@ const ChannelUpstreamUpdateModal = ({
           <Checkbox
             checked={isAllChecked}
             indeterminate={isIndeterminate}
+            aria-label={t('全选当前列表模型')}
             onChange={(e) => handleToggleAllCurrent(e.target.checked)}
           />
         </div>
