@@ -104,7 +104,7 @@ func main() {
 	}
 
 	go controller.AutomaticallyTestChannels()
-	go controller.AutomaticallyTestAutoDisabledChannels()
+	go controller.StartAutoDisabledChannelTestScheduler()
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()

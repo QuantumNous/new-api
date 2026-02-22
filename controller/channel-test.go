@@ -25,11 +25,11 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/channeltest"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 
@@ -40,67 +40,6 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
-}
-
-func buildChannelTestLogContext(base *gin.Context) *gin.Context {
-	if base != nil {
-		return base
-	}
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	if cache, err := model.GetUserCache(1); err == nil {
-		cache.WriteContext(c)
-	}
-	if group, err := model.GetUserGroup(1, false); err == nil && group != "" {
-		c.Set("group", group)
-	}
-	c.Set("username", "root")
-	return c
-}
-
-func channelTestModelName(channel *model.Channel) string {
-	if channel == nil {
-		return ""
-	}
-	if channel.TestModel != nil {
-		testModel := strings.TrimSpace(*channel.TestModel)
-		if testModel != "" {
-			return testModel
-		}
-	}
-	models := channel.GetModels()
-	if len(models) > 0 {
-		return strings.TrimSpace(models[0])
-	}
-	return ""
-}
-
-func recordChannelTestErrorLog(base *gin.Context, channel *model.Channel, modelName string, trigger string, scope string, useTimeSeconds int, isStream bool, err error) {
-	if !constant.ErrorLogEnabled {
-		return
-	}
-	context := buildChannelTestLogContext(base)
-	if strings.TrimSpace(modelName) == "" {
-		modelName = channelTestModelName(channel)
-	}
-	group := context.GetString("group")
-	if group == "" {
-		group, _ = model.GetUserGroup(1, false)
-	}
-	content := "模型测试失败"
-	if err != nil && err.Error() != "" {
-		content = "模型测试失败: " + err.Error()
-	}
-	other := map[string]interface{}{
-		"channel_test":        true,
-		"channel_test_scope":  scope,
-		"channel_test_trigger": trigger,
-		"channel_test_result": "failed",
-	}
-	if err != nil {
-		other["channel_test_error"] = err.Error()
-	}
-	model.RecordErrorLog(context, 1, channel.Id, modelName, "模型测试", content, 0, useTimeSeconds, isStream, group, other)
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -537,10 +476,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
-	if other == nil {
-		other = make(map[string]interface{})
-	}
-	other["channel_test"] = true
+	other = channeltest.MarkChannelTestOther(other)
 	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
@@ -559,6 +495,21 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		context:     c,
 		localErr:    nil,
 		newAPIError: nil,
+	}
+}
+
+type ChannelTestResult struct {
+	Context     *gin.Context
+	LocalErr    error
+	NewAPIError *types.NewAPIError
+}
+
+func ExecuteChannelTest(channel *model.Channel, testModel string, endpointType string, isStream bool) ChannelTestResult {
+	result := testChannel(channel, testModel, endpointType, isStream)
+	return ChannelTestResult{
+		Context:     result.context,
+		LocalErr:    result.localErr,
+		NewAPIError: result.newAPIError,
 	}
 }
 
@@ -817,7 +768,7 @@ func TestChannel(c *gin.Context) {
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.localErr != nil {
-		recordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), "manual", "single_channel", int(milliseconds/1000), isStream, result.localErr)
+		channeltest.RecordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), channeltest.TriggerManual, channeltest.ScopeSingleChannel, int(milliseconds/1000), isStream, result.localErr)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": result.localErr.Error(),
@@ -827,7 +778,7 @@ func TestChannel(c *gin.Context) {
 	}
 	go channel.UpdateResponseTime(milliseconds)
 	if result.newAPIError != nil {
-		recordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), "manual", "single_channel", int(milliseconds/1000), isStream, result.newAPIError)
+		channeltest.RecordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), channeltest.TriggerManual, channeltest.ScopeSingleChannel, int(milliseconds/1000), isStream, result.newAPIError)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": result.newAPIError.Error(),
@@ -842,56 +793,32 @@ func TestChannel(c *gin.Context) {
 	})
 }
 
-var channelTestRunLock sync.Mutex
-var channelTestRunning bool = false
-
-func beginChannelTestRun() error {
-	channelTestRunLock.Lock()
-	defer channelTestRunLock.Unlock()
-	if channelTestRunning {
-		return errors.New("测试已在运行中")
-	}
-	channelTestRunning = true
-	return nil
-}
-
-func endChannelTestRun() {
-	channelTestRunLock.Lock()
-	channelTestRunning = false
-	channelTestRunLock.Unlock()
-}
-
 func testAllChannels(notify bool) error {
-	if err := beginChannelTestRun(); err != nil {
-		return err
-	}
-	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
-	if getChannelErr != nil {
-		endChannelTestRun()
-		return getChannelErr
-	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
 	}
-	gopool.Go(func() {
-		defer endChannelTestRun()
-
+	return channeltest.SubmitWithPending(channeltest.TaskKindAllChannels, func() {
+		channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
+		if getChannelErr != nil {
+			common.SysLog(fmt.Sprintf("all channels test aborted: %v", getChannelErr))
+			return
+		}
 		for _, channel := range channels {
 			if channel.Status == common.ChannelStatusManuallyDisabled {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := ExecuteChannelTest(channel, "", "", false)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
 			shouldBanChannel := false
-			newAPIError := result.newAPIError
+			newAPIError := result.NewAPIError
 			// request error disables the channel
 			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.newAPIError)
+				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.NewAPIError)
 			}
 
 			// 当错误检查通过，才检查响应时间
@@ -905,12 +832,12 @@ func testAllChannels(notify bool) error {
 
 			// disable channel
 			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				processChannelError(result.Context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 			}
 
 			// enable channel
 			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+				service.EnableChannel(channel.Id, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.Name)
 			}
 
 			channel.UpdateResponseTime(milliseconds)
@@ -921,75 +848,30 @@ func testAllChannels(notify bool) error {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
 		}
 	})
-	return nil
 }
 
 func testAutoDisabledChannels(notify bool) error {
-	if err := beginChannelTestRun(); err != nil {
-		return err
-	}
-	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
-	if getChannelErr != nil {
-		endChannelTestRun()
-		return getChannelErr
-	}
 	monitorSetting := operation_setting.GetMonitorSetting()
-	responseThresholdMilliseconds := int64(monitorSetting.AutoTestAutoDisabledChannelResponseThreshold * 1000)
-	if responseThresholdMilliseconds <= 0 {
-		responseThresholdMilliseconds = 10000000
-	}
-	gopool.Go(func() {
-		defer endChannelTestRun()
-
-		trigger := "auto"
-		if notify {
-			trigger = "manual"
-		}
-
-		candidates := 0
-		tested := 0
-		passed := 0
-		enabled := 0
-
-		for _, channel := range channels {
-			if channel.Status != common.ChannelStatusAutoDisabled {
-				continue
-			}
-			candidates++
+	return channeltest.RunAutoDisabledChannelTest(channeltest.AutoDisabledRunOptions{
+		Notify:                        notify,
+		ResponseThresholdMilliseconds: int64(monitorSetting.AutoTestAutoDisabledChannelResponseThreshold * 1000),
+		Execute: func(channel *model.Channel) channeltest.ChannelTestExecution {
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
-			tested++
-
-			newAPIError := result.newAPIError
-			if result.localErr != nil {
-				newAPIError = types.NewOpenAIError(result.localErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest)
+			result := ExecuteChannelTest(channel, "", "", false)
+			milliseconds := time.Since(tik).Milliseconds()
+			return channeltest.ChannelTestExecution{
+				Context:      result.Context,
+				LocalErr:     result.LocalErr,
+				NewAPIError:  result.NewAPIError,
+				Milliseconds: milliseconds,
 			}
-			if newAPIError == nil && milliseconds > responseThresholdMilliseconds {
-				err := fmt.Errorf("响应时间 %.2fs 超过自动禁用渠道阈值 %.2fs", float64(milliseconds)/1000.0, float64(responseThresholdMilliseconds)/1000.0)
-				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-			}
-
-			if newAPIError == nil {
-				passed++
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
-				enabled++
-			} else {
-				recordChannelTestErrorLog(result.context, channel, "", trigger, "auto_disabled", int(milliseconds/1000), false, newAPIError)
-			}
-
-			channel.UpdateResponseTime(milliseconds)
-			time.Sleep(common.RequestInterval)
-		}
-
-		common.SysLog(fmt.Sprintf("auto-disabled channel test summary: candidates=%d tested=%d passed=%d enabled=%d", candidates, tested, passed, enabled))
-
-		if notify {
+		},
+		EnableChannel: service.EnableChannel,
+		NotifyDone: func() {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "自动禁用通道测试完成", "自动禁用通道测试已完成")
-		}
+		},
+		SleepInterval: common.RequestInterval,
 	})
-	return nil
 }
 
 func TestAllChannels(c *gin.Context) {
@@ -1044,30 +926,13 @@ func AutomaticallyTestChannels() {
 	})
 }
 
-var autoTestAutoDisabledChannelsOnce sync.Once
-
-func AutomaticallyTestAutoDisabledChannels() {
+func StartAutoDisabledChannelTestScheduler() {
 	if !common.IsMasterNode {
 		return
 	}
-	autoTestAutoDisabledChannelsOnce.Do(func() {
-		for {
-			if !operation_setting.GetMonitorSetting().AutoTestAutoDisabledChannelEnabled {
-				time.Sleep(1 * time.Minute)
-				continue
-			}
-			for {
-				monitorSetting := operation_setting.GetMonitorSetting()
-				frequency := monitorSetting.AutoTestAutoDisabledChannelMinutes
-				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
-				common.SysLog(fmt.Sprintf("automatically test auto-disabled channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing auto-disabled channels")
-				_ = testAutoDisabledChannels(false)
-				common.SysLog("automatically auto-disabled channel test finished")
-				if !operation_setting.GetMonitorSetting().AutoTestAutoDisabledChannelEnabled {
-					break
-				}
-			}
-		}
-	})
+	channeltest.StartAutoDisabledChannelScheduler(testAutoDisabledChannels)
+}
+
+func AutomaticallyTestAutoDisabledChannels() {
+	StartAutoDisabledChannelTestScheduler()
 }
