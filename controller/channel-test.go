@@ -885,7 +885,7 @@ func testAutoDisabledChannels(notify bool) error {
 
 			newAPIError := result.newAPIError
 			if result.localErr != nil {
-				newAPIError = types.NewOpenAIError(result.localErr, types.ErrorCodeInvalidRequestError, http.StatusBadRequest)
+				newAPIError = types.NewOpenAIError(result.localErr, types.ErrorCodeInvalidRequest, http.StatusBadRequest)
 			}
 			if newAPIError == nil && milliseconds > responseThresholdMilliseconds {
 				err := fmt.Errorf("响应时间 %.2fs 超过自动禁用渠道阈值 %.2fs", float64(milliseconds)/1000.0, float64(responseThresholdMilliseconds)/1000.0)
