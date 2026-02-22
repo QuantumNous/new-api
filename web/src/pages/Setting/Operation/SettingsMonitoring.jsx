@@ -112,23 +112,6 @@ export default function SettingsMonitoring(props) {
       });
   }
 
-  async function onTestAutoDisabledChannels() {
-    setLoading(true);
-    try {
-      const res = await API.get('/api/channel/test/auto_disabled');
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('已开始测试自动禁用通道，请稍后刷新查看结果。'));
-      } else {
-        showError(message || t('启动自动禁用通道测试失败'));
-      }
-    } catch (error) {
-      showError(error?.response?.data?.message || t('启动自动禁用通道测试失败'));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
@@ -356,9 +339,6 @@ export default function SettingsMonitoring(props) {
             <Row gutter={12}>
               <Button size='default' onClick={onSubmit}>
                 {t('保存监控设置')}
-              </Button>
-              <Button size='default' type='tertiary' onClick={onTestAutoDisabledChannels}>
-                {t('立即测试自动禁用通道')}
               </Button>
             </Row>
           </Form.Section>

@@ -889,18 +889,6 @@ func TestAllChannels(c *gin.Context) {
 	})
 }
 
-func TestAutoDisabledChannels(c *gin.Context) {
-	err := testAutoDisabledChannels(true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-}
-
 var autoTestChannelsOnce sync.Once
 
 func AutomaticallyTestChannels() {
