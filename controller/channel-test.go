@@ -51,6 +51,9 @@ func buildChannelTestLogContext(base *gin.Context) *gin.Context {
 	if cache, err := model.GetUserCache(1); err == nil {
 		cache.WriteContext(c)
 	}
+	if group, err := model.GetUserGroup(1, false); err == nil && group != "" {
+		c.Set("group", group)
+	}
 	c.Set("username", "root")
 	return c
 }
@@ -72,48 +75,29 @@ func channelTestModelName(channel *model.Channel) string {
 	return ""
 }
 
-func recordAutoDisabledChannelTestLog(base *gin.Context, channel *model.Channel, trigger string, useTimeSeconds int, success bool, err error) {
+func recordChannelTestErrorLog(base *gin.Context, channel *model.Channel, modelName string, trigger string, scope string, useTimeSeconds int, isStream bool, err error) {
 	context := buildChannelTestLogContext(base)
-	result := "success"
-	content := "模型测试"
-	if !success {
-		result = "failed"
-		content = "模型测试失败"
+	if strings.TrimSpace(modelName) == "" {
+		modelName = channelTestModelName(channel)
+	}
+	group := context.GetString("group")
+	if group == "" {
+		group, _ = model.GetUserGroup(1, false)
+	}
+	content := "模型测试失败"
+	if err != nil && err.Error() != "" {
+		content = "模型测试失败: " + err.Error()
 	}
 	other := map[string]interface{}{
 		"channel_test":        true,
-		"channel_test_scope":  "auto_disabled",
+		"channel_test_scope":  scope,
 		"channel_test_trigger": trigger,
-		"channel_test_result": result,
+		"channel_test_result": "failed",
 	}
 	if err != nil {
 		other["channel_test_error"] = err.Error()
 	}
-	model.RecordConsumeLog(context, 1, model.RecordConsumeLogParams{
-		ChannelId:      channel.Id,
-		ModelName:      channelTestModelName(channel),
-		TokenName:      "模型测试",
-		Quota:          0,
-		Content:        content,
-		UseTimeSeconds: useTimeSeconds,
-		Other:          other,
-	})
-}
-
-func recordAutoDisabledChannelTestRunMarker(trigger string, content string) {
-	context := buildChannelTestLogContext(nil)
-	model.RecordConsumeLog(context, 1, model.RecordConsumeLogParams{
-		ChannelId: 0,
-		TokenName: "模型测试",
-		Quota:     0,
-		Content:   content,
-		Other: map[string]interface{}{
-			"channel_test":         true,
-			"channel_test_scope":   "auto_disabled",
-			"channel_test_trigger": trigger,
-			"channel_test_result":  "no_candidate",
-		},
-	})
+	model.RecordErrorLog(context, 1, channel.Id, modelName, "模型测试", content, 0, useTimeSeconds, isStream, group, other)
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -826,19 +810,21 @@ func TestChannel(c *gin.Context) {
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
 	tik := time.Now()
 	result := testChannel(channel, testModel, endpointType, isStream)
+	tok := time.Now()
+	milliseconds := tok.Sub(tik).Milliseconds()
+	consumedTime := float64(milliseconds) / 1000.0
 	if result.localErr != nil {
+		recordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), "manual", "single_channel", int(milliseconds/1000), isStream, result.localErr)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": result.localErr.Error(),
-			"time":    0.0,
+			"time":    consumedTime,
 		})
 		return
 	}
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
-	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
+		recordChannelTestErrorLog(result.context, channel, strings.TrimSpace(testModel), "manual", "single_channel", int(milliseconds/1000), isStream, result.newAPIError)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": result.newAPIError.Error(),
@@ -987,19 +973,11 @@ func testAutoDisabledChannels(notify bool) error {
 				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 				enabled++
 			} else {
-				errForLog := error(newAPIError)
-				if errForLog == nil {
-					errForLog = result.localErr
-				}
-				recordAutoDisabledChannelTestLog(result.context, channel, trigger, int(milliseconds/1000), false, errForLog)
+				recordChannelTestErrorLog(result.context, channel, "", trigger, "auto_disabled", int(milliseconds/1000), false, newAPIError)
 			}
 
 			channel.UpdateResponseTime(milliseconds)
 			time.Sleep(common.RequestInterval)
-		}
-
-		if candidates == 0 {
-			recordAutoDisabledChannelTestRunMarker(trigger, "自动禁用通道测试：无可测试通道")
 		}
 
 		common.SysLog(fmt.Sprintf("auto-disabled channel test summary: candidates=%d tested=%d passed=%d enabled=%d", candidates, tested, passed, enabled))
