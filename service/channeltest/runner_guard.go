@@ -113,6 +113,8 @@ func Submit(kind TaskKind, job func()) error {
 	return defaultRunGuard.submit(kind, job, false)
 }
 
+// SubmitWithPending queues one pending task for the same kind when busy,
+// and still returns ErrTaskRunning to keep caller-visible behavior unchanged.
 func SubmitWithPending(kind TaskKind, job func()) error {
 	return defaultRunGuard.submit(kind, job, true)
 }

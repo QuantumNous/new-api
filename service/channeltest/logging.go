@@ -35,6 +35,14 @@ func BuildChannelTestLogContext(base *gin.Context) *gin.Context {
 	return c
 }
 
+func PrepareChannelTestContext(base *gin.Context) *gin.Context {
+	ctx := BuildChannelTestLogContext(base)
+	if ctx.GetString("token_name") == "" {
+		ctx.Set("token_name", "模型测试")
+	}
+	return ctx
+}
+
 func channelTestModelName(channel *model.Channel) string {
 	if channel == nil {
 		return ""
@@ -56,7 +64,7 @@ func RecordChannelTestErrorLog(base *gin.Context, channel *model.Channel, modelN
 	if !constant.ErrorLogEnabled || channel == nil {
 		return
 	}
-	context := BuildChannelTestLogContext(base)
+	context := PrepareChannelTestContext(base)
 	if strings.TrimSpace(modelName) == "" {
 		modelName = channelTestModelName(channel)
 	}

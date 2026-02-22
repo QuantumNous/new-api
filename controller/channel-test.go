@@ -498,21 +498,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	}
 }
 
-type ChannelTestResult struct {
-	Context     *gin.Context
-	LocalErr    error
-	NewAPIError *types.NewAPIError
-}
-
-func ExecuteChannelTest(channel *model.Channel, testModel string, endpointType string, isStream bool) ChannelTestResult {
-	result := testChannel(channel, testModel, endpointType, isStream)
-	return ChannelTestResult{
-		Context:     result.context,
-		LocalErr:    result.localErr,
-		NewAPIError: result.newAPIError,
-	}
-}
-
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
 	switch u := usageAny.(type) {
 	case *dto.Usage:
@@ -793,6 +778,21 @@ func TestChannel(c *gin.Context) {
 	})
 }
 
+func handleChannelTestFailure(channel *model.Channel, result testResult, newAPIError *types.NewAPIError) {
+	if channel == nil || newAPIError == nil {
+		return
+	}
+	ctx := channeltest.PrepareChannelTestContext(result.context)
+	processChannelError(ctx, *types.NewChannelError(
+		channel.Id,
+		channel.Type,
+		channel.Name,
+		channel.ChannelInfo.IsMultiKey,
+		common.GetContextKeyString(ctx, constant.ContextKeyChannelKey),
+		channel.GetAutoBan(),
+	), newAPIError)
+}
+
 func testAllChannels(notify bool) error {
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
@@ -810,15 +810,15 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := ExecuteChannelTest(channel, "", "", false)
+			result := testChannel(channel, "", "", false)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 
 			shouldBanChannel := false
-			newAPIError := result.NewAPIError
+			newAPIError := result.newAPIError
 			// request error disables the channel
 			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.NewAPIError)
+				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.newAPIError)
 			}
 
 			// 当错误检查通过，才检查响应时间
@@ -832,12 +832,12 @@ func testAllChannels(notify bool) error {
 
 			// disable channel
 			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.Context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+				handleChannelTestFailure(channel, result, newAPIError)
 			}
 
 			// enable channel
 			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.Name)
+				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 			}
 
 			channel.UpdateResponseTime(milliseconds)
@@ -857,33 +857,18 @@ func testAutoDisabledChannels(notify bool) error {
 		ResponseThresholdMilliseconds: int64(monitorSetting.AutoTestAutoDisabledChannelResponseThreshold * 1000),
 		Execute: func(channel *model.Channel) channeltest.ChannelTestExecution {
 			tik := time.Now()
-			result := ExecuteChannelTest(channel, "", "", false)
+			result := testChannel(channel, "", "", false)
 			milliseconds := time.Since(tik).Milliseconds()
 			return channeltest.ChannelTestExecution{
-				Context:      result.Context,
-				LocalErr:     result.LocalErr,
-				NewAPIError:  result.NewAPIError,
+				Context:      result.context,
+				LocalErr:     result.localErr,
+				NewAPIError:  result.newAPIError,
 				Milliseconds: milliseconds,
 			}
 		},
 		EnableChannel: service.EnableChannel,
 		HandleFailure: func(channel *model.Channel, result channeltest.ChannelTestExecution, newAPIError *types.NewAPIError, _ string) {
-			if newAPIError == nil {
-				return
-			}
-			ctx := result.Context
-			if ctx == nil {
-				ctx = channeltest.BuildChannelTestLogContext(nil)
-			}
-			ctx.Set("token_name", "模型测试")
-			processChannelError(ctx, *types.NewChannelError(
-				channel.Id,
-				channel.Type,
-				channel.Name,
-				channel.ChannelInfo.IsMultiKey,
-				common.GetContextKeyString(ctx, constant.ContextKeyChannelKey),
-				channel.GetAutoBan(),
-			), newAPIError)
+			handleChannelTestFailure(channel, testResult{context: result.Context}, newAPIError)
 		},
 		NotifyDone: func() {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "自动禁用通道测试完成", "自动禁用通道测试已完成")
