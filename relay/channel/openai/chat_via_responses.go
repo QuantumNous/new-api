@@ -51,7 +51,7 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	if len(body) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
@@ -320,19 +320,24 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
-		hasStreamData = true
 		if streamErr != nil {
 			return false
 		}
 		if strings.TrimSpace(data) == "" {
-			streamErr = types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-			return false
+			// Ignore heartbeat/whitespace payloads; empty-response is decided after stream end.
+			return true
 		}
+		hasStreamData = true
 
 		var streamResp dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
 			logger.LogJSONUnmarshalError(c, "openai.OaiResponsesToChatStreamHandler", err, []byte(data))
-			return true
+			streamErr = types.NewOpenAIError(
+				fmt.Errorf("failed to decode responses stream event: %w", err),
+				types.ErrorCodeBadResponseBody,
+				http.StatusInternalServerError,
+			)
+			return false
 		}
 
 		switch streamResp.Type {
@@ -536,7 +541,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	})
 
 	if !hasStreamData {
-		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	if streamErr != nil {

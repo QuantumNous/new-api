@@ -690,7 +690,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 
 func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string) *types.NewAPIError {
 	if strings.TrimSpace(data) == "" {
-		return types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+		return types.NewEmptyStreamResponseError(types.ErrorCodeEmptyResponse)
 	}
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
@@ -785,7 +785,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		return nil, err
 	}
 	if !hasStreamData {
-		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeEmptyResponse)
 	}
 
 	HandleStreamFinalResponse(c, info, claudeInfo)
@@ -794,7 +794,7 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte) *types.NewAPIError {
 	if len(data) == 0 {
-		return types.NewEmptyResponseBodyError(types.ErrorCodeBadResponseBody)
+		return types.NewEmptyResponseBodyError(types.ErrorCodeEmptyResponse)
 	}
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
@@ -854,7 +854,7 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyError(types.ErrorCodeBadResponseBody)
+		return nil, types.NewEmptyResponseBodyError(types.ErrorCodeEmptyResponse)
 	}
 	if common.DebugEnabled {
 		println("responseBody: ", string(responseBody))

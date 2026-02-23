@@ -27,7 +27,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 	err = common.Unmarshal(responseBody, &responsesResponse)
 	if err != nil {
@@ -91,11 +91,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
-		hasStreamData = true
 		if strings.TrimSpace(data) == "" {
-			streamErr = types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-			return false
+			// Ignore heartbeat/whitespace payloads; empty-response is decided after stream end.
+			return true
 		}
+		hasStreamData = true
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
@@ -142,7 +142,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		} else {
 			logger.LogJSONUnmarshalError(c, "openai.OaiResponsesStreamHandler", err, []byte(data))
-			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			streamErr = types.NewOpenAIError(
+				fmt.Errorf("failed to decode responses stream event: %w", err),
+				types.ErrorCodeBadResponseBody,
+				http.StatusInternalServerError,
+			)
+			return false
 		}
 		return true
 	})
@@ -151,7 +156,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, streamErr
 	}
 	if !hasStreamData {
-		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	if usage.CompletionTokens == 0 {

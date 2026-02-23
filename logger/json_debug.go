@@ -13,6 +13,10 @@ func LogJSONUnmarshalError(ctx context.Context, scope string, err error, body []
 	if err == nil {
 		return
 	}
+	requestID := getRequestIDFromContext(ctx)
+	if ctx == nil {
+		ctx = context.WithValue(context.Background(), common.RequestIdKey, requestID)
+	}
 
 	limit := 8 << 10 // 8KB
 	if common.DebugEnabled {
@@ -35,11 +39,28 @@ func LogJSONUnmarshalError(ctx context.Context, scope string, err error, body []
 	previewStr = common.MaskSensitiveInfo(previewStr)
 
 	LogError(ctx, fmt.Sprintf(
-		"%s: json unmarshal failed: %v (body_len=%d, truncated=%t, preview=%q)",
+		"%s: json unmarshal failed: %v (request_id=%s, body_len=%d, truncated=%t, preview=%q)",
 		scope,
 		err,
+		requestID,
 		len(body),
 		truncated,
 		previewStr,
 	))
+}
+
+func getRequestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return "SYSTEM"
+	}
+	if id := ctx.Value(common.RequestIdKey); id != nil {
+		if idStr, ok := id.(string); ok && idStr != "" {
+			return idStr
+		}
+		idStr := fmt.Sprintf("%v", id)
+		if idStr != "" && idStr != "<nil>" {
+			return idStr
+		}
+	}
+	return "SYSTEM"
 }

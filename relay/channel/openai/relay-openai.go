@@ -150,7 +150,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	})
 
 	if len(streamItems) == 0 {
-		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyStreamResponseOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
@@ -212,7 +212,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 	if common.DebugEnabled {
 		println("upstream response body:", string(responseBody))
@@ -597,7 +597,7 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	var usageResp dto.SimpleResponse

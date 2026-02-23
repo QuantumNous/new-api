@@ -26,7 +26,7 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	if common.DebugEnabled {
@@ -81,7 +81,7 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	if common.DebugEnabled {

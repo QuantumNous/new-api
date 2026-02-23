@@ -1308,7 +1308,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, streamErr
 	}
 	if !hasParsedData {
-		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeBadResponseBody)
+		return nil, types.NewEmptyStreamResponseError(types.ErrorCodeEmptyResponse)
 	}
 
 	if imageCount != 0 {
@@ -1429,7 +1429,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 	service.CloseResponseBodyGracefully(resp)
 	if common.DebugEnabled {
@@ -1547,7 +1547,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 
 	var geminiResponse dto.GeminiBatchEmbeddingResponse
@@ -1599,7 +1599,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if len(responseBody) == 0 {
-		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewEmptyResponseBodyOpenAIError(types.ErrorCodeEmptyResponse, http.StatusInternalServerError)
 	}
 	_ = resp.Body.Close()
 
