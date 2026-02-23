@@ -89,7 +89,11 @@ func RunAutoDisabledChannelTest(options AutoDisabledRunOptions) error {
 
 			if newAPIError == nil {
 				passed++
-				options.EnableChannel(channel.Id, common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey), channel.Name)
+				channelKey := ""
+				if result.Context != nil {
+					channelKey = common.GetContextKeyString(result.Context, constant.ContextKeyChannelKey)
+				}
+				options.EnableChannel(channel.Id, channelKey, channel.Name)
 				enabled++
 			} else {
 				if options.HandleFailure != nil {
