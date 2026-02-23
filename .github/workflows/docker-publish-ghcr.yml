@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - dev
+      - package                # 增加 package 分支
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag (default: dev)"
+        description: "Image tag (default depends on branch)"
         required: false
-        default: "dev"
+        default: ""             # 空表示由分支决定
 
 permissions:
   contents: read
@@ -33,10 +34,16 @@ jobs:
       - name: Set tag
         id: vars
         run: |
+          # 如果手动输入了 tag，则优先使用输入值
           if [ -n "${{ github.event.inputs.tag }}" ]; then
             TAG="${{ github.event.inputs.tag }}"
           else
-            TAG="dev"
+            # 根据触发分支自动设置标签
+            if [ "${{ github.ref_name }}" == "package" ]; then
+              TAG="latest"
+            else
+              TAG="dev"      # 默认 dev 分支（或其他分支）
+            fi
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
