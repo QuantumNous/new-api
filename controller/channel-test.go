@@ -904,7 +904,11 @@ func AutomaticallyTestChannels() {
 			}
 			for {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
-				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				freqMinutes := int(math.Round(frequency))
+				if freqMinutes < 1 {
+					freqMinutes = 1
+				}
+				time.Sleep(time.Duration(freqMinutes) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing all channels")
 				_ = testAllChannels(false)

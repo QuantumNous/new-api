@@ -25,7 +25,11 @@ func StartAutoDisabledChannelScheduler(run func(notify bool) error) {
 			for {
 				monitorSetting := operation_setting.GetMonitorSetting()
 				frequency := monitorSetting.AutoTestAutoDisabledChannelMinutes
-				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				freqMinutes := int(math.Round(frequency))
+				if freqMinutes < 1 {
+					freqMinutes = 1
+				}
+				time.Sleep(time.Duration(freqMinutes) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test auto-disabled channels with interval %f minutes", frequency))
 				common.SysLog("automatically testing auto-disabled channels")
 				_ = run(false)
