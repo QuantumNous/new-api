@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
+	"github.com/QuantumNous/new-api/modules/group_monitor"
 	"github.com/QuantumNous/new-api/service"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -105,6 +106,7 @@ func main() {
 	}
 
 	go controller.AutomaticallyTestChannels()
+	go group_monitor.AutomaticallyGroupMonitor()
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()
@@ -308,6 +310,9 @@ func InitResources() error {
 		common.SysError("failed to load custom OAuth providers: " + err.Error())
 		// Don't return error, custom OAuth is not critical
 	}
+
+	// Migrate group monitor tables
+	group_monitor.Migrate()
 
 	return nil
 }
