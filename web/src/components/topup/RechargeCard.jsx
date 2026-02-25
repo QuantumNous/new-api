@@ -486,26 +486,46 @@ const RechargeCard = ({
               {/* Creem 充值区域 */}
               {enableCreemTopUp && creemProducts.length > 0 && (
                 <Form.Slot label={t('Creem 充值')}>
-                  <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3'>
-                    {creemProducts.map((product, index) => (
-                      <Card
-                        key={index}
-                        onClick={() => creemPreTopUp(product)}
-                        className='cursor-pointer !rounded-2xl transition-all hover:shadow-md border-gray-200 hover:border-gray-300'
-                        bodyStyle={{ textAlign: 'center', padding: '16px' }}
-                      >
-                        <div className='font-medium text-lg mb-2'>
-                          {product.name}
-                        </div>
-                        <div className='text-sm text-gray-600 mb-2'>
-                          {t('充值额度')}: {product.quota}
-                        </div>
-                        <div className='text-lg font-semibold text-blue-600'>
-                          {product.currency === 'EUR' ? '€' : '$'}
-                          {product.price}
-                        </div>
-                      </Card>
-                    ))}
+                  <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
+                    {creemProducts.map((product, index) => {
+                      const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', GBP: '£', JPY: '¥', CNY: '¥' };
+                      const currencySymbol = CURRENCY_SYMBOLS[product.currency] ?? product.currency + ' ';
+                      const price = Number(product.price || 0);
+                      return (
+                        <Card
+                          key={index}
+                          style={{
+                            cursor: 'pointer',
+                            border: '1px solid var(--semi-color-border)',
+                            height: '100%',
+                            width: '100%',
+                          }}
+                          bodyStyle={{ padding: '12px' }}
+                          onClick={() => creemPreTopUp(product)}
+                        >
+                          <div style={{ textAlign: 'center' }}>
+                            <Typography.Title
+                              heading={6}
+                              style={{ margin: '0 0 8px 0' }}
+                            >
+                              <Coins size={18} />
+                              {price} {currencySymbol}
+                            </Typography.Title>
+                            <div
+                              style={{
+                                color: 'var(--semi-color-text-2)',
+                                fontSize: '12px',
+                                margin: '4px 0',
+                              }}
+                            >
+                              {t('实付')} {currencySymbol}
+                              {price.toFixed(2)}，
+                              {t('节省')} {currencySymbol}0.00
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </Form.Slot>
               )}
