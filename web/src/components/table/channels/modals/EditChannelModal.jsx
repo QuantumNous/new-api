@@ -3084,7 +3084,7 @@ const EditChannelModal = (props) => {
                       ]}
                       showClear
                       extraText={t(
-                        '可选，为该渠道的所有模型自动添加前缀，用于区分不同渠道。例如设置 "ProviderA"，模型 "gpt-5.2" 将显示为 "ProviderA/gpt-5.2"',
+                        '可选，为该渠道的所有模型自动添加前缀，用于区分不同渠道。例如设置 "ProviderA"，模型 "gpt-5.2" 将显示为 "ProviderA/gpt-5.2"。当同时配置模型前缀和模型重定向时，会先去掉前缀再应用模型重定向，因此模型重定向中应使用未加前缀的原始模型名称',
                       )}
                     />
                   </Card>
