@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Avatar,
   Typography,
@@ -26,19 +26,66 @@ import {
   Input,
   Badge,
   Space,
+  Table,
+  Spin,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { API } from '../../helpers';
 
 const { Text } = Typography;
 
 const InvitationCard = ({
-  t,
   userState,
   renderQuota,
   setOpenTransfer,
   affLink,
   handleAffLinkClick,
 }) => {
+  const { t } = useTranslation();
+  const [commissions, setCommissions] = useState([]);
+  const [commissionsLoading, setCommissionsLoading] = useState(false);
+
+  useEffect(() => {
+    setCommissionsLoading(true);
+    API.get('/api/user/aff/commissions')
+      .then((res) => {
+        if (res.data.success) setCommissions(res.data.data || []);
+      })
+      .finally(() => setCommissionsLoading(false));
+  }, []);
+
+  const commissionColumns = [
+    {
+      title: t('时间'),
+      dataIndex: 'created_at',
+      render: (v) => new Date(v * 1000).toLocaleDateString(),
+      width: 110,
+    },
+    {
+      title: t('用户'),
+      dataIndex: 'invitee_username',
+      width: 120,
+    },
+    {
+      title: t('充值金额'),
+      dataIndex: 'recharge_amount',
+      render: (v) => `$${v.toFixed(2)}`,
+      width: 100,
+    },
+    {
+      title: t('返佣比例'),
+      dataIndex: 'commission_rate',
+      render: (v) => `${v}%`,
+      width: 90,
+    },
+    {
+      title: t('获得额度'),
+      dataIndex: 'commission_quota',
+      render: (v) => renderQuota(v),
+    },
+  ];
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -220,6 +267,33 @@ const InvitationCard = ({
               </Text>
             </div>
           </div>
+        </Card>
+
+        {/* 返佣记录 */}
+        <Card
+          className='!rounded-xl w-full'
+          title={
+            <div className='flex items-center gap-2'>
+              <BarChart2 size={14} />
+              <Text type='tertiary'>{t('返佣记录')}</Text>
+            </div>
+          }
+        >
+          <Spin spinning={commissionsLoading}>
+            <Table
+              columns={commissionColumns}
+              dataSource={commissions}
+              rowKey='id'
+              size='small'
+              pagination={{ pageSize: 10, showTotal: true }}
+              scroll={{ x: 'max-content' }}
+              empty={
+                <Text type='tertiary' className='text-sm'>
+                  {t('暂无返佣记录')}
+                </Text>
+              }
+            />
+          </Spin>
         </Card>
       </Space>
     </Card>
