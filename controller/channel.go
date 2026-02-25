@@ -2094,3 +2094,100 @@ func OllamaVersion(c *gin.Context) {
 		},
 	})
 }
+
+// GetChannelRateLimitStatus 获取渠道密钥限流状态
+func GetChannelRateLimitStatus(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid channel id",
+		})
+		return
+	}
+
+	channel, err := model.GetChannelById(id, true)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Channel not found",
+		})
+		return
+	}
+
+	// 检查是否是多密钥渠道
+	if !channel.ChannelInfo.IsMultiKey {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"is_multi_key":      false,
+				"rate_limit_config": nil,
+				"keys_status":       nil,
+			},
+		})
+		return
+	}
+
+	limiter := common.GetKeyRateLimiter()
+	ctx := context.Background()
+
+	// 获取限流配置
+	var rateLimitConfig interface{}
+	if channel.ChannelInfo.KeyRateLimit != nil {
+		rateLimitConfig = gin.H{
+			"max_concurrency": channel.ChannelInfo.KeyRateLimit.MaxConcurrency,
+			"max_rpm":         channel.ChannelInfo.KeyRateLimit.MaxRPM,
+		}
+	}
+
+	// 获取每个密钥的状态
+	keys := channel.GetKeys()
+	keysStatus := make([]gin.H, 0, len(keys))
+
+	for i := range keys {
+		status := gin.H{
+			"index": i,
+		}
+
+		// 获取并发数
+		concurrency, _ := limiter.GetConcurrencyCount(ctx, id, i)
+		status["concurrency"] = concurrency
+
+		// 获取禁用状态
+		if channel.ChannelInfo.MultiKeyStatusList != nil {
+			if s, exists := channel.ChannelInfo.MultiKeyStatusList[i]; exists {
+				status["enabled"] = s == common.ChannelStatusEnabled
+				if s != common.ChannelStatusEnabled {
+					if channel.ChannelInfo.MultiKeyDisabledReason != nil {
+						status["disabled_reason"] = channel.ChannelInfo.MultiKeyDisabledReason[i]
+					}
+					if channel.ChannelInfo.MultiKeyDisabledTime != nil {
+						status["disabled_time"] = channel.ChannelInfo.MultiKeyDisabledTime[i]
+					}
+				}
+			} else {
+				status["enabled"] = true
+			}
+		} else {
+			status["enabled"] = true
+		}
+
+		keysStatus = append(keysStatus, status)
+	}
+
+	// 获取队列长度
+	queueLength, _ := limiter.GetQueueLength(ctx, id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"is_multi_key":       true,
+			"multi_key_size":     channel.ChannelInfo.MultiKeySize,
+			"multi_key_mode":     channel.ChannelInfo.MultiKeyMode,
+			"rate_limit_config":  rateLimitConfig,
+			"keys_status":        keysStatus,
+			"queue_length":       queueLength,
+		},
+	})
+}

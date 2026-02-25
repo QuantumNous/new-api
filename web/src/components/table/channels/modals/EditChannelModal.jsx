@@ -157,6 +157,9 @@ const EditChannelModal = (props) => {
     weight: 0,
     tag: '',
     multi_key_mode: 'random',
+    // 密钥限流配置
+    key_rate_limit_max_concurrency: 0,
+    key_rate_limit_max_rpm: 0,
     // 渠道额外设置的默认值
     force_format: false,
     thinking_to_content: false,
@@ -596,6 +599,14 @@ const EditChannelModal = (props) => {
         const modeVal = chInfo.multi_key_mode || 'random';
         setMultiKeyMode(modeVal);
         data.multi_key_mode = modeVal;
+        // 解析密钥限流配置
+        if (chInfo.key_rate_limit) {
+          data.key_rate_limit_max_concurrency = chInfo.key_rate_limit.max_concurrency || 0;
+          data.key_rate_limit_max_rpm = chInfo.key_rate_limit.max_rpm || 0;
+        } else {
+          data.key_rate_limit_max_concurrency = 0;
+          data.key_rate_limit_max_rpm = 0;
+        }
       } else {
         setBatch(false);
         setMultiToSingle(false);
@@ -1499,10 +1510,29 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.claude_beta_query;
 
+    // 清理密钥限流的临时字段（已合并到 channel_info）
+    delete localInputs.key_rate_limit_max_concurrency;
+    delete localInputs.key_rate_limit_max_rpm;
+
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
+
+    // 构建密钥限流配置（仅限多密钥模式）
+    if (multiToSingle && batch) {
+      const maxConcurrency = inputs.key_rate_limit_max_concurrency || 0;
+      const maxRpm = inputs.key_rate_limit_max_rpm || 0;
+      if (maxConcurrency > 0 || maxRpm > 0) {
+        localInputs.channel_info = {
+          ...localInputs.channel_info,
+          key_rate_limit: {
+            max_concurrency: maxConcurrency,
+            max_rpm: maxRpm,
+          },
+        };
+      }
+    }
 
     let mode = 'single';
     if (batch) {
@@ -2464,6 +2494,42 @@ const EditChannelModal = (props) => {
                             type='warning'
                             description={t(
                               '轮询模式必须搭配Redis和内存缓存功能使用，否则性能将大幅降低，并且无法实现轮询功能',
+                            )}
+                            className='!rounded-lg mt-2'
+                          />
+                        )}
+                        {/* 密钥限流配置 */}
+                        <Form.InputNumber
+                          field='key_rate_limit_max_concurrency'
+                          label={t('最大并发数')}
+                          placeholder={t('每个密钥的最大并发请求数')}
+                          min={0}
+                          max={1000}
+                          value={inputs.key_rate_limit_max_concurrency || 0}
+                          onChange={(value) =>
+                            handleInputChange('key_rate_limit_max_concurrency', value)
+                          }
+                          innerButtons
+                          helpText={t('每个密钥同时处理的最大请求数，0 表示不限制')}
+                        />
+                        <Form.InputNumber
+                          field='key_rate_limit_max_rpm'
+                          label={t('每分钟最大请求数 (RPM)')}
+                          placeholder={t('每个密钥每分钟的最大请求数')}
+                          min={0}
+                          max={100000}
+                          value={inputs.key_rate_limit_max_rpm || 0}
+                          onChange={(value) =>
+                            handleInputChange('key_rate_limit_max_rpm', value)
+                          }
+                          innerButtons
+                          helpText={t('每个密钥每分钟允许的最大请求数，0 表示不限制')}
+                        />
+                        {inputs.key_rate_limit_max_concurrency > 0 && (
+                          <Banner
+                            type='info'
+                            description={t(
+                              '启用限流后，当所有密钥都达到限制时，请求将进入队列等待，最多等待 30 秒',
                             )}
                             className='!rounded-lg mt-2'
                           />

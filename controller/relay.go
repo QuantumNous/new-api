@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -73,6 +74,16 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError *types.NewAPIError
 		ws          *websocket.Conn
 	)
+
+	// 释放密钥限流槽位
+	defer func() {
+		if acquired := common.GetContextKeyBool(c, constant.ContextKeyChannelKeyAcquired); acquired {
+			channelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+			keyIndex := common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+			limiter := common.GetKeyRateLimiter()
+			_ = limiter.ReleaseSlot(context.Background(), channelId, keyIndex)
+		}
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error

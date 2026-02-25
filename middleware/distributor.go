@@ -361,6 +361,31 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if newAPIError != nil {
 		return newAPIError
 	}
+
+	// 密钥限流：如果配置了限流，等待获取槽位
+	if channel.ChannelInfo.KeyRateLimit != nil && channel.ChannelInfo.KeyRateLimit.MaxConcurrency > 0 {
+		limiter := common.GetKeyRateLimiter()
+		config := channel.ChannelInfo.KeyRateLimit
+
+		// 获取所有启用的密钥索引
+		keys := channel.GetKeys()
+		enabledIndices := make([]int, 0)
+		for i := range keys {
+			enabledIndices = append(enabledIndices, i)
+		}
+
+		// 等待获取槽位，最多等待 30 秒
+		acquiredIndex, err := limiter.WaitForSlot(c.Request.Context(), channel.Id, enabledIndices, config, 30*time.Second)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeChannelNoAvailableKey)
+		}
+
+		// 更新为实际获取到槽位的密钥
+		index = acquiredIndex
+		key = keys[index]
+		common.SetContextKey(c, constant.ContextKeyChannelKeyAcquired, true)
+	}
+
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)

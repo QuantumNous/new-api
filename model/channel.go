@@ -65,6 +65,7 @@ type ChannelInfo struct {
 	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
 	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
+	KeyRateLimit           *common.KeyRateLimitConfig `json:"key_rate_limit,omitempty"` // 渠道级密钥限流配置
 }
 
 // Value implements driver.Valuer interface

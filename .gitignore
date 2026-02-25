@@ -27,3 +27,14 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+# Test files
+Dockerfile.test
+Dockerfile.lowmem
+docker-compose.test.yml
+docker-compose.official.yml
+
+# Build artifacts
+new-api-local
+
+# Temporary files
+web/public/semi-ui.css

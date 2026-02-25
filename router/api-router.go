@@ -236,6 +236,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.GET("/tag/models", controller.GetTagModels)
 			channelRoute.POST("/copy/:id", controller.CopyChannel)
 			channelRoute.POST("/multi_key/manage", controller.ManageMultiKeys)
+			channelRoute.GET("/rate_limit/status/:id", controller.GetChannelRateLimitStatus)
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())

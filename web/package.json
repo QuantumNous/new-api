@@ -10,6 +10,7 @@
     "@visactor/react-vchart": "~1.8.8",
     "@visactor/vchart": "~1.8.8",
     "@visactor/vchart-semi-theme": "~1.8.8",
+    "antd": "^6.3.1",
     "axios": "1.13.5",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",
