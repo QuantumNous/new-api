@@ -1483,6 +1483,7 @@
     "模型部署设置": "Model Deployment Settings",
     "模型配置": "Model Configuration",
     "模型前缀": "Model Prefix",
+    "模型前缀不能包含空白字符": "The model prefix cannot contain whitespace characters",
     "模型重定向": "Model mapping",
     "模型重定向里的下列模型尚未添加到“模型”列表，调用时会因为缺少可用模型而失败：": "The following models from the redirect have not been added to the “Models” list and requests will fail due to no available model:",
     "模型限制列表": "Model restrictions list",

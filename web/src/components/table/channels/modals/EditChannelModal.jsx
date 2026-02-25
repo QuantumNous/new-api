@@ -3060,9 +3060,28 @@ const EditChannelModal = (props) => {
                       field='model_prefix'
                       label={t('模型前缀')}
                       placeholder={t('例如：ProviderA 或 ProviderA/')}
+                      maxLength={64}
                       onChange={(value) =>
                         handleInputChange('model_prefix', value)
                       }
+                      rules={[
+                        {
+                          validator: (rule, value) => {
+                            if (value === undefined || value === null || value === '') {
+                              return Promise.resolve();
+                            }
+                            const str = String(value);
+                            if (/\s/.test(str)) {
+                              return Promise.reject(
+                                  new Error(
+                                      t('模型前缀不能包含空白字符'),
+                                  ),
+                              );
+                            }
+                            return Promise.resolve();
+                          },
+                        },
+                      ]}
                       showClear
                       extraText={t(
                         '可选，为该渠道的所有模型自动添加前缀，用于区分不同渠道。例如设置 "ProviderA"，模型 "gpt-5.2" 将显示为 "ProviderA/gpt-5.2"',

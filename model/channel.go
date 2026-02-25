@@ -48,7 +48,7 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
-	ModelPrefix       *string `json:"model_prefix" gorm:"type:varchar(64)"`
+	ModelPrefix       *string `json:"model_prefix" gorm:"type:varchar(64)" validate:"max=64"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
