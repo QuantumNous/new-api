@@ -839,6 +839,7 @@ type ChannelTag struct {
 	Priority       *int64  `json:"priority"`
 	Weight         *uint   `json:"weight"`
 	ModelMapping   *string `json:"model_mapping"`
+	ModelPrefix    *string `json:"model_prefix"`
 	Models         *string `json:"models"`
 	Groups         *string `json:"groups"`
 	ParamOverride  *string `json:"param_override"`
@@ -930,7 +931,7 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
+	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.ModelPrefix, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
 		return
