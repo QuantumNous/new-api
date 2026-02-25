@@ -48,20 +48,20 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
 
-const durationUnitOptions = [
-  { value: 'year', label: '年' },
-  { value: 'month', label: '月' },
-  { value: 'day', label: '日' },
-  { value: 'hour', label: '小时' },
-  { value: 'custom', label: '自定义(秒)' },
+const getDurationUnitOptions = (t) => [
+  { value: 'year', label: t('年') },
+  { value: 'month', label: t('月') },
+  { value: 'day', label: t('日') },
+  { value: 'hour', label: t('小时') },
+  { value: 'custom', label: t('自定义(秒)') },
 ];
 
-const resetPeriodOptions = [
-  { value: 'never', label: '不重置' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-  { value: 'custom', label: '自定义(秒)' },
+const getResetPeriodOptions = (t) => [
+  { value: 'never', label: t('不重置') },
+  { value: 'daily', label: t('每天') },
+  { value: 'weekly', label: t('每周') },
+  { value: 'monthly', label: t('每月') },
+  { value: 'custom', label: t('自定义(秒)') },
 ];
 
 const AddEditSubscriptionModal = ({
@@ -409,7 +409,7 @@ const AddEditSubscriptionModal = ({
                         required
                         rules={[{ required: true }]}
                       >
-                        {durationUnitOptions.map((o) => (
+                        {getDurationUnitOptions(t).map((o) => (
                           <Select.Option key={o.value} value={o.value}>
                             {o.label}
                           </Select.Option>
@@ -469,7 +469,7 @@ const AddEditSubscriptionModal = ({
                         field='quota_reset_period'
                         label={t('重置周期')}
                       >
-                        {resetPeriodOptions.map((o) => (
+                        {getResetPeriodOptions(t).map((o) => (
                           <Select.Option key={o.value} value={o.value}>
                             {o.label}
                           </Select.Option>

@@ -37,6 +37,8 @@ import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
+  formatSubscriptionResetPeriodShort,
+  getResetPeriodsCount,
 } from '../../helpers/subscriptionFormat';
 
 const { Text } = Typography;
@@ -491,10 +493,16 @@ const SubscriptionPlansCard = ({
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
+                const resetPeriodShort = formatSubscriptionResetPeriodShort(plan, t);
+                const resetCount = getResetPeriodsCount(plan);
                 const totalLabel =
                   totalAmount > 0
-                    ? `${t('总额度')}: ${renderQuota(totalAmount)}`
+                    ? `${t('总额度')}: ${renderQuota(totalAmount)}${resetPeriodShort}`
                     : `${t('总额度')}: ${t('不限')}`;
+                const estimatedTotalLabel =
+                  totalAmount > 0 && resetCount > 0
+                    ? `${t('预估总额度')}: ~${renderQuota(totalAmount * resetCount)}`
+                    : null;
                 const upgradeLabel = plan?.upgrade_group
                   ? `${t('升级分组')}: ${plan.upgrade_group}`
                   : null;
@@ -513,6 +521,12 @@ const SubscriptionPlansCard = ({
                         tooltip: `${t('原生额度')}：${totalAmount}`,
                       }
                     : { label: totalLabel },
+                  estimatedTotalLabel
+                    ? {
+                        label: estimatedTotalLabel,
+                        tooltip: `${renderQuota(totalAmount)} × ${resetCount} ${t('周期')}`,
+                      }
+                    : null,
                   limitLabel ? { label: limitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
                 ].filter(Boolean);

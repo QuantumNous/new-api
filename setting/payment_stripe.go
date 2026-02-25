@@ -1,5 +1,6 @@
 package setting
 
+var StripeEnabled = false
 var StripeApiSecret = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
