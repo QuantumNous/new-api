@@ -593,6 +593,15 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	// 校验模型前缀
+	if channel.ModelPrefix != nil {
+		trimmed := strings.TrimSpace(*channel.ModelPrefix)
+		if strings.ContainsFunc(trimmed, unicode.IsSpace) {
+			return fmt.Errorf("模型前缀不能包含空白字符")
+		}
+		channel.ModelPrefix = common.GetPointer[string](trimmed)
+	}
+
 	// VertexAI 特殊校验
 	if channel.Type == constant.ChannelTypeVertexAi {
 		if channel.Other == "" {
