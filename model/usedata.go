@@ -262,6 +262,9 @@ func checkRankParam(param rankCheckParam) (int, error) {
 	if param.endTime <= 0 {
 		return 0, errors.New("invalid end time")
 	}
+	if param.endTime < param.startTime {
+		return 0, errors.New("invalid time range")
+	}
 	if param.endTime-param.startTime > 2592000 {
 		return 0, errors.New("time span cannot exceed 1 month")
 	}
