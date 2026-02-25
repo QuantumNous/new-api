@@ -62,6 +62,13 @@ func GetUserQuotaDates(c *gin.Context) {
 func GetUserConsumeRankings(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "时间跨度不能超过 1 个月",
+		})
+		return
+	}
 	username := c.Query("username")
 	limit := parseRankLimit(c.Query("limit"), defaultUserRankLimit, maxUserRankLimit)
 
