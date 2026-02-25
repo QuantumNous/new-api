@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -124,6 +125,19 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 }
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	return GetUserQuotaDates(userId, startTime, endTime)
+}
+
+func GetUserQuotaDates(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	if _, err = checkRankParam(rankCheckParam{
+		userID:      userId,
+		checkUserID: true,
+		startTime:   startTime,
+		endTime:     endTime,
+	}); err != nil {
+		return nil, err
+	}
+
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
 	err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
@@ -143,11 +157,16 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 }
 
 func GetUserConsumeRankings(startTime int64, endTime int64, limit int, username string) (tokenRank []*UserConsumeRank, quotaRank []*UserConsumeRank, err error) {
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
+	limit, err = checkRankParam(rankCheckParam{
+		startTime:    startTime,
+		endTime:      endTime,
+		limit:        limit,
+		defaultLimit: 20,
+		maxLimit:     100,
+		checkLimit:   true,
+	})
+	if err != nil {
+		return nil, nil, err
 	}
 
 	getBaseQuery := func() *gorm.DB {
@@ -170,7 +189,7 @@ func GetUserConsumeRankings(startTime int64, endTime int64, limit int, username 
 	}
 
 	err = getBaseQuery().Select(selectField).
-		Group("user_id, username").
+		Group("user_id").
 		Order("quota DESC").
 		Order("username ASC").
 		Limit(limit).
@@ -182,11 +201,18 @@ func GetUserConsumeRankings(startTime int64, endTime int64, limit int, username 
 }
 
 func GetUserModelConsumeRankings(userId int, startTime int64, endTime int64, limit int) (tokenRank []*UserModelConsumeRank, quotaRank []*UserModelConsumeRank, err error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 200 {
-		limit = 200
+	limit, err = checkRankParam(rankCheckParam{
+		userID:       userId,
+		checkUserID:  true,
+		startTime:    startTime,
+		endTime:      endTime,
+		limit:        limit,
+		defaultLimit: 50,
+		maxLimit:     200,
+		checkLimit:   true,
+	})
+	if err != nil {
+		return nil, nil, err
 	}
 
 	getBaseQuery := func() *gorm.DB {
@@ -213,4 +239,42 @@ func GetUserModelConsumeRankings(userId int, startTime int64, endTime int64, lim
 		return nil, nil, err
 	}
 	return tokenRank, quotaRank, nil
+}
+
+type rankCheckParam struct {
+	userID       int
+	checkUserID  bool
+	startTime    int64
+	endTime      int64
+	limit        int
+	defaultLimit int
+	maxLimit     int
+	checkLimit   bool
+}
+
+func checkRankParam(param rankCheckParam) (int, error) {
+	if param.checkUserID && param.userID <= 0 {
+		return 0, errors.New("invalid user id")
+	}
+	if param.startTime <= 0 {
+		return 0, errors.New("invalid start time")
+	}
+	if param.endTime <= 0 {
+		return 0, errors.New("invalid end time")
+	}
+	if param.endTime-param.startTime > 2592000 {
+		return 0, errors.New("time span cannot exceed 1 month")
+	}
+
+	if !param.checkLimit {
+		return 0, nil
+	}
+	limit := param.limit
+	if limit <= 0 {
+		limit = param.defaultLimit
+	}
+	if param.maxLimit > 0 && limit > param.maxLimit {
+		limit = param.maxLimit
+	}
+	return limit, nil
 }

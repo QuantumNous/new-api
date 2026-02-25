@@ -46,7 +46,8 @@ func GetUserQuotaDates(c *gin.Context) {
 		})
 		return
 	}
-	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
+
+	dates, err := model.GetUserQuotaDates(userId, startTimestamp, endTimestamp)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -69,6 +70,7 @@ func GetUserConsumeRankings(c *gin.Context) {
 		})
 		return
 	}
+
 	username := c.Query("username")
 	limit := parseRankLimit(c.Query("limit"), defaultUserRankLimit, maxUserRankLimit)
 

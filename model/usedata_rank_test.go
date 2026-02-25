@@ -76,3 +76,88 @@ func TestGetUserModelConsumeRankings(t *testing.T) {
 	assert.Equal(t, "gpt-4o", quotaRank[1].ModelName)
 	assert.EqualValues(t, 150, quotaRank[1].Quota)
 }
+
+func TestGetUserConsumeRankingsParamValidation(t *testing.T) {
+	prepareQuotaDataRankTest(t)
+
+	_, _, err := GetUserConsumeRankings(0, 2000, 10, "")
+	require.Error(t, err)
+	assert.Equal(t, "invalid start time", err.Error())
+
+	_, _, err = GetUserConsumeRankings(1000, 1000+2592001, 10, "")
+	require.Error(t, err)
+	assert.Equal(t, "time span cannot exceed 1 month", err.Error())
+}
+
+func TestGetUserModelConsumeRankingsParamValidation(t *testing.T) {
+	prepareQuotaDataRankTest(t)
+
+	_, _, err := GetUserModelConsumeRankings(0, 1000, 2000, 10)
+	require.Error(t, err)
+	assert.Equal(t, "invalid user id", err.Error())
+
+	_, _, err = GetUserModelConsumeRankings(1, 1000, 1000+2592001, 10)
+	require.Error(t, err)
+	assert.Equal(t, "time span cannot exceed 1 month", err.Error())
+}
+
+func TestGetUserQuotaDatesParamValidation(t *testing.T) {
+	prepareQuotaDataRankTest(t)
+
+	_, err := GetUserQuotaDates(0, 1000, 2000)
+	require.Error(t, err)
+	assert.Equal(t, "invalid user id", err.Error())
+
+	_, err = GetUserQuotaDates(1, 1000, 1000+2592001)
+	require.Error(t, err)
+	assert.Equal(t, "time span cannot exceed 1 month", err.Error())
+}
+
+func TestCheckRankParamOptionalUserID(t *testing.T) {
+	limit, err := checkRankParam(rankCheckParam{
+		startTime:    1000,
+		endTime:      2000,
+		limit:        0,
+		defaultLimit: 20,
+		maxLimit:     100,
+		checkLimit:   true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 20, limit)
+
+	_, err = checkRankParam(rankCheckParam{
+		userID:       0,
+		checkUserID:  true,
+		startTime:    1000,
+		endTime:      2000,
+		limit:        10,
+		defaultLimit: 10,
+		maxLimit:     100,
+		checkLimit:   true,
+	})
+	require.Error(t, err)
+	assert.Equal(t, "invalid user id", err.Error())
+}
+
+func TestCheckRankParamLimitBounds(t *testing.T) {
+	limit, err := checkRankParam(rankCheckParam{
+		startTime:    1000,
+		endTime:      2000,
+		limit:        999,
+		defaultLimit: 20,
+		maxLimit:     100,
+		checkLimit:   true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 100, limit)
+
+	limit, err = checkRankParam(rankCheckParam{
+		userID:      1,
+		checkUserID: true,
+		startTime:   1000,
+		endTime:     2000,
+		checkLimit:  false,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 0, limit)
+}
