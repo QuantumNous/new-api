@@ -21,6 +21,21 @@ type QuotaData struct {
 	Quota     int    `json:"quota" gorm:"default:0"`
 }
 
+type UserConsumeRank struct {
+	UserID    int    `json:"user_id"`
+	Username  string `json:"username"`
+	TokenUsed int64  `json:"token_used"`
+	Count     int64  `json:"count"`
+	Quota     int64  `json:"quota"`
+}
+
+type UserModelConsumeRank struct {
+	ModelName string `json:"model_name"`
+	TokenUsed int64  `json:"token_used"`
+	Count     int64  `json:"count"`
+	Quota     int64  `json:"quota"`
+}
+
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
@@ -125,4 +140,77 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+func GetUserConsumeRankings(startTime int64, endTime int64, limit int, username string) (tokenRank []*UserConsumeRank, quotaRank []*UserConsumeRank, err error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	getBaseQuery := func() *gorm.DB {
+		baseQuery := DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime)
+		if username != "" {
+			baseQuery = baseQuery.Where("username = ?", username)
+		}
+		return baseQuery
+	}
+
+	selectField := "user_id, username, sum(token_used) as token_used, sum(count) as count, sum(quota) as quota"
+	err = getBaseQuery().Select(selectField).
+		Group("user_id, username").
+		Order("token_used DESC").
+		Order("username ASC").
+		Limit(limit).
+		Find(&tokenRank).Error
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = getBaseQuery().Select(selectField).
+		Group("user_id, username").
+		Order("quota DESC").
+		Order("username ASC").
+		Limit(limit).
+		Find(&quotaRank).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokenRank, quotaRank, nil
+}
+
+func GetUserModelConsumeRankings(userId int, startTime int64, endTime int64, limit int) (tokenRank []*UserModelConsumeRank, quotaRank []*UserModelConsumeRank, err error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	getBaseQuery := func() *gorm.DB {
+		return DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime)
+	}
+	selectField := "model_name, sum(token_used) as token_used, sum(count) as count, sum(quota) as quota"
+	err = getBaseQuery().Select(selectField).
+		Group("model_name").
+		Order("token_used DESC").
+		Order("model_name ASC").
+		Limit(limit).
+		Find(&tokenRank).Error
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = getBaseQuery().Select(selectField).
+		Group("model_name").
+		Order("quota DESC").
+		Order("model_name ASC").
+		Limit(limit).
+		Find(&quotaRank).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	return tokenRank, quotaRank, nil
 }

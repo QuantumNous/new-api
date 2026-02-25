@@ -10,6 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultUserRankLimit      = 20
+	maxUserRankLimit          = 100
+	defaultUserModelRankLimit = 50
+	maxUserModelRankLimit     = 200
+)
+
 func GetAllQuotaDates(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -50,4 +57,70 @@ func GetUserQuotaDates(c *gin.Context) {
 		"data":    dates,
 	})
 	return
+}
+
+func GetUserConsumeRankings(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	limit := parseRankLimit(c.Query("limit"), defaultUserRankLimit, maxUserRankLimit)
+
+	tokenRank, quotaRank, err := model.GetUserConsumeRankings(startTimestamp, endTimestamp, limit, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"token_rank": tokenRank,
+			"quota_rank": quotaRank,
+		},
+	})
+}
+
+func GetUserModelConsumeRankings(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil || userId <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的用户ID",
+		})
+		return
+	}
+
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit := parseRankLimit(c.Query("limit"), defaultUserModelRankLimit, maxUserModelRankLimit)
+
+	tokenRank, quotaRank, err := model.GetUserModelConsumeRankings(userId, startTimestamp, endTimestamp, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"user_id":    userId,
+			"token_rank": tokenRank,
+			"quota_rank": quotaRank,
+		},
+	})
+}
+
+func parseRankLimit(raw string, defaultValue int, maxValue int) int {
+	limit := defaultValue
+	if raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > maxValue {
+		limit = maxValue
+	}
+	return limit
 }
