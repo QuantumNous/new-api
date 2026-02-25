@@ -91,7 +91,7 @@ func GetUserConsumeRankings(c *gin.Context) {
 func GetUserModelConsumeRankings(c *gin.Context) {
 	userId, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil || userId <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的用户ID",
 		})
