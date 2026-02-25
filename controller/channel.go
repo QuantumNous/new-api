@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -933,7 +934,7 @@ func EditTagChannels(c *gin.Context) {
 	}
 	if channelTag.ModelPrefix != nil {
 		trimmed := strings.TrimSpace(*channelTag.ModelPrefix)
-		if strings.ContainsAny(trimmed, " \t\r\n") {
+		if strings.ContainsFunc(trimmed, unicode.IsSpace) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "模型前缀不能包含空白字符",
