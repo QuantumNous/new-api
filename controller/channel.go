@@ -931,6 +931,17 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
+	if channelTag.ModelPrefix != nil {
+		trimmed := strings.TrimSpace(*channelTag.ModelPrefix)
+		if strings.ContainsAny(trimmed, " \t\r\n") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型前缀不能包含空白字符",
+			})
+			return
+		}
+		channelTag.ModelPrefix = common.GetPointer[string](trimmed)
+	}
 	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.ModelPrefix, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
