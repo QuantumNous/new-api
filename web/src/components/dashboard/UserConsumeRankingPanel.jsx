@@ -286,18 +286,12 @@ const UserConsumeRankingPanel = ({
       </Card>
 
       <Modal
-        title={`${selectedUser?.username || '-'} ${t('用户模型消耗排行')}`}
+        title={`${selectedUser?.username || '-'} ${t('模型消耗排行')}`}
         visible={userModelModalVisible}
         onCancel={handleCloseUserModelModal}
         footer={null}
         size={isMobile ? 'full-width' : 'large'}
       >
-        <div className='mb-3'>
-          <div className={FLEX_CENTER_GAP2}>
-            <ListOrdered size={16} />
-            {t('点开用户后查看各模型消耗排行')}
-          </div>
-        </div>
         <Tabs
           type='line'
           activeKey={modelActiveTab}

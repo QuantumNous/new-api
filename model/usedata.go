@@ -158,9 +158,9 @@ func GetUserConsumeRankings(startTime int64, endTime int64, limit int, username 
 		return baseQuery
 	}
 
-	selectField := "user_id, username, sum(token_used) as token_used, sum(count) as count, sum(quota) as quota"
+	selectField := "user_id, MAX(username) as username, sum(token_used) as token_used, sum(count) as count, sum(quota) as quota"
 	err = getBaseQuery().Select(selectField).
-		Group("user_id, username").
+		Group("user_id").
 		Order("token_used DESC").
 		Order("username ASC").
 		Limit(limit).
