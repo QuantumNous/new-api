@@ -685,12 +685,12 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// Responses-only models (e.g. codex series)
+	// Responses-only models (e.g. codex series) — always stream
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
-			Stream: isStream,
+			Stream: true,
 		}
 	}
 
