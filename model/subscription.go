@@ -399,39 +399,16 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+// downgradeUserGroupForSubscriptionTx resolves the user's group after a subscription is invalidated/deleted.
+// Uses the unified resolveUserGroupBySubscriptions logic instead of per-subscription prev_user_group.
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
 	}
-	upgradeGroup := strings.TrimSpace(sub.UpgradeGroup)
-	if upgradeGroup == "" {
+	if strings.TrimSpace(sub.UpgradeGroup) == "" {
 		return "", nil
 	}
-	currentGroup, err := getUserGroupByIdTx(tx, sub.UserId)
-	if err != nil {
-		return "", err
-	}
-	if currentGroup != upgradeGroup {
-		return "", nil
-	}
-	var activeSub UserSubscription
-	activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND id <> ? AND upgrade_group <> ''",
-		sub.UserId, "active", now, sub.Id).
-		Order("end_time desc, id desc").
-		Limit(1).
-		Find(&activeSub)
-	if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
-		return "", nil
-	}
-	prevGroup := strings.TrimSpace(sub.PrevUserGroup)
-	if prevGroup == "" || prevGroup == currentGroup {
-		return "", nil
-	}
-	if err := tx.Model(&User{}).Where("id = ?", sub.UserId).
-		Update("group", prevGroup).Error; err != nil {
-		return "", err
-	}
-	return prevGroup, nil
+	return applyResolvedUserGroup(tx, sub.UserId)
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
@@ -468,20 +445,8 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		lastReset = now.Unix()
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	prevGroup := ""
-	if upgradeGroup != "" {
-		currentGroup, err := getUserGroupByIdTx(tx, userId)
-		if err != nil {
-			return nil, err
-		}
-		if currentGroup != upgradeGroup {
-			prevGroup = currentGroup
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("group", upgradeGroup).Error; err != nil {
-				return nil, err
-			}
-		}
-	}
+	// No longer modify user group here — caller uses applyResolvedUserGroup after creating subscription.
+	// prev_user_group is kept for backward compatibility but no longer read by resolve logic.
 	sub := &UserSubscription{
 		UserId:        userId,
 		PlanId:        plan.Id,
@@ -494,7 +459,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		LastResetTime: lastReset,
 		NextResetTime: nextReset,
 		UpgradeGroup:  upgradeGroup,
-		PrevUserGroup: prevGroup,
+		PrevUserGroup: "", // deprecated: kept for backward compatibility, no longer used by resolve logic
 		CreatedAt:     common.GetTimestamp(),
 		UpdatedAt:     common.GetTimestamp(),
 	}
@@ -517,7 +482,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
-	var upgradeGroup string
+	var resolvedGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -536,8 +501,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 		if !plan.Enabled {
 			// still allow completion for already purchased orders
 		}
-		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
 		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		if err != nil {
+			return err
+		}
+		resolvedGroup, err = applyResolvedUserGroup(tx, order.UserId)
 		if err != nil {
 			return err
 		}
@@ -561,8 +529,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 	if err != nil {
 		return err
 	}
-	if upgradeGroup != "" && logUserId > 0 {
-		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
+	if resolvedGroup != "" && logUserId > 0 {
+		_ = UpdateUserGroupCache(logUserId, resolvedGroup)
 	}
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
@@ -627,8 +595,61 @@ func ExpireSubscriptionOrder(tradeNo string) error {
 	})
 }
 
+// resolveUserGroupBySubscriptions calculates the user's group based on active subscriptions.
+// If there are active subscriptions with upgrade_group, returns the upgrade_group of the latest-started one.
+// Otherwise, returns the user's base_level.
+func resolveUserGroupBySubscriptions(tx *gorm.DB, userId int) (string, error) {
+	if tx == nil {
+		tx = DB
+	}
+	if userId <= 0 {
+		return "", errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var activeSub UserSubscription
+	result := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''",
+		userId, "active", now).
+		Order("start_time desc, id desc").
+		Limit(1).
+		Find(&activeSub)
+	if result.Error != nil {
+		return "", result.Error
+	}
+	if result.RowsAffected > 0 {
+		return strings.TrimSpace(activeSub.UpgradeGroup), nil
+	}
+	// No active upgraded subscription, return base_level
+	var baseLevel string
+	if err := tx.Model(&User{}).Where("id = ?", userId).Select("base_level").Find(&baseLevel).Error; err != nil {
+		return "", err
+	}
+	if baseLevel == "" {
+		baseLevel = "default"
+	}
+	return baseLevel, nil
+}
+
+// applyResolvedUserGroup resolves the user's group and updates it if different from current.
+// Returns the resolved group for cache update purposes.
+func applyResolvedUserGroup(tx *gorm.DB, userId int) (string, error) {
+	resolved, err := resolveUserGroupBySubscriptions(tx, userId)
+	if err != nil {
+		return "", err
+	}
+	currentGroup, err := getUserGroupByIdTx(tx, userId)
+	if err != nil {
+		return "", err
+	}
+	if currentGroup != resolved {
+		if err := tx.Model(&User{}).Where("id = ?", userId).Update("group", resolved).Error; err != nil {
+			return "", err
+		}
+	}
+	return resolved, nil
+}
+
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
+func AdminBindSubscription(userId int, planId int, sourceNote string, overrideUpgradeGroup string) (string, error) {
 	if userId <= 0 || planId <= 0 {
 		return "", errors.New("invalid userId or planId")
 	}
@@ -636,16 +657,27 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	if err != nil {
 		return "", err
 	}
+	// If overrideUpgradeGroup is provided, copy plan and override its UpgradeGroup
+	if strings.TrimSpace(overrideUpgradeGroup) != "" {
+		planCopy := *plan
+		planCopy.UpgradeGroup = strings.TrimSpace(overrideUpgradeGroup)
+		plan = &planCopy
+	}
+	var resolvedGroup string
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
+		if err != nil {
+			return err
+		}
+		resolvedGroup, err = applyResolvedUserGroup(tx, userId)
 		return err
 	})
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(plan.UpgradeGroup) != "" {
-		_ = UpdateUserGroupCache(userId, plan.UpgradeGroup)
-		return fmt.Sprintf("用户分组将升级到 %s", plan.UpgradeGroup), nil
+	if resolvedGroup != "" {
+		_ = UpdateUserGroupCache(userId, resolvedGroup)
+		return fmt.Sprintf("用户分组将升级到 %s", resolvedGroup), nil
 	}
 	return "", nil
 }
@@ -842,44 +874,12 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			}
 			expiredCount += int(res.RowsAffected)
 
-			// If there's an active upgraded subscription, keep current group.
-			var activeSub UserSubscription
-			activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''",
-				userId, "active", now).
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&activeSub)
-			if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
-				return nil
-			}
-
-			// No active upgraded subscription, downgrade to previous group if needed.
-			var lastExpired UserSubscription
-			expiredQuery := tx.Where("user_id = ? AND status = ? AND upgrade_group <> ''",
-				userId, "expired").
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&lastExpired)
-			if expiredQuery.Error != nil || expiredQuery.RowsAffected == 0 {
-				return nil
-			}
-			upgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
-			prevGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
-			if upgradeGroup == "" || prevGroup == "" {
-				return nil
-			}
-			currentGroup, err := getUserGroupByIdTx(tx, userId)
+			// Resolve user group based on remaining active subscriptions or base_level
+			resolved, err := applyResolvedUserGroup(tx, userId)
 			if err != nil {
 				return err
 			}
-			if currentGroup != upgradeGroup || currentGroup == prevGroup {
-				return nil
-			}
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("group", prevGroup).Error; err != nil {
-				return err
-			}
-			cacheGroup = prevGroup
+			cacheGroup = resolved
 			return nil
 		})
 		if err != nil {

@@ -288,7 +288,7 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "", "")
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -332,7 +332,7 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, "", "")
 	if err != nil {
 		common.ApiError(c, err)
 		return

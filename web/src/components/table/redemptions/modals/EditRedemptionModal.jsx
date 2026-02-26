@@ -62,14 +62,18 @@ const EditRedemptionModal = (props) => {
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [groupOptions, setGroupOptions] = useState([]);
+  const [groupLoading, setGroupLoading] = useState(false);
 
   const getInitValues = () => ({
     name: '',
     quota: 100000,
     count: 1,
     expired_time: null,
-    type: 1, // 1=余额充值, 2=订阅套餐
+    type: 1, // 1=余额充值, 2=订阅套餐, 3=联合兑换
     subscription_plan_id: 0,
+    upgrade_group: '',
+    upgrade_group_rollback: true,
   });
 
   const handleCancel = () => {
@@ -111,8 +115,25 @@ const EditRedemptionModal = (props) => {
     }
   };
 
+  const loadGroupOptions = async () => {
+    setGroupLoading(true);
+    try {
+      const res = await API.get('/api/group');
+      if (res.data?.success) {
+        setGroupOptions(res.data?.data || []);
+      } else {
+        setGroupOptions([]);
+      }
+    } catch {
+      setGroupOptions([]);
+    } finally {
+      setGroupLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSubscriptionPlans();
+    loadGroupOptions();
   }, []);
 
   useEffect(() => {
@@ -125,12 +146,22 @@ const EditRedemptionModal = (props) => {
     }
   }, [props.editingRedemption.id]);
 
+  // 是否显示额度输入（type=1 或 type=3）
+  const showQuota = (type) => type === 1 || type === 3;
+  // 是否显示订阅套餐选择（type=2 或 type=3）
+  const showSubscription = (type) => type === 2 || type === 3;
+  // 是否显示升级分组（所有类型都支持）
+  const showUpgradeGroup = (type) => type === 1 || type === 2 || type === 3;
+
   const submit = async (values) => {
     let name = values.name;
     if (!isEdit && (!name || name === '')) {
       if (values.type === 2) {
         const plan = subscriptionPlans.find(p => p.value === values.subscription_plan_id);
         name = plan ? `订阅-${plan.label}` : '订阅兑换码';
+      } else if (values.type === 3) {
+        const plan = subscriptionPlans.find(p => p.value === values.subscription_plan_id);
+        name = plan ? `联合-${renderQuota(values.quota)}+${plan.label}` : renderQuota(values.quota);
       } else {
         name = renderQuota(values.quota);
       }
@@ -142,6 +173,13 @@ const EditRedemptionModal = (props) => {
     localInputs.name = name;
     localInputs.type = parseInt(localInputs.type) || 1;
     localInputs.subscription_plan_id = parseInt(localInputs.subscription_plan_id) || 0;
+    localInputs.upgrade_group = localInputs.upgrade_group || '';
+    // type=1 无订阅，不支持到期回退，强制 false
+    if (localInputs.type === 1) {
+      localInputs.upgrade_group_rollback = false;
+    } else {
+      localInputs.upgrade_group_rollback = !!localInputs.upgrade_group_rollback;
+    }
     if (!localInputs.expired_time) {
       localInputs.expired_time = 0;
     } else {
@@ -194,6 +232,13 @@ const EditRedemptionModal = (props) => {
       });
     }
     setLoading(false);
+  };
+
+  // 获取第二张卡片的标题和描述
+  const getSettingsCardInfo = (type) => {
+    if (type === 3) return { title: t('联合兑换设置'), desc: t('设置额度、订阅套餐和分组升级') };
+    if (type === 2) return { title: t('订阅设置'), desc: t('选择要兑换的订阅套餐和分组升级') };
+    return { title: t('额度设置'), desc: t('设置兑换码的额度和数量') };
   };
 
   return (
@@ -250,172 +295,213 @@ const EditRedemptionModal = (props) => {
             getFormApi={(api) => (formApiRef.current = api)}
             onSubmit={submit}
           >
-            {({ values }) => (
-              <div className='p-2'>
-                <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
-                  {/* Header: Basic Info */}
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='blue'
-                      className='mr-2 shadow-md'
-                    >
-                      <IconGift size={16} />
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {t('基本信息')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {t('设置兑换码的基本信息')}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Row gutter={12}>
-                    <Col span={24}>
-                      <Form.Input
-                        field='name'
-                        label={t('名称')}
-                        placeholder={t('请输入名称')}
-                        style={{ width: '100%' }}
-                        rules={
-                          !isEdit
-                            ? []
-                            : [{ required: true, message: t('请输入名称') }]
-                        }
-                        showClear
-                      />
-                    </Col>
-                    <Col span={24}>
-                      <Form.DatePicker
-                        field='expired_time'
-                        label={t('过期时间')}
-                        type='dateTime'
-                        placeholder={t('选择过期时间（可选，留空为永久）')}
-                        style={{ width: '100%' }}
-                        showClear
-                      />
-                    </Col>
-                    <Col span={24}>
-                      <Form.RadioGroup
-                        field='type'
-                        label={t('兑换码类型')}
-                        type='button'
-                        buttonSize='middle'
-                        rules={[{ required: true, message: t('请选择兑换码类型') }]}
+            {({ values }) => {
+              const cardInfo = getSettingsCardInfo(values.type);
+              return (
+                <div className='p-2'>
+                  <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
+                    {/* Header: Basic Info */}
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='blue'
+                        className='mr-2 shadow-md'
                       >
-                        <Radio value={1}>{t('余额充值')}</Radio>
-                        <Radio value={2}>{t('订阅套餐')}</Radio>
-                      </Form.RadioGroup>
-                    </Col>
-                  </Row>
-                </Card>
-
-                <Card className='!rounded-2xl shadow-sm border-0'>
-                  {/* Header: Quota Settings */}
-                  <div className='flex items-center mb-2'>
-                    <Avatar
-                      size='small'
-                      color='green'
-                      className='mr-2 shadow-md'
-                    >
-                      {values.type === 2 ? (
-                        <IconCrown size={16} />
-                      ) : (
-                        <IconCreditCard size={16} />
-                      )}
-                    </Avatar>
-                    <div>
-                      <Text className='text-lg font-medium'>
-                        {values.type === 2 ? t('订阅设置') : t('额度设置')}
-                      </Text>
-                      <div className='text-xs text-gray-600'>
-                        {values.type === 2
-                          ? t('选择要兑换的订阅套餐')
-                          : t('设置兑换码的额度和数量')}
+                        <IconGift size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('基本信息')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('设置兑换码的基本信息')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <Row gutter={12}>
-                    {values.type === 2 ? (
+                    <Row gutter={12}>
                       <Col span={24}>
-                        <Form.Select
-                          field='subscription_plan_id'
-                          label={t('订阅套餐')}
-                          placeholder={t('请选择订阅套餐')}
+                        <Form.Input
+                          field='name'
+                          label={t('名称')}
+                          placeholder={t('请输入名称')}
                           style={{ width: '100%' }}
-                          optionList={subscriptionPlans}
-                          rules={[
-                            {
-                              required: true,
-                              message: t('请选择订阅套餐'),
-                            },
-                          ]}
+                          rules={
+                            !isEdit
+                              ? []
+                              : [{ required: true, message: t('请输入名称') }]
+                          }
                           showClear
                         />
                       </Col>
-                    ) : (
-                      <Col span={12}>
-                        <Form.AutoComplete
-                          field='quota'
-                          label={t('额度')}
-                          placeholder={t('请输入额度')}
+                      <Col span={24}>
+                        <Form.DatePicker
+                          field='expired_time'
+                          label={t('过期时间')}
+                          type='dateTime'
+                          placeholder={t('选择过期时间（可选，留空为永久）')}
                           style={{ width: '100%' }}
-                          type='number'
-                          rules={[
-                            { required: true, message: t('请输入额度') },
-                            {
-                              validator: (rule, v) => {
-                                const num = parseInt(v, 10);
-                                return num > 0
-                                  ? Promise.resolve()
-                                  : Promise.reject(t('额度必须大于0'));
+                          showClear
+                        />
+                      </Col>
+                      <Col span={24}>
+                        <Form.RadioGroup
+                          field='type'
+                          label={t('兑换码类型')}
+                          type='button'
+                          buttonSize='middle'
+                          rules={[{ required: true, message: t('请选择兑换码类型') }]}
+                        >
+                          <Radio value={1}>{t('余额充值')}</Radio>
+                          <Radio value={2}>{t('订阅套餐')}</Radio>
+                          <Radio value={3}>{t('联合兑换')}</Radio>
+                        </Form.RadioGroup>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    {/* Header: Settings */}
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='green'
+                        className='mr-2 shadow-md'
+                      >
+                        {showSubscription(values.type) ? (
+                          <IconCrown size={16} />
+                        ) : (
+                          <IconCreditCard size={16} />
+                        )}
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {cardInfo.title}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {cardInfo.desc}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Row gutter={12}>
+                      {/* 额度输入：type=1 或 type=3 */}
+                      {showQuota(values.type) && (
+                        <Col span={12}>
+                          <Form.AutoComplete
+                            field='quota'
+                            label={t('额度')}
+                            placeholder={t('请输入额度')}
+                            style={{ width: '100%' }}
+                            type='number'
+                            rules={[
+                              { required: true, message: t('请输入额度') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('额度必须大于0'));
+                                },
                               },
-                            },
-                          ]}
-                          extraText={renderQuotaWithPrompt(
-                            Number(values.quota) || 0,
-                          )}
-                          data={[
-                            { value: 500000, label: '1$' },
-                            { value: 5000000, label: '10$' },
-                            { value: 25000000, label: '50$' },
-                            { value: 50000000, label: '100$' },
-                            { value: 250000000, label: '500$' },
-                            { value: 500000000, label: '1000$' },
-                          ]}
-                          showClear
-                        />
-                      </Col>
-                    )}
-                    {!isEdit && (
-                      <Col span={values.type === 2 ? 24 : 12}>
-                        <Form.InputNumber
-                          field='count'
-                          label={t('生成数量')}
-                          min={1}
-                          rules={[
-                            { required: true, message: t('请输入生成数量') },
-                            {
-                              validator: (rule, v) => {
-                                const num = parseInt(v, 10);
-                                return num > 0
-                                  ? Promise.resolve()
-                                  : Promise.reject(t('生成数量必须大于0'));
+                            ]}
+                            extraText={renderQuotaWithPrompt(
+                              Number(values.quota) || 0,
+                            )}
+                            data={[
+                              { value: 500000, label: '1$' },
+                              { value: 5000000, label: '10$' },
+                              { value: 25000000, label: '50$' },
+                              { value: 50000000, label: '100$' },
+                              { value: 250000000, label: '500$' },
+                              { value: 500000000, label: '1000$' },
+                            ]}
+                            showClear
+                          />
+                        </Col>
+                      )}
+
+                      {/* 订阅套餐选择：type=2 或 type=3 */}
+                      {showSubscription(values.type) && (
+                        <Col span={values.type === 3 ? 12 : 24}>
+                          <Form.Select
+                            field='subscription_plan_id'
+                            label={t('订阅套餐')}
+                            placeholder={t('请选择订阅套餐')}
+                            style={{ width: '100%' }}
+                            optionList={subscriptionPlans}
+                            rules={[
+                              {
+                                required: true,
+                                message: t('请选择订阅套餐'),
                               },
-                            },
-                          ]}
-                          style={{ width: '100%' }}
-                          showClear
-                        />
-                      </Col>
-                    )}
-                  </Row>
-                </Card>
-              </div>
-            )}
+                            ]}
+                            showClear
+                          />
+                        </Col>
+                      )}
+
+                      {/* 生成数量：仅新建时 */}
+                      {!isEdit && (
+                        <Col span={12}>
+                          <Form.InputNumber
+                            field='count'
+                            label={t('生成数量')}
+                            min={1}
+                            rules={[
+                              { required: true, message: t('请输入生成数量') },
+                              {
+                                validator: (rule, v) => {
+                                  const num = parseInt(v, 10);
+                                  return num > 0
+                                    ? Promise.resolve()
+                                    : Promise.reject(t('生成数量必须大于0'));
+                                },
+                              },
+                            ]}
+                            style={{ width: '100%' }}
+                            showClear
+                          />
+                        </Col>
+                      )}
+
+                      {/* 升级分组：所有类型 */}
+                      {showUpgradeGroup(values.type) && (
+                        <Col span={12}>
+                          <Form.Select
+                            field='upgrade_group'
+                            label={t('升级分组')}
+                            showClear
+                            loading={groupLoading}
+                            placeholder={t('不升级')}
+                            style={{ width: '100%' }}
+                            extraText={t('兑换后将用户升级到该分组')}
+                          >
+                            <Select.Option value=''>{t('不升级')}</Select.Option>
+                            {(groupOptions || []).map((g) => (
+                              <Select.Option key={g} value={g}>
+                                {g}
+                              </Select.Option>
+                            ))}
+                          </Form.Select>
+                        </Col>
+                      )}
+
+                      {/* 到期回退开关：upgrade_group 非空且 type=2 或 type=3 */}
+                      {showUpgradeGroup(values.type) && values.upgrade_group && (values.type === 2 || values.type === 3) && (
+                        <Col span={12}>
+                          <Form.Switch
+                            field='upgrade_group_rollback'
+                            label={t('到期回退分组')}
+                            extraText={t('开启后订阅到期时自动回退到原分组，关闭则永久升级')}
+                          />
+                        </Col>
+                      )}
+                    </Row>
+                  </Card>
+                </div>
+              );
+            }}
           </Form>
         </Spin>
       </SideSheet>

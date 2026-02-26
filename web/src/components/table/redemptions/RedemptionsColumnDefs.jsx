@@ -77,17 +77,40 @@ const renderStatus = (status, record, t) => {
  * Render redemption code type
  */
 const renderType = (type, record, t) => {
+  const rollbackLabel = record.upgrade_group_rollback ? t('到期回退') : '';
+  const upgradeTag = record.upgrade_group ? (
+    <Tag color='cyan' shape='circle'>
+      {record.upgrade_group}{rollbackLabel ? ` (${rollbackLabel})` : ''}
+    </Tag>
+  ) : null;
+
   if (type === 2) {
     return (
-      <Tag color='purple' shape='circle'>
-        {t('订阅套餐')}
-      </Tag>
+      <Space>
+        <Tag color='purple' shape='circle'>
+          {t('订阅套餐')}
+        </Tag>
+        {upgradeTag}
+      </Space>
+    );
+  }
+  if (type === 3) {
+    return (
+      <Space>
+        <Tag color='teal' shape='circle'>
+          {t('联合兑换')}
+        </Tag>
+        {upgradeTag}
+      </Space>
     );
   }
   return (
-    <Tag color='blue' shape='circle'>
-      {t('余额充值')}
-    </Tag>
+    <Space>
+      <Tag color='blue' shape='circle'>
+        {t('余额充值')}
+      </Tag>
+      {upgradeTag}
+    </Space>
   );
 };
 
@@ -138,6 +161,18 @@ export const getRedemptionsColumns = ({
             <Tag color='purple' shape='circle'>
               {t('订阅')}
             </Tag>
+          );
+        }
+        if (record.type === 3) {
+          return (
+            <Space>
+              <Tag color='grey' shape='circle'>
+                {renderQuota(parseInt(text))}
+              </Tag>
+              <Tag color='purple' shape='circle'>
+                +{t('订阅')}
+              </Tag>
+            </Space>
           );
         }
         return (

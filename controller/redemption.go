@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -83,7 +84,7 @@ func AddRedemption(c *gin.Context) {
 	}
 
 	// 验证兑换码类型
-	if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription {
+	if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription && redemption.Type != common.RedemptionTypeCombo {
 		redemption.Type = common.RedemptionTypeQuota // 默认为余额类型
 	}
 
@@ -101,18 +102,48 @@ func AddRedemption(c *gin.Context) {
 		}
 	}
 
+	// 如果是联合类型，验证额度和订阅套餐ID
+	if redemption.Type == common.RedemptionTypeCombo {
+		if redemption.Quota <= 0 {
+			common.ApiErrorMsg(c, "联合兑换码必须设置额度")
+			return
+		}
+		if redemption.SubscriptionPlanId <= 0 {
+			common.ApiErrorMsg(c, "联合兑换码必须指定订阅套餐ID")
+			return
+		}
+		_, err := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId)
+		if err != nil {
+			common.ApiErrorMsg(c, "指定的订阅套餐不存在")
+			return
+		}
+	}
+
+	// 验证 upgrade_group_rollback
+	if redemption.IsUpgradeGroupRollback() && redemption.Type == common.RedemptionTypeQuota {
+		// type=1 无订阅，不支持到期回退，强制 false
+		falseVal := false
+		redemption.UpgradeGroupRollback = &falseVal
+	}
+	if redemption.IsUpgradeGroupRollback() && strings.TrimSpace(redemption.UpgradeGroup) == "" {
+		common.ApiErrorMsg(c, "启用分组到期回退时必须指定升级分组")
+		return
+	}
+
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:             c.GetInt("id"),
-			Name:               redemption.Name,
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			Quota:              redemption.Quota,
-			ExpiredTime:        redemption.ExpiredTime,
-			Type:               redemption.Type,
-			SubscriptionPlanId: redemption.SubscriptionPlanId,
+			UserId:               c.GetInt("id"),
+			Name:                 redemption.Name,
+			Key:                  key,
+			CreatedTime:          common.GetTimestamp(),
+			Quota:                redemption.Quota,
+			ExpiredTime:          redemption.ExpiredTime,
+			Type:                 redemption.Type,
+			SubscriptionPlanId:   redemption.SubscriptionPlanId,
+			UpgradeGroup:         redemption.UpgradeGroup,
+			UpgradeGroupRollback: redemption.UpgradeGroupRollback,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -167,7 +198,7 @@ func UpdateRedemption(c *gin.Context) {
 			return
 		}
 		// 验证兑换码类型
-		if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription {
+		if redemption.Type != common.RedemptionTypeQuota && redemption.Type != common.RedemptionTypeSubscription && redemption.Type != common.RedemptionTypeCombo {
 			redemption.Type = common.RedemptionTypeQuota
 		}
 		// 如果是订阅类型，验证订阅套餐ID
@@ -175,12 +206,34 @@ func UpdateRedemption(c *gin.Context) {
 			common.ApiErrorMsg(c, "订阅类型兑换码必须指定订阅套餐ID")
 			return
 		}
+		// 如果是联合类型，验证额度和订阅套餐ID
+		if redemption.Type == common.RedemptionTypeCombo {
+			if redemption.Quota <= 0 {
+				common.ApiErrorMsg(c, "联合兑换码必须设置额度")
+				return
+			}
+			if redemption.SubscriptionPlanId <= 0 {
+				common.ApiErrorMsg(c, "联合兑换码必须指定订阅套餐ID")
+				return
+			}
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 		cleanRedemption.Type = redemption.Type
 		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
+		cleanRedemption.UpgradeGroup = redemption.UpgradeGroup
+		// 验证 upgrade_group_rollback
+		if redemption.IsUpgradeGroupRollback() && redemption.Type == common.RedemptionTypeQuota {
+			falseVal := false
+			redemption.UpgradeGroupRollback = &falseVal
+		}
+		if redemption.IsUpgradeGroupRollback() && strings.TrimSpace(redemption.UpgradeGroup) == "" {
+			common.ApiErrorMsg(c, "启用分组到期回退时必须指定升级分组")
+			return
+		}
+		cleanRedemption.UpgradeGroupRollback = redemption.UpgradeGroupRollback
 	}
 	if statusOnly != "" {
 		cleanRedemption.Status = redemption.Status

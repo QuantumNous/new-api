@@ -204,6 +204,7 @@ const (
 const (
 	RedemptionTypeQuota        = 1 // 余额充值
 	RedemptionTypeSubscription = 2 // 订阅套餐
+	RedemptionTypeCombo        = 3 // 联合兑换（余额+订阅）
 )
 
 const (

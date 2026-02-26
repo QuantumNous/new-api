@@ -1,0 +1,39 @@
+# 单独启动 new-api 验证服务是否正常
+# 使用方式：docker-compose -f docker-compose.test.yml up -d
+# 验证完成后：docker-compose -f docker-compose.test.yml down
+
+services:
+  new-api-test:
+    image: ghcr.io/jinfeijie/new-api:main
+    container_name: new-api-test
+    restart: "no"
+    ports:
+      - "3003:3000"
+    volumes:
+      - ./data:/data
+      - ./logs-test:/app/logs
+    command: --log-dir /app/logs
+    environment:
+      - SQL_DSN=postgresql://root:abc123@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - CHANNEL_UPDATE_FREQUENCY=1
+      - GLOBAL_API_RATE_LIMIT_ENABLE=true
+      - GLOBAL_API_RATE_LIMIT_DURATION=60
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - STREAMING_TIMEOUT=600
+      - RELAY_TIMEOUT=600
+    networks:
+      - default
+      - new-api_default
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  new-api_default:
+    external: true
