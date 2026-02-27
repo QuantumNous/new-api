@@ -1,14 +1,15 @@
 package service
 
 import (
+	"context"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/go-redis/redis/v8"
 )
 
 // notifyLimitStore is used for in-memory rate limiting when Redis is disabled
@@ -54,36 +55,32 @@ func CheckNotificationLimit(userId int, notifyType string) (bool, error) {
 	return checkMemoryLimit(userId, notifyType)
 }
 
+// notifyLimitScript is an atomic Lua script that increments a counter and
+// checks it against the limit in a single round-trip, eliminating the
+// GET → check → INCR race condition present in the previous implementation.
+var notifyLimitScript = redis.NewScript(`
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+    redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+end
+if current <= tonumber(ARGV[1]) then return 1 else return 0 end
+`)
+
 func checkRedisLimit(userId int, notifyType string) (bool, error) {
 	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+	ttlSeconds := int(getDuration().Seconds())
 
-	// Get current count
-	count, err := common.RedisGet(key)
-	if err != nil && err.Error() != "redis: nil" {
-		return false, fmt.Errorf("failed to get notification count: %w", err)
-	}
-
-	// If key doesn't exist, initialize it
-	if count == "" {
-		err = common.RedisSet(key, "1", getDuration())
-		return true, err
-	}
-
-	currentCount, _ := strconv.Atoi(count)
-	limit := constant.NotifyLimitCount
-
-	// Check if limit is already reached
-	if currentCount >= limit {
-		return false, nil
-	}
-
-	// Only increment if under limit
-	err = common.RedisIncr(key, 1)
+	result, err := notifyLimitScript.Run(
+		context.Background(),
+		common.RDB,
+		[]string{key},
+		constant.NotifyLimitCount,
+		ttlSeconds,
+	).Int()
 	if err != nil {
-		return false, fmt.Errorf("failed to increment notification count: %w", err)
+		return false, fmt.Errorf("notify rate limit script error: %w", err)
 	}
-
-	return true, nil
+	return result == 1, nil
 }
 
 func checkMemoryLimit(userId int, notifyType string) (bool, error) {
