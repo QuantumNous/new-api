@@ -136,9 +136,7 @@ const SkeletonWrapper = ({
           loading={true}
           active
           placeholder={
-            <Skeleton.Title
-              style={{ width, height, borderRadius: 9999 }}
-            />
+            <Skeleton.Title style={{ width, height, borderRadius: 9999 }} />
           }
         />
       </div>
@@ -186,7 +184,9 @@ const SkeletonWrapper = ({
           loading={true}
           active
           placeholder={
-            <Skeleton.Title style={{ width: width || 60, height: height || 12 }} />
+            <Skeleton.Title
+              style={{ width: width || 60, height: height || 12 }}
+            />
           }
         />
       </div>
@@ -221,9 +221,7 @@ const SkeletonWrapper = ({
         loading={true}
         active
         placeholder={
-          <Skeleton.Title
-            style={{ width: labelWidth, height: TEXT_HEIGHT }}
-          />
+          <Skeleton.Title style={{ width: labelWidth, height: TEXT_HEIGHT }} />
         }
       />
     );

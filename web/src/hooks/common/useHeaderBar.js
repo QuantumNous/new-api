@@ -146,10 +146,41 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   }, [navigate, t, userDispatch]);
 
   const handleLanguageChange = useCallback(
-    (lang) => {
+    async (lang) => {
+      // Change language immediately for responsive UX
       i18n.changeLanguage(lang);
+
+      // If user is logged in, save preference to backend
+      if (userState?.user?.id) {
+        try {
+          const res = await API.put('/api/user/self', {
+            language: lang,
+          });
+          if (res.data.success) {
+            // Update user context with new setting
+            if (userState?.user?.setting) {
+              try {
+                const settings = JSON.parse(userState.user.setting);
+                settings.language = lang;
+                userDispatch({
+                  type: 'login',
+                  payload: {
+                    ...userState.user,
+                    setting: JSON.stringify(settings),
+                  },
+                });
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+          }
+        } catch (error) {
+          // Silently ignore errors - language was already changed locally
+          console.error('Failed to save language preference:', error);
+        }
+      }
     },
-    [i18n],
+    [i18n, userState, userDispatch],
   );
 
   const handleThemeToggle = useCallback(

@@ -30,30 +30,24 @@ import {
   Spin,
   Popconfirm,
   Tag,
-  Avatar,
   Empty,
-  Divider,
   Row,
   Col,
   Progress,
   Checkbox,
-  Radio,
 } from '@douyinfe/semi-ui';
 import {
-  IconClose,
   IconDownload,
   IconDelete,
   IconRefresh,
   IconSearch,
   IconPlus,
-  IconServer,
 } from '@douyinfe/semi-icons';
 import {
   API,
   authHeader,
   getUserIdFromLocalStorage,
   showError,
-  showInfo,
   showSuccess,
 } from '../../../../helpers';
 
@@ -85,9 +79,7 @@ const resolveOllamaBaseUrl = (info) => {
   }
 
   const alt =
-    typeof info.ollama_base_url === 'string'
-      ? info.ollama_base_url.trim()
-      : '';
+    typeof info.ollama_base_url === 'string' ? info.ollama_base_url.trim() : '';
   if (alt) {
     return alt;
   }
@@ -125,7 +117,8 @@ const normalizeModels = (items) => {
       }
 
       if (typeof item === 'object') {
-        const candidateId = item.id || item.ID || item.name || item.model || item.Model;
+        const candidateId =
+          item.id || item.ID || item.name || item.model || item.Model;
         if (!candidateId) {
           return null;
         }
@@ -147,7 +140,10 @@ const normalizeModels = (items) => {
           if (!normalized.digest && typeof metadata.digest === 'string') {
             normalized.digest = metadata.digest;
           }
-          if (!normalized.modified_at && typeof metadata.modified_at === 'string') {
+          if (
+            !normalized.modified_at &&
+            typeof metadata.modified_at === 'string'
+          ) {
             normalized.modified_at = metadata.modified_at;
           }
           if (metadata.details && !normalized.details) {
@@ -440,7 +436,6 @@ const OllamaModelModal = ({
       };
 
       await processStream();
-
     } catch (error) {
       if (error?.name !== 'AbortError') {
         showError(t('模型拉取失败: {{error}}', { error: error.message }));
@@ -461,7 +456,7 @@ const OllamaModelModal = ({
           model_name: modelName,
         },
       });
-      
+
       if (res.data.success) {
         showSuccess(t('模型删除成功'));
         await fetchModels(); // 重新获取模型列表
@@ -481,8 +476,8 @@ const OllamaModelModal = ({
     if (!searchValue) {
       setFilteredModels(models);
     } else {
-      const filtered = models.filter(model =>
-        model.id.toLowerCase().includes(searchValue.toLowerCase())
+      const filtered = models.filter((model) =>
+        model.id.toLowerCase().includes(searchValue.toLowerCase()),
       );
       setFilteredModels(filtered);
     }
@@ -527,60 +522,38 @@ const OllamaModelModal = ({
   const formatModelSize = (size) => {
     if (!size) return '-';
     const gb = size / (1024 * 1024 * 1024);
-    return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(size / (1024 * 1024)).toFixed(0)} MB`;
+    return gb >= 1
+      ? `${gb.toFixed(1)} GB`
+      : `${(size / (1024 * 1024)).toFixed(0)} MB`;
   };
 
   return (
     <Modal
-      title={
-        <div className='flex items-center'>
-          <Avatar
-            size='small'
-            color='blue'
-            className='mr-3 shadow-md'
-          >
-            <IconServer size={16} />
-          </Avatar>
-          <div>
-            <Title heading={4} className='m-0'>
-              {t('Ollama 模型管理')}
-            </Title>
-            <Text type='tertiary' size='small'>
-              {channelInfo?.name && `${channelInfo.name} - `}
-              {t('管理 Ollama 模型的拉取和删除')}
-            </Text>
-          </div>
-        </div>
-      }
+      title={t('Ollama 模型管理')}
       visible={visible}
       onCancel={onCancel}
-      width={800}
+      width={720}
       style={{ maxWidth: '95vw' }}
       footer={
-        <div className='flex justify-end'>
-          <Button
-            theme='light'
-            type='primary'
-            onClick={onCancel}
-            icon={<IconClose />}
-          >
-            {t('关闭')}
-          </Button>
-        </div>
+        <Button theme='solid' type='primary' onClick={onCancel}>
+          {t('关闭')}
+        </Button>
       }
     >
-      <div className='space-y-6'>
+      <Space vertical spacing='medium' style={{ width: '100%' }}>
+        <div>
+          <Text type='tertiary' size='small'>
+            {channelInfo?.name ? `${channelInfo.name} - ` : ''}
+            {t('管理 Ollama 模型的拉取和删除')}
+          </Text>
+        </div>
+
         {/* 拉取新模型 */}
-        <Card className='!rounded-2xl shadow-sm border-0'>
-          <div className='flex items-center mb-4'>
-            <Avatar size='small' color='green' className='mr-2'>
-              <IconPlus size={16} />
-            </Avatar>
-            <Title heading={5} className='m-0'>
-              {t('拉取新模型')}
-            </Title>
-          </div>
-          
+        <Card>
+          <Title heading={6} className='m-0 mb-3'>
+            {t('拉取新模型')}
+          </Title>
+
           <Row gutter={12} align='middle'>
             <Col span={16}>
               <Input
@@ -606,76 +579,81 @@ const OllamaModelModal = ({
               </Button>
             </Col>
           </Row>
-          
+
           {/* 进度条显示 */}
-          {pullProgress && (() => {
-            const completedBytes = Number(pullProgress.completed) || 0;
-            const totalBytes = Number(pullProgress.total) || 0;
-            const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
-            const safePercent = hasTotal
-              ? Math.min(
-                  100,
-                  Math.max(0, Math.round((completedBytes / totalBytes) * 100)),
-                )
-              : null;
-            const percentText = hasTotal && safePercent !== null
-              ? `${safePercent.toFixed(0)}%`
-              : pullProgress.status || t('处理中');
+          {pullProgress &&
+            (() => {
+              const completedBytes = Number(pullProgress.completed) || 0;
+              const totalBytes = Number(pullProgress.total) || 0;
+              const hasTotal = Number.isFinite(totalBytes) && totalBytes > 0;
+              const safePercent = hasTotal
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Math.round((completedBytes / totalBytes) * 100),
+                    ),
+                  )
+                : null;
+              const percentText =
+                hasTotal && safePercent !== null
+                  ? `${safePercent.toFixed(0)}%`
+                  : pullProgress.status || t('处理中');
 
-            return (
-              <div className='mt-3 p-3 bg-gray-50 rounded-lg'>
-                <div className='flex items-center justify-between mb-2'>
-                  <Text strong>{t('拉取进度')}</Text>
-                  <Text type='tertiary' size='small'>{percentText}</Text>
-                </div>
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div className='flex items-center justify-between mb-2'>
+                    <Text strong>{t('拉取进度')}</Text>
+                    <Text type='tertiary' size='small'>
+                      {percentText}
+                    </Text>
+                  </div>
 
-                {hasTotal && safePercent !== null ? (
-                  <div>
-                    <Progress
-                      percent={safePercent}
-                      showInfo={false}
-                      stroke='#1890ff'
-                      size='small'
-                    />
-                    <div className='flex justify-between mt-1'>
-                      <Text type='tertiary' size='small'>
-                        {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
-                      </Text>
-                      <Text type='tertiary' size='small'>
-                        {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
-                      </Text>
+                  {hasTotal && safePercent !== null ? (
+                    <div>
+                      <Progress
+                        percent={safePercent}
+                        showInfo={false}
+                        stroke='#1890ff'
+                        size='small'
+                      />
+                      <div className='flex justify-between mt-1'>
+                        <Text type='tertiary' size='small'>
+                          {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)}{' '}
+                          GB
+                        </Text>
+                        <Text type='tertiary' size='small'>
+                          {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                        </Text>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
-                    <Spin size='small' />
-                    <span>{t('准备中...')}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-          
+                  ) : (
+                    <div className='flex items-center gap-2 text-xs text-[var(--semi-color-text-2)]'>
+                      <Spin size='small' />
+                      <span>{t('准备中...')}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
           <Text type='tertiary' size='small' className='mt-2 block'>
-            {t('支持拉取 Ollama 官方模型库中的所有模型，拉取过程可能需要几分钟时间')}
+            {t(
+              '支持拉取 Ollama 官方模型库中的所有模型，拉取过程可能需要几分钟时间',
+            )}
           </Text>
         </Card>
 
         {/* 已有模型列表 */}
-        <Card className='!rounded-2xl shadow-sm border-0'>
-          <div className='flex items-center justify-between mb-4'>
-            <div className='flex items-center'>
-              <Avatar size='small' color='purple' className='mr-2'>
-                <IconServer size={16} />
-              </Avatar>
-              <Title heading={5} className='m-0'>
+        <Card>
+          <div className='flex items-center justify-between mb-3'>
+            <div className='flex items-center gap-2'>
+              <Title heading={6} className='m-0'>
                 {t('已有模型')}
-                {models.length > 0 && (
-                  <Tag color='blue' className='ml-2'>
-                    {models.length}
-                  </Tag>
-                )}
               </Title>
+              {models.length > 0 ? (
+                <Tag color='blue'>{models.length}</Tag>
+              ) : null}
             </div>
             <Space wrap>
               <Input
@@ -688,7 +666,7 @@ const OllamaModelModal = ({
               />
               <Button
                 size='small'
-                theme='borderless'
+                theme='light'
                 onClick={handleSelectAll}
                 disabled={models.length === 0}
               >
@@ -696,7 +674,7 @@ const OllamaModelModal = ({
               </Button>
               <Button
                 size='small'
-                theme='borderless'
+                theme='light'
                 onClick={handleClearSelection}
                 disabled={selectedModelIds.length === 0}
               >
@@ -728,11 +706,10 @@ const OllamaModelModal = ({
           <Spin spinning={loading}>
             {filteredModels.length === 0 ? (
               <Empty
-                image={<IconServer size={60} />}
                 title={searchValue ? t('未找到匹配的模型') : t('暂无模型')}
                 description={
-                  searchValue 
-                    ? t('请尝试其他搜索关键词') 
+                  searchValue
+                    ? t('请尝试其他搜索关键词')
                     : t('您可以在上方拉取需要的模型')
                 }
                 style={{ padding: '40px 0' }}
@@ -740,25 +717,17 @@ const OllamaModelModal = ({
             ) : (
               <List
                 dataSource={filteredModels}
-                split={false}
-                renderItem={(model, index) => (
-                  <List.Item
-                    key={model.id}
-                    className='hover:bg-gray-50 rounded-lg p-3 transition-colors'
-                  >
+                split
+                renderItem={(model) => (
+                  <List.Item key={model.id}>
                     <div className='flex items-center justify-between w-full'>
                       <div className='flex items-center flex-1 min-w-0 gap-3'>
                         <Checkbox
                           checked={selectedModelIds.includes(model.id)}
-                          onChange={(checked) => handleToggleModel(model.id, checked)}
+                          onChange={(checked) =>
+                            handleToggleModel(model.id, checked)
+                          }
                         />
-                        <Avatar
-                          size='small'
-                          color='blue'
-                          className='flex-shrink-0'
-                        >
-                          {model.id.charAt(0).toUpperCase()}
-                        </Avatar>
                         <div className='flex-1 min-w-0'>
                           <Text strong className='block truncate'>
                             {model.id}
@@ -775,10 +744,13 @@ const OllamaModelModal = ({
                           </div>
                         </div>
                       </div>
-                    <div className='flex items-center space-x-2 ml-4'>
+                      <div className='flex items-center space-x-2 ml-4'>
                         <Popconfirm
                           title={t('确认删除模型')}
-                          content={t('删除后无法恢复，确定要删除模型 "{{name}}" 吗？', { name: model.id })}
+                          content={t(
+                            '删除后无法恢复，确定要删除模型 "{{name}}" 吗？',
+                            { name: model.id },
+                          )}
                           onConfirm={() => deleteModel(model.id)}
                           okText={t('确认')}
                           cancelText={t('取消')}
@@ -798,7 +770,7 @@ const OllamaModelModal = ({
             )}
           </Spin>
         </Card>
-      </div>
+      </Space>
     </Modal>
   );
 };

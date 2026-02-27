@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	RequestModeClaude = 1
-	RequestModeGemini = 2
-	RequestModeLlama  = 3
+	RequestModeClaude     = 1
+	RequestModeGemini     = 2
+	RequestModeOpenSource = 3
 )
 
 var claudeModelMap = map[string]string{
@@ -40,7 +40,9 @@ var claudeModelMap = map[string]string{
 	"claude-opus-4-20250514":     "claude-opus-4@20250514",
 	"claude-opus-4-1-20250805":   "claude-opus-4-1@20250805",
 	"claude-sonnet-4-5-20250929": "claude-sonnet-4-5@20250929",
+	"claude-haiku-4-5-20251001":  "claude-haiku-4-5@20251001",
 	"claude-opus-4-5-20251101":   "claude-opus-4-5@20251101",
+	"claude-opus-4-6":            "claude-opus-4-6",
 }
 
 const anthropicVersion = "vertex-2023-10-16"
@@ -114,7 +116,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	} else if strings.Contains(info.UpstreamModelName, "llama") ||
 		// open source models
 		strings.Contains(info.UpstreamModelName, "-maas") {
-		a.RequestMode = RequestModeLlama
+		a.RequestMode = RequestModeOpenSource
 	} else {
 		a.RequestMode = RequestModeGemini
 	}
@@ -165,10 +167,9 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 					suffix,
 				), nil
 			}
-		} else if a.RequestMode == RequestModeLlama {
+		} else if a.RequestMode == RequestModeOpenSource {
 			return fmt.Sprintf(
-				"https://%s-aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
-				region,
+				"https://aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
 				adc.ProjectID,
 				region,
 			), nil
@@ -241,7 +242,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			model = v
 		}
 		return a.getRequestUrl(info, model, suffix)
-	} else if a.RequestMode == RequestModeLlama {
+	} else if a.RequestMode == RequestModeOpenSource {
 		return a.getRequestUrl(info, "", "")
 	}
 	return "", errors.New("unsupported request mode")
@@ -339,7 +340,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 		c.Set("request_model", request.Model)
 		return geminiRequest, nil
-	} else if a.RequestMode == RequestModeLlama {
+	} else if a.RequestMode == RequestModeOpenSource {
 		return request, nil
 	}
 	return nil, errors.New("unsupported request mode")
@@ -364,23 +365,24 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	claudeAdaptor := claude.Adaptor{}
 	if info.IsStream {
 		switch a.RequestMode {
 		case RequestModeClaude:
-			return claude.ClaudeStreamHandler(c, resp, info, claude.RequestModeMessage)
+			return claudeAdaptor.DoResponse(c, resp, info)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationStreamHandler(c, info, resp)
 			} else {
 				return gemini.GeminiChatStreamHandler(c, info, resp)
 			}
-		case RequestModeLlama:
+		case RequestModeOpenSource:
 			return openai.OaiStreamHandler(c, info, resp)
 		}
 	} else {
 		switch a.RequestMode {
 		case RequestModeClaude:
-			return claude.ClaudeHandler(c, resp, info, claude.RequestModeMessage)
+			return claudeAdaptor.DoResponse(c, resp, info)
 		case RequestModeGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationHandler(c, info, resp)
@@ -390,7 +392,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 				}
 				return gemini.GeminiChatHandler(c, info, resp)
 			}
-		case RequestModeLlama:
+		case RequestModeOpenSource:
 			return openai.OpenaiHandler(c, info, resp)
 		}
 	}

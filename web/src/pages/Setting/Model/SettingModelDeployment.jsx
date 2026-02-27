@@ -18,7 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Card, Typography } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Col,
+  Form,
+  Row,
+  Spin,
+  Card,
+  Typography,
+} from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -48,10 +56,6 @@ export default function SettingModelDeployment(props) {
 
   const testApiKey = async () => {
     const apiKey = inputs['model_deployment.ionet.api_key'];
-    if (!apiKey || apiKey.trim() === '') {
-      showError(t('请先填写 API Key'));
-      return;
-    }
 
     const getLocalizedMessage = (message) => {
       switch (message) {
@@ -69,10 +73,8 @@ export default function SettingModelDeployment(props) {
     setTesting(true);
     try {
       const response = await API.post(
-        '/api/deployments/test-connection',
-        {
-          api_key: apiKey.trim(),
-        },
+        '/api/deployments/settings/test-connection',
+        apiKey && apiKey.trim() !== '' ? { api_key: apiKey.trim() } : {},
         {
           skipErrorHandler: true,
         },
@@ -94,9 +96,7 @@ export default function SettingModelDeployment(props) {
         showError(t('网络连接失败，请检查网络设置或稍后重试'));
       } else {
         const rawMessage =
-          error?.response?.data?.message ||
-          error?.message ||
-          '';
+          error?.response?.data?.message || error?.message || '';
         const localizedMessage = rawMessage
           ? getLocalizedMessage(rawMessage)
           : t('未知错误');
@@ -108,15 +108,9 @@ export default function SettingModelDeployment(props) {
   };
 
   function onSubmit() {
-    // 前置校验：如果启用了 io.net 但没有填写 API Key
-    if (inputs['model_deployment.ionet.enabled'] && 
-        (!inputs['model_deployment.ionet.api_key'] || inputs['model_deployment.ionet.api_key'].trim() === '')) {
-      return showError(t('启用 io.net 部署时必须填写 API Key'));
-    }
-
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    
+
     const requestQueue = updateArray.map((item) => {
       let value = String(inputs[item.key]);
       return API.put('/api/option/', {
@@ -124,7 +118,7 @@ export default function SettingModelDeployment(props) {
         value,
       });
     });
-    
+
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
@@ -153,7 +147,7 @@ export default function SettingModelDeployment(props) {
         'model_deployment.ionet.api_key': '',
         'model_deployment.ionet.enabled': false,
       };
-      
+
       const currentInputs = {};
       for (let key in defaultInputs) {
         if (props.options.hasOwnProperty(key)) {
@@ -162,7 +156,7 @@ export default function SettingModelDeployment(props) {
           currentInputs[key] = defaultInputs[key];
         }
       }
-      
+
       setInputs(currentInputs);
       setInputsRow(structuredClone(currentInputs));
       refForm.current?.setValues(currentInputs);
@@ -177,9 +171,11 @@ export default function SettingModelDeployment(props) {
           getFormApi={(formAPI) => (refForm.current = formAPI)}
           style={{ marginBottom: 15 }}
         >
-          <Form.Section 
+          <Form.Section
             text={
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
                 <span>{t('模型部署设置')}</span>
               </div>
             }
@@ -198,7 +194,9 @@ export default function SettingModelDeployment(props) {
 
             <Card
               title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
                   <Cloud size={18} />
                   <span>io.net</span>
                 </div>
@@ -229,7 +227,7 @@ export default function SettingModelDeployment(props) {
                     <Form.Input
                       label={t('API Key')}
                       field={'model_deployment.ionet.api_key'}
-                      placeholder={t('请输入 io.net API Key')}
+                      placeholder={t('请输入 io.net API Key（敏感信息不显示）')}
                       onChange={(value) =>
                         setInputs({
                           ...inputs,
@@ -238,20 +236,16 @@ export default function SettingModelDeployment(props) {
                       }
                       disabled={!inputs['model_deployment.ionet.enabled']}
                       extraText={t('请使用 Project 为 io.cloud 的密钥')}
-                      mode="password"
+                      mode='password'
                     />
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <Button
-                        type="outline"
-                        size="small"
+                        type='outline'
+                        size='small'
                         icon={<Zap size={16} />}
                         onClick={testApiKey}
                         loading={testing}
-                        disabled={
-                          !inputs['model_deployment.ionet.enabled'] ||
-                          !inputs['model_deployment.ionet.api_key'] ||
-                          inputs['model_deployment.ionet.api_key'].trim() === ''
-                        }
+                        disabled={!inputs['model_deployment.ionet.enabled']}
                         style={{
                           height: '32px',
                           fontSize: '13px',
@@ -285,7 +279,10 @@ export default function SettingModelDeployment(props) {
                     }}
                   >
                     <div>
-                      <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                      <Text
+                        strong
+                        style={{ display: 'block', marginBottom: '8px' }}
+                      >
                         {t('获取 io.net API Key')}
                       </Text>
                       <ul
@@ -301,14 +298,16 @@ export default function SettingModelDeployment(props) {
                         }}
                       >
                         <li>{t('访问 io.net 控制台的 API Keys 页面')}</li>
-                        <li>{t('创建或选择密钥时，将 Project 设置为 io.cloud')}</li>
+                        <li>
+                          {t('创建或选择密钥时，将 Project 设置为 io.cloud')}
+                        </li>
                         <li>{t('复制生成的密钥并粘贴到此处')}</li>
                       </ul>
                     </div>
                     <Button
                       icon={<ArrowUpRight size={16} />}
-                      type="primary"
-                      theme="solid"
+                      type='primary'
+                      theme='solid'
                       style={{ width: '100%' }}
                       onClick={() =>
                         window.open('https://ai.io.net/ai/api-keys', '_blank')
@@ -322,7 +321,7 @@ export default function SettingModelDeployment(props) {
             </Card>
 
             <Row>
-              <Button size='default' type="primary" onClick={onSubmit}>
+              <Button size='default' type='primary' onClick={onSubmit}>
                 {t('保存设置')}
               </Button>
             </Row>

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -114,6 +115,8 @@ func GetStatus(c *gin.Context) {
 		"setup":                       constant.Setup,
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
+		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"_qn":                         "new-api",
 	}
 
 	// 根据启用状态注入可选内容
@@ -125,6 +128,34 @@ func GetStatus(c *gin.Context) {
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
+	}
+
+	// Add enabled custom OAuth providers
+	customProviders := oauth.GetEnabledCustomProviders()
+	if len(customProviders) > 0 {
+		type CustomOAuthInfo struct {
+			Id                    int    `json:"id"`
+			Name                  string `json:"name"`
+			Slug                  string `json:"slug"`
+			Icon                  string `json:"icon"`
+			ClientId              string `json:"client_id"`
+			AuthorizationEndpoint string `json:"authorization_endpoint"`
+			Scopes                string `json:"scopes"`
+		}
+		providersInfo := make([]CustomOAuthInfo, 0, len(customProviders))
+		for _, p := range customProviders {
+			config := p.GetConfig()
+			providersInfo = append(providersInfo, CustomOAuthInfo{
+				Id:                    config.Id,
+				Name:                  config.Name,
+				Slug:                  config.Slug,
+				Icon:                  config.Icon,
+				ClientId:              config.ClientId,
+				AuthorizationEndpoint: config.AuthorizationEndpoint,
+				Scopes:                config.Scopes,
+			})
+		}
+		data["custom_oauth_providers"] = providersInfo
 	}
 
 	c.JSON(http.StatusOK, gin.H{

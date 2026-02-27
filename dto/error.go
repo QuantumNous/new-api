@@ -26,7 +26,8 @@ type GeneralErrorResponse struct {
 	Msg      string          `json:"msg"`
 	Err      string          `json:"err"`
 	ErrorMsg string          `json:"error_msg"`
-	Metadata json.RawMessage   `json:"metadata,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Detail   string          `json:"detail,omitempty"`
 	Header   struct {
 		Message string `json:"message"`
 	} `json:"header"`
@@ -78,6 +79,9 @@ func (e GeneralErrorResponse) ToMessage() string {
 	}
 	if e.ErrorMsg != "" {
 		return e.ErrorMsg
+	}
+	if e.Detail != "" {
+		return e.Detail
 	}
 	if e.Header.Message != "" {
 		return e.Header.Message

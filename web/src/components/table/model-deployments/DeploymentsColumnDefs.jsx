@@ -18,17 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { 
-  Button,
-  Dropdown,
-  Tag,
-  Typography,
-} from '@douyinfe/semi-ui';
-import {
-  timestamp2string,
-  showSuccess,
-  showError,
-} from '../../../helpers';
+import { Button, Dropdown, Tag, Typography } from '@douyinfe/semi-ui';
+import { timestamp2string, showSuccess, showError } from '../../../helpers';
 import { IconMore } from '@douyinfe/semi-icons';
 import {
   FaPlay,
@@ -50,7 +41,6 @@ import {
   FaHourglassHalf,
   FaGlobe,
 } from 'react-icons/fa';
-import {t} from "i18next";
 
 const normalizeStatus = (status) =>
   typeof status === 'string' ? status.trim().toLowerCase() : '';
@@ -58,59 +48,59 @@ const normalizeStatus = (status) =>
 const STATUS_TAG_CONFIG = {
   running: {
     color: 'green',
-    label: t('运行中'),
+    labelKey: '运行中',
     icon: <FaPlay size={12} className='text-green-600' />,
   },
   deploying: {
     color: 'blue',
-    label: t('部署中'),
+    labelKey: '部署中',
     icon: <FaSpinner size={12} className='text-blue-600' />,
   },
   pending: {
     color: 'orange',
-    label: t('待部署'),
+    labelKey: '待部署',
     icon: <FaClock size={12} className='text-orange-600' />,
   },
   stopped: {
     color: 'grey',
-    label: t('已停止'),
+    labelKey: '已停止',
     icon: <FaStop size={12} className='text-gray-500' />,
   },
   error: {
     color: 'red',
-    label: t('错误'),
+    labelKey: '错误',
     icon: <FaExclamationCircle size={12} className='text-red-500' />,
   },
   failed: {
     color: 'red',
-    label: t('失败'),
+    labelKey: '失败',
     icon: <FaExclamationCircle size={12} className='text-red-500' />,
   },
   destroyed: {
     color: 'red',
-    label: t('已销毁'),
+    labelKey: '已销毁',
     icon: <FaBan size={12} className='text-red-500' />,
   },
   completed: {
     color: 'green',
-    label: t('已完成'),
+    labelKey: '已完成',
     icon: <FaCheckCircle size={12} className='text-green-600' />,
   },
   'deployment requested': {
     color: 'blue',
-    label: t('部署请求中'),
+    labelKey: '部署请求中',
     icon: <FaSpinner size={12} className='text-blue-600' />,
   },
   'termination requested': {
     color: 'orange',
-    label: t('终止请求中'),
+    labelKey: '终止请求中',
     icon: <FaClock size={12} className='text-orange-600' />,
   },
 };
 
 const DEFAULT_STATUS_CONFIG = {
   color: 'grey',
-  label: null,
+  labelKey: null,
   icon: <FaInfoCircle size={12} className='text-gray-500' />,
 };
 
@@ -190,7 +180,9 @@ const renderStatus = (status, t) => {
   const normalizedStatus = normalizeStatus(status);
   const config = STATUS_TAG_CONFIG[normalizedStatus] || DEFAULT_STATUS_CONFIG;
   const statusText = typeof status === 'string' ? status : '';
-  const labelText = config.label ? t(config.label) : statusText || t('未知状态');
+  const labelText = config.labelKey
+    ? t(config.labelKey)
+    : statusText || t('未知状态');
 
   return (
     <Tag
@@ -206,20 +198,24 @@ const renderStatus = (status, t) => {
 
 // Container Name Cell Component - to properly handle React hooks
 const ContainerNameCell = ({ text, record, t }) => {
-  const handleCopyId = () => {
-    navigator.clipboard.writeText(record.id);
-    showSuccess(t('ID已复制到剪贴板'));
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(record.id);
+      showSuccess(t('已复制 ID 到剪贴板'));
+    } catch (err) {
+      showError(t('复制失败'));
+    }
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <Typography.Text strong className="text-base">
+    <div className='flex flex-col gap-1'>
+      <Typography.Text strong className='text-base'>
         {text}
       </Typography.Text>
-      <Typography.Text 
-        type="secondary" 
-        size="small" 
-        className="text-xs cursor-pointer hover:text-blue-600 transition-colors select-all"
+      <Typography.Text
+        type='secondary'
+        size='small'
+        className='text-xs cursor-pointer hover:text-blue-600 transition-colors select-all'
         onClick={handleCopyId}
         title={t('点击复制ID')}
       >
@@ -232,26 +228,26 @@ const ContainerNameCell = ({ text, record, t }) => {
 // Render resource configuration
 const renderResourceConfig = (resource, t) => {
   if (!resource) return '-';
-  
+
   const { cpu, memory, gpu } = resource;
-  
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className='flex flex-col gap-1'>
       {cpu && (
-        <div className="flex items-center gap-1 text-xs">
-          <FaMicrochip className="text-blue-500" />
+        <div className='flex items-center gap-1 text-xs'>
+          <FaMicrochip className='text-blue-500' />
           <span>CPU: {cpu}</span>
         </div>
       )}
       {memory && (
-        <div className="flex items-center gap-1 text-xs">
-          <FaMemory className="text-green-500" />
+        <div className='flex items-center gap-1 text-xs'>
+          <FaMemory className='text-green-500' />
           <span>内存: {memory}</span>
         </div>
       )}
       {gpu && (
-        <div className="flex items-center gap-1 text-xs">
-          <FaServer className="text-purple-500" />
+        <div className='flex items-center gap-1 text-xs'>
+          <FaServer className='text-purple-500' />
           <span>GPU: {gpu}</span>
         </div>
       )}
@@ -266,7 +262,7 @@ const renderInstanceCount = (count, record, t) => {
   const countColor = statusConfig?.color ?? 'grey';
 
   return (
-    <Tag color={countColor} size="small" shape='circle'>
+    <Tag color={countColor} size='small' shape='circle'>
       {count || 0} {t('个实例')}
     </Tag>
   );
@@ -299,11 +295,7 @@ export const getDeploymentsColumns = ({
       width: 300,
       ellipsis: true,
       render: (text, record) => (
-        <ContainerNameCell 
-          text={text} 
-          record={record} 
-          t={t}
-        />
+        <ContainerNameCell text={text} record={record} t={t} />
       ),
     },
     {
@@ -312,9 +304,7 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.status,
       width: 140,
       render: (status) => (
-        <div className="flex items-center gap-2">
-          {renderStatus(status, t)}
-        </div>
+        <div className='flex items-center gap-2'>{renderStatus(status, t)}</div>
       ),
     },
     {
@@ -325,18 +315,22 @@ export const getDeploymentsColumns = ({
       render: (provider) =>
         provider ? (
           <div
-            className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+            className='flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide'
             style={{
               borderColor: 'rgba(59, 130, 246, 0.4)',
               backgroundColor: 'rgba(59, 130, 246, 0.08)',
               color: '#2563eb',
             }}
           >
-            <FaGlobe className="text-[11px]" />
+            <FaGlobe className='text-[11px]' />
             <span>{provider}</span>
           </div>
         ) : (
-          <Typography.Text type="tertiary" size="small" className="text-xs text-gray-500">
+          <Typography.Text
+            type='tertiary'
+            size='small'
+            className='text-xs text-gray-500'
+          >
             {t('暂无')}
           </Typography.Text>
         ),
@@ -345,7 +339,7 @@ export const getDeploymentsColumns = ({
       title: t('剩余时间'),
       dataIndex: 'time_remaining',
       key: COLUMN_KEYS.time_remaining,
-      width: 140,
+      width: 200,
       render: (text, record) => {
         const normalizedStatus = normalizeStatus(record?.status);
         const percentUsedRaw = parsePercentValue(record?.completed_percent);
@@ -380,43 +374,43 @@ export const getDeploymentsColumns = ({
           percentRemaining !== null;
 
         return (
-          <div className="flex flex-col gap-1 leading-tight text-xs">
-            <div className="flex items-center gap-1.5">
+          <div className='flex flex-col gap-1 leading-tight text-xs'>
+            <div className='flex items-center gap-1.5'>
               <FaHourglassHalf
-                className="text-sm"
+                className='text-sm'
                 style={{ color: theme.iconColor }}
               />
-              <Typography.Text className="text-sm font-medium text-[var(--semi-color-text-0)]">
+              <Typography.Text className='text-sm font-medium text-[var(--semi-color-text-0)]'>
                 {timeDisplay}
               </Typography.Text>
               {showProgress && percentRemaining !== null ? (
-                <Tag size="small" color={theme.tagColor}>
+                <Tag size='small' color={theme.tagColor}>
                   {percentRemaining}%
                 </Tag>
               ) : statusOverride ? (
-                <Tag size="small" color="grey">
+                <Tag size='small' color='grey'>
                   {statusOverride}
                 </Tag>
               ) : null}
             </div>
             {showExtraInfo && (
-              <div className="flex items-center gap-3 text-[var(--semi-color-text-2)]">
+              <div className='flex items-center gap-3 text-[var(--semi-color-text-2)]'>
                 {humanReadable && (
-                  <span className="flex items-center gap-1">
-                    <FaClock className="text-[11px]" />
+                  <span className='flex items-center gap-1'>
+                    <FaClock className='text-[11px]' />
                     {t('约')} {humanReadable}
                   </span>
                 )}
                 {percentUsed !== null && (
-                  <span className="flex items-center gap-1">
-                    <FaCheckCircle className="text-[11px]" />
+                  <span className='flex items-center gap-1'>
+                    <FaCheckCircle className='text-[11px]' />
                     {t('已用')} {percentUsed}%
                   </span>
                 )}
               </div>
             )}
             {showProgress && showRemainingMeta && (
-              <div className="text-[10px]" style={{ color: theme.textColor }}>
+              <div className='text-[10px]' style={{ color: theme.textColor }}>
                 {t('剩余')} {record.compute_minutes_remaining} {t('分钟')}
               </div>
             )}
@@ -431,14 +425,16 @@ export const getDeploymentsColumns = ({
       width: 220,
       ellipsis: true,
       render: (text, record) => (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-md">
-            <FaServer className="text-green-600 text-xs" />
-            <span className="text-xs font-medium text-green-700">
+        <div className='flex items-center gap-2'>
+          <div className='flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-md'>
+            <FaServer className='text-green-600 text-xs' />
+            <span className='text-xs font-medium text-green-700'>
               {record.hardware_name}
             </span>
           </div>
-          <span className="text-xs text-gray-500 font-medium">x{record.hardware_quantity}</span>
+          <span className='text-xs text-gray-500 font-medium'>
+            x{record.hardware_quantity}
+          </span>
         </div>
       ),
     },
@@ -448,7 +444,7 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.created_at,
       width: 150,
       render: (text) => (
-        <span className="text-sm text-gray-600">{timestamp2string(text)}</span>
+        <span className='text-sm text-gray-600'>{timestamp2string(text)}</span>
       ),
     },
     {
@@ -459,7 +455,8 @@ export const getDeploymentsColumns = ({
       render: (_, record) => {
         const { status, id } = record;
         const normalizedStatus = normalizeStatus(status);
-        const isEnded = normalizedStatus === 'completed' || normalizedStatus === 'destroyed';
+        const isEnded =
+          normalizedStatus === 'completed' || normalizedStatus === 'destroyed';
 
         const handleDelete = () => {
           // Use enhanced confirmation dialog
@@ -471,7 +468,7 @@ export const getDeploymentsColumns = ({
           switch (normalizedStatus) {
             case 'running':
               return {
-                icon: <FaInfoCircle className="text-xs" />,
+                icon: <FaInfoCircle className='text-xs' />,
                 text: t('查看详情'),
                 onClick: () => onViewDetails?.(record),
                 type: 'secondary',
@@ -480,7 +477,7 @@ export const getDeploymentsColumns = ({
             case 'failed':
             case 'error':
               return {
-                icon: <FaPlay className="text-xs" />,
+                icon: <FaPlay className='text-xs' />,
                 text: t('重试'),
                 onClick: () => startDeployment(id),
                 type: 'primary',
@@ -488,7 +485,7 @@ export const getDeploymentsColumns = ({
               };
             case 'stopped':
               return {
-                icon: <FaPlay className="text-xs" />,
+                icon: <FaPlay className='text-xs' />,
                 text: t('启动'),
                 onClick: () => startDeployment(id),
                 type: 'primary',
@@ -497,7 +494,7 @@ export const getDeploymentsColumns = ({
             case 'deployment requested':
             case 'deploying':
               return {
-                icon: <FaClock className="text-xs" />,
+                icon: <FaClock className='text-xs' />,
                 text: t('部署中'),
                 onClick: () => {},
                 type: 'secondary',
@@ -506,7 +503,7 @@ export const getDeploymentsColumns = ({
               };
             case 'pending':
               return {
-                icon: <FaClock className="text-xs" />,
+                icon: <FaClock className='text-xs' />,
                 text: t('待部署'),
                 onClick: () => {},
                 type: 'secondary',
@@ -515,7 +512,7 @@ export const getDeploymentsColumns = ({
               };
             case 'termination requested':
               return {
-                icon: <FaClock className="text-xs" />,
+                icon: <FaClock className='text-xs' />,
                 text: t('终止中'),
                 onClick: () => {},
                 type: 'secondary',
@@ -526,7 +523,7 @@ export const getDeploymentsColumns = ({
             case 'destroyed':
             default:
               return {
-                icon: <FaInfoCircle className="text-xs" />,
+                icon: <FaInfoCircle className='text-xs' />,
                 text: t('已结束'),
                 onClick: () => {},
                 type: 'tertiary',
@@ -542,13 +539,13 @@ export const getDeploymentsColumns = ({
 
         if (isEnded) {
           return (
-            <div className="flex w-full items-center justify-start gap-1 pr-2">
+            <div className='flex w-full items-center justify-start gap-1 pr-2'>
               <Button
-                size="small"
-                type="tertiary"
-                theme="borderless"
+                size='small'
+                type='tertiary'
+                theme='borderless'
                 onClick={() => onViewDetails?.(record)}
-                icon={<FaInfoCircle className="text-xs" />}
+                icon={<FaInfoCircle className='text-xs' />}
               >
                 {t('查看详情')}
               </Button>
@@ -558,14 +555,22 @@ export const getDeploymentsColumns = ({
 
         // All actions dropdown with enhanced operations
         const dropdownItems = [
-          <Dropdown.Item key="details" onClick={() => onViewDetails?.(record)} icon={<FaInfoCircle />}>
+          <Dropdown.Item
+            key='details'
+            onClick={() => onViewDetails?.(record)}
+            icon={<FaInfoCircle />}
+          >
             {t('查看详情')}
           </Dropdown.Item>,
         ];
 
         if (!isEnded) {
           dropdownItems.push(
-            <Dropdown.Item key="logs" onClick={() => onViewLogs?.(record)} icon={<FaTerminal />}>
+            <Dropdown.Item
+              key='logs'
+              onClick={() => onViewLogs?.(record)}
+              icon={<FaTerminal />}
+            >
               {t('查看日志')}
             </Dropdown.Item>,
           );
@@ -575,7 +580,11 @@ export const getDeploymentsColumns = ({
         if (normalizedStatus === 'running') {
           if (onSyncToChannel) {
             managementItems.push(
-              <Dropdown.Item key="sync-channel" onClick={() => onSyncToChannel(record)} icon={<FaLink />}>
+              <Dropdown.Item
+                key='sync-channel'
+                onClick={() => onSyncToChannel(record)}
+                icon={<FaLink />}
+              >
                 {t('同步到渠道')}
               </Dropdown.Item>,
             );
@@ -583,28 +592,44 @@ export const getDeploymentsColumns = ({
         }
         if (normalizedStatus === 'failed' || normalizedStatus === 'error') {
           managementItems.push(
-            <Dropdown.Item key="retry" onClick={() => startDeployment(id)} icon={<FaPlay />}>
+            <Dropdown.Item
+              key='retry'
+              onClick={() => startDeployment(id)}
+              icon={<FaPlay />}
+            >
               {t('重试')}
             </Dropdown.Item>,
           );
         }
         if (normalizedStatus === 'stopped') {
           managementItems.push(
-            <Dropdown.Item key="start" onClick={() => startDeployment(id)} icon={<FaPlay />}>
+            <Dropdown.Item
+              key='start'
+              onClick={() => startDeployment(id)}
+              icon={<FaPlay />}
+            >
               {t('启动')}
             </Dropdown.Item>,
           );
         }
 
         if (managementItems.length > 0) {
-          dropdownItems.push(<Dropdown.Divider key="management-divider" />);
+          dropdownItems.push(<Dropdown.Divider key='management-divider' />);
           dropdownItems.push(...managementItems);
         }
 
         const configItems = [];
-        if (!isEnded && (normalizedStatus === 'running' || normalizedStatus === 'deployment requested')) {
+        if (
+          !isEnded &&
+          (normalizedStatus === 'running' ||
+            normalizedStatus === 'deployment requested')
+        ) {
           configItems.push(
-            <Dropdown.Item key="extend" onClick={() => onExtendDuration?.(record)} icon={<FaPlus />}>
+            <Dropdown.Item
+              key='extend'
+              onClick={() => onExtendDuration?.(record)}
+              icon={<FaPlus />}
+            >
               {t('延长时长')}
             </Dropdown.Item>,
           );
@@ -618,13 +643,18 @@ export const getDeploymentsColumns = ({
         // }
 
         if (configItems.length > 0) {
-          dropdownItems.push(<Dropdown.Divider key="config-divider" />);
+          dropdownItems.push(<Dropdown.Divider key='config-divider' />);
           dropdownItems.push(...configItems);
         }
         if (!isEnded) {
-          dropdownItems.push(<Dropdown.Divider key="danger-divider" />);
+          dropdownItems.push(<Dropdown.Divider key='danger-divider' />);
           dropdownItems.push(
-            <Dropdown.Item key="delete" type="danger" onClick={handleDelete} icon={<FaTrash />}>
+            <Dropdown.Item
+              key='delete'
+              type='danger'
+              onClick={handleDelete}
+              icon={<FaTrash />}
+            >
               {t('销毁容器')}
             </Dropdown.Item>,
           );
@@ -634,31 +664,31 @@ export const getDeploymentsColumns = ({
         const hasDropdown = dropdownItems.length > 0;
 
         return (
-          <div className="flex w-full items-center justify-start gap-1 pr-2">
+          <div className='flex w-full items-center justify-start gap-1 pr-2'>
             <Button
-              size="small"
+              size='small'
               theme={primaryTheme}
               type={primaryType}
               icon={primaryAction.icon}
               onClick={primaryAction.onClick}
-              className="px-2 text-xs"
+              className='px-2 text-xs'
               disabled={primaryAction.disabled}
             >
               {primaryAction.text}
             </Button>
-            
+
             {hasDropdown && (
               <Dropdown
-                trigger="click"
-                position="bottomRight"
+                trigger='click'
+                position='bottomRight'
                 render={allActions}
               >
                 <Button
-                  size="small"
-                  theme="light"
-                  type="tertiary"
+                  size='small'
+                  theme='light'
+                  type='tertiary'
                   icon={<IconMore />}
-                  className="px-1"
+                  className='px-1'
                 />
               </Dropdown>
             )}

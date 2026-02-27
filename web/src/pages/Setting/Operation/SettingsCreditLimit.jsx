@@ -172,7 +172,9 @@ export default function SettingsCreditLimit(props) {
                 <Form.Switch
                   label={t('对免费模型启用预消耗')}
                   field={'quota_setting.enable_free_model_pre_consume'}
-                  extraText={t('开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度')}
+                  extraText={t(
+                    '开启后，对免费模型（倍率为0，或者价格为0）的模型也会预消耗额度',
+                  )}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

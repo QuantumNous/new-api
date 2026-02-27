@@ -26,6 +26,7 @@ import {
 import {
   timestamp2string,
   timestamp2string1,
+  isDataCrossYear,
   copy,
   showSuccess,
 } from './utils';
@@ -259,13 +260,20 @@ export const processRawData = (
     timeCountMap: new Map(),
   };
 
+  // 检查数据是否跨年
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
+
   data.forEach((item) => {
     result.uniqueModels.add(item.model_name);
     result.totalTokens += item.token_used;
     result.totalQuota += item.quota;
     result.totalTimes += item.count;
 
-    const timeKey = timestamp2string1(item.created_at, dataExportDefaultTime);
+    const timeKey = timestamp2string1(
+      item.created_at,
+      dataExportDefaultTime,
+      showYear,
+    );
     if (!result.timePoints.includes(timeKey)) {
       result.timePoints.push(timeKey);
     }
@@ -323,8 +331,15 @@ export const calculateTrendData = (
 export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
   const aggregatedData = new Map();
 
+  // 检查数据是否跨年
+  const showYear = isDataCrossYear(data.map((item) => item.created_at));
+
   data.forEach((item) => {
-    const timeKey = timestamp2string1(item.created_at, dataExportDefaultTime);
+    const timeKey = timestamp2string1(
+      item.created_at,
+      dataExportDefaultTime,
+      showYear,
+    );
     const modelKey = item.model_name;
     const key = `${timeKey}-${modelKey}`;
 
@@ -358,10 +373,15 @@ export const generateChartTimePoints = (
     const lastTime = Math.max(...data.map((item) => item.created_at));
     const interval = getTimeInterval(dataExportDefaultTime, true);
 
-    chartTimePoints = Array.from(
+    // 生成时间点数组，用于检查是否跨年
+    const generatedTimestamps = Array.from(
       { length: DEFAULTS.MAX_TREND_POINTS },
-      (_, i) =>
-        timestamp2string1(lastTime - (6 - i) * interval, dataExportDefaultTime),
+      (_, i) => lastTime - (6 - i) * interval,
+    );
+    const showYear = isDataCrossYear(generatedTimestamps);
+
+    chartTimePoints = generatedTimestamps.map((ts) =>
+      timestamp2string1(ts, dataExportDefaultTime, showYear),
     );
   }
 

@@ -18,13 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback, useEffect, useState } from 'react';
-import { API, toBoolean } from '../../helpers';
+import { API } from '../../helpers';
 
 export const useModelDeploymentSettings = () => {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     'model_deployment.ionet.enabled': false,
-    'model_deployment.ionet.api_key': '',
   });
   const [connectionState, setConnectionState] = useState({
     loading: false,
@@ -35,24 +34,13 @@ export const useModelDeploymentSettings = () => {
   const getSettings = async () => {
     try {
       setLoading(true);
-      const res = await API.get('/api/option/');
+      const res = await API.get('/api/deployments/settings');
       const { success, data } = res.data;
-      
+
       if (success) {
-        const newSettings = {
-          'model_deployment.ionet.enabled': false,
-          'model_deployment.ionet.api_key': '',
-        };
-        
-        data.forEach((item) => {
-          if (item.key.endsWith('enabled')) {
-            newSettings[item.key] = toBoolean(item.value);
-          } else if (newSettings.hasOwnProperty(item.key)) {
-            newSettings[item.key] = item.value || '';
-          }
+        setSettings({
+          'model_deployment.ionet.enabled': data?.enabled === true,
         });
-        
-        setSettings(newSettings);
       }
     } catch (error) {
       console.error('Failed to get model deployment settings:', error);
@@ -65,18 +53,22 @@ export const useModelDeploymentSettings = () => {
     getSettings();
   }, []);
 
-  const apiKey = settings['model_deployment.ionet.api_key'];
-  const isIoNetEnabled = settings['model_deployment.ionet.enabled'] && 
-                        apiKey && 
-                        apiKey.trim() !== '';
+  const isIoNetEnabled = settings['model_deployment.ionet.enabled'];
 
-  const buildConnectionError = (rawMessage, fallbackMessage = 'Connection failed') => {
+  const buildConnectionError = (
+    rawMessage,
+    fallbackMessage = 'Connection failed',
+  ) => {
     const message = (rawMessage || fallbackMessage).trim();
     const normalized = message.toLowerCase();
     if (normalized.includes('expired') || normalized.includes('expire')) {
       return { type: 'expired', message };
     }
-    if (normalized.includes('invalid') || normalized.includes('unauthorized') || normalized.includes('api key')) {
+    if (
+      normalized.includes('invalid') ||
+      normalized.includes('unauthorized') ||
+      normalized.includes('api key')
+    ) {
       return { type: 'invalid', message };
     }
     if (normalized.includes('network') || normalized.includes('timeout')) {
@@ -85,18 +77,12 @@ export const useModelDeploymentSettings = () => {
     return { type: 'unknown', message };
   };
 
-  const testConnection = useCallback(async (apiKey) => {
-    const key = (apiKey || '').trim();
-    if (key === '') {
-      setConnectionState({ loading: false, ok: null, error: null });
-      return;
-    }
-
+  const testConnection = useCallback(async () => {
     setConnectionState({ loading: true, ok: null, error: null });
     try {
       const response = await API.post(
-        '/api/deployments/test-connection',
-        { api_key: key },
+        '/api/deployments/settings/test-connection',
+        {},
         { skipErrorHandler: true },
       );
 
@@ -106,7 +92,11 @@ export const useModelDeploymentSettings = () => {
       }
 
       const message = response?.data?.message || 'Connection failed';
-      setConnectionState({ loading: false, ok: false, error: buildConnectionError(message) });
+      setConnectionState({
+        loading: false,
+        ok: false,
+        error: buildConnectionError(message),
+      });
     } catch (error) {
       if (error?.code === 'ERR_NETWORK') {
         setConnectionState({
@@ -116,23 +106,27 @@ export const useModelDeploymentSettings = () => {
         });
         return;
       }
-      const rawMessage = error?.response?.data?.message || error?.message || 'Unknown error';
-      setConnectionState({ loading: false, ok: false, error: buildConnectionError(rawMessage, 'Connection failed') });
+      const rawMessage =
+        error?.response?.data?.message || error?.message || 'Unknown error';
+      setConnectionState({
+        loading: false,
+        ok: false,
+        error: buildConnectionError(rawMessage, 'Connection failed'),
+      });
     }
   }, []);
 
   useEffect(() => {
     if (!loading && isIoNetEnabled) {
-      testConnection(apiKey);
+      testConnection();
       return;
     }
     setConnectionState({ loading: false, ok: null, error: null });
-  }, [loading, isIoNetEnabled, apiKey, testConnection]);
+  }, [loading, isIoNetEnabled, testConnection]);
 
   return {
     loading,
     settings,
-    apiKey,
     isIoNetEnabled,
     refresh: getSettings,
     connectionLoading: connectionState.loading,

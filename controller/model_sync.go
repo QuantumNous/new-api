@@ -29,7 +29,7 @@ const (
 func normalizeLocale(locale string) (string, bool) {
 	l := strings.ToLower(strings.TrimSpace(locale))
 	switch l {
-	case "en", "zh", "ja":
+	case "en", "zh-CN", "zh-TW", "ja":
 		return l, true
 	default:
 		return "", false
@@ -99,6 +99,9 @@ func newHTTPClient() *http.Client {
 		ExpectContinueTimeout: 1 * time.Second,
 		ResponseHeaderTimeout: time.Duration(timeoutSec) * time.Second,
 	}
+	if common.TLSInsecureSkipVerify {
+		transport.TLSClientConfig = common.InsecureTLSConfig
+	}
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -115,7 +118,17 @@ func newHTTPClient() *http.Client {
 	return &http.Client{Transport: transport}
 }
 
-var httpClient = newHTTPClient()
+var (
+	httpClientOnce sync.Once
+	httpClient     *http.Client
+)
+
+func getHTTPClient() *http.Client {
+	httpClientOnce.Do(func() {
+		httpClient = newHTTPClient()
+	})
+	return httpClient
+}
 
 func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T]) error {
 	var lastErr error
@@ -138,7 +151,7 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 		}
 		cacheMutex.RUnlock()
 
-		resp, err := httpClient.Do(req)
+		resp, err := getHTTPClient().Do(req)
 		if err != nil {
 			lastErr = err
 			// backoff with jitter
@@ -259,7 +272,8 @@ func SyncUpstreamModels(c *gin.Context) {
 	// 1) 获取未配置模型列表
 	missing, err := model.GetMissingModels()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		common.SysError("failed to get missing models: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取模型列表失败，请稍后重试"})
 		return
 	}
 

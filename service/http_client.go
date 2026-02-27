@@ -38,6 +38,10 @@ func InitHttpClient() {
 		MaxIdleConns:        common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
 		ForceAttemptHTTP2:   true,
+		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
+	}
+	if common.TLSInsecureSkipVerify {
+		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
 
 	if common.RelayTimeout == 0 {
@@ -81,6 +85,9 @@ func ResetProxyClientCache() {
 // NewProxyHttpClient 创建支持代理的 HTTP 客户端
 func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 	if proxyURL == "" {
+		if client := GetHttpClient(); client != nil {
+			return client, nil
+		}
 		return http.DefaultClient, nil
 	}
 
@@ -98,13 +105,17 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 
 	switch parsedURL.Scheme {
 	case "http", "https":
+		transport := &http.Transport{
+			MaxIdleConns:        common.RelayMaxIdleConns,
+			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+			ForceAttemptHTTP2:   true,
+			Proxy:               http.ProxyURL(parsedURL),
+		}
+		if common.TLSInsecureSkipVerify {
+			transport.TLSClientConfig = common.InsecureTLSConfig
+		}
 		client := &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConns:        common.RelayMaxIdleConns,
-				MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-				ForceAttemptHTTP2:   true,
-				Proxy:               http.ProxyURL(parsedURL),
-			},
+			Transport:     transport,
 			CheckRedirect: checkRedirect,
 		}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
@@ -133,17 +144,19 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 			return nil, err
 		}
 
-		client := &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConns:        common.RelayMaxIdleConns,
-				MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-				ForceAttemptHTTP2:   true,
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return dialer.Dial(network, addr)
-				},
+		transport := &http.Transport{
+			MaxIdleConns:        common.RelayMaxIdleConns,
+			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+			ForceAttemptHTTP2:   true,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialer.Dial(network, addr)
 			},
-			CheckRedirect: checkRedirect,
 		}
+		if common.TLSInsecureSkipVerify {
+			transport.TLSClientConfig = common.InsecureTLSConfig
+		}
+
+		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client
