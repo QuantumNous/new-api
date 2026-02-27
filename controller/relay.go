@@ -84,7 +84,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		defer ws.Close()
 	}
 
+	var writer *service.SensitiveWordFilterResponseWriter
 	defer func() {
+		if writer != nil && writer.GetNewAPIError() != nil {
+			writer.GetNewAPIError().SetMessage(common.MessageWithRequestId(writer.GetNewAPIError().Error(), requestId))
+		}
+
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
@@ -138,6 +143,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
 			return
 		}
+	}
+	//启用模型回复检查
+	if setting.ShouldCheckCompletionSensitive() && service.IsChatCompletionEndpoint(c) {
+		writer = &service.SensitiveWordFilterResponseWriter{
+			Url:            c.Request.URL.Path,
+			ResponseWriter: c.Writer,
+			Body:           &bytes.Buffer{},
+			Info:           relayInfo,
+			Context:        c,
+		}
+		c.Writer = writer
 	}
 
 	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
@@ -216,7 +232,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
-			return
+			if writer != nil && writer.GetNewAPIError() != nil {
+				newAPIError = writer.GetNewAPIError()
+			} else {
+				return
+			}
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
