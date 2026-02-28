@@ -70,6 +70,27 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+
+	// Check if this channel should use Chat Completions instead of Responses API.
+	// This enables Codex CLI (which only speaks Responses API) to work with
+	// channels that only support Chat Completions (e.g. NVIDIA NIM, ZhipuAI).
+	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	if info.RelayMode == relayconstant.RelayModeResponses &&
+		!passThroughGlobal &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		service.ShouldResponsesUseChatCompletionsGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
+		usage, newApiErr := responsesViaChatCompletions(c, info, adaptor, request)
+		if newApiErr != nil {
+			return newApiErr
+		}
+		if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+			service.PostAudioConsumeQuota(c, info, usage, "")
+		} else {
+			postConsumeQuota(c, info, usage)
+		}
+		return nil
+	}
+
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
