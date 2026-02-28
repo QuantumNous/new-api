@@ -1608,7 +1608,13 @@ type GeminiModelsResponse struct {
 }
 
 func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
-	client, err := service.GetHttpClientWithProxy(proxyURL)
+	return FetchGeminiModelsWithChannelSetting(baseURL, apiKey, dto.ChannelSettings{
+		Proxy: proxyURL,
+	})
+}
+
+func FetchGeminiModelsWithChannelSetting(baseURL, apiKey string, channelSetting dto.ChannelSettings) ([]string, error) {
+	client, err := service.GetHttpClientWithChannelSetting(channelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP客户端失败: %v", err)
 	}

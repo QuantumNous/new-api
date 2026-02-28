@@ -277,7 +277,7 @@ func FetchUpstreamModels(c *gin.Context) {
 			return
 		}
 		key = strings.TrimSpace(key)
-		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
+		models, err := gemini.FetchGeminiModelsWithChannelSetting(baseURL, key, channel.GetSetting())
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

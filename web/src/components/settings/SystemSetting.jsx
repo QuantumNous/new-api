@@ -109,6 +109,8 @@ const SystemSetting = () => {
     'fetch_setting.ip_list': [],
     'fetch_setting.allowed_ports': [],
     'fetch_setting.apply_ip_filter_for_domain': false,
+    'proxy_setting.default_tls_fingerprint': '',
+    'proxy_setting.default_tls_custom': '',
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -309,6 +311,34 @@ const SystemSetting = () => {
     if (inputs.WorkerValidKey !== '' || WorkerUrl === '') {
       options.push({ key: 'WorkerValidKey', value: inputs.WorkerValidKey });
     }
+    await updateOptions(options);
+  };
+
+  const submitDefaultTLSFingerprint = async () => {
+    const formValues = formApiRef.current?.getValues() || {};
+    const selectedFingerprint =
+      formValues['proxy_setting.default_tls_fingerprint'] ??
+      formValues?.proxy_setting?.default_tls_fingerprint ??
+      inputs['proxy_setting.default_tls_fingerprint'] ??
+      inputs?.proxy_setting?.default_tls_fingerprint ??
+      '';
+    const customSpec =
+      formValues['proxy_setting.default_tls_custom'] ??
+      formValues?.proxy_setting?.default_tls_custom ??
+      inputs['proxy_setting.default_tls_custom'] ??
+      inputs?.proxy_setting?.default_tls_custom ??
+      '';
+
+    const options = [
+      {
+        key: 'proxy_setting.default_tls_fingerprint',
+        value: selectedFingerprint || '',
+      },
+      {
+        key: 'proxy_setting.default_tls_custom',
+        value: selectedFingerprint === 'custom' ? customSpec || '' : '',
+      },
+    ];
     await updateOptions(options);
   };
 
@@ -779,6 +809,67 @@ const SystemSetting = () => {
                     {t('允许 HTTP 协议图片请求（适用于自部署代理）')}
                   </Form.Checkbox>
                   <Button onClick={submitWorker}>{t('更新Worker设置')}</Button>
+
+                  <div style={{ marginTop: 20 }}>
+                    <Form.Select
+                      field='proxy_setting.default_tls_fingerprint'
+                      label={t('默认 TLS 指纹')}
+                      optionList={[
+                        { label: t('默认 (Default)'), value: '' },
+                        { label: t('Chrome'), value: 'chrome' },
+                        { label: t('Firefox'), value: 'firefox' },
+                        { label: t('Safari'), value: 'safari' },
+                        { label: t('Edge'), value: 'edge' },
+                        { label: t('自定义 (Custom)'), value: 'custom' },
+                      ]}
+                      onChange={(value) => {
+                        setInputs((prev) => ({
+                          ...prev,
+                          'proxy_setting.default_tls_fingerprint': value,
+                          ...(value === 'custom'
+                            ? {}
+                            : { 'proxy_setting.default_tls_custom': '' }),
+                        }));
+                        if (value !== 'custom') {
+                          formApiRef.current?.setValue(
+                            'proxy_setting.default_tls_custom',
+                            '',
+                          );
+                        }
+                      }}
+                      extraText={t(
+                        '作为系统级默认值，仅在渠道未配置 TLS 指纹时生效',
+                      )}
+                    />
+                    {((
+                      values?.['proxy_setting.default_tls_fingerprint'] ??
+                      values?.proxy_setting?.default_tls_fingerprint ??
+                      inputs['proxy_setting.default_tls_fingerprint'] ??
+                      inputs?.proxy_setting?.default_tls_fingerprint ??
+                      ''
+                    ) === 'custom') && (
+                      <Form.TextArea
+                        field='proxy_setting.default_tls_custom'
+                        label={t('默认 TLS 自定义 ClientHello 规格(JSON)')}
+                        autosize
+                        placeholder={t(
+                          '输入 uTLS ClientHelloSpec JSON，例如包含 cipher_suites 和 extensions',
+                        )}
+                        onChange={(value) =>
+                          setInputs((prev) => ({
+                            ...prev,
+                            'proxy_setting.default_tls_custom': value,
+                          }))
+                        }
+                        extraText={t(
+                          '高级选项：将按 JSON 直接应用到 uTLS HelloCustom',
+                        )}
+                      />
+                    )}
+                    <Button onClick={submitDefaultTLSFingerprint}>
+                      {t('更新默认 TLS 指纹')}
+                    </Button>
+                  </div>
                 </Form.Section>
               </Card>
 

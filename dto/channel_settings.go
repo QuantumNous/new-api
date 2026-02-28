@@ -1,5 +1,34 @@
 package dto
 
+import "strings"
+
+const (
+	TLSFingerprintDefault  = ""
+	TLSFingerprintChrome   = "chrome"
+	TLSFingerprintFirefox  = "firefox"
+	TLSFingerprintSafari   = "safari"
+	TLSFingerprintEdge     = "edge"
+	TLSFingerprintCustom   = "custom"
+	TLSFingerprintDisabled = "default"
+)
+
+func NormalizeTLSFingerprint(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == TLSFingerprintDisabled {
+		return TLSFingerprintDefault
+	}
+	return normalized
+}
+
+func IsValidTLSFingerprint(value string) bool {
+	switch NormalizeTLSFingerprint(value) {
+	case TLSFingerprintDefault, TLSFingerprintChrome, TLSFingerprintFirefox, TLSFingerprintSafari, TLSFingerprintEdge, TLSFingerprintCustom:
+		return true
+	default:
+		return false
+	}
+}
+
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
@@ -7,6 +36,8 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	TLSFingerprint         string `json:"tls_fingerprint,omitempty"`
+	TLSCustom              string `json:"tls_custom,omitempty"`
 }
 
 type VertexKeyType string

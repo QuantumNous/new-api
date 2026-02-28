@@ -161,6 +161,8 @@ const EditChannelModal = (props) => {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
+    tls_fingerprint: '',
+    tls_custom: '',
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
@@ -417,6 +419,8 @@ const EditChannelModal = (props) => {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
+    tls_fingerprint: '',
+    tls_custom: '',
     pass_through_body_enabled: false,
     system_prompt: '',
   });
@@ -628,6 +632,8 @@ const EditChannelModal = (props) => {
           data.thinking_to_content =
             parsedSettings.thinking_to_content || false;
           data.proxy = parsedSettings.proxy || '';
+          data.tls_fingerprint = parsedSettings.tls_fingerprint || '';
+          data.tls_custom = parsedSettings.tls_custom || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
           data.system_prompt = parsedSettings.system_prompt || '';
@@ -638,6 +644,8 @@ const EditChannelModal = (props) => {
           data.force_format = false;
           data.thinking_to_content = false;
           data.proxy = '';
+          data.tls_fingerprint = '';
+          data.tls_custom = '';
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
@@ -646,6 +654,8 @@ const EditChannelModal = (props) => {
         data.force_format = false;
         data.thinking_to_content = false;
         data.proxy = '';
+        data.tls_fingerprint = '';
+        data.tls_custom = '';
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
@@ -725,6 +735,8 @@ const EditChannelModal = (props) => {
         force_format: data.force_format,
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
+        tls_fingerprint: data.tls_fingerprint || '',
+        tls_custom: data.tls_custom || '',
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
@@ -1083,6 +1095,8 @@ const EditChannelModal = (props) => {
       force_format: false,
       thinking_to_content: false,
       proxy: '',
+      tls_fingerprint: '',
+      tls_custom: '',
       pass_through_body_enabled: false,
       system_prompt: '',
       system_prompt_override: false,
@@ -1448,6 +1462,11 @@ const EditChannelModal = (props) => {
       force_format: localInputs.force_format || false,
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
+      tls_fingerprint: localInputs.tls_fingerprint || '',
+      tls_custom:
+        localInputs.tls_fingerprint === 'custom'
+          ? localInputs.tls_custom || ''
+          : '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
@@ -1505,6 +1524,8 @@ const EditChannelModal = (props) => {
     delete localInputs.force_format;
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
+    delete localInputs.tls_fingerprint;
+    delete localInputs.tls_custom;
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
@@ -3538,6 +3559,42 @@ const EditChannelModal = (props) => {
                       showClear
                       extraText={t('用于配置网络代理，支持 socks5 协议')}
                     />
+
+                    <Form.Select
+                      field='tls_fingerprint'
+                      label={t('TLS 指纹')}
+                      optionList={[
+                        { label: t('默认 (Default)'), value: '' },
+                        { label: t('Chrome'), value: 'chrome' },
+                        { label: t('Firefox'), value: 'firefox' },
+                        { label: t('Safari'), value: 'safari' },
+                        { label: t('Edge'), value: 'edge' },
+                        { label: t('自定义 (Custom)'), value: 'custom' },
+                      ]}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('tls_fingerprint', value)
+                      }
+                      extraText={t(
+                        '仅影响该渠道的上游 TLS ClientHello；默认保持 Go 原生行为',
+                      )}
+                    />
+
+                    {inputs.tls_fingerprint === 'custom' && (
+                      <Form.TextArea
+                        field='tls_custom'
+                        label={t('TLS 自定义 ClientHello 规格(JSON)')}
+                        autosize
+                        placeholder={t(
+                          '输入 uTLS ClientHelloSpec JSON，例如包含 cipher_suites 和 extensions',
+                        )}
+                        onChange={(value) =>
+                          handleChannelSettingsChange('tls_custom', value)
+                        }
+                        extraText={t(
+                          '高级选项：将按 JSON 直接应用到 uTLS HelloCustom',
+                        )}
+                      />
+                    )}
 
                     <Form.TextArea
                       field='system_prompt'
