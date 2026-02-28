@@ -83,11 +83,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if newApiErr != nil {
 			return newApiErr
 		}
-		if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-			service.PostAudioConsumeQuota(c, info, usage, "")
-		} else {
-			postConsumeQuota(c, info, usage)
-		}
+		postQuotaForModel(c, info, usage)
 		return nil
 	}
 
@@ -173,10 +169,17 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return nil
 	}
 
-	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, info, usageDto, "")
-	} else {
-		postConsumeQuota(c, info, usageDto)
-	}
+	postQuotaForModel(c, info, usageDto)
 	return nil
+}
+
+// postQuotaForModel dispatches quota consumption to the correct handler
+// based on the model name.  gpt-4o-audio models use audio-specific
+// billing; everything else goes through the standard path.
+func postQuotaForModel(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) {
+	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
+		service.PostAudioConsumeQuota(c, info, usage, "")
+	} else {
+		postConsumeQuota(c, info, usage)
+	}
 }

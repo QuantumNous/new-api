@@ -1,6 +1,7 @@
 package openaicompat
 
 import (
+	"fmt"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -158,6 +159,7 @@ func responsesInputToMessages(input json.RawMessage) ([]dto.Message, error) {
 	for _, raw := range items {
 		var item map[string]any
 		if err := common.Unmarshal(raw, &item); err != nil {
+			common.SysLog(fmt.Sprintf("skipping malformed Responses input item: %v", err))
 			continue
 		}
 
@@ -357,6 +359,7 @@ func responsesToolsToChatTools(toolsRaw json.RawMessage) ([]dto.ToolCallRequest,
 	return chatTools, nil
 }
 
+// cond returns t if b is true, f otherwise.  A simple ternary helper.
 func cond(b bool, t, f string) string {
 	if b {
 		return t

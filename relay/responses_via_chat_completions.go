@@ -87,7 +87,11 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	httpResp = resp.(*http.Response)
+	var ok bool
+	httpResp, ok = resp.(*http.Response)
+	if !ok {
+		return nil, types.NewOpenAIError(fmt.Errorf("unexpected response type: %T", resp), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
 	info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
@@ -384,16 +388,20 @@ func chatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		return nil, streamErr
 	}
 
-	// Send content_part.done and output_item.done if we emitted text content
+	// Send content_part.done and output_item.done if we emitted text content.
+	// These are best-effort cleanup events — if the client already disconnected
+	// we still return whatever usage we collected.
 	if sentContentPart {
-		sendEvent(map[string]any{
+		if !sendEvent(map[string]any{
 			"type":          "response.output_text.done",
 			"item_id":       msgID,
 			"output_index":  0,
 			"content_index": 0,
 			"text":          fullText.String(),
-		})
-		sendEvent(map[string]any{
+		}) {
+			return usage, streamErr
+		}
+		if !sendEvent(map[string]any{
 			"type":          "response.content_part.done",
 			"item_id":       msgID,
 			"output_index":  0,
@@ -402,10 +410,12 @@ func chatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 				"type": "output_text",
 				"text": fullText.String(),
 			},
-		})
+		}) {
+			return usage, streamErr
+		}
 	}
 	if sentOutputItem {
-		sendEvent(map[string]any{
+		if !sendEvent(map[string]any{
 			"type":         "response.output_item.done",
 			"output_index": 0,
 			"item": map[string]any{
@@ -420,7 +430,9 @@ func chatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 					},
 				},
 			},
-		})
+		}) {
+			return usage, streamErr
+		}
 	}
 
 	// Send tool call done events

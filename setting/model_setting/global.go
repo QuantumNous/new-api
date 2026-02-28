@@ -7,7 +7,13 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-type ChatCompletionsToResponsesPolicy struct {
+// ChannelRoutingPolicy defines a reusable policy structure for deciding
+// whether a particular channel/model combination should have its API
+// request format converted (e.g. Responses → Chat Completions or vice
+// versa).  Both ChatCompletionsToResponsesPolicy and
+// ResponsesToChatCompletionsPolicy embed this type so that field
+// definitions and the IsChannelEnabled logic are shared.
+type ChannelRoutingPolicy struct {
 	Enabled       bool     `json:"enabled"`
 	AllChannels   bool     `json:"all_channels"`
 	ChannelIDs    []int    `json:"channel_ids,omitempty"`
@@ -15,7 +21,9 @@ type ChatCompletionsToResponsesPolicy struct {
 	ModelPatterns []string `json:"model_patterns,omitempty"`
 }
 
-func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channelType int) bool {
+// IsChannelEnabled returns true when the policy is enabled and the given
+// channel matches by ID, type, or the AllChannels wildcard.
+func (p ChannelRoutingPolicy) IsChannelEnabled(channelID int, channelType int) bool {
 	if !p.Enabled {
 		return false
 	}
@@ -31,35 +39,20 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 	}
 	return false
 }
+
+// ChatCompletionsToResponsesPolicy controls when incoming
+// /v1/chat/completions requests should be converted to /v1/responses
+// for upstream channels that only support the Responses API.
+type ChatCompletionsToResponsesPolicy = ChannelRoutingPolicy
 
 // ResponsesToChatCompletionsPolicy controls when incoming /v1/responses
-// requests should be converted to /v1/chat/completions for upstream channels
-// that do not support the Responses API natively.
-type ResponsesToChatCompletionsPolicy struct {
-	Enabled       bool     `json:"enabled"`
-	AllChannels   bool     `json:"all_channels"`
-	ChannelIDs    []int    `json:"channel_ids,omitempty"`
-	ChannelTypes  []int    `json:"channel_types,omitempty"`
-	ModelPatterns []string `json:"model_patterns,omitempty"`
-}
+// requests should be converted to /v1/chat/completions for upstream
+// channels that do not support the Responses API natively (e.g. NVIDIA
+// NIM, ZhipuAI).
+type ResponsesToChatCompletionsPolicy = ChannelRoutingPolicy
 
-func (p ResponsesToChatCompletionsPolicy) IsChannelEnabled(channelID int, channelType int) bool {
-	if !p.Enabled {
-		return false
-	}
-	if p.AllChannels {
-		return true
-	}
-
-	if channelID > 0 && len(p.ChannelIDs) > 0 && slices.Contains(p.ChannelIDs, channelID) {
-		return true
-	}
-	if channelType > 0 && len(p.ChannelTypes) > 0 && slices.Contains(p.ChannelTypes, channelType) {
-		return true
-	}
-	return false
-}
-
+// GlobalSettings holds the top-level runtime configuration loaded from
+// the database options table under the "global" key.
 type GlobalSettings struct {
 	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
 	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
@@ -92,6 +85,8 @@ func init() {
 	config.GlobalConfig.Register("global", &globalSettings)
 }
 
+// GetGlobalSettings returns a pointer to the current runtime
+// GlobalSettings instance.
 func GetGlobalSettings() *GlobalSettings {
 	return &globalSettings
 }

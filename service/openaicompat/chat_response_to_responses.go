@@ -155,11 +155,6 @@ func ChatStreamChunkToResponsesEvents(chunk *dto.ChatCompletionsStreamResponse, 
 		}
 	}
 
-	// Finish reason
-	if choice.FinishReason != nil && *choice.FinishReason != "" {
-		// Will be handled by the caller when building the completed event
-	}
-
 	return events
 }
 

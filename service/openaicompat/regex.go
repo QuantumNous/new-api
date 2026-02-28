@@ -7,6 +7,10 @@ import (
 
 var compiledRegexCache sync.Map // map[string]*regexp.Regexp
 
+// matchAnyRegex returns true when s matches at least one of the given
+// regex patterns.  Compiled regexes are cached in a sync.Map for
+// performance.  Invalid patterns are silently skipped to avoid breaking
+// runtime traffic.
 func matchAnyRegex(patterns []string, s string) bool {
 	if len(patterns) == 0 || s == "" {
 		return false
