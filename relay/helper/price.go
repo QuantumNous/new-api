@@ -148,7 +148,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) types.
 	if !success {
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if !ok {
-			modelPrice = 0.1
+			modelPrice = float64(common.PreConsumedQuota) / common.QuotaPerUnit
 		} else {
 			modelPrice = defaultPrice
 		}
