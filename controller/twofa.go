@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -410,6 +411,26 @@ func Verify2FALogin(c *gin.Context) {
 	session := sessions.Default(c)
 	pendingUserId := session.Get("pending_user_id")
 	if pendingUserId == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话已过期，请重新登录",
+		})
+		return
+	}
+	// Check pending session timeout (5 minutes)
+	pendingCreatedAt := session.Get("pending_created_at")
+	if pendingCreatedAt == nil {
+		session.Clear()
+		session.Save()
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话已过期，请重新登录",
+		})
+		return
+	}
+	if time.Now().Unix()-pendingCreatedAt.(int64) > 300 {
+		session.Clear()
+		session.Save()
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "会话已过期，请重新登录",

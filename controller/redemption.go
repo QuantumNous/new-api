@@ -81,28 +81,29 @@ func AddRedemption(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
 	}
-	var keys []string
-	for i := 0; i < redemption.Count; i++ {
-		key := common.GetUUID()
-		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+	// Use transaction to ensure atomicity — all or nothing
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		for i := 0; i < redemption.Count; i++ {
+			key := common.GetUUID()
+			cleanRedemption := model.Redemption{
+				UserId:      c.GetInt("id"),
+				Name:        redemption.Name,
+				Key:         key,
+				CreatedTime: common.GetTimestamp(),
+				Quota:       redemption.Quota,
+				ExpiredTime: redemption.ExpiredTime,
+			}
+			if err := tx.Create(&cleanRedemption).Error; err != nil {
+				return err  // Transaction will rollback automatically
+			}
+			keys = append(keys, key)
 		}
-		err = cleanRedemption.Insert()
-		if err != nil {
-			common.SysError("failed to insert redemption: " + err.Error())
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": i18n.T(c, i18n.MsgRedemptionCreateFailed),
-				"data":    keys,
-			})
-			return
-		}
-		keys = append(keys, key)
+		return nil
+	})
+	if err != nil {
+		common.SysError("failed to insert redemption: " + err.Error())
+		common.ApiErrorI18n(c, i18n.MsgRedemptionCreateFailed)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

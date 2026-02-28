@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
@@ -65,6 +66,7 @@ func Login(c *gin.Context) {
 		session := sessions.Default(c)
 		session.Set("pending_username", user.Username)
 		session.Set("pending_user_id", user.Id)
+		session.Set("pending_created_at", time.Now().Unix())  // For timeout check
 		err := session.Save()
 		if err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
