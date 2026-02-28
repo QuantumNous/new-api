@@ -167,6 +167,12 @@ func RootAuth() func(c *gin.Context) {
 }
 
 func WssAuth(c *gin.Context) {
+	// WebSocket handshake: Authorization may be in Sec-WebSocket-Protocol or standard header
+	TokenAuth()(c)
+	if c.IsAborted() {
+		return
+	}
+}
 
 }
 
