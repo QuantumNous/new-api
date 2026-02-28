@@ -190,10 +190,13 @@ type ClaudeToolChoice struct {
 }
 
 type ClaudeRequest struct {
-	Model             string          `json:"model"`
-	Prompt            string          `json:"prompt,omitempty"`
-	System            any             `json:"system,omitempty"`
-	Messages          []ClaudeMessage `json:"messages,omitempty"`
+	Model    string          `json:"model"`
+	Prompt   string          `json:"prompt,omitempty"`
+	System   any             `json:"system,omitempty"`
+	Messages []ClaudeMessage `json:"messages,omitempty"`
+	// InferenceGeo controls Claude data residency region.
+	// This field is filtered by default and can be enabled via channel setting allow_inference_geo.
+	InferenceGeo      string          `json:"inference_geo,omitempty"`
 	MaxTokens         uint            `json:"max_tokens,omitempty"`
 	MaxTokensToSample uint            `json:"max_tokens_to_sample,omitempty"`
 	StopSequences     []string        `json:"stop_sequences,omitempty"`
@@ -210,7 +213,8 @@ type ClaudeRequest struct {
 	Thinking          *Thinking       `json:"thinking,omitempty"`
 	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
-	// 服务层级字段，用于指定 API 服务等级。允许透传可能导致实际计费高于预期，默认应过滤
+	// ServiceTier specifies upstream service level and may affect billing.
+	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`
 }
 

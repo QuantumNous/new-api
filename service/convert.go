@@ -127,7 +127,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 			for _, mediaMsg := range contents {
 				switch mediaMsg.Type {
-				case "text":
+				case "text", "input_text":
 					message := dto.MediaContent{
 						Type:         "text",
 						Text:         mediaMsg.GetText(),

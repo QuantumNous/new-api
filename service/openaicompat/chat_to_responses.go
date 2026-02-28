@@ -214,8 +214,12 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		for _, part := range parts {
 			switch part.Type {
 			case dto.ContentTypeText:
+				textType := "input_text"
+				if role == "assistant" {
+					textType = "output_text"
+				}
 				contentParts = append(contentParts, map[string]any{
-					"type": "input_text",
+					"type": textType,
 					"text": part.Text,
 				})
 			case dto.ContentTypeImageURL:

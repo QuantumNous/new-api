@@ -72,6 +72,10 @@ export const useTaskLogsData = () => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
 
+  // Audio preview modal state
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+  const [audioClips, setAudioClips] = useState([]);
+
   // User info modal state
   const [showUserInfo, setShowUserInfoModal] = useState(false);
   const [userInfoData, setUserInfoData] = useState(null);
@@ -277,6 +281,11 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen(true);
   };
 
+  const openAudioModal = (clips) => {
+    setAudioClips(clips);
+    setIsAudioModalOpen(true);
+  };
+
   // User info function
   const showUserInfoFunc = async (userId) => {
     if (!isAdminUser) {
@@ -319,6 +328,11 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen,
     videoUrl,
 
+    // Audio preview modal
+    isAudioModalOpen,
+    setIsAudioModalOpen,
+    audioClips,
+
     // Form state
     formApi,
     setFormApi,
@@ -351,7 +365,8 @@ export const useTaskLogsData = () => {
     refresh,
     copyText,
     openContentModal,
-    openVideoModal, // 新增
+    openVideoModal,
+    openAudioModal,
     enrichLogs,
     syncPageData,
 
