@@ -121,11 +121,11 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 		return fmt.Errorf("failed to decode credentials: %w", err)
 	}
 
-	proxy := ""
+	channelSetting := dto.ChannelSettings{}
 	if info != nil {
-		proxy = info.ChannelSetting.Proxy
+		channelSetting = info.ChannelSetting
 	}
-	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
+	token, err := vertexcore.AcquireAccessTokenWithChannelSetting(*adc, channelSetting)
 	if err != nil {
 		return fmt.Errorf("failed to acquire access token: %w", err)
 	}
@@ -230,7 +230,7 @@ func (a *TaskAdaptor) GetModelList() []string { return []string{"veo-3.0-generat
 func (a *TaskAdaptor) GetChannelName() string { return "vertex" }
 
 // FetchTask fetch task status
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, channelSetting dto.ChannelSettings) (*http.Response, error) {
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
@@ -263,7 +263,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	if err := common.Unmarshal([]byte(key), adc); err != nil {
 		return nil, fmt.Errorf("failed to decode credentials: %w", err)
 	}
-	token, err := vertexcore.AcquireAccessToken(*adc, proxy)
+	token, err := vertexcore.AcquireAccessTokenWithChannelSetting(*adc, channelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire access token: %w", err)
 	}
@@ -275,7 +275,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("x-goog-user-project", adc.ProjectID)
-	client, err := service.GetHttpClientWithProxy(proxy)
+	client, err := service.GetHttpClientWithChannelSetting(channelSetting)
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}

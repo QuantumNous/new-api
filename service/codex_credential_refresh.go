@@ -62,7 +62,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	res, err := RefreshCodexOAuthTokenWithProxy(refreshCtx, oauthKey.RefreshToken, ch.GetSetting().Proxy)
+	res, err := RefreshCodexOAuthTokenWithSetting(refreshCtx, oauthKey.RefreshToken, ch.GetSetting())
 	if err != nil {
 		return nil, nil, err
 	}

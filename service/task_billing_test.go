@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/glebarez/sqlite"
@@ -125,8 +126,8 @@ func makeTask(userId, channelId, quota, tokenId int, billingSource string, subsc
 			SubscriptionId: subscriptionId,
 			TokenId:        tokenId,
 			BillingContext: &model.TaskBillingContext{
-				ModelPrice: 0.02,
-				GroupRatio: 1.0,
+				ModelPrice:      0.02,
+				GroupRatio:      1.0,
 				OriginModelName: "test-model",
 			},
 		},
@@ -615,9 +616,11 @@ type mockAdaptor struct {
 	adjustReturn int
 }
 
-func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo)                                            {}
-func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.Response, error)  { return nil, nil }
-func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error)                     { return nil, nil }
+func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo) {}
+func (m *mockAdaptor) FetchTask(string, string, map[string]any, dto.ChannelSettings) (*http.Response, error) {
+	return nil, nil
+}
+func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
 	return m.adjustReturn
 }

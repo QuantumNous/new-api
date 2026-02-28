@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
 const (
@@ -40,11 +41,11 @@ type CodexOAuthAuthorizationFlow struct {
 }
 
 func RefreshCodexOAuthToken(ctx context.Context, refreshToken string) (*CodexOAuthTokenResult, error) {
-	return RefreshCodexOAuthTokenWithProxy(ctx, refreshToken, "")
+	return RefreshCodexOAuthTokenWithSetting(ctx, refreshToken, dto.ChannelSettings{})
 }
 
-func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, proxyURL string) (*CodexOAuthTokenResult, error) {
-	client, err := getCodexOAuthHTTPClient(proxyURL)
+func RefreshCodexOAuthTokenWithSetting(ctx context.Context, refreshToken string, setting dto.ChannelSettings) (*CodexOAuthTokenResult, error) {
+	client, err := getCodexOAuthHTTPClient(setting)
 	if err != nil {
 		return nil, err
 	}
@@ -52,11 +53,16 @@ func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, p
 }
 
 func ExchangeCodexAuthorizationCode(ctx context.Context, code string, verifier string) (*CodexOAuthTokenResult, error) {
-	return ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, "")
+	return ExchangeCodexAuthorizationCodeWithSetting(ctx, code, verifier, dto.ChannelSettings{})
 }
 
-func ExchangeCodexAuthorizationCodeWithProxy(ctx context.Context, code string, verifier string, proxyURL string) (*CodexOAuthTokenResult, error) {
-	client, err := getCodexOAuthHTTPClient(proxyURL)
+func ExchangeCodexAuthorizationCodeWithSetting(
+	ctx context.Context,
+	code string,
+	verifier string,
+	setting dto.ChannelSettings,
+) (*CodexOAuthTokenResult, error) {
+	client, err := getCodexOAuthHTTPClient(setting)
 	if err != nil {
 		return nil, err
 	}
@@ -197,8 +203,9 @@ func exchangeCodexAuthorizationCode(
 	}, nil
 }
 
-func getCodexOAuthHTTPClient(proxyURL string) (*http.Client, error) {
-	baseClient, err := GetHttpClientWithProxy(strings.TrimSpace(proxyURL))
+func getCodexOAuthHTTPClient(setting dto.ChannelSettings) (*http.Client, error) {
+	setting.Proxy = strings.TrimSpace(setting.Proxy)
+	baseClient, err := GetHttpClientWithChannelSetting(setting)
 	if err != nil {
 		return nil, err
 	}

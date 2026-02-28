@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
@@ -68,6 +69,29 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
+	case "proxy_setting.default_tls_fingerprint":
+		fingerprint := dto.NormalizeTLSFingerprint(option.Value.(string))
+		if !dto.IsValidTLSFingerprint(fingerprint) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的 TLS 指纹配置",
+			})
+			return
+		}
+		option.Value = fingerprint
+	case "proxy_setting.default_tls_custom":
+		customSpec := strings.TrimSpace(option.Value.(string))
+		if customSpec != "" {
+			var customMap map[string]any
+			if err = common.Unmarshal([]byte(customSpec), &customMap); err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "TLS 自定义配置必须是合法 JSON",
+				})
+				return
+			}
+		}
+		option.Value = customSpec
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

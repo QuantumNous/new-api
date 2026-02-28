@@ -849,6 +849,20 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+
+	channelParams.TLSFingerprint = dto.NormalizeTLSFingerprint(channelParams.TLSFingerprint)
+	if !dto.IsValidTLSFingerprint(channelParams.TLSFingerprint) {
+		return fmt.Errorf("invalid tls_fingerprint: %s", channelParams.TLSFingerprint)
+	}
+	if channelParams.TLSFingerprint == dto.TLSFingerprintCustom {
+		if strings.TrimSpace(channelParams.TLSCustom) == "" {
+			return fmt.Errorf("tls_custom is required when tls_fingerprint is custom")
+		}
+		var customSpec map[string]any
+		if err := common.Unmarshal([]byte(channelParams.TLSCustom), &customSpec); err != nil {
+			return fmt.Errorf("invalid tls_custom json: %w", err)
+		}
+	}
 	return nil
 }
 

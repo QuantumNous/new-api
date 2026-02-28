@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
@@ -111,15 +111,9 @@ func exchangeJwtForAccessToken(signedJWT string, info *relaycommon.RelayInfo) (s
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
 	data.Set("assertion", signedJWT)
 
-	var client *http.Client
-	var err error
-	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
-		if err != nil {
-			return "", fmt.Errorf("new proxy http client failed: %w", err)
-		}
-	} else {
-		client = service.GetHttpClient()
+	client, err := service.GetHttpClientWithChannelSetting(info.ChannelSetting)
+	if err != nil {
+		return "", fmt.Errorf("new proxy http client failed: %w", err)
 	}
 
 	resp, err := client.PostForm(authURL, data)
@@ -140,29 +134,23 @@ func exchangeJwtForAccessToken(signedJWT string, info *relaycommon.RelayInfo) (s
 	return "", fmt.Errorf("failed to get access token: %v", result)
 }
 
-func AcquireAccessToken(creds Credentials, proxy string) (string, error) {
+func AcquireAccessTokenWithChannelSetting(creds Credentials, channelSetting dto.ChannelSettings) (string, error) {
 	signedJWT, err := createSignedJWT(creds.ClientEmail, creds.PrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to create signed JWT: %w", err)
 	}
-	return exchangeJwtForAccessTokenWithProxy(signedJWT, proxy)
+	return exchangeJwtForAccessTokenWithChannelSetting(signedJWT, channelSetting)
 }
 
-func exchangeJwtForAccessTokenWithProxy(signedJWT string, proxy string) (string, error) {
+func exchangeJwtForAccessTokenWithChannelSetting(signedJWT string, channelSetting dto.ChannelSettings) (string, error) {
 	authURL := "https://www.googleapis.com/oauth2/v4/token"
 	data := url.Values{}
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
 	data.Set("assertion", signedJWT)
 
-	var client *http.Client
-	var err error
-	if proxy != "" {
-		client, err = service.NewProxyHttpClient(proxy)
-		if err != nil {
-			return "", fmt.Errorf("new proxy http client failed: %w", err)
-		}
-	} else {
-		client = service.GetHttpClient()
+	client, err := service.GetHttpClientWithChannelSetting(channelSetting)
+	if err != nil {
+		return "", fmt.Errorf("new proxy http client failed: %w", err)
 	}
 
 	resp, err := client.PostForm(authURL, data)
