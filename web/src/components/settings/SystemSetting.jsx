@@ -315,17 +315,28 @@ const SystemSetting = () => {
   };
 
   const submitDefaultTLSFingerprint = async () => {
+    const formValues = formApiRef.current?.getValues() || {};
+    const selectedFingerprint =
+      formValues['proxy_setting.default_tls_fingerprint'] ??
+      formValues?.proxy_setting?.default_tls_fingerprint ??
+      inputs['proxy_setting.default_tls_fingerprint'] ??
+      inputs?.proxy_setting?.default_tls_fingerprint ??
+      '';
+    const customSpec =
+      formValues['proxy_setting.default_tls_custom'] ??
+      formValues?.proxy_setting?.default_tls_custom ??
+      inputs['proxy_setting.default_tls_custom'] ??
+      inputs?.proxy_setting?.default_tls_custom ??
+      '';
+
     const options = [
       {
         key: 'proxy_setting.default_tls_fingerprint',
-        value: inputs['proxy_setting.default_tls_fingerprint'] || '',
+        value: selectedFingerprint || '',
       },
       {
         key: 'proxy_setting.default_tls_custom',
-        value:
-          inputs['proxy_setting.default_tls_fingerprint'] === 'custom'
-            ? inputs['proxy_setting.default_tls_custom'] || ''
-            : '',
+        value: selectedFingerprint === 'custom' ? customSpec || '' : '',
       },
     ];
     await updateOptions(options);
@@ -811,12 +822,32 @@ const SystemSetting = () => {
                         { label: t('Edge'), value: 'edge' },
                         { label: t('自定义 (Custom)'), value: 'custom' },
                       ]}
+                      onChange={(value) => {
+                        setInputs((prev) => ({
+                          ...prev,
+                          'proxy_setting.default_tls_fingerprint': value,
+                          ...(value === 'custom'
+                            ? {}
+                            : { 'proxy_setting.default_tls_custom': '' }),
+                        }));
+                        if (value !== 'custom') {
+                          formApiRef.current?.setValue(
+                            'proxy_setting.default_tls_custom',
+                            '',
+                          );
+                        }
+                      }}
                       extraText={t(
                         '作为系统级默认值，仅在渠道未配置 TLS 指纹时生效',
                       )}
                     />
-                    {inputs['proxy_setting.default_tls_fingerprint'] ===
-                      'custom' && (
+                    {((
+                      values?.['proxy_setting.default_tls_fingerprint'] ??
+                      values?.proxy_setting?.default_tls_fingerprint ??
+                      inputs['proxy_setting.default_tls_fingerprint'] ??
+                      inputs?.proxy_setting?.default_tls_fingerprint ??
+                      ''
+                    ) === 'custom') && (
                       <Form.TextArea
                         field='proxy_setting.default_tls_custom'
                         label={t('默认 TLS 自定义 ClientHello 规格(JSON)')}
@@ -824,6 +855,12 @@ const SystemSetting = () => {
                         placeholder={t(
                           '输入 uTLS ClientHelloSpec JSON，例如包含 cipher_suites 和 extensions',
                         )}
+                        onChange={(value) =>
+                          setInputs((prev) => ({
+                            ...prev,
+                            'proxy_setting.default_tls_custom': value,
+                          }))
+                        }
                         extraText={t(
                           '高级选项：将按 JSON 直接应用到 uTLS HelloCustom',
                         )}
