@@ -224,6 +224,7 @@ func UnlockOrder(tradeNo string) {
 	lock, ok := orderLocks.Load(tradeNo)
 	if ok {
 		lock.(*sync.Mutex).Unlock()
+		orderLocks.Delete(tradeNo)  // Prevent memory leak
 	}
 }
 
@@ -233,7 +234,7 @@ func EpayNotify(c *gin.Context) {
 	if c.Request.Method == "POST" {
 		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
-			log.Println("易支付回调POST解析失败:", err)
+			log.Println("易支付回调 POST 解析失败:", err)
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
@@ -264,12 +265,7 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 	verifyInfo, err := client.Verify(params)
-	if err == nil && verifyInfo.VerifyStatus {
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			log.Println("易支付回调写入失败")
-		}
-	} else {
+	if err != nil || !verifyInfo.VerifyStatus {
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
 			log.Println("易支付回调写入失败")
@@ -278,40 +274,45 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 
+	// Signature verified, now process business logic BEFORE responding
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		log.Println(verifyInfo)
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
 		if topUp == nil {
-			log.Printf("易支付回调未找到订单: %v", verifyInfo)
+			log.Printf("易支付回调未找到订单：%v", verifyInfo)
+			_, _ = c.Writer.Write([]byte("fail"))
 			return
 		}
 		if topUp.Status == "pending" {
-			topUp.Status = "success"
-			err := topUp.Update()
+			// Use transaction to ensure atomicity (order update + quota increase)
+			err = model.DB.Transaction(func(tx *gorm.DB) error {
+				topUp.Status = "success"
+				if err := tx.Save(topUp).Error; err != nil {
+					return err
+				}
+				dAmount := decimal.NewFromInt(int64(topUp.Amount))
+				dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+				quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
+				return tx.Model(&model.User{}).Where("id = ?", topUp.UserId).
+					Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+			})
 			if err != nil {
-				log.Printf("易支付回调更新订单失败: %v", topUp)
-				return
-			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				log.Printf("易支付回调更新用户失败: %v", topUp)
+				log.Printf("易支付回调更新失败：%v", err)
+				_, _ = c.Writer.Write([]byte("fail"))
 				return
 			}
 			log.Printf("易支付回调更新用户成功 %v", topUp)
-			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额：%v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
 		}
+		// Success: business logic completed
+		_, _ = c.Writer.Write([]byte("success"))
 	} else {
-		log.Printf("易支付异常回调: %v", verifyInfo)
+		log.Printf("易支付异常回调：%v", verifyInfo)
+		_, _ = c.Writer.Write([]byte("fail"))
 	}
 }
-
 func RequestAmount(c *gin.Context) {
 	var req AmountRequest
 	err := c.ShouldBindJSON(&req)

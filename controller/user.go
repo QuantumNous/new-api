@@ -1008,7 +1008,10 @@ func TopUp(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserTopUpProcessing)
 		return
 	}
-	defer lock.Unlock()
+	defer func() {
+		lock.Unlock()
+		topUpLocks.Delete(id)  // Prevent memory leak
+	}()
 	req := topUpRequest{}
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
