@@ -14,7 +14,7 @@ import (
 const (
 	// 备用码配置
 	BackupCodeLength = 8 // 备用码长度
-	BackupCodeCount  = 4 // 生成备用码数量
+	BackupCodeCount  = 10 // 生成备用码数量 (increased from 4 to match industry standard)
 
 	// 限制配置
 	MaxFailAttempts = 5   // 最大失败尝试次数

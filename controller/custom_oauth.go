@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/gin-gonic/gin"
@@ -163,6 +164,13 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	parsedURL, err := url.Parse(targetURL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 		common.ApiErrorMsg(c, "Discovery URL 无效，仅支持 http/https")
+		return
+	}
+
+	// SSRF protection: block internal network access
+	fs := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(targetURL, fs.EnableSSRFProtection, fs.AllowPrivateIp, fs.DomainFilterMode, fs.IpFilterMode, fs.DomainList, fs.IpList, fs.AllowedPorts, fs.ApplyIPFilterForDomain); err != nil {
+		common.ApiErrorMsg(c, "Discovery URL 不合法: "+err.Error())
 		return
 	}
 

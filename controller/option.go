@@ -70,7 +70,11 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key") {
+			strings.HasSuffix(k, "api_key") ||
+			strings.HasSuffix(k, "Password") ||
+			strings.HasSuffix(k, "password") ||
+			strings.Contains(k, "DSN") ||
+			strings.Contains(k, "dsn") {
 			continue
 		}
 		options = append(options, &model.Option{

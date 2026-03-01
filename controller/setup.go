@@ -52,7 +52,7 @@ func GetSetup(c *gin.Context) {
 }
 
 func PostSetup(c *gin.Context) {
-	// Check if setup is already completed
+	// Check if setup is already completed (in-memory flag)
 	if constant.Setup {
 		c.JSON(200, gin.H{
 			"success": false,
@@ -61,8 +61,17 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
-	// Check if root user already exists
-	rootExists := model.RootUserExists()
+	// Always check DB — in-memory flag resets on restart
+	if model.RootUserExists() {
+		constant.Setup = true  // Sync in-memory flag
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": "系统已经初始化完成",
+		})
+		return
+	}
+
+	rootExists := false  // We already checked above
 
 	var req SetupRequest
 	err := c.ShouldBindJSON(&req)
