@@ -86,6 +86,7 @@ const NotificationSettings = ({
       channel: true,
       models: true,
       deployment: true,
+      subscription: true,
       redemption: true,
       user: true,
       setting: true,
@@ -169,6 +170,7 @@ const NotificationSettings = ({
         channel: true,
         models: true,
         deployment: true,
+        subscription: true,
         redemption: true,
         user: true,
         setting: true,
@@ -295,6 +297,11 @@ const NotificationSettings = ({
           key: 'deployment',
           title: t('模型部署'),
           description: t('模型部署管理'),
+        },
+        {
+          key: 'subscription',
+          title: t('订阅管理'),
+          description: t('订阅套餐管理'),
         },
         {
           key: 'redemption',

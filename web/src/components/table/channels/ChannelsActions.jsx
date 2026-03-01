@@ -99,14 +99,14 @@ const ChannelsActions = ({
                     onClick={() => {
                       Modal.confirm({
                         title: t('确定？'),
-                        content: t('确定要测试所有通道吗？'),
+                        content: t('确定要测试所有未手动禁用渠道吗？'),
                         onOk: () => testAllChannels(),
                         size: 'small',
                         centered: true,
                       });
                     }}
                   >
-                    {t('测试所有通道')}
+                    {t('测试所有未手动禁用渠道')}
                   </Button>
                 </Dropdown.Item>
                 <Dropdown.Item>

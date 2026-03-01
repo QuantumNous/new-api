@@ -61,8 +61,9 @@ var passthroughSkipHeaderNamesLower = map[string]struct{}{
 	"cookie": {},
 
 	// Additional headers that should not be forwarded by name-matching passthrough rules.
-	"host":           {},
-	"content-length": {},
+	"host":            {},
+	"content-length":  {},
+	"accept-encoding": {},
 
 	// Do not passthrough credentials by wildcard/regex.
 	"authorization":  {},
@@ -168,38 +169,44 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 // Passthrough rules are applied first, then normal overrides are applied, so explicit overrides win.
 func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
 	headerOverride := make(map[string]string)
+	if info == nil {
+		return headerOverride, nil
+	}
+
+	headerOverrideSource := common.GetEffectiveHeaderOverride(info)
 
 	passAll := false
 	var passthroughRegex []*regexp.Regexp
-	for k := range info.HeadersOverride {
-		key := strings.TrimSpace(k)
-		if key == "" {
-			continue
-		}
-		if key == headerPassthroughAllKey {
-			passAll = true
-			continue
-		}
+	if !info.IsChannelTest {
+		for k := range headerOverrideSource {
+			key := strings.TrimSpace(strings.ToLower(k))
+			if key == "" {
+				continue
+			}
+			if key == headerPassthroughAllKey {
+				passAll = true
+				continue
+			}
 
-		lower := strings.ToLower(key)
-		var pattern string
-		switch {
-		case strings.HasPrefix(lower, headerPassthroughRegexPrefix):
-			pattern = strings.TrimSpace(key[len(headerPassthroughRegexPrefix):])
-		case strings.HasPrefix(lower, headerPassthroughRegexPrefixV2):
-			pattern = strings.TrimSpace(key[len(headerPassthroughRegexPrefixV2):])
-		default:
-			continue
-		}
+			var pattern string
+			switch {
+			case strings.HasPrefix(key, headerPassthroughRegexPrefix):
+				pattern = strings.TrimSpace(key[len(headerPassthroughRegexPrefix):])
+			case strings.HasPrefix(key, headerPassthroughRegexPrefixV2):
+				pattern = strings.TrimSpace(key[len(headerPassthroughRegexPrefixV2):])
+			default:
+				continue
+			}
 
-		if pattern == "" {
-			return nil, types.NewError(fmt.Errorf("header passthrough regex pattern is empty: %q", k), types.ErrorCodeChannelHeaderOverrideInvalid)
+			if pattern == "" {
+				return nil, types.NewError(fmt.Errorf("header passthrough regex pattern is empty: %q", k), types.ErrorCodeChannelHeaderOverrideInvalid)
+			}
+			compiled, err := getHeaderPassthroughRegex(pattern)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
+			}
+			passthroughRegex = append(passthroughRegex, compiled)
 		}
-		compiled, err := getHeaderPassthroughRegex(pattern)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
-		}
-		passthroughRegex = append(passthroughRegex, compiled)
 	}
 
 	if passAll || len(passthroughRegex) > 0 {
@@ -226,15 +233,15 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 			if value == "" {
 				continue
 			}
-			headerOverride[name] = value
+			headerOverride[strings.ToLower(strings.TrimSpace(name))] = value
 		}
 	}
 
-	for k, v := range info.HeadersOverride {
+	for k, v := range headerOverrideSource {
 		if isHeaderPassthroughRuleKey(k) {
 			continue
 		}
-		key := strings.TrimSpace(k)
+		key := strings.TrimSpace(strings.ToLower(k))
 		if key == "" {
 			continue
 		}
@@ -242,6 +249,9 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 		str, ok := v.(string)
 		if !ok {
 			return nil, types.NewError(nil, types.ErrorCodeChannelHeaderOverrideInvalid)
+		}
+		if info.IsChannelTest && strings.HasPrefix(strings.TrimSpace(str), clientHeaderPlaceholderPrefix) {
+			continue
 		}
 
 		value, include, err := applyHeaderOverridePlaceholders(str, c, info.ApiKey)

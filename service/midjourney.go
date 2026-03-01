@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func CoverActionToModelName(mjAction string) string {
+func CovertMjpActionToModelName(mjAction string) string {
 	modelName := "mj_" + strings.ToLower(mjAction)
 	if mjAction == constant.MjActionSwapFace {
 		modelName = "swap_face"
@@ -70,7 +70,7 @@ func GetMjRequestModel(relayMode int, midjRequest *dto.MidjourneyRequest) (strin
 			return "", MidjourneyErrorWrapper(constant.MjRequestError, "unknown_relay_action"), false
 		}
 	}
-	modelName := CoverActionToModelName(action)
+	modelName := CovertMjpActionToModelName(action)
 	return modelName, nil, true
 }
 

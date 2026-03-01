@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) *CohereRequest {
@@ -23,7 +24,7 @@ func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) *CohereRequest {
 		Model:       textRequest.Model,
 		ChatHistory: []ChatHistory{},
 		Message:     "",
-		Stream:      textRequest.Stream,
+		Stream:      lo.FromPtrOr(textRequest.Stream, false),
 		MaxTokens:   textRequest.GetMaxTokens(),
 	}
 	if common.CohereSafetySetting != "NONE" {
@@ -55,14 +56,15 @@ func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) *CohereRequest {
 }
 
 func requestConvertRerank2Cohere(rerankRequest dto.RerankRequest) *CohereRerankRequest {
-	if rerankRequest.TopN == 0 {
-		rerankRequest.TopN = 1
+	topN := lo.FromPtrOr(rerankRequest.TopN, 1)
+	if topN <= 0 {
+		topN = 1
 	}
 	cohereReq := CohereRerankRequest{
 		Query:           rerankRequest.Query,
 		Documents:       rerankRequest.Documents,
 		Model:           rerankRequest.Model,
-		TopN:            rerankRequest.TopN,
+		TopN:            topN,
 		ReturnDocuments: true,
 	}
 	return &cohereReq

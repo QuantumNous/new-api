@@ -72,6 +72,14 @@ export const useTaskLogsData = () => {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
 
+  // Audio preview modal state
+  const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
+  const [audioClips, setAudioClips] = useState([]);
+
+  // User info modal state
+  const [showUserInfo, setShowUserInfoModal] = useState(false);
+  const [userInfoData, setUserInfoData] = useState(null);
+
   // Form state
   const [formApi, setFormApi] = useState(null);
   let now = new Date();
@@ -273,6 +281,26 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen(true);
   };
 
+  const openAudioModal = (clips) => {
+    setAudioClips(clips);
+    setIsAudioModalOpen(true);
+  };
+
+  // User info function
+  const showUserInfoFunc = async (userId) => {
+    if (!isAdminUser) {
+      return;
+    }
+    const res = await API.get(`/api/user/${userId}`);
+    const { success, message, data } = res.data;
+    if (success) {
+      setUserInfoData(data);
+      setShowUserInfoModal(true);
+    } else {
+      showError(message);
+    }
+  };
+
   // Initialize data
   useEffect(() => {
     const localPageSize =
@@ -300,6 +328,11 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen,
     videoUrl,
 
+    // Audio preview modal
+    isAudioModalOpen,
+    setIsAudioModalOpen,
+    audioClips,
+
     // Form state
     formApi,
     setFormApi,
@@ -319,6 +352,12 @@ export const useTaskLogsData = () => {
     compactMode,
     setCompactMode,
 
+    // User info modal
+    showUserInfo,
+    setShowUserInfoModal,
+    userInfoData,
+    showUserInfoFunc,
+
     // Functions
     loadLogs,
     handlePageChange,
@@ -326,7 +365,8 @@ export const useTaskLogsData = () => {
     refresh,
     copyText,
     openContentModal,
-    openVideoModal, // 新增
+    openVideoModal,
+    openAudioModal,
     enrichLogs,
     syncPageData,
 
