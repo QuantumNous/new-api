@@ -156,6 +156,20 @@ const SubscriptionPurchaseModal = ({
                   </Text>
                 </div>
               ) : null}
+              {plan?.allowed_groups ? (
+                <div className='flex justify-between items-center'>
+                  <Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('限制分组')}：
+                  </Text>
+                  <Text className='text-slate-900 dark:text-slate-100'>
+                    {typeof plan.allowed_groups === 'string'
+                      ? plan.allowed_groups
+                      : (Array.isArray(plan.allowed_groups)
+                          ? plan.allowed_groups.join(', ')
+                          : String(plan.allowed_groups))}
+                  </Text>
+                </div>
+              ) : null}
               <Divider margin={8} />
               <div className='flex justify-between items-center'>
                 <Text strong className='text-slate-700 dark:text-slate-200'>

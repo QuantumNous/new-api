@@ -51,9 +51,9 @@ var (
 )
 
 func subscriptionPlanCacheTTL() time.Duration {
-	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_PLAN_CACHE_TTL", 300)
+	ttlSeconds := common.GetEnvOrDefault("SUBSCRIPTION_PLAN_CACHE_TTL", 1800)
 	if ttlSeconds <= 0 {
-		ttlSeconds = 300
+		ttlSeconds = 1800
 	}
 	return time.Duration(ttlSeconds) * time.Second
 }
@@ -131,6 +131,10 @@ func subscriptionPlanCacheKey(id int) string {
 	return strconv.Itoa(id)
 }
 
+// InvalidateSubscriptionPlanCache removes cached plan and all plan-info entries so the next read sees fresh data.
+// Must be called after any create/update/status-change of a subscription plan (e.g. AdminCreateSubscriptionPlan,
+// AdminUpdateSubscriptionPlan, AdminUpdateSubscriptionPlanStatus). Any new code that writes to subscription_plans
+// must call this for the affected plan id.
 func InvalidateSubscriptionPlanCache(planId int) {
 	if planId <= 0 {
 		return
@@ -168,6 +172,9 @@ type SubscriptionPlan struct {
 	// Upgrade user group after purchase (empty = no change)
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
+	// Allowed groups for this subscription (comma-separated, empty = all groups allowed)
+	AllowedGroups string `json:"allowed_groups" gorm:"type:varchar(512);default:''"`
+
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
 
@@ -189,6 +196,38 @@ func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
 func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 	p.UpdatedAt = common.GetTimestamp()
 	return nil
+}
+
+// GetAllowedGroupsList returns the list of allowed groups for this plan
+func (p *SubscriptionPlan) GetAllowedGroupsList() []string {
+	if strings.TrimSpace(p.AllowedGroups) == "" {
+		return nil
+	}
+	groups := strings.Split(p.AllowedGroups, ",")
+	result := make([]string, 0, len(groups))
+	for _, g := range groups {
+		trimmed := strings.TrimSpace(g)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// IsGroupAllowed checks if a group is allowed for this plan
+func (p *SubscriptionPlan) IsGroupAllowed(group string) bool {
+	allowedGroups := p.GetAllowedGroupsList()
+	if len(allowedGroups) == 0 {
+		// Empty means all groups are allowed
+		return true
+	}
+	group = strings.TrimSpace(group)
+	for _, allowed := range allowedGroups {
+		if allowed == group {
+			return true
+		}
+	}
+	return false
 }
 
 // Subscription order (payment -> webhook -> create UserSubscription)
@@ -368,7 +407,10 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if err := query.Where("id = ?", id).First(&plan).Error; err != nil {
 		return nil, err
 	}
-	_ = getSubscriptionPlanCache().SetWithTTL(key, plan, subscriptionPlanCacheTTL())
+	// Do not cache when inside a transaction to avoid storing uncommitted data
+	if tx == nil {
+		_ = getSubscriptionPlanCache().SetWithTTL(key, plan, subscriptionPlanCacheTTL())
+	}
 	return &plan, nil
 }
 
@@ -1190,3 +1232,24 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return tx.Save(&sub).Error
 	})
 }
+
+// GetUserActiveSubscriptionPlan returns the active subscription plan for a user (if any)
+func GetUserActiveSubscriptionPlan(userId int) (*SubscriptionPlan, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	now := common.GetTimestamp()
+	var sub UserSubscription
+	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Order("start_time desc, id desc").
+		Limit(1).
+		First(&sub).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // No active subscription
+		}
+		return nil, err
+	}
+	return GetSubscriptionPlanById(sub.PlanId)
+}
+
