@@ -81,6 +81,28 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+
+				// Check subscription group restrictions
+				userId := c.GetInt("id")
+				if userId > 0 {
+					activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
+					if err == nil && activePlan != nil {
+						allowedGroups := activePlan.GetAllowedGroupsList()
+						if len(allowedGroups) > 0 {
+							// Subscription has group restrictions
+							if usingGroup == "auto" {
+								// For auto group, we'll validate later when actual group is selected
+							} else if !activePlan.IsGroupAllowed(usingGroup) {
+								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
+									"AllowedGroups": strings.Join(allowedGroups, ", "),
+									"CurrentGroup":  usingGroup,
+								}))
+								return
+							}
+						}
+					}
+				}
+
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
@@ -146,6 +168,24 @@ func Distribute() func(c *gin.Context) {
 					if channel == nil {
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
+					}
+
+					// Validate subscription group restriction for auto-selected group
+					if usingGroup == "auto" && selectGroup != "" {
+						userId := c.GetInt("id")
+						if userId > 0 {
+							activePlan, err := model.GetUserActiveSubscriptionPlan(userId)
+							if err == nil && activePlan != nil {
+								if !activePlan.IsGroupAllowed(selectGroup) {
+									allowedGroups := activePlan.GetAllowedGroupsList()
+									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorSubscriptionGroupRestricted, map[string]any{
+										"AllowedGroups": strings.Join(allowedGroups, ", "),
+										"CurrentGroup":  selectGroup,
+									}))
+									return
+								}
+							}
+						}
 					}
 				}
 			}

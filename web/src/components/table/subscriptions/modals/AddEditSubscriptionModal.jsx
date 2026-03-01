@@ -95,6 +95,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     upgrade_group: '',
+    allowed_groups: [],
     stripe_price_id: '',
     creem_product_id: '',
   });
@@ -121,6 +122,7 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
+      allowed_groups: p.allowed_groups ? p.allowed_groups.split(',').map(g => g.trim()).filter(g => g) : [],
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
     };
@@ -164,6 +166,9 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          allowed_groups: Array.isArray(values.allowed_groups)
+            ? values.allowed_groups.join(',')
+            : (values.allowed_groups || ''),
         },
       };
       if (editingPlan?.plan?.id) {
@@ -334,6 +339,27 @@ const AddEditSubscriptionModal = ({
                         )}
                       >
                         <Select.Option value=''>{t('不升级')}</Select.Option>
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+
+                    <Col span={12}>
+                      <Form.Select
+                        field='allowed_groups'
+                        label={t('允许的分组')}
+                        showClear
+                        loading={groupLoading}
+                        placeholder={t('不限制（允许所有分组）')}
+                        multiple
+                        maxTagCount={2}
+                        extraText={t(
+                          '限制用户只能使用指定的分组。留空表示不限制，用户可以使用所有分组。',
+                        )}
+                      >
                         {(groupOptions || []).map((g) => (
                           <Select.Option key={g} value={g}>
                             {g}

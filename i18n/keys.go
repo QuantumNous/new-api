@@ -299,6 +299,7 @@ const (
 	MsgDistributorModelNameRequired   = "distributor.model_name_required"
 	MsgDistributorInvalidPlayground   = "distributor.invalid_playground_request"
 	MsgDistributorGroupAccessDenied   = "distributor.group_access_denied"
+	MsgDistributorSubscriptionGroupRestricted = "distributor.subscription_group_restricted"
 	MsgDistributorGetChannelFailed    = "distributor.get_channel_failed"
 	MsgDistributorNoAvailableChannel  = "distributor.no_available_channel"
 	MsgDistributorInvalidMidjourney   = "distributor.invalid_midjourney_request"

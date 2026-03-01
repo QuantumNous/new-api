@@ -251,6 +251,7 @@ distributor.token_model_forbidden: "This token has no access to model {{.Model}}
 distributor.model_name_required: "Model name not specified, model name cannot be empty"
 distributor.invalid_playground_request: "Invalid playground request: {{.Error}}"
 distributor.group_access_denied: "No permission to access this group"
+distributor.subscription_group_restricted: "Your subscription plan restricts the groups you can use ({{.AllowedGroups}}), the current group {{.CurrentGroup}} is not allowed"
 distributor.get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}"
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
