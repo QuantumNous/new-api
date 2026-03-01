@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -57,32 +58,19 @@ func CheckNotificationLimit(userId int, notifyType string) (bool, error) {
 func checkRedisLimit(userId int, notifyType string) (bool, error) {
 	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
 
-	// Get current count
-	count, err := common.RedisGet(key)
-	if err != nil && err.Error() != "redis: nil" {
-		return false, fmt.Errorf("failed to get notification count: %w", err)
-	}
-
-	// If key doesn't exist, initialize it
-	if count == "" {
-		err = common.RedisSet(key, "1", getDuration())
-		return true, err
-	}
-
-	currentCount, _ := strconv.Atoi(count)
-	limit := constant.NotifyLimitCount
-
-	// Check if limit is already reached
-	if currentCount >= limit {
-		return false, nil
-	}
-
-	// Only increment if under limit
-	err = common.RedisIncr(key, 1)
+	// Atomic INCR: increment first, then check — avoids GET+check+INCR race condition
+	newCount, err := common.RDB.Incr(context.Background(), key).Result()
 	if err != nil {
 		return false, fmt.Errorf("failed to increment notification count: %w", err)
 	}
+	// Set expiry only on first increment (when key is newly created)
+	if newCount == 1 {
+		common.RDB.Expire(context.Background(), key, getDuration())
+	}
 
+	if int(newCount) > constant.NotifyLimitCount {
+		return false, nil
+	}
 	return true, nil
 }
 

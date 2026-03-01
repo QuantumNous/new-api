@@ -33,6 +33,7 @@ func (l *InMemoryRateLimiter) clearExpiredItems() {
 		for key := range l.store {
 			queue := l.store[key]
 			size := len(*queue)
+			// Delete if empty or newest entry is also expired (key is truly idle)
 			if size == 0 || now-(*queue)[size-1] > int64(l.expirationDuration.Seconds()) {
 				delete(l.store, key)
 			}
