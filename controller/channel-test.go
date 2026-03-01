@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,10 +29,10 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
-
-	"github.com/gin-gonic/gin"
 )
 
 type testResult struct {
@@ -731,55 +730,35 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	return testRequest
 }
 
-func TestChannel(c *gin.Context) {
-	channelId, err := strconv.Atoi(c.Param("id"))
+func TestChannel(c fuego.ContextWithParams[dto.TestChannelParams]) (dto.TestChannelResponse, error) {
+	p, _ := dto.ParseParams[dto.TestChannelParams](c)
+	channelId, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.TestChannelResponse{Success: false, Message: err.Error()}, nil
 	}
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)
 		if err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.TestChannelResponse{Success: false, Message: err.Error()}, nil
 		}
 	}
-	//defer func() {
-	//	if channel.ChannelInfo.IsMultiKey {
-	//		go func() { _ = channel.SaveChannelInfo() }()
-	//	}
-	//}()
-	testModel := c.Query("model")
-	endpointType := c.Query("endpoint_type")
-	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	testModel := p.Model
+	endpointType := p.EndpointType
+	isStream := p.Stream
 	tik := time.Now()
 	result := testChannel(channel, testModel, endpointType, isStream)
 	if result.localErr != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": result.localErr.Error(),
-			"time":    0.0,
-		})
-		return
+		return dto.TestChannelResponse{Success: false, Message: result.localErr.Error(), Time: 0.0}, nil
 	}
 	tok := time.Now()
 	milliseconds := tok.Sub(tik).Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": result.newAPIError.Error(),
-			"time":    consumedTime,
-		})
-		return
+		return dto.TestChannelResponse{Success: false, Message: result.newAPIError.Error(), Time: consumedTime}, nil
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"time":    consumedTime,
-	})
+	return dto.TestChannelResponse{Success: true, Message: "", Time: consumedTime}, nil
 }
 
 var testAllChannelsLock sync.Mutex
@@ -857,16 +836,12 @@ func testAllChannels(notify bool) error {
 	return nil
 }
 
-func TestAllChannels(c *gin.Context) {
+func TestAllChannels(c fuego.ContextNoBody) (dto.MessageResponse, error) {
 	err := testAllChannels(true)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	return dto.Msg("")
 }
 
 var autoTestChannelsOnce sync.Once

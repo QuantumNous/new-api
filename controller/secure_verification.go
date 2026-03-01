@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -21,29 +22,14 @@ const (
 	SecureVerificationTimeout = 300 // 5分钟
 )
 
-type UniversalVerifyRequest struct {
-	Method string `json:"method"` // "2fa" 或 "passkey"
-	Code   string `json:"code,omitempty"`
-}
-
-type VerificationStatusResponse struct {
-	Verified  bool  `json:"verified"`
-	ExpiresAt int64 `json:"expires_at,omitempty"`
-}
-
-// UniversalVerify 通用验证接口
-// 支持 2FA 和 Passkey 验证，验证成功后在 session 中记录时间戳
 func UniversalVerify(c *gin.Context) {
 	userId := c.GetInt("id")
 	if userId == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "未登录",
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: "未登录"})
 		return
 	}
 
-	var req UniversalVerifyRequest
+	var req dto.UniversalVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
 		return
@@ -123,18 +109,16 @@ func UniversalVerify(c *gin.Context) {
 	// 记录日志
 	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("通用安全验证成功 (验证方式: %s)", verifyMethod))
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "验证成功",
-		"data": gin.H{
-			"verified":   true,
-			"expires_at": now + SecureVerificationTimeout,
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "验证成功",
+		Data: dto.VerificationStatusResponse{
+			Verified:  true,
+			ExpiresAt: now + SecureVerificationTimeout,
 		},
 	})
 }
 
-// PasskeyVerifyAndSetSession Passkey 验证完成后设置 session
-// 这是一个辅助函数，供 PasskeyVerifyFinish 调用
 func PasskeyVerifyAndSetSession(c *gin.Context) {
 	session := sessions.Default(c)
 	now := time.Now().Unix()
@@ -142,23 +126,15 @@ func PasskeyVerifyAndSetSession(c *gin.Context) {
 	_ = session.Save()
 }
 
-// PasskeyVerifyForSecure 用于安全验证的 Passkey 验证流程
-// 整合了 begin 和 finish 流程
 func PasskeyVerifyForSecure(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
 	userId := c.GetInt("id")
 	if userId == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "未登录",
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: "未登录"})
 		return
 	}
 
@@ -175,10 +151,7 @@ func PasskeyVerifyForSecure(c *gin.Context) {
 
 	credential, err := model.GetPasskeyByUserID(userId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户尚未绑定 Passkey",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "该用户尚未绑定 Passkey"})
 		return
 	}
 
@@ -215,12 +188,12 @@ func PasskeyVerifyForSecure(c *gin.Context) {
 	// 记录日志
 	model.RecordLog(userId, model.LogTypeSystem, "Passkey 安全验证成功")
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Passkey 验证成功",
-		"data": gin.H{
-			"verified":   true,
-			"expires_at": time.Now().Unix() + SecureVerificationTimeout,
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "Passkey 验证成功",
+		Data: dto.VerificationStatusResponse{
+			Verified:  true,
+			ExpiresAt: time.Now().Unix() + SecureVerificationTimeout,
 		},
 	})
 }

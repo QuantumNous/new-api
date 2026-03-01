@@ -1,124 +1,99 @@
 package controller
 
 import (
-	"strconv"
-
-	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
 // GetAllVendors 获取供应商列表（分页）
-func GetAllVendors(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func GetAllVendors(c fuego.ContextNoBody) (*dto.Response[dto.PageData[*model.Vendor]], error) {
+	pageInfo := dto.PageInfo(c)
 	vendors, err := model.GetAllVendors(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Vendor](err.Error())
 	}
 	var total int64
 	model.DB.Model(&model.Vendor{}).Count(&total)
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(vendors)
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(pageInfo, vendors, int(total))
 }
 
 // SearchVendors 搜索供应商
-func SearchVendors(c *gin.Context) {
-	keyword := c.Query("keyword")
-	pageInfo := common.GetPageQuery(c)
-	vendors, total, err := model.SearchVendors(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+func SearchVendors(c fuego.ContextWithParams[dto.SearchVendorsParams]) (*dto.Response[dto.PageData[*model.Vendor]], error) {
+	p, _ := dto.ParseParams[dto.SearchVendorsParams](c)
+	pageInfo := dto.PageInfo(c)
+	vendors, total, err := model.SearchVendors(p.Keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Vendor](err.Error())
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(vendors)
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(pageInfo, vendors, int(total))
 }
 
 // GetVendorMeta 根据 ID 获取供应商
-func GetVendorMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+func GetVendorMeta(c fuego.ContextNoBody) (*dto.Response[model.Vendor], error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	}
 	v, err := model.GetVendorByID(id)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	}
-	common.ApiSuccess(c, v)
+	return dto.Ok(*v)
 }
 
 // CreateVendorMeta 新建供应商
-func CreateVendorMeta(c *gin.Context) {
-	var v model.Vendor
-	if err := c.ShouldBindJSON(&v); err != nil {
-		common.ApiError(c, err)
-		return
+func CreateVendorMeta(c fuego.ContextWithBody[model.Vendor]) (*dto.Response[model.Vendor], error) {
+	v, err := c.Body()
+	if err != nil {
+		return dto.Fail[model.Vendor](err.Error())
 	}
 	if v.Name == "" {
-		common.ApiErrorMsg(c, "供应商名称不能为空")
-		return
+		return dto.Fail[model.Vendor]("供应商名称不能为空")
 	}
 	// 创建前先检查名称
 	if dup, err := model.IsVendorNameDuplicated(0, v.Name); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	} else if dup {
-		common.ApiErrorMsg(c, "供应商名称已存在")
-		return
+		return dto.Fail[model.Vendor]("供应商名称已存在")
 	}
 
 	if err := v.Insert(); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	}
-	common.ApiSuccess(c, &v)
+	return dto.Ok(v)
 }
 
 // UpdateVendorMeta 更新供应商
-func UpdateVendorMeta(c *gin.Context) {
-	var v model.Vendor
-	if err := c.ShouldBindJSON(&v); err != nil {
-		common.ApiError(c, err)
-		return
+func UpdateVendorMeta(c fuego.ContextWithBody[model.Vendor]) (*dto.Response[model.Vendor], error) {
+	v, err := c.Body()
+	if err != nil {
+		return dto.Fail[model.Vendor](err.Error())
 	}
 	if v.Id == 0 {
-		common.ApiErrorMsg(c, "缺少供应商 ID")
-		return
+		return dto.Fail[model.Vendor]("缺少供应商 ID")
 	}
 	// 名称冲突检查
 	if dup, err := model.IsVendorNameDuplicated(v.Id, v.Name); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	} else if dup {
-		common.ApiErrorMsg(c, "供应商名称已存在")
-		return
+		return dto.Fail[model.Vendor]("供应商名称已存在")
 	}
 
 	if err := v.Update(); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Vendor](err.Error())
 	}
-	common.ApiSuccess(c, &v)
+	return dto.Ok(v)
 }
 
 // DeleteVendorMeta 删除供应商
-func DeleteVendorMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+func DeleteVendorMeta(c fuego.ContextNoBody) (dto.MessageResponse, error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	if err := model.DB.Delete(&model.Vendor{}, id).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	common.ApiSuccess(c, nil)
+	return dto.Msg("")
 }

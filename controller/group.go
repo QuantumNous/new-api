@@ -1,52 +1,42 @@
 package controller
 
 import (
-	"net/http"
-
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
-func GetGroups(c *gin.Context) {
+func GetGroups(c fuego.ContextNoBody) (*dto.Response[[]string], error) {
 	groupNames := make([]string, 0)
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
 		groupNames = append(groupNames, groupName)
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    groupNames,
-	})
+	return dto.Ok(groupNames)
 }
 
-func GetUserGroups(c *gin.Context) {
-	usableGroups := make(map[string]map[string]interface{})
+func GetUserGroups(c fuego.ContextNoBody) (*dto.Response[map[string]dto.UserGroupInfo], error) {
+	usableGroups := make(map[string]dto.UserGroupInfo)
 	userGroup := ""
-	userId := c.GetInt("id")
+	userId := dto.UserID(c)
 	userGroup, _ = model.GetUserGroup(userId, false)
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
 		if desc, ok := userUsableGroups[groupName]; ok {
-			usableGroups[groupName] = map[string]interface{}{
-				"ratio": service.GetUserGroupRatio(userGroup, groupName),
-				"desc":  desc,
+			usableGroups[groupName] = dto.UserGroupInfo{
+				Ratio: service.GetUserGroupRatio(userGroup, groupName),
+				Desc:  desc,
 			}
 		}
 	}
 	if _, ok := userUsableGroups["auto"]; ok {
-		usableGroups["auto"] = map[string]interface{}{
-			"ratio": "自动",
-			"desc":  setting.GetUsableGroupDescription("auto"),
+		usableGroups["auto"] = dto.UserGroupInfo{
+			Ratio: "自动",
+			Desc:  setting.GetUsableGroupDescription("auto"),
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    usableGroups,
-	})
+	return dto.Ok(usableGroups)
 }

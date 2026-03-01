@@ -1,4 +1,4 @@
-package dto
+package types
 
 type UserSetting struct {
 	NotifyType                       string  `json:"notify_type,omitempty"`                          // QuotaWarningType 额度预警类型

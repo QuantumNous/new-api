@@ -179,45 +179,35 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 }
 
 func ApiError(c *gin.Context, err error) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": err.Error(),
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: err.Error()})
 }
 
 func ApiErrorMsg(c *gin.Context, msg string) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": msg,
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: msg})
 }
 
 func ApiSuccess(c *gin.Context, data any) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	c.JSON(http.StatusOK, apiResponse{Success: true, Data: data})
 }
 
 // ApiErrorI18n returns a translated error message based on the user's language preference
 // key is the i18n message key, args is optional template data
 func ApiErrorI18n(c *gin.Context, key string, args ...map[string]any) {
 	msg := TranslateMessage(c, key, args...)
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": msg,
-	})
+	c.JSON(http.StatusOK, apiResponse{Message: msg})
 }
 
 // ApiSuccessI18n returns a translated success message based on the user's language preference
 func ApiSuccessI18n(c *gin.Context, key string, data any, args ...map[string]any) {
 	msg := TranslateMessage(c, key, args...)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": msg,
-		"data":    data,
-	})
+	c.JSON(http.StatusOK, apiResponse{Success: true, Message: msg, Data: data})
+}
+
+// apiResponse mirrors dto.ApiResponse but is defined here to avoid import cycles.
+type apiResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 // TranslateMessage is a helper function that calls i18n.T

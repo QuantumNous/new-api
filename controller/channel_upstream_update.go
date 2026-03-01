@@ -307,12 +307,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return nil, err
 	}
 
-	var result OpenAIModelsResponse
+	var result dto.OpenAIModelsResponse
 	if err := common.Unmarshal(body, &result); err != nil {
 		return nil, err
 	}
 
-	ids := lo.Map(result.Data, func(item OpenAIModel, _ int) string {
+	ids := lo.Map(result.Data, func(item dto.OpenAIModel, _ int) string {
 		if channel.Type == constant.ChannelTypeGemini {
 			return strings.TrimPrefix(item.ID, "models/")
 		}

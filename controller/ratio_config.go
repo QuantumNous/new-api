@@ -1,25 +1,15 @@
 package controller
 
 import (
-	"net/http"
-
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
-func GetRatioConfig(c *gin.Context) {
+func GetRatioConfig(c fuego.ContextNoBody) (*dto.Response[ratio_setting.ExposedRatioData], error) {
 	if !ratio_setting.IsExposeRatioEnabled() {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "倍率配置接口未启用",
-		})
-		return
+		return dto.Fail[ratio_setting.ExposedRatioData]("倍率配置接口未启用")
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    ratio_setting.GetExposedData(),
-	})
+	return dto.Ok(ratio_setting.GetExposedData())
 }

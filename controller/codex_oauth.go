@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
 type codexOAuthCompleteRequest struct {
@@ -59,136 +59,116 @@ func parseCodexAuthorizationInput(input string) (code string, state string, err 
 	return code, "", nil
 }
 
-func StartCodexOAuth(c *gin.Context) {
-	startCodexOAuthWithChannelID(c, 0)
+func StartCodexOAuth(c fuego.ContextNoBody) (*dto.Response[dto.CodexOAuthStartData], error) {
+	return startCodexOAuthWithChannelID(dto.GinCtx(c), 0)
 }
 
-func StartCodexOAuthForChannel(c *gin.Context) {
-	channelID, err := strconv.Atoi(c.Param("id"))
+func StartCodexOAuthForChannel(c fuego.ContextNoBody) (*dto.Response[dto.CodexOAuthStartData], error) {
+	channelID, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
-		return
+		return dto.Fail[dto.CodexOAuthStartData](fmt.Sprintf("invalid channel id: %v", err))
 	}
-	startCodexOAuthWithChannelID(c, channelID)
+	return startCodexOAuthWithChannelID(dto.GinCtx(c), channelID)
 }
 
-func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
+func startCodexOAuthWithChannelID(ginCtx *gin.Context, channelID int) (*dto.Response[dto.CodexOAuthStartData], error) {
 	if channelID > 0 {
 		ch, err := model.GetChannelById(channelID, false)
 		if err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[dto.CodexOAuthStartData](err.Error())
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
-			return
+			return dto.Fail[dto.CodexOAuthStartData]("channel not found")
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
-			return
+			return dto.Fail[dto.CodexOAuthStartData]("channel type is not Codex")
 		}
 	}
 
 	flow, err := service.CreateCodexOAuthAuthorizationFlow()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.CodexOAuthStartData](err.Error())
 	}
 
-	session := sessions.Default(c)
+	session := sessions.Default(ginCtx)
 	session.Set(codexOAuthSessionKey(channelID, "state"), flow.State)
 	session.Set(codexOAuthSessionKey(channelID, "verifier"), flow.Verifier)
 	session.Set(codexOAuthSessionKey(channelID, "created_at"), time.Now().Unix())
 	_ = session.Save()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"authorize_url": flow.AuthorizeURL,
-		},
-	})
+	return dto.Ok(dto.CodexOAuthStartData{AuthorizeURL: flow.AuthorizeURL})
 }
 
-func CompleteCodexOAuth(c *gin.Context) {
-	completeCodexOAuthWithChannelID(c, 0)
-}
-
-func CompleteCodexOAuthForChannel(c *gin.Context) {
-	channelID, err := strconv.Atoi(c.Param("id"))
+func CompleteCodexOAuth(c fuego.ContextWithBody[codexOAuthCompleteRequest]) (*dto.Response[dto.CodexOAuthCompleteData], error) {
+	req, err := c.Body()
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData](err.Error())
 	}
-	completeCodexOAuthWithChannelID(c, channelID)
+	return completeCodexOAuthWithChannelID(dto.GinCtx(c), c.Request().Context(), req.Input, 0)
 }
 
-func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
-	req := codexOAuthCompleteRequest{}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiError(c, err)
-		return
+func CompleteCodexOAuthForChannel(c fuego.ContextWithBody[codexOAuthCompleteRequest]) (*dto.Response[dto.CodexOAuthCompleteData], error) {
+	channelID, err := c.PathParamIntErr("id")
+	if err != nil {
+		return dto.Fail[dto.CodexOAuthCompleteData](fmt.Sprintf("invalid channel id: %v", err))
 	}
+	req, err := c.Body()
+	if err != nil {
+		return dto.Fail[dto.CodexOAuthCompleteData](err.Error())
+	}
+	return completeCodexOAuthWithChannelID(dto.GinCtx(c), c.Request().Context(), req.Input, channelID)
+}
 
-	code, state, err := parseCodexAuthorizationInput(req.Input)
+func completeCodexOAuthWithChannelID(ginCtx *gin.Context, reqCtx context.Context, input string, channelID int) (*dto.Response[dto.CodexOAuthCompleteData], error) {
+	code, state, err := parseCodexAuthorizationInput(input)
 	if err != nil {
 		common.SysError("failed to parse codex authorization input: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("解析授权信息失败，请检查输入格式")
 	}
 	if strings.TrimSpace(code) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing authorization code"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("missing authorization code")
 	}
 	if strings.TrimSpace(state) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing state in input"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("missing state in input")
 	}
 
 	channelProxy := ""
 	if channelID > 0 {
 		ch, err := model.GetChannelById(channelID, false)
 		if err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[dto.CodexOAuthCompleteData](err.Error())
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
-			return
+			return dto.Fail[dto.CodexOAuthCompleteData]("channel not found")
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
-			return
+			return dto.Fail[dto.CodexOAuthCompleteData]("channel type is not Codex")
 		}
 		channelProxy = ch.GetSetting().Proxy
 	}
 
-	session := sessions.Default(c)
+	session := sessions.Default(ginCtx)
 	expectedState, _ := session.Get(codexOAuthSessionKey(channelID, "state")).(string)
 	verifier, _ := session.Get(codexOAuthSessionKey(channelID, "verifier")).(string)
 	if strings.TrimSpace(expectedState) == "" || strings.TrimSpace(verifier) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "oauth flow not started or session expired"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("oauth flow not started or session expired")
 	}
 	if state != expectedState {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "state mismatch"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("state mismatch")
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(reqCtx, 15*time.Second)
 	defer cancel()
 
 	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
 		common.SysError("failed to exchange codex authorization code: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("授权码交换失败，请重试")
 	}
 
 	accountID, ok := service.ExtractCodexAccountIDFromJWT(tokenRes.AccessToken)
 	if !ok {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "failed to extract account_id from access_token"})
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData]("failed to extract account_id from access_token")
 	}
 	email, _ := service.ExtractEmailFromJWT(tokenRes.AccessToken)
 
@@ -203,8 +183,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	}
 	encoded, err := common.Marshal(key)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.CodexOAuthCompleteData](err.Error())
 	}
 
 	session.Delete(codexOAuthSessionKey(channelID, "state"))
@@ -214,34 +193,24 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 
 	if channelID > 0 {
 		if err := model.DB.Model(&model.Channel{}).Where("id = ?", channelID).Update("key", string(encoded)).Error; err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[dto.CodexOAuthCompleteData](err.Error())
 		}
 		model.InitChannelCache()
 		service.ResetProxyClientCache()
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "saved",
-			"data": gin.H{
-				"channel_id":   channelID,
-				"account_id":   accountID,
-				"email":        email,
-				"expires_at":   key.Expired,
-				"last_refresh": key.LastRefresh,
-			},
+		return dto.OkMsg("saved", dto.CodexOAuthCompleteData{
+			ChannelID:   channelID,
+			AccountID:   accountID,
+			Email:       email,
+			ExpiresAt:   key.Expired,
+			LastRefresh: key.LastRefresh,
 		})
-		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "generated",
-		"data": gin.H{
-			"key":          string(encoded),
-			"account_id":   accountID,
-			"email":        email,
-			"expires_at":   key.Expired,
-			"last_refresh": key.LastRefresh,
-		},
+	return dto.OkMsg("generated", dto.CodexOAuthCompleteData{
+		Key:         string(encoded),
+		AccountID:   accountID,
+		Email:       email,
+		ExpiresAt:   key.Expired,
+		LastRefresh: key.LastRefresh,
 	})
 }

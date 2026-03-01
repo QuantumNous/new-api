@@ -351,8 +351,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	}
 
 	var parallelToolCallsRaw json.RawMessage
-	if req.ParallelTooCalls != nil {
-		parallelToolCallsRaw, _ = common.Marshal(*req.ParallelTooCalls)
+	if req.ParallelToolCalls != nil {
+		parallelToolCallsRaw, _ = common.Marshal(*req.ParallelToolCalls)
 	}
 
 	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)

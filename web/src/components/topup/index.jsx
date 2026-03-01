@@ -28,7 +28,8 @@ import {
   copy,
   getQuotaPerUnit,
 } from '../../helpers';
-import { Modal, Toast } from '@douyinfe/semi-ui';
+import { Modal, Toast, Typography, Card } from '@douyinfe/semi-ui';
+import { CreditCard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -197,7 +198,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于') + minTopUp);
       return;
     }
     setConfirmLoading(true);
@@ -218,15 +219,15 @@ const TopUp = () => {
       }
 
       if (res !== undefined) {
-        const { message, data } = res.data;
-        if (message === 'success') {
+        const { success, message, data } = res.data;
+        if (success) {
           if (payWay === 'stripe') {
             // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
           } else {
             // 普通支付表单提交
-            let params = data;
-            let url = res.data.url;
+            let params = data.params;
+            let url = data.url;
             let form = document.createElement('form');
             form.action = url;
             form.method = 'POST';
@@ -248,9 +249,7 @@ const TopUp = () => {
             document.body.removeChild(form);
           }
         } else {
-          const errorMsg =
-            typeof data === 'string' ? data : message || t('支付失败');
-          showError(errorMsg);
+          showError(message || t('支付失败'));
         }
       } else {
         showError(res);
@@ -290,13 +289,11 @@ const TopUp = () => {
         payment_method: 'creem',
       });
       if (res !== undefined) {
-        const { message, data } = res.data;
-        if (message === 'success') {
+        const { success, message, data } = res.data;
+        if (success) {
           processCreemCallback(data);
         } else {
-          const errorMsg =
-            typeof data === 'string' ? data : message || t('支付失败');
-          showError(errorMsg);
+          showError(message || t('支付失败'));
         }
       } else {
         showError(res);
@@ -458,8 +455,6 @@ const TopUp = () => {
 
           // 设置 Creem 产品
           try {
-            console.log(' data is ?', data);
-            console.log(' creem products is ?', data.creem_products);
             const products = JSON.parse(data.creem_products || '[]');
             setCreemProducts(products);
           } catch (e) {
@@ -576,12 +571,12 @@ const TopUp = () => {
         amount: parseFloat(value),
       });
       if (res !== undefined) {
-        const { message, data } = res.data;
-        if (message === 'success') {
+        const { success, message, data } = res.data;
+        if (success) {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：') + (message || data), id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -602,12 +597,12 @@ const TopUp = () => {
         amount: parseFloat(value),
       });
       if (res !== undefined) {
-        const { message, data } = res.data;
-        if (message === 'success') {
+        const { success, message, data } = res.data;
+        if (success) {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：') + (message || data), id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -705,7 +700,12 @@ const TopUp = () => {
 
       {/* Creem 充值确认模态框 */}
       <Modal
-        title={t('确定要充值 $')}
+        title={
+          <div className='flex items-center'>
+            <CreditCard className='mr-2' size={18} />
+            {t('充值确认')}
+          </div>
+        }
         visible={creemOpen}
         onOk={onlineCreemTopUp}
         onCancel={handleCreemCancel}
@@ -715,19 +715,37 @@ const TopUp = () => {
         confirmLoading={confirmLoading}
       >
         {selectedCreemProduct && (
-          <>
-            <p>
-              {t('产品名称')}：{selectedCreemProduct.name}
-            </p>
-            <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
-              {selectedCreemProduct.price}
-            </p>
-            <p>
-              {t('充值额度')}：{selectedCreemProduct.quota}
-            </p>
-            <p>{t('是否确认充值？')}</p>
-          </>
+          <div className='space-y-4'>
+            <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
+              <div className='space-y-3'>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('充值数量')}：
+                  </Typography.Text>
+                  <Typography.Text className='text-slate-900 dark:text-slate-100'>
+                    {selectedCreemProduct.name}
+                  </Typography.Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('实付金额')}：
+                  </Typography.Text>
+                  <Typography.Text strong style={{ color: 'red' }}>
+                    {({ EUR: '€', USD: '$', GBP: '£', JPY: '¥', CNY: '¥' }[selectedCreemProduct.currency] ?? selectedCreemProduct.currency + ' ')}
+                    {Number(selectedCreemProduct.price).toFixed(2)}
+                  </Typography.Text>
+                </div>
+                <div className='flex justify-between items-center'>
+                  <Typography.Text strong className='text-slate-700 dark:text-slate-200'>
+                    {t('支付方式')}：
+                  </Typography.Text>
+                  <Typography.Text className='text-slate-900 dark:text-slate-100'>
+                    Creem
+                  </Typography.Text>
+                </div>
+              </div>
+            </Card>
+          </div>
         )}
       </Modal>
 
