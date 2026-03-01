@@ -225,6 +225,9 @@ docker run --name new-api -d --restart always \
 - 🚧 **OpenAI Compatible ⇄ OpenAI Responses** - 开发中
 - 🔄 **思考转内容功能**
 
+**API 文档：**
+- 📖 自动生成 OpenAPI 3.0 规范 — 设置 `ENABLE_OPENAPI=true` 启用，通过 `/openapi.json` 和 `/swagger`（Scalar UI）访问
+
 **Reasoning Effort 支持：**
 
 <details>
@@ -316,6 +319,7 @@ docker run --name new-api -d --restart always \
 | `STREAM_SCANNER_MAX_BUFFER_MB` | 流式扫描器单行最大缓冲（MB），图像生成等超大 `data:` 片段（如 4K 图片 base64）需适当调大 | `64` |
 | `MAX_REQUEST_BODY_MB` | 请求体最大大小（MB，**解压后**计；防止超大请求/zip bomb 导致内存暴涨），超过将返回 `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API 版本                                                 | `2025-04-01-preview` |
+| `ENABLE_OPENAPI` | 在 `/openapi.json` 提供 OpenAPI 规范，在 `/swagger` 提供 Scalar UI | `false` |
 | `ERROR_LOG_ENABLED` | 错误日志开关                                                       | `false` |
 | `PYROSCOPE_URL` | Pyroscope 服务地址                                            | - |
 | `PYROSCOPE_APP_NAME` | Pyroscope 应用名                                        | `new-api` |

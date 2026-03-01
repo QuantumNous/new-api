@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -22,29 +23,14 @@ const (
 	PasskeyReadyTimeout = 60
 )
 
-type UniversalVerifyRequest struct {
-	Method string `json:"method"` // "2fa" 或 "passkey"
-	Code   string `json:"code,omitempty"`
-}
-
-type VerificationStatusResponse struct {
-	Verified  bool  `json:"verified"`
-	ExpiresAt int64 `json:"expires_at,omitempty"`
-}
-
-// UniversalVerify 通用验证接口
-// 支持 2FA 和 Passkey 验证，验证成功后在 session 中记录时间戳
 func UniversalVerify(c *gin.Context) {
 	userId := c.GetInt("id")
 	if userId == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "未登录",
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: "未登录"})
 		return
 	}
 
-	var req UniversalVerifyRequest
+	var req dto.UniversalVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, fmt.Errorf("参数错误: %v", err))
 		return
@@ -129,12 +115,12 @@ func UniversalVerify(c *gin.Context) {
 	// 记录日志
 	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("通用安全验证成功 (验证方式: %s)", verifyMethod))
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "验证成功",
-		"data": gin.H{
-			"verified":   true,
-			"expires_at": now + SecureVerificationTimeout,
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "验证成功",
+		Data: dto.VerificationStatusResponse{
+			Verified:  true,
+			ExpiresAt: now + SecureVerificationTimeout,
 		},
 	})
 }

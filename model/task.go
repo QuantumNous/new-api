@@ -8,7 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
 )
 
@@ -18,15 +18,15 @@ func (t TaskStatus) ToVideoStatus() string {
 	var status string
 	switch t {
 	case TaskStatusQueued, TaskStatusSubmitted:
-		status = dto.VideoStatusQueued
+		status = types.VideoStatusQueued
 	case TaskStatusInProgress:
-		status = dto.VideoStatusInProgress
+		status = types.VideoStatusInProgress
 	case TaskStatusSuccess:
-		status = dto.VideoStatusCompleted
+		status = types.VideoStatusCompleted
 	case TaskStatusFailure:
-		status = dto.VideoStatusFailed
+		status = types.VideoStatusFailed
 	default:
-		status = dto.VideoStatusUnknown // Default fallback
+		status = types.VideoStatusUnknown // Default fallback
 	}
 	return status
 }
@@ -495,8 +495,8 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	_ = query.Count(&total).Error
 	return total
 }
-func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
-	openAIVideo := dto.NewOpenAIVideo()
+func (t *Task) ToOpenAIVideo() *types.OpenAIVideo {
+	openAIVideo := types.NewOpenAIVideo()
 	openAIVideo.ID = t.TaskID
 	openAIVideo.Status = t.Status.ToVideoStatus()
 	openAIVideo.Model = t.Properties.OriginModelName

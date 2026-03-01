@@ -2,16 +2,16 @@ package controller
 
 import (
 	"fmt"
-	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
 func buildMaskedTokenResponse(token *model.Token) *model.Token {
@@ -31,65 +31,49 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
-func GetAllTokens(c *gin.Context) {
-	userId := c.GetInt("id")
-	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+func GetAllTokens(c fuego.ContextNoBody) (*dto.Response[dto.PageData[*model.Token]], error) {
+	page := dto.PageInfo(c)
+	tokens, err := model.GetAllUserTokens(dto.UserID(c), page.GetStartIdx(), page.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Token](err.Error())
 	}
-	total, _ := model.CountUserTokens(userId)
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	total, _ := model.CountUserTokens(dto.UserID(c))
+	return dto.OkPage(page, buildMaskedTokenResponses(tokens), int(total))
 }
 
-func SearchTokens(c *gin.Context) {
-	userId := c.GetInt("id")
-	keyword := c.Query("keyword")
-	token := c.Query("token")
+func SearchTokens(c fuego.ContextWithParams[dto.SearchTokensParams]) (*dto.Response[dto.PageData[*model.Token]], error) {
+	p, _ := dto.ParseParams[dto.SearchTokensParams](c)
+	page := dto.PageInfo(c)
 
-	pageInfo := common.GetPageQuery(c)
-
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokens(dto.UserID(c), p.Keyword, p.Token, page.GetStartIdx(), page.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Token](err.Error())
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(page, buildMaskedTokenResponses(tokens), int(total))
 }
 
-func GetToken(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
+func GetToken(c fuego.ContextNoBody) (*dto.Response[model.Token], error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Token](err.Error())
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	token, err := model.GetTokenByIds(id, dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Token](err.Error())
 	}
-	common.ApiSuccess(c, buildMaskedTokenResponse(token))
+	return dto.Ok(*buildMaskedTokenResponse(token))
 }
 
-func GetTokenKey(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
+func GetTokenKey(c fuego.ContextNoBody) (*dto.Response[map[string]string], error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[map[string]string](err.Error())
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	token, err := model.GetTokenByIds(id, dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[map[string]string](err.Error())
 	}
-	common.ApiSuccess(c, gin.H{
+	return dto.Ok(map[string]string{
 		"key": token.GetFullKey(),
 	})
 }
@@ -106,40 +90,31 @@ func GetTokenStatus(c *gin.Context) {
 	if expiredAt == -1 {
 		expiredAt = 0
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"object":          "credit_summary",
-		"total_granted":   token.RemainQuota,
-		"total_used":      0, // not supported currently
-		"total_available": token.RemainQuota,
-		"expires_at":      expiredAt * 1000,
+	c.JSON(200, dto.CreditSummary{
+		Object:         "credit_summary",
+		TotalGranted:   token.RemainQuota,
+		TotalUsed:      0,
+		TotalAvailable: token.RemainQuota,
+		ExpiresAt:      expiredAt * 1000,
 	})
 }
 
-func GetTokenUsage(c *gin.Context) {
-	authHeader := c.GetHeader("Authorization")
+func GetTokenUsage(c fuego.ContextNoBody) (*dto.Response[dto.TokenUsageData], error) {
+	authHeader := c.Header("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "No Authorization header",
-		})
-		return
+		return dto.Fail[dto.TokenUsageData]("No Authorization header")
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Invalid Bearer token",
-		})
-		return
+		return dto.Fail[dto.TokenUsageData]("Invalid Bearer token")
 	}
 	tokenKey := parts[1]
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
 	if err != nil {
 		common.SysError("failed to get token by key: " + err.Error())
-		common.ApiErrorI18n(c, i18n.MsgTokenGetInfoFailed)
-		return
+		return dto.Fail[dto.TokenUsageData](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenGetInfoFailed))
 	}
 
 	expiredAt := token.ExpiredTime
@@ -147,68 +122,51 @@ func GetTokenUsage(c *gin.Context) {
 		expiredAt = 0
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    true,
-		"message": "ok",
-		"data": gin.H{
-			"object":               "token_usage",
-			"name":                 token.Name,
-			"total_granted":        token.RemainQuota + token.UsedQuota,
-			"total_used":           token.UsedQuota,
-			"total_available":      token.RemainQuota,
-			"unlimited_quota":      token.UnlimitedQuota,
-			"model_limits":         token.GetModelLimitsMap(),
-			"model_limits_enabled": token.ModelLimitsEnabled,
-			"expires_at":           expiredAt,
-		},
+	return dto.Ok(dto.TokenUsageData{
+		Object:             "token_usage",
+		Name:               token.Name,
+		TotalGranted:       token.RemainQuota + token.UsedQuota,
+		TotalUsed:          token.UsedQuota,
+		TotalAvailable:     token.RemainQuota,
+		UnlimitedQuota:     token.UnlimitedQuota,
+		ModelLimits:        token.GetModelLimitsMap(),
+		ModelLimitsEnabled: token.ModelLimitsEnabled,
+		ExpiresAt:          expiredAt,
 	})
 }
 
-func AddToken(c *gin.Context) {
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
+func AddToken(c fuego.ContextWithBody[model.Token]) (dto.MessageResponse, error) {
+	token, err := c.Body()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	if len(token.Name) > 50 {
-		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
-		return
+		return dto.FailMsg(common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenNameTooLong))
 	}
-	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
-			return
+			return dto.FailMsg(common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenQuotaNegative))
 		}
 		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
 		if token.RemainQuota > maxQuotaValue {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
-			return
+			return dto.FailMsg(common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue}))
 		}
 	}
-	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
-	count, err := model.CountUserTokens(c.GetInt("id"))
+	count, err := model.CountUserTokens(dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	if int(count) >= maxTokens {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens),
-		})
-		return
+		return dto.FailMsg(fmt.Sprintf("已达到最大令牌数量限制 (%d)", maxTokens))
 	}
 	key, err := common.GenerateKey()
 	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
 		common.SysLog("failed to generate token key: " + err.Error())
-		return
+		return dto.FailMsg(common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenGenerateFailed))
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetInt("id"),
+		UserId:             dto.UserID(c),
 		Name:               token.Name,
 		Key:                key,
 		CreatedTime:        common.GetTimestamp(),
@@ -224,72 +182,53 @@ func AddToken(c *gin.Context) {
 	}
 	err = cleanToken.Insert()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	return dto.Msg("")
 }
 
-func DeleteToken(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
-	err := model.DeleteTokenById(id, userId)
+func DeleteToken(c fuego.ContextNoBody) (dto.MessageResponse, error) {
+	id := c.PathParamInt("id")
+	err := model.DeleteTokenById(id, dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
+	return dto.Msg("")
 }
 
-func UpdateToken(c *gin.Context) {
-	userId := c.GetInt("id")
-	statusOnly := c.Query("status_only")
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
+func UpdateToken(c fuego.Context[model.Token, dto.StatusOnlyParams]) (*dto.Response[model.Token], error) {
+	p, _ := dto.ParseParams[dto.StatusOnlyParams](c)
+	token, err := c.Body()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Token](err.Error())
 	}
 	if len(token.Name) > 50 {
-		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
-		return
+		return dto.Fail[model.Token](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenNameTooLong))
 	}
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
-			return
+			return dto.Fail[model.Token](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenQuotaNegative))
 		}
 		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
 		if token.RemainQuota > maxQuotaValue {
-			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
-			return
+			return dto.Fail[model.Token](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue}))
 		}
 	}
-	cleanToken, err := model.GetTokenByIds(token.Id, userId)
+	cleanToken, err := model.GetTokenByIds(token.Id, dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Token](err.Error())
 	}
 	if token.Status == common.TokenStatusEnabled {
 		if cleanToken.Status == common.TokenStatusExpired && cleanToken.ExpiredTime <= common.GetTimestamp() && cleanToken.ExpiredTime != -1 {
-			common.ApiErrorI18n(c, i18n.MsgTokenExpiredCannotEnable)
-			return
+			return dto.Fail[model.Token](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenExpiredCannotEnable))
 		}
 		if cleanToken.Status == common.TokenStatusExhausted && cleanToken.RemainQuota <= 0 && !cleanToken.UnlimitedQuota {
-			common.ApiErrorI18n(c, i18n.MsgTokenExhaustedCannotEable)
-			return
+			return dto.Fail[model.Token](common.TranslateMessage(dto.GinCtx(c), i18n.MsgTokenExhaustedCannotEable))
 		}
 	}
-	if statusOnly != "" {
+	if p.StatusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
-		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
@@ -302,35 +241,19 @@ func UpdateToken(c *gin.Context) {
 	}
 	err = cleanToken.Update()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Token](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    buildMaskedTokenResponse(cleanToken),
-	})
+	return dto.Ok(*buildMaskedTokenResponse(cleanToken))
 }
 
-type TokenBatch struct {
-	Ids []int `json:"ids"`
-}
-
-func DeleteTokenBatch(c *gin.Context) {
-	tokenBatch := TokenBatch{}
-	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
+func DeleteTokenBatch(c fuego.ContextWithBody[dto.TokenBatch]) (*dto.Response[int], error) {
+	tokenBatch, err := c.Body()
+	if err != nil || len(tokenBatch.Ids) == 0 {
+		return dto.Fail[int](common.TranslateMessage(dto.GinCtx(c), i18n.MsgInvalidParams))
 	}
-	userId := c.GetInt("id")
-	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
+	count, err := model.BatchDeleteTokens(tokenBatch.Ids, dto.UserID(c))
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[int](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    count,
-	})
+	return dto.Ok(count)
 }

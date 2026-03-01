@@ -1,33 +1,38 @@
 package controller
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
 )
 
-// ---- Shared types ----
+// ---- Local types that reference model (cannot live in dto due to import cycle) ----
 
 type SubscriptionPlanDTO struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
-type BillingPreferenceRequest struct {
-	BillingPreference string `json:"billing_preference"`
+type AdminUpsertSubscriptionPlanRequest struct {
+	Plan model.SubscriptionPlan `json:"plan"`
+}
+
+type SubscriptionSelfData struct {
+	BillingPreference string                      `json:"billing_preference"`
+	Subscriptions     []model.SubscriptionSummary `json:"subscriptions"`
+	AllSubscriptions  []model.SubscriptionSummary `json:"all_subscriptions"`
 }
 
 // ---- User APIs ----
 
-func GetSubscriptionPlans(c *gin.Context) {
+func GetSubscriptionPlans(c fuego.ContextNoBody) (*dto.Response[[]SubscriptionPlanDTO], error) {
 	var plans []model.SubscriptionPlan
 	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[[]SubscriptionPlanDTO](err.Error())
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
@@ -35,11 +40,11 @@ func GetSubscriptionPlans(c *gin.Context) {
 			Plan: p,
 		})
 	}
-	common.ApiSuccess(c, result)
+	return dto.Ok(result)
 }
 
-func GetSubscriptionSelf(c *gin.Context) {
-	userId := c.GetInt("id")
+func GetSubscriptionSelf(c fuego.ContextNoBody) (*dto.Response[SubscriptionSelfData], error) {
+	userId := dto.UserID(c)
 	settingMap, _ := model.GetUserSetting(userId, false)
 	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
@@ -55,44 +60,40 @@ func GetSubscriptionSelf(c *gin.Context) {
 		activeSubscriptions = []model.SubscriptionSummary{}
 	}
 
-	common.ApiSuccess(c, gin.H{
-		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+	return dto.Ok(SubscriptionSelfData{
+		BillingPreference: pref,
+		Subscriptions:     activeSubscriptions, // all active subscriptions
+		AllSubscriptions:  allSubscriptions,    // all subscriptions including expired
 	})
 }
 
-func UpdateSubscriptionPreference(c *gin.Context) {
-	userId := c.GetInt("id")
-	var req BillingPreferenceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+func UpdateSubscriptionPreference(c fuego.ContextWithBody[dto.BillingPreferenceRequest]) (*dto.Response[dto.BillingPreferenceData], error) {
+	userId := dto.UserID(c)
+	req, err := c.Body()
+	if err != nil {
+		return dto.Fail[dto.BillingPreferenceData]("参数错误")
 	}
 	pref := common.NormalizeBillingPreference(req.BillingPreference)
 
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.BillingPreferenceData](err.Error())
 	}
 	current := user.GetSetting()
 	current.BillingPreference = pref
 	user.SetSetting(current)
 	if err := user.Update(false); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.BillingPreferenceData](err.Error())
 	}
-	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+	return dto.Ok(dto.BillingPreferenceData{BillingPreference: pref})
 }
 
 // ---- Admin APIs ----
 
-func AdminListSubscriptionPlans(c *gin.Context) {
+func AdminListSubscriptionPlans(c fuego.ContextNoBody) (*dto.Response[[]SubscriptionPlanDTO], error) {
 	var plans []model.SubscriptionPlan
 	if err := model.DB.Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[[]SubscriptionPlanDTO](err.Error())
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
@@ -100,31 +101,23 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 			Plan: p,
 		})
 	}
-	common.ApiSuccess(c, result)
+	return dto.Ok(result)
 }
 
-type AdminUpsertSubscriptionPlanRequest struct {
-	Plan model.SubscriptionPlan `json:"plan"`
-}
-
-func AdminCreateSubscriptionPlan(c *gin.Context) {
-	var req AdminUpsertSubscriptionPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+func AdminCreateSubscriptionPlan(c fuego.ContextWithBody[AdminUpsertSubscriptionPlanRequest]) (*dto.Response[model.SubscriptionPlan], error) {
+	req, err := c.Body()
+	if err != nil {
+		return dto.Fail[model.SubscriptionPlan]("参数错误")
 	}
 	req.Plan.Id = 0
 	if strings.TrimSpace(req.Plan.Title) == "" {
-		common.ApiErrorMsg(c, "套餐标题不能为空")
-		return
+		return dto.Fail[model.SubscriptionPlan]("套餐标题不能为空")
 	}
 	if req.Plan.PriceAmount < 0 {
-		common.ApiErrorMsg(c, "价格不能为负数")
-		return
+		return dto.Fail[model.SubscriptionPlan]("价格不能为负数")
 	}
 	if req.Plan.PriceAmount > 9999 {
-		common.ApiErrorMsg(c, "价格不能超过9999")
-		return
+		return dto.Fail[model.SubscriptionPlan]("价格不能超过9999")
 	}
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
@@ -137,56 +130,45 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.DurationValue = 1
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
-		common.ApiErrorMsg(c, "购买上限不能为负数")
-		return
+		return dto.Fail[model.SubscriptionPlan]("购买上限不能为负数")
 	}
 	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
-		return
+		return dto.Fail[model.SubscriptionPlan]("总额度不能为负数")
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
-			common.ApiErrorMsg(c, "升级分组不存在")
-			return
+			return dto.Fail[model.SubscriptionPlan]("升级分组不存在")
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
-		return
+		return dto.Fail[model.SubscriptionPlan]("自定义重置周期需大于0秒")
 	}
-	err := model.DB.Create(&req.Plan).Error
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	if err := model.DB.Create(&req.Plan).Error; err != nil {
+		return dto.Fail[model.SubscriptionPlan](err.Error())
 	}
 	model.InvalidateSubscriptionPlanCache(req.Plan.Id)
-	common.ApiSuccess(c, req.Plan)
+	return dto.Ok(req.Plan)
 }
 
-func AdminUpdateSubscriptionPlan(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	if id <= 0 {
-		common.ApiErrorMsg(c, "无效的ID")
-		return
+func AdminUpdateSubscriptionPlan(c fuego.ContextWithBody[AdminUpsertSubscriptionPlanRequest]) (dto.MessageResponse, error) {
+	id, err := c.PathParamIntErr("id")
+	if err != nil || id <= 0 {
+		return dto.FailMsg("无效的ID")
 	}
-	var req AdminUpsertSubscriptionPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+	req, err := c.Body()
+	if err != nil {
+		return dto.FailMsg("参数错误")
 	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
-		common.ApiErrorMsg(c, "套餐标题不能为空")
-		return
+		return dto.FailMsg("套餐标题不能为空")
 	}
 	if req.Plan.PriceAmount < 0 {
-		common.ApiErrorMsg(c, "价格不能为负数")
-		return
+		return dto.FailMsg("价格不能为负数")
 	}
 	if req.Plan.PriceAmount > 9999 {
-		common.ApiErrorMsg(c, "价格不能超过9999")
-		return
+		return dto.FailMsg("价格不能超过9999")
 	}
 	req.Plan.Id = id
 	if req.Plan.Currency == "" {
@@ -200,27 +182,23 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		req.Plan.DurationValue = 1
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
-		common.ApiErrorMsg(c, "购买上限不能为负数")
-		return
+		return dto.FailMsg("购买上限不能为负数")
 	}
 	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
-		return
+		return dto.FailMsg("总额度不能为负数")
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
-			common.ApiErrorMsg(c, "升级分组不存在")
-			return
+			return dto.FailMsg("升级分组不存在")
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
-		return
+		return dto.FailMsg("自定义重置周期需大于0秒")
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	txErr := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
@@ -246,138 +224,94 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 		return nil
 	})
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	if txErr != nil {
+		return dto.FailMsg(txErr.Error())
 	}
 	model.InvalidateSubscriptionPlanCache(id)
-	common.ApiSuccess(c, nil)
+	return dto.Msg("")
 }
 
-type AdminUpdateSubscriptionPlanStatusRequest struct {
-	Enabled *bool `json:"enabled"`
-}
-
-func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	if id <= 0 {
-		common.ApiErrorMsg(c, "无效的ID")
-		return
+func AdminUpdateSubscriptionPlanStatus(c fuego.ContextWithBody[dto.AdminUpdateSubscriptionPlanStatusRequest]) (dto.MessageResponse, error) {
+	id, err := c.PathParamIntErr("id")
+	if err != nil || id <= 0 {
+		return dto.FailMsg("无效的ID")
 	}
-	var req AdminUpdateSubscriptionPlanStatusRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+	req, err := c.Body()
+	if err != nil || req.Enabled == nil {
+		return dto.FailMsg("参数错误")
 	}
 	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	model.InvalidateSubscriptionPlanCache(id)
-	common.ApiSuccess(c, nil)
+	return dto.Msg("")
 }
 
-type AdminBindSubscriptionRequest struct {
-	UserId int `json:"user_id"`
-	PlanId int `json:"plan_id"`
-}
-
-func AdminBindSubscription(c *gin.Context) {
-	var req AdminBindSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+func AdminBindSubscription(c fuego.ContextWithBody[dto.AdminBindSubscriptionRequest]) (dto.MessageResponse, error) {
+	req, err := c.Body()
+	if err != nil || req.UserId <= 0 || req.PlanId <= 0 {
+		return dto.FailMsg("参数错误")
 	}
 	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	return dto.Msg(msg)
 }
 
 // ---- Admin: user subscription management ----
 
-func AdminListUserSubscriptions(c *gin.Context) {
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
-		return
+func AdminListUserSubscriptions(c fuego.ContextNoBody) (*dto.Response[[]model.SubscriptionSummary], error) {
+	userId, err := c.PathParamIntErr("id")
+	if err != nil || userId <= 0 {
+		return dto.Fail[[]model.SubscriptionSummary]("无效的用户ID")
 	}
 	subs, err := model.GetAllUserSubscriptions(userId)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[[]model.SubscriptionSummary](err.Error())
 	}
-	common.ApiSuccess(c, subs)
-}
-
-type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
+	return dto.Ok(subs)
 }
 
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
-func AdminCreateUserSubscription(c *gin.Context) {
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
-		return
+func AdminCreateUserSubscription(c fuego.ContextWithBody[dto.AdminCreateUserSubscriptionRequest]) (*dto.Response[dto.SubscriptionActionData], error) {
+	userId, err := c.PathParamIntErr("id")
+	if err != nil || userId <= 0 {
+		return dto.Fail[dto.SubscriptionActionData]("无效的用户ID")
 	}
-	var req AdminCreateUserSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
-		return
+	req, err := c.Body()
+	if err != nil || req.PlanId <= 0 {
+		return dto.Fail[dto.SubscriptionActionData]("参数错误")
 	}
 	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.SubscriptionActionData](err.Error())
 	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	return dto.Ok(dto.SubscriptionActionData{Message: msg})
 }
 
 // AdminInvalidateUserSubscription cancels a user subscription immediately.
-func AdminInvalidateUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
-		return
+func AdminInvalidateUserSubscription(c fuego.ContextNoBody) (*dto.Response[dto.SubscriptionActionData], error) {
+	subId, err := c.PathParamIntErr("id")
+	if err != nil || subId <= 0 {
+		return dto.Fail[dto.SubscriptionActionData]("无效的订阅ID")
 	}
 	msg, err := model.AdminInvalidateUserSubscription(subId)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.SubscriptionActionData](err.Error())
 	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	return dto.Ok(dto.SubscriptionActionData{Message: msg})
 }
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.
-func AdminDeleteUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
-		return
+func AdminDeleteUserSubscription(c fuego.ContextNoBody) (*dto.Response[dto.SubscriptionActionData], error) {
+	subId, err := c.PathParamIntErr("id")
+	if err != nil || subId <= 0 {
+		return dto.Fail[dto.SubscriptionActionData]("无效的订阅ID")
 	}
 	msg, err := model.AdminDeleteUserSubscription(subId)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[dto.SubscriptionActionData](err.Error())
 	}
-	if msg != "" {
-		common.ApiSuccess(c, gin.H{"message": msg})
-		return
-	}
-	common.ApiSuccess(c, nil)
+	return dto.Ok(dto.SubscriptionActionData{Message: msg})
 }

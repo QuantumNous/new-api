@@ -86,7 +86,7 @@ const EditDeploymentModal = ({
   const loadModels = async () => {
     setLoadingModels(true);
     try {
-      const res = await API.get('/api/models/?page_size=1000');
+      const res = await API.get('/api/models/list?page_size=1000');
       if (res.data.success) {
         const items = res.data.data.items || res.data.data || [];
         const modelOptions = items.map((model) => ({

@@ -1,13 +1,13 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
@@ -15,31 +15,20 @@ import (
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
-func TestStatus(c *gin.Context) {
+func TestStatus(c fuego.ContextNoBody) (*dto.Response[dto.TestStatusData], error) {
 	err := model.PingDB()
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"success": false,
-			"message": "数据库连接失败",
-		})
-		return
+		return dto.Fail[dto.TestStatusData]("数据库连接失败")
 	}
 	// 获取HTTP统计信息
 	httpStats := middleware.GetStats()
-	c.JSON(http.StatusOK, gin.H{
-		"success":    true,
-		"message":    "Server is running",
-		"http_stats": httpStats,
-	})
-	return
+	return dto.Ok(dto.TestStatusData{HttpStats: httpStats})
 }
 
-func GetStatus(c *gin.Context) {
-
+func GetStatus(c fuego.ContextNoBody) (*dto.Response[dto.StatusData], error) {
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
@@ -47,105 +36,92 @@ func GetStatus(c *gin.Context) {
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
 
-	data := gin.H{
-		"version":                     common.Version,
-		"start_time":                  common.StartTime,
-		"email_verification":          common.EmailVerificationEnabled,
-		"github_oauth":                common.GitHubOAuthEnabled,
-		"github_client_id":            common.GitHubClientId,
-		"discord_oauth":               system_setting.GetDiscordSettings().Enabled,
-		"discord_client_id":           system_setting.GetDiscordSettings().ClientId,
-		"linuxdo_oauth":               common.LinuxDOOAuthEnabled,
-		"linuxdo_client_id":           common.LinuxDOClientId,
-		"linuxdo_minimum_trust_level": common.LinuxDOMinimumTrustLevel,
-		"telegram_oauth":              common.TelegramOAuthEnabled,
-		"telegram_bot_name":           common.TelegramBotName,
-		"system_name":                 common.SystemName,
-		"logo":                        common.Logo,
-		"footer_html":                 common.Footer,
-		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
-		"wechat_login":                common.WeChatAuthEnabled,
-		"server_address":              system_setting.ServerAddress,
-		"turnstile_check":             common.TurnstileCheckEnabled,
-		"turnstile_site_key":          common.TurnstileSiteKey,
-		"top_up_link":                 common.TopUpLink,
-		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
-		"quota_per_unit":              common.QuotaPerUnit,
+	data := dto.StatusData{
+		Version:                    common.Version,
+		StartTime:                  common.StartTime,
+		EmailVerification:          common.EmailVerificationEnabled,
+		GitHubOAuth:                common.GitHubOAuthEnabled,
+		GitHubClientId:             common.GitHubClientId,
+		DiscordOAuth:               system_setting.GetDiscordSettings().Enabled,
+		DiscordClientId:            system_setting.GetDiscordSettings().ClientId,
+		LinuxDOOAuth:               common.LinuxDOOAuthEnabled,
+		LinuxDOClientId:            common.LinuxDOClientId,
+		LinuxDOMinimumTrustLevel:   common.LinuxDOMinimumTrustLevel,
+		TelegramOAuth:              common.TelegramOAuthEnabled,
+		TelegramBotName:            common.TelegramBotName,
+		SystemName:                 common.SystemName,
+		Logo:                       common.Logo,
+		FooterHtml:                 common.Footer,
+		WeChatQrcode:               common.WeChatAccountQRCodeImageURL,
+		WeChatLogin:                common.WeChatAuthEnabled,
+		ServerAddress:              system_setting.ServerAddress,
+		TurnstileCheck:             common.TurnstileCheckEnabled,
+		TurnstileSiteKey:           common.TurnstileSiteKey,
+		TopUpLink:                  common.TopUpLink,
+		DocsLink:                   operation_setting.GetGeneralSetting().DocsLink,
+		QuotaPerUnit:               common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
-		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
-		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
-		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
-		"custom_currency_exchange_rate": operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
-		"enable_batch_update":           common.BatchUpdateEnabled,
-		"enable_drawing":                common.DrawingEnabled,
-		"enable_task":                   common.TaskEnabled,
-		"enable_data_export":            common.DataExportEnabled,
-		"data_export_default_time":      common.DataExportDefaultTime,
-		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
-		"mj_notify_enabled":             setting.MjNotifyEnabled,
-		"chats":                         setting.Chats,
-		"demo_site_enabled":             operation_setting.DemoSiteEnabled,
-		"self_use_mode_enabled":         operation_setting.SelfUseModeEnabled,
-		"default_use_auto_group":        setting.DefaultUseAutoGroup,
-
-		"usd_exchange_rate": operation_setting.USDExchangeRate,
-		"price":             operation_setting.Price,
-		"stripe_unit_price": setting.StripeUnitPrice,
-
+		DisplayInCurrency:          operation_setting.IsCurrencyDisplay(),
+		QuotaDisplayType:           operation_setting.GetQuotaDisplayType(),
+		CustomCurrencySymbol:       operation_setting.GetGeneralSetting().CustomCurrencySymbol,
+		CustomCurrencyExchangeRate: operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
+		EnableBatchUpdate:          common.BatchUpdateEnabled,
+		EnableDrawing:              common.DrawingEnabled,
+		EnableTask:                 common.TaskEnabled,
+		EnableDataExport:           common.DataExportEnabled,
+		DataExportDefaultTime:      common.DataExportDefaultTime,
+		DefaultCollapseSidebar:     common.DefaultCollapseSidebar,
+		MjNotifyEnabled:            setting.MjNotifyEnabled,
+		Chats:                      setting.Chats,
+		DemoSiteEnabled:            operation_setting.DemoSiteEnabled,
+		SelfUseModeEnabled:         operation_setting.SelfUseModeEnabled,
+		DefaultUseAutoGroup:        setting.DefaultUseAutoGroup,
+		UsdExchangeRate:            operation_setting.USDExchangeRate,
+		Price:                      operation_setting.Price,
+		StripeUnitPrice:            setting.StripeUnitPrice,
 		// 面板启用开关
-		"api_info_enabled":      cs.ApiInfoEnabled,
-		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
-		"announcements_enabled": cs.AnnouncementsEnabled,
-		"faq_enabled":           cs.FAQEnabled,
-
+		ApiInfoEnabled:             cs.ApiInfoEnabled,
+		UptimeKumaEnabled:          cs.UptimeKumaEnabled,
+		AnnouncementsEnabled:       cs.AnnouncementsEnabled,
+		FaqEnabled:                 cs.FAQEnabled,
 		// 模块管理配置
-		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
-		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
-
-		"oidc_enabled":                system_setting.GetOIDCSettings().Enabled,
-		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
-		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,
-		"passkey_login":               passkeySetting.Enabled,
-		"passkey_display_name":        passkeySetting.RPDisplayName,
-		"passkey_rp_id":               passkeySetting.RPID,
-		"passkey_origins":             passkeySetting.Origins,
-		"passkey_allow_insecure":      passkeySetting.AllowInsecureOrigin,
-		"passkey_user_verification":   passkeySetting.UserVerification,
-		"passkey_attachment":          passkeySetting.AttachmentPreference,
-		"setup":                       constant.Setup,
-		"user_agreement_enabled":      legalSetting.UserAgreement != "",
-		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
-		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
-		"_qn":                         "new-api",
+		HeaderNavModules:           common.OptionMap["HeaderNavModules"],
+		SidebarModulesAdmin:        common.OptionMap["SidebarModulesAdmin"],
+		OidcEnabled:                system_setting.GetOIDCSettings().Enabled,
+		OidcClientId:               system_setting.GetOIDCSettings().ClientId,
+		OidcAuthorizationEndpoint:  system_setting.GetOIDCSettings().AuthorizationEndpoint,
+		PasskeyLogin:               passkeySetting.Enabled,
+		PasskeyDisplayName:         passkeySetting.RPDisplayName,
+		PasskeyRpId:                passkeySetting.RPID,
+		PasskeyOrigins:             passkeySetting.Origins,
+		PasskeyAllowInsecure:       passkeySetting.AllowInsecureOrigin,
+		PasskeyUserVerification:    passkeySetting.UserVerification,
+		PasskeyAttachment:          passkeySetting.AttachmentPreference,
+		Setup:                      constant.Setup,
+		UserAgreementEnabled:       legalSetting.UserAgreement != "",
+		PrivacyPolicyEnabled:       legalSetting.PrivacyPolicy != "",
+		CheckinEnabled:             operation_setting.GetCheckinSetting().Enabled,
+		QN:                         "new-api",
 	}
 
 	// 根据启用状态注入可选内容
 	if cs.ApiInfoEnabled {
-		data["api_info"] = console_setting.GetApiInfo()
+		data.ApiInfo = console_setting.GetApiInfo()
 	}
 	if cs.AnnouncementsEnabled {
-		data["announcements"] = console_setting.GetAnnouncements()
+		data.Announcements = console_setting.GetAnnouncements()
 	}
 	if cs.FAQEnabled {
-		data["faq"] = console_setting.GetFAQ()
+		data.FAQ = console_setting.GetFAQ()
 	}
 
 	// Add enabled custom OAuth providers
 	customProviders := oauth.GetEnabledCustomProviders()
 	if len(customProviders) > 0 {
-		type CustomOAuthInfo struct {
-			Id                    int    `json:"id"`
-			Name                  string `json:"name"`
-			Slug                  string `json:"slug"`
-			Icon                  string `json:"icon"`
-			ClientId              string `json:"client_id"`
-			AuthorizationEndpoint string `json:"authorization_endpoint"`
-			Scopes                string `json:"scopes"`
-		}
-		providersInfo := make([]CustomOAuthInfo, 0, len(customProviders))
+		providersInfo := make([]dto.CustomOAuthInfo, 0, len(customProviders))
 		for _, p := range customProviders {
 			config := p.GetConfig()
-			providersInfo = append(providersInfo, CustomOAuthInfo{
+			providersInfo = append(providersInfo, dto.CustomOAuthInfo{
 				Id:                    config.Id,
 				Name:                  config.Name,
 				Slug:                  config.Slug,
@@ -155,95 +131,55 @@ func GetStatus(c *gin.Context) {
 				Scopes:                config.Scopes,
 			})
 		}
-		data["custom_oauth_providers"] = providersInfo
+		data.CustomOAuthProviders = providersInfo
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
-	return
+	return dto.Ok(data)
 }
 
-func GetNotice(c *gin.Context) {
+func GetNotice(c fuego.ContextNoBody) (*dto.Response[string], error) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["Notice"],
-	})
-	return
+	return dto.Ok(common.Interface2String(common.OptionMap["Notice"]))
 }
 
-func GetAbout(c *gin.Context) {
+func GetAbout(c fuego.ContextNoBody) (*dto.Response[string], error) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["About"],
-	})
-	return
+	return dto.Ok(common.Interface2String(common.OptionMap["About"]))
 }
 
-func GetUserAgreement(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    system_setting.GetLegalSettings().UserAgreement,
-	})
-	return
+func GetUserAgreement(c fuego.ContextNoBody) (*dto.Response[string], error) {
+	return dto.Ok(system_setting.GetLegalSettings().UserAgreement)
 }
 
-func GetPrivacyPolicy(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    system_setting.GetLegalSettings().PrivacyPolicy,
-	})
-	return
+func GetPrivacyPolicy(c fuego.ContextNoBody) (*dto.Response[string], error) {
+	return dto.Ok(system_setting.GetLegalSettings().PrivacyPolicy)
 }
 
-func GetMidjourney(c *gin.Context) {
+func GetMidjourney(c fuego.ContextNoBody) (*dto.Response[string], error) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["Midjourney"],
-	})
-	return
+	return dto.Ok(common.Interface2String(common.OptionMap["Midjourney"]))
 }
 
-func GetHomePageContent(c *gin.Context) {
+func GetHomePageContent(c fuego.ContextNoBody) (*dto.Response[string], error) {
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["HomePageContent"],
-	})
-	return
+	return dto.Ok(common.Interface2String(common.OptionMap["HomePageContent"]))
 }
 
-func SendEmailVerification(c *gin.Context) {
-	email := c.Query("email")
-	if err := common.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
-		return
+func SendEmailVerification(c fuego.ContextWithParams[dto.EmailParams]) (dto.MessageResponse, error) {
+	p, err := dto.ParseParams[dto.EmailParams](c)
+	if err != nil {
+		return dto.FailMsg("无效的参数")
 	}
-	parts := strings.Split(email, "@")
+	if err := common.Validate.Var(p.Email, "required,email"); err != nil {
+		return dto.FailMsg("无效的参数")
+	}
+	parts := strings.Split(p.Email, "@")
 	if len(parts) != 2 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的邮箱地址",
-		})
-		return
+		return dto.FailMsg("无效的邮箱地址")
 	}
 	localPart := parts[0]
 	domainPart := parts[1]
@@ -256,118 +192,74 @@ func SendEmailVerification(c *gin.Context) {
 			}
 		}
 		if !allowed {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-			})
-			return
+			return dto.FailMsg("The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.")
 		}
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
 		if containsSpecialSymbols {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
-			})
-			return
+			return dto.FailMsg("管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。")
 		}
 	}
 
-	if model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "邮箱地址已被占用",
-		})
-		return
+	if model.IsEmailAlreadyTaken(p.Email) {
+		return dto.FailMsg("邮箱地址已被占用")
 	}
 	code := common.GenerateVerificationCode(6)
-	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
+	common.RegisterVerificationCodeWithKey(p.Email, code, common.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
 	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
 		"<p>您的验证码为: <strong>%s</strong></p>"+
 		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
-	err := common.SendEmail(subject, email, content)
+	err = common.SendEmail(subject, p.Email, content)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		common.SysError("failed to send email verification: " + err.Error())
+		return dto.FailMsg("发送邮件失败，请稍后再试")
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	return dto.Msg("")
 }
 
-func SendPasswordResetEmail(c *gin.Context) {
-	email := c.Query("email")
-	if err := common.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
-		return
+func SendPasswordResetEmail(c fuego.ContextWithParams[dto.EmailParams]) (dto.MessageResponse, error) {
+	p, err := dto.ParseParams[dto.EmailParams](c)
+	if err != nil {
+		return dto.FailMsg("无效的参数")
 	}
-	if !model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该邮箱地址未注册",
-		})
-		return
+	if err := common.Validate.Var(p.Email, "required,email"); err != nil {
+		return dto.FailMsg("无效的参数")
+	}
+	if !model.IsEmailAlreadyTaken(p.Email) {
+		return dto.FailMsg("该邮箱地址未注册")
 	}
 	code := common.GenerateVerificationCode(0)
-	common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
+	common.RegisterVerificationCodeWithKey(p.Email, code, common.PasswordResetPurpose)
+	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, url.QueryEscape(p.Email), url.QueryEscape(code))
 	subject := fmt.Sprintf("%s密码重置", common.SystemName)
 	content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
 		"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
 		"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
 		"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
-	err := common.SendEmail(subject, email, content)
+	err = common.SendEmail(subject, p.Email, content)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		common.SysError("failed to send password reset email: " + err.Error())
+		return dto.FailMsg("发送邮件失败，请稍后再试")
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	return dto.Msg("")
 }
 
-type PasswordResetRequest struct {
-	Email string `json:"email"`
-	Token string `json:"token"`
-}
-
-func ResetPassword(c *gin.Context) {
-	var req PasswordResetRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
-	if req.Email == "" || req.Token == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
-		return
+func ResetPassword(c fuego.ContextWithBody[dto.PasswordResetRequest]) (*dto.Response[string], error) {
+	req, err := c.Body()
+	if err != nil || req.Email == "" || req.Token == "" {
+		return dto.Fail[string]("无效的参数")
 	}
 	if !common.VerifyCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "重置链接非法或已过期",
-		})
-		return
+		return dto.Fail[string]("重置链接非法或已过期")
 	}
 	password := common.GenerateVerificationCode(12)
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		common.SysError("failed to reset password for " + req.Email + ": " + err.Error())
+		return dto.Fail[string]("重置密码失败，请稍后再试")
 	}
 	common.DeleteKey(req.Email, common.PasswordResetPurpose)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    password,
-	})
-	return
+	return dto.Ok(password)
 }

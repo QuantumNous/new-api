@@ -11,7 +11,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
@@ -51,7 +50,7 @@ type Channel struct {
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
-	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
+	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见types.ChannelOtherSettings
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
@@ -842,7 +841,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 }
 
 func (channel *Channel) ValidateSettings() error {
-	channelParams := &dto.ChannelSettings{}
+	channelParams := &types.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
 		err := common.Unmarshal([]byte(*channel.Setting), channelParams)
 		if err != nil {
@@ -852,8 +851,8 @@ func (channel *Channel) ValidateSettings() error {
 	return nil
 }
 
-func (channel *Channel) GetSetting() dto.ChannelSettings {
-	setting := dto.ChannelSettings{}
+func (channel *Channel) GetSetting() types.ChannelSettings {
+	setting := types.ChannelSettings{}
 	if channel.Setting != nil && *channel.Setting != "" {
 		err := common.Unmarshal([]byte(*channel.Setting), &setting)
 		if err != nil {
@@ -865,7 +864,7 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 	return setting
 }
 
-func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
+func (channel *Channel) SetSetting(setting types.ChannelSettings) {
 	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to marshal setting: channel_id=%d, error=%v", channel.Id, err))
@@ -874,8 +873,8 @@ func (channel *Channel) SetSetting(setting dto.ChannelSettings) {
 	channel.Setting = common.GetPointer[string](string(settingBytes))
 }
 
-func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
-	setting := dto.ChannelOtherSettings{}
+func (channel *Channel) GetOtherSettings() types.ChannelOtherSettings {
+	setting := types.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, &setting)
 		if err != nil {
@@ -887,7 +886,7 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 	return setting
 }
 
-func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {
+func (channel *Channel) SetOtherSettings(setting types.ChannelOtherSettings) {
 	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to marshal setting: channel_id=%d, error=%v", channel.Id, err))

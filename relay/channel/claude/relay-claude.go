@@ -141,8 +141,8 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	}
 
 	// 处理 tool_choice 和 parallel_tool_calls
-	if textRequest.ToolChoice != nil || textRequest.ParallelTooCalls != nil {
-		claudeToolChoice := mapToolChoice(textRequest.ToolChoice, textRequest.ParallelTooCalls)
+	if textRequest.ToolChoice != nil || textRequest.ParallelToolCalls != nil {
+		claudeToolChoice := mapToolChoice(textRequest.ToolChoice, textRequest.ParallelToolCalls)
 		if claudeToolChoice != nil {
 			claudeRequest.ToolChoice = claudeToolChoice
 		}

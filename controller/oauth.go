@@ -6,11 +6,14 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
 )
 
@@ -20,24 +23,19 @@ func providerParams(name string) map[string]any {
 }
 
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
-func GenerateOAuthCode(c *gin.Context) {
-	session := sessions.Default(c)
+func GenerateOAuthCode(c fuego.ContextWithParams[dto.GenerateOAuthCodeParams]) (*dto.Response[string], error) {
+	ginCtx := dto.GinCtx(c)
+	session := sessions.Default(ginCtx)
 	state := common.GetRandomString(12)
-	affCode := c.Query("aff")
-	if affCode != "" {
-		session.Set("aff", affCode)
+	p, _ := dto.ParseParams[dto.GenerateOAuthCodeParams](c)
+	if p.Aff != "" {
+		session.Set("aff", p.Aff)
 	}
 	session.Set("oauth_state", state)
-	err := session.Save()
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	if err := session.Save(); err != nil {
+		return dto.Fail[string](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    state,
-	})
+	return dto.Ok(state)
 }
 
 // HandleOAuth handles OAuth callback for all standard OAuth providers
@@ -45,10 +43,7 @@ func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
 	provider := oauth.GetProvider(providerName)
 	if provider == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthUnknownProvider),
-		})
+		c.JSON(http.StatusBadRequest, dto.ApiResponse{Message: i18n.T(c, i18n.MsgOAuthUnknownProvider)})
 		return
 	}
 
@@ -57,10 +52,7 @@ func HandleOAuth(c *gin.Context) {
 	// 1. Validate state (CSRF protection)
 	state := c.Query("state")
 	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
-		})
+		c.JSON(http.StatusForbidden, dto.ApiResponse{Message: i18n.T(c, i18n.MsgOAuthStateInvalid)})
 		return
 	}
 
@@ -81,10 +73,7 @@ func HandleOAuth(c *gin.Context) {
 	errorCode := c.Query("error")
 	if errorCode != "" {
 		errorDescription := c.Query("error_description")
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": errorDescription,
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: errorDescription})
 		return
 	}
 
@@ -107,9 +96,9 @@ func HandleOAuth(c *gin.Context) {
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
 		switch err.(type) {
-		case *OAuthUserDeletedError:
+		case *types.OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
-		case *OAuthRegistrationDisabledError:
+		case *types.OAuthRegistrationDisabledError:
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		default:
 			common.ApiError(c, err)
@@ -205,7 +194,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 		// Check if user has been deleted
 		if user.Id == 0 {
-			return nil, &OAuthUserDeletedError{}
+			return nil, &types.OAuthUserDeletedError{}
 		}
 		return user, nil
 	}
@@ -232,7 +221,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
-		return nil, &OAuthRegistrationDisabledError{}
+		return nil, &types.OAuthRegistrationDisabledError{}
 	}
 
 	// Set up new user
@@ -326,19 +315,6 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	return user, nil
-}
-
-// Error types for OAuth
-type OAuthUserDeletedError struct{}
-
-func (e *OAuthUserDeletedError) Error() string {
-	return "user has been deleted"
-}
-
-type OAuthRegistrationDisabledError struct{}
-
-func (e *OAuthRegistrationDisabledError) Error() string {
-	return "registration is disabled"
 }
 
 // handleOAuthError handles OAuth errors and returns translated message

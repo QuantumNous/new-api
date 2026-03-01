@@ -127,7 +127,7 @@ export const useModelsData = () => {
   ) => {
     setLoading(true);
     try {
-      let url = `/api/models/?p=${page}&page_size=${size}`;
+      let url = `/api/models/list?p=${page}&page_size=${size}`;
       if (vendorKey && vendorKey !== 'all') {
         // Filter by vendor ID
         url = `/api/models/search?vendor=${vendorKey}&p=${page}&page_size=${size}`;

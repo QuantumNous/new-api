@@ -398,10 +398,10 @@ func RelayMidjourney(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatMjProxy, nil, nil)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
-			"type":        "upstream_error",
-			"code":        4,
+		c.JSON(http.StatusInternalServerError, dto.MidjourneyErrorResponse{
+			Description: fmt.Sprintf("failed to generate relay info: %s", err.Error()),
+			Type:        "upstream_error",
+			Code:        4,
 		})
 		return
 	}
@@ -427,10 +427,10 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
-		c.JSON(statusCode, gin.H{
-			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
-			"type":        "upstream_error",
-			"code":        mjErr.Code,
+		c.JSON(statusCode, dto.MidjourneyErrorResponse{
+			Description: fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
+			Type:        "upstream_error",
+			Code:        mjErr.Code,
 		})
 		channelId := c.GetInt("channel_id")
 		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
