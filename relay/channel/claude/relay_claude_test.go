@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
@@ -26,28 +28,15 @@ func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedTokens != 30 {
-		t.Errorf("CachedTokens = %d, want 30", claudeInfo.Usage.PromptTokensDetails.CachedTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens != 50 {
-		t.Errorf("CachedCreationTokens = %d, want 50", claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
-	}
-	if claudeInfo.ResponseId != "msg_123" {
-		t.Errorf("ResponseId = %s, want msg_123", claudeInfo.ResponseId)
-	}
-	if claudeInfo.Model != "claude-3-5-sonnet" {
-		t.Errorf("Model = %s, want claude-3-5-sonnet", claudeInfo.Model)
-	}
+	require.True(t, ok)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 30, claudeInfo.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 50, claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, "msg_123", claudeInfo.ResponseId)
+	assert.Equal(t, "claude-3-5-sonnet", claudeInfo.Model)
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
-	// message_start 先积累 usage
 	claudeInfo := &ClaudeResponseInfo{
 		Usage: &dto.Usage{
 			PromptTokens: 100,
@@ -59,7 +48,6 @@ func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 		},
 	}
 
-	// message_delta 带完整 usage（原生 Anthropic 场景）
 	claudeResponse := &dto.ClaudeResponse{
 		Type: "message_delta",
 		Usage: &dto.ClaudeUsage{
@@ -71,25 +59,14 @@ func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.CompletionTokens != 200 {
-		t.Errorf("CompletionTokens = %d, want 200", claudeInfo.Usage.CompletionTokens)
-	}
-	if claudeInfo.Usage.TotalTokens != 300 {
-		t.Errorf("TotalTokens = %d, want 300", claudeInfo.Usage.TotalTokens)
-	}
-	if !claudeInfo.Done {
-		t.Error("expected Done = true")
-	}
+	require.True(t, ok)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 200, claudeInfo.Usage.CompletionTokens)
+	assert.Equal(t, 300, claudeInfo.Usage.TotalTokens)
+	assert.True(t, claudeInfo.Done)
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_OnlyOutputTokens(t *testing.T) {
-	// 模拟 Bedrock: message_start 已积累 usage
 	claudeInfo := &ClaudeResponseInfo{
 		Usage: &dto.Usage{
 			PromptTokens: 100,
@@ -103,53 +80,29 @@ func TestFormatClaudeResponseInfo_MessageDelta_OnlyOutputTokens(t *testing.T) {
 		},
 	}
 
-	// Bedrock 的 message_delta 只有 output_tokens，缺少 input_tokens 和 cache 字段
 	claudeResponse := &dto.ClaudeResponse{
 		Type: "message_delta",
 		Usage: &dto.ClaudeUsage{
 			OutputTokens: 200,
-			// InputTokens, CacheCreationInputTokens, CacheReadInputTokens 都是 0
 		},
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	// PromptTokens 应保持 message_start 的值（因为 message_delta 的 InputTokens=0，不更新）
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.CompletionTokens != 200 {
-		t.Errorf("CompletionTokens = %d, want 200", claudeInfo.Usage.CompletionTokens)
-	}
-	if claudeInfo.Usage.TotalTokens != 300 {
-		t.Errorf("TotalTokens = %d, want 300", claudeInfo.Usage.TotalTokens)
-	}
-	// cache 字段应保持 message_start 的值
-	if claudeInfo.Usage.PromptTokensDetails.CachedTokens != 30 {
-		t.Errorf("CachedTokens = %d, want 30", claudeInfo.Usage.PromptTokensDetails.CachedTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens != 50 {
-		t.Errorf("CachedCreationTokens = %d, want 50", claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
-	}
-	if claudeInfo.Usage.ClaudeCacheCreation5mTokens != 10 {
-		t.Errorf("ClaudeCacheCreation5mTokens = %d, want 10", claudeInfo.Usage.ClaudeCacheCreation5mTokens)
-	}
-	if claudeInfo.Usage.ClaudeCacheCreation1hTokens != 20 {
-		t.Errorf("ClaudeCacheCreation1hTokens = %d, want 20", claudeInfo.Usage.ClaudeCacheCreation1hTokens)
-	}
-	if !claudeInfo.Done {
-		t.Error("expected Done = true")
-	}
+	require.True(t, ok)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 200, claudeInfo.Usage.CompletionTokens)
+	assert.Equal(t, 300, claudeInfo.Usage.TotalTokens)
+	assert.Equal(t, 30, claudeInfo.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 50, claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 10, claudeInfo.Usage.ClaudeCacheCreation5mTokens)
+	assert.Equal(t, 20, claudeInfo.Usage.ClaudeCacheCreation1hTokens)
+	assert.True(t, claudeInfo.Done)
 }
 
 func TestFormatClaudeResponseInfo_NilClaudeInfo(t *testing.T) {
 	claudeResponse := &dto.ClaudeResponse{Type: "message_start"}
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, nil)
-	if ok {
-		t.Error("expected false for nil claudeInfo")
-	}
+	assert.False(t, ok)
 }
 
 func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
@@ -166,10 +119,137 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
+	require.True(t, ok)
+	assert.Equal(t, "hello", claudeInfo.ResponseText.String())
+}
+
+func TestRequestOpenAI2ClaudeMessage_AssistantToolCallWithEmptyContent(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-opus-4-6",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "what time is it",
+			},
+		},
 	}
-	if claudeInfo.ResponseText.String() != "hello" {
-		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
+	assistantMessage := dto.Message{
+		Role:    "assistant",
+		Content: "",
 	}
+	assistantMessage.SetToolCalls([]dto.ToolCallRequest{
+		{
+			ID:   "call_1",
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:      "get_current_time",
+				Arguments: "{}",
+			},
+		},
+	})
+	request.Messages = append(request.Messages, assistantMessage)
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 2)
+
+	assistantClaudeMessage := claudeRequest.Messages[1]
+	assert.Equal(t, "assistant", assistantClaudeMessage.Role)
+
+	contentBlocks, ok := assistantClaudeMessage.Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, contentBlocks, 1)
+
+	assert.Equal(t, "tool_use", contentBlocks[0].Type)
+	assert.Equal(t, "call_1", contentBlocks[0].Id)
+	assert.Equal(t, "get_current_time", contentBlocks[0].Name)
+	if assert.NotNil(t, contentBlocks[0].Input) {
+		_, isMap := contentBlocks[0].Input.(map[string]any)
+		assert.True(t, isMap)
+	}
+	if contentBlocks[0].Text != nil {
+		assert.NotEqual(t, "", *contentBlocks[0].Text)
+	}
+}
+
+func TestRequestOpenAI2ClaudeMessage_AssistantToolCallWithMalformedArguments(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-opus-4-6",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "what time is it",
+			},
+		},
+	}
+	assistantMessage := dto.Message{
+		Role:    "assistant",
+		Content: "",
+	}
+	assistantMessage.SetToolCalls([]dto.ToolCallRequest{
+		{
+			ID:   "call_bad_args",
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:      "get_current_timestamp",
+				Arguments: "{",
+			},
+		},
+	})
+	request.Messages = append(request.Messages, assistantMessage)
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 2)
+
+	assistantClaudeMessage := claudeRequest.Messages[1]
+	contentBlocks, ok := assistantClaudeMessage.Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, contentBlocks, 1)
+
+	assert.Equal(t, "tool_use", contentBlocks[0].Type)
+	assert.Equal(t, "call_bad_args", contentBlocks[0].Id)
+	assert.Equal(t, "get_current_timestamp", contentBlocks[0].Name)
+
+	inputObj, ok := contentBlocks[0].Input.(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, inputObj)
+}
+
+func TestStreamResponseClaude2OpenAI_EmptyInputJSONDeltaFallback(t *testing.T) {
+	empty := ""
+	resp := &dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: func() *int { v := 1; return &v }(),
+		Delta: &dto.ClaudeMediaMessage{
+			Type:        "input_json_delta",
+			PartialJson: &empty,
+		},
+	}
+
+	chunk := StreamResponseClaude2OpenAI(resp)
+	require.NotNil(t, chunk)
+	require.Len(t, chunk.Choices, 1)
+	require.NotNil(t, chunk.Choices[0].Delta.ToolCalls)
+	require.Len(t, chunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, "{}", chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+}
+
+func TestStreamResponseClaude2OpenAI_NonEmptyInputJSONDeltaPreserved(t *testing.T) {
+	partial := `{"timezone":"Asia/Shanghai"}`
+	resp := &dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: func() *int { v := 1; return &v }(),
+		Delta: &dto.ClaudeMediaMessage{
+			Type:        "input_json_delta",
+			PartialJson: &partial,
+		},
+	}
+
+	chunk := StreamResponseClaude2OpenAI(resp)
+	require.NotNil(t, chunk)
+	require.Len(t, chunk.Choices, 1)
+	require.NotNil(t, chunk.Choices[0].Delta.ToolCalls)
+	require.Len(t, chunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, partial, chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
 }
