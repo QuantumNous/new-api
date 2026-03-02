@@ -278,7 +278,7 @@ func TestStreamResponseClaude2OpenAI_NoArgToolEmitsObjectAtStop(t *testing.T) {
 	assert.Equal(t, "{}", stopChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
 }
 
-func TestStreamResponseClaude2OpenAI_ArgToolKeepsIDNameOnDelta(t *testing.T) {
+func TestStreamResponseClaude2OpenAI_ArgToolOnlyFirstDeltaHasIDName(t *testing.T) {
 	claudeInfo := &ClaudeResponseInfo{}
 	start := &dto.ClaudeResponse{
 		Type:  "content_block_start",
@@ -289,24 +289,43 @@ func TestStreamResponseClaude2OpenAI_ArgToolKeepsIDNameOnDelta(t *testing.T) {
 			Name: "search_notes",
 		},
 	}
-	partial := `{"query":"today"}`
-	delta := &dto.ClaudeResponse{
+	firstPartial := `{"query":"to`
+	firstDelta := &dto.ClaudeResponse{
 		Type:  "content_block_delta",
 		Index: func() *int { v := 1; return &v }(),
 		Delta: &dto.ClaudeMediaMessage{
 			Type:        "input_json_delta",
-			PartialJson: &partial,
+			PartialJson: &firstPartial,
+		},
+	}
+	secondPartial := `day"}`
+	secondDelta := &dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: func() *int { v := 1; return &v }(),
+		Delta: &dto.ClaudeMediaMessage{
+			Type:        "input_json_delta",
+			PartialJson: &secondPartial,
 		},
 	}
 
 	startChunk := StreamResponseClaude2OpenAI(start, claudeInfo)
 	require.Nil(t, startChunk)
 
-	deltaChunk := StreamResponseClaude2OpenAI(delta, claudeInfo)
-	require.NotNil(t, deltaChunk)
-	require.Len(t, deltaChunk.Choices, 1)
-	require.Len(t, deltaChunk.Choices[0].Delta.ToolCalls, 1)
-	assert.Equal(t, "toolu_2", deltaChunk.Choices[0].Delta.ToolCalls[0].ID)
-	assert.Equal(t, "search_notes", deltaChunk.Choices[0].Delta.ToolCalls[0].Function.Name)
-	assert.Equal(t, partial, deltaChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+	firstDeltaChunk := StreamResponseClaude2OpenAI(firstDelta, claudeInfo)
+	require.NotNil(t, firstDeltaChunk)
+	require.Len(t, firstDeltaChunk.Choices, 1)
+	require.Len(t, firstDeltaChunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, "toolu_2", firstDeltaChunk.Choices[0].Delta.ToolCalls[0].ID)
+	assert.Equal(t, "search_notes", firstDeltaChunk.Choices[0].Delta.ToolCalls[0].Function.Name)
+	assert.Equal(t, "function", firstDeltaChunk.Choices[0].Delta.ToolCalls[0].Type)
+	assert.Equal(t, firstPartial, firstDeltaChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+
+	secondDeltaChunk := StreamResponseClaude2OpenAI(secondDelta, claudeInfo)
+	require.NotNil(t, secondDeltaChunk)
+	require.Len(t, secondDeltaChunk.Choices, 1)
+	require.Len(t, secondDeltaChunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, "", secondDeltaChunk.Choices[0].Delta.ToolCalls[0].ID)
+	assert.Equal(t, "", secondDeltaChunk.Choices[0].Delta.ToolCalls[0].Function.Name)
+	assert.Nil(t, secondDeltaChunk.Choices[0].Delta.ToolCalls[0].Type)
+	assert.Equal(t, secondPartial, secondDeltaChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
 }

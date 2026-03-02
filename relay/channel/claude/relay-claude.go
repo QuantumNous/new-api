@@ -469,7 +469,6 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse, claudeInfo 
 					return nil
 				}
 				toolCall := dto.ToolCallResponse{
-					Type:  "function",
 					Index: common.GetPointer(fcIdx),
 					Function: dto.FunctionResponse{
 						Arguments: arguments,
@@ -477,10 +476,17 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse, claudeInfo 
 				}
 				if claudeInfo != nil {
 					if state, ok := claudeInfo.ToolCallStreamStates[fcIdx]; ok {
-						state.Emitted = true
-						toolCall.ID = state.ID
-						toolCall.Function.Name = state.Name
+						if !state.Emitted {
+							toolCall.Type = "function"
+							toolCall.ID = state.ID
+							toolCall.Function.Name = state.Name
+							state.Emitted = true
+						}
+					} else {
+						toolCall.Type = "function"
 					}
+				} else {
+					toolCall.Type = "function"
 				}
 				tools = append(tools, toolCall)
 			case "signature_delta":

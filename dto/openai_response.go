@@ -122,7 +122,7 @@ type ToolCallResponse struct {
 	// Index is not nil only in chat completion chunk object
 	Index    *int             `json:"index,omitempty"`
 	ID       string           `json:"id,omitempty"`
-	Type     any              `json:"type"`
+	Type     any              `json:"type,omitempty"`
 	Function FunctionResponse `json:"function"`
 }
 
