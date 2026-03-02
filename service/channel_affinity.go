@@ -448,6 +448,9 @@ func mergeChannelOverride(base map[string]interface{}, tpl map[string]interface{
 				continue
 			}
 		}
+		if _, exists := out[k]; exists {
+			continue
+		}
 		out[k] = v
 	}
 	return out

@@ -56,7 +56,7 @@ func TestApplyChannelAffinityOverrideTemplate_MergeTemplate(t *testing.T) {
 
 	merged, applied := ApplyChannelAffinityOverrideTemplate(ctx, base)
 	require.True(t, applied)
-	require.Equal(t, 0.2, merged["temperature"])
+	require.Equal(t, 0.7, merged["temperature"])
 	require.Equal(t, 0.95, merged["top_p"])
 	require.Equal(t, 2000, merged["max_tokens"])
 	require.Equal(t, 0.7, base["temperature"])
