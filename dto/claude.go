@@ -197,13 +197,13 @@ type ClaudeRequest struct {
 	// InferenceGeo controls Claude data residency region.
 	// This field is filtered by default and can be enabled via channel setting allow_inference_geo.
 	InferenceGeo      string          `json:"inference_geo,omitempty"`
-	MaxTokens         uint            `json:"max_tokens,omitempty"`
-	MaxTokensToSample uint            `json:"max_tokens_to_sample,omitempty"`
+	MaxTokens         *uint           `json:"max_tokens,omitempty"`
+	MaxTokensToSample *uint           `json:"max_tokens_to_sample,omitempty"`
 	StopSequences     []string        `json:"stop_sequences,omitempty"`
 	Temperature       *float64        `json:"temperature,omitempty"`
-	TopP              float64         `json:"top_p,omitempty"`
-	TopK              int             `json:"top_k,omitempty"`
-	Stream            bool            `json:"stream,omitempty"`
+	TopP              *float64        `json:"top_p,omitempty"`
+	TopK              *int            `json:"top_k,omitempty"`
+	Stream            *bool           `json:"stream,omitempty"`
 	Tools             any             `json:"tools,omitempty"`
 	ContextManagement json.RawMessage `json:"context_management,omitempty"`
 	OutputConfig      json.RawMessage `json:"output_config,omitempty"`
@@ -227,9 +227,13 @@ func createClaudeFileSource(data string) *types.FileSource {
 }
 
 func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	maxTokens := 0
+	if c.MaxTokens != nil {
+		maxTokens = int(*c.MaxTokens)
+	}
 	var tokenCountMeta = types.TokenCountMeta{
 		TokenType: types.TokenTypeTokenizer,
-		MaxTokens: int(c.MaxTokens),
+		MaxTokens: maxTokens,
 	}
 
 	var texts = make([]string, 0)
@@ -352,7 +356,10 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 }
 
 func (c *ClaudeRequest) IsStream(ctx *gin.Context) bool {
-	return c.Stream
+	if c.Stream == nil {
+		return false
+	}
+	return *c.Stream
 }
 
 func (c *ClaudeRequest) SetModelName(modelName string) {

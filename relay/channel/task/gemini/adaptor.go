@@ -44,13 +44,13 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextGenerate)
 }
 
-// BuildRequestURL constructs the Gemini API generateVideos endpoint.
+// BuildRequestURL constructs the Gemini API predictLongRunning endpoint for Veo.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	modelName := info.UpstreamModelName
 	version := model_setting.GetGeminiVersionSetting(modelName)
 
 	return fmt.Sprintf(
-		"%s/%s/models/%s:generateVideos",
+		"%s/%s/models/%s:predictLongRunning",
 		a.baseURL,
 		version,
 		modelName,
@@ -65,7 +65,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	return nil
 }
 
-// BuildRequestBody converts request into the Gemini API generateVideos format.
+// BuildRequestBody converts request into the Veo predictLongRunning format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	v, ok := c.Get("task_request")
 	if !ok {
@@ -76,34 +76,36 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, fmt.Errorf("unexpected task_request type")
 	}
 
-	body := GeminiVideoPayload{
-		Prompt: req.Prompt,
-		Config: &GeminiVideoGenerationConfig{},
-	}
-
+	instance := VeoInstance{Prompt: req.Prompt}
 	if img := ExtractMultipartImage(c, info); img != nil {
-		body.Image = img
+		instance.Image = img
 	} else if len(req.Images) > 0 {
 		if parsed := ParseImageInput(req.Images[0]); parsed != nil {
-			body.Image = parsed
+			instance.Image = parsed
 			info.Action = constant.TaskActionGenerate
 		}
 	}
 
-	if err := taskcommon.UnmarshalMetadata(req.Metadata, body.Config); err != nil {
+	params := &VeoParameters{}
+	if err := taskcommon.UnmarshalMetadata(req.Metadata, params); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
-	if body.Config.DurationSeconds == 0 && req.Duration > 0 {
-		body.Config.DurationSeconds = req.Duration
+	if params.DurationSeconds == 0 && req.Duration > 0 {
+		params.DurationSeconds = req.Duration
 	}
-	if body.Config.Resolution == "" && req.Size != "" {
-		body.Config.Resolution = SizeToVeoResolution(req.Size)
+	if params.Resolution == "" && req.Size != "" {
+		params.Resolution = SizeToVeoResolution(req.Size)
 	}
-	if body.Config.AspectRatio == "" && req.Size != "" {
-		body.Config.AspectRatio = SizeToVeoAspectRatio(req.Size)
+	if params.AspectRatio == "" && req.Size != "" {
+		params.AspectRatio = SizeToVeoAspectRatio(req.Size)
 	}
-	body.Config.Resolution = strings.ToLower(body.Config.Resolution)
-	body.Config.NumberOfVideos = 1
+	params.Resolution = strings.ToLower(params.Resolution)
+	params.SampleCount = 1
+
+	body := VeoRequestPayload{
+		Instances:  []VeoInstance{instance},
+		Parameters: params,
+	}
 
 	data, err := common.Marshal(body)
 	if err != nil {

@@ -27,32 +27,6 @@ import (
 // Request / Response structures
 // ============================
 
-type veoInstance struct {
-	Prompt string                    `json:"prompt"`
-	Image  *geminitask.VeoImageInput `json:"image,omitempty"`
-	// TODO: support referenceImages (style/asset references, up to 3 images)
-	// TODO: support lastFrame (first+last frame interpolation, Veo 3.1)
-}
-
-type veoParameters struct {
-	SampleCount        int    `json:"sampleCount"`
-	DurationSeconds    int    `json:"durationSeconds,omitempty"`
-	AspectRatio        string `json:"aspectRatio,omitempty"`
-	Resolution         string `json:"resolution,omitempty"`
-	NegativePrompt     string `json:"negativePrompt,omitempty"`
-	PersonGeneration   string `json:"personGeneration,omitempty"`
-	StorageUri         string `json:"storageUri,omitempty"`
-	CompressionQuality string `json:"compressionQuality,omitempty"`
-	ResizeMode         string `json:"resizeMode,omitempty"`
-	Seed               *int   `json:"seed,omitempty"`
-	GenerateAudio      *bool  `json:"generateAudio,omitempty"`
-}
-
-type requestPayload struct {
-	Instances  []veoInstance  `json:"instances"`
-	Parameters *veoParameters `json:"parameters,omitempty"`
-}
-
 type fetchOperationPayload struct {
 	OperationName string `json:"operationName"`
 }
@@ -186,7 +160,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	req := v.(relaycommon.TaskSubmitReq)
 
-	instance := veoInstance{Prompt: req.Prompt}
+	instance := geminitask.VeoInstance{Prompt: req.Prompt}
 	if img := geminitask.ExtractMultipartImage(c, info); img != nil {
 		instance.Image = img
 	} else if len(req.Images) > 0 {
@@ -196,7 +170,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	params := &veoParameters{}
+	params := &geminitask.VeoParameters{}
 	if err := taskcommon.UnmarshalMetadata(req.Metadata, params); err != nil {
 		return nil, fmt.Errorf("unmarshal metadata failed: %w", err)
 	}
@@ -212,8 +186,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	params.Resolution = strings.ToLower(params.Resolution)
 	params.SampleCount = 1
 
-	body := requestPayload{
-		Instances:  []veoInstance{instance},
+	body := geminitask.VeoRequestPayload{
+		Instances:  []geminitask.VeoInstance{instance},
 		Parameters: params,
 	}
 

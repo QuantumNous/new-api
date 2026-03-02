@@ -615,7 +615,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a cute cat",
-				N:      1,
+				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
 			}
 		case constant.EndpointTypeJinaRerank:
@@ -624,14 +624,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Model:     model,
 				Query:     "What is Deep Learning?",
 				Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
-				TopN:      2,
+				TopN:      lo.ToPtr(2),
 			}
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
 				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
-				Stream: isStream,
+				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
 			// 返回 OpenAIResponsesCompactionRequest
@@ -647,14 +647,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
-				Stream: isStream,
+				Stream: lo.ToPtr(isStream),
 				Messages: []dto.Message{
 					{
 						Role:    "user",
 						Content: "hi",
 					},
 				},
-				MaxTokens: maxTokens,
+				MaxTokens: lo.ToPtr(maxTokens),
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
@@ -669,7 +669,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			Model:     model,
 			Query:     "What is Deep Learning?",
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
-			TopN:      2,
+			TopN:      lo.ToPtr(2),
 		}
 	}
 
@@ -697,14 +697,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
-			Stream: isStream,
+			Stream: lo.ToPtr(isStream),
 		}
 	}
 
 	// Chat/Completion 请求 - 返回 GeneralOpenAIRequest
 	testRequest := &dto.GeneralOpenAIRequest{
 		Model:  model,
-		Stream: isStream,
+		Stream: lo.ToPtr(isStream),
 		Messages: []dto.Message{
 			{
 				Role:    "user",
@@ -717,15 +717,15 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	if strings.HasPrefix(model, "o") {
-		testRequest.MaxCompletionTokens = 16
+		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
-			testRequest.MaxTokens = 50
+			testRequest.MaxTokens = lo.ToPtr(uint(50))
 		}
 	} else if strings.Contains(model, "gemini") {
-		testRequest.MaxTokens = 3000
+		testRequest.MaxTokens = lo.ToPtr(uint(3000))
 	} else {
-		testRequest.MaxTokens = 16
+		testRequest.MaxTokens = lo.ToPtr(uint(16))
 	}
 
 	return testRequest

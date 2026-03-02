@@ -77,8 +77,8 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 
 	var maxTokens int
 
-	if r.GenerationConfig.MaxOutputTokens > 0 {
-		maxTokens = int(r.GenerationConfig.MaxOutputTokens)
+	if r.GenerationConfig.MaxOutputTokens != nil && *r.GenerationConfig.MaxOutputTokens > 0 {
+		maxTokens = int(*r.GenerationConfig.MaxOutputTokens)
 	}
 
 	var inputTexts []string
@@ -325,21 +325,21 @@ type GeminiChatTool struct {
 
 type GeminiChatGenerationConfig struct {
 	Temperature                *float64              `json:"temperature,omitempty"`
-	TopP                       float64               `json:"topP,omitempty"`
-	TopK                       float64               `json:"topK,omitempty"`
-	MaxOutputTokens            uint                  `json:"maxOutputTokens,omitempty"`
-	CandidateCount             int                   `json:"candidateCount,omitempty"`
+	TopP                       *float64              `json:"topP,omitempty"`
+	TopK                       *float64              `json:"topK,omitempty"`
+	MaxOutputTokens            *uint                 `json:"maxOutputTokens,omitempty"`
+	CandidateCount             *int                  `json:"candidateCount,omitempty"`
 	StopSequences              []string              `json:"stopSequences,omitempty"`
 	ResponseMimeType           string                `json:"responseMimeType,omitempty"`
 	ResponseSchema             any                   `json:"responseSchema,omitempty"`
 	ResponseJsonSchema         json.RawMessage       `json:"responseJsonSchema,omitempty"`
 	PresencePenalty            *float32              `json:"presencePenalty,omitempty"`
 	FrequencyPenalty           *float32              `json:"frequencyPenalty,omitempty"`
-	ResponseLogprobs           bool                  `json:"responseLogprobs,omitempty"`
+	ResponseLogprobs           *bool                 `json:"responseLogprobs,omitempty"`
 	Logprobs                   *int32                `json:"logprobs,omitempty"`
 	EnableEnhancedCivicAnswers *bool                 `json:"enableEnhancedCivicAnswers,omitempty"`
 	MediaResolution            MediaResolution       `json:"mediaResolution,omitempty"`
-	Seed                       int64                 `json:"seed,omitempty"`
+	Seed                       *int64                `json:"seed,omitempty"`
 	ResponseModalities         []string              `json:"responseModalities,omitempty"`
 	ThinkingConfig             *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	SpeechConfig               json.RawMessage       `json:"speechConfig,omitempty"` // RawMessage to allow flexible speech config
@@ -351,17 +351,17 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	type Alias GeminiChatGenerationConfig
 	var aux struct {
 		Alias
-		TopPSnake                       float64               `json:"top_p,omitempty"`
-		TopKSnake                       float64               `json:"top_k,omitempty"`
-		MaxOutputTokensSnake            uint                  `json:"max_output_tokens,omitempty"`
-		CandidateCountSnake             int                   `json:"candidate_count,omitempty"`
+		TopPSnake                       *float64              `json:"top_p,omitempty"`
+		TopKSnake                       *float64              `json:"top_k,omitempty"`
+		MaxOutputTokensSnake            *uint                 `json:"max_output_tokens,omitempty"`
+		CandidateCountSnake             *int                  `json:"candidate_count,omitempty"`
 		StopSequencesSnake              []string              `json:"stop_sequences,omitempty"`
 		ResponseMimeTypeSnake           string                `json:"response_mime_type,omitempty"`
 		ResponseSchemaSnake             any                   `json:"response_schema,omitempty"`
 		ResponseJsonSchemaSnake         json.RawMessage       `json:"response_json_schema,omitempty"`
 		PresencePenaltySnake            *float32              `json:"presence_penalty,omitempty"`
 		FrequencyPenaltySnake           *float32              `json:"frequency_penalty,omitempty"`
-		ResponseLogprobsSnake           bool                  `json:"response_logprobs,omitempty"`
+		ResponseLogprobsSnake           *bool                 `json:"response_logprobs,omitempty"`
 		EnableEnhancedCivicAnswersSnake *bool                 `json:"enable_enhanced_civic_answers,omitempty"`
 		MediaResolutionSnake            MediaResolution       `json:"media_resolution,omitempty"`
 		ResponseModalitiesSnake         []string              `json:"response_modalities,omitempty"`
@@ -377,16 +377,16 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	*c = GeminiChatGenerationConfig(aux.Alias)
 
 	// Prioritize snake_case if present
-	if aux.TopPSnake != 0 {
+	if aux.TopPSnake != nil {
 		c.TopP = aux.TopPSnake
 	}
-	if aux.TopKSnake != 0 {
+	if aux.TopKSnake != nil {
 		c.TopK = aux.TopKSnake
 	}
-	if aux.MaxOutputTokensSnake != 0 {
+	if aux.MaxOutputTokensSnake != nil {
 		c.MaxOutputTokens = aux.MaxOutputTokensSnake
 	}
-	if aux.CandidateCountSnake != 0 {
+	if aux.CandidateCountSnake != nil {
 		c.CandidateCount = aux.CandidateCountSnake
 	}
 	if len(aux.StopSequencesSnake) > 0 {
@@ -407,7 +407,7 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	if aux.FrequencyPenaltySnake != nil {
 		c.FrequencyPenalty = aux.FrequencyPenaltySnake
 	}
-	if aux.ResponseLogprobsSnake {
+	if aux.ResponseLogprobsSnake != nil {
 		c.ResponseLogprobs = aux.ResponseLogprobsSnake
 	}
 	if aux.EnableEnhancedCivicAnswersSnake != nil {
