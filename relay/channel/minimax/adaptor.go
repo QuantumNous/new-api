@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type Adaptor struct {
@@ -37,7 +38,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	voiceID := request.Voice
-	speed := request.Speed
+	speed := lo.FromPtrOr(request.Speed, 0.0)
 	outputFormat := request.ResponseFormat
 
 	minimaxRequest := MiniMaxTTSRequest{

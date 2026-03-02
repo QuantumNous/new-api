@@ -45,6 +45,7 @@ type channelAffinityMeta struct {
 	TTLSeconds     int
 	RuleName       string
 	SkipRetry      bool
+	ParamTemplate  map[string]interface{}
 	KeySourceType  string
 	KeySourceKey   string
 	KeySourcePath  string
@@ -415,6 +416,84 @@ func buildChannelAffinityKeyHint(s string) string {
 	return s[:4] + "..." + s[len(s)-4:]
 }
 
+func cloneStringAnyMap(src map[string]interface{}) map[string]interface{} {
+	if len(src) == 0 {
+		return map[string]interface{}{}
+	}
+	dst := make(map[string]interface{}, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}
+
+func mergeChannelOverride(base map[string]interface{}, tpl map[string]interface{}) map[string]interface{} {
+	if len(base) == 0 && len(tpl) == 0 {
+		return map[string]interface{}{}
+	}
+	if len(tpl) == 0 {
+		return base
+	}
+	out := cloneStringAnyMap(base)
+	for k, v := range tpl {
+		out[k] = v
+	}
+	return out
+}
+
+func appendChannelAffinityTemplateAdminInfo(c *gin.Context, meta channelAffinityMeta) {
+	if c == nil {
+		return
+	}
+	if len(meta.ParamTemplate) == 0 {
+		return
+	}
+
+	templateInfo := map[string]interface{}{
+		"applied":             true,
+		"rule_name":           meta.RuleName,
+		"param_override_keys": len(meta.ParamTemplate),
+	}
+	if anyInfo, ok := c.Get(ginKeyChannelAffinityLogInfo); ok {
+		if info, ok := anyInfo.(map[string]interface{}); ok {
+			info["override_template"] = templateInfo
+			c.Set(ginKeyChannelAffinityLogInfo, info)
+			return
+		}
+	}
+	c.Set(ginKeyChannelAffinityLogInfo, map[string]interface{}{
+		"reason":            meta.RuleName,
+		"rule_name":         meta.RuleName,
+		"using_group":       meta.UsingGroup,
+		"model":             meta.ModelName,
+		"request_path":      meta.RequestPath,
+		"key_source":        meta.KeySourceType,
+		"key_key":           meta.KeySourceKey,
+		"key_path":          meta.KeySourcePath,
+		"key_hint":          meta.KeyHint,
+		"key_fp":            meta.KeyFingerprint,
+		"override_template": templateInfo,
+	})
+}
+
+// ApplyChannelAffinityOverrideTemplate merges per-rule channel override templates onto the selected channel override config.
+func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[string]interface{}) (map[string]interface{}, bool) {
+	if c == nil {
+		return paramOverride, false
+	}
+	meta, ok := getChannelAffinityMeta(c)
+	if !ok {
+		return paramOverride, false
+	}
+	if len(meta.ParamTemplate) == 0 {
+		return paramOverride, false
+	}
+
+	mergedParam := mergeChannelOverride(paramOverride, meta.ParamTemplate)
+	appendChannelAffinityTemplateAdminInfo(c, meta)
+	return mergedParam, true
+}
+
 func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	if setting == nil || !setting.Enabled {
@@ -466,6 +545,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 			TTLSeconds:     ttlSeconds,
 			RuleName:       rule.Name,
 			SkipRetry:      rule.SkipRetryOnFailure,
+			ParamTemplate:  cloneStringAnyMap(rule.ParamOverrideTemplate),
 			KeySourceType:  strings.TrimSpace(usedSource.Type),
 			KeySourceKey:   strings.TrimSpace(usedSource.Key),
 			KeySourcePath:  strings.TrimSpace(usedSource.Path),

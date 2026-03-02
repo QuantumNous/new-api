@@ -16,12 +16,13 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaChatRequest, error) {
 	chatReq := &OllamaChatRequest{
 		Model:   r.Model,
-		Stream:  r.Stream,
+		Stream:  lo.FromPtrOr(r.Stream, false),
 		Options: map[string]any{},
 		Think:   r.Think,
 	}
@@ -41,20 +42,20 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 	if r.Temperature != nil {
 		chatReq.Options["temperature"] = r.Temperature
 	}
-	if r.TopP != 0 {
-		chatReq.Options["top_p"] = r.TopP
+	if r.TopP != nil {
+		chatReq.Options["top_p"] = lo.FromPtr(r.TopP)
 	}
-	if r.TopK != 0 {
-		chatReq.Options["top_k"] = r.TopK
+	if r.TopK != nil {
+		chatReq.Options["top_k"] = lo.FromPtr(r.TopK)
 	}
-	if r.FrequencyPenalty != 0 {
-		chatReq.Options["frequency_penalty"] = r.FrequencyPenalty
+	if r.FrequencyPenalty != nil {
+		chatReq.Options["frequency_penalty"] = lo.FromPtr(r.FrequencyPenalty)
 	}
-	if r.PresencePenalty != 0 {
-		chatReq.Options["presence_penalty"] = r.PresencePenalty
+	if r.PresencePenalty != nil {
+		chatReq.Options["presence_penalty"] = lo.FromPtr(r.PresencePenalty)
 	}
-	if r.Seed != 0 {
-		chatReq.Options["seed"] = int(r.Seed)
+	if r.Seed != nil {
+		chatReq.Options["seed"] = int(lo.FromPtr(r.Seed))
 	}
 	if mt := r.GetMaxTokens(); mt != 0 {
 		chatReq.Options["num_predict"] = int(mt)
@@ -155,7 +156,7 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 func openAIToGenerate(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaGenerateRequest, error) {
 	gen := &OllamaGenerateRequest{
 		Model:   r.Model,
-		Stream:  r.Stream,
+		Stream:  lo.FromPtrOr(r.Stream, false),
 		Options: map[string]any{},
 		Think:   r.Think,
 	}
@@ -193,20 +194,20 @@ func openAIToGenerate(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaGener
 	if r.Temperature != nil {
 		gen.Options["temperature"] = r.Temperature
 	}
-	if r.TopP != 0 {
-		gen.Options["top_p"] = r.TopP
+	if r.TopP != nil {
+		gen.Options["top_p"] = lo.FromPtr(r.TopP)
 	}
-	if r.TopK != 0 {
-		gen.Options["top_k"] = r.TopK
+	if r.TopK != nil {
+		gen.Options["top_k"] = lo.FromPtr(r.TopK)
 	}
-	if r.FrequencyPenalty != 0 {
-		gen.Options["frequency_penalty"] = r.FrequencyPenalty
+	if r.FrequencyPenalty != nil {
+		gen.Options["frequency_penalty"] = lo.FromPtr(r.FrequencyPenalty)
 	}
-	if r.PresencePenalty != 0 {
-		gen.Options["presence_penalty"] = r.PresencePenalty
+	if r.PresencePenalty != nil {
+		gen.Options["presence_penalty"] = lo.FromPtr(r.PresencePenalty)
 	}
-	if r.Seed != 0 {
-		gen.Options["seed"] = int(r.Seed)
+	if r.Seed != nil {
+		gen.Options["seed"] = int(lo.FromPtr(r.Seed))
 	}
 	if mt := r.GetMaxTokens(); mt != 0 {
 		gen.Options["num_predict"] = int(mt)
@@ -237,26 +238,27 @@ func requestOpenAI2Embeddings(r dto.EmbeddingRequest) *OllamaEmbeddingRequest {
 	if r.Temperature != nil {
 		opts["temperature"] = r.Temperature
 	}
-	if r.TopP != 0 {
-		opts["top_p"] = r.TopP
+	if r.TopP != nil {
+		opts["top_p"] = lo.FromPtr(r.TopP)
 	}
-	if r.FrequencyPenalty != 0 {
-		opts["frequency_penalty"] = r.FrequencyPenalty
+	if r.FrequencyPenalty != nil {
+		opts["frequency_penalty"] = lo.FromPtr(r.FrequencyPenalty)
 	}
-	if r.PresencePenalty != 0 {
-		opts["presence_penalty"] = r.PresencePenalty
+	if r.PresencePenalty != nil {
+		opts["presence_penalty"] = lo.FromPtr(r.PresencePenalty)
 	}
-	if r.Seed != 0 {
-		opts["seed"] = int(r.Seed)
+	if r.Seed != nil {
+		opts["seed"] = int(lo.FromPtr(r.Seed))
 	}
-	if r.Dimensions != 0 {
-		opts["dimensions"] = r.Dimensions
+	dimensions := lo.FromPtrOr(r.Dimensions, 0)
+	if r.Dimensions != nil {
+		opts["dimensions"] = dimensions
 	}
 	input := r.ParseInput()
 	if len(input) == 1 {
-		return &OllamaEmbeddingRequest{Model: r.Model, Input: input[0], Options: opts, Dimensions: r.Dimensions}
+		return &OllamaEmbeddingRequest{Model: r.Model, Input: input[0], Options: opts, Dimensions: dimensions}
 	}
-	return &OllamaEmbeddingRequest{Model: r.Model, Input: input, Options: opts, Dimensions: r.Dimensions}
+	return &OllamaEmbeddingRequest{Model: r.Model, Input: input, Options: opts, Dimensions: dimensions}
 }
 
 func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {

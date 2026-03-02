@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 // https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference?hl=zh-cn#blob
@@ -167,8 +168,8 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 					IncludeThoughts: true,
 				}
-				if geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
-					budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(geminiRequest.GenerationConfig.MaxOutputTokens)
+				if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
+					budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
 					clampedBudget := clampThinkingBudget(modelName, int(budgetTokens))
 					geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = common.GetPointer(clampedBudget)
 				} else {
@@ -200,11 +201,21 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	geminiRequest := dto.GeminiChatRequest{
 		Contents: make([]dto.GeminiChatContent, 0, len(textRequest.Messages)),
 		GenerationConfig: dto.GeminiChatGenerationConfig{
-			Temperature:     textRequest.Temperature,
-			TopP:            textRequest.TopP,
-			MaxOutputTokens: textRequest.GetMaxTokens(),
-			Seed:            int64(textRequest.Seed),
+			Temperature: textRequest.Temperature,
 		},
+	}
+
+	if textRequest.TopP != nil && *textRequest.TopP > 0 {
+		geminiRequest.GenerationConfig.TopP = common.GetPointer(*textRequest.TopP)
+	}
+
+	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
+		geminiRequest.GenerationConfig.MaxOutputTokens = common.GetPointer(maxTokens)
+	}
+
+	if textRequest.Seed != nil && *textRequest.Seed != 0 {
+		geminiSeed := int64(lo.FromPtr(textRequest.Seed))
+		geminiRequest.GenerationConfig.Seed = common.GetPointer(geminiSeed)
 	}
 
 	attachThoughtSignature := (info.ChannelType == constant.ChannelTypeGemini ||

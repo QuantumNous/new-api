@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/samber/lo"
 )
 
 func normalizeChatImageURLToString(v any) any {
@@ -79,7 +80,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	if req.Model == "" {
 		return nil, errors.New("model is required")
 	}
-	if req.N > 1 {
+	if lo.FromPtrOr(req.N, 1) > 1 {
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
 	}
 
@@ -356,9 +357,10 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 
 	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)
 
-	maxOutputTokens := req.MaxTokens
-	if req.MaxCompletionTokens > maxOutputTokens {
-		maxOutputTokens = req.MaxCompletionTokens
+	maxOutputTokens := lo.FromPtrOr(req.MaxTokens, uint(0))
+	maxCompletionTokens := lo.FromPtrOr(req.MaxCompletionTokens, uint(0))
+	if maxCompletionTokens > maxOutputTokens {
+		maxOutputTokens = maxCompletionTokens
 	}
 	// OpenAI Responses API rejects max_output_tokens < 16 when explicitly provided.
 	//if maxOutputTokens > 0 && maxOutputTokens < 16 {
@@ -366,15 +368,14 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	//}
 
 	var topP *float64
-	if req.TopP != 0 {
-		topP = common.GetPointer(req.TopP)
+	if req.TopP != nil {
+		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
 	out := &dto.OpenAIResponsesRequest{
 		Model:             req.Model,
 		Input:             inputRaw,
 		Instructions:      instructionsRaw,
-		MaxOutputTokens:   maxOutputTokens,
 		Stream:            req.Stream,
 		Temperature:       req.Temperature,
 		Text:              textRaw,
@@ -385,6 +386,9 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,
 		Metadata:          req.Metadata,
+	}
+	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
+		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}
 
 	if req.ReasoningEffort != "" {

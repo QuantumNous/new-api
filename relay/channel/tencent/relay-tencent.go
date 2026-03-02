@@ -37,12 +37,12 @@ func requestOpenAI2Tencent(a *Adaptor, request dto.GeneralOpenAIRequest) *Tencen
 		})
 	}
 	var req = TencentChatRequest{
-		Stream:   &request.Stream,
+		Stream:   request.Stream,
 		Messages: messages,
 		Model:    &request.Model,
 	}
-	if request.TopP != 0 {
-		req.TopP = &request.TopP
+	if request.TopP != nil {
+		req.TopP = request.TopP
 	}
 	req.Temperature = request.Temperature
 	return &req

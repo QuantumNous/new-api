@@ -2,10 +2,12 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -94,12 +96,34 @@ func VideoProxy(c *gin.Context) {
 			return
 		}
 		req.Header.Set("x-goog-api-key", apiKey)
+	case constant.ChannelTypeVertexAi:
+		videoURL, err = getVertexVideoURL(channel, task)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve Vertex video URL for task %s: %s", taskID, err.Error()))
+			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to resolve Vertex video URL")
+			return
+		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
+	}
+
+	videoURL = strings.TrimSpace(videoURL)
+	if videoURL == "" {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Video URL is empty for task %s", taskID))
+		videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
+		return
+	}
+
+	if strings.HasPrefix(videoURL, "data:") {
+		if err := writeVideoDataURL(c, videoURL); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to decode video data URL for task %s: %s", taskID, err.Error()))
+			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
+		}
+		return
 	}
 
 	req.URL, err = url.Parse(videoURL)
@@ -135,4 +159,37 @@ func VideoProxy(c *gin.Context) {
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
 	}
+}
+
+func writeVideoDataURL(c *gin.Context, dataURL string) error {
+	parts := strings.SplitN(dataURL, ",", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid data url")
+	}
+
+	header := parts[0]
+	payload := parts[1]
+	if !strings.HasPrefix(header, "data:") || !strings.Contains(header, ";base64") {
+		return fmt.Errorf("unsupported data url")
+	}
+
+	mimeType := strings.TrimPrefix(header, "data:")
+	mimeType = strings.TrimSuffix(mimeType, ";base64")
+	if mimeType == "" {
+		mimeType = "video/mp4"
+	}
+
+	videoBytes, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		videoBytes, err = base64.RawStdEncoding.DecodeString(payload)
+		if err != nil {
+			return err
+		}
+	}
+
+	c.Writer.Header().Set("Content-Type", mimeType)
+	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
+	c.Writer.WriteHeader(http.StatusOK)
+	_, err = c.Writer.Write(videoBytes)
+	return err
 }

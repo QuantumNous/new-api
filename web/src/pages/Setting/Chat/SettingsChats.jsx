@@ -21,6 +21,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   Banner,
   Button,
+  Dropdown,
   Form,
   Space,
   Spin,
@@ -37,6 +38,7 @@ import {
   IconDelete,
   IconSearch,
   IconSaveStroked,
+  IconBolt,
 } from '@douyinfe/semi-icons';
 import {
   compareObjects,
@@ -63,6 +65,37 @@ export default function SettingsChats(props) {
   const [isEdit, setIsEdit] = useState(false);
   const [searchText, setSearchText] = useState('');
   const modalFormRef = useRef();
+
+  const BUILTIN_TEMPLATES = [
+    { name: 'Cherry Studio', url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}' },
+    { name: '流畅阅读', url: 'fluentread' },
+    { name: 'CC Switch', url: 'ccswitch' },
+    { name: 'Lobe Chat', url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}' },
+    { name: 'AI as Workspace', url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}' },
+    { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
+    { name: 'OpenCat', url: 'opencat://team/join?domain={address}&token={key}' },
+  ];
+
+  const addTemplates = (templates) => {
+    const existingNames = new Set(chatConfigs.map((c) => c.name));
+    const toAdd = templates.filter((tpl) => !existingNames.has(tpl.name));
+    if (toAdd.length === 0) {
+      showWarning(t('所选模板已存在'));
+      return;
+    }
+    let maxId = chatConfigs.length > 0
+      ? Math.max(...chatConfigs.map((c) => c.id))
+      : -1;
+    const newItems = toAdd.map((tpl) => ({
+      id: ++maxId,
+      name: tpl.name,
+      url: tpl.url,
+    }));
+    const newConfigs = [...chatConfigs, ...newItems];
+    setChatConfigs(newConfigs);
+    syncConfigsToJson(newConfigs);
+    showSuccess(t('已添加 {{count}} 个模板', { count: toAdd.length }));
+  };
 
   const jsonToConfigs = (jsonString) => {
     try {
@@ -105,49 +138,47 @@ export default function SettingsChats(props) {
 
   async function onSubmit() {
     try {
-      console.log('Starting validation...');
-      await refForm.current
-        .validate()
-        .then(() => {
-          console.log('Validation passed');
-          const updateArray = compareObjects(inputs, inputsRow);
-          if (!updateArray.length)
-            return showWarning(t('你似乎并没有修改什么'));
-          const requestQueue = updateArray.map((item) => {
-            let value = '';
-            if (typeof inputs[item.key] === 'boolean') {
-              value = String(inputs[item.key]);
-            } else {
-              value = inputs[item.key];
-            }
-            return API.put('/api/option/', {
-              key: item.key,
-              value,
-            });
-          });
-          setLoading(true);
-          Promise.all(requestQueue)
-            .then((res) => {
-              if (requestQueue.length === 1) {
-                if (res.includes(undefined)) return;
-              } else if (requestQueue.length > 1) {
-                if (res.includes(undefined))
-                  return showError(t('部分保存失败，请重试'));
-              }
-              showSuccess(t('保存成功'));
-              props.refresh();
-            })
-            .catch(() => {
-              showError(t('保存失败，请重试'));
-            })
-            .finally(() => {
-              setLoading(false);
-            });
-        })
-        .catch((error) => {
+      if (editMode === 'json' && refForm.current) {
+        try {
+          await refForm.current.validate();
+        } catch (error) {
           console.error('Validation failed:', error);
           showError(t('请检查输入'));
+          return;
+        }
+      }
+
+      const updateArray = compareObjects(inputs, inputsRow);
+      if (!updateArray.length)
+        return showWarning(t('你似乎并没有修改什么'));
+      const requestQueue = updateArray.map((item) => {
+        let value = '';
+        if (typeof inputs[item.key] === 'boolean') {
+          value = String(inputs[item.key]);
+        } else {
+          value = inputs[item.key];
+        }
+        return API.put('/api/option/', {
+          key: item.key,
+          value,
         });
+      });
+      setLoading(true);
+      try {
+        const res = await Promise.all(requestQueue);
+        if (res.includes(undefined)) {
+          if (requestQueue.length > 1) {
+            showError(t('部分保存失败，请重试'));
+          }
+          return;
+        }
+        showSuccess(t('保存成功'));
+        props.refresh();
+      } catch {
+        showError(t('保存失败，请重试'));
+      } finally {
+        setLoading(false);
+      }
     } catch (error) {
       showError(t('请检查输入'));
       console.error(error);
@@ -390,6 +421,29 @@ export default function SettingsChats(props) {
                 >
                   {t('添加聊天配置')}
                 </Button>
+                <Dropdown
+                  trigger='click'
+                  position='bottomLeft'
+                  menu={[
+                    ...BUILTIN_TEMPLATES.map((tpl, idx) => ({
+                      node: 'item',
+                      key: String(idx),
+                      name: tpl.name,
+                      onClick: () => addTemplates([tpl]),
+                    })),
+                    { node: 'divider', key: 'divider' },
+                    {
+                      node: 'item',
+                      key: 'all',
+                      name: t('全部填入'),
+                      onClick: () => addTemplates(BUILTIN_TEMPLATES),
+                    },
+                  ]}
+                >
+                  <Button icon={<IconBolt />}>
+                    {t('填入模板')}
+                  </Button>
+                </Dropdown>
                 <Button
                   type='primary'
                   theme='solid'
