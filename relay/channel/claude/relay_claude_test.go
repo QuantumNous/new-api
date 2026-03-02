@@ -216,7 +216,7 @@ func TestRequestOpenAI2ClaudeMessage_AssistantToolCallWithMalformedArguments(t *
 	assert.Empty(t, inputObj)
 }
 
-func TestStreamResponseClaude2OpenAI_EmptyInputJSONDeltaFallback(t *testing.T) {
+func TestStreamResponseClaude2OpenAI_EmptyInputJSONDeltaIgnored(t *testing.T) {
 	empty := ""
 	resp := &dto.ClaudeResponse{
 		Type:  "content_block_delta",
@@ -227,12 +227,8 @@ func TestStreamResponseClaude2OpenAI_EmptyInputJSONDeltaFallback(t *testing.T) {
 		},
 	}
 
-	chunk := StreamResponseClaude2OpenAI(resp)
-	require.NotNil(t, chunk)
-	require.Len(t, chunk.Choices, 1)
-	require.NotNil(t, chunk.Choices[0].Delta.ToolCalls)
-	require.Len(t, chunk.Choices[0].Delta.ToolCalls, 1)
-	assert.Equal(t, "{}", chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+	chunk := StreamResponseClaude2OpenAI(resp, &ClaudeResponseInfo{})
+	require.Nil(t, chunk)
 }
 
 func TestStreamResponseClaude2OpenAI_NonEmptyInputJSONDeltaPreserved(t *testing.T) {
@@ -246,10 +242,71 @@ func TestStreamResponseClaude2OpenAI_NonEmptyInputJSONDeltaPreserved(t *testing.
 		},
 	}
 
-	chunk := StreamResponseClaude2OpenAI(resp)
+	chunk := StreamResponseClaude2OpenAI(resp, &ClaudeResponseInfo{})
 	require.NotNil(t, chunk)
 	require.Len(t, chunk.Choices, 1)
 	require.NotNil(t, chunk.Choices[0].Delta.ToolCalls)
 	require.Len(t, chunk.Choices[0].Delta.ToolCalls, 1)
 	assert.Equal(t, partial, chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+}
+
+func TestStreamResponseClaude2OpenAI_NoArgToolEmitsObjectAtStop(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{}
+	start := &dto.ClaudeResponse{
+		Type:  "content_block_start",
+		Index: func() *int { v := 1; return &v }(),
+		ContentBlock: &dto.ClaudeMediaMessage{
+			Type: "tool_use",
+			Id:   "toolu_1",
+			Name: "get_current_time",
+		},
+	}
+	stop := &dto.ClaudeResponse{
+		Type:  "content_block_stop",
+		Index: func() *int { v := 1; return &v }(),
+	}
+
+	startChunk := StreamResponseClaude2OpenAI(start, claudeInfo)
+	require.Nil(t, startChunk)
+
+	stopChunk := StreamResponseClaude2OpenAI(stop, claudeInfo)
+	require.NotNil(t, stopChunk)
+	require.Len(t, stopChunk.Choices, 1)
+	require.Len(t, stopChunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, "toolu_1", stopChunk.Choices[0].Delta.ToolCalls[0].ID)
+	assert.Equal(t, "get_current_time", stopChunk.Choices[0].Delta.ToolCalls[0].Function.Name)
+	assert.Equal(t, "{}", stopChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
+}
+
+func TestStreamResponseClaude2OpenAI_ArgToolKeepsIDNameOnDelta(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{}
+	start := &dto.ClaudeResponse{
+		Type:  "content_block_start",
+		Index: func() *int { v := 1; return &v }(),
+		ContentBlock: &dto.ClaudeMediaMessage{
+			Type: "tool_use",
+			Id:   "toolu_2",
+			Name: "search_notes",
+		},
+	}
+	partial := `{"query":"today"}`
+	delta := &dto.ClaudeResponse{
+		Type:  "content_block_delta",
+		Index: func() *int { v := 1; return &v }(),
+		Delta: &dto.ClaudeMediaMessage{
+			Type:        "input_json_delta",
+			PartialJson: &partial,
+		},
+	}
+
+	startChunk := StreamResponseClaude2OpenAI(start, claudeInfo)
+	require.Nil(t, startChunk)
+
+	deltaChunk := StreamResponseClaude2OpenAI(delta, claudeInfo)
+	require.NotNil(t, deltaChunk)
+	require.Len(t, deltaChunk.Choices, 1)
+	require.Len(t, deltaChunk.Choices[0].Delta.ToolCalls, 1)
+	assert.Equal(t, "toolu_2", deltaChunk.Choices[0].Delta.ToolCalls[0].ID)
+	assert.Equal(t, "search_notes", deltaChunk.Choices[0].Delta.ToolCalls[0].Function.Name)
+	assert.Equal(t, partial, deltaChunk.Choices[0].Delta.ToolCalls[0].Function.Arguments)
 }
