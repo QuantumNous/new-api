@@ -29,11 +29,13 @@ import {
   showSuccess,
   updateAPI,
   getSystemName,
+  getOAuthProviderIcon,
   setUserData,
   onGitHubOAuthClicked,
   onDiscordOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onCustomOAuthClicked,
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
@@ -109,6 +111,7 @@ const LoginForm = () => {
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
+  const [customOAuthLoading, setCustomOAuthLoading] = useState({});
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -128,6 +131,17 @@ const LoginForm = () => {
       return {};
     }
   }, [statusState?.status]);
+  const hasCustomOAuthProviders =
+    (status.custom_oauth_providers || []).length > 0;
+  const hasOAuthLoginOptions = Boolean(
+    status.github_oauth ||
+      status.discord_oauth ||
+      status.oidc_enabled ||
+      status.wechat_login ||
+      status.linuxdo_oauth ||
+      status.telegram_oauth ||
+      hasCustomOAuthProviders,
+  );
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -373,6 +387,23 @@ const LoginForm = () => {
     }
   };
 
+  // 包装的自定义OAuth登录点击处理
+  const handleCustomOAuthClick = (provider) => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
+    try {
+      onCustomOAuthClicked(provider, { shouldLogout: true });
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => {
+        setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: false }));
+      }, 3000);
+    }
+  };
+
   // 包装的邮箱登录选项点击处理
   const handleEmailLoginClick = () => {
     setEmailLoginLoading(true);
@@ -571,6 +602,23 @@ const LoginForm = () => {
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
                   </Button>
                 )}
+
+                {status.custom_oauth_providers &&
+                  status.custom_oauth_providers.map((provider) => (
+                    <Button
+                      key={provider.slug}
+                      theme='outline'
+                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      type='tertiary'
+                      icon={getOAuthProviderIcon(provider.icon || '', 20)}
+                      onClick={() => handleCustomOAuthClick(provider)}
+                      loading={customOAuthLoading[provider.slug]}
+                    >
+                      <span className='ml-3'>
+                        {t('使用 {{name}} 继续', { name: provider.name })}
+                      </span>
+                    </Button>
+                  ))}
 
                 {status.telegram_oauth && (
                   <div className='flex justify-center my-2'>
@@ -781,12 +829,7 @@ const LoginForm = () => {
                 </div>
               </Form>
 
-              {(status.github_oauth ||
-                status.discord_oauth ||
-                status.oidc_enabled ||
-                status.wechat_login ||
-                status.linuxdo_oauth ||
-                status.telegram_oauth) && (
+              {hasOAuthLoginOptions && (
                 <>
                   <Divider margin='12px' align='center'>
                     {t('或')}
@@ -916,14 +959,7 @@ const LoginForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailLogin ||
-        !(
-          status.github_oauth ||
-          status.discord_oauth ||
-          status.oidc_enabled ||
-          status.wechat_login ||
-          status.linuxdo_oauth ||
-          status.telegram_oauth
-        )
+        !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

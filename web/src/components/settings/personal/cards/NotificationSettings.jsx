@@ -58,6 +58,7 @@ const NotificationSettings = ({
   const formApiRef = useRef(null);
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
+  const isAdminOrRoot = (userState?.user?.role || 0) >= 10;
 
   // 左侧边栏设置相关状态
   const [sidebarLoading, setSidebarLoading] = useState(false);
@@ -86,6 +87,7 @@ const NotificationSettings = ({
       channel: true,
       models: true,
       deployment: true,
+      subscription: true,
       redemption: true,
       user: true,
       setting: true,
@@ -169,6 +171,7 @@ const NotificationSettings = ({
         channel: true,
         models: true,
         deployment: true,
+        subscription: true,
         redemption: true,
         user: true,
         setting: true,
@@ -295,6 +298,11 @@ const NotificationSettings = ({
           key: 'deployment',
           title: t('模型部署'),
           description: t('模型部署管理'),
+        },
+        {
+          key: 'subscription',
+          title: t('订阅管理'),
+          description: t('订阅套餐管理'),
         },
         {
           key: 'redemption',
@@ -446,7 +454,7 @@ const NotificationSettings = ({
                   onChange={(val) => handleFormChange('warningThreshold', val)}
                   prefix={<IconBell />}
                   extraText={t(
-                    '当剩余额度低于此数值时，系统将通过选择的方式发送通知',
+                    '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
                   )}
                   style={{ width: '100%', maxWidth: '300px' }}
                   rules={[
@@ -462,6 +470,21 @@ const NotificationSettings = ({
                     },
                   ]}
                 />
+
+                {isAdminOrRoot && (
+                  <Form.Switch
+                    field='upstreamModelUpdateNotifyEnabled'
+                    label={t('接收上游模型更新通知')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                    }
+                    extraText={t(
+                      '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
+                    )}
+                  />
+                )}
 
                 {/* 邮件通知设置 */}
                 {notificationSettings.warningType === 'email' && (

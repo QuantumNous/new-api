@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Banner,
   Button,
@@ -37,10 +37,12 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   IconClose,
+  IconCode,
   IconDelete,
   IconEdit,
   IconPlus,
   IconRefresh,
+  IconSearch,
 } from '@douyinfe/semi-icons';
 import {
   API,
@@ -52,6 +54,11 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import {
+  CHANNEL_AFFINITY_RULE_TEMPLATES,
+  cloneChannelAffinityTemplate,
+} from '../../../constants/channel-affinity-template.constants';
+import ParamOverrideEditorModal from '../../../components/table/channels/modals/ParamOverrideEditorModal';
 
 const KEY_ENABLED = 'channel_affinity_setting.enabled';
 const KEY_SWITCH_ON_SUCCESS = 'channel_affinity_setting.switch_on_success';
@@ -64,31 +71,6 @@ const KEY_SOURCE_TYPES = [
   { label: 'context_string', value: 'context_string' },
   { label: 'gjson', value: 'gjson' },
 ];
-
-const RULE_TEMPLATES = {
-  codex: {
-    name: 'codex trace',
-    model_regex: ['^gpt-.*$'],
-    path_regex: ['/v1/responses'],
-    key_sources: [{ type: 'gjson', path: 'prompt_cache_key' }],
-    value_regex: '',
-    ttl_seconds: 0,
-    skip_retry_on_failure: false,
-    include_using_group: true,
-    include_rule_name: true,
-  },
-  claudeCode: {
-    name: 'claude-code trace',
-    model_regex: ['^claude-.*$'],
-    path_regex: ['/v1/messages'],
-    key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
-    value_regex: '',
-    ttl_seconds: 0,
-    skip_retry_on_failure: false,
-    include_using_group: true,
-    include_rule_name: true,
-  },
-};
 
 const CONTEXT_KEY_PRESETS = [
   { key: 'id', label: 'id（用户 ID）' },
@@ -114,6 +96,11 @@ const RULES_JSON_PLACEHOLDER = `[
     ],
     "value_regex": "^[-0-9A-Za-z._:]{1,128}$",
     "ttl_seconds": 600,
+    "param_override_template": {
+      "operations": [
+        { "path": "temperature", "mode": "set", "value": 0.2 }
+      ]
+    },
     "skip_retry_on_failure": false,
     "include_using_group": true,
     "include_rule_name": true
@@ -187,6 +174,23 @@ const tryParseRulesJsonArray = (jsonString) => {
   }
 };
 
+const parseOptionalObjectJson = (jsonString, label) => {
+  const raw = (jsonString || '').trim();
+  if (!raw) return { ok: true, value: null };
+  if (!verifyJSON(raw)) {
+    return { ok: false, message: `${label} JSON 格式不正确` };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { ok: false, message: `${label} 必须是 JSON 对象` };
+    }
+    return { ok: true, value: parsed };
+  } catch (error) {
+    return { ok: false, message: `${label} JSON 格式不正确` };
+  }
+};
+
 export default function SettingsChannelAffinity(props) {
   const { t } = useTranslation();
   const { Text } = Typography;
@@ -222,6 +226,9 @@ export default function SettingsChannelAffinity(props) {
   const [modalInitValues, setModalInitValues] = useState(null);
   const [modalFormKey, setModalFormKey] = useState(0);
   const [modalAdvancedActiveKey, setModalAdvancedActiveKey] = useState([]);
+  const [paramTemplateDraft, setParamTemplateDraft] = useState('');
+  const [paramTemplateEditorVisible, setParamTemplateEditorVisible] =
+    useState(false);
 
   const effectiveDefaultTTLSeconds =
     Number(inputs?.[KEY_DEFAULT_TTL] || 0) > 0
@@ -240,7 +247,97 @@ export default function SettingsChannelAffinity(props) {
       skip_retry_on_failure: !!r.skip_retry_on_failure,
       include_using_group: r.include_using_group ?? true,
       include_rule_name: r.include_rule_name ?? true,
+      param_override_template_json: r.param_override_template
+        ? stringifyPretty(r.param_override_template)
+        : '',
     };
+  };
+
+  const paramTemplatePreviewMeta = useMemo(() => {
+    const raw = (paramTemplateDraft || '').trim();
+    if (!raw) {
+      return {
+        tagLabel: t('未设置'),
+        tagColor: 'grey',
+        preview: t('当前规则未设置参数覆盖模板'),
+      };
+    }
+    if (!verifyJSON(raw)) {
+      return {
+        tagLabel: t('JSON 无效'),
+        tagColor: 'red',
+        preview: raw,
+      };
+    }
+    try {
+      return {
+        tagLabel: t('已设置'),
+        tagColor: 'orange',
+        preview: JSON.stringify(JSON.parse(raw), null, 2),
+      };
+    } catch (error) {
+      return {
+        tagLabel: t('JSON 无效'),
+        tagColor: 'red',
+        preview: raw,
+      };
+    }
+  }, [paramTemplateDraft, t]);
+
+  const updateParamTemplateDraft = (value) => {
+    const next = typeof value === 'string' ? value : '';
+    setParamTemplateDraft(next);
+    if (modalFormRef.current) {
+      modalFormRef.current.setValue('param_override_template_json', next);
+    }
+  };
+
+  const formatParamTemplateDraft = () => {
+    const raw = (paramTemplateDraft || '').trim();
+    if (!raw) return;
+    if (!verifyJSON(raw)) {
+      showError(t('参数覆盖模板 JSON 格式不正确'));
+      return;
+    }
+    try {
+      updateParamTemplateDraft(JSON.stringify(JSON.parse(raw), null, 2));
+    } catch (error) {
+      showError(t('参数覆盖模板 JSON 格式不正确'));
+    }
+  };
+
+  const openParamTemplatePreview = (rule) => {
+    const raw = rule?.param_override_template;
+    if (!raw || typeof raw !== 'object') {
+      showWarning(t('该规则未设置参数覆盖模板'));
+      return;
+    }
+    Modal.info({
+      title: t('参数覆盖模板预览'),
+      content: (
+        <div style={{ marginTop: 6, paddingBottom: 10 }}>
+          <pre
+            style={{
+              margin: 0,
+              maxHeight: 420,
+              overflow: 'auto',
+              fontSize: 12,
+              lineHeight: 1.6,
+              padding: 10,
+              borderRadius: 8,
+              background: 'var(--semi-color-fill-0)',
+              border: '1px solid var(--semi-color-border)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}
+          >
+            {stringifyPretty(raw)}
+          </pre>
+        </div>
+      ),
+      footer: null,
+      width: 760,
+    });
   };
 
   const refreshCacheStats = async () => {
@@ -354,11 +451,15 @@ export default function SettingsChannelAffinity(props) {
           .filter((x) => x.length > 0),
       );
 
-      const templates = [RULE_TEMPLATES.codex, RULE_TEMPLATES.claudeCode].map(
+      const templates = [
+        CHANNEL_AFFINITY_RULE_TEMPLATES.codexCli,
+        CHANNEL_AFFINITY_RULE_TEMPLATES.claudeCli,
+      ].map(
         (tpl) => {
+          const baseTemplate = cloneChannelAffinityTemplate(tpl);
           const name = makeUniqueName(existingNames, tpl.name);
           existingNames.add(name);
-          return { ...tpl, name };
+          return { ...baseTemplate, name };
         },
       );
 
@@ -376,7 +477,7 @@ export default function SettingsChannelAffinity(props) {
     }
 
     Modal.confirm({
-      title: t('填充 Codex / Claude Code 模版'),
+      title: t('填充 Codex CLI / Claude CLI 模版'),
       content: (
         <div style={{ lineHeight: '1.6' }}>
           <Text type='tertiary'>{t('将追加 2 条规则到现有规则列表。')}</Text>
@@ -417,18 +518,6 @@ export default function SettingsChannelAffinity(props) {
           : '-',
     },
     {
-      title: t('User-Agent include'),
-      dataIndex: 'user_agent_include',
-      render: (list) =>
-        (list || []).length > 0
-          ? (list || []).slice(0, 2).map((v, idx) => (
-              <Tag key={`${v}-${idx}`} style={{ marginRight: 4 }}>
-                {v}
-              </Tag>
-            ))
-          : '-',
-    },
-    {
       title: t('Key 来源'),
       dataIndex: 'key_sources',
       render: (list) => {
@@ -449,6 +538,24 @@ export default function SettingsChannelAffinity(props) {
       title: t('TTL（秒）'),
       dataIndex: 'ttl_seconds',
       render: (v) => <Text>{Number(v || 0) || '-'}</Text>,
+    },
+    {
+      title: t('覆盖模板'),
+      render: (_, record) => {
+        if (!record?.param_override_template) {
+          return <Text type='tertiary'>-</Text>;
+        }
+        return (
+          <Button
+            size='small'
+            icon={<IconSearch />}
+            type='tertiary'
+            onClick={() => openParamTemplatePreview(record)}
+          >
+            {t('预览模板')}
+          </Button>
+        );
+      },
     },
     {
       title: t('缓存条目数'),
@@ -539,7 +646,10 @@ export default function SettingsChannelAffinity(props) {
     setEditingRule(nextRule);
     setIsEdit(false);
     modalFormRef.current = null;
-    setModalInitValues(buildModalFormValues(nextRule));
+    const initValues = buildModalFormValues(nextRule);
+    setModalInitValues(initValues);
+    setParamTemplateDraft(initValues.param_override_template_json || '');
+    setParamTemplateEditorVisible(false);
     setModalAdvancedActiveKey([]);
     setModalFormKey((k) => k + 1);
     setModalVisible(true);
@@ -557,7 +667,10 @@ export default function SettingsChannelAffinity(props) {
     setEditingRule(nextRule);
     setIsEdit(true);
     modalFormRef.current = null;
-    setModalInitValues(buildModalFormValues(nextRule));
+    const initValues = buildModalFormValues(nextRule);
+    setModalInitValues(initValues);
+    setParamTemplateDraft(initValues.param_override_template_json || '');
+    setParamTemplateEditorVisible(false);
     setModalAdvancedActiveKey([]);
     setModalFormKey((k) => k + 1);
     setModalVisible(true);
@@ -582,6 +695,13 @@ export default function SettingsChannelAffinity(props) {
       const userAgentInclude = normalizeStringList(
         values.user_agent_include_text,
       );
+      const paramTemplateValidation = parseOptionalObjectJson(
+        paramTemplateDraft,
+        '参数覆盖模板',
+      );
+      if (!paramTemplateValidation.ok) {
+        return showError(t(paramTemplateValidation.message));
+      }
 
       const rulePayload = {
         id: isEdit ? editingRule.id : rules.length,
@@ -598,6 +718,9 @@ export default function SettingsChannelAffinity(props) {
           : {}),
         ...(userAgentInclude.length > 0
           ? { user_agent_include: userAgentInclude }
+          : {}),
+        ...(paramTemplateValidation.value
+          ? { param_override_template: paramTemplateValidation.value }
           : {}),
       };
 
@@ -620,6 +743,8 @@ export default function SettingsChannelAffinity(props) {
       setModalVisible(false);
       setEditingRule(null);
       setModalInitValues(null);
+      setParamTemplateDraft('');
+      setParamTemplateEditorVisible(false);
       showSuccess(t('保存成功'));
     } catch (e) {
       showError(t('请检查输入'));
@@ -859,7 +984,7 @@ export default function SettingsChannelAffinity(props) {
                 {t('JSON 模式')}
               </Button>
               <Button onClick={appendCodexAndClaudeCodeTemplates}>
-                {t('填充 Codex / Claude Code 模版')}
+                {t('填充 Codex CLI / Claude CLI 模版')}
               </Button>
               <Button icon={<IconPlus />} onClick={openAddModal}>
                 {t('新增规则')}
@@ -919,6 +1044,8 @@ export default function SettingsChannelAffinity(props) {
           setEditingRule(null);
           setModalInitValues(null);
           setModalAdvancedActiveKey([]);
+          setParamTemplateDraft('');
+          setParamTemplateEditorVisible(false);
         }}
         onOk={handleModalSave}
         okText={t('保存')}
@@ -1029,6 +1156,76 @@ export default function SettingsChannelAffinity(props) {
                       </Text>
                     }
                   />
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col xs={24}>
+                  <div style={{ marginBottom: 8 }}>
+                    <Text strong>{t('参数覆盖模板')}</Text>
+                  </div>
+                  <Text type='tertiary' size='small'>
+                    {t(
+                      '命中该亲和规则后，会把此模板合并到渠道参数覆盖中（同名键由模板覆盖）。',
+                    )}
+                  </Text>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      borderRadius: 10,
+                      padding: 10,
+                      background: 'var(--semi-color-fill-0)',
+                      border: '1px solid var(--semi-color-border)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                        gap: 8,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <Tag color={paramTemplatePreviewMeta.tagColor}>
+                        {paramTemplatePreviewMeta.tagLabel}
+                      </Tag>
+                      <Space>
+                        <Button
+                          size='small'
+                          type='primary'
+                          icon={<IconCode />}
+                          onClick={() => setParamTemplateEditorVisible(true)}
+                        >
+                          {t('可视化编辑')}
+                        </Button>
+                        <Button size='small' onClick={formatParamTemplateDraft}>
+                          {t('格式化')}
+                        </Button>
+                        <Button
+                          size='small'
+                          type='tertiary'
+                          onClick={() => updateParamTemplateDraft('')}
+                        >
+                          {t('清空')}
+                        </Button>
+                      </Space>
+                    </div>
+                    <pre
+                      style={{
+                        margin: 0,
+                        maxHeight: 220,
+                        overflow: 'auto',
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {paramTemplatePreviewMeta.preview}
+                    </pre>
+                  </div>
                 </Col>
               </Row>
 
@@ -1159,6 +1356,16 @@ export default function SettingsChannelAffinity(props) {
           />
         </Form>
       </Modal>
+
+      <ParamOverrideEditorModal
+        visible={paramTemplateEditorVisible}
+        value={paramTemplateDraft || ''}
+        onSave={(nextValue) => {
+          updateParamTemplateDraft(nextValue || '');
+          setParamTemplateEditorVisible(false);
+        }}
+        onCancel={() => setParamTemplateEditorVisible(false)}
+      />
     </>
   );
 }

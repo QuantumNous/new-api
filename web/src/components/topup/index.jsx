@@ -35,7 +35,6 @@ import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
-import SubscriptionPlansCard from './SubscriptionPlansCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
@@ -733,72 +732,58 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
-        {/* 左侧 - 订阅套餐 */}
-        <div className='lg:col-span-7'>
-          <SubscriptionPlansCard
-            t={t}
-            loading={subscriptionLoading}
-            plans={subscriptionPlans}
-            payMethods={payMethods}
-            enableOnlineTopUp={enableOnlineTopUp}
-            enableStripeTopUp={enableStripeTopUp}
-            enableCreemTopUp={enableCreemTopUp}
-            billingPreference={billingPreference}
-            onChangeBillingPreference={updateBillingPreference}
-            activeSubscriptions={activeSubscriptions}
-            allSubscriptions={allSubscriptions}
-            reloadSubscriptionSelf={getSubscriptionSelf}
-          />
-        </div>
-
-        {/* 右侧 - 账户充值 + 邀请奖励 */}
-        <div className='lg:col-span-5 flex flex-col gap-6'>
-          <RechargeCard
-            t={t}
-            enableOnlineTopUp={enableOnlineTopUp}
-            enableStripeTopUp={enableStripeTopUp}
-            enableCreemTopUp={enableCreemTopUp}
-            creemProducts={creemProducts}
-            creemPreTopUp={creemPreTopUp}
-            presetAmounts={presetAmounts}
-            selectedPreset={selectedPreset}
-            selectPresetAmount={selectPresetAmount}
-            formatLargeNumber={formatLargeNumber}
-            priceRatio={priceRatio}
-            topUpCount={topUpCount}
-            minTopUp={minTopUp}
-            renderQuotaWithAmount={renderQuotaWithAmount}
-            getAmount={getAmount}
-            setTopUpCount={setTopUpCount}
-            setSelectedPreset={setSelectedPreset}
-            renderAmount={renderAmount}
-            amountLoading={amountLoading}
-            payMethods={payMethods}
-            preTopUp={preTopUp}
-            paymentLoading={paymentLoading}
-            payWay={payWay}
-            redemptionCode={redemptionCode}
-            setRedemptionCode={setRedemptionCode}
-            topUp={topUp}
-            isSubmitting={isSubmitting}
-            topUpLink={topUpLink}
-            openTopUpLink={openTopUpLink}
-            userState={userState}
-            renderQuota={renderQuota}
-            statusLoading={statusLoading}
-            topupInfo={topupInfo}
-            onOpenHistory={handleOpenHistory}
-          />
-          <InvitationCard
-            t={t}
-            userState={userState}
-            renderQuota={renderQuota}
-            setOpenTransfer={setOpenTransfer}
-            affLink={affLink}
-            handleAffLinkClick={handleAffLinkClick}
-          />
-        </div>
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+        <RechargeCard
+          t={t}
+          enableOnlineTopUp={enableOnlineTopUp}
+          enableStripeTopUp={enableStripeTopUp}
+          enableCreemTopUp={enableCreemTopUp}
+          creemProducts={creemProducts}
+          creemPreTopUp={creemPreTopUp}
+          presetAmounts={presetAmounts}
+          selectedPreset={selectedPreset}
+          selectPresetAmount={selectPresetAmount}
+          formatLargeNumber={formatLargeNumber}
+          priceRatio={priceRatio}
+          topUpCount={topUpCount}
+          minTopUp={minTopUp}
+          renderQuotaWithAmount={renderQuotaWithAmount}
+          getAmount={getAmount}
+          setTopUpCount={setTopUpCount}
+          setSelectedPreset={setSelectedPreset}
+          renderAmount={renderAmount}
+          amountLoading={amountLoading}
+          payMethods={payMethods}
+          preTopUp={preTopUp}
+          paymentLoading={paymentLoading}
+          payWay={payWay}
+          redemptionCode={redemptionCode}
+          setRedemptionCode={setRedemptionCode}
+          topUp={topUp}
+          isSubmitting={isSubmitting}
+          topUpLink={topUpLink}
+          openTopUpLink={openTopUpLink}
+          userState={userState}
+          renderQuota={renderQuota}
+          statusLoading={statusLoading}
+          topupInfo={topupInfo}
+          onOpenHistory={handleOpenHistory}
+          subscriptionLoading={subscriptionLoading}
+          subscriptionPlans={subscriptionPlans}
+          billingPreference={billingPreference}
+          onChangeBillingPreference={updateBillingPreference}
+          activeSubscriptions={activeSubscriptions}
+          allSubscriptions={allSubscriptions}
+          reloadSubscriptionSelf={getSubscriptionSelf}
+        />
+        <InvitationCard
+          t={t}
+          userState={userState}
+          renderQuota={renderQuota}
+          setOpenTransfer={setOpenTransfer}
+          affLink={affLink}
+          handleAffLinkClick={handleAffLinkClick}
+        />
       </div>
     </div>
   );

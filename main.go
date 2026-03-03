@@ -18,6 +18,8 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
@@ -111,6 +113,18 @@ func main() {
 
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
+
+	// Wire task polling adaptor factory (breaks service -> relay import cycle)
+	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
+		a := relay.GetTaskAdaptor(platform)
+		if a == nil {
+			return nil
+		}
+		return a
+	}
+
+	// Channel upstream model update check task
+	controller.StartChannelUpstreamModelUpdateTask()
 
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
@@ -296,6 +310,13 @@ func InitResources() error {
 	}
 	// Register user language loader for lazy loading
 	i18n.SetUserLangLoader(model.GetUserLanguage)
+
+	// Load custom OAuth providers from database
+	err = oauth.LoadCustomProviders()
+	if err != nil {
+		common.SysError("failed to load custom OAuth providers: " + err.Error())
+		// Don't return error, custom OAuth is not critical
+	}
 
 	return nil
 }

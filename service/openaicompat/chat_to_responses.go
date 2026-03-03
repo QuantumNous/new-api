@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/samber/lo"
 )
 
 func normalizeChatImageURLToString(v any) any {
@@ -34,6 +35,44 @@ func normalizeChatImageURLToString(v any) any {
 	}
 }
 
+func convertChatResponseFormatToResponsesText(reqFormat *dto.ResponseFormat) json.RawMessage {
+	if reqFormat == nil || strings.TrimSpace(reqFormat.Type) == "" {
+		return nil
+	}
+
+	format := map[string]any{
+		"type": reqFormat.Type,
+	}
+
+	if reqFormat.Type == "json_schema" && len(reqFormat.JsonSchema) > 0 {
+		var chatSchema map[string]any
+		if err := common.Unmarshal(reqFormat.JsonSchema, &chatSchema); err == nil {
+			for key, value := range chatSchema {
+				if key == "type" {
+					continue
+				}
+				format[key] = value
+			}
+
+			if nested, ok := format["json_schema"].(map[string]any); ok {
+				for key, value := range nested {
+					if _, exists := format[key]; !exists {
+						format[key] = value
+					}
+				}
+				delete(format, "json_schema")
+			}
+		} else {
+			format["json_schema"] = reqFormat.JsonSchema
+		}
+	}
+
+	textRaw, _ := common.Marshal(map[string]any{
+		"format": format,
+	})
+	return textRaw
+}
+
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
 	if req == nil {
 		return nil, errors.New("request is nil")
@@ -41,7 +80,7 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	if req.Model == "" {
 		return nil, errors.New("model is required")
 	}
-	if req.N > 1 {
+	if lo.FromPtrOr(req.N, 1) > 1 {
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
 	}
 
@@ -176,8 +215,12 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		for _, part := range parts {
 			switch part.Type {
 			case dto.ContentTypeText:
+				textType := "input_text"
+				if role == "assistant" {
+					textType = "output_text"
+				}
 				contentParts = append(contentParts, map[string]any{
-					"type": "input_text",
+					"type": textType,
 					"text": part.Text,
 				})
 			case dto.ContentTypeImageURL:
@@ -312,28 +355,27 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		parallelToolCallsRaw, _ = common.Marshal(*req.ParallelTooCalls)
 	}
 
-	var textRaw json.RawMessage
-	if req.ResponseFormat != nil && req.ResponseFormat.Type != "" {
-		textRaw, _ = common.Marshal(map[string]any{
-			"format": req.ResponseFormat,
-		})
-	}
+	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)
 
-	maxOutputTokens := req.MaxTokens
-	if req.MaxCompletionTokens > maxOutputTokens {
-		maxOutputTokens = req.MaxCompletionTokens
+	maxOutputTokens := lo.FromPtrOr(req.MaxTokens, uint(0))
+	maxCompletionTokens := lo.FromPtrOr(req.MaxCompletionTokens, uint(0))
+	if maxCompletionTokens > maxOutputTokens {
+		maxOutputTokens = maxCompletionTokens
 	}
+	// OpenAI Responses API rejects max_output_tokens < 16 when explicitly provided.
+	//if maxOutputTokens > 0 && maxOutputTokens < 16 {
+	//	maxOutputTokens = 16
+	//}
 
 	var topP *float64
-	if req.TopP != 0 {
-		topP = common.GetPointer(req.TopP)
+	if req.TopP != nil {
+		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
 	out := &dto.OpenAIResponsesRequest{
 		Model:             req.Model,
 		Input:             inputRaw,
 		Instructions:      instructionsRaw,
-		MaxOutputTokens:   maxOutputTokens,
 		Stream:            req.Stream,
 		Temperature:       req.Temperature,
 		Text:              textRaw,
@@ -344,6 +386,9 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,
 		Metadata:          req.Metadata,
+	}
+	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
+		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}
 
 	if req.ReasoningEffort != "" {

@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type Adaptor struct {
@@ -91,7 +92,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			},
 		},
 		Parameters: dto.GeminiImageParameters{
-			SampleCount:      int(request.N),
+			SampleCount:      int(lo.FromPtrOr(request.N, uint(1))),
 			AspectRatio:      aspectRatio,
 			PersonGeneration: "allow_adult", // default allow adult
 		},
@@ -223,8 +224,9 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 		switch info.UpstreamModelName {
 		case "text-embedding-004", "gemini-embedding-exp-03-07", "gemini-embedding-001":
 			// Only newer models introduced after 2024 support OutputDimensionality
-			if request.Dimensions > 0 {
-				geminiRequest["outputDimensionality"] = request.Dimensions
+			dimensions := lo.FromPtrOr(request.Dimensions, 0)
+			if dimensions > 0 {
+				geminiRequest["outputDimensionality"] = dimensions
 			}
 		}
 		geminiRequests = append(geminiRequests, geminiRequest)

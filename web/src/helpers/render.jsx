@@ -76,6 +76,31 @@ import {
   Server,
   CalendarClock,
 } from 'lucide-react';
+import {
+  SiAtlassian,
+  SiAuth0,
+  SiAuthentik,
+  SiBitbucket,
+  SiDiscord,
+  SiDropbox,
+  SiFacebook,
+  SiGitea,
+  SiGithub,
+  SiGitlab,
+  SiGoogle,
+  SiKeycloak,
+  SiLinkedin,
+  SiNextcloud,
+  SiNotion,
+  SiOkta,
+  SiOpenid,
+  SiReddit,
+  SiSlack,
+  SiTelegram,
+  SiTwitch,
+  SiWechat,
+  SiX,
+} from 'react-icons/si';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -472,6 +497,106 @@ export function getLobeHubIcon(iconName, size = 14) {
   return <IconComponent {...props} />;
 }
 
+const oauthProviderIconMap = {
+  github: SiGithub,
+  gitlab: SiGitlab,
+  gitea: SiGitea,
+  google: SiGoogle,
+  discord: SiDiscord,
+  facebook: SiFacebook,
+  linkedin: SiLinkedin,
+  x: SiX,
+  twitter: SiX,
+  slack: SiSlack,
+  telegram: SiTelegram,
+  wechat: SiWechat,
+  keycloak: SiKeycloak,
+  nextcloud: SiNextcloud,
+  authentik: SiAuthentik,
+  openid: SiOpenid,
+  okta: SiOkta,
+  auth0: SiAuth0,
+  atlassian: SiAtlassian,
+  bitbucket: SiBitbucket,
+  notion: SiNotion,
+  twitch: SiTwitch,
+  reddit: SiReddit,
+  dropbox: SiDropbox,
+};
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(value || '');
+}
+
+function isSimpleEmoji(value) {
+  if (!value) return false;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 && trimmed.length <= 4 && !isHttpUrl(trimmed);
+}
+
+function normalizeOAuthIconKey(raw) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^ri:/, '')
+    .replace(/^react-icons:/, '')
+    .replace(/^si:/, '');
+}
+
+/**
+ * Render custom OAuth provider icon with react-icons or URL/emoji fallback.
+ * Supported formats:
+ * - react-icons simple key: github / gitlab / google / keycloak
+ * - prefixed key: ri:github / si:github
+ * - full URL image: https://example.com/logo.png
+ * - emoji: 🐱
+ */
+export function getOAuthProviderIcon(iconName, size = 20) {
+  const raw = String(iconName || '').trim();
+  const iconSize = Number(size) > 0 ? Number(size) : 20;
+
+  if (!raw) {
+    return <Layers size={iconSize} color='var(--semi-color-text-2)' />;
+  }
+
+  if (isHttpUrl(raw)) {
+    return (
+      <img
+        src={raw}
+        alt='provider icon'
+        width={iconSize}
+        height={iconSize}
+        style={{ borderRadius: 4, objectFit: 'cover' }}
+      />
+    );
+  }
+
+  if (isSimpleEmoji(raw)) {
+    return (
+      <span
+        style={{
+          width: iconSize,
+          height: iconSize,
+          lineHeight: `${iconSize}px`,
+          textAlign: 'center',
+          display: 'inline-block',
+          fontSize: Math.max(Math.floor(iconSize * 0.8), 14),
+        }}
+      >
+        {raw}
+      </span>
+    );
+  }
+
+  const key = normalizeOAuthIconKey(raw);
+  const IconComp = oauthProviderIconMap[key];
+  if (IconComp) {
+    return <IconComp size={iconSize} />;
+  }
+
+  return <Avatar size='extra-extra-small'>{raw.charAt(0).toUpperCase()}</Avatar>;
+}
+
 // 颜色列表
 const colors = [
   'amber',
@@ -571,7 +696,6 @@ export const modelColorMap = {
   'claude-3-opus-20240229': 'rgb(255,132,31)', // 橙红色
   'claude-3-sonnet-20240229': 'rgb(253,135,93)', // 橙色
   'claude-3-haiku-20240307': 'rgb(255,175,146)', // 浅橙色
-  'claude-2.1': 'rgb(255,209,190)', // 浅橙色（略有区别）
 };
 
 export function modelToColor(modelName) {

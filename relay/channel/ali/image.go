@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequest, isSync bool) (*AliImageRequest, error) {
@@ -34,7 +35,7 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 			// 兼容没有parameters字段的情况，从openai标准字段中提取参数
 			imageRequest.Parameters = AliImageParameters{
 				Size:      strings.Replace(request.Size, "x", "*", -1),
-				N:         int(request.N),
+				N:         int(lo.FromPtrOr(request.N, uint(1))),
 				Watermark: request.Watermark,
 			}
 		}
