@@ -134,8 +134,10 @@ func GetStatus(c *gin.Context) {
 	customProviders := oauth.GetEnabledCustomProviders()
 	if len(customProviders) > 0 {
 		type CustomOAuthInfo struct {
+			Id                    int    `json:"id"`
 			Name                  string `json:"name"`
 			Slug                  string `json:"slug"`
+			Icon                  string `json:"icon"`
 			ClientId              string `json:"client_id"`
 			AuthorizationEndpoint string `json:"authorization_endpoint"`
 			Scopes                string `json:"scopes"`
@@ -144,8 +146,10 @@ func GetStatus(c *gin.Context) {
 		for _, p := range customProviders {
 			config := p.GetConfig()
 			providersInfo = append(providersInfo, CustomOAuthInfo{
+				Id:                    config.Id,
 				Name:                  config.Name,
 				Slug:                  config.Slug,
+				Icon:                  config.Icon,
 				ClientId:              config.ClientId,
 				AuthorizationEndpoint: config.AuthorizationEndpoint,
 				Scopes:                config.Scopes,

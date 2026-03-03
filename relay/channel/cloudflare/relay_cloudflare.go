@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ func convertCf2CompletionsRequest(textRequest dto.GeneralOpenAIRequest) *CfReque
 	return &CfRequest{
 		Prompt:      p,
 		MaxTokens:   textRequest.GetMaxTokens(),
-		Stream:      textRequest.Stream,
+		Stream:      lo.FromPtrOr(textRequest.Stream, false),
 		Temperature: textRequest.Temperature,
 	}
 }

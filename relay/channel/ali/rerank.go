@@ -26,7 +26,7 @@ func ConvertRerankRequest(request dto.RerankRequest) *AliRerankRequest {
 			Documents: request.Documents,
 		},
 		Parameters: AliRerankParameters{
-			TopN:            &request.TopN,
+			TopN:            request.TopN,
 			ReturnDocuments: returnDocuments,
 		},
 	}
