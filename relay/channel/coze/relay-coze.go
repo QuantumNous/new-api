@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,7 @@ func convertCozeChatRequest(c *gin.Context, request dto.GeneralOpenAIRequest) *C
 		BotId:              c.GetString("bot_id"),
 		UserId:             user,
 		AdditionalMessages: messages,
-		Stream:             request.Stream,
+		Stream:             lo.FromPtrOr(request.Stream, false),
 	}
 	return cozeRequest
 }

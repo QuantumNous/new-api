@@ -58,6 +58,7 @@ const NotificationSettings = ({
   const formApiRef = useRef(null);
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
+  const isAdminOrRoot = (userState?.user?.role || 0) >= 10;
 
   // 左侧边栏设置相关状态
   const [sidebarLoading, setSidebarLoading] = useState(false);
@@ -469,6 +470,21 @@ const NotificationSettings = ({
                     },
                   ]}
                 />
+
+                {isAdminOrRoot && (
+                  <Form.Switch
+                    field='upstreamModelUpdateNotifyEnabled'
+                    label={t('接收上游模型更新通知')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                    }
+                    extraText={t(
+                      '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
+                    )}
+                  />
+                )}
 
                 {/* 邮件通知设置 */}
                 {notificationSettings.warningType === 'email' && (

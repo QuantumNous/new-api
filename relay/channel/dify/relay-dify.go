@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -168,7 +169,7 @@ func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto
 	difyReq.Query = content.String()
 	difyReq.Files = files
 	mode := "blocking"
-	if request.Stream {
+	if lo.FromPtrOr(request.Stream, false) {
 		mode = "streaming"
 	}
 	difyReq.ResponseMode = mode

@@ -56,6 +56,7 @@ const UserBindingManagementModal = ({
   const [showBoundOnly, setShowBoundOnly] = React.useState(true);
   const [statusInfo, setStatusInfo] = React.useState({});
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
+  const [builtInBindings, setBuiltInBindings] = React.useState({});
   const [bindingActionLoading, setBindingActionLoading] = React.useState({});
 
   const loadBindingData = React.useCallback(async () => {
@@ -63,9 +64,10 @@ const UserBindingManagementModal = ({
 
     setBindingLoading(true);
     try {
-      const [statusRes, customBindingRes] = await Promise.all([
+      const [statusRes, customBindingRes, userRes] = await Promise.all([
         API.get('/api/status'),
         API.get(`/api/user/${userId}/oauth/bindings`),
+        API.get(`/api/user/${userId}`),
       ]);
 
       if (statusRes.data?.success) {
@@ -78,6 +80,21 @@ const UserBindingManagementModal = ({
         setCustomOAuthBindings(customBindingRes.data.data || []);
       } else {
         showError(customBindingRes.data?.message || t('操作失败'));
+      }
+
+      if (userRes.data?.success) {
+        const userData = userRes.data.data || {};
+        setBuiltInBindings({
+          email: userData.email || '',
+          github_id: userData.github_id || '',
+          discord_id: userData.discord_id || '',
+          oidc_id: userData.oidc_id || '',
+          wechat_id: userData.wechat_id || '',
+          telegram_id: userData.telegram_id || '',
+          linux_do_id: userData.linux_do_id || '',
+        });
+      } else {
+        showError(userRes.data?.message || t('操作失败'));
       }
     } catch (error) {
       showError(
@@ -118,6 +135,10 @@ const UserBindingManagementModal = ({
             showError(res.data?.message || t('操作失败'));
             return;
           }
+          setBuiltInBindings((prev) => ({
+            ...prev,
+            [bindingItem.field]: '',
+          }));
           formApiRef.current?.setValue(bindingItem.field, '');
           showSuccess(t('解绑成功'));
         } catch (error) {
@@ -168,6 +189,8 @@ const UserBindingManagementModal = ({
   };
 
   const currentValues = formApiRef.current?.getValues?.() || {};
+  const getBuiltInBindingValue = (field) =>
+    builtInBindings[field] || currentValues[field] || '';
 
   const builtInBindingItems = [
     {
@@ -175,7 +198,7 @@ const UserBindingManagementModal = ({
       field: 'email',
       name: t('邮箱'),
       enabled: true,
-      value: currentValues.email,
+      value: getBuiltInBindingValue('email'),
       icon: (
         <IconMail
           size='default'
@@ -188,7 +211,7 @@ const UserBindingManagementModal = ({
       field: 'github_id',
       name: 'GitHub',
       enabled: Boolean(statusInfo.github_oauth),
-      value: currentValues.github_id,
+      value: getBuiltInBindingValue('github_id'),
       icon: (
         <IconGithubLogo
           size='default'
@@ -201,7 +224,7 @@ const UserBindingManagementModal = ({
       field: 'discord_id',
       name: 'Discord',
       enabled: Boolean(statusInfo.discord_oauth),
-      value: currentValues.discord_id,
+      value: getBuiltInBindingValue('discord_id'),
       icon: (
         <SiDiscord size={20} className='text-slate-600 dark:text-slate-300' />
       ),
@@ -211,7 +234,7 @@ const UserBindingManagementModal = ({
       field: 'oidc_id',
       name: 'OIDC',
       enabled: Boolean(statusInfo.oidc_enabled),
-      value: currentValues.oidc_id,
+      value: getBuiltInBindingValue('oidc_id'),
       icon: (
         <IconLink
           size='default'
@@ -224,7 +247,7 @@ const UserBindingManagementModal = ({
       field: 'wechat_id',
       name: t('微信'),
       enabled: Boolean(statusInfo.wechat_login),
-      value: currentValues.wechat_id,
+      value: getBuiltInBindingValue('wechat_id'),
       icon: (
         <SiWechat size={20} className='text-slate-600 dark:text-slate-300' />
       ),
@@ -234,7 +257,7 @@ const UserBindingManagementModal = ({
       field: 'telegram_id',
       name: 'Telegram',
       enabled: Boolean(statusInfo.telegram_oauth),
-      value: currentValues.telegram_id,
+      value: getBuiltInBindingValue('telegram_id'),
       icon: (
         <SiTelegram size={20} className='text-slate-600 dark:text-slate-300' />
       ),
@@ -244,7 +267,7 @@ const UserBindingManagementModal = ({
       field: 'linux_do_id',
       name: 'LinuxDO',
       enabled: Boolean(statusInfo.linuxdo_oauth),
-      value: currentValues.linux_do_id,
+      value: getBuiltInBindingValue('linux_do_id'),
       icon: (
         <SiLinux size={20} className='text-slate-600 dark:text-slate-300' />
       ),
