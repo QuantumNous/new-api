@@ -178,6 +178,8 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
+		// Some Anthropic-compatible proxies expose /v1/models via OpenAI-style auth.
+		headers.Set("Authorization", fmt.Sprintf("Bearer %s", key))
 	default:
 		headers = GetAuthHeader(key)
 	}
