@@ -74,6 +74,48 @@ func TestApplyParamOverrideTrimNoop(t *testing.T) {
 	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
+func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
+	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
+	override := map[string]interface{}{
+		"temperature": 0.2,
+		"top_p":       0.95,
+		"operations": []interface{}{
+			map[string]interface{}{
+				"path":  "model",
+				"mode":  "trim_prefix",
+				"value": "openai/",
+			},
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, nil)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.2,"top_p":0.95}`, string(out))
+}
+
+func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *testing.T) {
+	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
+	override := map[string]interface{}{
+		"model":       "legacy-model",
+		"temperature": 0.2,
+		"operations": []interface{}{
+			map[string]interface{}{
+				"path":  "model",
+				"mode":  "set",
+				"value": "op-model",
+			},
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, nil)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"op-model","temperature":0.2}`, string(out))
+}
+
 func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
 	// trim_prefix requires value example:
 	// {"operations":[{"path":"model","mode":"trim_prefix"}]}
@@ -1426,6 +1468,44 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 	}
 	if _, exists := info.RuntimeHeadersOverride["x-delete-me"]; exists {
 		t.Fatalf("expected x-delete-me header to be deleted")
+	}
+}
+
+func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
+	info := &RelayInfo{
+		RequestHeaders: map[string]string{
+			"Originator": "Codex CLI",
+		},
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"temperature": 0.2,
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "pass_headers",
+						"value": []interface{}{"Originator"},
+					},
+				},
+			},
+			HeadersOverride: map[string]interface{}{
+				"X-Static": "legacy-static",
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5","temperature":0.7}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"gpt-5","temperature":0.2}`, string(out))
+
+	if !info.UseRuntimeHeadersOverride {
+		t.Fatalf("expected runtime header override to be enabled")
+	}
+	if info.RuntimeHeadersOverride["x-static"] != "legacy-static" {
+		t.Fatalf("expected x-static to be preserved, got: %v", info.RuntimeHeadersOverride["x-static"])
+	}
+	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
+		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
 	}
 }
 

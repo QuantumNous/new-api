@@ -229,7 +229,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 
 func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest, err error) {
 	textRequest = &dto.ClaudeRequest{}
-	err = c.ShouldBindJSON(textRequest)
+	err = common.UnmarshalBodyReusable(c, textRequest)
 	if err != nil {
 		return nil, err
 	}

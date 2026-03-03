@@ -121,6 +121,9 @@ func main() {
 		return a
 	}
 
+	// Channel upstream model update check task
+	controller.StartChannelUpstreamModelUpdateTask()
+
 	if common.IsMasterNode && constant.UpdateTask {
 		gopool.Go(func() {
 			controller.UpdateMidjourneyTaskBulk()

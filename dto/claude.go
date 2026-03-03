@@ -434,7 +434,7 @@ func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 }
 
 type Thinking struct {
-	Type         string `json:"type"`
+	Type         string `json:"type,omitempty"`
 	BudgetTokens *int   `json:"budget_tokens,omitempty"`
 }
 

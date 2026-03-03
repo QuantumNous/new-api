@@ -120,13 +120,37 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 
 	// 尝试断言为操作格式
 	if operations, ok := tryParseOperations(paramOverride); ok {
+		legacyOverride := buildLegacyParamOverride(paramOverride)
+		workingJSON := jsonData
+		var err error
+		if len(legacyOverride) > 0 {
+			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		// 使用新方法
-		result, err := applyOperations(string(jsonData), operations, conditionContext)
+		result, err := applyOperations(string(workingJSON), operations, conditionContext)
 		return []byte(result), err
 	}
 
 	// 直接使用旧方法
 	return applyOperationsLegacy(jsonData, paramOverride)
+}
+
+func buildLegacyParamOverride(paramOverride map[string]interface{}) map[string]interface{} {
+	if len(paramOverride) == 0 {
+		return nil
+	}
+	legacy := make(map[string]interface{}, len(paramOverride))
+	for key, value := range paramOverride {
+		if strings.EqualFold(strings.TrimSpace(key), "operations") {
+			continue
+		}
+		legacy[key] = value
+	}
+	return legacy
 }
 
 func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, error) {
