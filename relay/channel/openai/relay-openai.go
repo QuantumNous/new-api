@@ -28,6 +28,30 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	if !forceFormat && !thinkToContent {
+		// Vertex OpenAPI may occasionally emit plain-text SSE fragments (e.g. filter abort text),
+		// which breaks OpenAI clients expecting each `data:` payload to be JSON.
+		// Wrap such fragments into a standard chat.completion.chunk for compatibility.
+		if info != nil &&
+			info.RelayFormat == types.RelayFormatOpenAI &&
+			info.ChannelType == constant.ChannelTypeVertexAi &&
+			!looksLikeJSONPayload(data) {
+			modelName := common.GetStringIfEmpty(info.OriginModelName, info.UpstreamModelName)
+			fallbackChunk := dto.ChatCompletionsStreamResponse{
+				Id:      helper.GetResponseID(c),
+				Object:  "chat.completion.chunk",
+				Created: common.GetTimestamp(),
+				Model:   modelName,
+				Choices: []dto.ChatCompletionsStreamResponseChoice{
+					{
+						Index: 0,
+						Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+							Content: common.GetPointer(data),
+						},
+					},
+				},
+			}
+			return helper.ObjectData(c, fallbackChunk)
+		}
 		return helper.StringData(c, data)
 	}
 
@@ -101,6 +125,17 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	return helper.ObjectData(c, lastStreamResponse)
+}
+
+func looksLikeJSONPayload(data string) bool {
+	trimmed := strings.TrimSpace(data)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		return true
+	}
+	return false
 }
 
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
