@@ -196,6 +196,25 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
+			if shouldFallbackToResponsesForLegacyProtocol(info, request, passThroughGlobal, httpResp) {
+				logger.LogInfo(c, "upstream does not support /v1/chat/completions, fallback to /v1/responses")
+				applySystemPromptIfNeeded(c, info, request)
+				usage, fallbackErr := chatCompletionsViaResponses(c, info, adaptor, request)
+				if fallbackErr != nil {
+					service.ResetStatusCode(fallbackErr, statusCodeMappingStr)
+					return fallbackErr
+				}
+				if usage != nil {
+					var containAudioTokens = usage.CompletionTokenDetails.AudioTokens > 0 || usage.PromptTokensDetails.AudioTokens > 0
+					var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
+					if containAudioTokens && containsAudioRatios {
+						service.PostAudioConsumeQuota(c, info, usage, "")
+					} else {
+						postConsumeQuota(c, info, usage)
+					}
+				}
+				return nil
+			}
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
@@ -219,6 +238,52 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		postConsumeQuota(c, info, usage.(*dto.Usage))
 	}
 	return nil
+}
+
+func shouldFallbackToResponsesForLegacyProtocol(
+	info *relaycommon.RelayInfo,
+	request *dto.GeneralOpenAIRequest,
+	passThroughGlobal bool,
+	resp *http.Response,
+) bool {
+	if info == nil || request == nil || resp == nil || resp.Body == nil {
+		return false
+	}
+	if info.ChannelMeta == nil {
+		return false
+	}
+	if info.RelayMode != relayconstant.RelayModeChatCompletions {
+		return false
+	}
+	// Keep behavior consistent with existing proactive fallback path.
+	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+		return false
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		return false
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	var errResp dto.GeneralErrorResponse
+	if err := common.Unmarshal(body, &errResp); err == nil {
+		msg := strings.ToLower(strings.TrimSpace(errResp.ToMessage()))
+		if msg != "" {
+			return strings.Contains(msg, "unsupported legacy protocol") &&
+				strings.Contains(msg, "/v1/chat/completions") &&
+				strings.Contains(msg, "/v1/responses")
+		}
+	}
+
+	raw := strings.ToLower(string(body))
+	return strings.Contains(raw, "unsupported legacy protocol") &&
+		strings.Contains(raw, "/v1/chat/completions") &&
+		strings.Contains(raw, "/v1/responses")
 }
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {
