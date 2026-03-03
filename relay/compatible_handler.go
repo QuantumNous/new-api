@@ -286,6 +286,15 @@ func shouldFallbackToResponsesForLegacyProtocol(
 		strings.Contains(raw, "/v1/responses")
 }
 
+func ShouldFallbackToResponsesForLegacyProtocol(
+	info *relaycommon.RelayInfo,
+	request *dto.GeneralOpenAIRequest,
+	passThroughGlobal bool,
+	resp *http.Response,
+) bool {
+	return shouldFallbackToResponsesForLegacyProtocol(info, request, passThroughGlobal, resp)
+}
+
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {
 	originUsage := usage
 	if usage == nil {

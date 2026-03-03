@@ -25,6 +25,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -413,33 +414,67 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 	var httpResp *http.Response
+	var usageA any
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
-			common.SysError(fmt.Sprintf(
-				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
-				channel.Id,
-				channel.Name,
-				channel.Type,
-				testModel,
-				endpointType,
-				httpResp.StatusCode,
-				err,
-			))
-			return testResult{
-				context:     c,
-				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+			if generalReq, ok := shouldFallbackToResponsesInChannelTest(info, request, httpResp, model_setting.GetGlobalSettings().PassThroughRequestEnabled); ok {
+				common.SysLog(fmt.Sprintf(
+					"channel test fallback to /v1/responses: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d",
+					channel.Id,
+					channel.Name,
+					channel.Type,
+					testModel,
+					endpointType,
+					httpResp.StatusCode,
+				))
+				usage, fallbackErr := relay.ChatCompletionsViaResponses(c, info, adaptor, generalReq)
+				if fallbackErr != nil {
+					common.SysError(fmt.Sprintf(
+						"channel test fallback failed: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+						channel.Id,
+						channel.Name,
+						channel.Type,
+						testModel,
+						endpointType,
+						httpResp.StatusCode,
+						fallbackErr,
+					))
+					return testResult{
+						context:     c,
+						localErr:    fallbackErr,
+						newAPIError: fallbackErr,
+					}
+				}
+				usageA = usage
+			} else {
+				err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+				common.SysError(fmt.Sprintf(
+					"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+					channel.Id,
+					channel.Name,
+					channel.Type,
+					testModel,
+					endpointType,
+					httpResp.StatusCode,
+					err,
+				))
+				return testResult{
+					context:     c,
+					localErr:    err,
+					newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+				}
 			}
-		}
-	}
-	usageA, respErr := adaptor.DoResponse(c, httpResp, info)
-	if respErr != nil {
-		return testResult{
-			context:     c,
-			localErr:    respErr,
-			newAPIError: respErr,
+		} else {
+			var respErr *types.NewAPIError
+			usageA, respErr = adaptor.DoResponse(c, httpResp, info)
+			if respErr != nil {
+				return testResult{
+					context:     c,
+					localErr:    respErr,
+					newAPIError: respErr,
+				}
+			}
 		}
 	}
 	usage, usageErr := coerceTestUsage(usageA, isStream, info.GetEstimatePromptTokens())
@@ -502,6 +537,22 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		localErr:    nil,
 		newAPIError: nil,
 	}
+}
+
+func shouldFallbackToResponsesInChannelTest(
+	info *relaycommon.RelayInfo,
+	request dto.Request,
+	resp *http.Response,
+	passThroughGlobal bool,
+) (*dto.GeneralOpenAIRequest, bool) {
+	generalReq, ok := request.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, false
+	}
+	if !relay.ShouldFallbackToResponsesForLegacyProtocol(info, generalReq, passThroughGlobal, resp) {
+		return nil, false
+	}
+	return generalReq, true
 }
 
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
