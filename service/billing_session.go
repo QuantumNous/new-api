@@ -193,6 +193,11 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 
 // shouldTrust 统一信任额度检查，适用于钱包和订阅。
 func (s *BillingSession) shouldTrust(c *gin.Context) bool {
+	// 异步任务（ForcePreConsume=true）必须预扣全额，不允许信任旁路
+	if s.relayInfo.ForcePreConsume {
+		return false
+	}
+
 	trustQuota := common.GetTrustQuota()
 	if trustQuota <= 0 {
 		return false

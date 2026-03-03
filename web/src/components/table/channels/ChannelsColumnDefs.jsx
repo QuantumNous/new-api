@@ -37,11 +37,14 @@ import {
   renderQuotaWithAmount,
   showSuccess,
   showError,
+  showInfo,
 } from '../../../helpers';
 import {
   CHANNEL_OPTIONS,
   CHANNEL_SUPPORTED_ENDPOINT_OPTIONS,
+    MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
+import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
   IconTreeTriangleDown,
   IconMore,
@@ -332,6 +335,35 @@ const isRequestPassThroughEnabled = (record) => {
   }
 };
 
+const getUpstreamUpdateMeta = (record) => {
+  const supported =
+    !!record &&
+    record.children === undefined &&
+    MODEL_FETCHABLE_CHANNEL_TYPES.has(record.type);
+  if (!record || record.children !== undefined) {
+    return {
+      supported: false,
+      enabled: false,
+      pendingAddModels: [],
+      pendingRemoveModels: [],
+    };
+  }
+  const parsed =
+    record?.upstreamUpdateMeta && typeof record.upstreamUpdateMeta === 'object'
+      ? record.upstreamUpdateMeta
+      : parseUpstreamUpdateMeta(record?.settings);
+  return {
+    supported,
+    enabled: parsed?.enabled === true,
+    pendingAddModels: Array.isArray(parsed?.pendingAddModels)
+      ? parsed.pendingAddModels
+      : [],
+    pendingRemoveModels: Array.isArray(parsed?.pendingRemoveModels)
+      ? parsed.pendingRemoveModels
+      : [],
+  };
+};
+
 export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
@@ -353,6 +385,8 @@ export const getChannelsColumns = ({
   checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
+  openUpstreamUpdateModal,
+  detectChannelUpstreamUpdates,
 }) => {
   return [
     {
@@ -366,6 +400,14 @@ export const getChannelsColumns = ({
       dataIndex: 'name',
       render: (text, record, index) => {
         const passThroughEnabled = isRequestPassThroughEnabled(record);
+        const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
+        const pendingAddCount = upstreamUpdateMeta.pendingAddModels.length;
+        const pendingRemoveCount =
+          upstreamUpdateMeta.pendingRemoveModels.length;
+        const showUpstreamUpdateTag =
+          upstreamUpdateMeta.supported &&
+          upstreamUpdateMeta.enabled &&
+          (pendingAddCount > 0 || pendingRemoveCount > 0);
         const nameNode =
           record.remark && record.remark.trim() !== '' ? (
             <Tooltip
@@ -401,26 +443,76 @@ export const getChannelsColumns = ({
             <span>{text}</span>
           );
 
-        if (!passThroughEnabled) {
+        if (!passThroughEnabled && !showUpstreamUpdateTag) {
           return nameNode;
         }
 
         return (
           <Space spacing={6} align='center'>
             {nameNode}
-            <Tooltip
-              content={t(
-                '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
-              )}
-              trigger='hover'
-              position='topLeft'
-            >
-              <span className='inline-flex items-center'>
-                <IconAlertTriangle
-                  style={{ color: 'var(--semi-color-warning)' }}
-                />
-              </span>
-            </Tooltip>
+            {passThroughEnabled && (
+              <Tooltip
+                content={t(
+                  '该渠道已开启请求透传：参数覆写、模型重定向、渠道适配等 NewAPI 内置功能将失效，非最佳实践；如因此产生问题，请勿提交 issue 反馈。',
+                )}
+                trigger='hover'
+                position='topLeft'
+              >
+                <span className='inline-flex items-center'>
+                  <IconAlertTriangle
+                    style={{ color: 'var(--semi-color-warning)' }}
+                  />
+                </span>
+              </Tooltip>
+            )}
+            {showUpstreamUpdateTag && (
+              <Space spacing={4} align='center'>
+                {pendingAddCount > 0 ? (
+                  <Tooltip content={t('点击处理新增模型')} position='top'>
+                    <Tag
+                      color='green'
+                      type='light'
+                      size='small'
+                      shape='circle'
+                      className='cursor-pointer transition-all duration-150 hover:opacity-85 hover:-translate-y-px active:scale-95'
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openUpstreamUpdateModal(
+                          record,
+                          upstreamUpdateMeta.pendingAddModels,
+                          upstreamUpdateMeta.pendingRemoveModels,
+                          'add',
+                        );
+                      }}
+                    >
+                      +{pendingAddCount}
+                    </Tag>
+                  </Tooltip>
+                ) : null}
+                {pendingRemoveCount > 0 ? (
+                  <Tooltip content={t('点击处理删除模型')} position='top'>
+                    <Tag
+                      color='red'
+                      type='light'
+                      size='small'
+                      shape='circle'
+                      className='cursor-pointer transition-all duration-150 hover:opacity-85 hover:-translate-y-px active:scale-95'
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openUpstreamUpdateModal(
+                          record,
+                          upstreamUpdateMeta.pendingAddModels,
+                          upstreamUpdateMeta.pendingRemoveModels,
+                          'remove',
+                        );
+                      }}
+                    >
+                      -{pendingRemoveCount}
+                    </Tag>
+                  </Tooltip>
+                ) : null}
+              </Space>
+            )}
           </Space>
         );
       },
@@ -647,6 +739,7 @@ export const getChannelsColumns = ({
       fixed: 'right',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          const upstreamUpdateMeta = getUpstreamUpdateMeta(record);
           const moreMenuItems = [
             {
               node: 'item',
@@ -683,6 +776,43 @@ export const getChannelsColumns = ({
               },
             },
           ];
+
+          if (upstreamUpdateMeta.supported) {
+            moreMenuItems.push({
+              node: 'item',
+              name: t('仅检测上游模型更新'),
+              type: 'tertiary',
+              onClick: () => {
+                detectChannelUpstreamUpdates(record);
+              },
+            });
+            moreMenuItems.push({
+              node: 'item',
+              name: t('处理上游模型更新'),
+              type: 'tertiary',
+              onClick: () => {
+                if (!upstreamUpdateMeta.enabled) {
+                  showInfo(t('该渠道未开启上游模型更新检测'));
+                  return;
+                }
+                if (
+                  upstreamUpdateMeta.pendingAddModels.length === 0 &&
+                  upstreamUpdateMeta.pendingRemoveModels.length === 0
+                ) {
+                  showInfo(t('该渠道暂无可处理的上游模型更新'));
+                  return;
+                }
+                openUpstreamUpdateModal(
+                  record,
+                  upstreamUpdateMeta.pendingAddModels,
+                  upstreamUpdateMeta.pendingRemoveModels,
+                  upstreamUpdateMeta.pendingAddModels.length > 0
+                    ? 'add'
+                    : 'remove',
+                );
+              },
+            });
+          }
 
           if (record.type === 4) {
             moreMenuItems.unshift({

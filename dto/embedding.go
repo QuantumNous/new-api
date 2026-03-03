@@ -23,13 +23,13 @@ type EmbeddingRequest struct {
 	Model            string   `json:"model"`
 	Input            any      `json:"input"`
 	EncodingFormat   string   `json:"encoding_format,omitempty"`
-	Dimensions       int      `json:"dimensions,omitempty"`
+	Dimensions       *int     `json:"dimensions,omitempty"`
 	User             string   `json:"user,omitempty"`
-	Seed             float64  `json:"seed,omitempty"`
+	Seed             *float64 `json:"seed,omitempty"`
 	Temperature      *float64 `json:"temperature,omitempty"`
-	TopP             float64  `json:"top_p,omitempty"`
-	FrequencyPenalty float64  `json:"frequency_penalty,omitempty"`
-	PresencePenalty  float64  `json:"presence_penalty,omitempty"`
+	TopP             *float64 `json:"top_p,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
 }
 
 func (r *EmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
