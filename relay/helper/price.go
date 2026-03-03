@@ -147,11 +147,10 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	// 如果没有配置价格，检查模型倍率配置
 	if !success {
 
-		// 没有配置费用，返回错误
+		// 没有配置费用，也要使用默认费用,否则按费率计费模型无法使用
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if !ok {
-			// 不再使用默认价格，而是返回错误
-			return types.PriceData{}, fmt.Errorf("模型 %s 价格未配置，请联系管理员设置", info.OriginModelName)
+			modelPrice = float64(common.PreConsumedQuota) / common.QuotaPerUnit
 		} else {
 			modelPrice = defaultPrice
 		}
