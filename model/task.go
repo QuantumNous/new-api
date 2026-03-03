@@ -495,6 +495,20 @@ func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	_ = query.Count(&total).Error
 	return total
 }
+
+func CountUnfinishedTasks() (int64, error) {
+	var total int64
+	query := DB.Model(&Task{}).
+		Where("progress != ?", "100%").
+		Where("status != ?", TaskStatusFailure).
+		Where("status != ?", TaskStatusSuccess)
+	if constant.TaskTimeoutMinutes > 0 {
+		cutoff := time.Now().Add(-time.Duration(constant.TaskTimeoutMinutes) * time.Minute).Unix()
+		query = query.Where("submit_time >= ?", cutoff)
+	}
+	err := query.Count(&total).Error
+	return total, err
+}
 func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo := dto.NewOpenAIVideo()
 	openAIVideo.ID = t.TaskID
