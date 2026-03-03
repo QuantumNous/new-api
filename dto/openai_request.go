@@ -85,8 +85,9 @@ type GeneralOpenAIRequest struct {
 	// claude
 	WebSearchOptions *WebSearchOptions `json:"web_search_options,omitempty"`
 	// OpenRouter Params
-	Usage     json.RawMessage `json:"usage,omitempty"`
-	Reasoning json.RawMessage `json:"reasoning,omitempty"`
+	Usage       json.RawMessage `json:"usage,omitempty"`
+	Reasoning   json.RawMessage `json:"reasoning,omitempty"`
+	ImageConfig json.RawMessage `json:"image_config,omitempty"` // OpenRouter image generation config (aspect_ratio, image_size)
 	// Ali Qwen Params
 	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
 	EnableThinking         json.RawMessage `json:"enable_thinking,omitempty"`
@@ -311,8 +312,21 @@ type Message struct {
 	Reasoning        string          `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
+	// OpenRouter image generation response: images array with base64 data URLs
+	Images           json.RawMessage `json:"images,omitempty"`
 	parsedContent    []MediaContent
 	//parsedStringContent *string
+}
+
+// OpenRouterImage represents an image object in OpenRouter's response images array
+type OpenRouterImage struct {
+	Type     string                `json:"type"`
+	ImageUrl *OpenRouterImageUrl   `json:"image_url,omitempty"`
+}
+
+// OpenRouterImageUrl represents the image URL object in OpenRouter's response
+type OpenRouterImageUrl struct {
+	Url string `json:"url"`
 }
 
 type MediaContent struct {
