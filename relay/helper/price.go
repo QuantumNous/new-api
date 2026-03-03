@@ -140,18 +140,33 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 }
 
 // ModelPriceHelperPerCall 按次计费的 PriceHelper (MJ、Task)
-func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) types.PriceData {
+func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
-	// 如果没有配置价格，则使用默认价格
+	// 如果没有配置价格，检查模型倍率配置
 	if !success {
+
+		// 没有配置费用，返回错误
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if !ok {
-			modelPrice = 0.1
+			// 不再使用默认价格，而是返回错误
+			return types.PriceData{}, fmt.Errorf("模型 %s 价格未配置，请联系管理员设置", info.OriginModelName)
 		} else {
 			modelPrice = defaultPrice
 		}
+		// 没有配置倍率也不接受没配置,那就返回错误
+		_, ratioSuccess, matchName := ratio_setting.GetModelRatio(info.OriginModelName)
+		if !ratioSuccess {
+			acceptUnsetRatio := false
+			if info.UserSetting.AcceptUnsetRatioModel {
+				acceptUnsetRatio = true
+			}
+			if !acceptUnsetRatio {
+				return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
+			}
+		}
+
 	}
 	quota := int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 
@@ -170,7 +185,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) types.
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
-	return priceData
+	return priceData, nil
 }
 
 func ContainPriceOrRatio(modelName string) bool {

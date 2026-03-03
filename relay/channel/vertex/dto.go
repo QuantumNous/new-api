@@ -20,6 +20,7 @@ type VertexAIClaudeRequest struct {
 	ToolChoice       any                 `json:"tool_choice,omitempty"`
 	Thinking         *dto.Thinking       `json:"thinking,omitempty"`
 	OutputConfig     json.RawMessage     `json:"output_config,omitempty"`
+	//Metadata         json.RawMessage     `json:"metadata,omitempty"`
 }
 
 func copyRequest(req *dto.ClaudeRequest, version string) *VertexAIClaudeRequest {

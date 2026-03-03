@@ -790,6 +790,10 @@ const EditChannelModal = (props) => {
     }
   };
 
+  const clearParamOverride = () => {
+    handleInputChange('param_override', '');
+  };
+
   const loadChannel = async () => {
     setLoading(true);
     let res = await API.get(`/api/channel/${channelId}`);
@@ -3528,6 +3532,13 @@ const EditChannelModal = (props) => {
                               }
                           >
                             {t('填充旧模板')}
+                          </Button>
+                          <Button
+                            size='small'
+                            type='tertiary'
+                            onClick={clearParamOverride}
+                          >
+                            {t('清空')}
                           </Button>
                         </Space>
                       </div>
