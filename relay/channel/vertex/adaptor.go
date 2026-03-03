@@ -170,12 +170,15 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 			}
 		} else if a.RequestMode == RequestModeOpenSource {
 			return fmt.Sprintf(
-				"https://aiplatform.googleapis.com/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
+				"https://aiplatform.googleapis.com/v1/projects/%s/locations/%s/endpoints/openapi/chat/completions",
 				adc.ProjectID,
 				region,
 			), nil
 		}
 	} else {
+		if a.RequestMode == RequestModeOpenSource {
+			return "", errors.New("vertex openapi chat/completions requires service account json credentials; api_key mode is not supported")
+		}
 		var keyPrefix string
 		if strings.HasSuffix(suffix, "?alt=sse") {
 			keyPrefix = "&"
