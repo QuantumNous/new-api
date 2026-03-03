@@ -84,16 +84,21 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
-// setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context) {
+// setupSession saves user info to the session without writing a response.
+// Returns an error if the session save fails.
+func setupSession(user *model.User, c *gin.Context) error {
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
-	err := session.Save()
-	if err != nil {
+	return session.Save()
+}
+
+// setup session & cookies and then return user info
+func setupLogin(user *model.User, c *gin.Context) {
+	if err := setupSession(user, c); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}

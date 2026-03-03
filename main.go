@@ -170,12 +170,18 @@ func main() {
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
+	cookieDomain := os.Getenv("SESSION_COOKIE_DOMAIN")
+	sameSite := http.SameSiteStrictMode
+	if cookieDomain != "" {
+		sameSite = http.SameSiteLaxMode
+	}
 	store.Options(sessions.Options{
 		Path:     "/",
+		Domain:   cookieDomain,
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   cookieDomain != "",
+		SameSite: sameSite,
 	})
 	server.Use(sessions.Sessions("session", store))
 

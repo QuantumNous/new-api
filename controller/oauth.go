@@ -3,12 +3,15 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -26,6 +29,9 @@ func GenerateOAuthCode(c *gin.Context) {
 	affCode := c.Query("aff")
 	if affCode != "" {
 		session.Set("aff", affCode)
+	}
+	if redirect := c.Query("redirect"); redirect != "" {
+		session.Set("oauth_redirect", redirect)
 	}
 	session.Set("oauth_state", state)
 	err := session.Save()
@@ -123,8 +129,55 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 9. Setup login
+	// 9. Setup login, with optional redirect for cross-domain OAuth flows
+	redirectURL, _ := session.Get("oauth_redirect").(string)
+	if redirectURL != "" && isValidOAuthRedirect(redirectURL) {
+		session.Delete("oauth_redirect")
+		if err := setupSession(user, c); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+			return
+		}
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
 	setupLogin(user, c)
+}
+
+// isValidOAuthRedirect checks that the redirect URL belongs to the same root domain
+// as the configured ServerAddress. Returns false if ServerAddress is not configured
+// or the domains do not match.
+func isValidOAuthRedirect(redirectURL string) bool {
+	serverAddr := system_setting.ServerAddress
+	if serverAddr == "" {
+		return false
+	}
+	serverParsed, err := url.Parse(serverAddr)
+	if err != nil || serverParsed.Host == "" {
+		return false
+	}
+	redirectParsed, err := url.Parse(redirectURL)
+	if err != nil || redirectParsed.Host == "" || redirectParsed.Scheme != "https" {
+		return false
+	}
+	serverRoot := extractRootDomain(serverParsed.Host)
+	redirectRoot := extractRootDomain(redirectParsed.Host)
+	return serverRoot != "" && serverRoot == redirectRoot
+}
+
+// extractRootDomain returns the last two segments of a hostname (e.g. "api.unorouter.ai" -> "unorouter.ai").
+// For hostnames with port, the port is stripped first.
+func extractRootDomain(host string) string {
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		h := host[:idx]
+		if h != "" {
+			host = h
+		}
+	}
+	parts := strings.Split(host, ".")
+	if len(parts) < 2 {
+		return host
+	}
+	return strings.Join(parts[len(parts)-2:], ".")
 }
 
 // handleOAuthBind handles binding OAuth account to existing user
