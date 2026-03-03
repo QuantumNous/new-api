@@ -264,7 +264,9 @@ func writeLogCSV(c *gin.Context, logs []*model.Log) {
 	for _, log := range logs {
 		_ = w.Write([]string{
 			strconv.Itoa(log.Id),
-			time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			// Leading tab forces Excel to treat this cell as text, preventing
+			// the datetime auto-detection that causes "####" in narrow columns.
+			"\t" + time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
 			strconv.Itoa(log.Type),
 			log.Username,
 			log.TokenName,
