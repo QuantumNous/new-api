@@ -262,6 +262,7 @@ func migrateDB() error {
 		&Log{},
 		&Midjourney{},
 		&TopUp{},
+		&Refund{},
 		&QuotaData{},
 		&Task{},
 		&Model{},

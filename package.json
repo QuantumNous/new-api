@@ -1,0 +1,21 @@
+{
+  "name": "new-api-e2e-tests",
+  "version": "1.0.0",
+  "description": "E2E regression tests for Waffo payment integration",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report e2e-report",
+    "test:e2e:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "playwright": "^1.49.0"
+  },
+  "keywords": ["e2e", "playwright", "waffo", "regression"],
+  "author": "",
+  "license": "AGPLv3"
+}

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   API,
   showError,
@@ -42,6 +43,7 @@ import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
 
@@ -69,6 +71,10 @@ const TopUp = () => {
   const [enableCreemTopUp, setEnableCreemTopUp] = useState(false);
   const [creemOpen, setCreemOpen] = useState(false);
   const [selectedCreemProduct, setSelectedCreemProduct] = useState(null);
+
+  // Waffo 相关状态
+  const [enableWaffoTopUp, setEnableWaffoTopUp] = useState(false);
+  const [waffoPayMethods, setWaffoPayMethods] = useState([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -255,7 +261,6 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
       showError(t('支付请求失败'));
     } finally {
       setOpen(false);
@@ -299,11 +304,40 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
       showError(t('支付请求失败'));
     } finally {
       setCreemOpen(false);
       setConfirmLoading(false);
+    }
+  };
+
+  const waffoTopUp = async (payMethodType, payMethodName) => {
+    try {
+        setPaymentLoading(true);
+        const requestBody = {
+            amount: parseInt(topUpCount),
+        };
+        if (payMethodType) {
+            requestBody.pay_method_type = payMethodType;
+        }
+        if (payMethodName) {
+            requestBody.pay_method_name = payMethodName;
+        }
+        const res = await API.post('/api/user/waffo/pay', requestBody);
+        if (res !== undefined) {
+            const { message, data } = res.data;
+            if (message === 'success' && data?.payment_url) {
+                window.open(data.payment_url, '_blank');
+            } else {
+                showError(data || '支付请求失败');
+            }
+        } else {
+            showError(res);
+        }
+    } catch (e) {
+        showError(t('支付请求失败'));
+    } finally {
+        setPaymentLoading(false);
     }
   };
 
@@ -446,17 +480,20 @@ const TopUp = () => {
             ? data.min_topup
             : enableStripeTopUp
               ? data.stripe_min_topup
-              : 1;
+              : data.enable_waffo_topup
+                ? data.waffo_min_topup
+                : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
+          const enableWaffoTopUp = data.enable_waffo_topup || false;
+          setEnableWaffoTopUp(enableWaffoTopUp);
+          setWaffoPayMethods(data.waffo_pay_methods || []);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
           // 设置 Creem 产品
           try {
-            console.log(' data is ?', data);
-            console.log(' creem products is ?', data.creem_products);
             const products = JSON.parse(data.creem_products || '[]');
             setCreemProducts(products);
           } catch (e) {
@@ -471,7 +508,6 @@ const TopUp = () => {
           // 初始化显示实付金额
           getAmount(minTopUpValue);
         } catch (e) {
-          console.log('解析支付方式失败:', e);
           setPayMethods([]);
         }
 
@@ -484,10 +520,10 @@ const TopUp = () => {
           setPresetAmounts(customPresets);
         }
       } else {
-        console.error('获取充值配置失败:', data);
+        showError(data || '获取充值配置失败');
       }
     } catch (error) {
-      console.error('获取充值配置异常:', error);
+      showError('获取充值配置异常');
     }
   };
 
@@ -527,6 +563,15 @@ const TopUp = () => {
     await copy(affLink);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
+
+  // URL 参数自动打开账单弹窗（支付回跳时触发）
+  useEffect(() => {
+    if (searchParams.get('show_history') === 'true') {
+      setOpenHistory(true);
+      searchParams.delete('show_history');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
 
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
@@ -584,7 +629,7 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
+      // amount fetch failed silently
     }
     setAmountLoading(false);
   };
@@ -610,7 +655,7 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
+      // amount fetch failed silently
     } finally {
       setAmountLoading(false);
     }
@@ -740,6 +785,8 @@ const TopUp = () => {
             enableOnlineTopUp={enableOnlineTopUp}
             enableStripeTopUp={enableStripeTopUp}
             enableCreemTopUp={enableCreemTopUp}
+            enableWaffoTopUp={enableWaffoTopUp}
+            waffoPayMethods={waffoPayMethods}
             billingPreference={billingPreference}
             onChangeBillingPreference={updateBillingPreference}
             activeSubscriptions={activeSubscriptions}
@@ -757,6 +804,9 @@ const TopUp = () => {
             enableCreemTopUp={enableCreemTopUp}
             creemProducts={creemProducts}
             creemPreTopUp={creemPreTopUp}
+            enableWaffoTopUp={enableWaffoTopUp}
+            waffoTopUp={waffoTopUp}
+            waffoPayMethods={waffoPayMethods}
             presetAmounts={presetAmounts}
             selectedPreset={selectedPreset}
             selectPresetAmount={selectPresetAmount}

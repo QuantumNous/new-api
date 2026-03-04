@@ -78,6 +78,8 @@ const SubscriptionPlansCard = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWaffoTopUp = false,
+  waffoPayMethods = [],
   billingPreference,
   onChangeBillingPreference,
   activeSubscriptions = [],
@@ -175,6 +177,27 @@ const SubscriptionPlansCard = ({
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
         showSuccess(t('已发起支付'));
+        closeBuy();
+      } else {
+        showError(res.data?.data || res.data?.message || t('支付失败'));
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const payWaffo = async (payMethodType) => {
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/waffo/pay', {
+        plan_id: selectedPlan.plan.id,
+        pay_method_type: payMethodType,
+      });
+      if (res.data?.message === 'success') {
+        window.open(res.data.data?.payment_url, '_blank');
+        showSuccess(t('已打开支付页面'));
         closeBuy();
       } else {
         showError(res.data?.data || res.data?.message || t('支付失败'));
@@ -610,6 +633,8 @@ const SubscriptionPlansCard = ({
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
+        enableWaffoTopUp={enableWaffoTopUp}
+        waffoPayMethods={waffoPayMethods}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {
@@ -621,6 +646,7 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        onPayWaffo={payWaffo}
       />
     </Card>
   );

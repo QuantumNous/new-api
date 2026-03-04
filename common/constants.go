@@ -208,4 +208,12 @@ const (
 	TopUpStatusPending = "pending"
 	TopUpStatusSuccess = "success"
 	TopUpStatusExpired = "expired"
+	TopUpStatusRefunded        = "refunded"
+	TopUpStatusPartialRefunded = "partial_refunded"
+	TopUpStatusRefunding       = "refunding"
+
+	// Refund status
+	RefundStatusPending = "pending"
+	RefundStatusSuccess = "success"
+	RefundStatusFailed  = "failed"
 )

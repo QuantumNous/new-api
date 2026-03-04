@@ -20,6 +20,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
+	"github.com/thanhpk/randstr"
+	"github.com/waffo-com/waffo-go/types/order"
 )
 
 func GetTopUpInfo(c *gin.Context) {
@@ -48,14 +50,46 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// 如果启用了 Waffo 支付，添加到支付方法列表
+	enableWaffo := setting.WaffoEnabled && setting.WaffoApiKey != "" && setting.WaffoPrivateKey != "" &&
+		((setting.WaffoSandbox && setting.WaffoSandboxPublicKey != "") ||
+			(!setting.WaffoSandbox && setting.WaffoPublicKey != ""))
+	if enableWaffo {
+		hasWaffo := false
+		for _, method := range payMethods {
+			if method["type"] == "waffo" {
+				hasWaffo = true
+				break
+			}
+		}
+
+		if !hasWaffo {
+			waffoMethod := map[string]string{
+				"name":      "Waffo (Global Payment)",
+				"type":      "waffo",
+				"color":     "rgba(var(--semi-blue-5), 1)",
+				"min_topup": strconv.Itoa(setting.WaffoMinTopUp),
+			}
+			payMethods = append(payMethods, waffoMethod)
+		}
+	}
+
 	data := gin.H{
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"creem_products":      setting.CreemProducts,
+		"enable_waffo_topup": enableWaffo,
+		"waffo_pay_methods": func() interface{} {
+			if enableWaffo {
+				return setting.GetWaffoPayMethods()
+			}
+			return nil
+		}(),
+		"creem_products": setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
 		"stripe_min_topup":    setting.StripeMinTopUp,
+		"waffo_min_topup":     setting.WaffoMinTopUp,
 		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
 	}
@@ -409,4 +443,155 @@ func AdminCompleteTopUp(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+type AdminRefundTopUpRequest struct {
+	TopUpId        int     `json:"topup_id"`
+	RefundAmount   float64 `json:"refund_amount"`
+	QuotaDeduction int64   `json:"quota_deduction"`
+	Reason         string  `json:"reason"`
+}
+
+// AdminRefundTopUp 管理员对 Waffo 订单发起退款
+func AdminRefundTopUp(c *gin.Context) {
+	var req AdminRefundTopUpRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.TopUpId == 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if req.RefundAmount <= 0 {
+		common.ApiErrorMsg(c, "退款金额必须大于 0")
+		return
+	}
+	if req.QuotaDeduction < 0 {
+		common.ApiErrorMsg(c, "扣减额度不能为负数")
+		return
+	}
+
+	operatorId := c.GetInt("id")
+
+	topUp := model.GetTopUpById(req.TopUpId)
+	if topUp == nil {
+		common.ApiErrorMsg(c, "订单不存在")
+		return
+	}
+	if topUp.PaymentMethod != "waffo" {
+		common.ApiErrorMsg(c, "仅支持 Waffo 订单退款")
+		return
+	}
+	if topUp.Status != common.TopUpStatusSuccess && topUp.Status != common.TopUpStatusPartialRefunded {
+		common.ApiErrorMsg(c, "订单状态不支持退款")
+		return
+	}
+
+	LockOrder(topUp.TradeNo)
+	defer UnlockOrder(topUp.TradeNo)
+
+	totalRefunded, err := model.GetTotalRefundedByTopUpId(req.TopUpId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pendingAmount, err := model.GetPendingRefundAmountByTopUpId(req.TopUpId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	remaining := topUp.Money - totalRefunded - pendingAmount
+	if req.RefundAmount > remaining+0.001 {
+		common.ApiErrorMsg(c, fmt.Sprintf("退款金额超出可退余额 %.2f", remaining))
+		return
+	}
+
+	sdk, err := getWaffoSDK()
+	if err != nil {
+		common.ApiErrorMsg(c, "支付配置错误")
+		return
+	}
+
+	// 使用创建订单时存储的 acquiringOrderId
+	acquiringOrderId := topUp.AcquiringOrderId
+	if acquiringOrderId == "" {
+		log.Printf("Waffo 订单缺少 acquiringOrderId，无法退款, TopUpId: %d, TradeNo: %s", req.TopUpId, topUp.TradeNo)
+		common.ApiErrorMsg(c, "该订单不支持退款（缺少 acquiringOrderId）")
+		return
+	}
+
+	refundRequestId := fmt.Sprintf("REFUND-%d-%d-%s", req.TopUpId, time.Now().UnixMilli(), randstr.String(6))
+	currency := getWaffoCurrency()
+
+	notifyUrl := service.GetCallbackAddress() + "/api/waffo/webhook"
+	if setting.WaffoNotifyUrl != "" {
+		notifyUrl = setting.WaffoNotifyUrl
+	}
+
+	refundParams := &order.RefundOrderParams{
+		MerchantID:       setting.WaffoMerchantId,
+		AcquiringOrderID: acquiringOrderId,
+		RefundRequestID:  refundRequestId,
+		RefundAmount:     formatWaffoAmount(req.RefundAmount, currency),
+		RefundReason:     req.Reason,
+		RequestedAt:      time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+		NotifyURL:        notifyUrl,
+	}
+
+	// 先写 DB，再调 Waffo SDK：防止 Waffo 沙盒响应极快时 webhook 先于记录到达造成 race condition
+	refund := &model.Refund{
+		TopUpId:         req.TopUpId,
+		UserId:          topUp.UserId,
+		RefundRequestId: refundRequestId,
+		RefundAmount:    req.RefundAmount,
+		QuotaDeduction:  req.QuotaDeduction,
+		Reason:          req.Reason,
+		Status:          common.RefundStatusPending,
+		OperatorId:      operatorId,
+		CreateTime:      time.Now().Unix(),
+	}
+	if err := model.InsertRefund(refund); err != nil {
+		log.Printf("Waffo 退款记录写入失败: %v, RefundRequestId: %s", err, refundRequestId)
+		common.ApiErrorMsg(c, "退款记录创建失败")
+		return
+	}
+
+	resp, err := sdk.Order().Refund(c.Request.Context(), refundParams, nil)
+	if err != nil {
+		log.Printf("Waffo 发起退款失败: %v, TopUpId: %d", err, req.TopUpId)
+		// 回滚：删除刚插入的 refund 记录，避免僵尸 pending 记录
+		_ = model.DeleteRefundByRequestId(refundRequestId)
+		common.ApiErrorMsg(c, "发起退款失败")
+		return
+	}
+	if !resp.IsSuccess() {
+		log.Printf("Waffo 退款业务失败: [%s] %s, TopUpId: %d", resp.Code, resp.Message, req.TopUpId)
+		_ = model.DeleteRefundByRequestId(refundRequestId)
+		common.ApiErrorMsg(c, "发起退款失败: "+resp.Message)
+		return
+	}
+
+	// 立即将 TopUp 状态更新为"退款中"
+	if topUp.Status == common.TopUpStatusSuccess || topUp.Status == common.TopUpStatusPartialRefunded {
+		topUp.Status = common.TopUpStatusRefunding
+		if err := topUp.Update(); err != nil {
+			log.Printf("Waffo 更新 TopUp 状态为 refunding 失败: %v, TopUpId: %d", err, req.TopUpId)
+		}
+	}
+
+	log.Printf("Waffo 退款已发起 - TopUpId: %d, RefundRequestId: %s, Amount: %.2f", req.TopUpId, refundRequestId, req.RefundAmount)
+	common.ApiSuccess(c, gin.H{"refund_request_id": refundRequestId})
+}
+
+// GetTopUpRefunds 管理员查询某订单的退款记录
+func GetTopUpRefunds(c *gin.Context) {
+	idStr := c.Param("id")
+	topUpId, err := strconv.Atoi(idStr)
+	if err != nil || topUpId == 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	refunds, err := model.GetRefundsByTopUpId(topUpId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, refunds)
 }

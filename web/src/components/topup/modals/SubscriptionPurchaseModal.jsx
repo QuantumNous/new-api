@@ -52,10 +52,13 @@ const SubscriptionPurchaseModal = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWaffoTopUp = false,
+  waffoPayMethods = [],
   purchaseLimitInfo = null,
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayWaffo,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -69,7 +72,10 @@ const SubscriptionPurchaseModal = ({
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  const hasWaffo = enableWaffoTopUp;
+  const hasAnyPayment = hasStripe || hasCreem || hasEpay || hasWaffo;
+  const paymentCount = [hasStripe, hasCreem, hasEpay, hasWaffo].filter(Boolean).length;
+  const onlyWaffo = hasWaffo && paymentCount === 1;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -181,38 +187,65 @@ const SubscriptionPurchaseModal = ({
 
           {hasAnyPayment ? (
             <div className='space-y-3'>
-              <Text size='small' type='tertiary'>
-                {t('选择支付方式')}：
-              </Text>
+              {onlyWaffo ? (
+                <Button
+                  theme='solid'
+                  type='primary'
+                  block
+                  onClick={() => onPayWaffo('')}
+                  loading={paying}
+                  disabled={purchaseLimitReached}
+                >
+                  {t('确认支付')}
+                </Button>
+              ) : (
+                <>
+                  <Text size='small' type='tertiary'>
+                    {t('选择支付方式')}：
+                  </Text>
 
-              {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
-                <div className='flex gap-2'>
-                  {hasStripe && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<SiStripe size={14} color='#635BFF' />}
-                      onClick={onPayStripe}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Stripe
-                    </Button>
+                  {/* Stripe / Creem / Waffo */}
+                  {(hasStripe || hasCreem || hasWaffo) && (
+                    <div className='flex gap-2'>
+                      {hasStripe && (
+                        <Button
+                          theme='light'
+                          className='flex-1'
+                          icon={<SiStripe size={14} color='#635BFF' />}
+                          onClick={onPayStripe}
+                          loading={paying}
+                          disabled={purchaseLimitReached}
+                        >
+                          Stripe
+                        </Button>
+                      )}
+                      {hasCreem && (
+                        <Button
+                          theme='light'
+                          className='flex-1'
+                          icon={<IconCreditCard />}
+                          onClick={onPayCreem}
+                          loading={paying}
+                          disabled={purchaseLimitReached}
+                        >
+                          Creem
+                        </Button>
+                      )}
+                      {hasWaffo && (
+                        <Button
+                          theme='light'
+                          className='flex-1'
+                          icon={<IconCreditCard />}
+                          onClick={() => onPayWaffo('')}
+                          loading={paying}
+                          disabled={purchaseLimitReached}
+                        >
+                          Waffo
+                        </Button>
+                      )}
+                    </div>
                   )}
-                  {hasCreem && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<IconCreditCard />}
-                      onClick={onPayCreem}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Creem
-                    </Button>
-                  )}
-                </div>
+                </>
               )}
 
               {/* 易支付 */}

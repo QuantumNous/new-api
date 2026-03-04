@@ -83,16 +83,13 @@ const RechargeCard = ({
   statusLoading,
   topupInfo,
   onOpenHistory,
+  enableWaffoTopUp,
+  waffoTopUp,
+  waffoPayMethods,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
   const showAmountSkeleton = useMinimumLoadingTime(amountLoading);
-  console.log(
-    ' enabled screem ?',
-    enableCreemTopUp,
-    ' products ?',
-    creemProducts,
-  );
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -225,19 +222,19 @@ const RechargeCard = ({
             <div className='py-8 flex justify-center'>
               <Spin size='large' />
             </div>
-          ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp ? (
+          ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp ? (
             <Form
               getFormApi={(api) => (onlineFormApiRef.current = api)}
               initValues={{ topUpCount: topUpCount }}
             >
               <div className='space-y-6'>
-                {(enableOnlineTopUp || enableStripeTopUp) && (
+                {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
                   <Row gutter={12}>
                     <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                       <Form.InputNumber
                         field='topUpCount'
                         label={t('充值数量')}
-                        disabled={!enableOnlineTopUp && !enableStripeTopUp}
+                        disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
                         placeholder={
                           t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                         }
@@ -291,15 +288,26 @@ const RechargeCard = ({
                     </Col>
                     <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                       <Form.Slot label={t('选择支付方式')}>
-                        {payMethods && payMethods.length > 0 ? (
+                        {payMethods && payMethods.some(m => m.type !== 'waffo') ? (
                           <Space wrap>
                             {payMethods.map((payMethod) => {
+                              // 若 waffoPayMethods 有具体配置，waffo 通用条目由下方专区取代，此处跳过
+                              if (
+                                payMethod.type === 'waffo' &&
+                                waffoPayMethods &&
+                                waffoPayMethods.length > 0
+                              ) {
+                                return null;
+                              }
+
                               const minTopupVal =
                                 Number(payMethod.min_topup) || 0;
                               const isStripe = payMethod.type === 'stripe';
+                              const isWaffo = payMethod.type === 'waffo';
                               const disabled =
-                                (!enableOnlineTopUp && !isStripe) ||
+                                (!enableOnlineTopUp && !isStripe && !isWaffo) ||
                                 (!enableStripeTopUp && isStripe) ||
+                                (!enableWaffoTopUp && isWaffo) ||
                                 minTopupVal > Number(topUpCount || 0);
 
                               const buttonEl = (
@@ -307,7 +315,13 @@ const RechargeCard = ({
                                   key={payMethod.type}
                                   theme='outline'
                                   type='tertiary'
-                                  onClick={() => preTopUp(payMethod.type)}
+                                  onClick={() => {
+                                    if (payMethod.type === 'waffo') {
+                                        waffoTopUp();
+                                    } else {
+                                        preTopUp(payMethod.type);
+                                    }
+                                  }}
                                   disabled={disabled}
                                   loading={
                                     paymentLoading && payWay === payMethod.type
@@ -354,6 +368,29 @@ const RechargeCard = ({
                               );
                             })}
                           </Space>
+                        ) : enableWaffoTopUp && waffoPayMethods && waffoPayMethods.length > 0 ? (
+                          // 只有 Waffo 时，直接在"选择支付方式"下展示 Waffo 按钮
+                          <Space wrap>
+                            {waffoPayMethods.map((method, index) => (
+                              <Button
+                                key={index}
+                                theme='outline'
+                                type='tertiary'
+                                onClick={() => waffoTopUp(method.payMethodType, method.payMethodName)}
+                                loading={paymentLoading}
+                                icon={
+                                  method.icon ? (
+                                    <img src={method.icon} alt={method.name} style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                                  ) : (
+                                    <CreditCard size={18} color='var(--semi-color-text-2)' />
+                                  )
+                                }
+                                className='!rounded-lg !px-4 !py-2'
+                              >
+                                {method.name}
+                              </Button>
+                            ))}
+                          </Space>
                         ) : (
                           <div className='text-gray-500 text-sm p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300'>
                             {t('暂无可用的支付方式，请联系管理员配置')}
@@ -364,7 +401,7 @@ const RechargeCard = ({
                   </Row>
                 )}
 
-                {(enableOnlineTopUp || enableStripeTopUp) && (
+                {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
                   <Form.Slot
                     label={
                       <div className='flex items-center gap-2'>
@@ -516,6 +553,53 @@ const RechargeCard = ({
                     </div>
                   </Form.Slot>
                 )}
+
+                {/* Waffo 多按钮充值区域（只有其他支付方式时才单独显示，否则 Waffo 按钮已在"选择支付方式"中） */}
+                {enableWaffoTopUp &&
+                  waffoPayMethods &&
+                  waffoPayMethods.length > 0 &&
+                  payMethods &&
+                  payMethods.some(m => m.type !== 'waffo') && (
+                    <Form.Slot label={t('Waffo 充值')}>
+                      <Space wrap>
+                        {waffoPayMethods.map((method, index) => (
+                          <Button
+                            key={index}
+                            theme='outline'
+                            type='tertiary'
+                            onClick={() =>
+                              waffoTopUp(
+                                method.payMethodType,
+                                method.payMethodName,
+                              )
+                            }
+                            loading={paymentLoading}
+                            icon={
+                              method.icon ? (
+                                <img
+                                  src={method.icon}
+                                  alt={method.name}
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    objectFit: 'contain',
+                                  }}
+                                />
+                              ) : (
+                                <CreditCard
+                                  size={18}
+                                  color='var(--semi-color-text-2)'
+                                />
+                              )
+                            }
+                            className='!rounded-lg !px-4 !py-2'
+                          >
+                            {method.name}
+                          </Button>
+                        ))}
+                      </Space>
+                    </Form.Slot>
+                  )}
               </div>
             </Form>
           ) : (
