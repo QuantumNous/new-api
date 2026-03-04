@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -98,7 +99,7 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *ZhipuRequest {
 	return &ZhipuRequest{
 		Prompt:      messages,
 		Temperature: request.Temperature,
-		TopP:        request.TopP,
+		TopP:        lo.FromPtrOr(request.TopP, 0),
 		Incremental: false,
 	}
 }

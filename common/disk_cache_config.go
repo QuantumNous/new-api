@@ -113,8 +113,12 @@ func IncrementDiskFiles(size int64) {
 
 // DecrementDiskFiles 减少磁盘文件计数
 func DecrementDiskFiles(size int64) {
-	atomic.AddInt64(&diskCacheStats.ActiveDiskFiles, -1)
-	atomic.AddInt64(&diskCacheStats.CurrentDiskUsageBytes, -size)
+	if atomic.AddInt64(&diskCacheStats.ActiveDiskFiles, -1) < 0 {
+		atomic.StoreInt64(&diskCacheStats.ActiveDiskFiles, 0)
+	}
+	if atomic.AddInt64(&diskCacheStats.CurrentDiskUsageBytes, -size) < 0 {
+		atomic.StoreInt64(&diskCacheStats.CurrentDiskUsageBytes, 0)
+	}
 }
 
 // IncrementMemoryBuffers 增加内存缓存计数
@@ -139,10 +143,27 @@ func IncrementMemoryCacheHits() {
 	atomic.AddInt64(&diskCacheStats.MemoryCacheHits, 1)
 }
 
-// ResetDiskCacheStats 重置统计信息（不重置当前使用量）
+// ResetDiskCacheStats 重置命中统计信息（不重置当前使用量）
 func ResetDiskCacheStats() {
 	atomic.StoreInt64(&diskCacheStats.DiskCacheHits, 0)
 	atomic.StoreInt64(&diskCacheStats.MemoryCacheHits, 0)
+}
+
+// ResetDiskCacheUsage 重置磁盘缓存使用量统计（用于清理缓存后）
+func ResetDiskCacheUsage() {
+	atomic.StoreInt64(&diskCacheStats.ActiveDiskFiles, 0)
+	atomic.StoreInt64(&diskCacheStats.CurrentDiskUsageBytes, 0)
+}
+
+// SyncDiskCacheStats 从实际磁盘状态同步统计信息
+// 用于修正统计与实际不符的情况
+func SyncDiskCacheStats() {
+	fileCount, totalSize, err := GetDiskCacheInfo()
+	if err != nil {
+		return
+	}
+	atomic.StoreInt64(&diskCacheStats.ActiveDiskFiles, int64(fileCount))
+	atomic.StoreInt64(&diskCacheStats.CurrentDiskUsageBytes, totalSize)
 }
 
 // IsDiskCacheAvailable 检查是否可以创建新的磁盘缓存

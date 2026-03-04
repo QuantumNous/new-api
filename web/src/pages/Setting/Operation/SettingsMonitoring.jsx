@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Button,
-  Col,
-  Form,
-  Row,
-  Spin,
-} from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -46,7 +40,8 @@ export default function SettingsMonitoring(props) {
     AutomaticEnableChannelEnabled: false,
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
-    AutomaticRetryStatusCodes: '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
+    AutomaticRetryStatusCodes:
+      '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
   });
@@ -259,7 +254,7 @@ export default function SettingsMonitoring(props) {
                   label={t('自动重试状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
                   extraText={t(
-                    '支持填写单个状态码或范围（含首尾），使用逗号分隔',
+                    '支持填写单个状态码或范围（含首尾），使用逗号分隔；504 和 524 始终不重试，不受此处配置影响',
                   )}
                   field={'AutomaticRetryStatusCodes'}
                   onChange={(value) =>

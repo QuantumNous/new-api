@@ -26,7 +26,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	return nil, errors.New("codex channel: /v1/messages endpoint not supported")
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -41,15 +41,15 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	return nil, errors.New("codex channel: /v1/chat/completions endpoint not supported")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	return nil, errors.New("codex channel: /v1/rerank endpoint not supported")
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("codex channel: endpoint not supported")
+	return nil, errors.New("codex channel: /v1/embeddings endpoint not supported")
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -90,13 +90,19 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			}
 		}
 	}
+	// Codex backend requires the `instructions` field to be present.
+	// Keep it consistent with Codex CLI behavior by defaulting to an empty string.
+	if len(request.Instructions) == 0 {
+		request.Instructions = json.RawMessage(`""`)
+	}
+
 	if isCompact {
 		return request, nil
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
 	// rm max_output_tokens
-	request.MaxOutputTokens = 0
+	request.MaxOutputTokens = nil
 	request.Temperature = nil
 	return request, nil
 }
@@ -170,6 +176,16 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
+	}
+
+	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
+	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
+	// which can be rejected by the upstream. Force the exact media type.
+	req.Set("Content-Type", "application/json")
+	if info.IsStream {
+		req.Set("Accept", "text/event-stream")
+	} else if req.Get("Accept") == "" {
+		req.Set("Accept", "application/json")
 	}
 
 	return nil

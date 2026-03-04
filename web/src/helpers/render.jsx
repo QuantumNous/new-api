@@ -74,7 +74,33 @@ import {
   CircleUser,
   Package,
   Server,
+  CalendarClock,
 } from 'lucide-react';
+import {
+  SiAtlassian,
+  SiAuth0,
+  SiAuthentik,
+  SiBitbucket,
+  SiDiscord,
+  SiDropbox,
+  SiFacebook,
+  SiGitea,
+  SiGithub,
+  SiGitlab,
+  SiGoogle,
+  SiKeycloak,
+  SiLinkedin,
+  SiNextcloud,
+  SiNotion,
+  SiOkta,
+  SiOpenid,
+  SiReddit,
+  SiSlack,
+  SiTelegram,
+  SiTwitch,
+  SiWechat,
+  SiX,
+} from 'react-icons/si';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -117,6 +143,8 @@ export function getLucideIcon(key, selected = false) {
       return <Package {...commonProps} color={iconColor} />;
     case 'deployment':
       return <Server {...commonProps} color={iconColor} />;
+    case 'subscription':
+      return <CalendarClock {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:
@@ -167,21 +195,21 @@ export const getModelCategories = (() => {
       gemini: {
         label: 'Gemini',
         icon: <Gemini.Color />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('gemini') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('gemini') ||
           model.model_name.toLowerCase().includes('gemma') ||
-          model.model_name.toLowerCase().includes('learnlm') || 
+          model.model_name.toLowerCase().includes('learnlm') ||
           model.model_name.toLowerCase().startsWith('embedding-') ||
           model.model_name.toLowerCase().includes('text-embedding-004') ||
-          model.model_name.toLowerCase().includes('imagen-4') || 
-          model.model_name.toLowerCase().includes('veo-') || 
-          model.model_name.toLowerCase().includes('aqa') ,
+          model.model_name.toLowerCase().includes('imagen-4') ||
+          model.model_name.toLowerCase().includes('veo-') ||
+          model.model_name.toLowerCase().includes('aqa'),
       },
       moonshot: {
         label: 'Moonshot',
         icon: <Moonshot />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('moonshot') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('moonshot') ||
           model.model_name.toLowerCase().includes('kimi'),
       },
       zhipu: {
@@ -189,8 +217,8 @@ export const getModelCategories = (() => {
         icon: <Zhipu.Color />,
         filter: (model) =>
           model.model_name.toLowerCase().includes('chatglm') ||
-          model.model_name.toLowerCase().includes('glm-') || 
-          model.model_name.toLowerCase().includes('cogview') || 
+          model.model_name.toLowerCase().includes('glm-') ||
+          model.model_name.toLowerCase().includes('cogview') ||
           model.model_name.toLowerCase().includes('cogvideo'),
       },
       qwen: {
@@ -206,8 +234,8 @@ export const getModelCategories = (() => {
       minimax: {
         label: 'MiniMax',
         icon: <Minimax.Color />,
-        filter: (model) => 
-          model.model_name.toLowerCase().includes('abab') || 
+        filter: (model) =>
+          model.model_name.toLowerCase().includes('abab') ||
           model.model_name.toLowerCase().includes('minimax'),
       },
       baidu: {
@@ -233,7 +261,7 @@ export const getModelCategories = (() => {
       cohere: {
         label: 'Cohere',
         icon: <Cohere.Color />,
-        filter: (model) => 
+        filter: (model) =>
           model.model_name.toLowerCase().includes('command') ||
           model.model_name.toLowerCase().includes('c4ai-') ||
           model.model_name.toLowerCase().includes('embed-'),
@@ -256,7 +284,7 @@ export const getModelCategories = (() => {
       mistral: {
         label: 'Mistral AI',
         icon: <Mistral.Color />,
-        filter: (model) => 
+        filter: (model) =>
           model.model_name.toLowerCase().includes('mistral') ||
           model.model_name.toLowerCase().includes('codestral') ||
           model.model_name.toLowerCase().includes('pixtral') ||
@@ -469,6 +497,106 @@ export function getLobeHubIcon(iconName, size = 14) {
   return <IconComponent {...props} />;
 }
 
+const oauthProviderIconMap = {
+  github: SiGithub,
+  gitlab: SiGitlab,
+  gitea: SiGitea,
+  google: SiGoogle,
+  discord: SiDiscord,
+  facebook: SiFacebook,
+  linkedin: SiLinkedin,
+  x: SiX,
+  twitter: SiX,
+  slack: SiSlack,
+  telegram: SiTelegram,
+  wechat: SiWechat,
+  keycloak: SiKeycloak,
+  nextcloud: SiNextcloud,
+  authentik: SiAuthentik,
+  openid: SiOpenid,
+  okta: SiOkta,
+  auth0: SiAuth0,
+  atlassian: SiAtlassian,
+  bitbucket: SiBitbucket,
+  notion: SiNotion,
+  twitch: SiTwitch,
+  reddit: SiReddit,
+  dropbox: SiDropbox,
+};
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(value || '');
+}
+
+function isSimpleEmoji(value) {
+  if (!value) return false;
+  const trimmed = String(value).trim();
+  return trimmed.length > 0 && trimmed.length <= 4 && !isHttpUrl(trimmed);
+}
+
+function normalizeOAuthIconKey(raw) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^ri:/, '')
+    .replace(/^react-icons:/, '')
+    .replace(/^si:/, '');
+}
+
+/**
+ * Render custom OAuth provider icon with react-icons or URL/emoji fallback.
+ * Supported formats:
+ * - react-icons simple key: github / gitlab / google / keycloak
+ * - prefixed key: ri:github / si:github
+ * - full URL image: https://example.com/logo.png
+ * - emoji: 🐱
+ */
+export function getOAuthProviderIcon(iconName, size = 20) {
+  const raw = String(iconName || '').trim();
+  const iconSize = Number(size) > 0 ? Number(size) : 20;
+
+  if (!raw) {
+    return <Layers size={iconSize} color='var(--semi-color-text-2)' />;
+  }
+
+  if (isHttpUrl(raw)) {
+    return (
+      <img
+        src={raw}
+        alt='provider icon'
+        width={iconSize}
+        height={iconSize}
+        style={{ borderRadius: 4, objectFit: 'cover' }}
+      />
+    );
+  }
+
+  if (isSimpleEmoji(raw)) {
+    return (
+      <span
+        style={{
+          width: iconSize,
+          height: iconSize,
+          lineHeight: `${iconSize}px`,
+          textAlign: 'center',
+          display: 'inline-block',
+          fontSize: Math.max(Math.floor(iconSize * 0.8), 14),
+        }}
+      >
+        {raw}
+      </span>
+    );
+  }
+
+  const key = normalizeOAuthIconKey(raw);
+  const IconComp = oauthProviderIconMap[key];
+  if (IconComp) {
+    return <IconComp size={iconSize} />;
+  }
+
+  return <Avatar size='extra-extra-small'>{raw.charAt(0).toUpperCase()}</Avatar>;
+}
+
 // 颜色列表
 const colors = [
   'amber',
@@ -568,7 +696,6 @@ export const modelColorMap = {
   'claude-3-opus-20240229': 'rgb(255,132,31)', // 橙红色
   'claude-3-sonnet-20240229': 'rgb(253,135,93)', // 橙色
   'claude-3-haiku-20240307': 'rgb(255,175,146)', // 浅橙色
-  'claude-2.1': 'rgb(255,209,190)', // 浅橙色（略有区别）
 };
 
 export function modelToColor(modelName) {

@@ -1,7 +1,6 @@
 package xai
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -46,7 +45,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var xAIResp *dto.ChatCompletionsStreamResponse
-		err := json.Unmarshal([]byte(data), &xAIResp)
+		err := common.UnmarshalJsonStr(data, &xAIResp)
 		if err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
 			return true

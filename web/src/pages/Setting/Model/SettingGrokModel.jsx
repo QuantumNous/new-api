@@ -49,8 +49,7 @@ export default function SettingGrokModel(props) {
       .validate()
       .then(() => {
         const updateArray = compareObjects(inputs, inputsRow);
-        if (!updateArray.length)
-          return showWarning(t('你似乎并没有修改什么'));
+        if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
 
         const requestQueue = updateArray.map((item) => {
           const value = String(inputs[item.key]);

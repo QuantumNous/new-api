@@ -145,7 +145,7 @@ export const useRedemptionsData = () => {
 
       const { success, message } = res.data;
       if (success) {
-        showSuccess('操作成功完成！');
+        showSuccess(t('操作成功完成！'));
         let redemption = res.data.data;
         let newRedemptions = [...redemptions];
         if (action !== REDEMPTION_ACTIONS.DELETE) {

@@ -76,7 +76,6 @@ const PricingEndpointTypes = ({
       value: 'all',
       label: t('全部端点'),
       tagCount: getEndpointTypeCount('all'),
-      disabled: models.length === 0,
     },
     ...availableEndpointTypes.map((endpointType) => {
       const count = getEndpointTypeCount(endpointType);
@@ -84,7 +83,6 @@ const PricingEndpointTypes = ({
         value: endpointType,
         label: getEndpointTypeLabel(endpointType),
         tagCount: count,
-        disabled: count === 0,
       };
     }),
   ];
@@ -96,6 +94,7 @@ const PricingEndpointTypes = ({
       activeValue={filterEndpointType}
       onChange={setFilterEndpointType}
       loading={loading}
+      variant='green'
       t={t}
     />
   );

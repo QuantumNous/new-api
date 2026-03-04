@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   API,
   showError,
@@ -64,6 +64,7 @@ const EditTagModal = (props) => {
   const [modelOptions, setModelOptions] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
   const [customModel, setCustomModel] = useState('');
+  const [modelSearchValue, setModelSearchValue] = useState('');
   const originInputs = {
     tag: '',
     new_tag: null,
@@ -74,6 +75,25 @@ const EditTagModal = (props) => {
     header_override: null,
   };
   const [inputs, setInputs] = useState(originInputs);
+  const modelSearchMatchedCount = useMemo(() => {
+    const keyword = modelSearchValue.trim();
+    if (!keyword) {
+      return modelOptions.length;
+    }
+    return modelOptions.reduce(
+      (count, option) => count + (selectFilter(keyword, option) ? 1 : 0),
+      0,
+    );
+  }, [modelOptions, modelSearchValue]);
+  const modelSearchHintText = useMemo(() => {
+    const keyword = modelSearchValue.trim();
+    if (!keyword || modelSearchMatchedCount !== 0) {
+      return '';
+    }
+    return t('未匹配到模型，按回车键可将「{{name}}」作为自定义模型名添加', {
+      name: keyword,
+    });
+  }, [modelSearchMatchedCount, modelSearchValue, t]);
   const formApiRef = useRef(null);
   const getInitValues = () => ({ ...originInputs });
 
@@ -292,6 +312,7 @@ const EditTagModal = (props) => {
     fetchModels().then();
     fetchGroups().then();
     fetchTagModels().then();
+    setModelSearchValue('');
     if (formApiRef.current) {
       formApiRef.current.setValues({
         ...getInitValues(),
@@ -461,9 +482,18 @@ const EditTagModal = (props) => {
                     placeholder={t('请选择该渠道所支持的模型，留空则不更改')}
                     multiple
                     filter={selectFilter}
+                    allowCreate
                     autoClearSearchValue={false}
                     searchPosition='dropdown'
                     optionList={modelOptions}
+                    onSearch={(value) => setModelSearchValue(value)}
+                    innerBottomSlot={
+                      modelSearchHintText ? (
+                        <Text className='px-3 py-2 block text-xs !text-semi-color-text-2'>
+                          {modelSearchHintText}
+                        </Text>
+                      ) : null
+                    }
                     style={{ width: '100%' }}
                     onChange={(value) => handleInputChange('models', value)}
                   />
@@ -533,7 +563,11 @@ const EditTagModal = (props) => {
               <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                 {/* Header: Advanced Settings */}
                 <div className='flex items-center mb-2'>
-                  <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+                  <Avatar
+                    size='small'
+                    color='orange'
+                    className='mr-2 shadow-md'
+                  >
                     <IconSetting size={16} />
                   </Avatar>
                   <div>
@@ -549,9 +583,7 @@ const EditTagModal = (props) => {
                     field='param_override'
                     label={t('参数覆盖')}
                     placeholder={
-                      t(
-                        '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
-                      ) +
+                      t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
                       '\n' +
                       t('旧格式（直接覆盖）：') +
                       '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +

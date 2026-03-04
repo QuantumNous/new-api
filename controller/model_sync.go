@@ -29,7 +29,7 @@ const (
 func normalizeLocale(locale string) (string, bool) {
 	l := strings.ToLower(strings.TrimSpace(locale))
 	switch l {
-	case "en", "zh", "ja":
+	case "en", "zh-CN", "zh-TW", "ja":
 		return l, true
 	default:
 		return "", false
@@ -272,7 +272,8 @@ func SyncUpstreamModels(c *gin.Context) {
 	// 1) 获取未配置模型列表
 	missing, err := model.GetMissingModels()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+		common.SysError("failed to get missing models: " + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取模型列表失败，请稍后重试"})
 		return
 	}
 

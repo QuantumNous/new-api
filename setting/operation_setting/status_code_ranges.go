@@ -26,6 +26,11 @@ var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
 	{Start: 525, End: 599},
 }
 
+var alwaysSkipRetryStatusCodes = map[int]struct{}{
+	504: {},
+	524: {},
+}
+
 func AutomaticDisableStatusCodesToString() string {
 	return statusCodeRangesToString(AutomaticDisableStatusCodeRanges)
 }
@@ -56,7 +61,15 @@ func AutomaticRetryStatusCodesFromString(s string) error {
 	return nil
 }
 
+func IsAlwaysSkipRetryStatusCode(code int) bool {
+	_, exists := alwaysSkipRetryStatusCodes[code]
+	return exists
+}
+
 func ShouldRetryByStatusCode(code int) bool {
+	if IsAlwaysSkipRetryStatusCode(code) {
+		return false
+	}
 	return shouldMatchStatusCodeRanges(AutomaticRetryStatusCodeRanges, code)
 }
 
