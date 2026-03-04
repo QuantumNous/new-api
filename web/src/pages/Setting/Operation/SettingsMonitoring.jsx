@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -38,6 +38,8 @@ export default function SettingsMonitoring(props) {
     QuotaRemindThreshold: '',
     AutomaticDisableChannelEnabled: false,
     AutomaticEnableChannelEnabled: false,
+    AutomaticDisableOnEmptyResponseEnabled: false,
+    AutomaticRetryOnEmptyResponseEnabled: false,
     AutomaticDisableKeywords: '',
     AutomaticDisableStatusCodes: '401',
     AutomaticRetryStatusCodes:
@@ -53,6 +55,19 @@ export default function SettingsMonitoring(props) {
   const parsedAutoRetryStatusCodes = parseHttpStatusCodeRules(
     inputs.AutomaticRetryStatusCodes || '',
   );
+  const emptyResponseRetryWarning = t(
+    '高风险：开启后会在上游空响应时继续重试。若上下游计费口径不一致或请求非幂等，可能造成成本急剧上升，极端情况下可能导致巨额亏损。',
+  );
+
+  const handleAutomaticRetryOnEmptyResponseChange = (value) => {
+    setInputs((prev) => ({
+      ...prev,
+      AutomaticRetryOnEmptyResponseEnabled: value,
+    }));
+    if (value) {
+      showWarning(emptyResponseRetryWarning);
+    }
+  };
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -237,6 +252,22 @@ export default function SettingsMonitoring(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={16}>
+                <Form.Switch
+                  field={'AutomaticDisableOnEmptyResponseEnabled'}
+                  label={t('空响应时自动禁用通道')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t(
+                    '当上游返回空响应（无响应体或仅空白内容）时，自动禁用通道',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutomaticDisableOnEmptyResponseEnabled: value,
+                    })
+                  }
+                />
                 <HttpStatusCodeRulesInput
                   label={t('自动禁用状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
@@ -250,6 +281,27 @@ export default function SettingsMonitoring(props) {
                   parsed={parsedAutoDisableStatusCodes}
                   invalidText={t('自动禁用状态码格式不正确')}
                 />
+                <Form.Switch
+                  field={'AutomaticRetryOnEmptyResponseEnabled'}
+                  label={t('空响应时自动重试（高风险）')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  extraText={t(
+                    '当上游返回空响应（无响应体或仅空白内容）时触发重试，请先确认重试策略和计费对齐',
+                  )}
+                  onChange={handleAutomaticRetryOnEmptyResponseChange}
+                />
+                {inputs.AutomaticRetryOnEmptyResponseEnabled && (
+                  <Banner
+                    type='warning'
+                    description={emptyResponseRetryWarning}
+                    bordered
+                    fullMode={false}
+                    closeIcon={null}
+                    style={{ marginBottom: 12 }}
+                  />
+                )}
                 <HttpStatusCodeRulesInput
                   label={t('自动重试状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
