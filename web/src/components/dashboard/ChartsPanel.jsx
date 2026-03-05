@@ -53,6 +53,15 @@ const ChartsPanel = ({
                 className='flex items-center gap-1 bg-[var(--semi-color-fill-0)] rounded px-1.5 py-1 cursor-pointer hover:bg-[var(--semi-color-fill-1)] transition-colors'
                 onClick={() => onDisplayModeChange(displayMode === 'QUOTA' ? 'TOKENS' : 'QUOTA')}
                 title={displayMode === 'QUOTA' ? t('切换为 Token') : t('切换为金额')}
+                role='button'
+                aria-label={displayMode === 'QUOTA' ? t('切换为 Token') : t('切换为金额')}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onDisplayModeChange(displayMode === 'QUOTA' ? 'TOKENS' : 'QUOTA');
+                  }
+                }}
               >
                 {displayMode === 'QUOTA' ? (
                   <DollarSign size={14} className='text-[var(--semi-color-text-2)]' />
