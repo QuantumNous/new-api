@@ -50,7 +50,7 @@ export async function loginAsAdmin(page: Page) {
   }
 
   // 正常登录流程
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await page.goto('/login', { waitUntil: 'load' });
 
   const usernameInput = page.getByPlaceholder(/Please enter your username or email address|请输入您的用户名或邮箱地址/i);
   const passwordInput = page.getByPlaceholder(/Please enter your password|请输入您的密码/i);
@@ -62,7 +62,7 @@ export async function loginAsAdmin(page: Page) {
 
   // 等待登录成功跳转
   await page.waitForURL(/\/console/, { timeout: 30000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('load');
 
   // 保存登录态供后续测试复用
   const state = await page.context().storageState();

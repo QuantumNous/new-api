@@ -17,7 +17,7 @@ test.describe('Waffo 充值功能回归测试', () => {
 
   test('TC-E2E-001: 充值页面显示 Waffo 统一品牌按钮', async ({ page }) => {
     // 导航到充值页面，等待 API 调用完成
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 等待充值表单加载完成（statusLoading 变为 false 后才渲染支付按钮）
     const waffoButton = page.getByRole('button', { name: 'Card' });
@@ -32,7 +32,7 @@ test.describe('Waffo 充值功能回归测试', () => {
   });
 
   test('TC-E2E-002: Waffo 按钮可点击且不需要选择支付方式', async ({ page }) => {
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 等待充值表单加载完成后输入金额
     const amountInput = page.locator('.semi-input-number input').first();
@@ -52,7 +52,7 @@ test.describe('Waffo 充值功能回归测试', () => {
   });
 
   test('TC-E2E-003: 充值金额无前端限制（系统最小值除外）', async ({ page }) => {
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     const amountInput = page.locator('.semi-input-number input').first();
 
@@ -70,7 +70,7 @@ test.describe('Waffo 充值功能回归测试', () => {
   });
 
   test('TC-E2E-004: 充值页面支付方式只显示已启用的渠道', async ({ page }) => {
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 等待支付方式区域加载（statusLoading 完成后才渲染）
     await page.waitForSelector('text=选择支付方式', { timeout: 30000 });
@@ -80,14 +80,14 @@ test.describe('Waffo 充值功能回归测试', () => {
 
     // 验证未启用的支付方式按钮是 disabled 状态
     // （支付宝、微信等如果未配置应该是 disabled）
-    const alipayButton = page.getByRole('button', { name: '支付宝' });
+    const alipayButton = page.getByRole('button', { name: '支付宝', exact: true });
     if (await alipayButton.isVisible()) {
       await expect(alipayButton).toBeDisabled();
     }
   });
 
   test('TC-E2E-005: 实付金额正确显示', async ({ page }) => {
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 输入充值金额
     const amountInput = page.locator('.semi-input-number input').first();

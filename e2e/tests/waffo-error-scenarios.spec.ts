@@ -11,12 +11,48 @@ import { loginAsAdmin } from '../helpers/auth';
  * - 支付失败场景
  */
 
+/** mock topup/info 注入一个名为 'Card' 的 Waffo 支付方式 */
+async function mockTopupInfoWithCard(page: import('@playwright/test').Page) {
+  await page.route('**/api/user/topup/info', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        data: {
+          enable_online_topup: false,
+          enable_waffo_topup: true,
+          enable_stripe_topup: false,
+          enable_creem_topup: false,
+          pay_methods: [],
+          waffo_pay_methods: [
+            { name: 'Card', payMethodType: 'CREDITCARD', payMethodName: '', icon: '' },
+          ],
+          min_topup: 1,
+          waffo_min_topup: 1,
+          amount_options: [],
+          discount: {},
+        },
+      }),
+    });
+  });
+  // mock waffo/pay 防止真实 SDK 调用和页面跳转
+  await page.route('**/api/user/waffo/pay', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: false, message: '充值金额无效' }),
+    });
+  });
+}
+
 test.describe('Waffo 错误场景回归测试', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
   });
 
   test('TC-E2E-301: 充值金额为空时按钮应禁用或提示', async ({ page }) => {
+    await mockTopupInfoWithCard(page);
     await page.goto('/console/topup');
 
     // 清空金额输入框
@@ -46,6 +82,7 @@ test.describe('Waffo 错误场景回归测试', () => {
   });
 
   test('TC-E2E-302: 充值金额为负数时应拒绝', async ({ page }) => {
+    await mockTopupInfoWithCard(page);
     await page.goto('/console/topup');
 
     const amountInput = page.locator('.semi-input-number input').first();
@@ -76,6 +113,7 @@ test.describe('Waffo 错误场景回归测试', () => {
   });
 
   test('TC-E2E-303: 充值金额为 0 时应拒绝', async ({ page }) => {
+    await mockTopupInfoWithCard(page);
     await page.goto('/console/topup');
 
     const amountInput = page.locator('.semi-input-number input').first();
@@ -98,6 +136,7 @@ test.describe('Waffo 错误场景回归测试', () => {
   });
 
   test('TC-E2E-304: 未配置 Waffo 时按钮应禁用或不显示', async ({ page }) => {
+    await mockTopupInfoWithCard(page);
     await page.goto('/console/topup');
 
     // 等待页面加载
@@ -156,6 +195,7 @@ test.describe('Waffo 错误场景回归测试', () => {
   });
 
   test('TC-E2E-306: 充值金额超大值处理', async ({ page }) => {
+    await mockTopupInfoWithCard(page);
     await page.goto('/console/topup');
 
     const amountInput = page.locator('.semi-input-number input').first();

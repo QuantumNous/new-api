@@ -76,11 +76,11 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
       pay_methods: [{ name: 'Waffo', type: 'waffo', color: '' }],
     });
 
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 「选择支付方式」区域应出现 Waffo 按钮
     await expect(page.getByRole('button', { name: /MockMethod-1/i }))
-      .toBeVisible({ timeout: 10000 });
+      .toBeVisible({ timeout: 2000 });
 
     // 页面上不应有独立的「Waffo 充值」Form.Slot 标题
     await expect(page.getByText('Waffo 充值')).not.toBeVisible();
@@ -102,14 +102,14 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
       ],
     });
 
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 「选择支付方式」区域应显示支付宝
     await expect(page.getByRole('button', { name: /支付宝/i }))
-      .toBeVisible({ timeout: 10000 });
+      .toBeVisible({ timeout: 2000 });
 
     // 独立的「Waffo 充值」Form.Slot 应出现
-    await expect(page.getByText('Waffo 充值')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Waffo 充值')).toBeVisible({ timeout: 2000 });
 
     // Waffo 按钮也应出现
     await expect(page.getByRole('button', { name: /MockMethod-1/i }))
@@ -127,24 +127,37 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
       pay_methods: [],
     });
 
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     await expect(
       page.getByText(/暂无可用的支付方式/)
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 2000 });
 
     await page.screenshot({ path: 'e2e-screenshots/tc-ui-003-no-payment.png' });
   });
 
   // ------------------------------------------------------------------
   test('TC-UI-004: ?show_history=true 自动打开账单弹窗，参数随后被清除', async ({ page }) => {
-    await page.goto('/console/topup?show_history=true', { waitUntil: 'networkidle' });
+    // mock 充值列表避免真实后端影响，同时加速 modal 内容加载
+    await page.route(/\/api\/user\/topup(\?|$)/, (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { items: [], total: 0, page: 1, page_size: 10 },
+        }),
+      });
+    });
+
+    await page.goto('/console/topup?show_history=true', { waitUntil: 'load' });
 
     // 账单历史弹窗应自动弹出（Modal 标题含「充值记录」或类似文案）
     const historyModal = page.locator('.semi-modal', {
       hasText: /充值记录|账单|Top.?[Uu]p.*[Hh]istory/i,
     });
-    await expect(historyModal).toBeVisible({ timeout: 15000 });
+    // modal 在 React 处理 URL 参数后弹出，给 5000ms 窗口
+    await expect(historyModal).toBeVisible({ timeout: 5000 });
 
     // URL 中的 show_history 参数应已被清除（replace: true）
     await expect(page).not.toHaveURL(/show_history/);
@@ -171,7 +184,7 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
       ],
     });
 
-    await page.goto('/console/topup', { waitUntil: 'networkidle' });
+    await page.goto('/console/topup', { waitUntil: 'load' });
 
     // 等待 Waffo 图标 img 出现
     const waffoIcon = page.locator(
@@ -179,8 +192,9 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
     ).first();
 
     // 宽松匹配：查找充值页中 style 含 width: 36 的 img
+    // mock 响应虽即时但 React 需要一次事件循环才能更新 state，给 5000ms
     const iconImg = page.locator('img[src^="data:image/"]').first();
-    await expect(iconImg).toBeVisible({ timeout: 10000 });
+    await expect(iconImg).toBeVisible({ timeout: 5000 });
 
     // 验证 inline style 尺寸为 36×36
     const width = await iconImg.evaluate(

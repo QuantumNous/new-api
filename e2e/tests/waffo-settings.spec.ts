@@ -10,15 +10,22 @@ import { loginAsAdmin } from '../helpers/auth';
  * - 启用/禁用 Waffo 支付
  */
 
+// 读写真实 DB 配置，串行避免冲突
+test.describe.configure({ mode: 'serial' });
+
 test.describe('Waffo 管理后台设置回归测试', () => {
   test.beforeEach(async ({ page }) => {
+    // 多 worker 并发时 session 压力大，给所有设置页测试 3× 超时
+    test.slow();
     await loginAsAdmin(page);
   });
 
   test('TC-E2E-201: 管理后台可访问 Waffo 设置页面', async ({ page }) => {
     // 导航到支付设置页面
-    await page.goto('/console/setting');
+    await page.goto('/console/setting', { waitUntil: 'load' });
 
+    // 等待 Tab 出现（isRoot 判断依赖 localStorage，并发下需要更长等待）
+    await page.waitForSelector('text=/支付设置|Payment.*Setting/i', { timeout: 15000 });
     // 点击支付网关选项卡
     // Click payment gateway tab - use flexible selector for both EN/ZH
     await page.locator('text=/支付设置|Payment.*Setting/i').first().click();
@@ -31,7 +38,8 @@ test.describe('Waffo 管理后台设置回归测试', () => {
   });
 
   test('TC-E2E-202: Waffo 设置包含必要配置项', async ({ page }) => {
-    await page.goto('/console/setting');
+    await page.goto('/console/setting', { waitUntil: 'load' });
+    await page.waitForSelector('text=/支付设置|Payment.*Setting/i', { timeout: 15000 });
     // Click payment gateway tab - use flexible selector for both EN/ZH
     await page.locator('text=/支付设置|Payment.*Setting/i').first().click();
 
@@ -57,7 +65,8 @@ test.describe('Waffo 管理后台设置回归测试', () => {
   });
 
   test('TC-E2E-203: Waffo 币种配置项存在且符合 Q1 要求', async ({ page }) => {
-    await page.goto('/console/setting');
+    await page.goto('/console/setting', { waitUntil: 'load' });
+    await page.waitForSelector('text=/支付设置|Payment.*Setting/i', { timeout: 15000 });
     // Click payment gateway tab - use flexible selector for both EN/ZH
     await page.locator('text=/支付设置|Payment.*Setting/i').first().click();
 
@@ -91,7 +100,8 @@ test.describe('Waffo 管理后台设置回归测试', () => {
   });
 
   test('TC-E2E-204: Waffo 设置保存成功', async ({ page }) => {
-    await page.goto('/console/setting');
+    await page.goto('/console/setting', { waitUntil: 'load' });
+    await page.waitForSelector('text=/支付设置|Payment.*Setting/i', { timeout: 15000 });
     // Click payment gateway tab - use flexible selector for both EN/ZH
     await page.locator('text=/支付设置|Payment.*Setting/i').first().click();
 

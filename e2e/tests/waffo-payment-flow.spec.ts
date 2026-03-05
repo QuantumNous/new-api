@@ -38,7 +38,7 @@ test.describe('Waffo 充值支付全流程 E2E', () => {
       // ==================== Step 2: Navigate to topup page ====================
       console.log('[E2E] TC-FLOW-001: Step 2 - Navigating to topup page...');
       await page.goto('/console/topup', {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
         timeout: 30000,
       });
       console.log('[E2E] TC-FLOW-001: Topup page loaded, URL:', page.url());
@@ -181,7 +181,7 @@ test.describe('Waffo 充值支付全流程 E2E', () => {
       // ==================== Step 2: Navigate to topup page ====================
       console.log('[E2E] TC-FLOW-002: Step 2 - Navigating to topup page...');
       await page.goto('/console/topup', {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
         timeout: 30000,
       });
       console.log('[E2E] TC-FLOW-002: Topup page loaded, URL:', page.url());

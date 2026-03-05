@@ -386,13 +386,11 @@ async function waitForRefundCompletion(
 
 test.describe('S1-S4: 退款全流程 E2E 测试（UI 驱动）', () => {
   let adminCookie: string;
-  let sandboxPrivateKey: string;
 
   test.beforeAll(async () => {
     if (!adminCookie) {
       adminCookie = await getAdminCookie(BACKEND_BASE);
     }
-    sandboxPrivateKey = readOptionFromDB('WaffoSandboxPrivateKey') ?? '';
   });
 
   /**
@@ -568,18 +566,32 @@ test.describe('S1-S4: 退款全流程 E2E 测试（UI 驱动）', () => {
     }
 
     // 发 FAILED webhook → backend 应将 refund 标记为 failed，不扣 quota
-    const webhookBody = {
-      eventType: 'REFUND_NOTIFICATION',
-      result: {
-        refundRequestId,
-        merchantRefundOrderId: `MRF-${refundRequestId}`,
-        acquiringOrderId: '',
-        refundStatus: 'ORDER_REFUND_FAILED',
-        refundAmount: '10.00',
-      },
-    };
-    const wh = await postSignedWebhook(webhookBody, sandboxPrivateKey);
-    expect(wh.statusCode).toBe(200);
+    // 注入测试公钥：WaffoSandboxPublicKey 平时用于验证来自 Waffo 的 webhook 签名，
+    // 注入后可用测试私钥签名 webhook，后端可正确验证。
+    // 注意：必须在 setupSuccessTopUp 之后注入，否则 SDK 用此公钥验证 API 响应签名会失败。
+    const testKeyPair = generateTestKeyPair();
+    const originalPublicKey = readOptionFromDB('WaffoSandboxPublicKey') ?? '';
+    await updateOption(adminCookie, 'WaffoSandboxPublicKey', testKeyPair.publicKeyBase64);
+
+    let webhookStatusCode: number;
+    try {
+      const webhookBody = {
+        eventType: 'REFUND_NOTIFICATION',
+        result: {
+          refundRequestId,
+          merchantRefundOrderId: `MRF-${refundRequestId}`,
+          acquiringOrderId: '',
+          refundStatus: 'ORDER_REFUND_FAILED',
+          refundAmount: '10.00',
+        },
+      };
+      const wh = await postSignedWebhook(webhookBody, testKeyPair.privateKeyBase64);
+      webhookStatusCode = wh.statusCode;
+    } finally {
+      // 无论成功与否，还原原始公钥
+      await updateOption(adminCookie, 'WaffoSandboxPublicKey', originalPublicKey);
+    }
+    expect(webhookStatusCode!).toBe(200);
     await new Promise((r) => setTimeout(r, 1000));
 
     const quotaAfter = await getUserQuota(userId, adminCookie);

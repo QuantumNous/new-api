@@ -15,7 +15,15 @@
     "@playwright/test": "^1.49.0",
     "playwright": "^1.49.0"
   },
-  "keywords": ["e2e", "playwright", "waffo", "regression"],
+  "keywords": [
+    "e2e",
+    "playwright",
+    "waffo",
+    "regression"
+  ],
   "author": "",
-  "license": "AGPLv3"
+  "license": "AGPLv3",
+  "dependencies": {
+    "dotenv": "^17.3.1"
+  }
 }
