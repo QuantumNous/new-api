@@ -222,13 +222,13 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	}
 	other := taskBillingOther(task)
 	other["task_id"] = task.TaskID
-	other["reason"] = reason
+	//other["reason"] = reason
 	other["pre_consumed_quota"] = preConsumedQuota
 	other["actual_quota"] = actualQuota
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   logType,
-		Content:   "",
+		Content:   reason,
 		ChannelId: task.ChannelId,
 		ModelName: taskModelName(task),
 		Quota:     logQuota,

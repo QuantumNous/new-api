@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -487,15 +488,35 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 		}
 		// 处理路径中的负数索引
 		opPath := processNegativeIndex(result, op.Path)
+		var opPaths []string
+		if isPathBasedOperation(op.Mode) {
+			opPaths, err = resolveOperationPaths(result, opPath)
+			if err != nil {
+				return "", err
+			}
+			if len(opPaths) == 0 {
+				continue
+			}
+		}
 
 		switch op.Mode {
 		case "delete":
-			result, err = sjson.Delete(result, opPath)
-		case "set":
-			if op.KeepOrigin && gjson.Get(result, opPath).Exists() {
-				continue
+			for _, path := range opPaths {
+				result, err = deleteValue(result, path)
+				if err != nil {
+					break
+				}
 			}
-			result, err = sjson.Set(result, opPath, op.Value)
+		case "set":
+			for _, path := range opPaths {
+				if op.KeepOrigin && gjson.Get(result, path).Exists() {
+					continue
+				}
+				result, err = sjson.Set(result, path, op.Value)
+				if err != nil {
+					break
+				}
+			}
 		case "move":
 			opFrom := processNegativeIndex(result, op.From)
 			opTo := processNegativeIndex(result, op.To)
@@ -508,27 +529,82 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 			opTo := processNegativeIndex(result, op.To)
 			result, err = copyValue(result, opFrom, opTo)
 		case "prepend":
-			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, true)
+			for _, path := range opPaths {
+				result, err = modifyValue(result, path, op.Value, op.KeepOrigin, true)
+				if err != nil {
+					break
+				}
+			}
 		case "append":
-			result, err = modifyValue(result, opPath, op.Value, op.KeepOrigin, false)
+			for _, path := range opPaths {
+				result, err = modifyValue(result, path, op.Value, op.KeepOrigin, false)
+				if err != nil {
+					break
+				}
+			}
 		case "trim_prefix":
-			result, err = trimStringValue(result, opPath, op.Value, true)
+			for _, path := range opPaths {
+				result, err = trimStringValue(result, path, op.Value, true)
+				if err != nil {
+					break
+				}
+			}
 		case "trim_suffix":
-			result, err = trimStringValue(result, opPath, op.Value, false)
+			for _, path := range opPaths {
+				result, err = trimStringValue(result, path, op.Value, false)
+				if err != nil {
+					break
+				}
+			}
 		case "ensure_prefix":
-			result, err = ensureStringAffix(result, opPath, op.Value, true)
+			for _, path := range opPaths {
+				result, err = ensureStringAffix(result, path, op.Value, true)
+				if err != nil {
+					break
+				}
+			}
 		case "ensure_suffix":
-			result, err = ensureStringAffix(result, opPath, op.Value, false)
+			for _, path := range opPaths {
+				result, err = ensureStringAffix(result, path, op.Value, false)
+				if err != nil {
+					break
+				}
+			}
 		case "trim_space":
-			result, err = transformStringValue(result, opPath, strings.TrimSpace)
+			for _, path := range opPaths {
+				result, err = transformStringValue(result, path, strings.TrimSpace)
+				if err != nil {
+					break
+				}
+			}
 		case "to_lower":
-			result, err = transformStringValue(result, opPath, strings.ToLower)
+			for _, path := range opPaths {
+				result, err = transformStringValue(result, path, strings.ToLower)
+				if err != nil {
+					break
+				}
+			}
 		case "to_upper":
-			result, err = transformStringValue(result, opPath, strings.ToUpper)
+			for _, path := range opPaths {
+				result, err = transformStringValue(result, path, strings.ToUpper)
+				if err != nil {
+					break
+				}
+			}
 		case "replace":
-			result, err = replaceStringValue(result, opPath, op.From, op.To)
+			for _, path := range opPaths {
+				result, err = replaceStringValue(result, path, op.From, op.To)
+				if err != nil {
+					break
+				}
+			}
 		case "regex_replace":
-			result, err = regexReplaceStringValue(result, opPath, op.From, op.To)
+			for _, path := range opPaths {
+				result, err = regexReplaceStringValue(result, path, op.From, op.To)
+				if err != nil {
+					break
+				}
+			}
 		case "return_error":
 			returnErr, parseErr := parseParamOverrideReturnError(op.Value)
 			if parseErr != nil {
@@ -536,7 +612,12 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 			}
 			return "", returnErr
 		case "prune_objects":
-			result, err = pruneObjects(result, opPath, contextJSON, op.Value)
+			for _, path := range opPaths {
+				result, err = pruneObjects(result, path, contextJSON, op.Value)
+				if err != nil {
+					break
+				}
+			}
 		case "set_header":
 			err = setHeaderOverrideInContext(context, op.Path, op.Value, op.KeepOrigin)
 			if err == nil {
@@ -1172,6 +1253,92 @@ func copyValue(jsonStr, fromPath, toPath string) (string, error) {
 		return jsonStr, fmt.Errorf("source path does not exist: %s", fromPath)
 	}
 	return sjson.Set(jsonStr, toPath, sourceValue.Value())
+}
+
+func isPathBasedOperation(mode string) bool {
+	switch mode {
+	case "delete", "set", "prepend", "append", "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix", "trim_space", "to_lower", "to_upper", "replace", "regex_replace", "prune_objects":
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveOperationPaths(jsonStr, path string) ([]string, error) {
+	if !strings.Contains(path, "*") {
+		return []string{path}, nil
+	}
+	return expandWildcardPaths(jsonStr, path)
+}
+
+func expandWildcardPaths(jsonStr, path string) ([]string, error) {
+	var root interface{}
+	if err := common.Unmarshal([]byte(jsonStr), &root); err != nil {
+		return nil, err
+	}
+
+	segments := strings.Split(path, ".")
+	paths := collectWildcardPaths(root, segments, nil)
+	return lo.Uniq(paths), nil
+}
+
+func collectWildcardPaths(node interface{}, segments []string, prefix []string) []string {
+	if len(segments) == 0 {
+		return []string{strings.Join(prefix, ".")}
+	}
+
+	segment := strings.TrimSpace(segments[0])
+	if segment == "" {
+		return nil
+	}
+	isLast := len(segments) == 1
+
+	if segment == "*" {
+		switch typed := node.(type) {
+		case map[string]interface{}:
+			keys := lo.Keys(typed)
+			sort.Strings(keys)
+			return lo.FlatMap(keys, func(key string, _ int) []string {
+				return collectWildcardPaths(typed[key], segments[1:], append(prefix, key))
+			})
+		case []interface{}:
+			return lo.FlatMap(lo.Range(len(typed)), func(index int, _ int) []string {
+				return collectWildcardPaths(typed[index], segments[1:], append(prefix, strconv.Itoa(index)))
+			})
+		default:
+			return nil
+		}
+	}
+
+	switch typed := node.(type) {
+	case map[string]interface{}:
+		if isLast {
+			return []string{strings.Join(append(prefix, segment), ".")}
+		}
+		next, exists := typed[segment]
+		if !exists {
+			return nil
+		}
+		return collectWildcardPaths(next, segments[1:], append(prefix, segment))
+	case []interface{}:
+		index, err := strconv.Atoi(segment)
+		if err != nil || index < 0 || index >= len(typed) {
+			return nil
+		}
+		if isLast {
+			return []string{strings.Join(append(prefix, segment), ".")}
+		}
+		return collectWildcardPaths(typed[index], segments[1:], append(prefix, segment))
+	default:
+		return nil
+	}
+}
+
+func deleteValue(jsonStr, path string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return jsonStr, nil
+	}
+	return sjson.Delete(jsonStr, path)
 }
 
 func modifyValue(jsonStr, path string, value interface{}, keepOrigin, isPrepend bool) (string, error) {

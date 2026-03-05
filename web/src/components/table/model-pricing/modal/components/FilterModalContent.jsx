@@ -96,15 +96,6 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         t={t}
       />
 
-      <PricingTags
-        filterTag={filterTag}
-        setFilterTag={setFilterTag}
-        models={tagModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
-
       <PricingGroups
         filterGroup={filterGroup}
         setFilterGroup={setFilterGroup}
@@ -119,6 +110,15 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         filterQuotaType={filterQuotaType}
         setFilterQuotaType={setFilterQuotaType}
         models={quotaTypeModels}
+        loading={loading}
+        t={t}
+      />
+
+      <PricingTags
+        filterTag={filterTag}
+        setFilterTag={setFilterTag}
+        models={tagModels}
+        allModels={categoryProps.models}
         loading={loading}
         t={t}
       />
