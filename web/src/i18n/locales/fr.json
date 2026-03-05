@@ -2689,6 +2689,12 @@
     "套餐名称": "Nom du plan",
     "应付金额": "Montant à payer",
     "支付": "Payer",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Le paiement en ligne n'est pas activé par l'administrateur. Veuillez contacter l'administrateur.",
+    "waffoPrivateKeyPlaceholder": "Production RSA private key Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
+    "Pay Method Type": "Pay Method Type",
+    "Pay Method Name": "Pay Method Name"
   }
 }

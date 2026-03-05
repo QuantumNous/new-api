@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -55,7 +54,7 @@ func getWaffoUserEmail(user *model.User) string {
 	if user.Email != "" {
 		return user.Email
 	}
-	return fmt.Sprintf("user_%d@noreply.local", user.Id)
+	return fmt.Sprintf("user_%d@noemail.waffo.invalid", user.Id)
 }
 
 func getWaffoCurrency() string {
@@ -105,12 +104,6 @@ type WaffoPayRequest struct {
 	PayMethodName string `json:"pay_method_name"` // Waffo API PayMethodName，如 APPLEPAY
 }
 
-// getTopupPayMethodType returns the PayMethodType to pass to Waffo for one-time topup orders.
-// Uses the value provided by the frontend directly; empty means not specified.
-func getTopupPayMethodType(requestType string) string {
-	return requestType
-}
-
 // RequestWaffoPay 创建 Waffo 支付订单
 func RequestWaffoPay(c *gin.Context) {
 	if !setting.WaffoEnabled {
@@ -143,9 +136,9 @@ func RequestWaffoPay(c *gin.Context) {
 		return
 	}
 
-	// 生成唯一订单号
-	merchantOrderId := fmt.Sprintf("WAFFO-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(4))
-	paymentRequestId := fmt.Sprintf("PR-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
+	// 生成唯一订单号，paymentRequestId 与 merchantOrderId 保持一致，简化追踪
+	merchantOrderId := fmt.Sprintf("WAFFO-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
+	paymentRequestId := merchantOrderId
 
 	// 创建本地订单
 	topUp := &model.TopUp{
@@ -186,7 +179,7 @@ func RequestWaffoPay(c *gin.Context) {
 		MerchantOrderID:  merchantOrderId,
 		OrderAmount:      formatWaffoAmount(payMoney, currency),
 		OrderCurrency:    currency,
-		OrderDescription: fmt.Sprintf("充值 %d 额度", req.Amount),
+		OrderDescription: fmt.Sprintf("Recharge %d credits", req.Amount),
 		OrderRequestedAt: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
 		NotifyURL:        notifyUrl,
 		MerchantInfo: &order.MerchantInfo{
@@ -199,7 +192,7 @@ func RequestWaffoPay(c *gin.Context) {
 		},
 		PaymentInfo: &order.PaymentInfo{
 			ProductName:   "ONE_TIME_PAYMENT",
-			PayMethodType: getTopupPayMethodType(req.PayMethodType),
+			PayMethodType: req.PayMethodType,
 			PayMethodName: req.PayMethodName,
 		},
 		SuccessRedirectURL: returnUrl,
@@ -220,11 +213,11 @@ func RequestWaffoPay(c *gin.Context) {
 	orderData := resp.GetData()
 	log.Printf("Waffo 订单创建成功 - 用户: %d, 订单: %s, 金额: %.2f", id, merchantOrderId, payMoney)
 
-	// 存储 acquiringOrderId，退款时直接使用
+	// 存储 gatewayOrderId，退款时直接使用
 	if orderData.AcquiringOrderID != "" {
-		topUp.AcquiringOrderId = orderData.AcquiringOrderID
+		topUp.GatewayOrderId = orderData.AcquiringOrderID
 		if err := topUp.Update(); err != nil {
-			log.Printf("Waffo 保存 acquiringOrderId 失败: %v, 订单: %s", err, merchantOrderId)
+			log.Printf("Waffo 保存 gatewayOrderId 失败: %v, 订单: %s", err, merchantOrderId)
 		}
 	}
 
@@ -280,8 +273,8 @@ func WaffoWebhook(c *gin.Context) {
 
 	// 验证请求签名
 	if !wh.VerifySignature(bodyStr, signature) {
-		log.Printf("Waffo Webhook 签名验证失败")
-		sendWaffoWebhookResponse(c, wh, false, "signature verification failed")
+		log.Printf("Waffo webhook 签名验证失败")
+		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
 
@@ -302,11 +295,7 @@ func WaffoWebhook(c *gin.Context) {
 		}
 		log.Printf("Waffo Webhook - EventType: %s, MerchantOrderId: %s, OrderStatus: %s",
 			event.EventType, payload.Result.MerchantOrderID, payload.Result.OrderStatus)
-		if payload.Result.SubscriptionInfo != nil {
-			handleWaffoSubscriptionPayment(c, wh, &payload)
-		} else {
-			handleWaffoPayment(c, wh, &payload.Result.PaymentNotificationResult)
-		}
+		handleWaffoPayment(c, wh, &payload.Result.PaymentNotificationResult)
 	case core.EventRefund:
 		var notification core.RefundNotification
 		if err := json.Unmarshal(bodyBytes, &notification); err != nil {
@@ -314,24 +303,6 @@ func WaffoWebhook(c *gin.Context) {
 			return
 		}
 		handleWaffoRefund(c, wh, &notification)
-	case core.EventSubscriptionStatus:
-		var notification core.SubscriptionStatusNotification
-		if err := json.Unmarshal(bodyBytes, &notification); err != nil {
-			sendWaffoWebhookResponse(c, wh, false, "invalid subscription status payload")
-			return
-		}
-		log.Printf("Waffo Webhook - EventType: %s, MerchantSubscriptionId: %s, SubscriptionStatus: %s",
-			event.EventType, notification.Result.MerchantSubscriptionID, notification.Result.SubscriptionStatus)
-		handleWaffoSubscriptionStatus(c, wh, &notification, bodyBytes)
-	case core.EventSubscriptionPeriodChanged:
-		var notification core.SubscriptionPeriodChangedNotification
-		if err := json.Unmarshal(bodyBytes, &notification); err != nil {
-			sendWaffoWebhookResponse(c, wh, false, "invalid subscription renewal payload")
-			return
-		}
-		log.Printf("Waffo Webhook - EventType: %s, MerchantSubscriptionId: %s, SubscriptionStatus: %s",
-			event.EventType, notification.Result.MerchantSubscriptionID, notification.Result.SubscriptionStatus)
-		handleWaffoSubscriptionRenewal(c, wh, &notification, bodyBytes)
 	default:
 		log.Printf("Waffo Webhook 未知事件: %s", event.EventType)
 		sendWaffoWebhookResponse(c, wh, true, "")
@@ -415,86 +386,6 @@ func handleWaffoRefund(c *gin.Context, wh *core.WebhookHandler, notification *co
 		log.Printf("Waffo 退款处理中（异步）- RefundRequestId: %s", refundRequestId)
 	default:
 		log.Printf("Waffo 退款通知未知状态: %s, RefundRequestId: %s", refundStatus, refundRequestId)
-	}
-
-	sendWaffoWebhookResponse(c, wh, true, "")
-}
-
-// handleWaffoSubscriptionPayment 处理订阅扣款通知（PAYMENT_NOTIFICATION 中含 subscriptionInfo）。
-// 设计说明：仅记录日志，不在此处分配/续期额度。Waffo 每次订阅扣款会触发两个事件：
-//  1. PAYMENT_NOTIFICATION（含 subscriptionInfo）— 通知"钱已扣"
-//  2. SUBSCRIPTION_STATUS_NOTIFICATION（首次）或 SUBSCRIPTION_PERIOD_CHANGED_NOTIFICATION（续期）— 通知"订阅状态已变"
-// 额度分配/续期逻辑挂在第 2 个事件上（handleWaffoSubscriptionStatus / handleWaffoSubscriptionRenewal），
-// 若在此处也处理会导致重复分配额度。
-func handleWaffoSubscriptionPayment(c *gin.Context, wh *core.WebhookHandler, payload *webhookPayloadWithSubInfo) {
-	if payload.Result.OrderStatus != "PAY_SUCCESS" {
-		log.Printf("Waffo 订阅支付状态非成功: %s", payload.Result.OrderStatus)
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	subInfo := payload.Result.SubscriptionInfo
-	log.Printf("Waffo 订阅支付成功 - AcquiringOrderId: %s, SubscriptionRequest: %s, Period: %s",
-		payload.Result.AcquiringOrderID, subInfo.SubscriptionRequest, subInfo.Period)
-	sendWaffoWebhookResponse(c, wh, true, "")
-}
-
-// handleWaffoSubscriptionStatus 处理首期订阅激活 / 关单 / 取消（SUBSCRIPTION_STATUS_NOTIFICATION）
-func handleWaffoSubscriptionStatus(c *gin.Context, wh *core.WebhookHandler, notification *core.SubscriptionStatusNotification, rawBody []byte) {
-	merchantSubscriptionId := notification.Result.MerchantSubscriptionID
-
-	if merchantSubscriptionId == "" {
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	switch notification.Result.SubscriptionStatus {
-	case "ACTIVE":
-		LockOrder(merchantSubscriptionId)
-		defer UnlockOrder(merchantSubscriptionId)
-		if err := model.CompleteSubscriptionOrder(merchantSubscriptionId, string(rawBody)); err == nil {
-			log.Printf("Waffo 订阅订单完成 - MerchantSubscriptionId: %s", merchantSubscriptionId)
-		} else if !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-			log.Printf("Waffo 订阅订单处理失败: %v, MerchantSubscriptionId: %s", err, merchantSubscriptionId)
-			sendWaffoWebhookResponse(c, wh, false, "complete subscription order failed")
-			return
-		}
-	case "CLOSE", "CANCELLED", "EXPIRED":
-		LockOrder(merchantSubscriptionId)
-		defer UnlockOrder(merchantSubscriptionId)
-		if err := model.ExpireSubscriptionOrder(merchantSubscriptionId); err != nil {
-			if !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-				log.Printf("Waffo 过期订阅订单失败: %v, MerchantSubscriptionId: %s", err, merchantSubscriptionId)
-			}
-		} else {
-			log.Printf("Waffo 订阅订单已过期 - MerchantSubscriptionId: %s", merchantSubscriptionId)
-		}
-	}
-
-	sendWaffoWebhookResponse(c, wh, true, "")
-}
-
-// handleWaffoSubscriptionRenewal 处理续期扣款成功（SUBSCRIPTION_PERIOD_CHANGED_NOTIFICATION）
-func handleWaffoSubscriptionRenewal(c *gin.Context, wh *core.WebhookHandler, notification *core.SubscriptionPeriodChangedNotification, rawBody []byte) {
-	merchantSubscriptionId := notification.Result.MerchantSubscriptionID
-
-	if merchantSubscriptionId == "" {
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	LockOrder(merchantSubscriptionId)
-	defer UnlockOrder(merchantSubscriptionId)
-
-	if err := model.RenewSubscriptionOrder(merchantSubscriptionId, string(rawBody)); err != nil {
-		if !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
-			log.Printf("Waffo 订阅续期失败: %v, MerchantSubscriptionId: %s", err, merchantSubscriptionId)
-			sendWaffoWebhookResponse(c, wh, false, "renew subscription failed")
-			return
-		}
-		log.Printf("Waffo 续期订单未找到: %s", merchantSubscriptionId)
-	} else {
-		log.Printf("Waffo 订阅续期成功 - MerchantSubscriptionId: %s", merchantSubscriptionId)
 	}
 
 	sendWaffoWebhookResponse(c, wh, true, "")

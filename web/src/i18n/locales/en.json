@@ -2687,6 +2687,12 @@
     "套餐名称": "Plan Name",
     "应付金额": "Amount Due",
     "支付": "Pay",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Online payment is not enabled by the admin. Please contact the administrator."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Online payment is not enabled by the admin. Please contact the administrator.",
+    "waffoPrivateKeyPlaceholder": "Production RSA private key Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
+    "Pay Method Type": "Pay Method Type",
+    "Pay Method Name": "Pay Method Name"
   }
 }

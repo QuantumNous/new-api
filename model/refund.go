@@ -151,23 +151,34 @@ func CompleteRefund(refundRequestId string) error {
 }
 
 func FailRefund(refundRequestId string) error {
+	refundRequestIdCol := "`refund_request_id`"
+	if common.UsingPostgreSQL {
+		refundRequestIdCol = `"refund_request_id"`
+	}
+
 	return DB.Transaction(func(tx *gorm.DB) error {
-		// 更新退款状态为 failed
-		if err := tx.Model(&Refund{}).
-			Where("refund_request_id = ?", refundRequestId).
-			Updates(map[string]interface{}{
-				"status":        common.RefundStatusFailed,
-				"complete_time": common.GetTimestamp(),
-			}).Error; err != nil {
+		// Step 1: 先查到 refund 记录（FOR UPDATE 防并发）
+		refund := &Refund{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where(refundRequestIdCol+" = ?", refundRequestId).
+			First(refund).Error; err != nil {
+			return nil // 记录不存在，无需处理
+		}
+
+		// 幂等：已终态直接返回
+		if refund.Status == common.RefundStatusSuccess || refund.Status == common.RefundStatusFailed {
+			return nil
+		}
+
+		// Step 2: 更新退款状态为 failed
+		if err := tx.Model(refund).Updates(map[string]interface{}{
+			"status":        common.RefundStatusFailed,
+			"complete_time": common.GetTimestamp(),
+		}).Error; err != nil {
 			return err
 		}
 
-		// 找到对应的 TopUp，回滚状态
-		var refund Refund
-		if err := tx.Where("refund_request_id = ?", refundRequestId).First(&refund).Error; err != nil {
-			return nil // 找不到记录则跳过
-		}
-
+		// Step 3: 找到对应的 TopUp，回滚状态
 		topUp := &TopUp{}
 		if err := tx.Where("id = ?", refund.TopUpId).First(topUp).Error; err != nil {
 			return nil
@@ -183,7 +194,6 @@ func FailRefund(refundRequestId string) error {
 		if pendingCount > 0 {
 			newTopUpStatus = common.TopUpStatusRefunding
 		} else {
-			// 根据已成功退款金额决定状态
 			var totalRefunded float64
 			tx.Model(&Refund{}).
 				Where("top_up_id = ? AND status = ?", refund.TopUpId, common.RefundStatusSuccess).

@@ -9,13 +9,13 @@ export default defineConfig({
   testDir: './e2e/tests',
 
   /* 最大失败次数 */
-  maxFailures: 5,
+  maxFailures: 20,
 
   /* 并行执行的 worker 数量 */
   workers: 1,
 
-  /* 测试超时时间（支付流程最长需要 5 分钟） */
-  timeout: 300_000,
+  /* 测试超时时间 */
+  timeout: 60_000,
   expect: {
     timeout: 10 * 1000,
   },

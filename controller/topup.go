@@ -51,9 +51,15 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	// 如果启用了 Waffo 支付，添加到支付方法列表
-	enableWaffo := setting.WaffoEnabled && setting.WaffoApiKey != "" && setting.WaffoPrivateKey != "" &&
-		((setting.WaffoSandbox && setting.WaffoSandboxPublicKey != "") ||
-			(!setting.WaffoSandbox && setting.WaffoPublicKey != ""))
+	enableWaffo := setting.WaffoEnabled &&
+		((!setting.WaffoSandbox &&
+			setting.WaffoApiKey != "" &&
+			setting.WaffoPrivateKey != "" &&
+			setting.WaffoPublicKey != "") ||
+			(setting.WaffoSandbox &&
+				setting.WaffoSandboxApiKey != "" &&
+				setting.WaffoSandboxPrivateKey != "" &&
+				setting.WaffoSandboxPublicKey != ""))
 	if enableWaffo {
 		hasWaffo := false
 		for _, method := range payMethods {
@@ -258,6 +264,7 @@ func UnlockOrder(tradeNo string) {
 	lock, ok := orderLocks.Load(tradeNo)
 	if ok {
 		lock.(*sync.Mutex).Unlock()
+		orderLocks.Delete(tradeNo) // 防止 sync.Map 无限增长
 	}
 }
 
@@ -484,24 +491,15 @@ func AdminRefundTopUp(c *gin.Context) {
 		return
 	}
 
+	// 校验 QuotaDeduction 不超过订单原始发放额度
+	maxQuota := int64(float64(topUp.Amount) * common.QuotaPerUnit)
+	if req.QuotaDeduction > maxQuota {
+		common.ApiErrorMsg(c, fmt.Sprintf("扣减额度不能超过订单原始额度 %d", maxQuota))
+		return
+	}
+
 	LockOrder(topUp.TradeNo)
 	defer UnlockOrder(topUp.TradeNo)
-
-	totalRefunded, err := model.GetTotalRefundedByTopUpId(req.TopUpId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	pendingAmount, err := model.GetPendingRefundAmountByTopUpId(req.TopUpId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	remaining := topUp.Money - totalRefunded - pendingAmount
-	if req.RefundAmount > remaining+0.001 {
-		common.ApiErrorMsg(c, fmt.Sprintf("退款金额超出可退余额 %.2f", remaining))
-		return
-	}
 
 	sdk, err := getWaffoSDK()
 	if err != nil {
@@ -509,11 +507,11 @@ func AdminRefundTopUp(c *gin.Context) {
 		return
 	}
 
-	// 使用创建订单时存储的 acquiringOrderId
-	acquiringOrderId := topUp.AcquiringOrderId
+	// 使用创建订单时存储的 gatewayOrderId
+	acquiringOrderId := topUp.GatewayOrderId
 	if acquiringOrderId == "" {
-		log.Printf("Waffo 订单缺少 acquiringOrderId，无法退款, TopUpId: %d, TradeNo: %s", req.TopUpId, topUp.TradeNo)
-		common.ApiErrorMsg(c, "该订单不支持退款（缺少 acquiringOrderId）")
+		log.Printf("Waffo 订单缺少 gatewayOrderId，无法退款, TopUpId: %d, TradeNo: %s", req.TopUpId, topUp.TradeNo)
+		common.ApiErrorMsg(c, "该订单不支持退款（缺少 gatewayOrderId）")
 		return
 	}
 
@@ -536,6 +534,7 @@ func AdminRefundTopUp(c *gin.Context) {
 	}
 
 	// 先写 DB，再调 Waffo SDK：防止 Waffo 沙盒响应极快时 webhook 先于记录到达造成 race condition
+	// 在 DB 事务内原子校验余额并写入退款记录（FOR UPDATE 防多节点并发超退）
 	refund := &model.Refund{
 		TopUpId:         req.TopUpId,
 		UserId:          topUp.UserId,
@@ -547,9 +546,9 @@ func AdminRefundTopUp(c *gin.Context) {
 		OperatorId:      operatorId,
 		CreateTime:      time.Now().Unix(),
 	}
-	if err := model.InsertRefund(refund); err != nil {
+	if err := model.InsertRefundIfSufficient(req.TopUpId, req.RefundAmount, refund); err != nil {
 		log.Printf("Waffo 退款记录写入失败: %v, RefundRequestId: %s", err, refundRequestId)
-		common.ApiErrorMsg(c, "退款记录创建失败")
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 
@@ -569,11 +568,9 @@ func AdminRefundTopUp(c *gin.Context) {
 	}
 
 	// 立即将 TopUp 状态更新为"退款中"
-	if topUp.Status == common.TopUpStatusSuccess || topUp.Status == common.TopUpStatusPartialRefunded {
-		topUp.Status = common.TopUpStatusRefunding
-		if err := topUp.Update(); err != nil {
-			log.Printf("Waffo 更新 TopUp 状态为 refunding 失败: %v, TopUpId: %d", err, req.TopUpId)
-		}
+	if err := model.UpdateTopUpStatusToRefunding(req.TopUpId); err != nil {
+		log.Printf("Waffo 更新 TopUp 状态为 refunding 失败: %v, TopUpId: %d", err, req.TopUpId)
+		// 状态更新失败不影响退款流程，记录日志继续
 	}
 
 	log.Printf("Waffo 退款已发起 - TopUpId: %d, RefundRequestId: %s, Amount: %.2f", req.TopUpId, refundRequestId, req.RefundAmount)

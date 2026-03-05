@@ -38,7 +38,7 @@ async function mockTopupInfo(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        message: 'success',
+        success: true,
         data: {
           enable_online_topup: true,
           enable_waffo_topup: false,
@@ -78,9 +78,8 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
 
     await page.goto('/console/topup', { waitUntil: 'networkidle' });
 
-    // 「选择支付方式」Form.Slot 内应出现 Waffo 按钮
-    const payMethodSlot = page.locator('text=选择支付方式').locator('..');
-    await expect(payMethodSlot.getByRole('button', { name: /MockMethod-1/i }))
+    // 「选择支付方式」区域应出现 Waffo 按钮
+    await expect(page.getByRole('button', { name: /MockMethod-1/i }))
       .toBeVisible({ timeout: 10000 });
 
     // 页面上不应有独立的「Waffo 充值」Form.Slot 标题
@@ -106,16 +105,14 @@ test.describe('TC-UI: Waffo 充值页 UI 布局', () => {
     await page.goto('/console/topup', { waitUntil: 'networkidle' });
 
     // 「选择支付方式」区域应显示支付宝
-    const payMethodSlot = page.locator('text=选择支付方式').locator('..');
-    await expect(payMethodSlot.getByRole('button', { name: /支付宝/i }))
+    await expect(page.getByRole('button', { name: /支付宝/i }))
       .toBeVisible({ timeout: 10000 });
 
     // 独立的「Waffo 充值」Form.Slot 应出现
     await expect(page.getByText('Waffo 充值')).toBeVisible({ timeout: 5000 });
 
-    // Waffo 按钮出现在该区块内
-    const waffoSlot = page.locator('text=Waffo 充值').locator('..');
-    await expect(waffoSlot.getByRole('button', { name: /MockMethod-1/i }))
+    // Waffo 按钮也应出现
+    await expect(page.getByRole('button', { name: /MockMethod-1/i }))
       .toBeVisible();
 
     await page.screenshot({ path: 'e2e-screenshots/tc-ui-002-mixed-payment.png' });

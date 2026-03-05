@@ -2702,6 +2702,12 @@
     "套餐名称": "Название плана",
     "应付金额": "К оплате",
     "支付": "Оплатить",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Онлайн-оплата не включена администратором. Пожалуйста, свяжитесь с администратором."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Онлайн-оплата не включена администратором. Пожалуйста, свяжитесь с администратором.",
+    "waffoPrivateKeyPlaceholder": "Production RSA private key Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
+    "Pay Method Type": "Pay Method Type",
+    "Pay Method Name": "Pay Method Name"
   }
 }

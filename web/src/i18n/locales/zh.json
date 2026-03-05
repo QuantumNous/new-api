@@ -2675,6 +2675,12 @@
     "套餐名称": "套餐名称",
     "应付金额": "应付金额",
     "支付": "支付",
-    "管理员未开启在线支付功能，请联系管理员配置。": "管理员未开启在线支付功能，请联系管理员配置。"
+    "管理员未开启在线支付功能，请联系管理员配置。": "管理员未开启在线支付功能，请联系管理员配置。",
+    "waffoPrivateKeyPlaceholder": "生产环境 RSA 私钥 Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "沙盒环境 RSA 私钥 Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "生产环境 Waffo 公钥 Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "沙盒环境 Waffo 公钥 Base64 (X.509 DER)",
+    "Pay Method Type": "支付方式类型",
+    "Pay Method Name": "支付方式名称"
   }
 }

@@ -2672,6 +2672,12 @@
     "套餐名称": "プラン名",
     "应付金额": "支払金額",
     "支付": "支払う",
-    "管理员未开启在线支付功能，请联系管理员配置。": "管理者がオンライン決済を有効にしていません。管理者に連絡してください。"
+    "管理员未开启在线支付功能，请联系管理员配置。": "管理者がオンライン決済を有効にしていません。管理者に連絡してください。",
+    "waffoPrivateKeyPlaceholder": "Production RSA private key Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
+    "Pay Method Type": "Pay Method Type",
+    "Pay Method Name": "Pay Method Name"
   }
 }

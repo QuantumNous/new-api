@@ -24,7 +24,7 @@ import * as fs from 'fs';
  * 返回"支付方式"区块的 Locator（用于后续操作范围限定）。
  */
 async function goToWaffoPayMethodsSection(page: Page) {
-  await page.goto('/console/setting', { waitUntil: 'networkidle' });
+  await page.goto('/console/setting', { waitUntil: 'load' });
   // 切换到「支付设置」选项卡
   await page.locator('text=/支付设置|Payment.*Setting/i').first().click();
   // 等待 Waffo 设置区域加载
@@ -35,8 +35,8 @@ async function goToWaffoPayMethodsSection(page: Page) {
 
 /** 打开「添加支付方式」弹窗，等待输入框就绪 */
 async function openAddModal(page: Page) {
-  await page.getByRole('button', { name: /添加支付方式/i }).click();
-  await expect(page.getByText('显示名称')).toBeVisible({ timeout: 5000 });
+  await page.getByRole('button', { name: /新增支付方式/i }).click();
+  await expect(page.locator('.semi-modal-content').getByText('显示名称')).toBeVisible({ timeout: 5000 });
 }
 
 /**
@@ -48,13 +48,14 @@ async function fillPayMethodModal(
   opts: { name: string; payMethodType?: string; payMethodName?: string }
 ) {
   // 显示名称输入框：在模态框范围内查找（有多个 Input 同名）
+  // 用 input[type="text"] 排除隐藏的 file input（图标上传）
   const modal = page.locator('.semi-modal-content');
-  await modal.locator('input').first().fill(opts.name);
+  await modal.locator('input[type="text"]').first().fill(opts.name);
   if (opts.payMethodType) {
-    await modal.locator('input').nth(1).fill(opts.payMethodType);
+    await modal.locator('input[type="text"]').nth(1).fill(opts.payMethodType);
   }
   if (opts.payMethodName) {
-    await modal.locator('input').nth(2).fill(opts.payMethodName);
+    await modal.locator('input[type="text"]').nth(2).fill(opts.payMethodName);
   }
   await page.getByRole('button', { name: '确定' }).click();
 }

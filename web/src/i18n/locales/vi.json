@@ -3250,6 +3250,12 @@
     "套餐名称": "Tên gói",
     "应付金额": "Số tiền phải trả",
     "支付": "Thanh toán",
-    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên."
+    "管理员未开启在线支付功能，请联系管理员配置。": "Quản trị viên chưa bật thanh toán trực tuyến, vui lòng liên hệ quản trị viên.",
+    "waffoPrivateKeyPlaceholder": "Production RSA private key Base64 (PKCS#8 DER)",
+    "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
+    "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
+    "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
+    "Pay Method Type": "Pay Method Type",
+    "Pay Method Name": "Pay Method Name"
   }
 }

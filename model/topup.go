@@ -17,7 +17,7 @@ type TopUp struct {
 	Amount           int64   `json:"amount"`
 	Money            float64 `json:"money"`
 	TradeNo          string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	AcquiringOrderId string  `json:"acquiring_order_id" gorm:"type:varchar(255)"`
+	GatewayOrderId string  `json:"gateway_order_id" gorm:"type:varchar(255)"`
 	PaymentMethod    string  `json:"payment_method" gorm:"type:varchar(50)"`
 	CreateTime       int64   `json:"create_time"`
 	CompleteTime     int64   `json:"complete_time"`
@@ -376,6 +376,69 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money))
 
 	return nil
+}
+
+// UpdateTopUpStatusToRefunding 将 TopUp 状态更新为 refunding（退款进行中）。
+// 使用条件更新保证幂等，失败时返回错误（不静默忽略）。
+func UpdateTopUpStatusToRefunding(id int) error {
+	result := DB.Model(&TopUp{}).
+		Where("id = ? AND status IN ?", id, []string{
+			common.TopUpStatusSuccess,
+			common.TopUpStatusPartialRefunded,
+		}).
+		Update("status", common.TopUpStatusRefunding)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("topup %d 状态更新失败（已变更或不存在）", id)
+	}
+	return nil
+}
+
+// InsertRefundIfSufficient 在 DB 事务内原子校验退款余额并写入退款记录。
+// 使用 SELECT ... FOR UPDATE 锁住 TopUp 行，防止多节点并发场景下超退。
+// 注意：SQLite 不支持 FOR UPDATE，在单节点部署下由 controller 层的 LockOrder 提供保护。
+func InsertRefundIfSufficient(topUpId int, refundAmount float64, refund *Refund) error {
+	topUpIdCol := "`id`"
+	if common.UsingPostgreSQL {
+		topUpIdCol = `"id"`
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// 锁住 TopUp 行，阻塞其他并发退款请求（MySQL/PostgreSQL 生效，SQLite 忽略）
+		var topUp TopUp
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where(topUpIdCol+" = ?", topUpId).
+			First(&topUp).Error; err != nil {
+			return fmt.Errorf("充值订单不存在: %w", err)
+		}
+
+		// 在事务内读取已成功退款总额
+		var totalRefunded float64
+		if err := tx.Model(&Refund{}).
+			Where("top_up_id = ? AND status = ?", topUpId, common.RefundStatusSuccess).
+			Select("COALESCE(SUM(refund_amount), 0)").
+			Scan(&totalRefunded).Error; err != nil {
+			return err
+		}
+
+		// 在事务内读取进行中退款总额
+		var pending float64
+		if err := tx.Model(&Refund{}).
+			Where("top_up_id = ? AND status = ?", topUpId, common.RefundStatusPending).
+			Select("COALESCE(SUM(refund_amount), 0)").
+			Scan(&pending).Error; err != nil {
+			return err
+		}
+
+		remaining := topUp.Money - totalRefunded - pending
+		if refundAmount > remaining+0.001 {
+			return fmt.Errorf("退款金额 %.2f 超出可退余额 %.2f", refundAmount, remaining)
+		}
+
+		return tx.Create(refund).Error
+	})
 }
 
 func RechargeWaffo(tradeNo string) (err error) {

@@ -302,12 +302,12 @@ export default function SettingsPaymentGatewayWaffo(props) {
         ),
     },
     {
-      title: t('payMethodType'),
+      title: t('Pay Method Type'),
       dataIndex: 'payMethodType',
       render: (text) => text || <Text type='tertiary'>—</Text>,
     },
     {
-      title: t('payMethodName'),
+      title: t('Pay Method Name'),
       dataIndex: 'payMethodName',
       render: (text) => text || <Text type='tertiary'>—</Text>,
     },
@@ -412,7 +412,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPrivateKey'
                 label={t('RSA 私钥 (生产)')}
-                placeholder='生产环境 RSA 私钥 Base64 (PKCS#8 DER)'
+                placeholder={t('waffoPrivateKeyPlaceholder')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -421,7 +421,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPrivateKey'
                 label={t('RSA 私钥 (沙盒)')}
-                placeholder='沙盒环境 RSA 私钥 Base64 (PKCS#8 DER)'
+                placeholder={t('waffoSandboxPrivateKeyPlaceholder')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -433,7 +433,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPublicKey'
                 label={t('Waffo 公钥 (生产)')}
-                placeholder='生产环境 Waffo 公钥 Base64 (X.509 DER)'
+                placeholder={t('waffoPublicKeyPlaceholder')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -442,7 +442,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPublicKey'
                 label={t('Waffo 公钥 (沙盒)')}
-                placeholder='沙盒环境 Waffo 公钥 Base64 (X.509 DER)'
+                placeholder={t('waffoSandboxPublicKeyPlaceholder')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -594,7 +594,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
-              <Text strong>payMethodType</Text>
+              <Text strong>{t('Pay Method Type')}</Text>
             </div>
             <Input
               value={payMethodForm.payMethodType}
@@ -605,7 +605,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
-              <Text strong>payMethodName</Text>
+              <Text strong>{t('Pay Method Name')}</Text>
             </div>
             <Input
               value={payMethodForm.payMethodName}
