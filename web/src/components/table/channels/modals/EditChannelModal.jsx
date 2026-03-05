@@ -1213,6 +1213,22 @@ const EditChannelModal = (props) => {
 
   useEffect(() => {
     const modelMap = new Map();
+    const appendModels = (models) => {
+      if (!Array.isArray(models)) {
+        return;
+      }
+      models.forEach((model) => {
+        const v = String(model || '').trim();
+        if (!v || modelMap.has(v)) {
+          return;
+        }
+        modelMap.set(v, {
+          key: v,
+          label: v,
+          value: v,
+        });
+      });
+    };
     const channelPresetModels = getChannelModels(inputs.type);
     const presetModels = Array.isArray(channelPresetModels)
       ? channelPresetModels
@@ -1220,33 +1236,20 @@ const EditChannelModal = (props) => {
 
     originModelOptions.forEach((option) => {
       const v = (option.value || '').trim();
+      if (!v) {
+        return;
+      }
       if (!modelMap.has(v)) {
         modelMap.set(v, option);
       }
     });
 
-    presetModels.forEach((model) => {
-      const v = String(model || '').trim();
-      if (!v || modelMap.has(v)) {
-        return;
-      }
-      modelMap.set(v, {
-        key: v,
-        label: v,
-        value: v,
-      });
-    });
-
-    inputs.models.forEach((model) => {
-      const v = (model || '').trim();
-      if (!modelMap.has(v)) {
-        modelMap.set(v, {
-          key: v,
-          label: v,
-          value: v,
-        });
-      }
-    });
+    appendModels(presetModels);
+    appendModels(fullModels);
+    appendModels(basicModels);
+    appendModels(fetchedModels);
+    appendModels(formApiRef.current?.getValue('models'));
+    appendModels(inputs.models);
 
     const categories = getModelCategories(t);
     const optionsWithIcon = Array.from(modelMap.values()).map((opt) => {
@@ -1270,7 +1273,15 @@ const EditChannelModal = (props) => {
     });
 
     setModelOptions(optionsWithIcon);
-  }, [originModelOptions, inputs.models, inputs.type, t]);
+  }, [
+    originModelOptions,
+    fullModels,
+    basicModels,
+    fetchedModels,
+    inputs.models,
+    inputs.type,
+    t,
+  ]);
 
   useEffect(() => {
     fetchModels().then();
