@@ -166,7 +166,10 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 				return nil, fmt.Errorf("BudgetTokens is nil when thinking is enabled")
 			}
 
-			reasoning := dto.OpenRouterRequestReasoning{MaxTokens: *thinking.BudgetTokens}
+			reasoning := dto.OpenRouterRequestReasoning{
+				Enabled:   true,
+				MaxTokens: *thinking.BudgetTokens,
+			}
 			marshal, err := common.Marshal(reasoning)
 			if err != nil {
 				return nil, fmt.Errorf("error marshalling reasoning: %w", err)

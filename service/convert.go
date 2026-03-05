@@ -33,22 +33,40 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 
 	isOpenRouter := info.ChannelType == constant.ChannelTypeOpenRouter
 
-	if claudeRequest.Thinking != nil && claudeRequest.Thinking.Type == "enabled" {
-		if isOpenRouter {
-			reasoning := dto.OpenRouterRequestReasoning{
-				MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
-			}
-			reasoningJSON, err := json.Marshal(reasoning)
+	if isOpenRouter {
+		if effort := claudeRequest.GetEfforts(); effort != "" {
+			effortBytes, err := json.Marshal(effort)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
+				return nil, fmt.Errorf("failed to marshal verbosity: %w", err)
 			}
-			openAIRequest.Reasoning = reasoningJSON
-		} else {
-			thinkingSuffix := "-thinking"
-			if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
-				!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
-				openAIRequest.Model = openAIRequest.Model + thinkingSuffix
+			openAIRequest.Verbosity = effortBytes
+		}
+		if claudeRequest.Thinking != nil {
+			var reasoning *dto.OpenRouterRequestReasoning
+			switch claudeRequest.Thinking.Type {
+			case "enabled":
+				reasoning = &dto.OpenRouterRequestReasoning{
+					Enabled:   true,
+					MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
+				}
+			case "adaptive":
+				reasoning = &dto.OpenRouterRequestReasoning{
+					Enabled: true,
+				}
 			}
+			if reasoning != nil {
+				reasoningJSON, err := json.Marshal(reasoning)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
+				}
+				openAIRequest.Reasoning = reasoningJSON
+			}
+		}
+	} else {
+		thinkingSuffix := "-thinking"
+		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
+			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
+			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
 		}
 	}
 
