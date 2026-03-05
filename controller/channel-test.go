@@ -47,6 +47,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
+	if common.IsImageGenerationModel(modelName) {
+		return string(constant.EndpointTypeImageGeneration)
+	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
@@ -297,6 +300,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	case relayconstant.RelayModeImagesGenerations:
 		// 图像生成请求 - request 已经是正确的类型
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			if strings.Contains(testModel, "seedream-") {
+				imageReq.Size = "2048x2048" // VolcEngine Seedream-4.5 和 5.0 模型需要至少 2048x2048 的图片尺寸 见:https://www.volcengine.com/docs/82379/1824121
+			}
 			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
 		} else {
 			return testResult{
