@@ -1213,12 +1213,28 @@ const EditChannelModal = (props) => {
 
   useEffect(() => {
     const modelMap = new Map();
+    const channelPresetModels = getChannelModels(inputs.type);
+    const presetModels = Array.isArray(channelPresetModels)
+      ? channelPresetModels
+      : [];
 
     originModelOptions.forEach((option) => {
       const v = (option.value || '').trim();
       if (!modelMap.has(v)) {
         modelMap.set(v, option);
       }
+    });
+
+    presetModels.forEach((model) => {
+      const v = String(model || '').trim();
+      if (!v || modelMap.has(v)) {
+        return;
+      }
+      modelMap.set(v, {
+        key: v,
+        label: v,
+        value: v,
+      });
     });
 
     inputs.models.forEach((model) => {
@@ -1254,7 +1270,7 @@ const EditChannelModal = (props) => {
     });
 
     setModelOptions(optionsWithIcon);
-  }, [originModelOptions, inputs.models, t]);
+  }, [originModelOptions, inputs.models, inputs.type, t]);
 
   useEffect(() => {
     fetchModels().then();
