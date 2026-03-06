@@ -181,36 +181,145 @@ const ModelPricingTable = ({
     );
   };
 
-  return (
-    <Card className='!rounded-2xl shadow-sm border-0'>
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='orange' className='mr-2 shadow-md'>
-          <IconCoinMoneyStroked size={16} />
-        </Avatar>
-        <div>
-          <Text className='text-lg font-medium'>{t('分组价格')}</Text>
-          <div className='text-xs text-gray-600'>
-            {t('不同用户分组的价格信息')}
+  const formatTokenCount = (count) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(0)}K`;
+    return String(count);
+  };
+
+  const renderTieredPricing = () => {
+    const tiers = modelData?.tiered_pricing;
+    if (!tiers || tiers.length === 0 || modelData?.quota_type !== 0) return null;
+
+    // Build tier ranges: base tier + defined tiers
+    const baseModelRatio = modelData.model_ratio || 0;
+    const baseCompletionRatio = modelData.completion_ratio || 1;
+    const allTiers = [];
+
+    // Determine the first tier's upper bound
+    const firstThreshold = tiers[0]?.threshold || 0;
+    allTiers.push({
+      label: `0 - ${formatTokenCount(firstThreshold)}`,
+      modelRatio: baseModelRatio,
+      completionRatio: baseCompletionRatio,
+    });
+
+    tiers.forEach((tier, idx) => {
+      const nextThreshold = idx < tiers.length - 1 ? tiers[idx + 1].threshold : null;
+      const label = nextThreshold
+        ? `${formatTokenCount(tier.threshold + 1)} - ${formatTokenCount(nextThreshold)}`
+        : `${formatTokenCount(tier.threshold + 1)}+`;
+      allTiers.push({
+        label,
+        modelRatio: tier.model_ratio,
+        completionRatio: tier.completion_ratio,
+      });
+    });
+
+    // Use the first available group ratio
+    let usedGroupRatio = 1;
+    const availableGroups = Object.keys(usableGroup || {})
+      .filter((g) => g !== '' && g !== 'auto')
+      .filter((g) => modelEnableGroups.includes(g));
+    if (availableGroups.length > 0) {
+      const firstGroup = availableGroups[0];
+      usedGroupRatio = groupRatio?.[firstGroup] ?? 1;
+    }
+
+    let symbol = '$';
+    if (currency === 'CNY') symbol = '¥';
+
+    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+    const unitLabel = tokenUnit === 'K' ? '1K' : '1M';
+
+    return (
+      <Card className='!rounded-2xl shadow-sm border-0 mt-4'>
+        <div className='flex items-center mb-2'>
+          <Avatar size='small' color='green' className='mr-2 shadow-md'>
+            <IconCoinMoneyStroked size={16} />
+          </Avatar>
+          <div>
+            <Text className='text-lg font-medium'>{t('分段计费')}</Text>
+            <div className='text-xs text-gray-600'>
+              {t('基于 prompt 侧 token 数量')}
+            </div>
           </div>
         </div>
-      </div>
-      {autoChain.length > 0 && (
-        <div className='flex flex-wrap items-center gap-1 mb-4'>
-          <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
-          <span className='text-sm'>→</span>
-          {autoChain.map((g, idx) => (
-            <React.Fragment key={g}>
-              <Tag color='white' size='small' shape='circle'>
-                {g}
-                {t('分组')}
-              </Tag>
-              {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
-            </React.Fragment>
-          ))}
+        <div className='grid gap-3' style={{ gridTemplateColumns: `repeat(${allTiers.length}, 1fr)` }}>
+          {allTiers.map((tier, idx) => {
+            const inputPriceUSD = tier.modelRatio * 2 * usedGroupRatio;
+            const outputPriceUSD = tier.modelRatio * tier.completionRatio * 2 * usedGroupRatio;
+            const numInput = (currency === 'CNY' ? inputPriceUSD * 7.3 : inputPriceUSD) / unitDivisor;
+            const numOutput = (currency === 'CNY' ? outputPriceUSD * 7.3 : outputPriceUSD) / unitDivisor;
+
+            return (
+              <div
+                key={idx}
+                className='rounded-xl p-3'
+                style={{
+                  border: '1px solid var(--semi-color-border)',
+                  backgroundColor: idx > 0 ? 'var(--semi-color-warning-light-default)' : 'var(--semi-color-fill-0)',
+                }}
+              >
+                <div className='flex items-center justify-between mb-2'>
+                  <Text strong className='text-sm'>{tier.label}</Text>
+                  <Text type='tertiary' className='text-xs'>per {unitLabel} tokens</Text>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div>
+                    <div className='text-xs text-gray-500'>{t('输入')}</div>
+                    <div className='font-semibold text-orange-600'>
+                      {symbol}{numInput.toFixed(4)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-xs text-gray-500'>{t('输出')}</div>
+                    <div className='font-semibold text-orange-600'>
+                      {symbol}{numOutput.toFixed(4)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      )}
-      {renderGroupPriceTable()}
-    </Card>
+      </Card>
+    );
+  };
+
+  return (
+    <>
+      <Card className='!rounded-2xl shadow-sm border-0'>
+        <div className='flex items-center mb-4'>
+          <Avatar size='small' color='orange' className='mr-2 shadow-md'>
+            <IconCoinMoneyStroked size={16} />
+          </Avatar>
+          <div>
+            <Text className='text-lg font-medium'>{t('分组价格')}</Text>
+            <div className='text-xs text-gray-600'>
+              {t('不同用户分组的价格信息')}
+            </div>
+          </div>
+        </div>
+        {autoChain.length > 0 && (
+          <div className='flex flex-wrap items-center gap-1 mb-4'>
+            <span className='text-sm text-gray-600'>{t('auto分组调用链路')}</span>
+            <span className='text-sm'>→</span>
+            {autoChain.map((g, idx) => (
+              <React.Fragment key={g}>
+                <Tag color='white' size='small' shape='circle'>
+                  {g}
+                  {t('分组')}
+                </Tag>
+                {idx < autoChain.length - 1 && <span className='text-sm'>→</span>}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        {renderGroupPriceTable()}
+      </Card>
+      {renderTieredPricing()}
+    </>
   );
 };
 

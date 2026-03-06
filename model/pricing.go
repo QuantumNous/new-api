@@ -15,19 +15,20 @@ import (
 )
 
 type Pricing struct {
-	ModelName              string                  `json:"model_name"`
-	Description            string                  `json:"description,omitempty"`
-	Icon                   string                  `json:"icon,omitempty"`
-	Tags                   string                  `json:"tags,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
-	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
-	ModelPrice             float64                 `json:"model_price"`
-	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
-	EnableGroup            []string                `json:"enable_groups"`
-	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
-	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	ModelName              string                                    `json:"model_name"`
+	Description            string                                    `json:"description,omitempty"`
+	Icon                   string                                    `json:"icon,omitempty"`
+	Tags                   string                                    `json:"tags,omitempty"`
+	VendorID               int                                       `json:"vendor_id,omitempty"`
+	QuotaType              int                                       `json:"quota_type"`
+	ModelRatio             float64                                   `json:"model_ratio"`
+	ModelPrice             float64                                   `json:"model_price"`
+	OwnerBy                string                                    `json:"owner_by"`
+	CompletionRatio        float64                                   `json:"completion_ratio"`
+	EnableGroup            []string                                  `json:"enable_groups"`
+	SupportedEndpointTypes []constant.EndpointType                   `json:"supported_endpoint_types"`
+	PricingVersion         string                                    `json:"pricing_version,omitempty"`
+	TieredPricing          []ratio_setting.TieredPricingTier         `json:"tiered_pricing,omitempty"`
 }
 
 type PricingVendor struct {
@@ -296,6 +297,10 @@ func updatePricing() {
 			pricing.ModelRatio = modelRatio
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
+			// Add tiered pricing if available
+			if tiers := ratio_setting.GetTieredPricing(model); tiers != nil {
+				pricing.TieredPricing = tiers
+			}
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

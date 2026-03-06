@@ -172,6 +172,14 @@ const PricingCardView = ({
       );
     }
 
+    // 分段计费标签
+    const hasTiered = record.tiered_pricing && record.tiered_pricing.length > 0;
+    const tieredTag = hasTiered ? (
+      <Tag key='tiered' shape='circle' color='green' size='small'>
+        {t('分段计费')}
+      </Tag>
+    ) : null;
+
     // 自定义标签（右边）
     const customTags = [];
     if (record.tags) {
@@ -192,7 +200,7 @@ const PricingCardView = ({
 
     return (
       <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>{billingTag}</div>
+        <div className='flex items-center gap-2'>{billingTag}{tieredTag}</div>
         <div className='flex items-center gap-1'>
           {customTags.length > 0 &&
             renderLimitedItems({

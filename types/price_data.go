@@ -25,6 +25,10 @@ type PriceData struct {
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+	HasTieredPricing     bool    // 是否启用了分段计费
+	TieredModelRatio     float64 // 分段计费时的模型倍率（覆盖 ModelRatio）
+	TieredCompletionRatio float64 // 分段计费时的补全倍率（覆盖 CompletionRatio）
+	TieredCacheRatio     float64 // 分段计费时的缓存倍率（覆盖 CacheRatio）
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

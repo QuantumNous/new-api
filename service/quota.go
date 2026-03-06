@@ -272,6 +272,17 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 		promptTokens -= cacheCreationTokens
 	}
 
+	// Tiered pricing: resolve based on prompt-side tokens
+	promptSideTokens := promptTokens + cacheTokens + cacheCreationTokens
+	if relayInfo.PriceData.HasTieredPricing && !relayInfo.PriceData.UsePrice {
+		tier := ratio_setting.ResolveTieredPricing(relayInfo.OriginModelName, promptSideTokens)
+		if tier != nil {
+			modelRatio = tier.ModelRatio
+			completionRatio = tier.CompletionRatio
+			cacheRatio = tier.CacheRatio
+		}
+	}
+
 	calculateQuota := 0.0
 	if !relayInfo.PriceData.UsePrice {
 		calculateQuota = float64(promptTokens)

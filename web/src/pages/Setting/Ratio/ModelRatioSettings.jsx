@@ -48,6 +48,7 @@ export default function ModelRatioSettings(props) {
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
+    TieredPricing: '',
     ExposeRatioEnabled: false,
   });
   const refForm = useRef();
@@ -315,6 +316,32 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, AudioCompletionRatio: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('分段计费')}
+              extraText={t(
+                '基于 prompt 侧 token 数的分段计费，当 prompt tokens 超过阈值时使用不同的倍率。键为模型名称，值为分段数组',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，例如：{"gpt-4.1": [{"threshold": 200000, "model_ratio": 2.0, "completion_ratio": 2.0, "cache_ratio": 0.5}]}',
+              )}
+              field={'TieredPricing'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, TieredPricing: value })
               }
             />
           </Col>

@@ -61,6 +61,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
+	var hasTieredPricing bool
+	var tieredModelRatio, tieredCompletionRatio, tieredCacheRatio float64
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
@@ -87,8 +89,20 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		imageRatio, _ = ratio_setting.GetImageRatio(info.OriginModelName)
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
-		ratio := modelRatio * groupRatioInfo.GroupRatio
-		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
+
+		// Check tiered pricing: use highest tier for conservative pre-consumption
+		if highestTier := ratio_setting.GetHighestTier(info.OriginModelName); highestTier != nil {
+			hasTieredPricing = true
+			tieredModelRatio = highestTier.ModelRatio
+			tieredCompletionRatio = highestTier.CompletionRatio
+			tieredCacheRatio = highestTier.CacheRatio
+			// Use highest tier's model ratio for pre-consumption to be conservative
+			ratio := highestTier.ModelRatio * groupRatioInfo.GroupRatio
+			preConsumedQuota = int(float64(preConsumedTokens) * ratio)
+		} else {
+			ratio := modelRatio * groupRatioInfo.GroupRatio
+			preConsumedQuota = int(float64(preConsumedTokens) * ratio)
+		}
 	} else {
 		if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
@@ -116,20 +130,24 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	priceData := types.PriceData{
-		FreeModel:            freeModel,
-		ModelPrice:           modelPrice,
-		ModelRatio:           modelRatio,
-		CompletionRatio:      completionRatio,
-		GroupRatioInfo:       groupRatioInfo,
-		UsePrice:             usePrice,
-		CacheRatio:           cacheRatio,
-		ImageRatio:           imageRatio,
-		AudioRatio:           audioRatio,
-		AudioCompletionRatio: audioCompletionRatio,
-		CacheCreationRatio:   cacheCreationRatio,
-		CacheCreation5mRatio: cacheCreationRatio5m,
-		CacheCreation1hRatio: cacheCreationRatio1h,
-		QuotaToPreConsume:    preConsumedQuota,
+		FreeModel:             freeModel,
+		ModelPrice:            modelPrice,
+		ModelRatio:            modelRatio,
+		CompletionRatio:       completionRatio,
+		GroupRatioInfo:        groupRatioInfo,
+		UsePrice:              usePrice,
+		CacheRatio:            cacheRatio,
+		ImageRatio:            imageRatio,
+		AudioRatio:            audioRatio,
+		AudioCompletionRatio:  audioCompletionRatio,
+		CacheCreationRatio:    cacheCreationRatio,
+		CacheCreation5mRatio:  cacheCreationRatio5m,
+		CacheCreation1hRatio:  cacheCreationRatio1h,
+		QuotaToPreConsume:     preConsumedQuota,
+		HasTieredPricing:      hasTieredPricing,
+		TieredModelRatio:      tieredModelRatio,
+		TieredCompletionRatio: tieredCompletionRatio,
+		TieredCacheRatio:      tieredCacheRatio,
 	}
 
 	if common.DebugEnabled {
