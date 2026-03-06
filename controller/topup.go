@@ -264,12 +264,7 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 	verifyInfo, err := client.Verify(params)
-	if err == nil && verifyInfo.VerifyStatus {
-		_, err := c.Writer.Write([]byte("success"))
-		if err != nil {
-			log.Println("易支付回调写入失败")
-		}
-	} else {
+	if err != nil || !verifyInfo.VerifyStatus {
 		_, err := c.Writer.Write([]byte("fail"))
 		if err != nil {
 			log.Println("易支付回调写入失败")
@@ -278,6 +273,7 @@ func EpayNotify(c *gin.Context) {
 		return
 	}
 
+	// Process business logic BEFORE responding to payment gateway
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		log.Println(verifyInfo)
 		LockOrder(verifyInfo.ServiceTradeNo)
@@ -307,8 +303,11 @@ func EpayNotify(c *gin.Context) {
 			log.Printf("易支付回调更新用户成功 %v", topUp)
 			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
 		}
+		// Only respond success after business logic completes
+		_, _ = c.Writer.Write([]byte("success"))
 	} else {
 		log.Printf("易支付异常回调: %v", verifyInfo)
+		_, _ = c.Writer.Write([]byte("fail"))
 	}
 }
 
