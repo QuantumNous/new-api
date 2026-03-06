@@ -138,10 +138,19 @@ func RequestWaffoPay(c *gin.Context) {
 	merchantOrderId := fmt.Sprintf("WAFFO-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
 	paymentRequestId := merchantOrderId
 
+	// Token 模式下归一化 Amount（存等价美元/CNY 数量，避免 RechargeWaffo 双重放大）
+	amount := req.Amount
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		amount = int64(float64(req.Amount) / common.QuotaPerUnit)
+		if amount < 1 {
+			amount = 1
+		}
+	}
+
 	// 创建本地订单
 	topUp := &model.TopUp{
 		UserId:        id,
-		Amount:        req.Amount,
+		Amount:        amount,
 		Money:         payMoney,
 		TradeNo:       merchantOrderId,
 		PaymentMethod: "waffo",
@@ -217,11 +226,15 @@ func RequestWaffoPay(c *gin.Context) {
 	orderData := resp.GetData()
 	log.Printf("Waffo 订单创建成功 - 用户: %d, 订单: %s, 金额: %.2f", id, merchantOrderId, payMoney)
 
-	// 存储 gatewayOrderId，退款时直接使用
+	// 存储 gatewayOrderId，退款时直接使用；保存失败则中止，避免付款后无法退款
 	if orderData.AcquiringOrderID != "" {
 		topUp.GatewayOrderId = orderData.AcquiringOrderID
 		if err := topUp.Update(); err != nil {
 			log.Printf("Waffo 保存 gatewayOrderId 失败: %v, 订单: %s", err, merchantOrderId)
+			topUp.Status = common.TopUpStatusFailed
+			_ = topUp.Update()
+			c.JSON(200, gin.H{"message": "error", "data": "创建订单失败，请重试"})
+			return
 		}
 	}
 
@@ -316,7 +329,15 @@ func WaffoWebhook(c *gin.Context) {
 // handleWaffoPayment 处理支付完成通知
 func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.PaymentNotificationResult) {
 	if result.OrderStatus != "PAY_SUCCESS" {
-		log.Printf("Waffo 订单状态非成功: %s", result.OrderStatus)
+		log.Printf("Waffo 订单状态非成功: %s, 订单: %s", result.OrderStatus, result.MerchantOrderID)
+		// 终态失败订单标记为 failed，避免永远停在 pending
+		if result.MerchantOrderID != "" {
+			if topUp := model.GetTopUpByTradeNo(result.MerchantOrderID); topUp != nil &&
+				topUp.Status == common.TopUpStatusPending {
+				topUp.Status = common.TopUpStatusFailed
+				_ = topUp.Update()
+			}
+		}
 		sendWaffoWebhookResponse(c, wh, true, "")
 		return
 	}

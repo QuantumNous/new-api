@@ -113,9 +113,10 @@ func CompleteRefund(refundRequestId string) error {
 			return err
 		}
 
-		// 重新计算 TopUp 状态
+		// 重新计算 TopUp 状态（FOR UPDATE 防止多笔退款并发更新同一 TopUp）
 		topUp := &TopUp{}
-		if err := tx.Where("id = ?", refund.TopUpId).First(topUp).Error; err != nil {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", refund.TopUpId).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
 
@@ -129,9 +130,11 @@ func CompleteRefund(refundRequestId string) error {
 
 		// 如果还有其他 pending 退款，状态保持 refunding，否则按已退总额决定
 		var pendingCount int64
-		tx.Model(&Refund{}).
+		if err := tx.Model(&Refund{}).
 			Where("top_up_id = ? AND status = ?", refund.TopUpId, common.RefundStatusPending).
-			Count(&pendingCount)
+			Count(&pendingCount).Error; err != nil {
+			return err
+		}
 
 		var newTopUpStatus string
 		if pendingCount > 0 {
@@ -178,27 +181,32 @@ func FailRefund(refundRequestId string) error {
 			return err
 		}
 
-		// Step 3: 找到对应的 TopUp，回滚状态
+		// Step 3: 找到对应的 TopUp，回滚状态（FOR UPDATE 防止多笔退款并发更新同一 TopUp）
 		topUp := &TopUp{}
-		if err := tx.Where("id = ?", refund.TopUpId).First(topUp).Error; err != nil {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", refund.TopUpId).First(topUp).Error; err != nil {
 			return nil
 		}
 
 		// 检查是否还有其他 pending 退款
 		var pendingCount int64
-		tx.Model(&Refund{}).
+		if err := tx.Model(&Refund{}).
 			Where("top_up_id = ? AND status = ?", refund.TopUpId, common.RefundStatusPending).
-			Count(&pendingCount)
+			Count(&pendingCount).Error; err != nil {
+			return err
+		}
 
 		var newTopUpStatus string
 		if pendingCount > 0 {
 			newTopUpStatus = common.TopUpStatusRefunding
 		} else {
 			var totalRefunded float64
-			tx.Model(&Refund{}).
+			if err := tx.Model(&Refund{}).
 				Where("top_up_id = ? AND status = ?", refund.TopUpId, common.RefundStatusSuccess).
 				Select("COALESCE(SUM(refund_amount), 0)").
-				Scan(&totalRefunded)
+				Scan(&totalRefunded).Error; err != nil {
+				return err
+			}
 
 			if totalRefunded >= topUp.Money {
 				newTopUpStatus = common.TopUpStatusRefunded

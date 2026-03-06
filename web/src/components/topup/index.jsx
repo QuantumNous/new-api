@@ -308,6 +308,10 @@ const TopUp = () => {
 
   const waffoTopUp = async (payMethodType, payMethodName) => {
     try {
+        if (topUpCount < minTopUp) {
+            showError(t('充值数量不能小于') + minTopUp);
+            return;
+        }
         setPaymentLoading(true);
         const requestBody = {
             amount: parseInt(topUpCount),

@@ -22,18 +22,30 @@ const RefundModal = ({ visible, topUp, onCancel, onSuccess, t }) => {
 
   useEffect(() => {
     if (visible && topUp) {
+      // 立即重置状态，避免上次数据闪现
+      setAlreadyRefunded(0);
+      setRefundAmount(parseFloat((topUp.money || 0).toFixed(2)));
+      setQuotaDeduction(Math.round((topUp.amount || 0) * getQuotaPerUnit()));
+      setReason('');
+
+      let cancelled = false;
       API.get(`/api/user/topup/${topUp.id}/refunds`).then((res) => {
+        if (cancelled) return;
         if (res.data.success) {
           const refunds = res.data.data || [];
           const total = refunds
             .filter((r) => r.status === 'success')
             .reduce((sum, r) => sum + r.refund_amount, 0);
           setAlreadyRefunded(total);
-          setRefundAmount(parseFloat(Math.max(topUp.money - total, 0).toFixed(2)));
+          const remainingMoney = Math.max(topUp.money - total, 0);
+          setRefundAmount(parseFloat(remainingMoney.toFixed(2)));
+          // 按剩余可退金额占比计算对应的 quota
+          const totalQuota = Math.round((topUp.amount || 0) * getQuotaPerUnit());
+          const ratio = topUp.money > 0 ? remainingMoney / topUp.money : 0;
+          setQuotaDeduction(Math.round(totalQuota * ratio));
         }
       });
-      setQuotaDeduction(Math.round((topUp.amount || 0) * getQuotaPerUnit()));
-      setReason('');
+      return () => { cancelled = true; };
     }
   }, [visible, topUp]);
 

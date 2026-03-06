@@ -148,13 +148,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         options.push({ key: 'WaffoPrivateKey', value: inputs.WaffoPrivateKey });
       }
 
-      if (inputs.WaffoPublicCert && inputs.WaffoPublicCert !== '') {
-        options.push({ key: 'WaffoPublicCert', value: inputs.WaffoPublicCert });
-      }
-
-      if (inputs.WaffoSandboxPublicCert && inputs.WaffoSandboxPublicCert !== '') {
-        options.push({ key: 'WaffoSandboxPublicCert', value: inputs.WaffoSandboxPublicCert });
-      }
+      options.push({ key: 'WaffoPublicCert', value: inputs.WaffoPublicCert || '' });
+      options.push({ key: 'WaffoSandboxPublicCert', value: inputs.WaffoSandboxPublicCert || '' });
 
       if (inputs.WaffoSandboxApiKey && inputs.WaffoSandboxApiKey !== '') {
         options.push({ key: 'WaffoSandboxApiKey', value: inputs.WaffoSandboxApiKey });
@@ -169,16 +164,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         value: inputs.WaffoSandbox ? 'true' : 'false',
       });
 
-      if (inputs.WaffoMerchantId && inputs.WaffoMerchantId !== '') {
-        options.push({
-          key: 'WaffoMerchantId',
-          value: inputs.WaffoMerchantId,
-        });
-      }
-
-      if (inputs.WaffoCurrency && inputs.WaffoCurrency !== '') {
-        options.push({ key: 'WaffoCurrency', value: inputs.WaffoCurrency });
-      }
+      options.push({ key: 'WaffoMerchantId', value: inputs.WaffoMerchantId || '' });
+      options.push({ key: 'WaffoCurrency', value: inputs.WaffoCurrency || '' });
 
       options.push({
         key: 'WaffoUnitPrice',
@@ -190,13 +177,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         value: String(inputs.WaffoMinTopUp || 1),
       });
 
-      if (inputs.WaffoReturnUrl && inputs.WaffoReturnUrl !== '') {
-        options.push({ key: 'WaffoReturnUrl', value: inputs.WaffoReturnUrl });
-      }
-
-      if (inputs.WaffoSubscriptionReturnUrl && inputs.WaffoSubscriptionReturnUrl !== '') {
-        options.push({ key: 'WaffoSubscriptionReturnUrl', value: inputs.WaffoSubscriptionReturnUrl });
-      }
+      options.push({ key: 'WaffoReturnUrl', value: inputs.WaffoReturnUrl || '' });
+      options.push({ key: 'WaffoSubscriptionReturnUrl', value: inputs.WaffoSubscriptionReturnUrl || '' });
 
       // 保存支付方式列表
       options.push({
@@ -412,7 +394,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPrivateKey'
                 label={t('RSA 私钥 (生产)')}
-                placeholder={t('waffoPrivateKeyPlaceholder')}
+                placeholder={t('生产环境 RSA 私钥 Base64 (PKCS#8 DER)')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -421,7 +403,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPrivateKey'
                 label={t('RSA 私钥 (沙盒)')}
-                placeholder={t('waffoSandboxPrivateKeyPlaceholder')}
+                placeholder={t('沙盒环境 RSA 私钥 Base64 (PKCS#8 DER)')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -433,7 +415,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPublicCert'
                 label={t('Waffo 公钥 (生产)')}
-                placeholder={t('waffoPublicKeyPlaceholder')}
+                placeholder={t('生产环境 Waffo 公钥 Base64 (X.509 DER)')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
@@ -442,7 +424,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPublicCert'
                 label={t('Waffo 公钥 (沙盒)')}
-                placeholder={t('waffoSandboxPublicKeyPlaceholder')}
+                placeholder={t('沙盒环境 Waffo 公钥 Base64 (X.509 DER)')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
               />
