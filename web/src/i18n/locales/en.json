@@ -2692,7 +2692,9 @@
     "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
     "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
     "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
-    "Pay Method Type": "Pay Method Type",
-    "Pay Method Name": "Pay Method Name"
+    "支付方式类型": "Pay Method Type",
+    "支付方式名称": "Pay Method Name",
+    "获取充值配置失败": "Failed to get topup configuration",
+    "获取充值配置异常": "Topup configuration error"
   }
 }

@@ -207,6 +207,7 @@ const (
 const (
 	TopUpStatusPending = "pending"
 	TopUpStatusSuccess = "success"
+	TopUpStatusFailed  = "failed"
 	TopUpStatusExpired = "expired"
 	TopUpStatusRefunded        = "refunded"
 	TopUpStatusPartialRefunded = "partial_refunded"

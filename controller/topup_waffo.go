@@ -1,14 +1,12 @@
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
-
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -159,6 +157,8 @@ func RequestWaffoPay(c *gin.Context) {
 	sdk, err := getWaffoSDK()
 	if err != nil {
 		log.Printf("Waffo SDK 初始化失败: %v", err)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
 		c.JSON(200, gin.H{"message": "error", "data": "支付配置错误"})
 		return
 	}
@@ -201,11 +201,15 @@ func RequestWaffoPay(c *gin.Context) {
 	resp, err := sdk.Order().Create(c.Request.Context(), createParams, nil)
 	if err != nil {
 		log.Printf("Waffo 创建订单失败: %v", err)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 	if !resp.IsSuccess() {
 		log.Printf("Waffo 创建订单业务失败: [%s] %s, 完整响应: %+v", resp.Code, resp.Message, resp)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
 		c.JSON(200, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -279,7 +283,7 @@ func WaffoWebhook(c *gin.Context) {
 	}
 
 	var event core.WebhookEvent
-	if err := json.Unmarshal(bodyBytes, &event); err != nil {
+	if err := common.Unmarshal(bodyBytes, &event); err != nil {
 		log.Printf("Waffo Webhook 解析失败: %v", err)
 		sendWaffoWebhookResponse(c, wh, false, "invalid payload")
 		return
@@ -289,7 +293,7 @@ func WaffoWebhook(c *gin.Context) {
 	case core.EventPayment:
 		// 解析为扩展类型，区分普通支付和订阅支付
 		var payload webhookPayloadWithSubInfo
-		if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+		if err := common.Unmarshal(bodyBytes, &payload); err != nil {
 			sendWaffoWebhookResponse(c, wh, false, "invalid payment payload")
 			return
 		}
@@ -298,7 +302,7 @@ func WaffoWebhook(c *gin.Context) {
 		handleWaffoPayment(c, wh, &payload.Result.PaymentNotificationResult)
 	case core.EventRefund:
 		var notification core.RefundNotification
-		if err := json.Unmarshal(bodyBytes, &notification); err != nil {
+		if err := common.Unmarshal(bodyBytes, &notification); err != nil {
 			sendWaffoWebhookResponse(c, wh, false, "invalid refund payload")
 			return
 		}
@@ -380,6 +384,8 @@ func handleWaffoRefund(c *gin.Context, wh *core.WebhookHandler, notification *co
 	case core.RefundStatusFailed:
 		if err := model.FailRefund(refundRequestId); err != nil {
 			log.Printf("Waffo 退款失败标记错误: %v, RefundRequestId: %s", err, refundRequestId)
+			sendWaffoWebhookResponse(c, wh, false, "fail refund failed")
+			return
 		}
 		log.Printf("Waffo 退款失败 - RefundRequestId: %s", refundRequestId)
 	case core.RefundStatusInProgress:

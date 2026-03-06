@@ -244,28 +244,42 @@ func RequestEpay(c *gin.Context) {
 var orderLocks sync.Map
 var createLock sync.Mutex
 
+// refCountedMutex 带引用计数的互斥锁，确保最后一个使用者才从 map 中删除
+type refCountedMutex struct {
+	mu       sync.Mutex
+	refCount int
+}
+
 // LockOrder 尝试对给定订单号加锁
 func LockOrder(tradeNo string) {
-	lock, ok := orderLocks.Load(tradeNo)
-	if !ok {
-		createLock.Lock()
-		defer createLock.Unlock()
-		lock, ok = orderLocks.Load(tradeNo)
-		if !ok {
-			lock = new(sync.Mutex)
-			orderLocks.Store(tradeNo, lock)
-		}
+	createLock.Lock()
+	var rcm *refCountedMutex
+	if v, ok := orderLocks.Load(tradeNo); ok {
+		rcm = v.(*refCountedMutex)
+	} else {
+		rcm = &refCountedMutex{}
+		orderLocks.Store(tradeNo, rcm)
 	}
-	lock.(*sync.Mutex).Lock()
+	rcm.refCount++
+	createLock.Unlock()
+	rcm.mu.Lock()
 }
 
 // UnlockOrder 释放给定订单号的锁
 func UnlockOrder(tradeNo string) {
-	lock, ok := orderLocks.Load(tradeNo)
-	if ok {
-		lock.(*sync.Mutex).Unlock()
-		orderLocks.Delete(tradeNo) // 防止 sync.Map 无限增长
+	v, ok := orderLocks.Load(tradeNo)
+	if !ok {
+		return
 	}
+	rcm := v.(*refCountedMutex)
+	rcm.mu.Unlock()
+
+	createLock.Lock()
+	rcm.refCount--
+	if rcm.refCount == 0 {
+		orderLocks.Delete(tradeNo)
+	}
+	createLock.Unlock()
 }
 
 func EpayNotify(c *gin.Context) {
@@ -554,13 +568,13 @@ func AdminRefundTopUp(c *gin.Context) {
 
 	resp, err := sdk.Order().Refund(c.Request.Context(), refundParams, nil)
 	if err != nil {
-		log.Printf("Waffo 发起退款失败: %v, TopUpId: %d", err, req.TopUpId)
-		// 回滚：删除刚插入的 refund 记录，避免僵尸 pending 记录
-		_ = model.DeleteRefundByRequestId(refundRequestId)
-		common.ApiErrorMsg(c, "发起退款失败")
+		// 网络错误等模糊场景：退款可能已提交到 Waffo，保留 pending 记录等 webhook 回调解决
+		log.Printf("Waffo 发起退款异常（保留 pending 记录等 webhook 回调）: %v, TopUpId: %d, RefundRequestId: %s", err, req.TopUpId, refundRequestId)
+		common.ApiErrorMsg(c, "发起退款异常，请稍后查看退款状态")
 		return
 	}
 	if !resp.IsSuccess() {
+		// 业务明确拒绝：安全删除 refund 记录
 		log.Printf("Waffo 退款业务失败: [%s] %s, TopUpId: %d", resp.Code, resp.Message, req.TopUpId)
 		_ = model.DeleteRefundByRequestId(refundRequestId)
 		common.ApiErrorMsg(c, "发起退款失败: "+resp.Message)

@@ -2680,7 +2680,9 @@
     "waffoSandboxPrivateKeyPlaceholder": "沙盒环境 RSA 私钥 Base64 (PKCS#8 DER)",
     "waffoPublicKeyPlaceholder": "生产环境 Waffo 公钥 Base64 (X.509 DER)",
     "waffoSandboxPublicKeyPlaceholder": "沙盒环境 Waffo 公钥 Base64 (X.509 DER)",
-    "Pay Method Type": "支付方式类型",
-    "Pay Method Name": "支付方式名称"
+    "支付方式类型": "支付方式类型",
+    "支付方式名称": "支付方式名称",
+    "获取充值配置失败": "获取充值配置失败",
+    "获取充值配置异常": "获取充值配置异常"
   }
 }

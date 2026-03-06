@@ -320,7 +320,7 @@ const TopUp = () => {
             if (message === 'success' && data?.payment_url) {
                 window.open(data.payment_url, '_blank');
             } else {
-                showError(data || '支付请求失败');
+                showError(data || t('支付请求失败'));
             }
         } else {
             showError(res);
@@ -456,10 +456,10 @@ const TopUp = () => {
           setPresetAmounts(customPresets);
         }
       } else {
-        showError(data || '获取充值配置失败');
+        showError(data || t('获取充值配置失败'));
       }
     } catch (error) {
-      showError('获取充值配置异常');
+      showError(t('获取充值配置异常'));
     }
   };
 

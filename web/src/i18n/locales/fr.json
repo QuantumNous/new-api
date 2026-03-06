@@ -2694,7 +2694,9 @@
     "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
     "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
     "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
-    "Pay Method Type": "Pay Method Type",
-    "Pay Method Name": "Pay Method Name"
+    "支付方式类型": "Type de méthode de paiement",
+    "支付方式名称": "Nom de méthode de paiement",
+    "获取充值配置失败": "Échec de la récupération de la configuration de recharge",
+    "获取充值配置异常": "Erreur de configuration de recharge"
   }
 }

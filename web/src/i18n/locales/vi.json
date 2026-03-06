@@ -3255,7 +3255,9 @@
     "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
     "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
     "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
-    "Pay Method Type": "Pay Method Type",
-    "Pay Method Name": "Pay Method Name"
+    "支付方式类型": "Loại phương thức thanh toán",
+    "支付方式名称": "Tên phương thức thanh toán",
+    "获取充值配置失败": "Không thể lấy cấu hình nạp tiền",
+    "获取充值配置异常": "Lỗi cấu hình nạp tiền"
   }
 }

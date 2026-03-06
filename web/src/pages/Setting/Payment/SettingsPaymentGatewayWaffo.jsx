@@ -302,12 +302,12 @@ export default function SettingsPaymentGatewayWaffo(props) {
         ),
     },
     {
-      title: t('Pay Method Type'),
+      title: t('支付方式类型'),
       dataIndex: 'payMethodType',
       render: (text) => text || <Text type='tertiary'>—</Text>,
     },
     {
-      title: t('Pay Method Name'),
+      title: t('支付方式名称'),
       dataIndex: 'payMethodName',
       render: (text) => text || <Text type='tertiary'>—</Text>,
     },

@@ -2707,7 +2707,9 @@
     "waffoSandboxPrivateKeyPlaceholder": "Sandbox RSA private key Base64 (PKCS#8 DER)",
     "waffoPublicKeyPlaceholder": "Production Waffo public key Base64 (X.509 DER)",
     "waffoSandboxPublicKeyPlaceholder": "Sandbox Waffo public key Base64 (X.509 DER)",
-    "Pay Method Type": "Pay Method Type",
-    "Pay Method Name": "Pay Method Name"
+    "支付方式类型": "Тип метода оплаты",
+    "支付方式名称": "Название метода оплаты",
+    "获取充值配置失败": "Не удалось получить конфигурацию пополнения",
+    "获取充值配置异常": "Ошибка конфигурации пополнения"
   }
 }
