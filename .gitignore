@@ -49,6 +49,7 @@ new-api-system-analysis.md
 
 # Demo video
 demo-video/
+docker-compose.local.yml
 
 # Screenshots (generated)
 screenshot-pages.mjs

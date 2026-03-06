@@ -51,8 +51,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
     WaffoCurrency: 'USD',
     WaffoUnitPrice: 1.0,
     WaffoMinTopUp: 1,
+    WaffoNotifyUrl: '',
     WaffoReturnUrl: '',
-    WaffoSubscriptionReturnUrl: '',
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -104,8 +104,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         WaffoCurrency: props.options.WaffoCurrency || 'USD',
         WaffoUnitPrice: parseFloat(props.options.WaffoUnitPrice) || 1.0,
         WaffoMinTopUp: parseInt(props.options.WaffoMinTopUp) || 1,
+        WaffoNotifyUrl: props.options.WaffoNotifyUrl || '',
         WaffoReturnUrl: props.options.WaffoReturnUrl || '',
-        WaffoSubscriptionReturnUrl: props.options.WaffoSubscriptionReturnUrl || '',
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -177,8 +177,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         value: String(inputs.WaffoMinTopUp || 1),
       });
 
+      options.push({ key: 'WaffoNotifyUrl', value: inputs.WaffoNotifyUrl || '' });
       options.push({ key: 'WaffoReturnUrl', value: inputs.WaffoReturnUrl || '' });
-      options.push({ key: 'WaffoSubscriptionReturnUrl', value: inputs.WaffoSubscriptionReturnUrl || '' });
 
       // 保存支付方式列表
       options.push({
@@ -459,18 +459,20 @@ export default function SettingsPaymentGatewayWaffo(props) {
                 extraText={t('Waffo 充值的最低数量，默认 1')}
               />
             </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
-                field='WaffoReturnUrl'
-                label={t('充值返回地址')}
-                placeholder={t('例如 https://example.com/topup')}
+                field='WaffoNotifyUrl'
+                label={t('回调通知地址')}
+                placeholder={t('例如 https://example.com/api/waffo/webhook')}
+                extraText={t('留空则自动使用 服务器地址 + /api/waffo/webhook')}
               />
             </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.Input
-                field='WaffoSubscriptionReturnUrl'
-                label={t('订阅返回地址')}
-                placeholder={t('例如 https://example.com/console/subscription')}
+                field='WaffoReturnUrl'
+                label={t('支付返回地址')}
+                placeholder={t('例如 https://example.com/console/topup')}
+                extraText={t('支付完成后用户跳转的页面，留空则自动使用 服务器地址 + /console/topup')}
               />
             </Col>
           </Row>
