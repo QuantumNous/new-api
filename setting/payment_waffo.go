@@ -9,8 +9,8 @@ var (
 	WaffoEnabled           bool
 	WaffoApiKey            string
 	WaffoPrivateKey        string
-	WaffoPublicKey         string
-	WaffoSandboxPublicKey  string
+	WaffoPublicCert         string
+	WaffoSandboxPublicCert  string
 	WaffoSandboxApiKey     string
 	WaffoSandboxPrivateKey string
 	WaffoSandbox           bool

@@ -55,11 +55,11 @@ func GetTopUpInfo(c *gin.Context) {
 		((!setting.WaffoSandbox &&
 			setting.WaffoApiKey != "" &&
 			setting.WaffoPrivateKey != "" &&
-			setting.WaffoPublicKey != "") ||
+			setting.WaffoPublicCert != "") ||
 			(setting.WaffoSandbox &&
 				setting.WaffoSandboxApiKey != "" &&
 				setting.WaffoSandboxPrivateKey != "" &&
-				setting.WaffoSandboxPublicKey != ""))
+				setting.WaffoSandboxPublicCert != ""))
 	if enableWaffo {
 		hasWaffo := false
 		for _, method := range payMethods {

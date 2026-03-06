@@ -42,8 +42,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
     WaffoEnabled: false,
     WaffoApiKey: '',
     WaffoPrivateKey: '',
-    WaffoPublicKey: '',
-    WaffoSandboxPublicKey: '',
+    WaffoPublicCert: '',
+    WaffoSandboxPublicCert: '',
     WaffoSandboxApiKey: '',
     WaffoSandboxPrivateKey: '',
     WaffoSandbox: false,
@@ -95,8 +95,8 @@ export default function SettingsPaymentGatewayWaffo(props) {
         WaffoEnabled: props.options.WaffoEnabled === 'true' || props.options.WaffoEnabled === true,
         WaffoApiKey: props.options.WaffoApiKey || '',
         WaffoPrivateKey: props.options.WaffoPrivateKey || '',
-        WaffoPublicKey: props.options.WaffoPublicKey || '',
-        WaffoSandboxPublicKey: props.options.WaffoSandboxPublicKey || '',
+        WaffoPublicCert: props.options.WaffoPublicCert || '',
+        WaffoSandboxPublicCert: props.options.WaffoSandboxPublicCert || '',
         WaffoSandboxApiKey: props.options.WaffoSandboxApiKey || '',
         WaffoSandboxPrivateKey: props.options.WaffoSandboxPrivateKey || '',
         WaffoSandbox: props.options.WaffoSandbox === 'true',
@@ -148,12 +148,12 @@ export default function SettingsPaymentGatewayWaffo(props) {
         options.push({ key: 'WaffoPrivateKey', value: inputs.WaffoPrivateKey });
       }
 
-      if (inputs.WaffoPublicKey && inputs.WaffoPublicKey !== '') {
-        options.push({ key: 'WaffoPublicKey', value: inputs.WaffoPublicKey });
+      if (inputs.WaffoPublicCert && inputs.WaffoPublicCert !== '') {
+        options.push({ key: 'WaffoPublicCert', value: inputs.WaffoPublicCert });
       }
 
-      if (inputs.WaffoSandboxPublicKey && inputs.WaffoSandboxPublicKey !== '') {
-        options.push({ key: 'WaffoSandboxPublicKey', value: inputs.WaffoSandboxPublicKey });
+      if (inputs.WaffoSandboxPublicCert && inputs.WaffoSandboxPublicCert !== '') {
+        options.push({ key: 'WaffoSandboxPublicCert', value: inputs.WaffoSandboxPublicCert });
       }
 
       if (inputs.WaffoSandboxApiKey && inputs.WaffoSandboxApiKey !== '') {
@@ -431,7 +431,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
-                field='WaffoPublicKey'
+                field='WaffoPublicCert'
                 label={t('Waffo 公钥 (生产)')}
                 placeholder={t('waffoPublicKeyPlaceholder')}
                 type='password'
@@ -440,7 +440,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             </Col>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.TextArea
-                field='WaffoSandboxPublicKey'
+                field='WaffoSandboxPublicCert'
                 label={t('Waffo 公钥 (沙盒)')}
                 placeholder={t('waffoSandboxPublicKeyPlaceholder')}
                 type='password'

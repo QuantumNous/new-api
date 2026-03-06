@@ -26,12 +26,12 @@ func getWaffoSDK() (*waffo.Waffo, error) {
 	env := config.Sandbox
 	apiKey := setting.WaffoSandboxApiKey
 	privateKey := setting.WaffoSandboxPrivateKey
-	publicKey := setting.WaffoSandboxPublicKey
+	publicKey := setting.WaffoSandboxPublicCert
 	if !setting.WaffoSandbox {
 		env = config.Production
 		apiKey = setting.WaffoApiKey
 		privateKey = setting.WaffoPrivateKey
-		publicKey = setting.WaffoPublicKey
+		publicKey = setting.WaffoPublicCert
 	}
 	builder := config.NewConfigBuilder().
 		APIKey(apiKey).

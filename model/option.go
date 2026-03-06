@@ -92,8 +92,8 @@ func InitOptionMap() {
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
-	common.OptionMap["WaffoPublicKey"] = setting.WaffoPublicKey
-	common.OptionMap["WaffoSandboxPublicKey"] = setting.WaffoSandboxPublicKey
+	common.OptionMap["WaffoPublicCert"] = setting.WaffoPublicCert
+	common.OptionMap["WaffoSandboxPublicCert"] = setting.WaffoSandboxPublicCert
 	common.OptionMap["WaffoSandboxApiKey"] = setting.WaffoSandboxApiKey
 	common.OptionMap["WaffoSandboxPrivateKey"] = setting.WaffoSandboxPrivateKey
 	common.OptionMap["WaffoSandbox"] = strconv.FormatBool(setting.WaffoSandbox)
@@ -380,10 +380,10 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoApiKey = value
 	case "WaffoPrivateKey":
 		setting.WaffoPrivateKey = value
-	case "WaffoPublicKey":
-		setting.WaffoPublicKey = value
-	case "WaffoSandboxPublicKey":
-		setting.WaffoSandboxPublicKey = value
+	case "WaffoPublicCert":
+		setting.WaffoPublicCert = value
+	case "WaffoSandboxPublicCert":
+		setting.WaffoSandboxPublicCert = value
 	case "WaffoSandboxApiKey":
 		setting.WaffoSandboxApiKey = value
 	case "WaffoSandboxPrivateKey":
