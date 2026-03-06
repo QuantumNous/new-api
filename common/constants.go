@@ -39,7 +39,7 @@ var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
 
 var ItemsPerPage = 10
-var MaxRecentItems = 100
+var MaxRecentItems = 1000
 
 var PasswordLoginEnabled = true
 var PasswordRegisterEnabled = true
@@ -175,6 +175,10 @@ var (
 
 	DownloadRateLimitNum            = 10
 	DownloadRateLimitDuration int64 = 60
+
+	// Per-user search rate limit (applies after authentication, keyed by user ID)
+	SearchRateLimitNum            = 10
+	SearchRateLimitDuration int64 = 60
 )
 
 var RateLimitKeyExpirationDuration = 20 * time.Minute

@@ -132,7 +132,7 @@ export const useUsersData = () => {
 
     const { success, message } = res.data;
     if (success) {
-      showSuccess('操作成功完成！');
+      showSuccess(t('操作成功完成！'));
       const user = res.data.data;
 
       // Create a new array and new object to ensure React detects changes

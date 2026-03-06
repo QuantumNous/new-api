@@ -19,7 +19,7 @@ type PerformanceStats struct {
 	// 磁盘缓存目录信息
 	DiskCacheInfo DiskCacheInfo `json:"disk_cache_info"`
 	// 磁盘空间信息
-	DiskSpaceInfo DiskSpaceInfo `json:"disk_space_info"`
+	DiskSpaceInfo common.DiskSpaceInfo `json:"disk_space_info"`
 	// 配置信息
 	Config PerformanceConfig `json:"config"`
 }
@@ -50,18 +50,6 @@ type DiskCacheInfo struct {
 	TotalSize int64 `json:"total_size"`
 }
 
-// DiskSpaceInfo 磁盘空间信息
-type DiskSpaceInfo struct {
-	// 总空间（字节）
-	Total uint64 `json:"total"`
-	// 可用空间（字节）
-	Free uint64 `json:"free"`
-	// 已用空间（字节）
-	Used uint64 `json:"used"`
-	// 使用百分比
-	UsedPercent float64 `json:"used_percent"`
-}
-
 // PerformanceConfig 性能配置
 type PerformanceConfig struct {
 	// 是否启用磁盘缓存
@@ -74,6 +62,15 @@ type PerformanceConfig struct {
 	DiskCachePath string `json:"disk_cache_path"`
 	// 是否在容器中运行
 	IsRunningInContainer bool `json:"is_running_in_container"`
+
+	// MonitorEnabled 是否启用性能监控
+	MonitorEnabled bool `json:"monitor_enabled"`
+	// MonitorCPUThreshold CPU 使用率阈值（%）
+	MonitorCPUThreshold int `json:"monitor_cpu_threshold"`
+	// MonitorMemoryThreshold 内存使用率阈值（%）
+	MonitorMemoryThreshold int `json:"monitor_memory_threshold"`
+	// MonitorDiskThreshold 磁盘使用率阈值（%）
+	MonitorDiskThreshold int `json:"monitor_disk_threshold"`
 }
 
 // GetPerformanceStats 获取性能统计信息
@@ -91,16 +88,30 @@ func GetPerformanceStats(c *gin.Context) {
 
 	// 获取配置信息
 	diskConfig := common.GetDiskCacheConfig()
+	monitorConfig := common.GetPerformanceMonitorConfig()
 	config := PerformanceConfig{
-		DiskCacheEnabled:     diskConfig.Enabled,
-		DiskCacheThresholdMB: diskConfig.ThresholdMB,
-		DiskCacheMaxSizeMB:   diskConfig.MaxSizeMB,
-		DiskCachePath:        diskConfig.Path,
-		IsRunningInContainer: common.IsRunningInContainer(),
+		DiskCacheEnabled:       diskConfig.Enabled,
+		DiskCacheThresholdMB:   diskConfig.ThresholdMB,
+		DiskCacheMaxSizeMB:     diskConfig.MaxSizeMB,
+		DiskCachePath:          diskConfig.Path,
+		IsRunningInContainer:   common.IsRunningInContainer(),
+		MonitorEnabled:         monitorConfig.Enabled,
+		MonitorCPUThreshold:    monitorConfig.CPUThreshold,
+		MonitorMemoryThreshold: monitorConfig.MemoryThreshold,
+		MonitorDiskThreshold:   monitorConfig.DiskThreshold,
 	}
 
 	// 获取磁盘空间信息
-	diskSpaceInfo := getDiskSpaceInfo()
+	// 使用缓存的系统状态，避免频繁调用系统 API
+	systemStatus := common.GetSystemStatus()
+	diskSpaceInfo := common.DiskSpaceInfo{
+		UsedPercent: systemStatus.DiskUsage,
+	}
+	// 如果需要详细信息，可以按需获取，或者扩展 SystemStatus
+	// 这里为了保持接口兼容性，我们仍然调用 GetDiskSpaceInfo，但注意这可能会有性能开销
+	// 考虑到 GetPerformanceStats 是管理接口，频率较低，直接调用是可以接受的
+	// 但为了一致性，我们也可以考虑从 SystemStatus 中获取部分信息
+	diskSpaceInfo = common.GetDiskSpaceInfo()
 
 	stats := PerformanceStats{
 		CacheStats: cacheStats,

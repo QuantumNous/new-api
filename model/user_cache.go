@@ -221,3 +221,13 @@ func updateUserSettingCache(userId int, setting string) error {
 	}
 	return common.RedisHSetField(getUserCacheKey(userId), "Setting", setting)
 }
+
+// GetUserLanguage returns the user's language preference from cache
+// Uses the existing GetUserCache mechanism for efficiency
+func GetUserLanguage(userId int) string {
+	userCache, err := GetUserCache(userId)
+	if err != nil {
+		return ""
+	}
+	return userCache.GetSetting().Language
+}

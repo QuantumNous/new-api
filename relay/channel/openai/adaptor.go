@@ -29,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -171,7 +172,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
 	default:
-		if info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini {
+		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
+			info.RelayMode != relayconstant.RelayModeResponses &&
+			info.RelayMode != relayconstant.RelayModeResponsesCompact {
 			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
@@ -295,6 +298,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 				}
 
 				reasoning := openrouter.RequestReasoning{
+					Enabled:   true,
 					MaxTokens: *thinking.BudgetTokens,
 				}
 
@@ -312,9 +316,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 
 	}
 	if strings.HasPrefix(info.UpstreamModelName, "o") || strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
-		if request.MaxCompletionTokens == 0 && request.MaxTokens != 0 {
+		if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 			request.MaxCompletionTokens = request.MaxTokens
-			request.MaxTokens = 0
+			request.MaxTokens = nil
 		}
 
 		if strings.HasPrefix(info.UpstreamModelName, "o") {
@@ -324,8 +328,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		// gpt-5系列模型适配 归零不再支持的参数
 		if strings.HasPrefix(info.UpstreamModelName, "gpt-5") {
 			request.Temperature = nil
-			request.TopP = 0 // oai 的 top_p 默认值是 1.0，但是为了 omitempty 属性直接不传，这里显式设置为 0
-			request.LogProbs = false
+			request.TopP = nil
+			request.LogProbs = nil
 		}
 
 		// 转换模型推理力度后缀
@@ -584,6 +588,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 			request.Reasoning.Effort = effort
 		}
 		request.Model = originModel
+	}
+	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
+		info.ReasoningEffort = request.Reasoning.Effort
 	}
 	return request, nil
 }

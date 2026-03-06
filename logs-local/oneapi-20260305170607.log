@@ -1,0 +1,21 @@
+[SYS] 2026/03/05 - 17:06:07 | initializing token encoders 
+[SYS] 2026/03/05 - 17:06:07 | token encoders initialized 
+[SYS] 2026/03/05 - 17:06:07 | using PostgreSQL as database 
+[SYS] 2026/03/05 - 17:06:07 | database migration started 
+[FATAL] 2026/03/05 - 17:06:07 | [failed to initialize database: failed to connect to `user=root database=new-api`:
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused] 
+[SYS] 2026/03/05 - 17:06:07 | initializing token encoders 
+[SYS] 2026/03/05 - 17:06:07 | token encoders initialized 
+[SYS] 2026/03/05 - 17:06:07 | using PostgreSQL as database 
+[SYS] 2026/03/05 - 17:06:07 | database migration started 
+[FATAL] 2026/03/05 - 17:06:07 | [failed to initialize database: failed to connect to `user=root database=new-api`:
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused] 
+[SYS] 2026/03/05 - 17:06:07 | initializing token encoders 
+[SYS] 2026/03/05 - 17:06:07 | token encoders initialized 
+[SYS] 2026/03/05 - 17:06:07 | using PostgreSQL as database 
+[SYS] 2026/03/05 - 17:06:07 | database migration started 
+[FATAL] 2026/03/05 - 17:06:07 | [failed to initialize database: failed to connect to `user=root database=new-api`:
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused
+	172.18.0.5:5432 (postgres-local): dial error: dial tcp 172.18.0.5:5432: connect: connection refused] 

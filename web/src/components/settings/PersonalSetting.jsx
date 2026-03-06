@@ -39,6 +39,7 @@ import { useTranslation } from 'react-i18next';
 import UserInfoHeader from './personal/components/UserInfoHeader';
 import AccountManagement from './personal/cards/AccountManagement';
 import NotificationSettings from './personal/cards/NotificationSettings';
+import PreferencesSettings from './personal/cards/PreferencesSettings';
 import CheckinCalendar from './personal/cards/CheckinCalendar';
 import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
@@ -85,6 +86,7 @@ const PersonalSetting = () => {
     gotifyUrl: '',
     gotifyToken: '',
     gotifyPriority: 5,
+    upstreamModelUpdateNotifyEnabled: false,
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
   });
@@ -157,6 +159,8 @@ const PersonalSetting = () => {
         gotifyToken: settings.gotify_token || '',
         gotifyPriority:
           settings.gotify_priority !== undefined ? settings.gotify_priority : 5,
+        upstreamModelUpdateNotifyEnabled:
+          settings.upstream_model_update_notify_enabled === true,
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
         recordIpLog: settings.record_ip_log || false,
@@ -425,6 +429,8 @@ const PersonalSetting = () => {
           const parsed = parseInt(notificationSettings.gotifyPriority);
           return isNaN(parsed) ? 5 : parsed;
         })(),
+        upstream_model_update_notify_enabled:
+          notificationSettings.upstreamModelUpdateNotifyEnabled === true,
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
         record_ip_log: notificationSettings.recordIpLog,
@@ -463,24 +469,29 @@ const PersonalSetting = () => {
           {/* 账户管理和其他设置 */}
           <div className='grid grid-cols-1 xl:grid-cols-2 items-start gap-4 md:gap-6 mt-4 md:mt-6'>
             {/* 左侧：账户管理设置 */}
-            <AccountManagement
-              t={t}
-              userState={userState}
-              status={status}
-              systemToken={systemToken}
-              setShowEmailBindModal={setShowEmailBindModal}
-              setShowWeChatBindModal={setShowWeChatBindModal}
-              generateAccessToken={generateAccessToken}
-              handleSystemTokenClick={handleSystemTokenClick}
-              setShowChangePasswordModal={setShowChangePasswordModal}
-              setShowAccountDeleteModal={setShowAccountDeleteModal}
-              passkeyStatus={passkeyStatus}
-              passkeySupported={passkeySupported}
-              passkeyRegisterLoading={passkeyRegisterLoading}
-              passkeyDeleteLoading={passkeyDeleteLoading}
-              onPasskeyRegister={handleRegisterPasskey}
-              onPasskeyDelete={handleRemovePasskey}
-            />
+            <div className='flex flex-col gap-4 md:gap-6'>
+              <AccountManagement
+                t={t}
+                userState={userState}
+                status={status}
+                systemToken={systemToken}
+                setShowEmailBindModal={setShowEmailBindModal}
+                setShowWeChatBindModal={setShowWeChatBindModal}
+                generateAccessToken={generateAccessToken}
+                handleSystemTokenClick={handleSystemTokenClick}
+                setShowChangePasswordModal={setShowChangePasswordModal}
+                setShowAccountDeleteModal={setShowAccountDeleteModal}
+                passkeyStatus={passkeyStatus}
+                passkeySupported={passkeySupported}
+                passkeyRegisterLoading={passkeyRegisterLoading}
+                passkeyDeleteLoading={passkeyDeleteLoading}
+                onPasskeyRegister={handleRegisterPasskey}
+                onPasskeyDelete={handleRemovePasskey}
+              />
+
+              {/* 偏好设置（语言等） */}
+              <PreferencesSettings t={t} />
+            </div>
 
             {/* 右侧：其他设置 */}
             <NotificationSettings

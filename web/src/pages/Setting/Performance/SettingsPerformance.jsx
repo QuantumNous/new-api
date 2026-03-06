@@ -65,6 +65,10 @@ export default function SettingsPerformance(props) {
     'performance_setting.disk_cache_threshold_mb': 10,
     'performance_setting.disk_cache_max_size_mb': 1024,
     'performance_setting.disk_cache_path': '',
+    'performance_setting.monitor_enabled': false,
+    'performance_setting.monitor_cpu_threshold': 90,
+    'performance_setting.monitor_memory_threshold': 90,
+    'performance_setting.monitor_disk_threshold': 90,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -273,6 +277,70 @@ export default function SettingsPerformance(props) {
                   />
                 </Col>
               )}
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('系统性能监控')}>
+            <Banner
+              type='info'
+              description={t(
+                '启用性能监控后，当系统资源使用率超过设定阈值时，将拒绝新的 Relay 请求 (/v1, /v1beta 等)，以保护系统稳定性。',
+              )}
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.Switch
+                  field={'performance_setting.monitor_enabled'}
+                  label={t('启用性能监控')}
+                  extraText={t('超过阈值时拒绝新请求')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange(
+                    'performance_setting.monitor_enabled',
+                  )}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.InputNumber
+                  field={'performance_setting.monitor_cpu_threshold'}
+                  label={t('CPU 阈值 (%)')}
+                  extraText={t('CPU 使用率超过此值时拒绝请求')}
+                  min={0}
+                  max={100}
+                  onChange={handleFieldChange(
+                    'performance_setting.monitor_cpu_threshold',
+                  )}
+                  disabled={!inputs['performance_setting.monitor_enabled']}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.InputNumber
+                  field={'performance_setting.monitor_memory_threshold'}
+                  label={t('内存 阈值 (%)')}
+                  extraText={t('内存使用率超过此值时拒绝请求')}
+                  min={0}
+                  max={100}
+                  onChange={handleFieldChange(
+                    'performance_setting.monitor_memory_threshold',
+                  )}
+                  disabled={!inputs['performance_setting.monitor_enabled']}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.InputNumber
+                  field={'performance_setting.monitor_disk_threshold'}
+                  label={t('磁盘 阈值 (%)')}
+                  extraText={t('磁盘使用率超过此值时拒绝请求')}
+                  min={0}
+                  max={100}
+                  onChange={handleFieldChange(
+                    'performance_setting.monitor_disk_threshold',
+                  )}
+                  disabled={!inputs['performance_setting.monitor_enabled']}
+                />
+              </Col>
             </Row>
             <Row>
               <Button size='default' onClick={onSubmit}>
@@ -490,7 +558,10 @@ export default function SettingsPerformance(props) {
                         key: t('Goroutine 数'),
                         value: stats.memory_stats.num_goroutine,
                       },
-                      { key: t('缓存目录'), value: stats.disk_cache_info.path },
+                      {
+                        key: t('缓存目录'),
+                        value: stats.disk_cache_info.path,
+                      },
                       {
                         key: t('目录文件数'),
                         value: stats.disk_cache_info.file_count,

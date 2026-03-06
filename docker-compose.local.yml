@@ -1,0 +1,45 @@
+services:
+  new-api:
+    build: .
+    image: new-api:local
+    container_name: new-api-local
+    restart: always
+    command: --log-dir /app/logs
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./data-local:/data
+      - ./logs-local:/app/logs
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres-local:5432/new-api
+      - REDIS_CONN_STRING=redis://redis-local
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+    depends_on:
+      - redis-local
+      - postgres-local
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis-local:
+    image: redis:latest
+    container_name: redis-local
+    restart: always
+
+  postgres-local:
+    image: postgres:15
+    container_name: postgres-local
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - pg_data_local:/var/lib/postgresql/data
+
+volumes:
+  pg_data_local:

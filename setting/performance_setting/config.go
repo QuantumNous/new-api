@@ -15,6 +15,15 @@ type PerformanceSetting struct {
 	DiskCacheMaxSizeMB int `json:"disk_cache_max_size_mb"`
 	// DiskCachePath 磁盘缓存目录
 	DiskCachePath string `json:"disk_cache_path"`
+
+	// MonitorEnabled 是否启用性能监控
+	MonitorEnabled bool `json:"monitor_enabled"`
+	// MonitorCPUThreshold CPU 使用率阈值（%）
+	MonitorCPUThreshold int `json:"monitor_cpu_threshold"`
+	// MonitorMemoryThreshold 内存使用率阈值（%）
+	MonitorMemoryThreshold int `json:"monitor_memory_threshold"`
+	// MonitorDiskThreshold 磁盘使用率阈值（%）
+	MonitorDiskThreshold int `json:"monitor_disk_threshold"`
 }
 
 // 默认配置
@@ -23,6 +32,11 @@ var performanceSetting = PerformanceSetting{
 	DiskCacheThresholdMB: 10,   // 超过 10MB 使用磁盘缓存
 	DiskCacheMaxSizeMB:   1024, // 最大 1GB 磁盘缓存
 	DiskCachePath:        "",   // 空表示使用系统临时目录
+
+	MonitorEnabled:         true,
+	MonitorCPUThreshold:    90,
+	MonitorMemoryThreshold: 90,
+	MonitorDiskThreshold:   90,
 }
 
 func init() {
@@ -39,6 +53,13 @@ func syncToCommon() {
 		ThresholdMB: performanceSetting.DiskCacheThresholdMB,
 		MaxSizeMB:   performanceSetting.DiskCacheMaxSizeMB,
 		Path:        performanceSetting.DiskCachePath,
+	})
+
+	common.SetPerformanceMonitorConfig(common.PerformanceMonitorConfig{
+		Enabled:         performanceSetting.MonitorEnabled,
+		CPUThreshold:    performanceSetting.MonitorCPUThreshold,
+		MemoryThreshold: performanceSetting.MonitorMemoryThreshold,
+		DiskThreshold:   performanceSetting.MonitorDiskThreshold,
 	})
 }
 

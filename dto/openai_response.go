@@ -352,6 +352,11 @@ type ResponsesOutputContent struct {
 	Annotations []interface{} `json:"annotations"`
 }
 
+type ResponsesReasoningSummaryPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
 const (
 	BuildInToolWebSearchPreview = "web_search_preview"
 	BuildInToolFileSearch       = "file_search"
@@ -374,8 +379,11 @@ type ResponsesStreamResponse struct {
 	Item     *ResponsesOutput         `json:"item,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
-	OutputIndex *int   `json:"output_index,omitempty"`
-	ItemID      string `json:"item_id,omitempty"`
+	OutputIndex  *int                           `json:"output_index,omitempty"`
+	ContentIndex *int                           `json:"content_index,omitempty"`
+	SummaryIndex *int                           `json:"summary_index,omitempty"`
+	ItemID       string                         `json:"item_id,omitempty"`
+	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构

@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,9 +29,9 @@ var baiduTokenStore sync.Map
 func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 	baiduRequest := BaiduChatRequest{
 		Temperature:    request.Temperature,
-		TopP:           request.TopP,
-		PenaltyScore:   request.FrequencyPenalty,
-		Stream:         request.Stream,
+		TopP:           lo.FromPtrOr(request.TopP, 0),
+		PenaltyScore:   lo.FromPtrOr(request.FrequencyPenalty, 0),
+		Stream:         lo.FromPtrOr(request.Stream, false),
 		DisableSearch:  false,
 		EnableCitation: false,
 		UserId:         request.User,

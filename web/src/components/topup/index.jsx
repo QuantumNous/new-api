@@ -246,7 +246,9 @@ const TopUp = () => {
             document.body.removeChild(form);
           }
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);
@@ -289,7 +291,9 @@ const TopUp = () => {
         if (message === 'success') {
           processCreemCallback(data);
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);
@@ -708,54 +712,61 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='flex flex-col gap-6'>
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
-            t={t}
-            enableOnlineTopUp={enableOnlineTopUp}
-            enableStripeTopUp={enableStripeTopUp}
-            enableCreemTopUp={enableCreemTopUp}
-            creemProducts={creemProducts}
-            creemPreTopUp={creemPreTopUp}
-            enableWaffoTopUp={enableWaffoTopUp}
-            waffoTopUp={waffoTopUp}
-            waffoPayMethods={waffoPayMethods}
-            presetAmounts={presetAmounts}
-            selectedPreset={selectedPreset}
-            selectPresetAmount={selectPresetAmount}
-            formatLargeNumber={formatLargeNumber}
-            priceRatio={priceRatio}
-            topUpCount={topUpCount}
-            minTopUp={minTopUp}
-            renderQuotaWithAmount={renderQuotaWithAmount}
-            getAmount={getAmount}
-            setTopUpCount={setTopUpCount}
-            setSelectedPreset={setSelectedPreset}
-            renderAmount={renderAmount}
-            amountLoading={amountLoading}
-            payMethods={payMethods}
-            preTopUp={preTopUp}
-            paymentLoading={paymentLoading}
-            payWay={payWay}
-            redemptionCode={redemptionCode}
-            setRedemptionCode={setRedemptionCode}
-            topUp={topUp}
-            isSubmitting={isSubmitting}
-            topUpLink={topUpLink}
-            openTopUpLink={openTopUpLink}
-            userState={userState}
-            renderQuota={renderQuota}
-            statusLoading={statusLoading}
-            topupInfo={topupInfo}
-            onOpenHistory={handleOpenHistory}
-          />
-          <InvitationCard
-            t={t}
-            userState={userState}
-            renderQuota={renderQuota}
-            setOpenTransfer={setOpenTransfer}
-            affLink={affLink}
-            handleAffLinkClick={handleAffLinkClick}
-          />
+          t={t}
+          enableOnlineTopUp={enableOnlineTopUp}
+          enableStripeTopUp={enableStripeTopUp}
+          enableCreemTopUp={enableCreemTopUp}
+          creemProducts={creemProducts}
+          creemPreTopUp={creemPreTopUp}
+          enableWaffoTopUp={enableWaffoTopUp}
+          waffoTopUp={waffoTopUp}
+          waffoPayMethods={waffoPayMethods}
+          presetAmounts={presetAmounts}
+          selectedPreset={selectedPreset}
+          selectPresetAmount={selectPresetAmount}
+          formatLargeNumber={formatLargeNumber}
+          priceRatio={priceRatio}
+          topUpCount={topUpCount}
+          minTopUp={minTopUp}
+          renderQuotaWithAmount={renderQuotaWithAmount}
+          getAmount={getAmount}
+          setTopUpCount={setTopUpCount}
+          setSelectedPreset={setSelectedPreset}
+          renderAmount={renderAmount}
+          amountLoading={amountLoading}
+          payMethods={payMethods}
+          preTopUp={preTopUp}
+          paymentLoading={paymentLoading}
+          payWay={payWay}
+          redemptionCode={redemptionCode}
+          setRedemptionCode={setRedemptionCode}
+          topUp={topUp}
+          isSubmitting={isSubmitting}
+          topUpLink={topUpLink}
+          openTopUpLink={openTopUpLink}
+          userState={userState}
+          renderQuota={renderQuota}
+          statusLoading={statusLoading}
+          topupInfo={topupInfo}
+          onOpenHistory={handleOpenHistory}
+          subscriptionLoading={subscriptionLoading}
+          subscriptionPlans={subscriptionPlans}
+          billingPreference={billingPreference}
+          onChangeBillingPreference={updateBillingPreference}
+          activeSubscriptions={activeSubscriptions}
+          allSubscriptions={allSubscriptions}
+          reloadSubscriptionSelf={getSubscriptionSelf}
+        />
+        <InvitationCard
+          t={t}
+          userState={userState}
+          renderQuota={renderQuota}
+          setOpenTransfer={setOpenTransfer}
+          affLink={affLink}
+          handleAffLinkClick={handleAffLinkClick}
+        />
       </div>
     </div>
   );
