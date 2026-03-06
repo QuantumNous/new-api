@@ -271,6 +271,29 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 	}
 
 	req.Header.Set("Authorization", "Bearer "+key)
+	if headerOverride, ok := body["header_override"].(map[string]interface{}); ok {
+		for rawKey, rawValue := range headerOverride {
+			if channel.IsHeaderPassthroughRuleKey(rawKey) {
+				continue
+			}
+			value, ok := rawValue.(string)
+			if !ok {
+				continue
+			}
+			trimmedKey := strings.TrimSpace(rawKey)
+			trimmedValue := strings.TrimSpace(strings.ReplaceAll(value, "{api_key}", key))
+			if strings.HasPrefix(trimmedValue, "{client_header:") {
+				continue
+			}
+			if trimmedKey == "" || trimmedValue == "" {
+				continue
+			}
+			req.Header.Set(trimmedKey, trimmedValue)
+			if strings.EqualFold(trimmedKey, "Host") {
+				req.Host = trimmedValue
+			}
+		}
+	}
 
 	client, err := service.GetHttpClientWithProxy(proxy)
 	if err != nil {
