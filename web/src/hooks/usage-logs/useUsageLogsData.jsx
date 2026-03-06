@@ -67,6 +67,7 @@ export const useLogsData = () => {
   const [showStat, setShowStat] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStat, setLoadingStat] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
@@ -714,6 +715,74 @@ export const useLogsData = () => {
     }
   };
 
+  // Export logs as CSV
+  const exportLogs = async () => {
+    setExportLoading(true);
+    try {
+      const {
+        username,
+        token_name,
+        model_name,
+        start_timestamp,
+        end_timestamp,
+        channel,
+        group,
+        request_id,
+        logType: formLogType,
+      } = getFormValues();
+
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+      const reqBody = {
+        type: formLogType,
+        start_timestamp: localStartTimestamp,
+        end_timestamp: localEndTimestamp,
+        token_name,
+        model_name,
+        group,
+        request_id,
+        ...(isAdminUser
+          ? { username, channel: parseInt(channel) || 0 }
+          : {}),
+      };
+
+      const url = isAdminUser ? '/api/log/export' : '/api/log/self/export';
+      const res = await API.post(url, reqBody, { responseType: 'blob' });
+
+      // Backend returns JSON (not CSV) when there is no data or an error.
+      const contentType = res.headers['content-type'] || '';
+      if (contentType.includes('application/json')) {
+        const text = await res.data.text();
+        let msg = t('导出日志失败');
+        try {
+          const json = JSON.parse(text);
+          msg = json.message || msg;
+        } catch (_) {
+          // ignore parse error
+        }
+        showError(msg);
+        return;
+      }
+
+      // Trigger browser download
+      const blobUrl = URL.createObjectURL(res.data);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = `logs_export_${Date.now()}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(blobUrl);
+
+      showSuccess(t('日志导出成功'));
+    } catch (err) {
+      showError(t('导出日志失败'));
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   // Initialize data
   useEffect(() => {
     const localPageSize =
@@ -747,6 +816,7 @@ export const useLogsData = () => {
     showStat,
     loading,
     loadingStat,
+    exportLoading,
     activePage,
     logCount,
     pageSize,
@@ -791,6 +861,7 @@ export const useLogsData = () => {
     handlePageSizeChange,
     refresh,
     copyText,
+    exportLogs,
     handleEyeClick,
     setLogsFormat,
     hasExpandableRows,
