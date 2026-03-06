@@ -306,7 +306,7 @@ const TopUp = () => {
     }
   };
 
-  const waffoTopUp = async (payMethodType, payMethodName) => {
+  const waffoTopUp = async (payMethodIndex) => {
     try {
         if (topUpCount < minTopUp) {
             showError(t('充值数量不能小于') + minTopUp);
@@ -316,11 +316,8 @@ const TopUp = () => {
         const requestBody = {
             amount: parseInt(topUpCount),
         };
-        if (payMethodType) {
-            requestBody.pay_method_type = payMethodType;
-        }
-        if (payMethodName) {
-            requestBody.pay_method_name = payMethodName;
+        if (payMethodIndex != null) {
+            requestBody.pay_method_index = payMethodIndex;
         }
         const res = await API.post('/api/user/waffo/pay', requestBody);
         if (res !== undefined) {

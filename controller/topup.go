@@ -574,10 +574,30 @@ func AdminRefundTopUp(c *gin.Context) {
 		return
 	}
 	if !resp.IsSuccess() {
-		// 业务明确拒绝：安全删除 refund 记录
-		log.Printf("Waffo 退款业务失败: [%s] %s, TopUpId: %d", resp.Code, resp.Message, req.TopUpId)
-		_ = model.DeleteRefundByRequestId(refundRequestId)
-		common.ApiErrorMsg(c, "发起退款失败: "+resp.Message)
+		log.Printf("Waffo 退款业务码非零: [%s] %s, TopUpId: %d, RefundRequestId: %s",
+			resp.Code, resp.Message, req.TopUpId, refundRequestId)
+
+		// 查询 Waffo 侧退款真实状态，避免误判
+		inquiryResult := queryWaffoRefundStatus(sdk, refundRequestId)
+
+		switch inquiryResult {
+		case "processing":
+			// Waffo 侧在处理中 → 保留 pending，等 webhook 回调
+			log.Printf("Waffo Inquiry 退款处理中，保留 pending: RefundRequestId: %s", refundRequestId)
+			_ = model.UpdateTopUpStatusToRefunding(req.TopUpId)
+			common.ApiSuccess(c, gin.H{"refund_request_id": refundRequestId})
+		case "failed", "not_found":
+			// 明确失败或查不到 → 删除 refund 记录，删除失败则标记为 failed
+			if err := model.DeleteRefundByRequestId(refundRequestId); err != nil {
+				log.Printf("Waffo 删除退款记录失败，标记为 failed: %v, RefundRequestId: %s", err, refundRequestId)
+				_ = model.FailRefund(refundRequestId)
+			}
+			common.ApiErrorMsg(c, "发起退款失败: "+resp.Message)
+		case "query_error":
+			// 查询本身失败 → 保留 pending，等 webhook
+			log.Printf("Waffo Inquiry 查询失败，保留 pending 等 webhook: RefundRequestId: %s", refundRequestId)
+			common.ApiErrorMsg(c, "退款状态不确定，请稍后查看退款状态")
+		}
 		return
 	}
 

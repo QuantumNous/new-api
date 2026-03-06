@@ -25,13 +25,16 @@ func InsertRefund(refund *Refund) error {
 	return DB.Create(refund).Error
 }
 
-func GetRefundByRequestId(refundRequestId string) *Refund {
+func GetRefundByRequestId(refundRequestId string) (*Refund, error) {
 	var refund Refund
 	err := DB.Where("refund_request_id = ?", refundRequestId).First(&refund).Error
 	if err != nil {
-		return nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
 	}
-	return &refund
+	return &refund, nil
 }
 
 func DeleteRefundByRequestId(refundRequestId string) error {

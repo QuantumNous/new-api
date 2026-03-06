@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +21,8 @@ import (
 	"github.com/waffo-com/waffo-go/config"
 	"github.com/waffo-com/waffo-go/core"
 	"github.com/waffo-com/waffo-go/types/order"
+	"github.com/waffo-com/waffo-go/types/refund"
+	waffotypes "github.com/waffo-com/waffo-go/types"
 )
 
 func getWaffoSDK() (*waffo.Waffo, error) {
@@ -96,10 +99,10 @@ func getWaffoPayMoney(amount float64, group string) float64 {
 }
 
 type WaffoPayRequest struct {
-	Amount        int64  `json:"amount"`
-	PaymentMethod string `json:"payment_method"`  // CREDITCARD, EWALLET, etc.
-	PayMethodType string `json:"pay_method_type"` // Waffo API PayMethodType，如 CREDITCARD,DEBITCARD
-	PayMethodName string `json:"pay_method_name"` // Waffo API PayMethodName，如 APPLEPAY
+	Amount         int64  `json:"amount"`
+	PayMethodIndex *int   `json:"pay_method_index"` // 服务端支付方式列表的索引，nil 表示由 Waffo 自动选择
+	PayMethodType  string `json:"pay_method_type"`  // Deprecated: 兼容旧前端，优先使用 pay_method_index
+	PayMethodName  string `json:"pay_method_name"`  // Deprecated: 兼容旧前端，优先使用 pay_method_index
 }
 
 // RequestWaffoPay 创建 Waffo 支付订单
@@ -126,6 +129,38 @@ func RequestWaffoPay(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "error", "data": "用户不存在"})
 		return
 	}
+
+	// 从服务端配置查找支付方式，客户端只传索引或旧字段
+	var resolvedPayMethodType, resolvedPayMethodName string
+	methods := setting.GetWaffoPayMethods()
+	if req.PayMethodIndex != nil {
+		// 新协议：按索引查找
+		idx := *req.PayMethodIndex
+		if idx < 0 || idx >= len(methods) {
+			log.Printf("Waffo 无效的支付方式索引: %d, UserId=%d, 可用范围: [0, %d)", idx, id, len(methods))
+			c.JSON(200, gin.H{"message": "error", "data": "不支持的支付方式"})
+			return
+		}
+		resolvedPayMethodType = methods[idx].PayMethodType
+		resolvedPayMethodName = methods[idx].PayMethodName
+	} else if req.PayMethodType != "" {
+		// 兼容旧前端：验证客户端传的值在服务端列表中
+		valid := false
+		for _, m := range methods {
+			if m.PayMethodType == req.PayMethodType && m.PayMethodName == req.PayMethodName {
+				valid = true
+				resolvedPayMethodType = m.PayMethodType
+				resolvedPayMethodName = m.PayMethodName
+				break
+			}
+		}
+		if !valid {
+			log.Printf("Waffo 无效的支付方式: PayMethodType=%s, PayMethodName=%s, UserId=%d", req.PayMethodType, req.PayMethodName, id)
+			c.JSON(200, gin.H{"message": "error", "data": "不支持的支付方式"})
+			return
+		}
+	}
+	// resolvedPayMethodType/Name 为空时，Waffo 自动选择支付方式
 
 	group, _ := model.GetUserGroup(id, true)
 	payMoney := getWaffoPayMoney(float64(req.Amount), group)
@@ -201,8 +236,8 @@ func RequestWaffoPay(c *gin.Context) {
 		},
 		PaymentInfo: &order.PaymentInfo{
 			ProductName:   "ONE_TIME_PAYMENT",
-			PayMethodType: req.PayMethodType,
-			PayMethodName: req.PayMethodName,
+			PayMethodType: resolvedPayMethodType,
+			PayMethodName: resolvedPayMethodName,
 		},
 		SuccessRedirectURL: returnUrl,
 		FailedRedirectURL:  returnUrl,
@@ -376,7 +411,12 @@ func handleWaffoRefund(c *gin.Context, wh *core.WebhookHandler, notification *co
 	LockOrder(refundRequestId)
 	defer UnlockOrder(refundRequestId)
 
-	refund := model.GetRefundByRequestId(refundRequestId)
+	refund, err := model.GetRefundByRequestId(refundRequestId)
+	if err != nil {
+		log.Printf("Waffo 退款通知：查询退款记录失败: %v, RefundRequestId: %s", err, refundRequestId)
+		sendWaffoWebhookResponse(c, wh, false, "query refund failed")
+		return
+	}
 	if refund == nil {
 		log.Printf("Waffo 退款通知：未找到退款记录 RefundRequestId: %s", refundRequestId)
 		sendWaffoWebhookResponse(c, wh, true, "")
@@ -416,6 +456,37 @@ func handleWaffoRefund(c *gin.Context, wh *core.WebhookHandler, notification *co
 	}
 
 	sendWaffoWebhookResponse(c, wh, true, "")
+}
+
+// queryWaffoRefundStatus 查询 Waffo 退款真实状态
+// 返回: "processing" | "failed" | "not_found" | "query_error"
+func queryWaffoRefundStatus(sdk *waffo.Waffo, refundRequestId string) string {
+	params := &refund.InquiryRefundParams{
+		MerchantInfo:    waffotypes.MerchantInfo{MerchantID: setting.WaffoMerchantId},
+		RefundRequestID: refundRequestId,
+	}
+	resp, err := sdk.Refund().Inquiry(context.Background(), params, nil)
+	if err != nil {
+		log.Printf("Waffo Inquiry 查询异常: %v, RefundRequestId: %s", err, refundRequestId)
+		return "query_error"
+	}
+	if !resp.IsSuccess() {
+		// SDK 将网络错误包装为 code "E0001"，与业务失败区分
+		if resp.Code == "E0001" {
+			log.Printf("Waffo Inquiry 网络异常: [%s] %s, RefundRequestId: %s", resp.Code, resp.Message, refundRequestId)
+			return "query_error"
+		}
+		return "not_found"
+	}
+	data := resp.GetData()
+	switch data.RefundStatus {
+	case core.RefundStatusFullyRefunded, core.RefundStatusPartiallyRefunded, core.RefundStatusInProgress:
+		return "processing"
+	case core.RefundStatusFailed:
+		return "failed"
+	default:
+		return "processing" // 未知中间状态，保守处理
+	}
 }
 
 // sendWaffoWebhookResponse 发送签名响应
