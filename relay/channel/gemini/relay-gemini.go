@@ -851,6 +851,68 @@ func cleanFunctionParametersShallow(params interface{}) interface{} {
 	}
 }
 
+// inferTypeFromEnumValues detects the best Gemini schema type for an enum field
+// whose "type" is absent. Per the Vertex AI Schema spec, enum values are
+// represented as strings even when the logical type is INTEGER or BOOLEAN, so
+// we inspect the string content rather than the Go type of each element.
+// Priority: BOOLEAN > INTEGER > NUMBER > STRING (most specific first).
+func inferTypeFromEnumValues(rawEnum interface{}) string {
+	enumSlice, ok := rawEnum.([]interface{})
+	if !ok || len(enumSlice) == 0 {
+		return "STRING"
+	}
+
+	allBool := true
+	allInteger := true
+	allNumber := true
+
+	for _, v := range enumSlice {
+		s := ""
+		switch val := v.(type) {
+		case string:
+			s = val
+		case bool:
+			// Native JSON boolean — no further numeric check needed.
+			allInteger = false
+			allNumber = false
+			continue
+		case float64:
+			// Native JSON number.
+			allBool = false
+			if val != float64(int64(val)) {
+				allInteger = false
+			}
+			continue
+		default:
+			// Unknown type; cannot determine a precise scalar type.
+			return "STRING"
+		}
+
+		// String-encoded value checks (Vertex AI encodes enum values as strings).
+		lower := strings.ToLower(strings.TrimSpace(s))
+		if lower != "true" && lower != "false" {
+			allBool = false
+		}
+		if _, err := strconv.ParseInt(s, 10, 64); err != nil {
+			allInteger = false
+		}
+		if _, err := strconv.ParseFloat(s, 64); err != nil {
+			allNumber = false
+		}
+	}
+
+	switch {
+	case allBool:
+		return "BOOLEAN"
+	case allInteger:
+		return "INTEGER"
+	case allNumber:
+		return "NUMBER"
+	default:
+		return "STRING"
+	}
+}
+
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
@@ -862,8 +924,11 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 			schema["type"] = "OBJECT"
 		} else if _, hasItems := schema["items"]; hasItems {
 			schema["type"] = "ARRAY"
-		} else if _, hasEnum := schema["enum"]; hasEnum {
-			schema["type"] = "STRING"
+		} else if rawEnum, hasEnum := schema["enum"]; hasEnum {
+			// Enum parameters are not always STRING — they can be INTEGER, NUMBER,
+			// or BOOLEAN. Inspect the enum values to pick the most accurate type
+			// rather than blindly defaulting to STRING.
+			schema["type"] = inferTypeFromEnumValues(rawEnum)
 		} else {
 			// Default to OBJECT for unrecognised nodes (matches Gemini behaviour).
 			schema["type"] = "OBJECT"
