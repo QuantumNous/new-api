@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -11,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// RetryParam 保存渠道选择的重试和分组降级参数。
 type RetryParam struct {
 	Ctx          *gin.Context
 	TokenGroup   string
@@ -19,6 +22,7 @@ type RetryParam struct {
 	resetNextTry bool
 }
 
+// GetRetry 返回当前的重试次数。
 func (p *RetryParam) GetRetry() int {
 	if p.Retry == nil {
 		return 0
@@ -26,10 +30,12 @@ func (p *RetryParam) GetRetry() int {
 	return *p.Retry
 }
 
+// SetRetry 将重试次数设置为指定值。
 func (p *RetryParam) SetRetry(retry int) {
 	p.Retry = &retry
 }
 
+// IncreaseRetry 递增重试计数器，在 ResetRetryNextTry 后跳过一次。
 func (p *RetryParam) IncreaseRetry() {
 	if p.resetNextTry {
 		p.resetNextTry = false
@@ -41,6 +47,7 @@ func (p *RetryParam) IncreaseRetry() {
 	*p.Retry++
 }
 
+// ResetRetryNextTry 标记下一次 IncreaseRetry 调用将被跳过。
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
@@ -85,6 +92,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+
+	// Check if this is a multi-group token with ordered groups
+	if orderedGroupsRaw, exists := common.GetContextKey(param.Ctx, constant.ContextKeyTokenOrderedGroups); exists {
+		if orderedGroups, ok := orderedGroupsRaw.([]model.GroupPriority); ok && len(orderedGroups) > 0 {
+			return cacheGetChannelForOrderedGroups(param, orderedGroups)
+		}
+	}
 
 	if param.TokenGroup == "auto" {
 		if len(setting.GetAutoGroups()) == 0 {
@@ -159,4 +173,56 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+// cacheGetChannelForOrderedGroups 处理多分组令牌的渠道选择。
+// 遵循与 auto 分组相同的模式：每个分组耗尽所有优先级后再按优先级顺序切换到下一个分组。
+func cacheGetChannelForOrderedGroups(param *RetryParam, orderedGroups []model.GroupPriority) (*model.Channel, string, error) {
+	startGroupIndex := 0
+	if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+		if idx, ok := lastGroupIndex.(int); ok {
+			startGroupIndex = idx
+		}
+	}
+
+	var groupErrors []string
+	for i := startGroupIndex; i < len(orderedGroups); i++ {
+		groupName := orderedGroups[i].Group
+		priorityRetry := param.GetRetry()
+		if i > startGroupIndex {
+			priorityRetry = 0
+		}
+		logger.LogDebug(param.Ctx, "Multi-group selecting group: %s (priority %d), priorityRetry: %d", groupName, orderedGroups[i].Priority, priorityRetry)
+
+		channel, err := model.GetRandomSatisfiedChannel(groupName, param.ModelName, priorityRetry)
+		if channel == nil {
+			errMsg := "无可用渠道"
+			if err != nil {
+				errMsg = err.Error()
+			}
+			groupErrors = append(groupErrors, fmt.Sprintf("%s: %s", groupName, errMsg))
+			logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", groupName, param.ModelName, priorityRetry)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			param.SetRetry(0)
+			continue
+		}
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, groupName)
+		logger.LogDebug(param.Ctx, "Multi-group selected group: %s", groupName)
+
+		// Prepare state for next retry
+		if priorityRetry >= common.RetryTimes {
+			logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group", groupName, priorityRetry, common.RetryTimes)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
+			param.SetRetry(0)
+			param.ResetRetryNextTry()
+		} else {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
+		}
+		return channel, groupName, nil
+	}
+	if len(groupErrors) > 0 {
+		return nil, "", fmt.Errorf("所有分组均失败: %s", strings.Join(groupErrors, "; "))
+	}
+	return nil, "", errors.New("所有分组的可用渠道均已耗尽")
 }

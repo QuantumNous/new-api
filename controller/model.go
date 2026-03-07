@@ -109,6 +109,8 @@ func init() {
 	})
 }
 
+// ListModels 返回已认证用户可用的模型列表，
+// 支持多分组令牌的并集或交集合并模式。
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
 
@@ -168,7 +170,43 @@ func ListModels(c *gin.Context, modelType int) {
 			group = tokenGroup
 		}
 		var models []string
-		if tokenGroup == "auto" {
+		if orderedGroupsRaw, ok := common.GetContextKey(c, constant.ContextKeyTokenOrderedGroups); ok {
+			orderedGroups := orderedGroupsRaw.([]model.GroupPriority)
+			mergeMode := common.GetContextKeyString(c, constant.ContextKeyTokenModelMergeMode)
+			if mergeMode == "intersection" {
+				// Intersection: only models present in ALL groups
+				for i, gp := range orderedGroups {
+					groupModels := model.GetGroupEnabledModels(gp.Group)
+					if i == 0 {
+						models = groupModels
+					} else {
+						modelSet := make(map[string]bool)
+						for _, m := range groupModels {
+							modelSet[m] = true
+						}
+						filtered := make([]string, 0)
+						for _, m := range models {
+							if modelSet[m] {
+								filtered = append(filtered, m)
+							}
+						}
+						models = filtered
+					}
+				}
+			} else {
+				// Union (default): models from ANY group
+				seen := make(map[string]bool)
+				for _, gp := range orderedGroups {
+					groupModels := model.GetGroupEnabledModels(gp.Group)
+					for _, m := range groupModels {
+						if !seen[m] {
+							seen[m] = true
+							models = append(models, m)
+						}
+					}
+				}
+			}
+		} else if tokenGroup == "auto" {
 			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
 				groupModels := model.GetGroupEnabledModels(autoGroup)
 				for _, g := range groupModels {
@@ -205,6 +243,13 @@ func ListModels(c *gin.Context, modelType int) {
 	switch modelType {
 	case constant.ChannelTypeAnthropic:
 		useranthropicModels := make([]dto.AnthropicModel, len(userOpenAiModels))
+		if len(userOpenAiModels) == 0 {
+			c.JSON(200, gin.H{
+				"data":     useranthropicModels,
+				"has_more": false,
+			})
+			return
+		}
 		for i, model := range userOpenAiModels {
 			useranthropicModels[i] = dto.AnthropicModel{
 				ID:          model.Id,
@@ -240,6 +285,7 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 }
 
+// ChannelListModels 返回系统支持的所有渠道模型列表。
 func ChannelListModels(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
@@ -247,6 +293,7 @@ func ChannelListModels(c *gin.Context) {
 	})
 }
 
+// DashboardListModels 返回按渠道 ID 分组的模型列表，供仪表盘展示。
 func DashboardListModels(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
@@ -254,6 +301,7 @@ func DashboardListModels(c *gin.Context) {
 	})
 }
 
+// EnabledListModels 返回当前已启用的模型列表。
 func EnabledListModels(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"success": true,
@@ -261,6 +309,7 @@ func EnabledListModels(c *gin.Context) {
 	})
 }
 
+// RetrieveModel 根据模型 ID 返回单个模型的详细信息。
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
 	if aiModel, ok := openAIModelsMap[modelId]; ok {

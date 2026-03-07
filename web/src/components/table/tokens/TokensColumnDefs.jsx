@@ -104,6 +104,63 @@ const renderGroupColumn = (text, record, t) => {
       </Tooltip>
     );
   }
+  // Handle multi-group JSON array
+  if (text && typeof text === 'string' && text.trim().startsWith('[')) {
+    try {
+      const groups = JSON.parse(text);
+      groups.sort((a, b) => a.priority - b.priority);
+      const circledNumbers = '\u2460\u2461\u2462\u2463\u2464\u2465\u2466\u2467\u2468\u2469';
+      const MAX_SHOW = 1;
+      const visibleGroups = groups.slice(0, MAX_SHOW);
+      const hiddenGroups = groups.slice(MAX_SHOW);
+
+      const renderTag = (item, idx) => (
+        <Tag
+          key={item.group}
+          color={stringToColor(item.group)}
+          shape='circle'
+          size='small'
+          style={{ marginRight: 2, marginBottom: 2 }}
+        >
+          {circledNumbers[idx] || (idx + 1)}{item.group}
+        </Tag>
+      );
+
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+          {visibleGroups.map((item, idx) => renderTag(item, idx))}
+          {hiddenGroups.length > 0 && (
+            <Popover
+              content={
+                <div style={{ padding: '4px 0', maxWidth: 300 }}>
+                  <div style={{ marginBottom: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+                    {t('多分组优先级模式，按优先级顺序依次尝试')}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {groups.map((item, idx) => renderTag(item, idx))}
+                  </div>
+                </div>
+              }
+              position='bottomLeft'
+              trigger='click'
+              showArrow
+            >
+              <Tag
+                color='grey'
+                shape='circle'
+                size='small'
+                style={{ marginRight: 2, cursor: 'pointer' }}
+              >
+                +{hiddenGroups.length} ▾
+              </Tag>
+            </Popover>
+          )}
+        </span>
+      );
+    } catch {
+      // Fall through to renderGroup
+    }
+  }
   return renderGroup(text);
 };
 
