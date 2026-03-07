@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,7 +111,22 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				println("requestBody: ", string(debugBytes))
 			}
 		}
-		requestBody = common.ReaderOnly(storage)
+		// Strip new-api internal routing fields before forwarding to upstream.
+		// Fields such as "group" are consumed by the Distributor middleware for
+		// channel/group selection and must not be sent to external APIs — doing
+		// so causes 400 errors on backends like Gemini that reject unknown fields.
+		if rawBytes, readErr := storage.Bytes(); readErr == nil {
+			var bodyMap map[string]json.RawMessage
+			if jsonErr := json.Unmarshal(rawBytes, &bodyMap); jsonErr == nil {
+				delete(bodyMap, "group")
+				if cleaned, marshalErr := json.Marshal(bodyMap); marshalErr == nil {
+					requestBody = bytes.NewReader(cleaned)
+				}
+			}
+		}
+		if requestBody == nil {
+			requestBody = common.ReaderOnly(storage)
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {
