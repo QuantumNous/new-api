@@ -39,7 +39,10 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		c.Set("image_generation_call_quality", responsesResponse.GetQuality())
 		c.Set("image_generation_call_size", responsesResponse.GetSize())
 	}
-
+	bytes, err := resetModel(responseBody, info.OriginModelName)
+	if err == nil {
+		responseBody = bytes
+	}
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
@@ -84,6 +87,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err == nil {
+
+			if streamResponse.NeedResetModel() {
+				newData, err := resetResponseStreamModel(data, info.OriginModelName)
+				if err == nil {
+					data = newData
+				}
+			}
+
 			sendResponsesStreamData(c, streamResponse, data)
 			switch streamResponse.Type {
 			case "response.completed":

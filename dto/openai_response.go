@@ -386,6 +386,10 @@ type ResponsesStreamResponse struct {
 	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
 }
 
+func (resp *ResponsesStreamResponse) NeedResetModel() bool {
+	return resp.Response != nil && resp.Response.Model != ""
+}
+
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
 func GetOpenAIError(errorField any) *types.OpenAIError {
 	if errorField == nil {

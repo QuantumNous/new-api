@@ -26,7 +26,10 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	if data == "" {
 		return nil
 	}
-
+	newData, err := resetStreamModel(data, info.OriginModelName)
+	if err == nil {
+		data = newData
+	}
 	if !forceFormat && !thinkToContent {
 		return helper.StringData(c, data)
 	}
@@ -269,14 +272,21 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 			bodyMap["usage"] = simpleResponse.Usage
+			bodyMap["model"] = info.OriginModelName
 			responseBody, _ = common.Marshal(bodyMap)
 		}
 		if forceFormat {
+			simpleResponse.Model = info.OriginModelName
 			responseBody, err = common.Marshal(simpleResponse)
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 			}
 		} else {
+			newBody, err := resetModel(responseBody, info.OriginModelName)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+			}
+			responseBody = newBody
 			break
 		}
 	case types.RelayFormatClaude:
@@ -298,6 +308,57 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &simpleResponse.Usage, nil
+}
+
+func resetModel(data []byte, newModel string) ([]byte, error) {
+	tmpMap := map[string]any{}
+	if err := common.Unmarshal(data, &tmpMap); err != nil {
+		return nil, err
+	}
+	tmpMap["model"] = newModel
+	return common.Marshal(tmpMap)
+}
+
+func resetStreamModel(data string, newModel string) (string, error) {
+	tmpMap := map[string]any{}
+	if err := common.UnmarshalJsonStr(data, &tmpMap); err != nil {
+		return "", err
+	}
+	if tmpMap["model"] == "" {
+		return data, nil
+	}
+	tmpMap["model"] = newModel
+	marshal, err := common.Marshal(tmpMap)
+	if err != nil {
+		return "", err
+	}
+	return string(marshal), nil
+}
+
+func resetResponseStreamModel(data string, newModel string) (string, error) {
+	tmpMap := map[string]any{}
+	if err := common.UnmarshalJsonStr(data, &tmpMap); err != nil {
+		return "", err
+	}
+	if tmpMap["response"] == nil {
+		return data, nil
+	}
+	responseMap, ok := tmpMap["response"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	if responseMap["model"] == "" {
+		return data, nil
+	}
+
+	responseMap["model"] = newModel
+	tmpMap["response"] = responseMap
+
+	marshal, err := common.Marshal(tmpMap)
+	if err != nil {
+		return "", err
+	}
+	return string(marshal), nil
 }
 
 func streamTTSResponse(c *gin.Context, resp *http.Response) {

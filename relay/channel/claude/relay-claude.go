@@ -708,6 +708,12 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
 
 		if claudeResponse.Type == "message_start" {
+			newData, err := resetMessageStartData(c, info, data)
+			if err != nil {
+				common.SysLog("error resetMessageStartData stream response: " + err.Error())
+				return types.NewError(err, types.ErrorCodeBadResponseBody)
+			}
+			data = newData
 			// message_start, 获取usage
 			if claudeResponse.Message != nil {
 				info.UpstreamModelName = claudeResponse.Message.Model
@@ -721,6 +727,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
+		claudeResponse.ResetModel(info.OriginModelName)
 		response := StreamResponseClaude2OpenAI(&claudeResponse)
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
@@ -733,6 +740,27 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	}
 	return nil
+}
+
+func resetMessageStartData(c *gin.Context, info *relaycommon.RelayInfo, data string) (string, error) {
+	tmpMap := map[string]any{}
+	if err := common.UnmarshalJsonStr(data, &tmpMap); err != nil {
+		return "", err
+	}
+	if tmpMap["message"] == nil {
+		return data, nil
+	}
+	messageMap, ok := tmpMap["message"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	messageMap["model"] = info.OriginModelName
+	tmpMap["message"] = messageMap
+	bytes, err := common.Marshal(tmpMap)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
 }
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
@@ -809,6 +837,9 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	var responseData []byte
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
+		//返回的真实模型改为重定向模型
+		claudeResponse.ResetModel(info.OriginModelName)
+
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = *claudeInfo.Usage
 		responseData, err = json.Marshal(openaiResponse)
@@ -816,7 +847,11 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		newData, err := resetModel(data, info.OriginModelName)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		responseData = newData
 	}
 
 	if claudeResponse.Usage != nil && claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {
@@ -825,6 +860,15 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 	service.IOCopyBytesGracefully(c, httpResp, responseData)
 	return nil
+}
+
+func resetModel(data []byte, newModel string) ([]byte, error) {
+	tmpMap := map[string]any{}
+	if err := common.Unmarshal(data, &tmpMap); err != nil {
+		return nil, err
+	}
+	tmpMap["model"] = newModel
+	return common.Marshal(tmpMap)
 }
 
 func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {

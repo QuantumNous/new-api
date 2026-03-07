@@ -477,6 +477,13 @@ type ClaudeResponse struct {
 	Message      *ClaudeMediaMessage  `json:"message,omitempty"`
 }
 
+func (c *ClaudeResponse) ResetModel(newModel string) {
+	c.Model = newModel
+	if c.Message != nil {
+		c.Message.Model = newModel
+	}
+}
+
 // set index
 func (c *ClaudeResponse) SetIndex(i int) {
 	c.Index = &i
