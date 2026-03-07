@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -116,10 +115,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		// channel/group selection and must not be sent to external APIs — doing
 		// so causes 400 errors on backends like Gemini that reject unknown fields.
 		if rawBytes, readErr := storage.Bytes(); readErr == nil {
-			var bodyMap map[string]json.RawMessage
-			if jsonErr := json.Unmarshal(rawBytes, &bodyMap); jsonErr == nil {
+			var bodyMap map[string]any
+			if jsonErr := common.Unmarshal(rawBytes, &bodyMap); jsonErr == nil {
 				delete(bodyMap, "group")
-				if cleaned, marshalErr := json.Marshal(bodyMap); marshalErr == nil {
+				if cleaned, marshalErr := common.Marshal(bodyMap); marshalErr == nil {
 					requestBody = bytes.NewReader(cleaned)
 				}
 			}
