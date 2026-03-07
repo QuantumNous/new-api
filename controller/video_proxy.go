@@ -108,17 +108,26 @@ func VideoProxy(c *gin.Context) {
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
-		req.Header.Set("Authorization", "Bearer "+channel.Key)
-		headerOverride, resolveErr := relaychannel.ResolveHeaderOverride(&relaycommon.RelayInfo{
-			ChannelMeta: &relaycommon.ChannelMeta{
-				ApiKey:          channel.Key,
-				HeadersOverride: channel.GetHeaderOverride(),
-			},
-		}, c)
-		if resolveErr != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve header override for task %s: %s", taskID, resolveErr.Error()))
-			videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
-			return
+		effectiveKey := channel.Key
+		if task.PrivateData.Key != "" {
+			effectiveKey = task.PrivateData.Key
+		}
+		req.Header.Set("Authorization", "Bearer "+effectiveKey)
+
+		headerOverride := task.PrivateData.ResolvedHeaders
+		if len(headerOverride) == 0 {
+			var resolveErr error
+			headerOverride, resolveErr = relaychannel.ResolveHeaderOverride(&relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ApiKey:          effectiveKey,
+					HeadersOverride: channel.GetHeaderOverride(),
+				},
+			}, c)
+			if resolveErr != nil {
+				logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve header override for task %s: %s", taskID, resolveErr.Error()))
+				videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to create proxy request")
+				return
+			}
 		}
 		for key, value := range headerOverride {
 			req.Header.Set(key, value)

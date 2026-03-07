@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -571,10 +572,17 @@ func RelayTask(c *gin.Context) {
 		service.LogTaskConsumption(c, relayInfo)
 
 		task := model.InitTask(result.Platform, relayInfo)
+		task.PrivateData.Key = relayInfo.ApiKey
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
+		resolvedHeaders, resolveErr := relaychannel.ResolveHeaderOverride(relayInfo, c)
+		if resolveErr != nil {
+			logger.LogWarn(c, fmt.Sprintf("Failed to snapshot resolved headers for task %s: %s", task.TaskID, resolveErr.Error()))
+		} else if len(resolvedHeaders) > 0 {
+			task.PrivateData.ResolvedHeaders = resolvedHeaders
+		}
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
 			ModelPrice:      relayInfo.PriceData.ModelPrice,
 			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
