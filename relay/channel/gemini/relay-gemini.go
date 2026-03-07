@@ -854,6 +854,20 @@ func cleanFunctionParametersShallow(params interface{}) interface{} {
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
+		// Gemini API requires every schema node to have an explicit type.
+		// Infer the type from sibling fields when it is absent so that requests
+		// containing OpenAI-style tool schemas (which allow omitting "type" on
+		// nested objects) are accepted by the Vertex AI / Gemini backend.
+		if _, hasProps := schema["properties"]; hasProps {
+			schema["type"] = "OBJECT"
+		} else if _, hasItems := schema["items"]; hasItems {
+			schema["type"] = "ARRAY"
+		} else if _, hasEnum := schema["enum"]; hasEnum {
+			schema["type"] = "STRING"
+		} else {
+			// Default to OBJECT for unrecognised nodes (matches Gemini behaviour).
+			schema["type"] = "OBJECT"
+		}
 		return
 	}
 
