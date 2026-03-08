@@ -129,6 +129,15 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
+	// Verify user is authenticated before binding
+	id := c.GetInt("id")
+	if id == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
+		return
+	}
 	code := c.Query("code")
 	wechatId, err := getWeChatIdByCode(code)
 	if err != nil {
@@ -145,10 +154,8 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	session := sessions.Default(c)
-	id := session.Get("id")
 	user := model.User{
-		Id: id.(int),
+		Id: id,
 	}
 	err = user.FillUserById()
 	if err != nil {
