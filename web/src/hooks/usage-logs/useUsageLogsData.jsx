@@ -406,6 +406,18 @@ export const useLogsData = () => {
           value: other.cache_creation_tokens,
         });
       }
+      if (other?.cache_creation_tokens_5m > 0) {
+        expandDataLocal.push({
+          key: t('缓存创建 Tokens (5m)'),
+          value: other.cache_creation_tokens_5m,
+        });
+      }
+      if (other?.cache_creation_tokens_1h > 0) {
+        expandDataLocal.push({
+          key: t('缓存创建 Tokens (1h)'),
+          value: other.cache_creation_tokens_1h,
+        });
+      }
       if (logs[i].type === 2) {
         expandDataLocal.push({
           key: t('日志详情'),
@@ -435,6 +447,16 @@ export const useLogsData = () => {
                 other.group_ratio,
                 other?.user_group_ratio,
                 other.cache_ratio || 1.0,
+                other.cache_creation_tokens || 0,
+                other.cache_creation_ratio || 1.0,
+                other.cache_creation_tokens_5m || 0,
+                other.cache_creation_ratio_5m ||
+                  other.cache_creation_ratio ||
+                  1.0,
+                other.cache_creation_tokens_1h || 0,
+                other.cache_creation_ratio_1h ||
+                  other.cache_creation_ratio ||
+                  1.0,
                 false,
                 1.0,
                 other.web_search || false,
@@ -545,6 +567,16 @@ export const useLogsData = () => {
               other?.audio_input_price || 0,
               other?.image_generation_call || false,
               other?.image_generation_call_price || 0,
+              other?.cache_creation_tokens || 0,
+              other?.cache_creation_ratio || 1.0,
+              other?.cache_creation_tokens_5m || 0,
+              other?.cache_creation_ratio_5m ||
+                other?.cache_creation_ratio ||
+                1.0,
+              other?.cache_creation_tokens_1h || 0,
+              other?.cache_creation_ratio_1h ||
+                other?.cache_creation_ratio ||
+                1.0,
               billingDisplayMode,
             );
           }

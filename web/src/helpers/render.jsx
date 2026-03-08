@@ -1448,6 +1448,12 @@ export function renderModelPrice(
   audioInputPrice = 0,
   imageGenerationCall = false,
   imageGenerationCallPrice = 0,
+  cacheCreationTokens = 0,
+  cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
   displayMode = 'price',
 ) {
   const { ratio: effectiveGroupRatio, label: ratioLabel } = getEffectiveRatio(
@@ -1493,9 +1499,22 @@ export function renderModelPrice(
     const inputRatioPrice = modelRatio * 2.0;
     const completionRatioPrice = modelRatio * 2.0 * completionRatio;
     const cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
+    const cacheCreationRatioPrice = modelRatio * 2.0 * cacheCreationRatio;
+    const cacheCreationRatioPrice5m = modelRatio * 2.0 * cacheCreationRatio5m;
+    const cacheCreationRatioPrice1h = modelRatio * 2.0 * cacheCreationRatio1h;
     const imageRatioPrice = modelRatio * 2.0 * imageRatio;
+    const hasSplitCacheCreation =
+      cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+    const legacyCacheCreationTokens = hasSplitCacheCreation
+      ? 0
+      : cacheCreationTokens;
     let effectiveInputTokens =
-      inputTokens - cacheTokens + cacheTokens * cacheRatio;
+      inputTokens -
+      cacheTokens +
+      cacheTokens * cacheRatio +
+      legacyCacheCreationTokens * cacheCreationRatio +
+      cacheCreationTokens5m * cacheCreationRatio5m +
+      cacheCreationTokens1h * cacheCreationRatio1h;
     if (image && imageOutputTokens > 0) {
       effectiveInputTokens =
         inputTokens - imageOutputTokens + imageOutputTokens * imageRatio;
@@ -1534,6 +1553,30 @@ export function renderModelPrice(
               {i18next.t('缓存读取价格：{{symbol}}{{total}} / 1M tokens', {
                 symbol,
                 total: (inputRatioPrice * cacheRatio * rate).toFixed(6),
+              })}
+            </p>
+          )}
+          {!hasSplitCacheCreation && cacheCreationTokens > 0 && (
+            <p>
+              {i18next.t('缓存创建价格：{{symbol}}{{total}} / 1M tokens', {
+                symbol,
+                total: (cacheCreationRatioPrice * rate).toFixed(6),
+              })}
+            </p>
+          )}
+          {hasSplitCacheCreation && cacheCreationTokens5m > 0 && (
+            <p>
+              {i18next.t('5m缓存创建价格：{{symbol}}{{total}} / 1M tokens', {
+                symbol,
+                total: (cacheCreationRatioPrice5m * rate).toFixed(6),
+              })}
+            </p>
+          )}
+          {hasSplitCacheCreation && cacheCreationTokens1h > 0 && (
+            <p>
+              {i18next.t('1h缓存创建价格：{{symbol}}{{total}} / 1M tokens', {
+                symbol,
+                total: (cacheCreationRatioPrice1h * rate).toFixed(6),
               })}
             </p>
           )}
@@ -1582,17 +1625,71 @@ export function renderModelPrice(
                     price: (inputRatioPrice * rate).toFixed(6),
                   },
                 );
-              } else if (cacheTokens > 0) {
-                inputDesc = i18next.t(
-                  '(输入 {{nonCacheInput}} tokens / 1M tokens * {{symbol}}{{price}} + 缓存 {{cacheInput}} tokens / 1M tokens * {{symbol}}{{cachePrice}}',
-                  {
-                    nonCacheInput: inputTokens - cacheTokens,
-                    cacheInput: cacheTokens,
-                    symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
-                    cachePrice: (cacheRatioPrice * rate).toFixed(6),
-                  },
-                );
+              } else if (
+                cacheTokens > 0 ||
+                cacheCreationTokens > 0 ||
+                cacheCreationTokens5m > 0 ||
+                cacheCreationTokens1h > 0
+              ) {
+                const inputParts = [
+                  i18next.t(
+                    '普通输入 {{plainInput}} tokens / 1M tokens * {{symbol}}{{price}}',
+                    {
+                      plainInput: inputTokens - cacheTokens,
+                      symbol,
+                      price: (inputRatioPrice * rate).toFixed(6),
+                    },
+                  ),
+                ];
+                if (cacheTokens > 0) {
+                  inputParts.push(
+                    i18next.t(
+                      '缓存读取 {{cacheInput}} tokens / 1M tokens * {{symbol}}{{cachePrice}}',
+                      {
+                        cacheInput: cacheTokens,
+                        symbol,
+                        cachePrice: (cacheRatioPrice * rate).toFixed(6),
+                      },
+                    ),
+                  );
+                }
+                if (!hasSplitCacheCreation && cacheCreationTokens > 0) {
+                  inputParts.push(
+                    i18next.t(
+                      '缓存创建 {{cacheCreationTokens}} tokens / 1M tokens * {{symbol}}{{cacheCreationPrice}}',
+                      {
+                        cacheCreationTokens,
+                        symbol,
+                        cacheCreationPrice: (cacheCreationRatioPrice * rate).toFixed(6),
+                      },
+                    ),
+                  );
+                }
+                if (hasSplitCacheCreation && cacheCreationTokens5m > 0) {
+                  inputParts.push(
+                    i18next.t(
+                      '5m缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
+                      {
+                        tokens: cacheCreationTokens5m,
+                        symbol,
+                        price: (cacheCreationRatioPrice5m * rate).toFixed(6),
+                      },
+                    ),
+                  );
+                }
+                if (hasSplitCacheCreation && cacheCreationTokens1h > 0) {
+                  inputParts.push(
+                    i18next.t(
+                      '1h缓存创建 {{tokens}} tokens / 1M tokens * {{symbol}}{{price}}',
+                      {
+                        tokens: cacheCreationTokens1h,
+                        symbol,
+                        price: (cacheCreationRatioPrice1h * rate).toFixed(6),
+                      },
+                    ),
+                  );
+                }
+                inputDesc = `(${inputParts.join(' + ')}`;
               } else if (audioInputSeperatePrice && audioInputTokens > 0) {
                 inputDesc = i18next.t(
                   '(输入 {{nonAudioInput}} tokens / 1M tokens * {{symbol}}{{price}} + 音频输入 {{audioInput}} tokens / 1M tokens * {{symbol}}{{audioPrice}}',
@@ -1912,6 +2009,12 @@ export function renderLogContent(
   groupRatio,
   user_group_ratio,
   cacheRatio = 1.0,
+  cacheCreationTokens = 0,
+  cacheCreationRatio = 1.0,
+  cacheCreationTokens5m = 0,
+  cacheCreationRatio5m = 1.0,
+  cacheCreationTokens1h = 0,
+  cacheCreationRatio1h = 1.0,
   image = false,
   imageRatio = 1.0,
   webSearch = false,
@@ -1954,6 +2057,20 @@ export function renderLogContent(
       symbol,
       price: (modelRatio * 2.0 * cacheRatio * rate).toFixed(6),
     });
+    const hasSplitCacheCreation =
+      cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
+    appendPricePart(parts, !hasSplitCacheCreation && cacheCreationTokens > 0, '缓存创建价格 {{symbol}}{{price}} / 1M tokens', {
+      symbol,
+      price: (modelRatio * 2.0 * cacheCreationRatio * rate).toFixed(6),
+    });
+    appendPricePart(parts, hasSplitCacheCreation && cacheCreationTokens5m > 0, '5m缓存创建价格 {{symbol}}{{price}} / 1M tokens', {
+      symbol,
+      price: (modelRatio * 2.0 * cacheCreationRatio5m * rate).toFixed(6),
+    });
+    appendPricePart(parts, hasSplitCacheCreation && cacheCreationTokens1h > 0, '1h缓存创建价格 {{symbol}}{{price}} / 1M tokens', {
+      symbol,
+      price: (modelRatio * 2.0 * cacheCreationRatio1h * rate).toFixed(6),
+    });
     appendPricePart(parts, image, '图片输入价格 {{symbol}}{{price}} / 1M tokens', {
       symbol,
       price: (modelRatio * 2.0 * imageRatio * rate).toFixed(6),
@@ -1978,10 +2095,11 @@ export function renderLogContent(
   } else {
     if (image) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，缓存创建倍率 {{cacheCreationRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
           cacheRatio: cacheRatio,
+          cacheCreationRatio: cacheCreationRatio,
           completionRatio: completionRatio,
           imageRatio: imageRatio,
           ratioType: ratioLabel,
@@ -1990,10 +2108,11 @@ export function renderLogContent(
       );
     } else if (webSearch) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，缓存创建倍率 {{cacheCreationRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
         {
           modelRatio: modelRatio,
           cacheRatio: cacheRatio,
+          cacheCreationRatio: cacheCreationRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,
@@ -2002,10 +2121,11 @@ export function renderLogContent(
       );
     } else {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
+        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，缓存创建倍率 {{cacheCreationRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
         {
           modelRatio: modelRatio,
           cacheRatio: cacheRatio,
+          cacheCreationRatio: cacheCreationRatio,
           completionRatio: completionRatio,
           ratioType: ratioLabel,
           ratio,

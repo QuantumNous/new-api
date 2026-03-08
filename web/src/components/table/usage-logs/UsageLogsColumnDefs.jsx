@@ -574,7 +574,7 @@ export const getLogsColumns = ({
           {t('输入')}
           <Tooltip
             content={t(
-              '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
+              '输入列会显示输入 tokens 与缓存写入 tokens 的合计；下方会额外展示缓存读取与缓存写入明细。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -585,6 +585,8 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
+        const displayInputTokens =
+          Number(other?.input_tokens_total ?? text) || 0;
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
         const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
         let cacheText = '';
@@ -605,7 +607,7 @@ export const getLogsColumns = ({
               lineHeight: 1.2,
             }}
           >
-            <span>{text}</span>
+            <span>{displayInputTokens}</span>
             {cacheText ? (
               <span
                 style={{
@@ -817,12 +819,16 @@ export const getLogsColumns = ({
               other?.user_group_ratio,
               other.cache_tokens || 0,
               other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
+              other.cache_creation_tokens || 0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
               false,
               1.0,
               other?.is_system_prompt_overwritten,
