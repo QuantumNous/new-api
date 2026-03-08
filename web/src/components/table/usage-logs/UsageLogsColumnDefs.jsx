@@ -588,7 +588,7 @@ export const getLogsColumns = ({
           {t('输入')}
           <Tooltip
             content={t(
-              '若最终请求格式为 /v1/messages，这里仅显示未命中缓存的输入 tokens；若为 OpenAI 或 Gemini 兼容格式，这里显示输入 tokens 与缓存写入 tokens 的合计。两种情况下，缓存读取与缓存写入都会正常参与价格计算，并在下方展示明细。',
+              '若最终请求格式为 /v1/messages，这里主值仅显示未命中缓存的输入 tokens；若为 OpenAI 或 Gemini 兼容格式，这里主值显示输入 tokens 与缓存写入 tokens 的合计。无论哪种格式，下方都会展示缓存读取与缓存写入明细。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -603,8 +603,7 @@ export const getLogsColumns = ({
           ? Number(text) || 0
           : Number(other?.input_tokens_total ?? text) || 0;
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
-        const hasCacheWrite =
-          !other?.claude && (cacheSummary?.cacheWriteTokens || 0) > 0;
+        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
         let cacheText = '';
         if (hasCacheRead && hasCacheWrite) {
           cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
