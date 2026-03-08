@@ -362,6 +362,9 @@ export const useLogsData = () => {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
       logs[i].key = logs[i].id;
       let other = getLogOther(logs[i].other);
+      const hasSplitCacheCreation =
+        (other?.cache_creation_tokens_5m || 0) > 0 ||
+        (other?.cache_creation_tokens_1h || 0) > 0;
       let expandDataLocal = [];
 
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
@@ -400,7 +403,7 @@ export const useLogsData = () => {
           value: other.cache_tokens,
         });
       }
-      if (other?.cache_creation_tokens > 0) {
+      if (!hasSplitCacheCreation && other?.cache_creation_tokens > 0) {
         expandDataLocal.push({
           key: t('缓存创建 Tokens'),
           value: other.cache_creation_tokens,
