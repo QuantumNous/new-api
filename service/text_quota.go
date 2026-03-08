@@ -383,11 +383,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// to cache_creation_tokens.
 		other["cache_write_tokens"] = cacheWriteTokens
 	}
-	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatClaude {
-		// input_tokens_total: OpenAI-style displayed input total used by the usage log UI.
-		// It equals prompt/input tokens plus cache write tokens. Claude Messages requests
-		// keep the original prompt/input value and should not use this derived total.
-		other["input_tokens_total"] = summary.PromptTokens + cacheWriteTokens
+	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatClaude && usage != nil && usage.InputTokens > 0 {
+		// input_tokens_total: explicit normalized total input used by the usage log UI.
+		// Only write this field when upstream/current conversion has already provided a
+		// reliable total input value (usage.InputTokens). Do not infer it from prompt/cache
+		// fields here, otherwise old upstream payloads may be double-counted.
+		other["input_tokens_total"] = usage.InputTokens
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
