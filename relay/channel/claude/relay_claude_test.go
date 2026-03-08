@@ -173,3 +173,35 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
 	}
 }
+
+func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         30,
+			CachedCreationTokens: 50,
+		},
+		ClaudeCacheCreation5mTokens: 10,
+		ClaudeCacheCreation1hTokens: 20,
+		UsageSemantic:               "anthropic",
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	if openAIUsage.PromptTokens != 160 {
+		t.Fatalf("PromptTokens = %d, want 160", openAIUsage.PromptTokens)
+	}
+	if openAIUsage.InputTokens != 160 {
+		t.Fatalf("InputTokens = %d, want 160", openAIUsage.InputTokens)
+	}
+	if openAIUsage.TotalTokens != 180 {
+		t.Fatalf("TotalTokens = %d, want 180", openAIUsage.TotalTokens)
+	}
+	if openAIUsage.UsageSemantic != "openai" {
+		t.Fatalf("UsageSemantic = %s, want openai", openAIUsage.UsageSemantic)
+	}
+	if openAIUsage.UsageSource != "anthropic" {
+		t.Fatalf("UsageSource = %s, want anthropic", openAIUsage.UsageSource)
+	}
+}

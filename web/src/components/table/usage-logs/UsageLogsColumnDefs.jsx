@@ -25,7 +25,7 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Button
+  Button,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -375,7 +375,10 @@ export const getLogsColumns = ({
         }
 
         return isAdminUser &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
@@ -466,7 +469,10 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div>
             <Tag
               color='grey'
@@ -489,7 +495,12 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) {
+        if (
+          record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6
+        ) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -529,7 +540,10 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -574,7 +588,7 @@ export const getLogsColumns = ({
           {t('输入')}
           <Tooltip
             content={t(
-              '输入列会显示输入 tokens 与缓存写入 tokens 的合计；下方会额外展示缓存读取与缓存写入明细。',
+              '若最终请求格式为 /v1/messages，这里仅显示未命中缓存的输入 tokens；若为 OpenAI 或 Gemini 兼容格式，这里显示输入 tokens 与缓存写入 tokens 的合计。两种情况下，缓存读取与缓存写入都会正常参与价格计算，并在下方展示明细。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -585,10 +599,12 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
-        const displayInputTokens =
-          Number(other?.input_tokens_total ?? text) || 0;
+        const displayInputTokens = other?.claude
+          ? Number(text) || 0
+          : Number(other?.input_tokens_total ?? text) || 0;
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
-        const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
+        const hasCacheWrite =
+          !other?.claude && (cacheSummary?.cacheWriteTokens || 0) > 0;
         let cacheText = '';
         if (hasCacheRead && hasCacheWrite) {
           cacheText = `${t('缓存读')} ${formatTokenCount(cacheSummary.cacheReadTokens)} · ${t('写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
@@ -598,7 +614,10 @@ export const getLogsColumns = ({
           cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div
             style={{
               display: 'inline-flex',
@@ -632,7 +651,10 @@ export const getLogsColumns = ({
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -644,7 +666,14 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (!(record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6)) {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          )
+        ) {
           return <></>;
         }
         const other = getLogOther(record.other);
@@ -711,9 +740,9 @@ export const getLogsColumns = ({
           }
           if (other.admin_info !== undefined) {
             if (
-                other.admin_info.use_channel !== null &&
-                other.admin_info.use_channel !== undefined &&
-                other.admin_info.use_channel !== ''
+              other.admin_info.use_channel !== null &&
+              other.admin_info.use_channel !== undefined &&
+              other.admin_info.use_channel !== ''
             ) {
               let useChannel = other.admin_info.use_channel;
               let useChannelStr = useChannel.join('->');
@@ -836,14 +865,14 @@ export const getLogsColumns = ({
               billingDisplayMode,
             );
         return (
-            <Typography.Paragraph
-                ellipsis={{
-                  rows: 3,
-                }}
-                style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-            >
-              {content}
-            </Typography.Paragraph>
+          <Typography.Paragraph
+            ellipsis={{
+              rows: 3,
+            }}
+            style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+          >
+            {content}
+          </Typography.Paragraph>
         );
       },
     },
