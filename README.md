@@ -11,7 +11,8 @@
   <a href="./README.zh_TW.md">繁體中文</a> |
   <strong>English</strong> |
   <a href="./README.fr.md">Français</a> |
-  <a href="./README.ja.md">日本語</a>
+  <a href="./README.ja.md">日本語</a> |
+  <a href="./README.kr.md">한국어</a>
 </p>
 
 <p align="center">
@@ -184,7 +185,7 @@ docker run --name new-api -d --restart always \
 | Feature | Description |
 |------|------|
 | 🎨 New UI | Modern user interface design |
-| 🌍 Multi-language | Supports Simplified Chinese, Traditional Chinese, English, French, Japanese |
+| 🌍 Multi-language | Supports Simplified Chinese, Traditional Chinese, English, French, Japanese, Korean |
 | 🔄 Data Compatibility | Fully compatible with the original One API database |
 | 📈 Data Dashboard | Visual console and statistical analysis |
 | 🔒 Permission Management | Token grouping, model restrictions, user management |
