@@ -1,6 +1,7 @@
 .idea
 .vscode
 .zed
+.history
 upload
 *.exe
 *.db

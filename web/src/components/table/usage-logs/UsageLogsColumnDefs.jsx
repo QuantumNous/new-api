@@ -337,6 +337,7 @@ export const getLogsColumns = ({
   showUserInfoFunc,
   openChannelAffinityUsageCacheModal,
   isAdminUser,
+  billingDisplayMode = 'price',
 }) => {
   return [
     {
@@ -761,11 +762,10 @@ export const getLogsColumns = ({
           Boolean(other?.violation_fee_marker)
         ) {
           const feeQuota = other?.fee_quota ?? record?.quota;
-          const ratioText = formatRatio(other?.group_ratio);
           const summary = [
             t('违规扣费'),
-            `${t('分组倍率')}：${ratioText}`,
             `${t('扣费')}：${renderQuota(feeQuota, 6)}`,
+            `${t('分组倍率')}：${formatRatio(other?.group_ratio)}`,
             text ? `${t('详情')}：${text}` : null,
           ]
             .filter(Boolean)
@@ -808,6 +808,7 @@ export const getLogsColumns = ({
               1.0,
               other?.is_system_prompt_overwritten,
               'claude',
+              billingDisplayMode,
             )
           : renderModelPriceSimple(
               other.model_ratio,
@@ -826,6 +827,7 @@ export const getLogsColumns = ({
               1.0,
               other?.is_system_prompt_overwritten,
               'openai',
+              billingDisplayMode,
             );
         return (
             <Typography.Paragraph
