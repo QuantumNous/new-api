@@ -1,8 +1,16 @@
 package openaicompat
 
-import "github.com/QuantumNous/new-api/setting/model_setting"
+import (
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+)
 
 func ShouldChatCompletionsUseResponsesPolicy(policy model_setting.ChatCompletionsToResponsesPolicy, channelID int, channelType int, model string) bool {
+	// Codex upstream only supports Responses APIs.
+	// Force /v1/chat/completions to be bridged via /v1/responses.
+	if channelType == constant.ChannelTypeCodex {
+		return true
+	}
 	if !policy.IsChannelEnabled(channelID, channelType) {
 		return false
 	}
