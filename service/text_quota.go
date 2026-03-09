@@ -55,7 +55,11 @@ type textQuotaSummary struct {
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
 	if summary.CacheCreationTokens5m > 0 || summary.CacheCreationTokens1h > 0 {
-		return summary.CacheCreationTokens5m + summary.CacheCreationTokens1h
+		splitCacheWriteTokens := summary.CacheCreationTokens5m + summary.CacheCreationTokens1h
+		if summary.CacheCreationTokens > splitCacheWriteTokens {
+			return summary.CacheCreationTokens
+		}
+		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
 }

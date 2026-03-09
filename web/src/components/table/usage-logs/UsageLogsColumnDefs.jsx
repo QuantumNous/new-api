@@ -310,15 +310,21 @@ function getPromptCacheSummary(other) {
   }
 
   const cacheReadTokens = toTokenNumber(other.cache_tokens);
+  const normalizedCacheWriteTokens = toTokenNumber(other.cache_write_tokens);
   const cacheCreationTokens = toTokenNumber(other.cache_creation_tokens);
   const cacheCreationTokens5m = toTokenNumber(other.cache_creation_tokens_5m);
   const cacheCreationTokens1h = toTokenNumber(other.cache_creation_tokens_1h);
 
   const hasSplitCacheCreation =
     cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
-  const cacheWriteTokens = hasSplitCacheCreation
-    ? cacheCreationTokens5m + cacheCreationTokens1h
-    : cacheCreationTokens;
+  const cacheWriteTokens = normalizedCacheWriteTokens > 0
+    ? normalizedCacheWriteTokens
+    : hasSplitCacheCreation
+      ? Math.max(
+          cacheCreationTokens,
+          cacheCreationTokens5m + cacheCreationTokens1h,
+        )
+      : cacheCreationTokens;
 
   if (cacheReadTokens <= 0 && cacheWriteTokens <= 0) {
     return null;

@@ -559,10 +559,14 @@ func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
 	if usage == nil {
 		return 0
 	}
-	if usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0 {
-		return usage.ClaudeCacheCreation5mTokens + usage.ClaudeCacheCreation1hTokens
+	splitCacheCreationTokens := usage.ClaudeCacheCreation5mTokens + usage.ClaudeCacheCreation1hTokens
+	if splitCacheCreationTokens == 0 {
+		return usage.PromptTokensDetails.CachedCreationTokens
 	}
-	return usage.PromptTokensDetails.CachedCreationTokens
+	if usage.PromptTokensDetails.CachedCreationTokens > splitCacheCreationTokens {
+		return usage.PromptTokensDetails.CachedCreationTokens
+	}
+	return splitCacheCreationTokens
 }
 
 func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
