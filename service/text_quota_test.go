@@ -161,3 +161,38 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		require.Equal(t, 50, cacheWriteTokensTotal(summary))
 	})
 }
+
+func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "claude-3-7-sonnet",
+		PriceData: types.PriceData{
+			ModelRatio:           1,
+			CompletionRatio:      5,
+			CacheRatio:           0.1,
+			CacheCreationRatio:   1.25,
+			CacheCreation5mRatio: 1.25,
+			CacheCreation1hRatio: 2,
+			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     62,
+		CompletionTokens: 95,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 3544,
+		},
+		ClaudeCacheCreation5mTokens: 586,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	// 62 + 3544*0.1 + 586*1.25 + 95*5 = 1624.9 => 1624
+	require.Equal(t, 1624, summary.Quota)
+}
