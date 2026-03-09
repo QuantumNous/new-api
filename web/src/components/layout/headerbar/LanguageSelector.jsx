@@ -27,7 +27,7 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
       position='bottomRight'
       render={
         <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
-          {/* Language sorting: Order by English name (Chinese, English, French, Korean, Japanese, Russian, Vietnamese) */}
+          {/* Language sorting: Order by English name (Chinese, English, French, Japanese, Korean, Russian, Vietnamese) */}
           <Dropdown.Item
             onClick={() => onLanguageChange('zh-CN')}
             className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'zh-CN' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
@@ -53,16 +53,16 @@ const LanguageSelector = ({ currentLang, onLanguageChange, t }) => {
             Français
           </Dropdown.Item>
           <Dropdown.Item
-            onClick={() => onLanguageChange('kr')}
-            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'kr' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
-          >
-            한국어
-          </Dropdown.Item>
-          <Dropdown.Item
             onClick={() => onLanguageChange('ja')}
             className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'ja' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
           >
             日本語
+          </Dropdown.Item>
+          <Dropdown.Item
+            onClick={() => onLanguageChange('kr')}
+            className={`!px-3 !py-1.5 !text-sm !text-semi-color-text-0 dark:!text-gray-200 ${currentLang === 'kr' ? '!bg-semi-color-primary-light-default dark:!bg-blue-600 !font-semibold' : 'hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-600'}`}
+          >
+            한국어
           </Dropdown.Item>
           <Dropdown.Item
             onClick={() => onLanguageChange('ru')}
