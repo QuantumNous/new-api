@@ -96,12 +96,13 @@ func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor,
 	a.AwsClient = awsCli
 
 	// 获取对应的AWS模型ID
-	awsModelId := getAwsModelID(info.UpstreamModelName)
-
-	awsRegionPrefix := getAwsRegionPrefix(awsCli.Options().Region)
-	canCrossRegion := awsModelCanCrossRegion(awsModelId, awsRegionPrefix)
-	if canCrossRegion {
-		awsModelId = awsModelCrossRegion(awsModelId, awsRegionPrefix)
+	awsModelId, skipInferenceResolve := getAwsModelID(info.UpstreamModelName)
+	// Layer 1 (full IDs): user specified exact model ID, use as-is.
+	// Layer 2/3 (short names): check if model requires inference profile.
+	if !skipInferenceResolve {
+		if awsModelsRequireInferenceProfile[awsModelId] {
+			awsModelId = "global." + awsModelId
+		}
 	}
 
 	// init empty request.header
@@ -192,33 +193,33 @@ func buildAwsRequestBody(c *gin.Context, info *relaycommon.RelayInfo, awsClaudeR
 	return common.Marshal(awsClaudeReq)
 }
 
-func getAwsRegionPrefix(awsRegionId string) string {
-	parts := strings.Split(awsRegionId, "-")
-	regionPrefix := ""
-	if len(parts) > 0 {
-		regionPrefix = parts[0]
+func getAwsModelID(requestModel string) (modelID string, skipInferenceResolve bool) {
+	// Layer 1: Full Bedrock ID detection — passthrough
+	for _, rp := range bedrockRegionPrefixes {
+		if strings.HasPrefix(requestModel, rp) {
+			return requestModel, true
+		}
 	}
-	return regionPrefix
-}
-
-func awsModelCanCrossRegion(awsModelId, awsRegionPrefix string) bool {
-	regionSet, exists := awsModelCanCrossRegionMap[awsModelId]
-	return exists && regionSet[awsRegionPrefix]
-}
-
-func awsModelCrossRegion(awsModelId, awsRegionPrefix string) string {
-	modelPrefix, find := awsRegionCrossModelPrefixMap[awsRegionPrefix]
-	if !find {
-		return awsModelId
+	for _, pp := range bedrockProviderPrefixes {
+		if strings.HasPrefix(requestModel, pp) {
+			return requestModel, true // user explicitly passed full provider ID, skip cross-region
+		}
 	}
-	return modelPrefix + "." + awsModelId
-}
 
-func getAwsModelID(requestModel string) string {
-	if awsModelIDName, ok := awsModelIDMap[requestModel]; ok {
-		return awsModelIDName
+	// Layer 2: Exact map lookup (backwards compatible)
+	if mapped, ok := awsModelIDMap[requestModel]; ok {
+		return mapped, false
 	}
-	return requestModel
+
+	// Layer 3: Pattern matching — auto-prepend provider prefix
+	for pattern, prefix := range modelProviderPatterns {
+		if strings.HasPrefix(requestModel, pattern) {
+			return prefix + requestModel, false
+		}
+	}
+
+	// Fallback: passthrough as-is
+	return requestModel, false
 }
 
 func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
