@@ -124,6 +124,11 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
+	if a.shouldUseCustomGeminiBaseURL(info) {
+		version := model_setting.GetGeminiVersionSetting(modelName)
+		return fmt.Sprintf("%s/%s/models/%s:%s", strings.TrimRight(info.ChannelBaseUrl, "/"), version, modelName, suffix), nil
+	}
+
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
@@ -204,6 +209,13 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 	return "", errors.New("unsupported request mode")
 }
 
+func (a *Adaptor) shouldUseCustomGeminiBaseURL(info *relaycommon.RelayInfo) bool {
+	if info == nil || a.RequestMode != RequestModeGemini {
+		return false
+	}
+	return strings.TrimSpace(info.ChannelBaseUrl) != ""
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
@@ -251,7 +263,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
+	if info.ChannelOtherSettings.VertexKeyType == dto.VertexKeyTypeAPIKey {
+		if a.shouldUseCustomGeminiBaseURL(info) {
+			req.Set("x-goog-api-key", info.ApiKey)
+		}
+	} else {
 		accessToken, err := getAccessToken(a, info)
 		if err != nil {
 			return err
