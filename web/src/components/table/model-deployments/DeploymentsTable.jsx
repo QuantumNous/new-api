@@ -175,8 +175,7 @@ const DeploymentsTable = (deploymentsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: deploymentCount,
-          pageSizeOpts: [10, 20, 50, 100],
-          showSizeChanger: true,
+          showSizeChanger: false,
           onPageSizeChange: handlePageSizeChange,
           onPageChange: handlePageChange,
         }}

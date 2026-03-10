@@ -104,8 +104,7 @@ const RedemptionsTable = (redemptionsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: tokenCount,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
+          showSizeChanger: false,
           onPageSizeChange: redemptionsData.handlePageSizeChange,
           onPageChange: handlePageChange,
         }}
