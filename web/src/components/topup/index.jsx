@@ -93,6 +93,14 @@ const TopUp = () => {
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
 
+  // 订阅相关
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [billingPreference, setBillingPreference] =
+    useState('subscription_first');
+  const [activeSubscriptions, setActiveSubscriptions] = useState([]);
+  const [allSubscriptions, setAllSubscriptions] = useState([]);
+
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState(null);
@@ -352,6 +360,61 @@ const TopUp = () => {
     }
   };
 
+  const getSubscriptionPlans = async () => {
+    setSubscriptionLoading(true);
+    try {
+      const res = await API.get('/api/subscription/plans');
+      if (res.data?.success) {
+        setSubscriptionPlans(res.data.data || []);
+      }
+    } catch (e) {
+      setSubscriptionPlans([]);
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const getSubscriptionSelf = async () => {
+    try {
+      const res = await API.get('/api/subscription/self');
+      if (res.data?.success) {
+        setBillingPreference(
+          res.data.data?.billing_preference || 'subscription_first',
+        );
+        // Active subscriptions
+        const activeSubs = res.data.data?.subscriptions || [];
+        setActiveSubscriptions(activeSubs);
+        // All subscriptions (including expired)
+        const allSubs = res.data.data?.all_subscriptions || [];
+        setAllSubscriptions(allSubs);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const updateBillingPreference = async (pref) => {
+    const previousPref = billingPreference;
+    setBillingPreference(pref);
+    try {
+      const res = await API.put('/api/subscription/self/preference', {
+        billing_preference: pref,
+      });
+      if (res.data?.success) {
+        showSuccess(t('更新成功'));
+        const normalizedPref =
+          res.data?.data?.billing_preference || pref || previousPref;
+        setBillingPreference(normalizedPref);
+      } else {
+        showError(res.data?.message || t('更新失败'));
+        setBillingPreference(previousPref);
+      }
+    } catch (e) {
+      showError(t('请求失败'));
+      setBillingPreference(previousPref);
+    }
+  };
+
   // 获取充值配置信息
   const getTopupInfo = async () => {
     try {
@@ -529,6 +592,8 @@ const TopUp = () => {
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
     getTopupInfo().then();
+    getSubscriptionPlans().then();
+    getSubscriptionSelf().then();
   }, []);
 
   useEffect(() => {
@@ -752,6 +817,13 @@ const TopUp = () => {
           statusLoading={statusLoading}
           topupInfo={topupInfo}
           onOpenHistory={handleOpenHistory}
+          subscriptionLoading={subscriptionLoading}
+          subscriptionPlans={subscriptionPlans}
+          billingPreference={billingPreference}
+          onChangeBillingPreference={updateBillingPreference}
+          activeSubscriptions={activeSubscriptions}
+          allSubscriptions={allSubscriptions}
+          reloadSubscriptionSelf={getSubscriptionSelf}
         />
         <InvitationCard
           t={t}
