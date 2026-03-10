@@ -27,6 +27,7 @@ import {
   Pagination,
   Button,
   Avatar,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { Copy } from 'lucide-react';
@@ -360,13 +361,12 @@ const PricingCardView = ({
 
       {/* 分页 */}
       {filteredModels.length > 0 && (
-        <div className='flex justify-center mt-6 py-4 border-t pricing-pagination-divider'>
+        <div className='flex justify-center items-center gap-3 mt-6 py-4 border-t pricing-pagination-divider'>
           <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
             total={filteredModels.length}
-            showSizeChanger={true}
-            pageSizeOptions={[10, 20, 50, 100]}
+            showSizeChanger={false}
             size={isMobile ? 'small' : 'default'}
             showQuickJumper={isMobile}
             onPageChange={(page) => setCurrentPage(page)}
@@ -374,6 +374,19 @@ const PricingCardView = ({
               setPageSize(size);
               setCurrentPage(1);
             }}
+          />
+          <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}>{t('每页条数')}</span>
+          <InputNumber
+            size='small'
+            min={1}
+            value={pageSize}
+            onChange={(val) => {
+              if (val && val >= 1) {
+                setPageSize(Math.floor(val));
+                setCurrentPage(1);
+              }
+            }}
+            style={{ width: 80 }}
           />
         </div>
       )}

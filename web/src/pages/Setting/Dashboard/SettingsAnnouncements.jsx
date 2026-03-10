@@ -31,6 +31,7 @@ import {
   Switch,
   TextArea,
   Tooltip,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -487,15 +488,10 @@ const SettingsAnnouncements = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: announcementsList.length,
-            showSizeChanger: true,
+            showSizeChanger: false,
             showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
               setPageSize(size);
             },
           }}
@@ -515,6 +511,21 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           }
           className='overflow-hidden'
         />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
+          <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+          <InputNumber
+            size='small'
+            min={1}
+            value={pageSize}
+            onChange={(val) => {
+              if (val && val >= 1) {
+                setCurrentPage(1);
+                setPageSize(Math.floor(val));
+              }
+            }}
+            style={{ width: 80 }}
+          />
+        </div>
       </Form.Section>
 
       <Modal

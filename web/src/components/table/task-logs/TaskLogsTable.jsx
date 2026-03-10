@@ -99,8 +99,7 @@ const TaskLogsTable = (taskLogsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        pageSizeOptions: [10, 20, 50, 100],
-        showSizeChanger: true,
+        showSizeChanger: false,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

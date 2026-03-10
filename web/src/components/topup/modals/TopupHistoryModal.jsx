@@ -27,6 +27,7 @@ import {
   Button,
   Input,
   Tag,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -265,10 +266,8 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           currentPage: page,
           pageSize: pageSize,
           total: total,
-          showSizeChanger: true,
-          pageSizeOpts: [10, 20, 50, 100],
+          showSizeChanger: false,
           onPageChange: handlePageChange,
-          onPageSizeChange: handlePageSizeChange,
         }}
         size='small'
         empty={
@@ -282,6 +281,20 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           />
         }
       />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+        <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+        <InputNumber
+          size='small'
+          min={1}
+          value={pageSize}
+          onChange={(val) => {
+            if (val && val >= 1) {
+              handlePageSizeChange(Math.floor(val));
+            }
+          }}
+          style={{ width: 80 }}
+        />
+      </div>
     </Modal>
   );
 };
