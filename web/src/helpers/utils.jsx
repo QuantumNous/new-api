@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { Toast, Pagination, InputNumber } from '@douyinfe/semi-ui';
+import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
@@ -899,6 +899,8 @@ export const createCardProPagination = ({
   onPageChange,
   onPageSizeChange,
   isMobile = false,
+  pageSizeOpts = [10, 20, 50, 100],
+  showSizeChanger = true,
   t = (key) => key,
 }) => {
   if (!total || total <= 0) return null;
@@ -920,35 +922,18 @@ export const createCardProPagination = ({
       )}
 
       {/* 右侧分页控件 */}
-      <div className='flex items-center gap-2'>
-        <Pagination
-          currentPage={currentPage}
-          pageSize={pageSize}
-          total={total}
-          showSizeChanger={false}
-          onPageChange={onPageChange}
-          size={isMobile ? 'small' : 'default'}
-          showQuickJumper={isMobile}
-          showTotal
-        />
-        <span
-          className='text-sm select-none'
-          style={{ color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}
-        >
-          {t('每页条数')}
-        </span>
-        <InputNumber
-          size='small'
-          min={1}
-          value={pageSize}
-          onChange={(val) => {
-            if (val && val >= 1) {
-              onPageSizeChange(Math.floor(val));
-            }
-          }}
-          style={{ width: 80 }}
-        />
-      </div>
+      <Pagination
+        currentPage={currentPage}
+        pageSize={pageSize}
+        total={total}
+        pageSizeOpts={pageSizeOpts}
+        showSizeChanger={showSizeChanger}
+        onPageSizeChange={onPageSizeChange}
+        onPageChange={onPageChange}
+        size={isMobile ? 'small' : 'default'}
+        showQuickJumper={isMobile}
+        showTotal
+      />
     </>
   );
 };

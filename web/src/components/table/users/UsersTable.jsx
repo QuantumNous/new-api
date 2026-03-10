@@ -178,7 +178,8 @@ const UsersTable = (usersData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: userCount,
-          showSizeChanger: false,
+          pageSizeOpts: [10, 20, 50, 100],
+          showSizeChanger: true,
           onPageSizeChange: handlePageSizeChange,
           onPageChange: handlePageChange,
         }}

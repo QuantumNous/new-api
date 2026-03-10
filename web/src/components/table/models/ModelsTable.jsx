@@ -80,7 +80,8 @@ const ModelsTable = (modelsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: modelCount,
-        showSizeChanger: false,
+        showSizeChanger: true,
+        pageSizeOptions: [10, 20, 50, 100],
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

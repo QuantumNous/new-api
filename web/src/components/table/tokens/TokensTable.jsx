@@ -102,7 +102,8 @@ const TokensTable = (tokensData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: tokenCount,
-        showSizeChanger: false,
+        showSizeChanger: true,
+        pageSizeOptions: [10, 20, 50, 100],
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

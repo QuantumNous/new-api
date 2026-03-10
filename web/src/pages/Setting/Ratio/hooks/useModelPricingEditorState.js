@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API, showError, showSuccess } from '../../../../helpers';
 
-export const DEFAULT_PAGE_SIZE = 10;
-export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
@@ -503,7 +502,6 @@ export function useModelPricingEditorState({
   const [selectedModelNames, setSelectedModelNames] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [conflictOnly, setConflictOnly] = useState(false);
   const [optionalFieldToggles, setOptionalFieldToggles] = useState({});
@@ -582,9 +580,9 @@ export function useModelPricingEditorState({
   }, [conflictOnly, searchText, visibleModels]);
 
   const pagedData = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredModels.slice(start, start + pageSize);
-  }, [currentPage, filteredModels, pageSize]);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredModels.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredModels]);
 
   const selectedModel = useMemo(
     () => visibleModels.find((model) => model.name === selectedModelName) || null,
@@ -787,14 +785,6 @@ export function useModelPricingEditorState({
     }
   };
 
-  const selectAllFiltered = () => {
-    setSelectedModelNames(filteredModels.map((model) => model.name));
-  };
-
-  const deselectAll = () => {
-    setSelectedModelNames([]);
-  };
-
   const applySelectedModelPricing = () => {
     if (!selectedModel) {
       showError(t('请先选择一个作为模板的模型'));
@@ -928,8 +918,6 @@ export function useModelPricingEditorState({
     setSearchText,
     currentPage,
     setCurrentPage,
-    pageSize,
-    setPageSize,
     loading,
     conflictOnly,
     setConflictOnly,
@@ -944,8 +932,6 @@ export function useModelPricingEditorState({
     handleSubmit,
     addModel,
     deleteModel,
-    selectAllFiltered,
-    deselectAll,
     applySelectedModelPricing,
   };
 }

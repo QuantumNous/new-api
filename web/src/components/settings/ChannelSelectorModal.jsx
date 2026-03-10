@@ -32,7 +32,6 @@ import {
   Highlight,
   Select,
   Tag,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
@@ -288,30 +287,20 @@ const ChannelSelectorModal = forwardRef(
               currentPage: currentPage,
               pageSize: pageSize,
               total: total,
-              showSizeChanger: false,
+              showSizeChanger: true,
               showQuickJumper: true,
+              pageSizeOptions: ['10', '20', '50', '100'],
               onChange: (page, size) => {
                 setCurrentPage(page);
+                setPageSize(size);
+              },
+              onShowSizeChange: (curr, size) => {
+                setCurrentPage(1);
                 setPageSize(size);
               },
             }}
             size='small'
           />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-            <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
-            <InputNumber
-              size='small'
-              min={1}
-              value={pageSize}
-              onChange={(val) => {
-                if (val && val >= 1) {
-                  setCurrentPage(1);
-                  setPageSize(Math.floor(val));
-                }
-              }}
-              style={{ width: 80 }}
-            />
-          </div>
         </Space>
       </Modal>
     );

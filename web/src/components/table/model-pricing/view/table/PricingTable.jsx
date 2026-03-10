@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Card, Table, Empty, InputNumber } from '@douyinfe/semi-ui';
+import { Card, Table, Empty } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -121,7 +121,8 @@ const PricingTable = ({
           pagination={{
             defaultPageSize: 20,
             pageSize: pageSize,
-            showSizeChanger: false,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
             onPageSizeChange: (size) => setPageSize(size),
           }}
         />
@@ -140,23 +141,7 @@ const PricingTable = ({
     ],
   );
 
-  return (
-    <>
-      {ModelTable}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
-        <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
-        <InputNumber
-          size='small'
-          min={1}
-          value={pageSize}
-          onChange={(val) => {
-            if (val && val >= 1) setPageSize(Math.floor(val));
-          }}
-          style={{ width: 80 }}
-        />
-      </div>
-    </>
-  );
+  return ModelTable;
 };
 
 export default PricingTable;

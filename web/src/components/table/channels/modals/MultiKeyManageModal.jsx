@@ -36,7 +36,6 @@ import {
   Badge,
   Progress,
   Card,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -698,11 +697,16 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                   currentPage: currentPage,
                   pageSize: pageSize,
                   total: total,
-                  showSizeChanger: false,
+                  showSizeChanger: true,
                   showQuickJumper: true,
+                  pageSizeOpts: [10, 20, 50, 100],
                   onChange: (page, size) => {
                     setCurrentPage(page);
                     loadKeyStatus(page, size);
+                  },
+                  onShowSizeChange: (current, size) => {
+                    setCurrentPage(1);
+                    handlePageSizeChange(size);
                   },
                 }}
                 size='small'
@@ -728,20 +732,6 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                 }
               />
             </Card>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
-              <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
-              <InputNumber
-                size='small'
-                min={1}
-                value={pageSize}
-                onChange={(val) => {
-                  if (val && val >= 1) {
-                    handlePageSizeChange(Math.floor(val));
-                  }
-                }}
-                style={{ width: 80 }}
-              />
-            </div>
           </Spin>
         </div>
       </div>

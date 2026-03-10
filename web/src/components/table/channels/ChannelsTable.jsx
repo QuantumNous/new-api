@@ -140,7 +140,8 @@ const ChannelsTable = (channelsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: channelCount,
-        showSizeChanger: false,
+        pageSizeOpts: [10, 20, 50, 100],
+        showSizeChanger: true,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

@@ -95,7 +95,8 @@ const MjLogsTable = (mjLogsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        showSizeChanger: false,
+        pageSizeOptions: [10, 20, 50, 100],
+        showSizeChanger: true,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}
