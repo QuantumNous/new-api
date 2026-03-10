@@ -167,7 +167,10 @@ func RootAuth() func(c *gin.Context) {
 }
 
 func WssAuth(c *gin.Context) {
-
+	TokenAuth()(c)
+	if c.IsAborted() {
+		return
+	}
 }
 
 // TokenOrUserAuth allows either session-based user auth or API token auth.
