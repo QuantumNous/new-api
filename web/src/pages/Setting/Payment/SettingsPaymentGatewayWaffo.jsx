@@ -584,8 +584,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               value={payMethodForm.payMethodType}
               onChange={(val) => setPayMethodForm({ ...payMethodForm, payMethodType: val })}
               placeholder='CREDITCARD,DEBITCARD'
+              maxLength={64}
             />
-            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空，例如：CREDITCARD,DEBITCARD')}</Text>
+            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空，例如：CREDITCARD,DEBITCARD（最多64位）')}</Text>
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
@@ -595,8 +596,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               value={payMethodForm.payMethodName}
               onChange={(val) => setPayMethodForm({ ...payMethodForm, payMethodName: val })}
               placeholder={t('可空')}
+              maxLength={64}
             />
-            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空')}</Text>
+            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空（最多64位）')}</Text>
           </div>
         </div>
       </Modal>

@@ -58,6 +58,10 @@ const RefundModal = ({ visible, topUp, onCancel, onSuccess, t }) => {
       Toast.error({ content: t('退款金额超出可退余额') });
       return;
     }
+    if (!reason.trim()) {
+      Toast.error({ content: t('请输入退款原因') });
+      return;
+    }
     setLoading(true);
     try {
       const res = await API.post('/api/user/topup/refund', {
@@ -133,7 +137,7 @@ const RefundModal = ({ visible, topUp, onCancel, onSuccess, t }) => {
           />
         </div>
         <div>
-          <div style={{ marginBottom: 4 }}><Text>{t('退款原因（可选）')}</Text></div>
+          <div style={{ marginBottom: 4 }}><Text>{t('退款原因')}</Text><Text type='danger'> *</Text></div>
           <Input
             value={reason}
             onChange={(v) => setReason(v)}
