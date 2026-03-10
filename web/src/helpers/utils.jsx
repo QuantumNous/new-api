@@ -21,6 +21,7 @@ import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
+import i18n from '../i18n/i18n';
 import {
   THINK_TAG_REGEX,
   MESSAGE_ROLES,
@@ -131,22 +132,22 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          Toast.error(i18n.t('错误：请求次数过多，请稍后再试！'));
           break;
         case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
+          Toast.error(i18n.t('错误：服务器内部错误，请联系管理员！'));
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.info(i18n.t('本站仅作演示之用，无服务端！'));
           break;
         default:
-          Toast.error('错误：' + error.message);
+          Toast.error(i18n.t('错误：') + error.message);
       }
       return;
     }
-    Toast.error('错误：' + error.message);
+    Toast.error(i18n.t('错误：') + error.message);
   } else {
-    Toast.error('错误：' + error);
+    Toast.error(i18n.t('错误：') + error);
   }
 }
 
