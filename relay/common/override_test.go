@@ -1653,6 +1653,141 @@ func TestApplyParamOverrideSetHeaderMapDeleteWholeHeaderWhenAllTokensCleared(t *
 	}
 }
 
+func TestApplyParamOverrideSetHeaderMapAppendsTokens(t *testing.T) {
+	input := []byte(`{"temperature":0.7}`)
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"mode": "set_header",
+				"path": "anthropic-beta",
+				"value": map[string]interface{}{
+					"$append": []interface{}{"context-1m-2025-08-07", "computer-use-2025-01-24"},
+				},
+			},
+		},
+	}
+	ctx := map[string]interface{}{
+		"header_override": map[string]interface{}{
+			"anthropic-beta": "computer-use-2025-01-24",
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, ctx)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+
+	headers, ok := ctx["header_override"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected header_override context map")
+	}
+	if headers["anthropic-beta"] != "computer-use-2025-01-24,context-1m-2025-08-07" {
+		t.Fatalf("expected anthropic-beta to append new token without duplicates, got: %v", headers["anthropic-beta"])
+	}
+}
+
+func TestApplyParamOverrideSetHeaderMapAppendsTokensWhenHeaderMissing(t *testing.T) {
+	input := []byte(`{"temperature":0.7}`)
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"mode": "set_header",
+				"path": "anthropic-beta",
+				"value": map[string]interface{}{
+					"$append": []interface{}{"context-1m-2025-08-07", "computer-use-2025-01-24"},
+				},
+			},
+		},
+	}
+
+	ctx := map[string]interface{}{}
+	out, err := ApplyParamOverride(input, override, ctx)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+
+	headers, ok := ctx["header_override"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected header_override context map")
+	}
+	if headers["anthropic-beta"] != "context-1m-2025-08-07,computer-use-2025-01-24" {
+		t.Fatalf("expected anthropic-beta to be created from appended tokens, got: %v", headers["anthropic-beta"])
+	}
+}
+
+func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDropsUndeclaredTokens(t *testing.T) {
+	input := []byte(`{"temperature":0.7}`)
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"mode": "set_header",
+				"path": "anthropic-beta",
+				"value": map[string]interface{}{
+					"computer-use-2025-01-24": "computer-use-2025-01-24",
+					"$append":                 []interface{}{"context-1m-2025-08-07"},
+					"$keep_only_declared":     true,
+				},
+			},
+		},
+	}
+	ctx := map[string]interface{}{
+		"header_override": map[string]interface{}{
+			"anthropic-beta": "advanced-tool-use-2025-11-20,computer-use-2025-01-24",
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, ctx)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+
+	headers, ok := ctx["header_override"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected header_override context map")
+	}
+	if headers["anthropic-beta"] != "computer-use-2025-01-24,context-1m-2025-08-07" {
+		t.Fatalf("expected anthropic-beta to keep only declared tokens, got: %v", headers["anthropic-beta"])
+	}
+}
+
+func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDeletesHeaderWhenNothingDeclaredMatches(t *testing.T) {
+	input := []byte(`{"temperature":0.7}`)
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"mode": "set_header",
+				"path": "anthropic-beta",
+				"value": map[string]interface{}{
+					"computer-use-2025-01-24": "computer-use-2025-01-24",
+					"$keep_only_declared":     true,
+				},
+			},
+		},
+	}
+	ctx := map[string]interface{}{
+		"header_override": map[string]interface{}{
+			"anthropic-beta": "advanced-tool-use-2025-11-20",
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, ctx)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+
+	headers, ok := ctx["header_override"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected header_override context map")
+	}
+	if _, exists := headers["anthropic-beta"]; exists {
+		t.Fatalf("expected anthropic-beta to be deleted when no declared tokens remain, got: %v", headers["anthropic-beta"])
+	}
+}
+
 func TestApplyParamOverrideConditionsObjectShorthand(t *testing.T) {
 	input := []byte(`{"temperature":0.7}`)
 	override := map[string]interface{}{
