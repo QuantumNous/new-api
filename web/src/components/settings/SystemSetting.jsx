@@ -1524,7 +1524,7 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={4} lg={4} xl={4}>
                       <Form.Input
                         field='LinuxDOMinimumTrustLevel'
-                        label='LinuxDO Minimum Trust Level'
+                        label={t('允许注册的最低信任等级')}
                         placeholder={t('允许注册的最低信任等级')}
                       />
                     </Col>

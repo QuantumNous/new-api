@@ -278,7 +278,7 @@ docker run --name new-api -d --restart always \
 - [응답 인터페이스 (Responses)](https://docs.newapi.pro/kr/docs/api/ai-model/chat/openai/createresponse)
 - [이미지 인터페이스 (Image)](https://docs.newapi.pro/kr/docs/api/ai-model/images/openai/post-v1-images-generations)
 - [오디오 인터페이스 (Audio)](https://docs.newapi.pro/kr/docs/api/ai-model/audio/openai/create-transcription)
-- [비디오 인터페이스 (Video)](https://docs.newapi.pro/kr/docs/api/ai-model/audio/openai/createspeech)
+- [비디오 인터페이스 (Video)](https://docs.newapi.pro/kr/docs/api/ai-model/videos)
 - [임베딩 인터페이스 (Embeddings)](https://docs.newapi.pro/kr/docs/api/ai-model/embeddings/createembedding)
 - [재순위 인터페이스 (Rerank)](https://docs.newapi.pro/kr/docs/api/ai-model/rerank/creatererank)
 - [실시간 대화 인터페이스 (Realtime)](https://docs.newapi.pro/kr/docs/api/ai-model/realtime/createrealtimesession)
