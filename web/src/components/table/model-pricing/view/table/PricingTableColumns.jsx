@@ -109,6 +109,7 @@ export const getPricingTableColumns = ({
   setModalImageUrl,
   setIsModalOpenurl,
   currency,
+  siteDisplayType,
   tokenUnit,
   displayPrice,
   showRatio,
@@ -126,6 +127,7 @@ export const getPricingTableColumns = ({
         tokenUnit,
         displayPrice,
         currency,
+        quotaDisplayType: siteDisplayType,
       });
       priceDataCache.set(record, cache);
     }
@@ -227,12 +229,12 @@ export const getPricingTableColumns = ({
   };
 
   const priceColumn = {
-    title: t('模型价格'),
+    title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('模型价格'),
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
-      const priceItems = getModelPriceItems(priceData, t);
+      const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
 
       return (
         <div className='space-y-1'>

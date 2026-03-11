@@ -34,7 +34,7 @@ import {
   TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconDelete, IconPlus } from '@douyinfe/semi-icons';
+import { IconDelete, IconMenu, IconPlus } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
@@ -163,7 +163,7 @@ const MODE_DESCRIPTIONS = {
   prune_objects: '按条件清理对象中的子项',
   pass_headers: '把指定请求头透传到上游请求',
   sync_fields: '在一个字段有值、另一个缺失时自动补齐',
-  set_header: '设置运行期请求头（支持整值覆盖，或用 JSON 映射按逗号 token 替换/删除）',
+  set_header: '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留',
   delete_header: '删除运行期请求头',
   copy_header: '复制请求头',
   move_header: '移动请求头',
@@ -230,17 +230,29 @@ const getModeValueLabel = (mode) => {
   return '值（支持 JSON 或普通文本）';
 };
 
+const HEADER_VALUE_JSONC_EXAMPLE = `{
+  // 置空：删除 Bedrock 不支持的 beta特性
+  "files-api-2025-04-14": null,
+
+  // 替换：把旧特性改成兼容特性
+  "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",
+
+  // 追加：在末尾补一个需要的特性
+  "$append": ["context-1m-2025-08-07"]
+}`;
+
 const getModeValuePlaceholder = (mode) => {
   if (mode === 'set_header') {
     return [
-      'String example:',
+      '纯字符串（整条覆盖）：',
       'Bearer sk-xxx',
       '',
-      'JSON map example:',
-      '{"advanced-tool-use-2025-11-20": null, "computer-use-2025-01-24": "computer-use-2025-01-24"}',
-      '',
-      'JSON map wildcard:',
-      '{"*": null, "computer-use-2025-11-24": "computer-use-2025-11-24"}',
+      '或使用 JSON 规则：',
+      '{',
+      '  "files-api-2025-04-14": null,',
+      '  "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",',
+      '  "$append": ["context-1m-2025-08-07"]',
+      '}',
     ].join('\n');
   }
   if (mode === 'pass_headers') return 'Authorization, X-Request-Id';
@@ -256,11 +268,6 @@ const getModeValuePlaceholder = (mode) => {
     return '{"type":"redacted_thinking"}';
   }
   return '0.7';
-};
-
-const getModeValueHelp = (mode) => {
-  if (mode !== 'set_header') return '';
-  return '字符串：整条请求头直接覆盖。JSON 映射：按逗号分隔 token 逐项处理，null 表示删除，string/array 表示替换，* 表示兜底规则。';
 };
 
 const SYNC_TARGET_TYPE_OPTIONS = [
@@ -369,6 +376,7 @@ const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
         'tool-search-tool-2025-10-19': 'tool-search-tool-2025-10-19',
         'web-fetch-2025-09-10': null,
         'web-search-2025-03-05': null,
+        'oauth-2025-04-20': null
       },
     },
     {
@@ -800,6 +808,38 @@ const normalizeOperation = (operation = {}) => ({
 
 const createDefaultOperation = () => normalizeOperation({ mode: 'set' });
 
+const reorderOperations = (
+  sourceOperations = [],
+  sourceId,
+  targetId,
+  position = 'before',
+) => {
+  if (!sourceId || !targetId || sourceId === targetId) {
+    return sourceOperations;
+  }
+
+  const sourceIndex = sourceOperations.findIndex((item) => item.id === sourceId);
+
+  if (sourceIndex < 0) {
+    return sourceOperations;
+  }
+
+  const nextOperations = [...sourceOperations];
+  const [moved] = nextOperations.splice(sourceIndex, 1);
+  let insertIndex = nextOperations.findIndex((item) => item.id === targetId);
+
+  if (insertIndex < 0) {
+    return sourceOperations;
+  }
+
+  if (position === 'after') {
+    insertIndex += 1;
+  }
+
+  nextOperations.splice(insertIndex, 0, moved);
+  return nextOperations;
+};
+
 const getOperationSummary = (operation = {}, index = 0) => {
   const mode = operation.mode || 'set';
   const modeLabel = OPERATION_MODE_LABEL_MAP[mode] || mode;
@@ -1037,8 +1077,12 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const [operationSearch, setOperationSearch] = useState('');
   const [selectedOperationId, setSelectedOperationId] = useState('');
   const [expandedConditionMap, setExpandedConditionMap] = useState({});
+  const [draggedOperationId, setDraggedOperationId] = useState('');
+  const [dragOverOperationId, setDragOverOperationId] = useState('');
+  const [dragOverPosition, setDragOverPosition] = useState('before');
   const [templateGroupKey, setTemplateGroupKey] = useState('basic');
   const [templatePresetKey, setTemplatePresetKey] = useState('operations_default');
+  const [headerValueExampleVisible, setHeaderValueExampleVisible] = useState(false);
   const [fieldGuideVisible, setFieldGuideVisible] = useState(false);
   const [fieldGuideTarget, setFieldGuideTarget] = useState('path');
   const [fieldGuideKeyword, setFieldGuideKeyword] = useState('');
@@ -1055,6 +1099,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setOperationSearch('');
     setSelectedOperationId(nextState.operations[0]?.id || '');
     setExpandedConditionMap({});
+    setDraggedOperationId('');
+    setDragOverOperationId('');
+    setDragOverPosition('before');
     if (nextState.visualMode === 'legacy') {
       setTemplateGroupKey('basic');
       setTemplatePresetKey('legacy_default');
@@ -1062,6 +1109,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
       setTemplateGroupKey('basic');
       setTemplatePresetKey('operations_default');
     }
+    setHeaderValueExampleVisible(false);
     setFieldGuideVisible(false);
     setFieldGuideTarget('path');
     setFieldGuideKeyword('');
@@ -1583,6 +1631,67 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setSelectedOperationId(created.id);
   };
 
+  const resetOperationDragState = useCallback(() => {
+    setDraggedOperationId('');
+    setDragOverOperationId('');
+    setDragOverPosition('before');
+  }, []);
+
+  const moveOperation = useCallback(
+    (sourceId, targetId, position = 'before') => {
+      if (!sourceId || !targetId || sourceId === targetId) {
+        return;
+      }
+      setOperations((prev) =>
+        reorderOperations(prev, sourceId, targetId, position),
+      );
+      setSelectedOperationId(sourceId);
+    },
+    [],
+  );
+
+  const handleOperationDragStart = useCallback((event, operationId) => {
+    setDraggedOperationId(operationId);
+    setSelectedOperationId(operationId);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', operationId);
+  }, []);
+
+  const handleOperationDragOver = useCallback(
+    (event, operationId) => {
+      event.preventDefault();
+      if (!draggedOperationId || draggedOperationId === operationId) {
+        return;
+      }
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position =
+        event.clientY - rect.top > rect.height / 2 ? 'after' : 'before';
+      setDragOverOperationId(operationId);
+      setDragOverPosition(position);
+      event.dataTransfer.dropEffect = 'move';
+    },
+    [draggedOperationId],
+  );
+
+  const handleOperationDrop = useCallback(
+    (event, operationId) => {
+      event.preventDefault();
+      const sourceId =
+        draggedOperationId || event.dataTransfer.getData('text/plain');
+      const position =
+        dragOverOperationId === operationId ? dragOverPosition : 'before';
+      moveOperation(sourceId, operationId, position);
+      resetOperationDragState();
+    },
+    [
+      dragOverOperationId,
+      dragOverPosition,
+      draggedOperationId,
+      moveOperation,
+      resetOperationDragState,
+    ],
+  );
+
   const duplicateOperation = (operationId) => {
     let insertedId = '';
     setOperations((prev) => {
@@ -1941,14 +2050,31 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               );
                               const isActive =
                                 operation.id === selectedOperationId;
+                              const isDragging =
+                                operation.id === draggedOperationId;
+                              const isDropTarget =
+                                operation.id === dragOverOperationId &&
+                                draggedOperationId &&
+                                draggedOperationId !== operation.id;
                               return (
                                 <div
                                   key={operation.id}
                                   role='button'
                                   tabIndex={0}
+                                  draggable={operations.length > 1}
                                   onClick={() =>
                                     setSelectedOperationId(operation.id)
                                   }
+                                  onDragStart={(event) =>
+                                    handleOperationDragStart(event, operation.id)
+                                  }
+                                  onDragOver={(event) =>
+                                    handleOperationDragOver(event, operation.id)
+                                  }
+                                  onDrop={(event) =>
+                                    handleOperationDrop(event, operation.id)
+                                  }
+                                  onDragEnd={resetOperationDragState}
                                   onKeyDown={(event) => {
                                     if (
                                       event.key === 'Enter' ||
@@ -1966,35 +2092,53 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     border: isActive
                                       ? '1px solid var(--semi-color-primary)'
                                       : '1px solid var(--semi-color-border)',
+                                    opacity: isDragging ? 0.6 : 1,
+                                    boxShadow: isDropTarget
+                                      ? dragOverPosition === 'after'
+                                        ? 'inset 0 -3px 0 var(--semi-color-primary)'
+                                        : 'inset 0 3px 0 var(--semi-color-primary)'
+                                      : 'none',
                                   }}
                                 >
                                   <div className='flex items-start justify-between gap-2'>
-                                    <div>
-                                      <Text strong>{`#${index + 1}`}</Text>
-                                      <Text
-                                        type='tertiary'
-                                        size='small'
-                                        className='block mt-1'
+                                    <div className='flex items-start gap-2 min-w-0'>
+                                      <div
+                                        className='flex-shrink-0'
+                                        style={{
+                                          color: 'var(--semi-color-text-2)',
+                                          cursor: operations.length > 1 ? 'grab' : 'default',
+                                          marginTop: 1,
+                                        }}
                                       >
-                                        {getOperationSummary(operation, index)}
-                                      </Text>
-                                      {String(operation.description || '').trim() ? (
+                                        <IconMenu />
+                                      </div>
+                                      <div className='min-w-0'>
+                                        <Text strong>{`#${index + 1}`}</Text>
                                         <Text
                                           type='tertiary'
                                           size='small'
                                           className='block mt-1'
-                                          style={{
-                                            lineHeight: 1.5,
-                                            wordBreak: 'break-word',
-                                            overflow: 'hidden',
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 2,
-                                            WebkitBoxOrient: 'vertical',
-                                          }}
                                         >
-                                          {operation.description}
+                                          {getOperationSummary(operation, index)}
                                         </Text>
-                                      ) : null}
+                                        {String(operation.description || '').trim() ? (
+                                          <Text
+                                            type='tertiary'
+                                            size='small'
+                                            className='block mt-1'
+                                            style={{
+                                              lineHeight: 1.5,
+                                              wordBreak: 'break-word',
+                                              overflow: 'hidden',
+                                              display: '-webkit-box',
+                                              WebkitLineClamp: 2,
+                                              WebkitBoxOrient: 'vertical',
+                                            }}
+                                          >
+                                            {operation.description}
+                                          </Text>
+                                        ) : null}
+                                      </div>
                                     </div>
                                     <Tag size='small' color='grey'>
                                       {(operation.conditions || []).length}
@@ -2688,15 +2832,35 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       {t(getModeValueLabel(mode))}
                                     </Text>
                                     {mode === 'set_header' ? (
-                                      <Button
-                                        size='small'
-                                        type='tertiary'
-                                        onClick={formatSelectedOperationValueAsJson}
-                                      >
-                                        {t('格式化 JSON')}
-                                      </Button>
+                                      <Space spacing={6}>
+                                        <Button
+                                          size='small'
+                                          type='tertiary'
+                                          onClick={() =>
+                                            setHeaderValueExampleVisible(true)
+                                          }
+                                        >
+                                          {t('查看 JSON 示例')}
+                                        </Button>
+                                        <Button
+                                          size='small'
+                                          type='tertiary'
+                                          onClick={formatSelectedOperationValueAsJson}
+                                        >
+                                          {t('格式化 JSON')}
+                                        </Button>
+                                      </Space>
                                     ) : null}
                                   </div>
+                                  {mode === 'set_header' ? (
+                                    <Text
+                                      type='tertiary'
+                                      size='small'
+                                      className='mt-1 mb-2 block'
+                                    >
+                                      {t('纯字符串会直接覆盖整条请求头，或者点击“查看 JSON 示例”按 token 规则处理。')}
+                                    </Text>
+                                  ) : null}
                                   <TextArea
                                     value={selectedOperation.value_text}
                                     autosize={{ minRows: 1, maxRows: 4 }}
@@ -2707,11 +2871,6 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       })
                                     }
                                   />
-                                  {getModeValueHelp(mode) ? (
-                                    <Text type='tertiary' size='small'>
-                                      {t(getModeValueHelp(mode))}
-                                    </Text>
-                                  ) : null}
                                 </div>
                               )
                             ) : null}
@@ -3165,6 +3324,27 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
           </div>
         )}
       </Space>
+      </Modal>
+
+      <Modal
+        title={t('anthropic-beta JSON 示例')}
+        visible={headerValueExampleVisible}
+        width={760}
+        footer={null}
+        onCancel={() => setHeaderValueExampleVisible(false)}
+        bodyStyle={{ padding: 16, paddingBottom: 24 }}
+      >
+        <Space vertical align='start' spacing={12} style={{ width: '100%' }}>
+          <Text type='tertiary' size='small'>
+            {t('下面是带注释的示例，仅用于参考；实际保存时请删除注释。')}
+          </Text>
+          <TextArea
+            value={HEADER_VALUE_JSONC_EXAMPLE}
+            readOnly
+            autosize={{ minRows: 16, maxRows: 20 }}
+            style={{ marginBottom: 8 }}
+          />
+        </Space>
       </Modal>
 
       <Modal

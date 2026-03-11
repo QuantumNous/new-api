@@ -40,6 +40,9 @@ export const UserProvider = ({ children }) => {
         if (normalizedLanguage && normalizedLanguage !== i18n.language) {
           i18n.changeLanguage(normalizedLanguage);
         }
+        if (normalizedLanguage) {
+          localStorage.setItem('i18nextLng', normalizedLanguage);
+        }
       } catch (e) {
         // Ignore parse errors
       }

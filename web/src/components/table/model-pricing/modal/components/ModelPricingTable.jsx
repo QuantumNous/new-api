@@ -28,6 +28,7 @@ const ModelPricingTable = ({
   modelData,
   groupRatio,
   currency,
+  siteDisplayType,
   tokenUnit,
   displayPrice,
   showRatio,
@@ -57,6 +58,7 @@ const ModelPricingTable = ({
             tokenUnit,
             displayPrice,
             currency,
+            quotaDisplayType: siteDisplayType,
           })
         : { inputPrice: '-', outputPrice: '-', price: '-' };
 
@@ -74,7 +76,7 @@ const ModelPricingTable = ({
             : modelData?.quota_type === 1
               ? t('按次计费')
               : '-',
-        priceItems: getModelPriceItems(priceData, t),
+        priceItems: getModelPriceItems(priceData, t, siteDisplayType),
       };
     });
 
@@ -122,7 +124,7 @@ const ModelPricingTable = ({
     });
 
     columns.push({
-      title: t('价格摘要'),
+      title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
       dataIndex: 'priceItems',
       render: (items) => (
         <div className='space-y-1'>

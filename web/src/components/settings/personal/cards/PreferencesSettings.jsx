@@ -73,6 +73,7 @@ const PreferencesSettings = ({ t }) => {
 			// Update language immediately for responsive UX
 			setCurrentLanguage(lang);
 			i18n.changeLanguage(lang);
+			localStorage.setItem('i18nextLng', lang);
 
 			// Save to backend
 			const res = await API.put("/api/user/self", {
@@ -81,33 +82,38 @@ const PreferencesSettings = ({ t }) => {
 
 			if (res.data.success) {
 				showSuccess(t("语言偏好已保存"));
-				// Update user context with new setting
+				// Keep backend preference, context state, and local cache aligned.
+				let settings = {};
 				if (userState?.user?.setting) {
 					try {
-						const settings = JSON.parse(userState.user.setting);
-						settings.language = lang;
-						userDispatch({
-							type: "login",
-							payload: {
-								...userState.user,
-								setting: JSON.stringify(settings),
-							},
-						});
+						settings = JSON.parse(userState.user.setting) || {};
 					} catch (e) {
-						// Ignore
+						settings = {};
 					}
 				}
+				settings.language = lang;
+				const nextUser = {
+					...userState.user,
+					setting: JSON.stringify(settings),
+				};
+				userDispatch({
+					type: "login",
+					payload: nextUser,
+				});
+				localStorage.setItem("user", JSON.stringify(nextUser));
 			} else {
 				showError(res.data.message || t("保存失败"));
 				// Revert on error
 				setCurrentLanguage(previousLang);
 				i18n.changeLanguage(previousLang);
+				localStorage.setItem("i18nextLng", previousLang);
 			}
 		} catch (error) {
 			showError(t("保存失败，请重试"));
 			// Revert on error
 			setCurrentLanguage(previousLang);
 			i18n.changeLanguage(previousLang);
+			localStorage.setItem("i18nextLng", previousLang);
 		} finally {
 			setLoading(false);
 		}

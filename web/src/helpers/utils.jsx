@@ -615,6 +615,7 @@ export const calculateModelPrice = ({
   tokenUnit,
   displayPrice,
   currency,
+  quotaDisplayType = 'USD',
   precision = 4,
 }) => {
   // 1. 选择实际使用的分组
@@ -647,9 +648,34 @@ export const calculateModelPrice = ({
   // 2. 根据计费类型计算价格
   if (record.quota_type === 0) {
     // 按量计费
+    const isTokensDisplay = quotaDisplayType === 'TOKENS';
     const inputRatioPriceUSD = record.model_ratio * 2 * usedGroupRatio;
     const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
+    const hasRatioValue = (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== '' &&
+      Number.isFinite(Number(value));
+
+    const formatRatio = (value) =>
+      hasRatioValue(value) ? Number(Number(value).toFixed(6)) : null;
+
+    if (isTokensDisplay) {
+      return {
+        inputRatio: formatRatio(record.model_ratio),
+        completionRatio: formatRatio(record.completion_ratio),
+        cacheRatio: formatRatio(record.cache_ratio),
+        createCacheRatio: formatRatio(record.create_cache_ratio),
+        imageRatio: formatRatio(record.image_ratio),
+        audioInputRatio: formatRatio(record.audio_ratio),
+        audioOutputRatio: formatRatio(record.audio_completion_ratio),
+        isPerToken: true,
+        isTokensDisplay: true,
+        usedGroup,
+        usedGroupRatio,
+      };
+    }
 
     let symbol = '$';
     if (currency === 'CNY') {
@@ -674,12 +700,6 @@ export const calculateModelPrice = ({
         parseFloat(rawDisplayPrice.replace(/[^0-9.]/g, '')) / unitDivisor;
       return `${symbol}${numericPrice.toFixed(precision)}`;
     };
-
-    const hasRatioValue = (value) =>
-      value !== undefined &&
-      value !== null &&
-      value !== '' &&
-      Number.isFinite(Number(value));
 
     const inputPrice = formatTokenPrice(inputRatioPriceUSD);
     const audioInputPrice = hasRatioValue(record.audio_ratio)
@@ -711,6 +731,7 @@ export const calculateModelPrice = ({
           : null,
       unitLabel,
       isPerToken: true,
+      isTokensDisplay: false,
       usedGroup,
       usedGroupRatio,
     };
@@ -724,6 +745,7 @@ export const calculateModelPrice = ({
     return {
       price: displayVal,
       isPerToken: false,
+      isTokensDisplay: false,
       usedGroup,
       usedGroupRatio,
     };
@@ -733,13 +755,68 @@ export const calculateModelPrice = ({
   return {
     price: '-',
     isPerToken: false,
+    isTokensDisplay: false,
     usedGroup,
     usedGroupRatio,
   };
 };
 
-export const getModelPriceItems = (priceData, t) => {
+export const getModelPriceItems = (
+  priceData,
+  t,
+  quotaDisplayType = 'USD',
+) => {
   if (priceData.isPerToken) {
+    if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
+      return [
+        {
+          key: 'input-ratio',
+          label: t('输入倍率'),
+          value: priceData.inputRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'completion-ratio',
+          label: t('补全倍率'),
+          value: priceData.completionRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'cache-ratio',
+          label: t('缓存读取倍率'),
+          value: priceData.cacheRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'create-cache-ratio',
+          label: t('缓存创建倍率'),
+          value: priceData.createCacheRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'image-ratio',
+          label: t('图片输入倍率'),
+          value: priceData.imageRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'audio-input-ratio',
+          label: t('音频输入倍率'),
+          value: priceData.audioInputRatio,
+          suffix: 'x',
+        },
+        {
+          key: 'audio-output-ratio',
+          label: t('音频补全倍率'),
+          value: priceData.audioOutputRatio,
+          suffix: 'x',
+        },
+      ].filter(
+        (item) =>
+          item.value !== null && item.value !== undefined && item.value !== '',
+      );
+    }
+
     const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
     return [
       {
@@ -798,8 +875,8 @@ export const getModelPriceItems = (priceData, t) => {
 };
 
 // 格式化价格信息（用于卡片视图）
-export const formatPriceInfo = (priceData, t) => {
-  const items = getModelPriceItems(priceData, t);
+export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
+  const items = getModelPriceItems(priceData, t, quotaDisplayType);
   return (
     <>
       {items.map((item) => (

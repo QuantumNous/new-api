@@ -150,7 +150,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const handleLanguageChange = useCallback(
     async (lang) => {
       // Change language immediately for responsive UX
+      const previousLang = normalizeLanguage(i18n.language);
       i18n.changeLanguage(lang);
+      localStorage.setItem('i18nextLng', lang);
 
       // If user is logged in, save preference to backend
       if (userState?.user?.id) {
@@ -159,25 +161,34 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             language: lang,
           });
           if (res.data.success) {
-            // Update user context with new setting
+            // Keep user preference and local cache in sync so route changes
+            // don't reapply an older remembered language.
+            let settings = {};
             if (userState?.user?.setting) {
               try {
-                const settings = JSON.parse(userState.user.setting);
-                settings.language = lang;
-                userDispatch({
-                  type: 'login',
-                  payload: {
-                    ...userState.user,
-                    setting: JSON.stringify(settings),
-                  },
-                });
+                settings = JSON.parse(userState.user.setting) || {};
               } catch (e) {
-                // Ignore parse errors
+                settings = {};
               }
             }
+
+            settings.language = lang;
+            const nextUser = {
+              ...userState.user,
+              setting: JSON.stringify(settings),
+            };
+
+            userDispatch({
+              type: 'login',
+              payload: nextUser,
+            });
+            localStorage.setItem('user', JSON.stringify(nextUser));
           }
         } catch (error) {
-          // Silently ignore errors - language was already changed locally
+          if (previousLang) {
+            i18n.changeLanguage(previousLang);
+            localStorage.setItem('i18nextLng', previousLang);
+          }
           console.error('Failed to save language preference:', error);
         }
       }
