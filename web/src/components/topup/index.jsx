@@ -31,6 +31,7 @@ import {
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
@@ -40,10 +41,35 @@ import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
+const allowedTopupTabs = new Set(['topup', 'subscription']);
+
+const normalizeTopupTab = (search) => {
+  const tab = new URLSearchParams(search).get('tab');
+  return allowedTopupTabs.has(tab) ? tab : null;
+};
+
 const TopUp = () => {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+  const preferredTab = normalizeTopupTab(location.search);
+
+  const syncTabQuery = (tabKey) => {
+    if (!allowedTopupTabs.has(tabKey)) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('tab', tabKey);
+    const nextSearch = `?${searchParams.toString()}`;
+
+    if (nextSearch === location.search) return;
+
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch,
+    });
+  };
 
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
@@ -753,6 +779,8 @@ const TopUp = () => {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
           t={t}
+          preferredTab={preferredTab}
+          onTabChange={syncTabQuery}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
           enableCreemTopUp={enableCreemTopUp}

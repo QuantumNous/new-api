@@ -54,6 +54,8 @@ const { Text } = Typography;
 
 const RechargeCard = ({
   t,
+  preferredTab = null,
+  onTabChange,
   enableOnlineTopUp,
   enableStripeTopUp,
   enableCreemTopUp,
@@ -104,17 +106,46 @@ const RechargeCard = ({
     !subscriptionLoading && subscriptionPlans.length > 0;
 
   useEffect(() => {
+    if (!preferredTab) return;
+
+    // Deep-link query should win over the default "open subscription first" behavior.
+    if (preferredTab === 'topup') {
+      setActiveTab('topup');
+      initialTabSetRef.current = true;
+      return;
+    }
+
+    if (subscriptionLoading) return;
+
+    setActiveTab(shouldShowSubscription ? 'subscription' : 'topup');
+    initialTabSetRef.current = true;
+  }, [preferredTab, shouldShowSubscription, subscriptionLoading]);
+
+  useEffect(() => {
+    if (preferredTab) return;
     if (initialTabSetRef.current) return;
     if (subscriptionLoading) return;
     setActiveTab(shouldShowSubscription ? 'subscription' : 'topup');
     initialTabSetRef.current = true;
-  }, [shouldShowSubscription, subscriptionLoading]);
+  }, [preferredTab, shouldShowSubscription, subscriptionLoading]);
 
   useEffect(() => {
     if (!shouldShowSubscription && activeTab !== 'topup') {
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  useEffect(() => {
+    const formApi = redeemFormApiRef.current;
+    if (!formApi) return;
+
+    const nextRedemptionCode = redemptionCode ?? '';
+    if (formApi.getValue('redemptionCode') !== nextRedemptionCode) {
+      // Semi Form keeps its own field state; sync external resets back into the input.
+      formApi.setValue('redemptionCode', nextRedemptionCode);
+    }
+  }, [redemptionCode]);
+
   const topupContent = (
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
@@ -590,6 +621,11 @@ const RechargeCard = ({
     </Space>
   );
 
+  const handleTabChange = (tabKey) => {
+    setActiveTab(tabKey);
+    onTabChange?.(tabKey);
+  };
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -615,7 +651,7 @@ const RechargeCard = ({
       </div>
 
       {shouldShowSubscription ? (
-        <Tabs type='card' activeKey={activeTab} onChange={setActiveTab}>
+        <Tabs type='card' activeKey={activeTab} onChange={handleTabChange}>
           <TabPane
             tab={
               <div className='flex items-center gap-2'>

@@ -92,10 +92,32 @@ const SubscriptionPlansCard = ({
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
+  const getPlanPurchaseState = (plan) => {
+    const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
+    const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
+    const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
+    return {
+      hasStripe,
+      hasCreem,
+      hasEpay,
+      hasInternalPurchase: hasStripe || hasCreem || hasEpay,
+      hasExternalPurchase: !!plan?.purchase_link,
+    };
+  };
+
   const openBuy = (p) => {
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
     setOpen(true);
+  };
+
+  const openExternalPurchase = (plan) => {
+    if (!plan?.purchase_link) {
+      showError(t('暂无可用的支付方式，请联系管理员配置'));
+      return;
+    }
+    window.open(plan.purchase_link, '_blank', 'noopener,noreferrer');
+    showSuccess(t('已打开购买页面'));
   };
 
   const closeBuy = () => {
@@ -604,23 +626,48 @@ const SubscriptionPlansCard = ({
                         {(() => {
                           const count = getPlanPurchaseCount(p?.plan?.id);
                           const reached = limit > 0 && count >= limit;
+                          const {
+                            hasInternalPurchase,
+                            hasExternalPurchase,
+                          } = getPlanPurchaseState(plan);
+                          const unavailable =
+                            !hasInternalPurchase && !hasExternalPurchase;
                           const tip = reached
                             ? t('已达到购买上限') + ` (${count}/${limit})`
-                            : '';
+                            : unavailable
+                              ? t('暂无可用的支付方式，请联系管理员配置')
+                              : '';
+                          const buttonText = reached
+                            ? t('已达上限')
+                            : hasInternalPurchase
+                              ? t('立即订阅')
+                              : hasExternalPurchase
+                                ? t('前往购买')
+                                : t('立即订阅');
                           const buttonEl = (
                             <Button
                               theme='outline'
                               type='primary'
                               block
-                              disabled={reached}
+                              disabled={reached || unavailable}
                               onClick={() => {
-                                if (!reached) openBuy(p);
+                                if (reached || unavailable) {
+                                  return;
+                                }
+                                // Built-in payment stays the primary path; external link is only a fallback.
+                                if (hasInternalPurchase) {
+                                  openBuy(p);
+                                  return;
+                                }
+                                if (hasExternalPurchase) {
+                                  openExternalPurchase(plan);
+                                }
                               }}
                             >
-                              {reached ? t('已达上限') : t('立即订阅')}
+                              {buttonText}
                             </Button>
                           );
-                          return reached ? (
+                          return tip ? (
                             <Tooltip content={tip} position='top'>
                               {buttonEl}
                             </Tooltip>
