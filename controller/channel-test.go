@@ -106,9 +106,7 @@ func evaluateAutoTestAttempts(channel *model.Channel, attempts []autoTestAttempt
 	if common.AutomaticDisableChannelEnabled && disableThreshold > 0 && selectedDurationMs > disableThreshold {
 		timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(selectedDurationMs)/1000.0, float64(disableThreshold)/1000.0)
 		decision.shouldDisable = true
-		if decision.newAPIError == nil {
-			decision.newAPIError = types.NewOpenAIError(timeoutErr, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-		}
+		decision.newAPIError = types.NewOpenAIError(timeoutErr, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 	}
 
 	if !decision.shouldDisable && !decision.passed && decision.newAPIError != nil {

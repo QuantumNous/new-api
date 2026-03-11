@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -228,6 +229,48 @@ func TestEvaluateAutoTestAttemptsStillDisablesOnSlowSuccessfulAttempt(t *testing
 	}
 	if decision.newAPIError == nil {
 		t.Fatalf("expected timeout disable to set newAPIError")
+	}
+	if decision.newAPIError.GetErrorCode() != types.ErrorCodeChannelResponseTimeExceeded {
+		t.Fatalf("expected timeout error code, got %v", decision.newAPIError.GetErrorCode())
+	}
+}
+
+func TestEvaluateAutoTestAttemptsReplacesEarlierErrorWhenSuccessIsSlow(t *testing.T) {
+	restore := setAutoChannelSwitchesForTest(t, true, true)
+	defer restore()
+
+	channel := &model.Channel{
+		Type:   constant.ChannelTypeCodex,
+		Status: common.ChannelStatusEnabled,
+	}
+	attempts := []autoTestAttempt{
+		{
+			isStream: true,
+			result: testResult{
+				localErr:    errors.New("not found"),
+				newAPIError: types.NewOpenAIError(errors.New("not found"), types.ErrorCodeBadResponse, 404),
+			},
+			durationMs: 120,
+		},
+		{
+			isStream:   false,
+			result:     testResult{},
+			durationMs: 6001,
+		},
+	}
+
+	decision := evaluateAutoTestAttempts(channel, attempts, 5000)
+	if !decision.shouldDisable {
+		t.Fatalf("expected slow successful fallback to trigger disable")
+	}
+	if decision.newAPIError == nil {
+		t.Fatalf("expected timeout error to replace earlier non-disable error")
+	}
+	if decision.newAPIError.GetErrorCode() != types.ErrorCodeChannelResponseTimeExceeded {
+		t.Fatalf("expected timeout error code, got %v", decision.newAPIError.GetErrorCode())
+	}
+	if !service.ShouldDisableChannel(channel.Type, decision.newAPIError) {
+		t.Fatalf("expected selected timeout error to be disable-worthy")
 	}
 }
 
