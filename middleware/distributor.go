@@ -348,8 +348,13 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
-	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, channel.GetParamOverride())
-	common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, channel.GetHeaderOverride())
+	paramOverride := channel.GetParamOverride()
+	headerOverride := channel.GetHeaderOverride()
+	if mergedParam, applied := service.ApplyChannelAffinityOverrideTemplate(c, paramOverride); applied {
+		paramOverride = mergedParam
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, paramOverride)
+	common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, headerOverride)
 	if nil != channel.OpenAIOrganization && *channel.OpenAIOrganization != "" {
 		common.SetContextKey(c, constant.ContextKeyChannelOrganization, *channel.OpenAIOrganization)
 	}

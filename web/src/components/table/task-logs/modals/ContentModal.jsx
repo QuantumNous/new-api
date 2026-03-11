@@ -144,8 +144,6 @@ const ContentModal = ({
             maxHeight: '100%',
             objectFit: 'contain',
           }}
-          autoPlay
-          crossOrigin='anonymous'
           onError={handleVideoError}
           onLoadedData={handleVideoLoaded}
           onLoadStart={() => setIsLoading(true)}

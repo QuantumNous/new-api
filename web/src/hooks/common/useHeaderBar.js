@@ -24,6 +24,7 @@ import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
+import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
 import { useMinimumLoadingTime } from './useMinimumLoadingTime';
@@ -36,7 +37,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(i18n.language);
+  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -118,12 +119,13 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   // Language change effect
   useEffect(() => {
     const handleLanguageChanged = (lng) => {
-      setCurrentLang(lng);
+      const normalizedLang = normalizeLanguage(lng);
+      setCurrentLang(normalizedLang);
       try {
         const iframe = document.querySelector('iframe');
         const cw = iframe && iframe.contentWindow;
         if (cw) {
-          cw.postMessage({ lang: lng }, '*');
+          cw.postMessage({ lang: normalizedLang }, '*');
         }
       } catch (e) {
         // Silently ignore cross-origin or access errors
@@ -148,7 +150,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const handleLanguageChange = useCallback(
     async (lang) => {
       // Change language immediately for responsive UX
+      const previousLang = normalizeLanguage(i18n.language);
       i18n.changeLanguage(lang);
+      localStorage.setItem('i18nextLng', lang);
 
       // If user is logged in, save preference to backend
       if (userState?.user?.id) {
@@ -157,25 +161,34 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             language: lang,
           });
           if (res.data.success) {
-            // Update user context with new setting
+            // Keep user preference and local cache in sync so route changes
+            // don't reapply an older remembered language.
+            let settings = {};
             if (userState?.user?.setting) {
               try {
-                const settings = JSON.parse(userState.user.setting);
-                settings.language = lang;
-                userDispatch({
-                  type: 'login',
-                  payload: {
-                    ...userState.user,
-                    setting: JSON.stringify(settings),
-                  },
-                });
+                settings = JSON.parse(userState.user.setting) || {};
               } catch (e) {
-                // Ignore parse errors
+                settings = {};
               }
             }
+
+            settings.language = lang;
+            const nextUser = {
+              ...userState.user,
+              setting: JSON.stringify(settings),
+            };
+
+            userDispatch({
+              type: 'login',
+              payload: nextUser,
+            });
+            localStorage.setItem('user', JSON.stringify(nextUser));
           }
         } catch (error) {
-          // Silently ignore errors - language was already changed locally
+          if (previousLang) {
+            i18n.changeLanguage(previousLang);
+            localStorage.setItem('i18nextLng', previousLang);
+          }
           console.error('Failed to save language preference:', error);
         }
       }

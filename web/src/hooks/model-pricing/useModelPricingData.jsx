@@ -73,7 +73,7 @@ export const useModelPricingData = () => {
     [statusState],
   );
 
-  // 默认货币与站点展示类型同步（USD/CNY），TOKENS 时仍允许切换视图内货币
+  // 默认货币与站点展示类型同步；TOKENS 由视图层走倍率展示
   const siteDisplayType = useMemo(
     () => statusState?.status?.quota_display_type || 'USD',
     [statusState],
@@ -85,6 +85,13 @@ export const useModelPricingData = () => {
       siteDisplayType === 'CUSTOM'
     ) {
       setCurrency(siteDisplayType);
+    }
+  }, [siteDisplayType]);
+
+  useEffect(() => {
+    if (siteDisplayType === 'TOKENS') {
+      setShowWithRecharge(false);
+      setCurrency('USD');
     }
   }, [siteDisplayType]);
 
@@ -356,6 +363,7 @@ export const useModelPricingData = () => {
     setCurrentPage,
     currency,
     setCurrency,
+    siteDisplayType,
     showWithRecharge,
     setShowWithRecharge,
     tokenUnit,

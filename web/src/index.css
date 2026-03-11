@@ -344,6 +344,102 @@ code {
   text-overflow: ellipsis;
 }
 
+/* Badge for count/multiplier in filter buttons */
+.sbg-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  background-color: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sbg-badge-active {
+  background-color: var(--semi-color-primary-light-active);
+  color: var(--semi-color-primary);
+}
+
+/* ---- SelectableButtonGroup color variants ---- */
+.sbg-variant-violet {
+  --semi-color-primary: #6d28d9;
+  --semi-color-primary-light-default: rgba(124, 58, 237, 0.08);
+  --semi-color-primary-light-hover: rgba(124, 58, 237, 0.15);
+  --semi-color-primary-light-active: rgba(124, 58, 237, 0.22);
+}
+
+.sbg-variant-teal {
+  --semi-color-primary: #0f766e;
+  --semi-color-primary-light-default: rgba(20, 184, 166, 0.08);
+  --semi-color-primary-light-hover: rgba(20, 184, 166, 0.15);
+  --semi-color-primary-light-active: rgba(20, 184, 166, 0.22);
+}
+
+.sbg-variant-amber {
+  --semi-color-primary: #b45309;
+  --semi-color-primary-light-default: rgba(245, 158, 11, 0.08);
+  --semi-color-primary-light-hover: rgba(245, 158, 11, 0.15);
+  --semi-color-primary-light-active: rgba(245, 158, 11, 0.22);
+}
+
+.sbg-variant-rose {
+  --semi-color-primary: #be123c;
+  --semi-color-primary-light-default: rgba(244, 63, 94, 0.08);
+  --semi-color-primary-light-hover: rgba(244, 63, 94, 0.15);
+  --semi-color-primary-light-active: rgba(244, 63, 94, 0.22);
+}
+
+.sbg-variant-green {
+  --semi-color-primary: #047857;
+  --semi-color-primary-light-default: rgba(16, 185, 129, 0.08);
+  --semi-color-primary-light-hover: rgba(16, 185, 129, 0.15);
+  --semi-color-primary-light-active: rgba(16, 185, 129, 0.22);
+}
+
+/* Dark mode: lighter text, slightly stronger backgrounds */
+html.dark .sbg-variant-violet {
+  --semi-color-primary: #a78bfa;
+  --semi-color-primary-light-default: rgba(139, 92, 246, 0.14);
+  --semi-color-primary-light-hover: rgba(139, 92, 246, 0.22);
+  --semi-color-primary-light-active: rgba(139, 92, 246, 0.3);
+}
+
+html.dark .sbg-variant-teal {
+  --semi-color-primary: #2dd4bf;
+  --semi-color-primary-light-default: rgba(45, 212, 191, 0.14);
+  --semi-color-primary-light-hover: rgba(45, 212, 191, 0.22);
+  --semi-color-primary-light-active: rgba(45, 212, 191, 0.3);
+}
+
+html.dark .sbg-variant-amber {
+  --semi-color-primary: #fbbf24;
+  --semi-color-primary-light-default: rgba(251, 191, 36, 0.14);
+  --semi-color-primary-light-hover: rgba(251, 191, 36, 0.22);
+  --semi-color-primary-light-active: rgba(251, 191, 36, 0.3);
+}
+
+html.dark .sbg-variant-rose {
+  --semi-color-primary: #fb7185;
+  --semi-color-primary-light-default: rgba(251, 113, 133, 0.14);
+  --semi-color-primary-light-hover: rgba(251, 113, 133, 0.22);
+  --semi-color-primary-light-active: rgba(251, 113, 133, 0.3);
+}
+
+html.dark .sbg-variant-green {
+  --semi-color-primary: #34d399;
+  --semi-color-primary-light-default: rgba(52, 211, 153, 0.14);
+  --semi-color-primary-light-hover: rgba(52, 211, 153, 0.22);
+  --semi-color-primary-light-active: rgba(52, 211, 153, 0.3);
+}
+
 /* Tabs组件样式 */
 .semi-tabs-content {
   padding: 0 !important;
