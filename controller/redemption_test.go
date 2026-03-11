@@ -18,17 +18,38 @@ import (
 func setupRedemptionControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	gin.SetMode(gin.TestMode)
-
+	oldGinMode := gin.Mode()
 	oldDB := model.DB
 	oldLogDB := model.LOG_DB
 	oldUsingSQLite := common.UsingSQLite
 	oldUsingPostgreSQL := common.UsingPostgreSQL
 	oldUsingMySQL := common.UsingMySQL
 	oldRedisEnabled := common.RedisEnabled
+	var db *gorm.DB
+
+	t.Cleanup(func() {
+		gin.SetMode(oldGinMode)
+		model.DB = oldDB
+		model.LOG_DB = oldLogDB
+		common.UsingSQLite = oldUsingSQLite
+		common.UsingPostgreSQL = oldUsingPostgreSQL
+		common.UsingMySQL = oldUsingMySQL
+		common.RedisEnabled = oldRedisEnabled
+
+		if db == nil {
+			return
+		}
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	gin.SetMode(gin.TestMode)
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	var err error
+	db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 
 	model.DB = db
@@ -44,21 +65,51 @@ func setupRedemptionControllerTestDB(t *testing.T) *gorm.DB {
 		&model.SubscriptionPlan{},
 	))
 
+	return db
+}
+
+func TestSetupRedemptionControllerTestDBRestoresGlobalsAfterCleanup(t *testing.T) {
+	oldGinMode := gin.Mode()
+	oldDB := model.DB
+	oldLogDB := model.LOG_DB
+	oldUsingSQLite := common.UsingSQLite
+	oldUsingPostgreSQL := common.UsingPostgreSQL
+	oldUsingMySQL := common.UsingMySQL
+	oldRedisEnabled := common.RedisEnabled
+
+	gin.SetMode(gin.ReleaseMode)
+	common.UsingSQLite = false
+	common.UsingPostgreSQL = true
+	common.UsingMySQL = false
+	common.RedisEnabled = true
+
 	t.Cleanup(func() {
+		gin.SetMode(oldGinMode)
 		model.DB = oldDB
 		model.LOG_DB = oldLogDB
 		common.UsingSQLite = oldUsingSQLite
 		common.UsingPostgreSQL = oldUsingPostgreSQL
 		common.UsingMySQL = oldUsingMySQL
 		common.RedisEnabled = oldRedisEnabled
-
-		sqlDB, err := db.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
 	})
 
-	return db
+	t.Run("setup and cleanup", func(t *testing.T) {
+		db := setupRedemptionControllerTestDB(t)
+		require.NotNil(t, db)
+		require.Equal(t, gin.TestMode, gin.Mode())
+		require.True(t, common.UsingSQLite)
+		require.False(t, common.UsingPostgreSQL)
+		require.False(t, common.UsingMySQL)
+		require.False(t, common.RedisEnabled)
+	})
+
+	require.Equal(t, gin.ReleaseMode, gin.Mode())
+	require.Equal(t, oldDB, model.DB)
+	require.Equal(t, oldLogDB, model.LOG_DB)
+	require.False(t, common.UsingSQLite)
+	require.True(t, common.UsingPostgreSQL)
+	require.False(t, common.UsingMySQL)
+	require.True(t, common.RedisEnabled)
 }
 
 func TestAddRedemptionUsesSubscriptionPlanTitleWhenNameBlank(t *testing.T) {
