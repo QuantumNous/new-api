@@ -37,8 +37,6 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
-import RefundModal from './RefundModal';
-
 const { Text } = Typography;
 
 // 状态映射配置
@@ -46,9 +44,6 @@ const STATUS_CONFIG = {
   success: { type: 'success', key: '成功' },
   pending: { type: 'warning', key: '待支付' },
   expired: { type: 'danger', key: '已过期' },
-  refunded: { type: 'danger', key: '已退款' },
-  partial_refunded: { type: 'warning', key: '部分退款' },
-  refunding: { type: 'tertiary', key: '退款中' },
 };
 
 // 支付方式映射
@@ -67,9 +62,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
-  const [refundModalVisible, setRefundModalVisible] = useState(false);
-  const [refundTopUp, setRefundTopUp] = useState(null);
-
   const isMobile = useIsMobile();
 
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -139,17 +131,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       content: t('是否将该订单标记为成功并为用户入账？'),
       onOk: () => handleAdminComplete(tradeNo),
     });
-  };
-
-  const handleOpenRefund = (record) => {
-    setRefundTopUp(record);
-    setRefundModalVisible(true);
-  };
-
-  const handleRefundSuccess = () => {
-    setRefundModalVisible(false);
-    setRefundTopUp(null);
-    loadTopups(page, pageSize);
   };
 
   // 渲染状态徽章
@@ -245,23 +226,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
               </Button>
             );
           }
-          if (
-            (record.status === 'success' || record.status === 'partial_refunded') &&
-            record.payment_method === 'waffo'
-          ) {
-            actions.push(
-              <Button
-                key="refund"
-                size='small'
-                type='danger'
-                theme='outline'
-                style={{ marginLeft: 8 }}
-                onClick={() => handleOpenRefund(record)}
-              >
-                {t('退款')}
-              </Button>
-            );
-          }
           return actions.length > 0 ? <>{actions}</> : null;
         },
       });
@@ -320,18 +284,6 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           />
         }
       />
-      {refundTopUp && (
-        <RefundModal
-          visible={refundModalVisible}
-          topUp={refundTopUp}
-          onCancel={() => {
-            setRefundModalVisible(false);
-            setRefundTopUp(null);
-          }}
-          onSuccess={handleRefundSuccess}
-          t={t}
-        />
-      )}
     </Modal>
   );
 };

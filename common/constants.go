@@ -213,12 +213,4 @@ const (
 	TopUpStatusSuccess = "success"
 	TopUpStatusFailed  = "failed"
 	TopUpStatusExpired = "expired"
-	TopUpStatusRefunded        = "refunded"
-	TopUpStatusPartialRefunded = "partial_refunded"
-	TopUpStatusRefunding       = "refunding"
-
-	// Refund status
-	RefundStatusPending = "pending"
-	RefundStatusSuccess = "success"
-	RefundStatusFailed  = "failed"
 )

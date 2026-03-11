@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -21,8 +20,6 @@ import (
 	"github.com/waffo-com/waffo-go/config"
 	"github.com/waffo-com/waffo-go/core"
 	"github.com/waffo-com/waffo-go/types/order"
-	"github.com/waffo-com/waffo-go/types/refund"
-	waffotypes "github.com/waffo-com/waffo-go/types"
 )
 
 func getWaffoSDK() (*waffo.Waffo, error) {
@@ -348,13 +345,6 @@ func WaffoWebhook(c *gin.Context) {
 		log.Printf("Waffo Webhook - EventType: %s, MerchantOrderId: %s, OrderStatus: %s",
 			event.EventType, payload.Result.MerchantOrderID, payload.Result.OrderStatus)
 		handleWaffoPayment(c, wh, &payload.Result.PaymentNotificationResult)
-	case core.EventRefund:
-		var notification core.RefundNotification
-		if err := common.Unmarshal(bodyBytes, &notification); err != nil {
-			sendWaffoWebhookResponse(c, wh, false, "invalid refund payload")
-			return
-		}
-		handleWaffoRefund(c, wh, &notification)
 	default:
 		log.Printf("Waffo Webhook 未知事件: %s", event.EventType)
 		sendWaffoWebhookResponse(c, wh, true, "")
@@ -390,103 +380,6 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 
 	log.Printf("Waffo 充值成功 - 订单: %s", merchantOrderId)
 	sendWaffoWebhookResponse(c, wh, true, "")
-}
-
-// handleWaffoRefund 处理退款通知，更新退款状态并扣减用户额度。
-func handleWaffoRefund(c *gin.Context, wh *core.WebhookHandler, notification *core.RefundNotification) {
-	if notification.Result == nil {
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-	refundRequestId := notification.Result.RefundRequestID
-	refundStatus := notification.Result.RefundStatus
-
-	log.Printf("Waffo 退款通知 - RefundRequestId: %s, Status: %s", refundRequestId, refundStatus)
-
-	if refundRequestId == "" {
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	LockOrder(refundRequestId)
-	defer UnlockOrder(refundRequestId)
-
-	refund, err := model.GetRefundByRequestId(refundRequestId)
-	if err != nil {
-		log.Printf("Waffo 退款通知：查询退款记录失败: %v, RefundRequestId: %s", err, refundRequestId)
-		sendWaffoWebhookResponse(c, wh, false, "query refund failed")
-		return
-	}
-	if refund == nil {
-		log.Printf("Waffo 退款通知：未找到退款记录 RefundRequestId: %s", refundRequestId)
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	// 幂等：已终态则跳过
-	if refund.Status == common.RefundStatusSuccess || refund.Status == common.RefundStatusFailed {
-		log.Printf("Waffo 退款通知：已处理，跳过 RefundRequestId: %s, CurrentStatus: %s", refundRequestId, refund.Status)
-		sendWaffoWebhookResponse(c, wh, true, "")
-		return
-	}
-
-	switch refundStatus {
-	case core.RefundStatusFullyRefunded, core.RefundStatusPartiallyRefunded:
-		if err := model.CompleteRefund(refundRequestId); err != nil {
-			log.Printf("Waffo 退款处理失败: %v, RefundRequestId: %s", err, refundRequestId)
-			sendWaffoWebhookResponse(c, wh, false, "complete refund failed")
-			return
-		}
-		model.RecordLog(refund.UserId, model.LogTypeTopup, fmt.Sprintf(
-			"Waffo 退款成功 RefundRequestId: %s，退款金额: %.2f，扣减额度: %d",
-			refundRequestId, refund.RefundAmount, refund.QuotaDeduction,
-		))
-		log.Printf("Waffo 退款成功 - RefundRequestId: %s, Status: %s", refundRequestId, refundStatus)
-	case core.RefundStatusFailed:
-		if err := model.FailRefund(refundRequestId); err != nil {
-			log.Printf("Waffo 退款失败标记错误: %v, RefundRequestId: %s", err, refundRequestId)
-			sendWaffoWebhookResponse(c, wh, false, "fail refund failed")
-			return
-		}
-		log.Printf("Waffo 退款失败 - RefundRequestId: %s", refundRequestId)
-	case core.RefundStatusInProgress:
-		log.Printf("Waffo 退款处理中（异步）- RefundRequestId: %s", refundRequestId)
-	default:
-		log.Printf("Waffo 退款通知未知状态: %s, RefundRequestId: %s", refundStatus, refundRequestId)
-	}
-
-	sendWaffoWebhookResponse(c, wh, true, "")
-}
-
-// queryWaffoRefundStatus 查询 Waffo 退款真实状态
-// 返回: "processing" | "failed" | "not_found" | "query_error"
-func queryWaffoRefundStatus(sdk *waffo.Waffo, refundRequestId string) string {
-	params := &refund.InquiryRefundParams{
-		MerchantInfo:    waffotypes.MerchantInfo{MerchantID: setting.WaffoMerchantId},
-		RefundRequestID: refundRequestId,
-	}
-	resp, err := sdk.Refund().Inquiry(context.Background(), params, nil)
-	if err != nil {
-		log.Printf("Waffo Inquiry 查询异常: %v, RefundRequestId: %s", err, refundRequestId)
-		return "query_error"
-	}
-	if !resp.IsSuccess() {
-		// SDK 将网络错误包装为 code "E0001"，与业务失败区分
-		if resp.Code == "E0001" {
-			log.Printf("Waffo Inquiry 网络异常: [%s] %s, RefundRequestId: %s", resp.Code, resp.Message, refundRequestId)
-			return "query_error"
-		}
-		return "not_found"
-	}
-	data := resp.GetData()
-	switch data.RefundStatus {
-	case core.RefundStatusFullyRefunded, core.RefundStatusPartiallyRefunded, core.RefundStatusInProgress:
-		return "processing"
-	case core.RefundStatusFailed:
-		return "failed"
-	default:
-		return "processing" // 未知中间状态，保守处理
-	}
 }
 
 // sendWaffoWebhookResponse 发送签名响应
