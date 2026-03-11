@@ -49,11 +49,12 @@ type autoTestAttempt struct {
 }
 
 type autoTestDecision struct {
-	passed        bool
-	shouldDisable bool
-	shouldEnable  bool
-	newAPIError   *types.NewAPIError
-	actionResult  testResult
+	passed         bool
+	shouldDisable  bool
+	shouldEnable   bool
+	newAPIError    *types.NewAPIError
+	responseTimeMs int64
+	actionResult   testResult
 }
 
 func getAutoTestStreamOrder(channel *model.Channel) []bool {
@@ -72,20 +73,33 @@ func evaluateAutoTestAttempts(channel *model.Channel, attempts []autoTestAttempt
 	preferredAttempt := attempts[0]
 	selectedDurationMs := preferredAttempt.durationMs
 	selectedResult := preferredAttempt.result
+	lastErrorIndex := -1
+	disableErrorIndex := -1
 
-	for _, attempt := range attempts {
+	for i, attempt := range attempts {
 		if attempt.result.localErr == nil && attempt.result.newAPIError == nil {
 			decision.passed = true
 			selectedDurationMs = attempt.durationMs
 			selectedResult = attempt.result
 			break
 		}
+		if attempt.result.newAPIError != nil {
+			lastErrorIndex = i
+			if disableErrorIndex < 0 && service.ShouldDisableChannel(channel.Type, attempt.result.newAPIError) {
+				disableErrorIndex = i
+			}
+		}
 	}
 
-	for _, attempt := range attempts {
-		if attempt.result.newAPIError != nil {
-			decision.newAPIError = attempt.result.newAPIError
-			break
+	selectedErrorIndex := disableErrorIndex
+	if selectedErrorIndex < 0 {
+		selectedErrorIndex = lastErrorIndex
+	}
+	if selectedErrorIndex >= 0 {
+		decision.newAPIError = attempts[selectedErrorIndex].result.newAPIError
+		if !decision.passed {
+			selectedDurationMs = attempts[selectedErrorIndex].durationMs
+			selectedResult = attempts[selectedErrorIndex].result
 		}
 	}
 
@@ -114,6 +128,7 @@ func evaluateAutoTestAttempts(channel *model.Channel, attempts []autoTestAttempt
 		}
 	}
 
+	decision.responseTimeMs = selectedDurationMs
 	decision.actionResult = selectedResult
 	return decision
 }
@@ -929,12 +944,7 @@ func testAllChannels(notify bool) error {
 				service.EnableChannel(channel.Id, common.GetContextKeyString(decision.actionResult.context, constant.ContextKeyChannelKey), channel.Name)
 			}
 
-			var milliseconds int64
-			if len(attempts) > 0 {
-				milliseconds = attempts[0].durationMs
-			}
-
-			channel.UpdateResponseTime(milliseconds)
+			channel.UpdateResponseTime(decision.responseTimeMs)
 			time.Sleep(common.RequestInterval)
 		}
 

@@ -79,6 +79,9 @@ func TestEvaluateAutoTestAttemptsUsesFallbackSuccessToAvoidDisableAndEnableAutoD
 	if !decision.shouldEnable {
 		t.Fatalf("expected auto-disabled channel to be re-enabled after fallback success")
 	}
+	if decision.responseTimeMs != 180 {
+		t.Fatalf("expected response time to use successful fallback attempt, got %d", decision.responseTimeMs)
+	}
 }
 
 func TestEvaluateAutoTestAttemptsDisablesWhenAllAttemptsFailWithDisableError(t *testing.T) {
@@ -118,6 +121,49 @@ func TestEvaluateAutoTestAttemptsDisablesWhenAllAttemptsFailWithDisableError(t *
 	}
 	if decision.newAPIError != preferredErr {
 		t.Fatalf("expected preferred attempt error to be kept")
+	}
+	if decision.responseTimeMs != 100 {
+		t.Fatalf("expected response time to use preferred disable-worthy attempt, got %d", decision.responseTimeMs)
+	}
+}
+
+func TestEvaluateAutoTestAttemptsPrefersLaterDisableWorthyError(t *testing.T) {
+	restore := setAutoChannelSwitchesForTest(t, true, true)
+	defer restore()
+
+	channel := &model.Channel{
+		Type:   constant.ChannelTypeOpenAI,
+		Status: common.ChannelStatusEnabled,
+	}
+	disableWorthyErr := types.NewOpenAIError(errors.New("unauthorized"), types.ErrorCodeBadResponse, 401)
+	attempts := []autoTestAttempt{
+		{
+			isStream: false,
+			result: testResult{
+				localErr:    errors.New("not found"),
+				newAPIError: types.NewOpenAIError(errors.New("not found"), types.ErrorCodeBadResponse, 404),
+			},
+			durationMs: 90,
+		},
+		{
+			isStream: true,
+			result: testResult{
+				localErr:    errors.New("unauthorized"),
+				newAPIError: disableWorthyErr,
+			},
+			durationMs: 210,
+		},
+	}
+
+	decision := evaluateAutoTestAttempts(channel, attempts, 5000)
+	if !decision.shouldDisable {
+		t.Fatalf("expected later disable-worthy error to trigger auto disable")
+	}
+	if decision.newAPIError != disableWorthyErr {
+		t.Fatalf("expected disable-worthy fallback error to be selected")
+	}
+	if decision.responseTimeMs != 210 {
+		t.Fatalf("expected response time to follow the selected disable-worthy attempt, got %d", decision.responseTimeMs)
 	}
 }
 
