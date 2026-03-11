@@ -29,6 +29,10 @@ func validateRedemptionDefinition(c *gin.Context, redemption *model.Redemption) 
 			common.ApiErrorMsg(c, "订阅套餐不存在")
 			return nil, false
 		}
+		if !plan.Enabled {
+			common.ApiErrorMsg(c, "套餐未启用")
+			return nil, false
+		}
 		redemption.Quota = 0
 		if strings.TrimSpace(redemption.Name) == "" {
 			redemption.Name = plan.Title

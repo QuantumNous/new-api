@@ -99,3 +99,38 @@ func TestAddRedemptionUsesSubscriptionPlanTitleWhenNameBlank(t *testing.T) {
 	require.Equal(t, model.RedemptionTypeSubscription, redemption.RedemptionType)
 	require.Equal(t, plan.Id, redemption.SubscriptionPlanId)
 }
+
+func TestAddRedemptionRejectsDisabledSubscriptionPlan(t *testing.T) {
+	db := setupRedemptionControllerTestDB(t)
+
+	plan := &model.SubscriptionPlan{
+		Id:            int(time.Now().UnixNano()%1_000_000_000) + 1,
+		Title:         "已禁用套餐",
+		PriceAmount:   9.9,
+		Currency:      "USD",
+		DurationUnit:  model.SubscriptionDurationMonth,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   5000,
+	}
+	require.NoError(t, db.Create(plan).Error)
+	require.NoError(t, db.Model(plan).Update("enabled", false).Error)
+
+	body := map[string]any{
+		"name":                 "禁用套餐兑换码",
+		"count":                1,
+		"redemption_type":      model.RedemptionTypeSubscription,
+		"subscription_plan_id": plan.Id,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/redemption", body, 1)
+
+	AddRedemption(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	require.Equal(t, "套餐未启用", response.Message)
+
+	var count int64
+	require.NoError(t, db.Model(&model.Redemption{}).Count(&count).Error)
+	require.Zero(t, count)
+}
