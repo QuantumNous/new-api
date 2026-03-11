@@ -124,11 +124,6 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
   ],
 };
 
-// 支持并且已适配通过接口获取模型列表的渠道类型
-const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 8, 14, 34, 17, 26, 27, 24, 45, 47, 25, 20, 23, 31, 40, 42, 48, 43,
-]);
-
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
   switch (type) {
