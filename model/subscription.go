@@ -1136,8 +1136,8 @@ func CleanupSubscriptionPreConsumeRecords(olderThanSeconds int64) (int64, error)
 }
 
 type SubscriptionPlanInfo struct {
-	PlanId    int
-	PlanTitle string
+	PlanId    int    `json:"plan_id"`
+	PlanTitle string `json:"plan_title"`
 }
 
 func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*SubscriptionPlanInfo, error) {

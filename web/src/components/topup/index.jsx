@@ -27,6 +27,7 @@ import {
   renderQuotaWithAmount,
   copy,
   getQuotaPerUnit,
+  timestamp2string,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -117,19 +118,33 @@ const TopUp = () => {
       });
       const { success, message, data } = res.data;
       if (success) {
+        const redeemResult =
+          typeof data === 'number'
+            ? { redemption_type: 'quota', quota: data }
+            : data || {};
+        const redemptionType = redeemResult.redemption_type || 'quota';
         showSuccess(t('兑换成功！'));
-        Modal.success({
-          title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
-          centered: true,
-        });
-        if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
+        if (redemptionType === 'subscription') {
+          const planTitle =
+            redeemResult?.subscription_plan?.plan_title || t('订阅套餐');
+          const endTime = redeemResult?.subscription?.end_time
+            ? timestamp2string(redeemResult.subscription.end_time)
+            : '';
+          Modal.success({
+            title: t('兑换成功！'),
+            content: endTime
+              ? `${t('已激活订阅套餐：')}${planTitle}，${t('有效期至')}${endTime}`
+              : `${t('已激活订阅套餐：')}${planTitle}`,
+            centered: true,
+          });
+        } else {
+          Modal.success({
+            title: t('兑换成功！'),
+            content: t('成功兑换额度：') + renderQuota(redeemResult.quota || 0),
+            centered: true,
+          });
         }
+        await Promise.all([getUserQuota(), getSubscriptionSelf()]);
         setRedemptionCode('');
       } else {
         showError(message);

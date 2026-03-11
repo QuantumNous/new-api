@@ -293,7 +293,8 @@ const RechargeCard = ({
                       {payMethods && payMethods.length > 0 ? (
                         <Space wrap>
                           {payMethods.map((payMethod) => {
-                            const minTopupVal = Number(payMethod.min_topup) || 0;
+                            const minTopupVal =
+                              Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
                             const disabled =
                               (!enableOnlineTopUp && !isStripe) ||
@@ -389,7 +390,9 @@ const RechargeCard = ({
                   <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2'>
                     {presetAmounts.map((preset, index) => {
                       const discount =
-                        preset.discount || topupInfo?.discount?.[preset.value] || 1.0;
+                        preset.discount ||
+                        topupInfo?.discount?.[preset.value] ||
+                        1.0;
                       const originalPrice = preset.value * priceRatio;
                       const discountedPrice = originalPrice * discount;
                       const hasDiscount = discount < 1.0;
@@ -405,7 +408,7 @@ const RechargeCard = ({
                           const s = JSON.parse(statusStr);
                           usdRate = s?.usd_exchange_rate || 7;
                         }
-                      } catch (e) { }
+                      } catch (e) {}
 
                       let displayValue = preset.value; // 显示的数量
                       let displayActualPay = actualPay;
@@ -456,7 +459,10 @@ const RechargeCard = ({
                               {hasDiscount && (
                                 <Tag style={{ marginLeft: 4 }} color='green'>
                                   {t('折').includes('off')
-                                    ? ((1 - parseFloat(discount)) * 100).toFixed(1)
+                                    ? (
+                                        (1 - parseFloat(discount)) *
+                                        100
+                                      ).toFixed(1)
                                     : (discount * 10).toFixed(1)}
                                   {t('折')}
                                 </Tag>
@@ -523,12 +529,12 @@ const RechargeCard = ({
         )}
       </Card>
 
-      {/* 兑换码充值 */}
+      {/* 兑换码兑换 */}
       <Card
         className='!rounded-xl w-full'
         title={
           <Text type='tertiary' strong>
-            {t('兑换码充值')}
+            {t('兑换码')}
           </Text>
         }
       >
@@ -551,26 +557,32 @@ const RechargeCard = ({
                   onClick={topUp}
                   loading={isSubmitting}
                 >
-                  {t('兑换额度')}
+                  {t('立即兑换')}
                 </Button>
               </div>
             }
             showClear
             style={{ width: '100%' }}
             extraText={
-              topUpLink && (
+              <div>
                 <Text type='tertiary'>
-                  {t('在找兑换码？')}
-                  <Text
-                    type='secondary'
-                    underline
-                    className='cursor-pointer'
-                    onClick={openTopUpLink}
-                  >
-                    {t('购买兑换码')}
-                  </Text>
+                  {t('兑换码可用于充值额度或激活订阅套餐')}
                 </Text>
-              )
+                {topUpLink && (
+                  <Text type='tertiary'>
+                    {' '}
+                    {t('在找兑换码？')}
+                    <Text
+                      type='secondary'
+                      underline
+                      className='cursor-pointer'
+                      onClick={openTopUpLink}
+                    >
+                      {t('购买兑换码')}
+                    </Text>
+                  </Text>
+                )}
+              </div>
             }
           />
         </Form>
