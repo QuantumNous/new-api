@@ -133,8 +133,11 @@ const TopUp = () => {
           Modal.success({
             title: t('兑换成功！'),
             content: endTime
-              ? `${t('已激活订阅套餐：')}${planTitle}，${t('有效期至')}${endTime}`
-              : `${t('已激活订阅套餐：')}${planTitle}`,
+              ? t('已激活订阅套餐：{{planTitle}}，有效期至 {{endTime}}', {
+                  planTitle,
+                  endTime,
+                })
+              : t('已激活订阅套餐：{{planTitle}}', { planTitle }),
             centered: true,
           });
         } else {
@@ -144,8 +147,8 @@ const TopUp = () => {
             centered: true,
           });
         }
-        await Promise.all([getUserQuota(), getSubscriptionSelf()]);
         setRedemptionCode('');
+        void Promise.allSettled([getUserQuota(), getSubscriptionSelf()]);
       } else {
         showError(message);
       }

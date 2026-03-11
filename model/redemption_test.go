@@ -1,11 +1,15 @@
 package model
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -157,4 +161,39 @@ func TestRedeemSubscriptionCodeCreatesSubscriptionAndMarksUsed(t *testing.T) {
 	var updatedUser User
 	require.NoError(t, DB.First(&updatedUser, "id = ?", user.Id).Error)
 	require.Equal(t, 200, updatedUser.Quota)
+}
+
+func TestSyncRedemptionUserGroupCacheInvalidatesOnUpdateFailure(t *testing.T) {
+	oldUpdater := redemptionUserGroupCacheUpdater
+	oldInvalidator := redemptionUserCacheInvalidator
+	oldWriter := gin.DefaultWriter
+
+	var logBuffer bytes.Buffer
+	gin.DefaultWriter = io.MultiWriter(&logBuffer)
+
+	t.Cleanup(func() {
+		redemptionUserGroupCacheUpdater = oldUpdater
+		redemptionUserCacheInvalidator = oldInvalidator
+		gin.DefaultWriter = oldWriter
+	})
+
+	redemptionUserGroupCacheUpdater = func(userId int, group string) error {
+		require.Equal(t, 123, userId)
+		require.Equal(t, "vip", group)
+		return errors.New("cache boom")
+	}
+
+	invalidatedUserID := 0
+	redemptionUserCacheInvalidator = func(userId int) error {
+		invalidatedUserID = userId
+		return nil
+	}
+
+	syncRedemptionUserGroupCache(123, "vip", 456, 789)
+
+	require.Equal(t, 123, invalidatedUserID)
+	require.Contains(t, logBuffer.String(), "failed to update redemption user group cache")
+	require.Contains(t, logBuffer.String(), "userId=123")
+	require.Contains(t, logBuffer.String(), "redemptionId=456")
+	require.Contains(t, logBuffer.String(), "subscriptionId=789")
 }

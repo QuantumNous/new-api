@@ -1354,6 +1354,8 @@
     "想起来了？": "Remember?",
     "成功": "Success",
     "已激活订阅套餐：": "Activated subscription plan: ",
+    "已激活订阅套餐：{{planTitle}}": "Activated subscription plan: {{planTitle}}",
+    "已激活订阅套餐：{{planTitle}}，有效期至 {{endTime}}": "Activated subscription plan: {{planTitle}}, valid until {{endTime}}",
     "成功兑换额度：": "Successful redemption amount:",
     "成功后切换亲和": "",
     "成功时自动启用通道": "Enable channel when successful",

@@ -20,6 +20,11 @@ const (
 	RedemptionTypeSubscription = "subscription"
 )
 
+var (
+	redemptionUserGroupCacheUpdater = UpdateUserGroupCache
+	redemptionUserCacheInvalidator  = invalidateUserCache
+)
+
 type Redemption struct {
 	Id     int    `json:"id"`
 	UserId int    `json:"user_id"`
@@ -96,6 +101,19 @@ func attachSubscriptionPlanInfo(redemptions []*Redemption) error {
 		redemption.SubscriptionPlan = buildSubscriptionPlanInfo(plan)
 	}
 	return nil
+}
+
+func syncRedemptionUserGroupCache(userId int, upgradeGroup string, redemptionId int, subscriptionId int) {
+	upgradeGroup = strings.TrimSpace(upgradeGroup)
+	if upgradeGroup == "" {
+		return
+	}
+	if err := redemptionUserGroupCacheUpdater(userId, upgradeGroup); err != nil {
+		common.SysLog(fmt.Sprintf("failed to update redemption user group cache: userId=%d upgradeGroup=%s redemptionId=%d subscriptionId=%d err=%s", userId, upgradeGroup, redemptionId, subscriptionId, err.Error()))
+		if invalidateErr := redemptionUserCacheInvalidator(userId); invalidateErr != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate user cache after redemption group cache update failure: userId=%d redemptionId=%d subscriptionId=%d err=%s", userId, redemptionId, subscriptionId, invalidateErr.Error()))
+		}
+	}
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -259,7 +277,11 @@ func Redeem(key string, userId int) (result *RedeemResult, err error) {
 		return nil, ErrRedeemFailed
 	}
 	if upgradeGroup != "" {
-		_ = UpdateUserGroupCache(userId, upgradeGroup)
+		subscriptionId := 0
+		if result.Subscription != nil {
+			subscriptionId = result.Subscription.Id
+		}
+		syncRedemptionUserGroupCache(userId, upgradeGroup, redemption.Id, subscriptionId)
 	}
 	switch result.RedemptionType {
 	case RedemptionTypeSubscription:

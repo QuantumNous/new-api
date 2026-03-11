@@ -43,6 +43,18 @@ func validateRedemptionDefinition(c *gin.Context, redemption *model.Redemption) 
 	return nil, true
 }
 
+func normalizeAndValidateRedemptionName(c *gin.Context, redemption *model.Redemption, plan *model.SubscriptionPlan) bool {
+	if plan != nil && strings.TrimSpace(redemption.Name) == "" {
+		redemption.Name = plan.Title
+	}
+	redemption.Name = strings.TrimSpace(redemption.Name)
+	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+		return false
+	}
+	return true
+}
+
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
@@ -96,10 +108,6 @@ func AddRedemption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
-		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
-		return
-	}
 	if redemption.Count <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountPositive)
 		return
@@ -112,8 +120,8 @@ func AddRedemption(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if plan != nil && strings.TrimSpace(redemption.Name) == "" {
-		redemption.Name = plan.Title
+	if !normalizeAndValidateRedemptionName(c, &redemption, plan) {
+		return
 	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
@@ -184,8 +192,8 @@ func UpdateRedemption(c *gin.Context) {
 		if !ok {
 			return
 		}
-		if plan != nil && strings.TrimSpace(redemption.Name) == "" {
-			redemption.Name = plan.Title
+		if !normalizeAndValidateRedemptionName(c, &redemption, plan) {
+			return
 		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
