@@ -260,7 +260,6 @@ func RequestWaffoPay(c *gin.Context) {
 
 	// 存储 gatewayOrderId，退款时直接使用；保存失败则中止，避免付款后无法退款
 	if orderData.AcquiringOrderID != "" {
-		topUp.GatewayOrderId = orderData.AcquiringOrderID
 		if err := topUp.Update(); err != nil {
 			log.Printf("Waffo 保存 gatewayOrderId 失败: %v, 订单: %s", err, merchantOrderId)
 			topUp.Status = common.TopUpStatusFailed
