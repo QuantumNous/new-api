@@ -1,4 +1,6 @@
-# CLAUDE.md — Project Conventions for new-api
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
 
@@ -13,6 +15,51 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
 - **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
 
+## Commands
+
+### Backend
+
+```bash
+# Run (default port 3000, frontend must be pre-built)
+go run main.go
+go run main.go --port 8080 --log-dir ./logs
+
+# Build binary
+go build -o new-api .
+
+# Full build (frontend + backend via Makefile)
+make
+
+# Run all tests
+go test ./...
+
+# Run tests in a specific package
+go test ./relay/channel/claude/...
+go test ./model/...
+
+# Run a single test by name
+go test ./relay/channel/claude/ -run TestRelayClaudeXxx
+go test ./model/ -run TestSubscriptionGroup
+
+# Test with a specific database (default: SQLite)
+TEST_SQL_DSN="user:pass@tcp(host)/db" go test ./model/...
+```
+
+### Frontend (`web/` directory)
+
+```bash
+bun install
+bun run dev          # development server
+bun run build        # production build (outputs to web/dist/, embedded by Go)
+bun run lint         # Prettier check
+bun run lint:fix     # Prettier auto-fix
+bun run eslint       # ESLint check
+bun run eslint:fix   # ESLint auto-fix
+bun run i18n:extract # extract new translation keys
+bun run i18n:sync    # sync translation files across languages
+bun run i18n:lint    # lint translation files
+```
+
 ## Architecture
 
 Layered architecture: Router -> Controller -> Service -> Model
@@ -24,6 +71,8 @@ service/       — Business logic
 model/         — Data models and DB access (GORM)
 relay/         — AI API relay/proxy with provider adapters
   relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
+  relay/common/  — RelayInfo struct, billing, request conversion utilities
+  relay/constant/ — RelayMode constants (ChatCompletions, Embeddings, etc.)
 middleware/    — Auth, rate limiting, CORS, logging, distribution
 setting/       — Configuration management (ratio, model, operation, system, performance)
 common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
@@ -33,9 +82,41 @@ types/         — Type definitions (relay formats, file sources, errors)
 i18n/          — Backend internationalization (go-i18n, en/zh)
 oauth/         — OAuth provider implementations
 pkg/           — Internal packages (cachex, ionet)
-web/           — React frontend
+web/           — React frontend (built output embedded into Go binary via embed.FS)
   web/src/i18n/  — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
 ```
+
+### Relay Request Flow
+
+```
+HTTP Request → router/relay-router.go
+  → relay/*_handler.go (determines RelayMode)
+  → relay/relay_adaptor.go GetAdaptor(apiType) → channel.Adaptor
+  → adaptor.ConvertOpenAIRequest() — normalize to provider format
+  → adaptor.DoRequest() — HTTP call to upstream
+  → adaptor.DoResponse() — parse response, return usage
+  → billing (relay/common/billing.go)
+```
+
+Each channel adapter implements `channel.Adaptor` interface (`relay/channel/adapter.go`). To add a new channel: create a directory under `relay/channel/`, implement the `Adaptor` interface, then register it in `relay/relay_adaptor.go:GetAdaptor()`.
+
+### Key Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3000` | HTTP listen port (also `--port` flag) |
+| `SQL_DSN` | — | MySQL/PostgreSQL DSN; if unset, uses SQLite |
+| `LOG_SQL_DSN` | — | Separate DB for logs; falls back to `SQL_DSN` |
+| `REDIS_CONN_STRING` | — | Redis URL; enables memory cache when set |
+| `SESSION_SECRET` | — | Cookie session secret (required in production) |
+| `NODE_TYPE` | `master` | Set to `slave` to disable master-only tasks |
+| `SYNC_FREQUENCY` | `60` | Cache sync interval in seconds |
+| `GIN_MODE` | `release` | Set to `debug` for verbose Gin logging |
+| `BATCH_UPDATE_ENABLED` | `false` | Enable batched DB quota writes |
+| `CHANNEL_UPDATE_FREQUENCY` | — | Auto channel test interval (seconds) |
+| `ENABLE_PPROF` | `false` | Enable pprof on port 8005 |
+
+Configuration can also be set via `.env` file in the project root.
 
 ## Internationalization (i18n)
 
@@ -99,11 +180,14 @@ Use `bun` as the preferred package manager and script runner for the frontend (`
 - `bun run build` for production build
 - `bun run i18n:*` for i18n tooling
 
-### Rule 4: New Channel StreamOptions Support
+### Rule 4: New Channel Implementation Checklist
 
-When implementing a new channel:
-- Confirm whether the provider supports `StreamOptions`.
-- If supported, add the channel to `streamSupportedChannels`.
+When adding a new channel adapter:
+1. Create `relay/channel/<name>/adaptor.go` implementing the `channel.Adaptor` interface.
+2. Register it in `relay/relay_adaptor.go:GetAdaptor()` with the corresponding `constant.APIType*` constant.
+3. Add the `APIType*` constant to `constant/api_type.go` and map it to a channel type in `constant/channel_type.go`.
+4. Confirm whether the provider supports `StreamOptions`; if so, add the channel to `streamSupportedChannels` in `relay/channel/api_request.go`.
+5. For task-based channels (image generation, video, etc.), implement `channel.TaskAdaptor` instead and register in `relay/relay_task.go`.
 
 ### Rule 5: Protected Project Information — DO NOT Modify or Delete
 
