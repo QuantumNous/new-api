@@ -54,7 +54,7 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			))
 		}
 
-		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
+		if err := relayInfo.Billing.Settle(ctx, actualQuota); err != nil {
 			return err
 		}
 

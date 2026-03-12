@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -36,7 +37,10 @@ type BillingSession struct {
 // Settle 根据实际消耗额度进行结算。
 // 资金来源和令牌额度分两步提交：若资金来源已提交但令牌调整失败，
 // 会标记 fundingSettled 防止 Refund 对已提交的资金来源执行退款。
-func (s *BillingSession) Settle(actualQuota int) error {
+func (s *BillingSession) Settle(ctx context.Context, actualQuota int) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settled {
@@ -64,8 +68,10 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		}
 		if tokenErr != nil {
 			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
-			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
-				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
+			logger.LogError(ctx, fmt.Sprintf(
+				"adjust token quota after funding settled failed, userId=%d, tokenId=%d, delta=%d, funding=%s: %s",
+				s.relayInfo.UserId, s.relayInfo.TokenId, delta, s.funding.Source(), tokenErr.Error(),
+			))
 		}
 	}
 	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
@@ -86,7 +92,12 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	s.refunded = true
 	s.mu.Unlock()
 
-	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
+	logCtx := context.Background()
+	if c != nil && c.Request != nil {
+		logCtx = c.Request.Context()
+	}
+
+	logger.LogInfo(logCtx, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
 		s.relayInfo.UserId,
 		logger.FormatQuota(s.tokenConsumed),
 		s.funding.Source(),
@@ -102,14 +113,18 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	gopool.Go(func() {
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
-			common.SysLog("error refunding billing source: " + err.Error())
+			logger.LogError(logCtx, fmt.Sprintf("refund billing source failed, userId=%d, funding=%s: %s",
+				s.relayInfo.UserId, funding.Source(), err.Error()))
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
 			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
-				common.SysLog("error refunding token quota: " + err.Error())
+				logger.LogError(logCtx, fmt.Sprintf("refund token quota failed, userId=%d, tokenId=%d, amount=%d: %s",
+					s.relayInfo.UserId, tokenId, tokenConsumed, err.Error()))
 			}
 		}
+		logger.LogInfo(logCtx, fmt.Sprintf("预扣费返还完成（userId=%d, token_quota=%s, funding=%s）",
+			s.relayInfo.UserId, logger.FormatQuota(tokenConsumed), funding.Source()))
 	})
 }
 
@@ -160,6 +175,8 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	// ---- 1) 预扣令牌额度 ----
 	if effectiveQuota > 0 {
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
+			logger.LogWarn(c, fmt.Sprintf("预扣令牌额度失败（userId=%d, tokenId=%d, funding=%s, quota=%s）：%s",
+				s.relayInfo.UserId, s.relayInfo.TokenId, s.funding.Source(), logger.FormatQuota(effectiveQuota), err.Error()))
 			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		s.tokenConsumed = effectiveQuota
@@ -167,11 +184,16 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 
 	// ---- 2) 预扣资金来源 ----
 	if err := s.funding.PreConsume(effectiveQuota); err != nil {
+		logger.LogWarn(c, fmt.Sprintf("预扣资金失败（userId=%d, funding=%s, quota=%s）：%s",
+			s.relayInfo.UserId, s.funding.Source(), logger.FormatQuota(effectiveQuota), err.Error()))
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
-					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
+				logger.LogError(c, fmt.Sprintf("回滚预扣令牌额度失败（userId=%d, tokenId=%d, amount=%d, funding=%s, fundingErr=%s）：%s",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, s.funding.Source(), err.Error(), rollbackErr.Error()))
+			} else {
+				logger.LogInfo(c, fmt.Sprintf("已回滚预扣令牌额度（userId=%d, tokenId=%d, amount=%d, funding=%s）",
+					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, s.funding.Source()))
 			}
 			s.tokenConsumed = 0
 		}
@@ -281,6 +303,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr
 		}
+		logger.LogInfo(c, fmt.Sprintf("billing session established (preference=%s, funding=wallet, pre_consumed=%s)",
+			pref, logger.FormatQuota(session.GetPreConsumedQuota())))
 		return session, nil
 	}
 
@@ -303,6 +327,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr := session.preConsume(c, int(subConsume)); apiErr != nil {
 			return nil, apiErr
 		}
+		logger.LogInfo(c, fmt.Sprintf("billing session established (preference=%s, funding=subscription, pre_consumed=%s)",
+			pref, logger.FormatQuota(session.GetPreConsumedQuota())))
 		return session, nil
 	}
 
@@ -315,6 +341,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		session, err := tryWallet()
 		if err != nil {
 			if err.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				logger.LogWarn(c, "wallet pre-consume insufficient, fallback to subscription")
 				return trySubscription()
 			}
 			return nil, err
@@ -328,11 +355,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
 		if !hasSub {
+			logger.LogInfo(c, "no active subscription, fallback to wallet billing")
 			return tryWallet()
 		}
 		session, apiErr := trySubscription()
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				logger.LogWarn(c, "subscription pre-consume insufficient, fallback to wallet")
 				return tryWallet()
 			}
 			return nil, apiErr
