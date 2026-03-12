@@ -25,6 +25,8 @@ type Pricing struct {
 	ModelPrice             float64                 `json:"model_price"`
 	OwnerBy                string                  `json:"owner_by"`
 	CompletionRatio        float64                 `json:"completion_ratio"`
+	CacheRatio             float64                 `json:"cache_ratio"`
+	CreateCacheRatio       float64                 `json:"create_cache_ratio"`
 	EnableGroup            []string                `json:"enable_groups"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
@@ -297,6 +299,10 @@ func updatePricing() {
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
 		}
+		cacheRatio, _ := ratio_setting.GetCacheRatio(model)
+		pricing.CacheRatio = cacheRatio
+		createCacheRatio, _ := ratio_setting.GetCreateCacheRatio(model)
+		pricing.CreateCacheRatio = createCacheRatio
 		pricingMap = append(pricingMap, pricing)
 	}
 

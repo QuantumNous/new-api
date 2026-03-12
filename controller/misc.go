@@ -76,6 +76,8 @@ func GetStatus(c *gin.Context) {
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
 		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
 		"custom_currency_exchange_rate": operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
+		"custom_currencies":            operation_setting.GetGeneralSetting().CustomCurrencies,
+		"enabled_currencies":           operation_setting.GetEnabledCurrencies(),
 		"enable_batch_update":           common.BatchUpdateEnabled,
 		"enable_drawing":                common.DrawingEnabled,
 		"enable_task":                   common.TaskEnabled,
@@ -116,6 +118,8 @@ func GetStatus(c *gin.Context) {
 		"user_agreement_enabled":      legalSetting.UserAgreement != "",
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"redemption_enabled":          operation_setting.GetGeneralSetting().RedemptionEnabled,
+		"redemption_allowed_groups":   operation_setting.GetGeneralSetting().RedemptionAllowedGroups,
 		"_qn":                         "new-api",
 	}
 

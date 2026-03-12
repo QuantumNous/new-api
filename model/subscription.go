@@ -830,6 +830,82 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	return "", nil
 }
 
+// UserInvalidateOwnSubscription allows a user to cancel their own active subscription.
+func UserInvalidateOwnSubscription(userId, userSubscriptionId int) (string, error) {
+	if userId <= 0 || userSubscriptionId <= 0 {
+		return "", errors.New("invalid parameters")
+	}
+	now := common.GetTimestamp()
+	cacheGroup := ""
+	downgradeGroup := ""
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if sub.UserId != userId {
+			return errors.New("无权操作此订阅")
+		}
+		if sub.Status != "active" {
+			return errors.New("该订阅不在生效状态")
+		}
+		if err := tx.Model(&sub).Updates(map[string]interface{}{
+			"status":     "cancelled",
+			"end_time":   now,
+			"updated_at": now,
+		}).Error; err != nil {
+			return err
+		}
+		target, err := downgradeUserGroupForSubscriptionTx(tx, &sub, now)
+		if err != nil {
+			return err
+		}
+		if target != "" {
+			cacheGroup = target
+			downgradeGroup = target
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if cacheGroup != "" && userId > 0 {
+		_ = UpdateUserGroupCache(userId, cacheGroup)
+	}
+	if downgradeGroup != "" {
+		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
+	}
+	return "", nil
+}
+
+// UserDeleteOwnSubscription allows a user to delete their own cancelled or expired subscription.
+func UserDeleteOwnSubscription(userId, userSubscriptionId int) error {
+	if userId <= 0 || userSubscriptionId <= 0 {
+		return errors.New("invalid parameters")
+	}
+	now := common.GetTimestamp()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if sub.UserId != userId {
+			return errors.New("无权操作此订阅")
+		}
+		isExpired := sub.EndTime > 0 && sub.EndTime < now
+		isCancelled := sub.Status == "cancelled"
+		if !isExpired && !isCancelled {
+			return errors.New("仅已作废或已过期的订阅可删除")
+		}
+		if err := tx.Where("id = ?", userSubscriptionId).Delete(&UserSubscription{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // AdminDeleteUserSubscription hard-deletes a user subscription.
 func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	if userSubscriptionId <= 0 {

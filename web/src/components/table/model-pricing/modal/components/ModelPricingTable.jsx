@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice } from '../../../../../helpers';
+import { calculateModelPrice, getDualCurrencyConfig } from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -48,6 +48,19 @@ const ModelPricingTable = ({
       .filter((g) => modelEnableGroups.includes(g));
 
     // 准备表格数据
+    const { secondary } = getDualCurrencyConfig();
+    const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+    const formatSec = (usdPrice) => {
+      if (!secondary) return '';
+      const val = (usdPrice * secondary.rate) / unitDivisor;
+      return ` (${secondary.symbol}${val.toFixed(4)})`;
+    };
+    const formatSecFixed = (usdPrice) => {
+      if (!secondary) return '';
+      const val = usdPrice * secondary.rate;
+      return ` (${secondary.symbol}${val.toFixed(4)})`;
+    };
+
     const tableData = availableGroups.map((group) => {
       const priceData = modelData
         ? calculateModelPrice({
@@ -58,7 +71,7 @@ const ModelPricingTable = ({
             displayPrice,
             currency,
           })
-        : { inputPrice: '-', outputPrice: '-', price: '-' };
+        : { inputPrice: '-', outputPrice: '-', price: '-', cacheReadPrice: '-', cacheWritePrice: '-' };
 
       // 获取分组倍率
       const groupRatioValue =
@@ -80,6 +93,10 @@ const ModelPricingTable = ({
             ? priceData.completionPrice || priceData.outputPrice
             : '-',
         fixedPrice: modelData?.quota_type === 1 ? priceData.price : '-',
+        cacheReadPrice: modelData?.quota_type === 0 ? priceData.cacheReadPrice : '-',
+        cacheWritePrice: modelData?.quota_type === 0 ? priceData.cacheWritePrice : '-',
+        // raw USD prices for dual currency
+        _priceData: priceData,
       };
     });
 
@@ -128,44 +145,63 @@ const ModelPricingTable = ({
 
     // 根据计费类型添加价格列
     if (modelData?.quota_type === 0) {
-      // 按量计费
-      columns.push(
-        {
-          title: t('提示'),
-          dataIndex: 'inputPrice',
-          render: (text) => (
-            <>
-              <div className='font-semibold text-orange-600'>{text}</div>
-              <div className='text-xs text-gray-500'>
-                / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+      // 按量计费 - 输入/输出/缓存读取/缓存写入合并为"计费"列
+      const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M';
+      columns.push({
+        title: t('计费'),
+        dataIndex: 'inputPrice',
+        render: (text, record) => {
+          const pd = record._priceData;
+          return (
+            <div className='space-y-1'>
+              <div>
+                <span className='text-xs text-gray-500'>{t('提示')}：</span>
+                <span className='font-semibold text-orange-600'>
+                  {text}{pd?.inputPriceUSD !== undefined ? formatSec(pd.inputPriceUSD) : ''}
+                </span>
+                <span className='text-xs text-gray-500'> / {tokenUnitLabel} tokens</span>
               </div>
-            </>
-          ),
-        },
-        {
-          title: t('补全'),
-          dataIndex: 'outputPrice',
-          render: (text) => (
-            <>
-              <div className='font-semibold text-orange-600'>{text}</div>
-              <div className='text-xs text-gray-500'>
-                / {tokenUnit === 'K' ? '1K' : '1M'} tokens
+              <div>
+                <span className='text-xs text-gray-500'>{t('补全')}：</span>
+                <span className='font-semibold text-orange-600'>
+                  {record.outputPrice}{pd?.completionPriceUSD !== undefined ? formatSec(pd.completionPriceUSD) : ''}
+                </span>
+                <span className='text-xs text-gray-500'> / {tokenUnitLabel} tokens</span>
               </div>
-            </>
-          ),
+              <div>
+                <span className='text-xs text-gray-500'>{t('缓存读取')}：</span>
+                <span className='font-semibold text-orange-600'>
+                  {record.cacheReadPrice}{pd?.cacheReadPriceUSD !== undefined ? formatSec(pd.cacheReadPriceUSD) : ''}
+                </span>
+                <span className='text-xs text-gray-500'> / {tokenUnitLabel} tokens</span>
+              </div>
+              <div>
+                <span className='text-xs text-gray-500'>{t('缓存写入')}：</span>
+                <span className='font-semibold text-orange-600'>
+                  {record.cacheWritePrice}{pd?.cacheWritePriceUSD !== undefined ? formatSec(pd.cacheWritePriceUSD) : ''}
+                </span>
+                <span className='text-xs text-gray-500'> / {tokenUnitLabel} tokens</span>
+              </div>
+            </div>
+          );
         },
-      );
+      });
     } else {
       // 按次计费
       columns.push({
         title: t('价格'),
         dataIndex: 'fixedPrice',
-        render: (text) => (
-          <>
-            <div className='font-semibold text-orange-600'>{text}</div>
-            <div className='text-xs text-gray-500'>/ 次</div>
-          </>
-        ),
+        render: (text, record) => {
+          const pd = record._priceData;
+          return (
+            <>
+              <div className='font-semibold text-orange-600'>
+                {text}{pd?.priceUSD !== undefined ? formatSecFixed(pd.priceUSD) : ''}
+              </div>
+              <div className='text-xs text-gray-500'>/ 次</div>
+            </>
+          );
+        },
       });
     }
 

@@ -678,9 +678,30 @@ export const calculateModelPrice = ({
         symbol = '¤';
       }
     }
+    // 缓存价格计算
+    const cacheRatio = record.cache_ratio ?? 1;
+    const createCacheRatio = record.create_cache_ratio ?? 1.25;
+    const cacheReadRatioPriceUSD = inputRatioPriceUSD * cacheRatio;
+    const cacheWriteRatioPriceUSD = inputRatioPriceUSD * createCacheRatio;
+    const rawDisplayCacheRead = displayPrice(cacheReadRatioPriceUSD);
+    const rawDisplayCacheWrite = displayPrice(cacheWriteRatioPriceUSD);
+    const numCacheRead =
+      parseFloat(rawDisplayCacheRead.replace(/[^0-9.]/g, '')) / unitDivisor;
+    const numCacheWrite =
+      parseFloat(rawDisplayCacheWrite.replace(/[^0-9.]/g, '')) / unitDivisor;
+
     return {
       inputPrice: `${symbol}${numInput.toFixed(precision)}`,
       completionPrice: `${symbol}${numCompletion.toFixed(precision)}`,
+      cacheReadPrice: `${symbol}${numCacheRead.toFixed(precision)}`,
+      cacheWritePrice: `${symbol}${numCacheWrite.toFixed(precision)}`,
+      cacheRatio,
+      createCacheRatio,
+      // raw USD prices per 1M tokens for dual currency formatting
+      inputPriceUSD: inputRatioPriceUSD,
+      completionPriceUSD: completionRatioPriceUSD,
+      cacheReadPriceUSD: cacheReadRatioPriceUSD,
+      cacheWritePriceUSD: cacheWriteRatioPriceUSD,
       unitLabel,
       isPerToken: true,
       usedGroup,
@@ -695,6 +716,7 @@ export const calculateModelPrice = ({
 
     return {
       price: displayVal,
+      priceUSD: priceUSD,
       isPerToken: false,
       usedGroup,
       usedGroupRatio,
@@ -721,6 +743,16 @@ export const formatPriceInfo = (priceData, t) => {
         <span style={{ color: 'var(--semi-color-text-1)' }}>
           {t('输出')} {priceData.completionPrice}/{priceData.unitLabel}
         </span>
+        {priceData.cacheRatio !== undefined && priceData.cacheRatio !== 1 && (
+          <span style={{ color: 'var(--semi-color-text-2)' }}>
+            {t('缓存读取')} {priceData.cacheReadPrice}/{priceData.unitLabel}
+          </span>
+        )}
+        {priceData.createCacheRatio !== undefined && priceData.createCacheRatio !== 1.25 && (
+          <span style={{ color: 'var(--semi-color-text-2)' }}>
+            {t('缓存写入')} {priceData.cacheWritePrice}/{priceData.unitLabel}
+          </span>
+        )}
       </>
     );
   }

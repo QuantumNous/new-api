@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/QuantumNous/new-api/constant"
 
@@ -175,6 +176,8 @@ func Register(c *gin.Context) {
 		DisplayName: user.Username,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		RegisterIP:  c.ClientIP(),
+		RegisterUA:  c.Request.UserAgent(),
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
@@ -234,6 +237,8 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
+	model.FillInviterUsernames(users)
+
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
 
@@ -250,6 +255,8 @@ func SearchUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	model.FillInviterUsernames(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -633,6 +640,47 @@ func UpdateSelf(c *gin.Context) {
 		// 更新language字段
 		if langStr, ok := language.(string); ok {
 			currentSetting.Language = langStr
+		}
+
+		// 保存更新后的设置
+		user.SetSetting(currentSetting)
+		if err := user.Update(false); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+			return
+		}
+
+		common.ApiSuccessI18n(c, i18n.MsgUpdateSuccess, nil)
+		return
+	}
+
+	// 检查是否是货币偏好更新请求
+	if currencyPref, cpExists := requestData["currency_preference"]; cpExists {
+		userId := c.GetInt("id")
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		// 获取当前用户设置
+		currentSetting := user.GetSetting()
+
+		// 更新currency_preference字段
+		if cpStr, ok := currencyPref.(string); ok {
+			// 校验值在启用的货币列表内
+			enabledCurrencies := operation_setting.GetEnabledCurrencies()
+			valid := false
+			for _, ec := range enabledCurrencies {
+				if ec == cpStr {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			currentSetting.CurrencyPreference = cpStr
 		}
 
 		// 保存更新后的设置
@@ -1145,4 +1193,22 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+func GetUserInvitees(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	invitees, err := model.GetUserInvitees(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    invitees,
+	})
 }

@@ -43,6 +43,10 @@ type User struct {
 	AffQuota         int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
 	InviterId        int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	RegisterIP       string         `json:"register_ip" gorm:"type:varchar(64);column:register_ip"`
+	RegisterUA       string         `json:"register_ua" gorm:"type:varchar(512);column:register_ua"`
+	InviterUsername  string         `json:"inviter_username" gorm:"-"`
+	InviteCount     int            `json:"invite_count" gorm:"-"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
@@ -997,4 +1001,62 @@ func RootUserExists() bool {
 		return false
 	}
 	return true
+}
+
+func GetUserInvitees(userId int) ([]User, error) {
+	var users []User
+	err := DB.Select("id, username, register_ip, register_ua").
+		Where("inviter_id = ?", userId).
+		Order("id desc").
+		Find(&users).Error
+	return users, err
+}
+
+func FillInviterUsernames(users []*User) {
+	inviterIDs := make([]int, 0)
+	seen := make(map[int]bool)
+	for _, u := range users {
+		if u.InviterId > 0 && !seen[u.InviterId] {
+			inviterIDs = append(inviterIDs, u.InviterId)
+			seen[u.InviterId] = true
+		}
+	}
+	if len(inviterIDs) > 0 {
+		var inviters []User
+		DB.Select("id, username").Where("id IN ?", inviterIDs).Find(&inviters)
+		nameMap := make(map[int]string)
+		for _, inv := range inviters {
+			nameMap[inv.Id] = inv.Username
+		}
+		for _, u := range users {
+			if u.InviterId > 0 {
+				u.InviterUsername = nameMap[u.InviterId]
+			}
+		}
+	}
+
+	// 填充真实邀请人数
+	userIDs := make([]int, 0, len(users))
+	for _, u := range users {
+		userIDs = append(userIDs, u.Id)
+	}
+	if len(userIDs) == 0 {
+		return
+	}
+	type inviteCountResult struct {
+		InviterId int
+		Count     int
+	}
+	var counts []inviteCountResult
+	DB.Model(&User{}).Select("inviter_id, count(*) as count").
+		Where("inviter_id IN ?", userIDs).
+		Group("inviter_id").
+		Find(&counts)
+	countMap := make(map[int]int)
+	for _, c := range counts {
+		countMap[c.InviterId] = c.Count
+	}
+	for _, u := range users {
+		u.InviteCount = countMap[u.Id]
+	}
 }

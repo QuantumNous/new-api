@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   Divider,
+  Modal,
   Select,
   Skeleton,
   Space,
@@ -83,12 +84,15 @@ const SubscriptionPlansCard = ({
   allSubscriptions = [],
   reloadSubscriptionSelf,
   withCard = true,
+  showMySubscription = true,
+  showPlansList = true,
 }) => {
   const [open, setOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -111,6 +115,59 @@ const SubscriptionPlansCard = ({
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const cancelSubscription = (subId) => {
+    Modal.confirm({
+      title: t('确认作废订阅'),
+      content: t('作废后订阅将立即失效，已使用额度不退还，确认继续？'),
+      okType: 'danger',
+      onOk: async () => {
+        setCancelling(true);
+        try {
+          const res = await API.post(`/api/subscription/self/cancel/${subId}`);
+          if (res.data?.success) {
+            showSuccess(t('已作废'));
+            await reloadSubscriptionSelf?.();
+          } else {
+            const errorMsg =
+              typeof res.data?.data === 'string'
+                ? res.data.data
+                : res.data?.message || t('操作失败');
+            showError(errorMsg);
+          }
+        } catch (e) {
+          showError(t('请求失败'));
+        } finally {
+          setCancelling(false);
+        }
+      },
+    });
+  };
+
+  const deleteSubscription = (subId) => {
+    Modal.confirm({
+      title: t('确认删除订阅'),
+      content: t('删除后该订阅记录将不可恢复，确认继续？'),
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          const res = await API.delete(`/api/subscription/self/${subId}`);
+          if (res.data?.success) {
+            showSuccess(t('已删除'));
+            await reloadSubscriptionSelf?.();
+          } else {
+            const errorMsg =
+              typeof res.data?.data === 'string'
+                ? res.data.data
+                : res.data?.message || t('操作失败');
+            showError(errorMsg);
+          }
+        } catch (e) {
+          showError(t('请求失败'));
+        }
+      },
+    });
   };
 
   const payStripe = async () => {
@@ -257,51 +314,56 @@ const SubscriptionPlansCard = ({
       {loading ? (
         <div className='space-y-4'>
           {/* 我的订阅骨架屏 */}
-          <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
-            <div className='flex items-center justify-between mb-3'>
-              <Skeleton.Title active style={{ width: 100, height: 20 }} />
-              <Skeleton.Button active style={{ width: 24, height: 24 }} />
-            </div>
-            <div className='space-y-2'>
-              <Skeleton.Paragraph active rows={2} />
-            </div>
-          </Card>
+          {showMySubscription && (
+            <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
+              <div className='flex items-center justify-between mb-3'>
+                <Skeleton.Title active style={{ width: 100, height: 20 }} />
+                <Skeleton.Button active style={{ width: 24, height: 24 }} />
+              </div>
+              <div className='space-y-2'>
+                <Skeleton.Paragraph active rows={2} />
+              </div>
+            </Card>
+          )}
           {/* 套餐列表骨架屏 */}
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
-            {[1, 2, 3].map((i) => (
-              <Card
-                key={i}
-                className='!rounded-xl w-full h-full'
-                bodyStyle={{ padding: 16 }}
-              >
-                <Skeleton.Title
-                  active
-                  style={{ width: '60%', height: 24, marginBottom: 8 }}
-                />
-                <Skeleton.Paragraph
-                  active
-                  rows={1}
-                  style={{ marginBottom: 12 }}
-                />
-                <div className='text-center py-4'>
+          {showPlansList && (
+            <>
+              {[1, 2, 3].map((i) => (
+                <Card
+                  key={i}
+                  className='!rounded-xl w-full h-full'
+                  bodyStyle={{ padding: 16 }}
+                >
                   <Skeleton.Title
                     active
-                    style={{ width: '40%', height: 32, margin: '0 auto' }}
+                    style={{ width: '60%', height: 24, marginBottom: 8 }}
                   />
-                </div>
-                <Skeleton.Paragraph active rows={3} style={{ marginTop: 12 }} />
-                <Skeleton.Button
-                  active
-                  block
-                  style={{ marginTop: 16, height: 32 }}
-                />
-              </Card>
-            ))}
-          </div>
+                  <Skeleton.Paragraph
+                    active
+                    rows={1}
+                    style={{ marginBottom: 12 }}
+                  />
+                  <div className='text-center py-4'>
+                    <Skeleton.Title
+                      active
+                      style={{ width: '40%', height: 32, margin: '0 auto' }}
+                    />
+                  </div>
+                  <Skeleton.Paragraph active rows={3} style={{ marginTop: 12 }} />
+                  <Skeleton.Button
+                    active
+                    block
+                    style={{ marginTop: 16, height: 32 }}
+                  />
+                </Card>
+              ))}
+            </>
+          )}
         </div>
       ) : (
         <Space vertical style={{ width: '100%' }} spacing={8}>
           {/* 当前订阅状态 */}
+          {showMySubscription && (
           <Card className='!rounded-xl w-full' bodyStyle={{ padding: '12px' }}>
             <div className='flex items-center justify-between mb-2 gap-3'>
               <div className='flex items-center gap-2 flex-1 min-w-0'>
@@ -427,9 +489,34 @@ const SubscriptionPlansCard = ({
                             )}
                           </div>
                           {isActive && (
-                            <span className='text-gray-500'>
-                              {t('剩余')} {remainDays} {t('天')}
-                            </span>
+                            <div className='flex items-center gap-2'>
+                              <span className='text-gray-500'>
+                                {t('剩余')} {remainDays} {t('天')}
+                              </span>
+                              <Button
+                                size='small'
+                                type='danger'
+                                theme='solid'
+                                loading={cancelling}
+                                onClick={() =>
+                                  cancelSubscription(subscription?.id)
+                                }
+                              >
+                                {t('作废')}
+                              </Button>
+                            </div>
+                          )}
+                          {!isActive && (
+                            <Button
+                              size='small'
+                              type='danger'
+                              theme='light'
+                              onClick={() =>
+                                deleteSubscription(subscription?.id)
+                              }
+                            >
+                              {t('删除')}
+                            </Button>
                           )}
                         </div>
                         <div className='text-xs text-gray-500 mb-2'>
@@ -475,10 +562,13 @@ const SubscriptionPlansCard = ({
               </div>
             )}
           </Card>
+          )}
 
           {/* 可购买套餐 - 标准定价卡片 */}
+          {showPlansList && (
+          <>
           {plans.length > 0 ? (
-            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 w-full px-1'>
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const totalAmount = Number(plan?.total_amount || 0);
@@ -643,6 +733,8 @@ const SubscriptionPlansCard = ({
               {t('暂无可购买套餐')}
             </div>
           )}
+          </>
+          )}
         </Space>
       )}
     </>
@@ -653,7 +745,7 @@ const SubscriptionPlansCard = ({
       {withCard ? (
         <Card className='!rounded-2xl shadow-sm border-0'>{cardContent}</Card>
       ) : (
-        <div className='space-y-3'>{cardContent}</div>
+        <div className='space-y-3 w-full'>{cardContent}</div>
       )}
 
       {/* 购买确认弹窗 */}

@@ -29,6 +29,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // @lobehub/icons v2 和 antd-style 依赖 antd（项目用 Semi Design），
+      // 将 antd 指向空 stub 避免安装完整的 antd 包
+      'antd': path.resolve(__dirname, './src/antd-stub.js'),
+      '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
+        __dirname,
+        'node_modules/@douyinfe/semi-ui/dist/css/semi.css',
+      ),
     },
   },
   plugins: [

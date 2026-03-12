@@ -103,6 +103,8 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    redemption_enabled: true,
+    redemption_allowed_groups: [],
   });
 
   const topUp = async () => {
@@ -399,6 +401,8 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
+          redemption_enabled: data.redemption_enabled !== false,
+          redemption_allowed_groups: data.redemption_allowed_groups || [],
         });
 
         // 处理支付方式
@@ -742,7 +746,8 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      <div className='grid grid-cols-1 lg:grid-cols-4 gap-6'>
+        <div className='lg:col-span-3'>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
@@ -785,7 +790,11 @@ const TopUp = () => {
           activeSubscriptions={activeSubscriptions}
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={getSubscriptionSelf}
+          redemptionEnabled={topupInfo.redemption_enabled}
+          redemptionAllowedGroups={topupInfo.redemption_allowed_groups}
         />
+        </div>
+        <div className='lg:col-span-1'>
         <InvitationCard
           t={t}
           userState={userState}
@@ -794,6 +803,7 @@ const TopUp = () => {
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
         />
+        </div>
       </div>
     </div>
   );

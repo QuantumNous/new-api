@@ -86,6 +86,39 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"billing_preference": pref})
 }
 
+func UserCancelSubscription(c *gin.Context) {
+	userId := c.GetInt("id")
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	msg, err := model.UserInvalidateOwnSubscription(userId, subId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if msg != "" {
+		common.ApiSuccess(c, gin.H{"message": msg})
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func UserDeleteSubscription(c *gin.Context) {
+	userId := c.GetInt("id")
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	if err := model.UserDeleteOwnSubscription(userId, subId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 // ---- Admin APIs ----
 
 func AdminListSubscriptionPlans(c *gin.Context) {

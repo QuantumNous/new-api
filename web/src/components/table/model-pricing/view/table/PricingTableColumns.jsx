@@ -25,6 +25,7 @@ import {
   stringToColor,
   calculateModelPrice,
   getLobeHubIcon,
+  getDualCurrencyConfig,
 } from '../../../../../helpers';
 import {
   renderLimitedItems,
@@ -226,20 +227,36 @@ export const getPricingTableColumns = ({
   };
 
   const priceColumn = {
-    title: t('模型价格'),
+    title: t('计费'),
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
+      const { secondary } = getDualCurrencyConfig();
+      const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+
+      const formatSecondary = (usdPrice) => {
+        if (!secondary) return null;
+        const val = (usdPrice * secondary.rate) / unitDivisor;
+        return `(${secondary.symbol}${val.toFixed(4)})`;
+      };
 
       if (priceData.isPerToken) {
         return (
           <div className='space-y-1'>
             <div className='text-gray-700'>
-              {t('输入')} {priceData.inputPrice} / 1{priceData.unitLabel} tokens
+              {t('输入')} {priceData.inputPrice}{secondary ? ' ' + formatSecondary(priceData.inputPriceUSD) : ''} / 1{priceData.unitLabel} tokens
             </div>
             <div className='text-gray-700'>
-              {t('输出')} {priceData.completionPrice} / 1{priceData.unitLabel}{' '}
+              {t('输出')} {priceData.completionPrice}{secondary ? ' ' + formatSecondary(priceData.completionPriceUSD) : ''} / 1{priceData.unitLabel}{' '}
+              tokens
+            </div>
+            <div className='text-gray-700'>
+              {t('缓存读取')} {priceData.cacheReadPrice}{secondary ? ' ' + formatSecondary(priceData.cacheReadPriceUSD) : ''} / 1{priceData.unitLabel}{' '}
+              tokens
+            </div>
+            <div className='text-gray-700'>
+              {t('缓存写入')} {priceData.cacheWritePrice}{secondary ? ' ' + formatSecondary(priceData.cacheWritePriceUSD) : ''} / 1{priceData.unitLabel}{' '}
               tokens
             </div>
           </div>
@@ -247,7 +264,7 @@ export const getPricingTableColumns = ({
       } else {
         return (
           <div className='text-gray-700'>
-            {t('模型价格')}：{priceData.price}
+            {t('模型价格')}：{priceData.price}{secondary ? ' ' + (() => { const val = priceData.priceUSD * secondary.rate; return `(${secondary.symbol}${val.toFixed(4)})`; })() : ''}
           </div>
         );
       }

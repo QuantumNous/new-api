@@ -4,7 +4,7 @@
 
 services:
   new-api-test:
-    image: ghcr.io/jinfeijie/new-api:main
+    image: new-api:test
     container_name: new-api-test
     restart: "no"
     ports:
@@ -14,7 +14,7 @@ services:
       - ./logs-test:/app/logs
     command: --log-dir /app/logs
     environment:
-      - SQL_DSN=postgresql://root:abc123@postgres:5432/new-api
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - CHANNEL_UPDATE_FREQUENCY=1

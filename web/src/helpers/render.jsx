@@ -867,7 +867,7 @@ export function renderQuotaNumberWithDigit(num, digits = 2) {
   if (typeof num !== 'number' || isNaN(num)) {
     return 0;
   }
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getEffectiveDisplayType();
   num = num.toFixed(digits);
   if (quotaDisplayType === 'CNY') {
     return '¥' + num;
@@ -883,6 +883,13 @@ export function renderQuotaNumberWithDigit(num, digits = 2) {
       }
     } catch (e) {}
     return symbol + num;
+  } else if (quotaDisplayType !== 'TOKENS') {
+    // 自定义货币 code
+    const found = findCustomCurrency(quotaDisplayType);
+    if (found) {
+      return (found.symbol || '¤') + num;
+    }
+    return num;
   } else {
     return num;
   }
@@ -937,7 +944,7 @@ export function getQuotaWithUnit(quota, digits = 6) {
 }
 
 export function renderQuotaWithAmount(amount) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getEffectiveDisplayType();
   if (quotaDisplayType === 'TOKENS') {
     return renderNumber(renderUnitWithQuota(amount));
   }
@@ -953,8 +960,45 @@ export function renderQuotaWithAmount(amount) {
       }
     } catch (e) {}
     return symbol + amount;
+  } else if (quotaDisplayType !== 'USD') {
+    // 自定义货币 code
+    const found = findCustomCurrency(quotaDisplayType);
+    if (found) {
+      return (found.symbol || '¤') + amount;
+    }
   }
   return '$' + amount;
+}
+
+/**
+ * 从 localStorage 中查找自定义货币配置
+ * @param {string} code - 货币代码
+ * @returns {Object|null} - { symbol, exchange_rate } 或 null
+ */
+function findCustomCurrency(code) {
+  try {
+    const customCurrencies = JSON.parse(
+      localStorage.getItem('custom_currencies') || '[]',
+    );
+    return customCurrencies.find((c) => c.code === code) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 获取生效的额度展示类型（优先用户偏好，其次系统默认）
+ * @returns {string} - 生效的展示类型 code
+ */
+export function getEffectiveDisplayType() {
+  const userPref = localStorage.getItem('user_currency_preference');
+  try {
+    const enabled = JSON.parse(localStorage.getItem('enabled_currencies') || '["USD"]');
+    if (userPref && enabled.includes(userPref)) return userPref;
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return localStorage.getItem('quota_display_type') || 'USD';
 }
 
 /**
@@ -962,7 +1006,7 @@ export function renderQuotaWithAmount(amount) {
  * @returns {Object} - { symbol, rate, type }
  */
 export function getCurrencyConfig() {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getEffectiveDisplayType();
   const statusStr = localStorage.getItem('status');
 
   let symbol = '$';
@@ -984,6 +1028,13 @@ export function getCurrencyConfig() {
         rate = s?.custom_currency_exchange_rate || 1;
       }
     } catch (e) {}
+  } else if (quotaDisplayType !== 'TOKENS') {
+    // 自定义货币 code
+    const found = findCustomCurrency(quotaDisplayType);
+    if (found) {
+      symbol = found.symbol || '¤';
+      rate = found.exchange_rate || 1;
+    }
   }
 
   return { symbol, rate, type: quotaDisplayType };
@@ -1001,47 +1052,106 @@ export function convertUSDToCurrency(usdAmount, digits = 2) {
   return symbol + convertedAmount.toFixed(digits);
 }
 
+/**
+ * 根据指定的货币类型获取货币配置
+ * @param {string} type - 货币类型 code
+ * @returns {Object} - { symbol, rate, type }
+ */
+function getCurrencyConfigByType(type) {
+  const statusStr = localStorage.getItem('status');
+  let symbol = '$';
+  let rate = 1;
+
+  if (type === 'CNY') {
+    symbol = '¥';
+    try {
+      if (statusStr) {
+        const s = JSON.parse(statusStr);
+        rate = s?.usd_exchange_rate || 7;
+      }
+    } catch (e) {}
+  } else if (type === 'CUSTOM') {
+    try {
+      if (statusStr) {
+        const s = JSON.parse(statusStr);
+        symbol = s?.custom_currency_symbol || '¤';
+        rate = s?.custom_currency_exchange_rate || 1;
+      }
+    } catch (e) {}
+  } else if (type !== 'TOKENS' && type !== 'USD') {
+    const found = findCustomCurrency(type);
+    if (found) {
+      symbol = found.symbol || '¤';
+      rate = found.exchange_rate || 1;
+    }
+  }
+
+  return { symbol, rate, type };
+}
+
+/**
+ * 获取双货币显示配置
+ * primary: 系统默认货币（始终展示）
+ * secondary: 用户偏好货币（仅当与系统默认不同时返回，否则为 null）
+ * @returns {Object} - { primary: { symbol, rate, type }, secondary: { symbol, rate, type } | null }
+ */
+export function getDualCurrencyConfig() {
+  const systemType = localStorage.getItem('quota_display_type') || 'USD';
+  const effectiveType = getEffectiveDisplayType();
+
+  const primary = getCurrencyConfigByType(systemType);
+
+  if (systemType === effectiveType) {
+    return { primary, secondary: null };
+  }
+
+  const secondary = getCurrencyConfigByType(effectiveType);
+  return { primary, secondary };
+}
+
+/**
+ * 格式化双货币价格
+ * 如果有次要货币，返回 "1.000000 (¥7.000000)"，否则返回 "1.000000"
+ * @param {number} usdPrice - 美元价格
+ * @param {Object} primary - 主要货币 { symbol, rate }
+ * @param {Object|null} secondary - 次要货币 { symbol, rate }，null 表示不展示
+ * @param {number} digits - 小数位数
+ * @returns {string}
+ */
+function formatDualPrice(usdPrice, primary, secondary, digits = 6) {
+  const primaryStr = (usdPrice * primary.rate).toFixed(digits);
+  if (!secondary) return primaryStr;
+  return `${primaryStr} (${secondary.symbol}${(usdPrice * secondary.rate).toFixed(digits)})`;
+}
+
 export function renderQuota(quota, digits = 2) {
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const systemType = localStorage.getItem('quota_display_type') || 'USD';
   quotaPerUnit = parseFloat(quotaPerUnit);
-  if (quotaDisplayType === 'TOKENS') {
+  if (systemType === 'TOKENS') {
     return renderNumber(quota);
   }
   const resultUSD = quota / quotaPerUnit;
-  let symbol = '$';
-  let value = resultUSD;
-  if (quotaDisplayType === 'CNY') {
-    const statusStr = localStorage.getItem('status');
-    let usdRate = 1;
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        usdRate = s?.usd_exchange_rate || 1;
-      }
-    } catch (e) {}
-    value = resultUSD * usdRate;
-    symbol = '¥';
-  } else if (quotaDisplayType === 'CUSTOM') {
-    const statusStr = localStorage.getItem('status');
-    let symbolCustom = '¤';
-    let rate = 1;
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        symbolCustom = s?.custom_currency_symbol || symbolCustom;
-        rate = s?.custom_currency_exchange_rate || rate;
-      }
-    } catch (e) {}
-    value = resultUSD * rate;
-    symbol = symbolCustom;
+
+  const { primary, secondary } = getDualCurrencyConfig();
+
+  // 格式化单个货币值
+  const formatOne = (usdAmount, cfg, d) => {
+    const val = usdAmount * cfg.rate;
+    const fixed = val.toFixed(d);
+    if (parseFloat(fixed) === 0 && quota > 0 && val > 0) {
+      const minValue = Math.pow(10, -d);
+      return cfg.symbol + minValue.toFixed(d);
+    }
+    return cfg.symbol + fixed;
+  };
+
+  const primaryStr = formatOne(resultUSD, primary, digits);
+  if (!secondary) {
+    return primaryStr;
   }
-  const fixedResult = value.toFixed(digits);
-  if (parseFloat(fixedResult) === 0 && quota > 0 && value > 0) {
-    const minValue = Math.pow(10, -digits);
-    return symbol + minValue.toFixed(digits);
-  }
-  return symbol + fixedResult;
+  const secondaryStr = formatOne(resultUSD, secondary, digits);
+  return `${primaryStr} (${secondaryStr})`;
 }
 
 function isValidGroupRatio(ratio) {
@@ -1092,9 +1202,12 @@ function renderPriceSimpleCore({
   );
   const finalGroupRatio = effectiveGroupRatio;
 
-  const { symbol, rate } = getCurrencyConfig();
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
   if (modelPrice !== -1) {
-    const displayPrice = (modelPrice * rate).toFixed(6);
+    const displayPrice = dp(modelPrice);
     return i18next.t('价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
       symbol: symbol,
       price: displayPrice,
@@ -1196,12 +1309,15 @@ export function renderModelPrice(
   );
   groupRatio = effectiveGroupRatio;
 
-  // 获取货币配置
-  const { symbol, rate } = getCurrencyConfig();
+  // 获取双货币配置：primary=系统默认，secondary=用户偏好（不同时才有值）
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
 
   if (modelPrice !== -1) {
-    const displayPrice = (modelPrice * rate).toFixed(6);
-    const displayTotal = (modelPrice * groupRatio * rate).toFixed(6);
+    const displayPrice = dp(modelPrice);
+    const displayTotal = dp(modelPrice * groupRatio);
     return i18next.t(
       '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
@@ -1248,9 +1364,9 @@ export function renderModelPrice(
               '输入价格：{{symbol}}{{price}} / 1M tokens{{audioPrice}}',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
+                price: dp(inputRatioPrice),
                 audioPrice: audioInputSeperatePrice
-                  ? `，音频 ${symbol}${(audioInputPrice * rate).toFixed(6)} / 1M tokens`
+                  ? `，音频 ${symbol}${dp(audioInputPrice)} / 1M tokens`
                   : '',
               },
             )}
@@ -1260,8 +1376,8 @@ export function renderModelPrice(
               '输出价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
-                total: (completionRatioPrice * rate).toFixed(6),
+                price: dp(inputRatioPrice),
+                total: dp(completionRatioPrice),
                 completionRatio: completionRatio,
               },
             )}
@@ -1272,8 +1388,8 @@ export function renderModelPrice(
                 '缓存价格：{{symbol}}{{price}} * {{cacheRatio}} = {{symbol}}{{total}} / 1M tokens (缓存倍率: {{cacheRatio}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
-                  total: (inputRatioPrice * cacheRatio * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
+                  total: dp(inputRatioPrice * cacheRatio),
                   cacheRatio: cacheRatio,
                 },
               )}
@@ -1285,9 +1401,9 @@ export function renderModelPrice(
                 '图片输入价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (图片倍率: {{imageRatio}})',
                 {
                   symbol: symbol,
-                  price: (imageRatioPrice * rate).toFixed(6),
+                  price: dp(imageRatioPrice),
                   ratio: groupRatio,
-                  total: (imageRatioPrice * groupRatio * rate).toFixed(6),
+                  total: dp(imageRatioPrice * groupRatio),
                   imageRatio: imageRatio,
                 },
               )}
@@ -1297,7 +1413,7 @@ export function renderModelPrice(
             <p>
               {i18next.t('Web搜索价格：{{symbol}}{{price}} / 1K 次', {
                 symbol: symbol,
-                price: (webSearchPrice * rate).toFixed(6),
+                price: dp(webSearchPrice),
               })}
             </p>
           )}
@@ -1305,7 +1421,7 @@ export function renderModelPrice(
             <p>
               {i18next.t('文件搜索价格：{{symbol}}{{price}} / 1K 次', {
                 symbol: symbol,
-                price: (fileSearchPrice * rate).toFixed(6),
+                price: dp(fileSearchPrice),
               })}
             </p>
           )}
@@ -1313,7 +1429,7 @@ export function renderModelPrice(
             <p>
               {i18next.t('图片生成调用：{{symbol}}{{price}} / 1次', {
                 symbol: symbol,
-                price: (imageGenerationCallPrice * rate).toFixed(6),
+                price: dp(imageGenerationCallPrice),
               })}
             </p>
           )}
@@ -1329,7 +1445,7 @@ export function renderModelPrice(
                     imageInput: imageOutputTokens,
                     imageRatio: imageRatio,
                     symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
+                    price: dp(inputRatioPrice),
                   },
                 );
               } else if (cacheTokens > 0) {
@@ -1339,8 +1455,8 @@ export function renderModelPrice(
                     nonCacheInput: inputTokens - cacheTokens,
                     cacheInput: cacheTokens,
                     symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
-                    cachePrice: (cacheRatioPrice * rate).toFixed(6),
+                    price: dp(inputRatioPrice),
+                    cachePrice: dp(cacheRatioPrice),
                   },
                 );
               } else if (audioInputSeperatePrice && audioInputTokens > 0) {
@@ -1350,8 +1466,8 @@ export function renderModelPrice(
                     nonAudioInput: inputTokens - audioInputTokens,
                     audioInput: audioInputTokens,
                     symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
-                    audioPrice: (audioInputPrice * rate).toFixed(6),
+                    price: dp(inputRatioPrice),
+                    audioPrice: dp(audioInputPrice),
                   },
                 );
               } else {
@@ -1360,7 +1476,7 @@ export function renderModelPrice(
                   {
                     input: inputTokens,
                     symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
+                    price: dp(inputRatioPrice),
                   },
                 );
               }
@@ -1371,7 +1487,7 @@ export function renderModelPrice(
                 {
                   completion: completionTokens,
                   symbol: symbol,
-                  compPrice: (completionRatioPrice * rate).toFixed(6),
+                  compPrice: dp(completionRatioPrice),
                   ratio: groupRatio,
                   ratioType: ratioLabel,
                 },
@@ -1385,7 +1501,7 @@ export function renderModelPrice(
                       {
                         count: webSearchCallCount,
                         symbol: symbol,
-                        price: (webSearchPrice * rate).toFixed(6),
+                        price: dp(webSearchPrice),
                         ratio: groupRatio,
                         ratioType: ratioLabel,
                       },
@@ -1397,7 +1513,7 @@ export function renderModelPrice(
                       {
                         count: fileSearchCallCount,
                         symbol: symbol,
-                        price: (fileSearchPrice * rate).toFixed(6),
+                        price: dp(fileSearchPrice),
                         ratio: groupRatio,
                         ratioType: ratioLabel,
                       },
@@ -1408,7 +1524,7 @@ export function renderModelPrice(
                       ' + 图片生成调用 {{symbol}}{{price}} / 1次 * {{ratioType}} {{ratio}}',
                       {
                         symbol: symbol,
-                        price: (imageGenerationCallPrice * rate).toFixed(6),
+                        price: dp(imageGenerationCallPrice),
                         ratio: groupRatio,
                         ratioType: ratioLabel,
                       },
@@ -1423,7 +1539,7 @@ export function renderModelPrice(
                   outputDesc,
                   extraServices,
                   symbol: symbol,
-                  total: (price * rate).toFixed(6),
+                  total: dp(price),
                 },
               );
             })()}
@@ -1455,13 +1571,16 @@ export function renderLogContent(
     useUserGroupRatio: useUserGroupRatio,
   } = getEffectiveRatio(groupRatio, user_group_ratio);
 
-  // 获取货币配置
-  const { symbol, rate } = getCurrencyConfig();
+  // 获取双货币配置
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
 
   if (modelPrice !== -1) {
     return i18next.t('模型价格 {{symbol}}{{price}}，{{ratioType}} {{ratio}}', {
       symbol: symbol,
-      price: (modelPrice * rate).toFixed(6),
+      price: dp(modelPrice),
       ratioType: ratioLabel,
       ratio,
     });
@@ -1563,8 +1682,11 @@ export function renderAudioModelPrice(
   );
   groupRatio = effectiveGroupRatio;
 
-  // 获取货币配置
-  const { symbol, rate } = getCurrencyConfig();
+  // 获取双货币配置
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
 
   // 1 ratio = $0.002 / 1K tokens
   if (modelPrice !== -1) {
@@ -1572,9 +1694,9 @@ export function renderAudioModelPrice(
       '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
         symbol: symbol,
-        price: (modelPrice * rate).toFixed(6),
+        price: dp(modelPrice),
         ratio: groupRatio,
-        total: (modelPrice * groupRatio * rate).toFixed(6),
+        total: dp(modelPrice * groupRatio),
         ratioType: ratioLabel,
       },
     );
@@ -1611,7 +1733,7 @@ export function renderAudioModelPrice(
           <p>
             {i18next.t('提示价格：{{symbol}}{{price}} / 1M tokens', {
               symbol: symbol,
-              price: (inputRatioPrice * rate).toFixed(6),
+              price: dp(inputRatioPrice),
             })}
           </p>
           <p>
@@ -1619,8 +1741,8 @@ export function renderAudioModelPrice(
               '补全价格：{{symbol}}{{price}} * {{completionRatio}} = {{symbol}}{{total}} / 1M tokens (补全倍率: {{completionRatio}})',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
-                total: (completionRatioPrice * rate).toFixed(6),
+                price: dp(inputRatioPrice),
+                total: dp(completionRatioPrice),
                 completionRatio: completionRatio,
               },
             )}
@@ -1631,8 +1753,8 @@ export function renderAudioModelPrice(
                 '缓存价格：{{symbol}}{{price}} * {{cacheRatio}} = {{symbol}}{{total}} / 1M tokens (缓存倍率: {{cacheRatio}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
-                  total: (inputRatioPrice * cacheRatio * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
+                  total: dp(inputRatioPrice * cacheRatio),
                   cacheRatio: cacheRatio,
                 },
               )}
@@ -1643,8 +1765,8 @@ export function renderAudioModelPrice(
               '音频提示价格：{{symbol}}{{price}} * {{audioRatio}} = {{symbol}}{{total}} / 1M tokens (音频倍率: {{audioRatio}})',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
-                total: (inputRatioPrice * audioRatio * rate).toFixed(6),
+                price: dp(inputRatioPrice),
+                total: dp(inputRatioPrice * audioRatio),
                 audioRatio: audioRatio,
               },
             )}
@@ -1654,13 +1776,10 @@ export function renderAudioModelPrice(
               '音频补全价格：{{symbol}}{{price}} * {{audioRatio}} * {{audioCompRatio}} = {{symbol}}{{total}} / 1M tokens (音频补全倍率: {{audioCompRatio}})',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
-                total: (
-                  inputRatioPrice *
-                  audioRatio *
-                  audioCompletionRatio *
-                  rate
-                ).toFixed(6),
+                price: dp(inputRatioPrice),
+                total: dp(
+                  inputRatioPrice * audioRatio * audioCompletionRatio,
+                ),
                 audioRatio: audioRatio,
                 audioCompRatio: audioCompletionRatio,
               },
@@ -1674,13 +1793,11 @@ export function renderAudioModelPrice(
                     nonCacheInput: inputTokens - cacheTokens,
                     cacheInput: cacheTokens,
                     symbol: symbol,
-                    cachePrice: (inputRatioPrice * cacheRatio * rate).toFixed(
-                      6,
-                    ),
-                    price: (inputRatioPrice * rate).toFixed(6),
+                    cachePrice: dp(inputRatioPrice * cacheRatio),
+                    price: dp(inputRatioPrice),
                     completion: completionTokens,
-                    compPrice: (completionRatioPrice * rate).toFixed(6),
-                    total: (textPrice * rate).toFixed(6),
+                    compPrice: dp(completionRatioPrice),
+                    total: dp(textPrice),
                   },
                 )
               : i18next.t(
@@ -1688,10 +1805,10 @@ export function renderAudioModelPrice(
                   {
                     input: inputTokens,
                     symbol: symbol,
-                    price: (inputRatioPrice * rate).toFixed(6),
+                    price: dp(inputRatioPrice),
                     completion: completionTokens,
-                    compPrice: (completionRatioPrice * rate).toFixed(6),
-                    total: (textPrice * rate).toFixed(6),
+                    compPrice: dp(completionRatioPrice),
+                    total: dp(textPrice),
                   },
                 )}
           </p>
@@ -1702,16 +1819,11 @@ export function renderAudioModelPrice(
                 input: audioInputTokens,
                 completion: audioCompletionTokens,
                 symbol: symbol,
-                audioInputPrice: (audioRatio * inputRatioPrice * rate).toFixed(
-                  6,
+                audioInputPrice: dp(audioRatio * inputRatioPrice),
+                audioCompPrice: dp(
+                  audioRatio * audioCompletionRatio * inputRatioPrice,
                 ),
-                audioCompPrice: (
-                  audioRatio *
-                  audioCompletionRatio *
-                  inputRatioPrice *
-                  rate
-                ).toFixed(6),
-                total: (audioPrice * rate).toFixed(6),
+                total: dp(audioPrice),
               },
             )}
           </p>
@@ -1720,9 +1832,9 @@ export function renderAudioModelPrice(
               '总价：文字价格 {{textPrice}} + 音频价格 {{audioPrice}} = {{symbol}}{{total}}',
               {
                 symbol: symbol,
-                total: (price * rate).toFixed(6),
-                textPrice: (textPrice * rate).toFixed(6),
-                audioPrice: (audioPrice * rate).toFixed(6),
+                total: dp(price),
+                textPrice: dp(textPrice),
+                audioPrice: dp(audioPrice),
               },
             )}
           </p>
@@ -1734,7 +1846,7 @@ export function renderAudioModelPrice(
 }
 
 export function renderQuotaWithPrompt(quota, digits) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
+  const quotaDisplayType = getEffectiveDisplayType();
   if (quotaDisplayType !== 'TOKENS') {
     return i18next.t('等价金额：') + renderQuota(quota, digits);
   }
@@ -1764,18 +1876,21 @@ export function renderClaudeModelPrice(
   );
   groupRatio = effectiveGroupRatio;
 
-  // 获取货币配置
-  const { symbol, rate } = getCurrencyConfig();
+  // 获取双货币配置
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
 
   if (modelPrice !== -1) {
     return i18next.t(
       '模型价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
         symbol: symbol,
-        price: (modelPrice * rate).toFixed(6),
+        price: dp(modelPrice),
         ratioType: ratioLabel,
         ratio: groupRatio,
-        total: (modelPrice * groupRatio * rate).toFixed(6),
+        total: dp(modelPrice * groupRatio),
       },
     );
   } else {
@@ -1818,20 +1933,11 @@ export function renderClaudeModelPrice(
       (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
       (completionTokens / 1000000) * completionRatioPrice * groupRatio;
 
-    const inputUnitPrice = inputRatioPrice * rate;
-    const completionUnitPrice = completionRatioPrice * rate;
-    const cacheUnitPrice = cacheRatioPrice * rate;
-    const cacheCreationUnitPrice = cacheCreationRatioPrice * rate;
-    const cacheCreationUnitPrice5m = cacheCreationRatioPrice5m * rate;
-    const cacheCreationUnitPrice1h = cacheCreationRatioPrice1h * rate;
-    const cacheCreationUnitPriceTotal =
-      cacheCreationUnitPrice5m + cacheCreationUnitPrice1h;
-
     const breakdownSegments = [
       i18next.t('提示 {{input}} tokens / 1M tokens * {{symbol}}{{price}}', {
         input: inputTokens,
         symbol,
-        price: inputUnitPrice.toFixed(6),
+        price: dp(inputRatioPrice),
       }),
     ];
 
@@ -1842,7 +1948,7 @@ export function renderClaudeModelPrice(
           {
             tokens: cacheTokens,
             symbol,
-            price: cacheUnitPrice.toFixed(6),
+            price: dp(cacheRatioPrice),
             ratio: cacheRatio,
           },
         ),
@@ -1856,7 +1962,7 @@ export function renderClaudeModelPrice(
           {
             tokens: cacheCreationTokens,
             symbol,
-            price: cacheCreationUnitPrice.toFixed(6),
+            price: dp(cacheCreationRatioPrice),
             ratio: cacheCreationRatio,
           },
         ),
@@ -1870,7 +1976,7 @@ export function renderClaudeModelPrice(
           {
             tokens: cacheCreationTokens5m,
             symbol,
-            price: cacheCreationUnitPrice5m.toFixed(6),
+            price: dp(cacheCreationRatioPrice5m),
             ratio: cacheCreationRatio5m,
           },
         ),
@@ -1884,7 +1990,7 @@ export function renderClaudeModelPrice(
           {
             tokens: cacheCreationTokens1h,
             symbol,
-            price: cacheCreationUnitPrice1h.toFixed(6),
+            price: dp(cacheCreationRatioPrice1h),
             ratio: cacheCreationRatio1h,
           },
         ),
@@ -1897,7 +2003,7 @@ export function renderClaudeModelPrice(
         {
           completion: completionTokens,
           symbol,
-          price: completionUnitPrice.toFixed(6),
+          price: dp(completionRatioPrice),
         },
       ),
     );
@@ -1910,7 +2016,7 @@ export function renderClaudeModelPrice(
           <p>
             {i18next.t('提示价格：{{symbol}}{{price}} / 1M tokens', {
               symbol: symbol,
-              price: (inputRatioPrice * rate).toFixed(6),
+              price: dp(inputRatioPrice),
             })}
           </p>
           <p>
@@ -1918,9 +2024,9 @@ export function renderClaudeModelPrice(
               '补全价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens',
               {
                 symbol: symbol,
-                price: (inputRatioPrice * rate).toFixed(6),
+                price: dp(inputRatioPrice),
                 ratio: completionRatio,
-                total: (completionRatioPrice * rate).toFixed(6),
+                total: dp(completionRatioPrice),
               },
             )}
           </p>
@@ -1930,9 +2036,9 @@ export function renderClaudeModelPrice(
                 '缓存价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (缓存倍率: {{cacheRatio}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
                   ratio: cacheRatio,
-                  total: cacheUnitPrice.toFixed(6),
+                  total: dp(cacheRatioPrice),
                   cacheRatio: cacheRatio,
                 },
               )}
@@ -1944,9 +2050,9 @@ export function renderClaudeModelPrice(
                 '缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (缓存创建倍率: {{cacheCreationRatio}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
                   ratio: cacheCreationRatio,
-                  total: cacheCreationUnitPrice.toFixed(6),
+                  total: dp(cacheCreationRatioPrice),
                   cacheCreationRatio: cacheCreationRatio,
                 },
               )}
@@ -1958,9 +2064,9 @@ export function renderClaudeModelPrice(
                 '5m缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (5m缓存创建倍率: {{cacheCreationRatio5m}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
                   ratio: cacheCreationRatio5m,
-                  total: cacheCreationUnitPrice5m.toFixed(6),
+                  total: dp(cacheCreationRatioPrice5m),
                   cacheCreationRatio5m: cacheCreationRatio5m,
                 },
               )}
@@ -1972,9 +2078,9 @@ export function renderClaudeModelPrice(
                 '1h缓存创建价格：{{symbol}}{{price}} * {{ratio}} = {{symbol}}{{total}} / 1M tokens (1h缓存创建倍率: {{cacheCreationRatio1h}})',
                 {
                   symbol: symbol,
-                  price: (inputRatioPrice * rate).toFixed(6),
+                  price: dp(inputRatioPrice),
                   ratio: cacheCreationRatio1h,
-                  total: cacheCreationUnitPrice1h.toFixed(6),
+                  total: dp(cacheCreationRatioPrice1h),
                   cacheCreationRatio1h: cacheCreationRatio1h,
                 },
               )}
@@ -1986,9 +2092,11 @@ export function renderClaudeModelPrice(
                 '缓存创建价格合计：5m {{symbol}}{{five}} + 1h {{symbol}}{{one}} = {{symbol}}{{total}} / 1M tokens',
                 {
                   symbol: symbol,
-                  five: cacheCreationUnitPrice5m.toFixed(6),
-                  one: cacheCreationUnitPrice1h.toFixed(6),
-                  total: cacheCreationUnitPriceTotal.toFixed(6),
+                  five: dp(cacheCreationRatioPrice5m),
+                  one: dp(cacheCreationRatioPrice1h),
+                  total: dp(
+                    cacheCreationRatioPrice5m + cacheCreationRatioPrice1h,
+                  ),
                 },
               )}
             </p>
@@ -2002,7 +2110,7 @@ export function renderClaudeModelPrice(
                 ratioType: ratioLabel,
                 ratio: groupRatio,
                 symbol: symbol,
-                total: (price * rate).toFixed(6),
+                total: dp(price),
               },
             )}
           </p>
@@ -2032,13 +2140,16 @@ export function renderClaudeLogContent(
   );
   groupRatio = effectiveGroupRatio;
 
-  // 获取货币配置
-  const { symbol, rate } = getCurrencyConfig();
+  // 获取双货币配置
+  const { primary, secondary } = getDualCurrencyConfig();
+  const { symbol, rate } = primary;
+  const dp = (usdPrice, digits = 6) =>
+    formatDualPrice(usdPrice, primary, secondary, digits);
 
   if (modelPrice !== -1) {
     return i18next.t('模型价格 {{symbol}}{{price}}，{{ratioType}} {{ratio}}', {
       symbol: symbol,
-      price: (modelPrice * rate).toFixed(6),
+      price: dp(modelPrice),
       ratioType: ratioLabel,
       ratio: groupRatio,
     });

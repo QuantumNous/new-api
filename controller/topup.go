@@ -49,15 +49,17 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	data := gin.H{
-		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
-		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
-		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
-		"creem_products":      setting.CreemProducts,
-		"pay_methods":         payMethods,
-		"min_topup":           operation_setting.MinTopUp,
-		"stripe_min_topup":    setting.StripeMinTopUp,
-		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
+		"enable_online_topup":        operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
+		"enable_stripe_topup":        setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
+		"enable_creem_topup":         setting.CreemApiKey != "" && setting.CreemProducts != "[]",
+		"creem_products":             setting.CreemProducts,
+		"pay_methods":                payMethods,
+		"min_topup":                  operation_setting.MinTopUp,
+		"stripe_min_topup":           setting.StripeMinTopUp,
+		"amount_options":             operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":                   operation_setting.GetPaymentSetting().AmountDiscount,
+		"redemption_enabled":         operation_setting.GetGeneralSetting().RedemptionEnabled,
+		"redemption_allowed_groups":  operation_setting.GetGeneralSetting().RedemptionAllowedGroups,
 	}
 	common.ApiSuccess(c, data)
 }
