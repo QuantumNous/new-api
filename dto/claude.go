@@ -373,6 +373,57 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	}
 }
 
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
+	if c == nil || len(c.Messages) == 0 {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		MessageCount: len(c.Messages),
+	}
+
+	for _, msg := range c.Messages {
+		var msgTextLength int
+		var contentStr string
+
+		// 处理字符串类型的 content
+		if msg.IsStringContent() {
+			contentStr = msg.GetStringContent()
+			msgTextLength = len(contentStr)
+		} else {
+			// 处理数组类型的 content
+			contents, err := msg.ParseContent()
+			if err != nil {
+				continue
+			}
+			for _, content := range contents {
+				switch content.Type {
+				case "image":
+					meta.CountImage++
+				case "audio":
+					meta.CountAudio++
+				case "video":
+					meta.CountVideo++
+				case "file":
+					meta.CountFile++
+				case "text":
+					if content.Text != nil {
+						msgTextLength += len(*content.Text)
+					}
+				}
+			}
+			// 获取数组类型 content 的文本内容用于估算 token
+			contentStr = msg.GetStringContent()
+		}
+
+		meta.TextLength += msgTextLength
+		meta.TextLengthLast = msgTextLength
+	}
+
+	return meta
+}
+
 func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {
 	for _, message := range c.Messages {
 		content, _ := message.ParseContent()

@@ -18,63 +18,63 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import i18next from 'i18next';
-import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
+import { Avatar, Modal, Tag, Typography } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
 import {
-  OpenAI,
-  Claude,
-  Gemini,
-  Moonshot,
-  Zhipu,
-  Qwen,
-  DeepSeek,
-  Minimax,
-  Wenxin,
-  Spark,
-  Midjourney,
-  Hunyuan,
-  Cohere,
-  Cloudflare,
   Ai360,
-  Yi,
-  Jina,
-  Mistral,
-  XAI,
-  Ollama,
-  Doubao,
-  Suno,
-  Xinference,
-  OpenRouter,
-  Dify,
+  Claude,
+  Cloudflare,
+  Cohere,
   Coze,
-  SiliconCloud,
+  DeepSeek,
+  Dify,
+  Doubao,
   FastGPT,
-  Kling,
+  Gemini,
+  Hunyuan,
   Jimeng,
+  Jina,
+  Kling,
+  Midjourney,
+  Minimax,
+  Mistral,
+  Moonshot,
+  Ollama,
+  OpenAI,
+  OpenRouter,
   Perplexity,
+  Qwen,
   Replicate,
+  SiliconCloud,
+  Spark,
+  Suno,
+  Wenxin,
+  XAI,
+  Xinference,
+  Yi,
+  Zhipu
 } from '@lobehub/icons';
 
 import {
-  LayoutDashboard,
-  TerminalSquare,
-  MessageSquare,
-  Key,
   BarChart3,
-  Image as ImageIcon,
+  CalendarClock,
   CheckSquare,
-  CreditCard,
-  Layers,
-  Gift,
-  User,
-  Settings,
   CircleUser,
+  CreditCard,
+  Gift,
+  Image as ImageIcon,
+  Key,
+  Layers,
+  LayoutDashboard,
+  MessageSquare,
   Package,
   Server,
-  CalendarClock,
+  Settings,
+  TerminalSquare,
+  User
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -99,7 +99,7 @@ import {
   SiTelegram,
   SiTwitch,
   SiWechat,
-  SiX,
+  SiX
 } from 'react-icons/si';
 
 // 获取侧边栏Lucide图标组件
@@ -616,42 +616,31 @@ const colors = [
   'yellow',
 ];
 
-// 基础10色色板 (N ≤ 10)
-const baseColors = [
-  '#1664FF', // 主色
-  '#1AC6FF',
-  '#FF8A00',
-  '#3CC780',
-  '#7442D4',
-  '#FFC400',
-  '#304D77',
-  '#B48DEB',
-  '#009488',
-  '#FF7DDA',
-];
-
-// 扩展20色色板 (10 < N ≤ 20)
-const extendedColors = [
-  '#1664FF',
-  '#B2CFFF',
-  '#1AC6FF',
-  '#94EFFF',
-  '#FF8A00',
-  '#FFCE7A',
-  '#3CC780',
-  '#B9EDCD',
-  '#7442D4',
-  '#DDC5FA',
-  '#FFC400',
-  '#FAE878',
-  '#304D77',
-  '#8B959E',
-  '#B48DEB',
-  '#EFE3FF',
-  '#009488',
-  '#59BAA8',
-  '#FF7DDA',
-  '#FFCFEE',
+// 色板
+const chartColors = [
+  '#20A0A0',
+  '#C07020',
+  '#30A050',
+  '#3060B0',
+  '#8837b2',
+  '#4A1515',
+  '#A0A020',
+  '#0A0A0A',
+  '#E08080',
+  '#8f592f',
+  '#294a75',
+  '#367047',
+  '#5c287a',
+  '#B04040',
+  '#2b6262',
+  '#85853b',
+  '#6A6A6A',
+  '#182545',
+  '#183A25',
+  '#351545',
+  '#5F3515',
+  '#183A3A',
+  '#454515',
 ];
 
 // 模型颜色映射
@@ -698,26 +687,30 @@ export const modelColorMap = {
   'claude-3-haiku-20240307': 'rgb(255,175,146)', // 浅橙色
 };
 
+// 颜色分配状态
+const colorAllocation = {
+  assigned: new Map(), // 模型名 -> 颜色
+  usedCount: 0, // 已使用的颜色数量（用于循环）
+};
+
 export function modelToColor(modelName) {
   // 1. 如果模型在预定义的 modelColorMap 中，使用预定义颜色
   if (modelColorMap[modelName]) {
     return modelColorMap[modelName];
   }
 
-  // 2. 生成一个稳定的数字作为索引
-  let hash = 0;
-  for (let i = 0; i < modelName.length; i++) {
-    hash = (hash << 5) - hash + modelName.charCodeAt(i);
-    hash = hash & hash; // Convert to 32-bit integer
+  // 2. 如果已经分配过颜色，直接返回
+  if (colorAllocation.assigned.has(modelName)) {
+    return colorAllocation.assigned.get(modelName);
   }
-  hash = Math.abs(hash);
 
-  // 3. 根据模型名称长度选择不同的色板
-  const colorPalette = modelName.length > 10 ? extendedColors : baseColors;
+  // 3. 分配新颜色（循环使用色板）
+  const index = colorAllocation.usedCount % chartColors.length;
+  const color = chartColors[index];
+  colorAllocation.assigned.set(modelName, color);
+  colorAllocation.usedCount++;
 
-  // 4. 使用hash值选择颜色
-  const index = hash % colorPalette.length;
-  return colorPalette[index];
+  return color;
 }
 
 export function stringToColor(str) {

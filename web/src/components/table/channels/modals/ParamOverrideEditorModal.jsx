@@ -32,13 +32,13 @@ import {
   Switch,
   Tag,
   TextArea,
-  Typography,
+  Typography
 } from '@douyinfe/semi-ui';
 import { IconDelete, IconMenu, IconPlus } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
+  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE
 } from '../../../../constants/channel-affinity-template.constants';
 
 const { Text } = Typography;
@@ -454,7 +454,11 @@ const BUILTIN_FIELD_SECTIONS = [
       },
       { key: 'temperature', label: '采样温度', tip: '控制输出随机性' },
       { key: 'max_tokens', label: '最大输出 Token', tip: '控制输出长度上限' },
-      { key: 'messages.-1.content', label: '最后一条消息内容', tip: '常用于重写用户输入' },
+      {
+        key: 'messages.-1.content',
+        label: '最后一条消息内容',
+        tip: '常用于重写用户输入',
+      },
     ],
   },
   {
@@ -482,6 +486,27 @@ const BUILTIN_FIELD_SECTIONS = [
         label: '标准化 X-Debug-Mode',
         tip: '适合灰度 / 调试开关判断',
       },
+    ],
+  },
+  {
+    title: '请求元数据',
+    fields: [
+      { key: 'count_image', label: '图片数量', tip: '请求中包含的图片数量' },
+      { key: 'count_audio', label: '音频数量', tip: '请求中包含的音频数量' },
+      { key: 'count_video', label: '视频数量', tip: '请求中包含的视频数量' },
+      { key: 'count_file', label: '文件数量', tip: '请求中包含的文件数量' },
+      {
+        key: 'estimate_tokens',
+        label: 'Token 数量',
+        tip: '估算的总 Token 数量',
+      },
+      { key: 'text_length', label: '文本长度', tip: '文本字符长度' },
+      {
+        key: 'text_length_last',
+        label: '最后消息文本长度',
+        tip: '最后一条消息的文本字符长度',
+      },
+      { key: 'message_count', label: '消息数量', tip: '消息总条数' },
     ],
   },
 ];
@@ -1949,6 +1974,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 {t('重置')}
               </Button>
             </Space>
+            <Text
+              type='tertiary'
+              size='small'
+              className='cursor-pointer select-none mt-1 whitespace-nowrap'
+              onClick={() => openFieldGuide('path')}
+            >
+              {t('字段速查')}
+            </Text>
           </div>
         </Card>
 

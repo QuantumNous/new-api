@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -232,6 +233,82 @@ func (r *GeneralOpenAIRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
+	if r == nil || len(r.Messages) == 0 {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		MessageCount: len(r.Messages),
+	}
+
+	for _, msg := range r.Messages {
+		var msgTextLength int
+		for _, content := range msg.ParseContent() {
+			switch content.Type {
+			case ContentTypeImageURL:
+				meta.CountImage++
+			case ContentTypeInputAudio:
+				meta.CountAudio++
+			case ContentTypeVideoUrl:
+				meta.CountVideo++
+			case ContentTypeFile:
+				meta.CountFile++
+			case ContentTypeText:
+				msgTextLength += len(content.Text)
+			}
+		}
+		meta.TextLength += msgTextLength
+		meta.TextLengthLast = msgTextLength
+	}
+
+	return meta
+}
+
+// estimateTokens 简化版 token 估算
+func estimateTokens(model, text string) int {
+	if text == "" {
+		return 0
+	}
+
+	model = strings.ToLower(model)
+
+	// 根据模型类型选择估算系数
+	var cjkFactor, latinFactor float64
+	if strings.Contains(model, "claude") {
+		cjkFactor = 0.8
+		latinFactor = 0.2
+	} else if strings.Contains(model, "gemini") {
+		cjkFactor = 0.6
+		latinFactor = 0.2
+	} else {
+		// OpenAI 及其他模型
+		cjkFactor = 0.7
+		latinFactor = 0.2
+	}
+
+	var tokens float64
+	for _, r := range text {
+		if isCJK(r) {
+			tokens += cjkFactor
+		} else if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			tokens += latinFactor
+		} else {
+			tokens += 0.3
+		}
+	}
+
+	return int(tokens + 0.5)
+}
+
+// isCJK 判断是否为中日韩字符
+func isCJK(r rune) bool {
+	return (r >= 0x4E00 && r <= 0x9FFF) || // 中文
+		(r >= 0x3040 && r <= 0x30FF) || // 日文
+		(r >= 0xAC00 && r <= 0xD7A3) // 韩文
 }
 
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
@@ -921,6 +998,38 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (r *OpenAIResponsesRequest) ExtractMetadata() *RequestMetadata {
+	if r == nil || r.Input == nil {
+		return nil
+	}
+
+	inputs := r.ParseInput()
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		MessageCount: len(inputs),
+	}
+
+	for _, input := range inputs {
+		var msgTextLength int
+		switch input.Type {
+		case "input_image":
+			meta.CountImage++
+		case "input_file":
+			meta.CountFile++
+		case "input_text":
+			msgTextLength += len(input.Text)
+		}
+		meta.TextLength += msgTextLength
+		meta.TextLengthLast = msgTextLength
+	}
+
+	return meta
 }
 
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
