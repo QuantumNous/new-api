@@ -470,6 +470,14 @@ html.dark .sbg-variant-green {
   font-size: 1.1em;
 }
 
+.custom-footer-frame {
+  width: 100%;
+  min-height: 240px;
+  display: block;
+  border: none;
+  background: transparent;
+}
+
 /* 卡片内容容器通用样式 */
 .card-content-container {
   position: relative;

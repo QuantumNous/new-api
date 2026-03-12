@@ -33,6 +33,7 @@ import {
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import { API, showError, showSuccess } from '../../../helpers';
+import { getPaymentWebhookUrl } from '../../../helpers/paymentWebhook.js';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -268,6 +269,10 @@ export default function SettingsPaymentGatewayCreem(props) {
             <br />
           </Text>
           <Banner type='info' description={t('Creem Setting Tips')} />
+          <Banner
+            type='info'
+            description={`Webhook 填：${getPaymentWebhookUrl(props.options.ServerAddress, 'creem')}`}
+          />
 
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>

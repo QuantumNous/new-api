@@ -29,6 +29,7 @@ import {
   Card,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import { getStatusOptionPatch } from '../../helpers/statusOption';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
@@ -66,6 +67,22 @@ const OtherSetting = () => {
     const { success, message } = res.data;
     if (success) {
       setInputs((inputs) => ({ ...inputs, [key]: value }));
+      const statusOptionPatch = getStatusOptionPatch(key, value);
+      if (statusOptionPatch) {
+        const nextStatus = {
+          ...(statusState?.status || {}),
+          [statusOptionPatch.statusKey]: statusOptionPatch.value,
+        };
+        statusDispatch({ type: 'set', payload: nextStatus });
+        if (statusOptionPatch.value) {
+          localStorage.setItem(
+            statusOptionPatch.storageKey,
+            statusOptionPatch.value,
+          );
+        } else {
+          localStorage.removeItem(statusOptionPatch.storageKey);
+        }
+      }
     } else {
       showError(message);
     }
@@ -486,7 +503,7 @@ const OtherSetting = () => {
               <Form.Input
                 label={t('页脚')}
                 placeholder={t(
-                  '在此输入新的页脚，留空则使用默认页脚，支持 HTML 代码',
+                  '在此输入新的页脚，留空则使用默认页脚，支持 HTML 代码或 http/https 页面链接',
                 )}
                 field={'Footer'}
                 onChange={handleInputChange}

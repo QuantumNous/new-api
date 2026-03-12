@@ -17,26 +17,48 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useMemo, useContext } from 'react';
+import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
+import { getFooterRenderMode, normalizeFooterValue } from '../../helpers/footer';
 import { StatusContext } from '../../context/Status';
 
 const FooterBar = () => {
   const { t } = useTranslation();
-  const [footer, setFooter] = useState(getFooterHTML());
+  const iframeRef = useRef(null);
+  const [iframeHeight, setIframeHeight] = useState(240);
+  const [statusState] = useContext(StatusContext);
   const systemName = getSystemName();
   const logo = getLogo();
-  const [statusState] = useContext(StatusContext);
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
+  const footerValue = useMemo(
+    () =>
+      normalizeFooterValue(statusState?.status?.footer_html ?? getFooterHTML()),
+    [statusState?.status?.footer_html],
+  );
+  const footerRenderMode = useMemo(
+    () => getFooterRenderMode(footerValue),
+    [footerValue],
+  );
 
-  const loadFooter = () => {
-    let footer_html = localStorage.getItem('footer_html');
-    if (footer_html) {
-      setFooter(footer_html);
-    }
-  };
+  const handleFooterFrameLoad = useCallback(() => {
+    try {
+      const iframeDocument = iframeRef.current?.contentDocument;
+      if (!iframeDocument) {
+        return;
+      }
+
+      const nextHeight = Math.max(
+        iframeDocument.documentElement?.scrollHeight || 0,
+        iframeDocument.body?.scrollHeight || 0,
+      );
+
+      if (nextHeight > 0) {
+        setIframeHeight(nextHeight);
+      }
+    } catch {}
+  }, []);
 
   const currentYear = new Date().getFullYear();
 
@@ -214,18 +236,25 @@ const FooterBar = () => {
     [logo, systemName, t, currentYear, isDemoSiteMode],
   );
 
-  useEffect(() => {
-    loadFooter();
-  }, []);
-
   return (
     <div className='w-full'>
-      {footer ? (
-        <div className='relative'>
-          <div
-            className='custom-footer'
-            dangerouslySetInnerHTML={{ __html: footer }}
-          ></div>
+      {footerRenderMode !== 'default' ? (
+        <div className='relative pb-8'>
+          {footerRenderMode === 'iframe' ? (
+            <iframe
+              ref={iframeRef}
+              title={t('页脚')}
+              src={footerValue}
+              className='custom-footer-frame'
+              style={{ height: `${iframeHeight}px` }}
+              onLoad={handleFooterFrameLoad}
+            />
+          ) : (
+            <div
+              className='custom-footer'
+              dangerouslySetInnerHTML={{ __html: footerValue }}
+            ></div>
+          )}
           <div className='absolute bottom-2 right-4 text-xs !text-semi-color-text-2 opacity-70'>
             <span>{t('设计与开发由')} </span>
             <a
