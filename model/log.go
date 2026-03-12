@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/logutils"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -158,7 +159,20 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if !common.LogConsumeEnabled {
 		return
 	}
-	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	logutils.Info(c.Request.Context()).
+		Str("log_source", "consume").
+		Int("user_id", userId).
+		Int("channel_id", params.ChannelId).
+		Int("token_id", params.TokenId).
+		Str("token_name", params.TokenName).
+		Str("model_name", params.ModelName).
+		Int("quota", params.Quota).
+		Int("prompt_tokens", params.PromptTokens).
+		Int("completion_tokens", params.CompletionTokens).
+		Int("use_time_seconds", params.UseTimeSeconds).
+		Bool("is_stream", params.IsStream).
+		Str("group", params.Group).
+		Msg(params.Content)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	traceId := c.GetString(common.TraceIdKey)

@@ -530,6 +530,25 @@ export const getLogsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.TRACE_ID,
+      title: t('Trace ID'),
+      dataIndex: 'trace_id',
+      render: (text) => {
+        if (!text) {
+          return <></>;
+        }
+        return (
+          <Typography.Text
+            link
+            style={{ cursor: 'pointer' }}
+            onClick={(e) => copyText(e, text)}
+          >
+            {text}
+          </Typography.Text>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.USE_TIME,
       title: t('用时/首字'),
       dataIndex: 'use_time',
