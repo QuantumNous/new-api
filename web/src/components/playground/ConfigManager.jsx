@@ -25,6 +25,7 @@ import {
   exportConfig,
   importConfig,
   clearConfig,
+  saveConfig,
   hasStoredConfig,
   getConfigTimestamp,
 } from './configStorage';
@@ -41,16 +42,7 @@ const ConfigManager = ({
 
   const handleExport = () => {
     try {
-      // 在导出前先保存当前配置，确保导出的是最新内容
-      const configWithTimestamp = {
-        ...currentConfig,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem(
-        'playground_config',
-        JSON.stringify(configWithTimestamp),
-      );
-
+      saveConfig(currentConfig);
       exportConfig(currentConfig, messages);
       Toast.success({
         content: t('配置已导出到下载文件夹'),
