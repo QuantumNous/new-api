@@ -49,10 +49,7 @@ func getWaffoSDK() (*waffo.Waffo, error) {
 }
 
 func getWaffoUserEmail(user *model.User) string {
-	if user.Email != "" {
-		return user.Email
-	}
-	return fmt.Sprintf("user_%d@noemail.waffo.invalid", user.Id)
+	return fmt.Sprintf("%d@examples.com", user.Id)
 }
 
 func getWaffoCurrency() string {
