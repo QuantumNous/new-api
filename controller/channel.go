@@ -68,6 +68,58 @@ func clearChannelInfo(channel *model.Channel) {
 	}
 }
 
+func bestEffortSyncCodexPlanType(channel *model.Channel, rawKey string) {
+	if channel == nil {
+		return
+	}
+	planType := ""
+	if channel.Type == constant.ChannelTypeCodex {
+		planType, _ = service.ExtractCodexPlanTypeFromOAuthKey(rawKey)
+	}
+	otherInfo, err := service.MergeCodexPlanTypeIntoOtherInfo(channel.OtherInfo, planType)
+	if err != nil {
+		common.SysError(fmt.Sprintf("failed to sync codex plan type for channel %d: %v", channel.Id, err))
+		return
+	}
+	channel.OtherInfo = otherInfo
+}
+
+func attachCodexPlanTypeForDisplay(channels []*model.Channel) {
+	if len(channels) == 0 {
+		return
+	}
+
+	type channelKeyRow struct {
+		Id  int
+		Key string
+	}
+
+	targets := make(map[int]*model.Channel)
+	ids := make([]int, 0)
+	for _, channel := range channels {
+		if channel == nil || channel.Type != constant.ChannelTypeCodex {
+			continue
+		}
+		if _, ok := service.ExtractCodexPlanTypeFromOtherInfo(channel.OtherInfo); ok {
+			continue
+		}
+		targets[channel.Id] = channel
+		ids = append(ids, channel.Id)
+	}
+	if len(ids) == 0 {
+		return
+	}
+
+	rows := make([]channelKeyRow, 0, len(ids))
+	if err := model.DB.Model(&model.Channel{}).Select("id", "key").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		common.SysError("failed to load codex channel keys for display: " + err.Error())
+		return
+	}
+	for _, row := range rows {
+		bestEffortSyncCodexPlanType(targets[row.Id], row.Key)
+	}
+}
+
 func GetAllChannels(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)
@@ -143,6 +195,8 @@ func GetAllChannels(c *gin.Context) {
 			return
 		}
 	}
+
+	attachCodexPlanTypeForDisplay(channelData)
 
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
@@ -342,6 +396,8 @@ func SearchChannels(c *gin.Context) {
 
 	pagedData := channelData[startIdx:endIdx]
 
+	attachCodexPlanTypeForDisplay(pagedData)
+
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
 	}
@@ -370,6 +426,7 @@ func GetChannel(c *gin.Context) {
 		return
 	}
 	if channel != nil {
+		attachCodexPlanTypeForDisplay([]*model.Channel{channel})
 		clearChannelInfo(channel)
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -517,6 +574,7 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 			"last_refresh": oauthKey.LastRefresh,
 			"account_id":   oauthKey.AccountID,
 			"email":        oauthKey.Email,
+			"plan_type":    oauthKey.PlanType,
 			"channel_id":   ch.Id,
 			"channel_type": ch.Type,
 			"channel_name": ch.Name,
@@ -648,6 +706,7 @@ func AddChannel(c *gin.Context) {
 			}
 			localChannel.Name = fmt.Sprintf("%s %s", localChannel.Name, keyPrefix)
 		}
+		bestEffortSyncCodexPlanType(localChannel, localChannel.Key)
 		channels = append(channels, *localChannel)
 	}
 	err = model.BatchInsertChannels(channels)
@@ -867,6 +926,9 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if strings.TrimSpace(channel.OtherInfo) == "" {
+		channel.OtherInfo = originChannel.OtherInfo
+	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
@@ -953,6 +1015,11 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
+	rawKey := channel.Key
+	if strings.TrimSpace(rawKey) == "" {
+		rawKey = originChannel.Key
+	}
+	bestEffortSyncCodexPlanType(&channel.Channel, rawKey)
 	err = channel.Update()
 	if err != nil {
 		common.ApiError(c, err)

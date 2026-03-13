@@ -24,6 +24,7 @@ type CodexOAuthKey struct {
 	AccountID   string `json:"account_id,omitempty"`
 	LastRefresh string `json:"last_refresh,omitempty"`
 	Email       string `json:"email,omitempty"`
+	PlanType    string `json:"plan_type,omitempty"`
 	Type        string `json:"type,omitempty"`
 	Expired     string `json:"expired,omitempty"`
 }
@@ -71,6 +72,12 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	oauthKey.RefreshToken = res.RefreshToken
 	oauthKey.LastRefresh = time.Now().Format(time.RFC3339)
 	oauthKey.Expired = res.ExpiresAt.Format(time.RFC3339)
+	if strings.TrimSpace(res.IDToken) != "" {
+		oauthKey.IDToken = strings.TrimSpace(res.IDToken)
+	}
+	if strings.TrimSpace(res.PlanType) != "" {
+		oauthKey.PlanType = strings.TrimSpace(res.PlanType)
+	}
 	if strings.TrimSpace(oauthKey.Type) == "" {
 		oauthKey.Type = "codex"
 	}
@@ -85,13 +92,26 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 			oauthKey.Email = email
 		}
 	}
+	if strings.TrimSpace(oauthKey.PlanType) == "" {
+		if planType, ok := ExtractCodexPlanTypeFromOAuthKey(ch.Key); ok {
+			oauthKey.PlanType = planType
+		}
+	}
 
 	encoded, err := common.Marshal(oauthKey)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error; err != nil {
+	if otherInfo, err := MergeCodexPlanTypeIntoOtherInfo(ch.OtherInfo, oauthKey.PlanType); err == nil {
+		ch.OtherInfo = otherInfo
+	}
+
+	updates := map[string]any{
+		"key":        string(encoded),
+		"other_info": ch.OtherInfo,
+	}
+	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error; err != nil {
 		return nil, nil, err
 	}
 

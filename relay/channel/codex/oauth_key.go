@@ -14,6 +14,7 @@ type OAuthKey struct {
 	AccountID   string `json:"account_id,omitempty"`
 	LastRefresh string `json:"last_refresh,omitempty"`
 	Email       string `json:"email,omitempty"`
+	PlanType    string `json:"plan_type,omitempty"`
 	Type        string `json:"type,omitempty"`
 	Expired     string `json:"expired,omitempty"`
 }
