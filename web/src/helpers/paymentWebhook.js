@@ -32,6 +32,9 @@ export function getPaymentWebhookUrl(
   const normalizedServerAddress = String(serverAddress || '')
     .trim()
     .replace(/\/+$/, '');
-  const baseUrl = normalizedServerAddress || fallbackBaseLabel;
+  const normalizedFallbackBaseLabel = String(fallbackBaseLabel || '')
+    .trim()
+    .replace(/\/+$/, '');
+  const baseUrl = normalizedServerAddress || normalizedFallbackBaseLabel;
   return `${baseUrl}/api/${provider}/webhook`;
 }

@@ -17,6 +17,13 @@ test('uses caller-provided fallback when server address is missing', () => {
   );
 });
 
+test('normalizes fallback labels with trailing slashes', () => {
+  assert.equal(
+    getPaymentWebhookUrl('', 'creem', 'https://veriai.chat/'),
+    'https://veriai.chat/api/creem/webhook',
+  );
+});
+
 test('returns a relative webhook path when no fallback is provided', () => {
   assert.equal(getPaymentWebhookUrl('', 'creem'), '/api/creem/webhook');
 });

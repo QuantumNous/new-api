@@ -38,8 +38,13 @@ export function getFooterRenderMode(footer) {
     return 'default';
   }
 
-  if (/^https?:\/\//i.test(normalizedFooter)) {
-    return 'iframe';
+  try {
+    const parsedUrl = new URL(normalizedFooter);
+    if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+      return 'iframe';
+    }
+  } catch {
+    // Fall through to HTML mode for malformed or non-URL footer content.
   }
 
   return 'html';
