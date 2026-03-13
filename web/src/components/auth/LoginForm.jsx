@@ -142,6 +142,8 @@ const LoginForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const passwordLoginEnabled = status.password_login_enabled !== false;
+  const passwordRegisterEnabled = status.password_register_enabled !== false;
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -642,20 +644,24 @@ const LoginForm = () => {
                   </Button>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
+                {passwordLoginEnabled && (
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
 
-                <Button
-                  theme='solid'
-                  type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
-                  onClick={handleEmailLoginClick}
-                  loading={emailLoginLoading}
-                >
-                  <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
-                </Button>
+                    <Button
+                      theme='solid'
+                      type='primary'
+                      className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                      icon={<IconMail size='large' />}
+                      onClick={handleEmailLoginClick}
+                      loading={emailLoginLoading}
+                    >
+                      <span className='ml-3'>{t('使用 邮箱或用户名 登录')}</span>
+                    </Button>
+                  </>
+                )}
               </div>
 
               {(hasUserAgreement || hasPrivacyPolicy) && (
@@ -696,7 +702,7 @@ const LoginForm = () => {
                 </div>
               )}
 
-              {!status.self_use_mode_enabled && (
+              {!status.self_use_mode_enabled && passwordRegisterEnabled && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('没有账户？')}{' '}
@@ -849,7 +855,7 @@ const LoginForm = () => {
                 </>
               )}
 
-              {!status.self_use_mode_enabled && (
+              {!status.self_use_mode_enabled && passwordRegisterEnabled && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('没有账户？')}{' '}
@@ -958,8 +964,25 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+        {!passwordLoginEnabled && !hasOAuthLoginOptions
+          ? (
+            <div className='flex flex-col items-center'>
+              <div className='w-full max-w-md'>
+                <div className='flex items-center justify-center mb-6 gap-2'>
+                  <img src={logo} alt='Logo' className='h-10 rounded-full' />
+                  <Title heading={3}>{systemName}</Title>
+                </div>
+                <Card className='border-0 !rounded-2xl overflow-hidden'>
+                  <div className='px-2 py-12 text-center'>
+                    <Text>{t('登录已停用')}</Text>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )
+          : !passwordLoginEnabled && hasOAuthLoginOptions
+          ? renderOAuthOptions()
+          : showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
