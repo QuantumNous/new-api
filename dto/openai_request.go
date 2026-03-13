@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -258,7 +259,7 @@ func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
 			case ContentTypeFile:
 				meta.CountFile++
 			case ContentTypeText:
-				msgTextLength += len(content.Text)
+				msgTextLength += utf8.RuneCountInString(content.Text)
 			}
 		}
 		meta.TextLength += msgTextLength
@@ -1023,7 +1024,7 @@ func (r *OpenAIResponsesRequest) ExtractMetadata() *RequestMetadata {
 		case "input_file":
 			meta.CountFile++
 		case "input_text":
-			msgTextLength += len(input.Text)
+			msgTextLength += utf8.RuneCountInString(input.Text)
 		}
 		meta.TextLength += msgTextLength
 		meta.TextLengthLast = msgTextLength

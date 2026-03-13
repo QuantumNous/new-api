@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -169,7 +170,7 @@ func (r *GeminiChatRequest) ExtractMetadata() *RequestMetadata {
 			}
 			// 处理文本
 			if part.Text != "" {
-				msgTextLength += len(part.Text)
+				msgTextLength += utf8.RuneCountInString(part.Text)
 			}
 		}
 		meta.TextLength += msgTextLength

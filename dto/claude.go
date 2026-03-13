@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -409,7 +410,7 @@ func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
 					meta.CountFile++
 				case "text":
 					if content.Text != nil {
-						msgTextLength += len(*content.Text)
+						msgTextLength += utf8.RuneCountInString(*content.Text)
 					}
 				}
 			}
