@@ -33,6 +33,10 @@ import {
 } from '../../helpers/footer';
 import { StatusContext } from '../../context/Status';
 
+/**
+ * 渲染站点页脚，按配置切换默认页脚、HTML 片段或 iframe 模式。
+ * @returns {JSX.Element} 页脚内容
+ */
 const FooterBar = () => {
   const { t } = useTranslation();
   const iframeRef = useRef(null);
@@ -51,6 +55,10 @@ const FooterBar = () => {
     [footerValue],
   );
 
+  /**
+   * 在 iframe 加载完成后尝试同步其内容高度。
+   * @returns {void}
+   */
   const handleFooterFrameLoad = useCallback(() => {
     try {
       const iframeDocument = iframeRef.current?.contentDocument;

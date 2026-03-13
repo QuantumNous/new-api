@@ -38,6 +38,10 @@ import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 const LEGAL_USER_AGREEMENT_KEY = 'legal.user_agreement';
 const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
 
+/**
+ * 渲染系统其他设置面板并处理各类通用配置更新。
+ * @returns {JSX.Element} 其他设置页面内容
+ */
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
@@ -58,6 +62,12 @@ const OtherSetting = () => {
     content: '',
   });
 
+  /**
+   * 更新单个配置项，并在需要时同步状态上下文和本地缓存。
+   * @param {string} key - 配置项键名
+   * @param {string} value - 配置项值
+   * @returns {Promise<void>}
+   */
   const updateOption = async (key, value) => {
     setLoading(true);
     const res = await API.put('/api/option/', {
@@ -100,6 +110,13 @@ const OtherSetting = () => {
     Footer: false,
     CheckUpdate: false,
   });
+
+  /**
+   * 响应输入框变更并更新本地表单状态。
+   * @param {string} value - 新输入值
+   * @param {{target: {id: string}}} e - 触发输入的事件对象
+   * @returns {Promise<void>}
+   */
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
     setInputs((inputs) => ({ ...inputs, [name]: value }));
@@ -108,6 +125,11 @@ const OtherSetting = () => {
   // 通用设置
   const formAPISettingGeneral = useRef();
   // 通用设置 - Notice
+
+  /**
+   * 提交公告配置。
+   * @returns {Promise<void>}
+   */
   const submitNotice = async () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: true }));
@@ -121,6 +143,11 @@ const OtherSetting = () => {
     }
   };
   // 通用设置 - UserAgreement
+
+  /**
+   * 提交用户协议配置。
+   * @returns {Promise<void>}
+   */
   const submitUserAgreement = async () => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -143,6 +170,11 @@ const OtherSetting = () => {
     }
   };
   // 通用设置 - PrivacyPolicy
+
+  /**
+   * 提交隐私政策配置。
+   * @returns {Promise<void>}
+   */
   const submitPrivacyPolicy = async () => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -167,6 +199,11 @@ const OtherSetting = () => {
   // 个性化设置
   const formAPIPersonalization = useRef();
   //  个性化设置 - SystemName
+
+  /**
+   * 提交系统名称配置。
+   * @returns {Promise<void>}
+   */
   const submitSystemName = async () => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -187,6 +224,11 @@ const OtherSetting = () => {
   };
 
   // 个性化设置 - Logo
+
+  /**
+   * 提交站点 Logo 配置。
+   * @returns {Promise<void>}
+   */
   const submitLogo = async () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
@@ -200,6 +242,12 @@ const OtherSetting = () => {
     }
   };
   // 个性化设置 - 首页内容
+
+  /**
+   * 提交指定个性化配置项。
+   * @param {string} key - 配置项键名
+   * @returns {Promise<void>}
+   */
   const submitOption = async (key) => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -219,6 +267,11 @@ const OtherSetting = () => {
     }
   };
   // 个性化设置 - 关于
+
+  /**
+   * 提交关于页内容配置。
+   * @returns {Promise<void>}
+   */
   const submitAbout = async () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: true }));
@@ -232,6 +285,11 @@ const OtherSetting = () => {
     }
   };
   // 个性化设置 - 页脚
+
+  /**
+   * 提交页脚内容配置。
+   * @returns {Promise<void>}
+   */
   const submitFooter = async () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: true }));
@@ -245,6 +303,10 @@ const OtherSetting = () => {
     }
   };
 
+  /**
+   * 查询 GitHub 最新版本并在有更新时展示更新说明。
+   * @returns {Promise<void>}
+   */
   const checkUpdate = async () => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -295,6 +357,11 @@ const OtherSetting = () => {
       }));
     }
   };
+
+  /**
+   * 拉取当前设置项并回填到表单。
+   * @returns {Promise<void>}
+   */
   const getOptions = async () => {
     const res = await API.get('/api/option/');
     const { success, message, data } = res.data;
@@ -318,6 +385,11 @@ const OtherSetting = () => {
   }, []);
 
   // Function to open GitHub release page
+
+  /**
+   * 在新窗口中打开当前待更新版本的 GitHub Release 页面。
+   * @returns {void}
+   */
   const openGitHubRelease = () => {
     window.open(
       `https://github.com/Calcium-Ion/new-api/releases/tag/${updateData.tag_name}`,
@@ -325,6 +397,10 @@ const OtherSetting = () => {
     );
   };
 
+  /**
+   * 生成系统启动时间的展示文本。
+   * @returns {string} 格式化后的启动时间
+   */
   const getStartTimeString = () => {
     const timestamp = statusState?.status?.start_time;
     return statusState.status ? timestamp2string(timestamp) : '';
