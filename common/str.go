@@ -176,6 +176,39 @@ func maskHostForPlainDomain(domain string) string {
 	return stars + "." + strings.Join(tail, ".")
 }
 
+// CustomErrorReplacement 定义错误消息替换规则
+type CustomErrorReplacement struct {
+	Contains   string // 如果错误消息包含此字符串
+	StatusCode int    // 且状态码匹配（0 表示不检查状态码）
+	NewMessage string // 则替换为此消息
+}
+
+// CustomErrorRulesProvider 返回当前生效的错误替换规则列表。
+// 由 model 包在启动时设置，以避免循环导入。
+var CustomErrorRulesProvider func() []CustomErrorReplacement
+
+// ReplaceCustomErrorMessage 检查并替换自定义错误消息。
+// 所有规则完全由数据库管理，通过后台增删改查和开关控制。
+// 跳过 Contains 为空的规则，避免空字符串匹配所有消息。
+func ReplaceCustomErrorMessage(statusCode int, message string) string {
+	if CustomErrorRulesProvider == nil {
+		return message
+	}
+	rules := CustomErrorRulesProvider()
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.Contains) == "" {
+			continue
+		}
+		if rule.StatusCode != 0 && rule.StatusCode != statusCode {
+			continue
+		}
+		if strings.Contains(message, rule.Contains) {
+			return rule.NewMessage
+		}
+	}
+	return message
+}
+
 // MaskSensitiveInfo masks sensitive information like URLs, IPs, and domain names in a string
 // Example:
 // http://example.com -> http://***.com
