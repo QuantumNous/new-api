@@ -36,6 +36,32 @@ type TaskAdaptor interface {
 
 	ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError
 
+	// ── Billing ──────────────────────────────────────────────────────
+
+	// EstimateBilling returns OtherRatios for pre-charge based on user request.
+	// Called after ValidateRequestAndSetAction, before price calculation.
+	// Adaptors should extract duration, resolution, etc. from the parsed request
+	// and return them as ratio multipliers (e.g. {"seconds": 5, "size": 1.666}).
+	// Return nil to use the base model price without extra ratios.
+	EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64
+
+	// AdjustBillingOnSubmit returns adjusted OtherRatios from the upstream
+	// submit response. Called after a successful DoResponse.
+	// If the upstream returned actual parameters that differ from the estimate
+	// (e.g. actual seconds), return updated ratios so the caller can recalculate
+	// the quota and settle the delta with the pre-charge.
+	// Return nil if no adjustment is needed.
+	AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64
+
+	// AdjustBillingOnComplete returns the actual quota when a task reaches a
+	// terminal state (success/failure) during polling.
+	// Called by the polling loop after ParseTaskResult.
+	// Return a positive value to trigger delta settlement (supplement / refund).
+	// Return 0 to keep the pre-charged amount unchanged.
+	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
+
+	// ── Request / Response ───────────────────────────────────────────
+
 	BuildRequestURL(info *relaycommon.RelayInfo) (string, error)
 	BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error
 	BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error)
@@ -46,9 +72,9 @@ type TaskAdaptor interface {
 	GetModelList() []string
 	GetChannelName() string
 
-	// FetchTask
-	FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
+	// ── Polling ──────────────────────────────────────────────────────
 
+	FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
 	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
 }
 

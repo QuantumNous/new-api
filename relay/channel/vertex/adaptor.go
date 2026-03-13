@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 const (
@@ -292,11 +293,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		imgReq := dto.ImageRequest{
 			Model:  request.Model,
 			Prompt: prompt,
-			N:      1,
+			N:      lo.ToPtr(uint(1)),
 			Size:   "1024x1024",
 		}
-		if request.N > 0 {
-			imgReq.N = uint(request.N)
+		if request.N != nil && *request.N > 0 {
+			imgReq.N = lo.ToPtr(uint(*request.N))
 		}
 		if request.Size != "" {
 			imgReq.Size = request.Size
@@ -305,7 +306,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			var extra map[string]any
 			if err := json.Unmarshal(request.ExtraBody, &extra); err == nil {
 				if n, ok := extra["n"].(float64); ok && n > 0 {
-					imgReq.N = uint(n)
+					imgReq.N = lo.ToPtr(uint(n))
 				}
 				if size, ok := extra["size"].(string); ok {
 					imgReq.Size = size

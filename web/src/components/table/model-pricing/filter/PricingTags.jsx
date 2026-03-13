@@ -78,7 +78,6 @@ const PricingTags = ({
         value: 'all',
         label: t('全部标签'),
         tagCount: getTagCount('all'),
-        disabled: models.length === 0,
       },
     ];
 
@@ -88,7 +87,6 @@ const PricingTags = ({
         value: tag,
         label: tag,
         tagCount: count,
-        disabled: count === 0,
       });
     });
 
@@ -102,6 +100,7 @@ const PricingTags = ({
       activeValue={filterTag}
       onChange={setFilterTag}
       loading={loading}
+      variant='rose'
       t={t}
     />
   );

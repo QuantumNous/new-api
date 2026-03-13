@@ -24,8 +24,8 @@ import {
   renderModelTag,
   stringToColor,
   calculateModelPrice,
+  getModelPriceItems,
   getLobeHubIcon,
-  getDualCurrencyConfig,
 } from '../../../../../helpers';
 import {
   renderLimitedItems,
@@ -109,6 +109,7 @@ export const getPricingTableColumns = ({
   setModalImageUrl,
   setIsModalOpenurl,
   currency,
+  siteDisplayType,
   tokenUnit,
   displayPrice,
   showRatio,
@@ -126,6 +127,7 @@ export const getPricingTableColumns = ({
         tokenUnit,
         displayPrice,
         currency,
+        quotaDisplayType: siteDisplayType,
       });
       priceDataCache.set(record, cache);
     }
@@ -227,47 +229,23 @@ export const getPricingTableColumns = ({
   };
 
   const priceColumn = {
-    title: t('计费'),
+    title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('模型价格'),
     dataIndex: 'model_price',
     ...(isMobile ? {} : { fixed: 'right' }),
     render: (text, record, index) => {
       const priceData = getPriceData(record);
-      const { secondary } = getDualCurrencyConfig();
-      const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
+      const priceItems = getModelPriceItems(priceData, t, siteDisplayType);
 
-      const formatSecondary = (usdPrice) => {
-        if (!secondary) return null;
-        const val = (usdPrice * secondary.rate) / unitDivisor;
-        return `(${secondary.symbol}${val.toFixed(4)})`;
-      };
-
-      if (priceData.isPerToken) {
-        return (
-          <div className='space-y-1'>
-            <div className='text-gray-700'>
-              {t('输入')} {priceData.inputPrice}{secondary ? ' ' + formatSecondary(priceData.inputPriceUSD) : ''} / 1{priceData.unitLabel} tokens
+      return (
+        <div className='space-y-1'>
+          {priceItems.map((item) => (
+            <div key={item.key} className='text-gray-700'>
+              {item.label} {item.value}
+              {item.suffix}
             </div>
-            <div className='text-gray-700'>
-              {t('输出')} {priceData.completionPrice}{secondary ? ' ' + formatSecondary(priceData.completionPriceUSD) : ''} / 1{priceData.unitLabel}{' '}
-              tokens
-            </div>
-            <div className='text-gray-700'>
-              {t('缓存读取')} {priceData.cacheReadPrice}{secondary ? ' ' + formatSecondary(priceData.cacheReadPriceUSD) : ''} / 1{priceData.unitLabel}{' '}
-              tokens
-            </div>
-            <div className='text-gray-700'>
-              {t('缓存写入')} {priceData.cacheWritePrice}{secondary ? ' ' + formatSecondary(priceData.cacheWritePriceUSD) : ''} / 1{priceData.unitLabel}{' '}
-              tokens
-            </div>
-          </div>
-        );
-      } else {
-        return (
-          <div className='text-gray-700'>
-            {t('模型价格')}：{priceData.price}{secondary ? ' ' + (() => { const val = priceData.priceUSD * secondary.rate; return `(${secondary.symbol}${val.toFixed(4)})`; })() : ''}
-          </div>
-        );
-      }
+          ))}
+        </div>
+      );
     },
   };
 

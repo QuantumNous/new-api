@@ -35,6 +35,13 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
+const OFFICIAL_RATIO_PRESET_ID = -100;
+const MODELS_DEV_PRESET_ID = -101;
+const OFFICIAL_RATIO_PRESET_NAME = '官方倍率预设';
+const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
+const OFFICIAL_RATIO_PRESET_BASE_URL = 'https://basellm.github.io';
+const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
+
 const ChannelSelectorModal = forwardRef(
   (
     {
@@ -70,9 +77,12 @@ const ChannelSelectorModal = forwardRef(
       const base = record?._originalData?.base_url || '';
       const name = record?.label || '';
       return (
-        id === -100 ||
-        base === 'https://basellm.github.io' ||
-        name === '官方倍率预设'
+        id === OFFICIAL_RATIO_PRESET_ID ||
+        id === MODELS_DEV_PRESET_ID ||
+        base === OFFICIAL_RATIO_PRESET_BASE_URL ||
+        base === MODELS_DEV_PRESET_BASE_URL ||
+        name === OFFICIAL_RATIO_PRESET_NAME ||
+        name === MODELS_DEV_PRESET_NAME
       );
     };
 

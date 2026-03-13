@@ -50,6 +50,7 @@ import {
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
   onCustomOAuthClicked,
+  getOAuthProviderIcon,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
 
@@ -148,12 +149,14 @@ const AccountManagement = ({
 
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
-    return customOAuthBindings.some((b) => b.provider_id === providerId);
+    const normalizedId = Number(providerId);
+    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
-    return customOAuthBindings.find((b) => b.provider_id === providerId);
+    const normalizedId = Number(providerId);
+    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
   };
 
   React.useEffect(() => {
@@ -524,10 +527,10 @@ const AccountManagement = ({
                       <div className='flex items-center justify-between gap-3'>
                         <div className='flex items-center flex-1 min-w-0'>
                           <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
-                            <IconLock
-                              size='default'
-                              className='text-slate-600 dark:text-slate-300'
-                            />
+                            {getOAuthProviderIcon(
+                              provider.icon || binding?.provider_icon || '',
+                              20,
+                            )}
                           </div>
                           <div className='flex-1 min-w-0'>
                             <div className='font-medium text-gray-900'>

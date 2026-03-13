@@ -83,7 +83,6 @@ const PricingVendors = ({
         value: 'all',
         label: t('全部供应商'),
         tagCount: getVendorCount('all'),
-        disabled: models.length === 0,
       },
     ];
 
@@ -96,7 +95,6 @@ const PricingVendors = ({
         label: vendor,
         icon: icon ? getLobeHubIcon(icon, 16) : null,
         tagCount: count,
-        disabled: count === 0,
       });
     });
 
@@ -107,7 +105,6 @@ const PricingVendors = ({
         value: 'unknown',
         label: t('未知供应商'),
         tagCount: count,
-        disabled: count === 0,
       });
     }
 
@@ -121,6 +118,7 @@ const PricingVendors = ({
       activeValue={filterVendor}
       onChange={setFilterVendor}
       loading={loading}
+      variant='violet'
       t={t}
     />
   );

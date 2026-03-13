@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 const (
@@ -38,12 +40,26 @@ type CodexOAuthAuthorizationFlow struct {
 }
 
 func RefreshCodexOAuthToken(ctx context.Context, refreshToken string) (*CodexOAuthTokenResult, error) {
-	client := &http.Client{Timeout: defaultHTTPTimeout}
+	return RefreshCodexOAuthTokenWithProxy(ctx, refreshToken, "")
+}
+
+func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, proxyURL string) (*CodexOAuthTokenResult, error) {
+	client, err := getCodexOAuthHTTPClient(proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return refreshCodexOAuthToken(ctx, client, codexOAuthTokenURL, codexOAuthClientID, refreshToken)
 }
 
 func ExchangeCodexAuthorizationCode(ctx context.Context, code string, verifier string) (*CodexOAuthTokenResult, error) {
-	client := &http.Client{Timeout: defaultHTTPTimeout}
+	return ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, "")
+}
+
+func ExchangeCodexAuthorizationCodeWithProxy(ctx context.Context, code string, verifier string, proxyURL string) (*CodexOAuthTokenResult, error) {
+	client, err := getCodexOAuthHTTPClient(proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return exchangeCodexAuthorizationCode(ctx, client, codexOAuthTokenURL, codexOAuthClientID, code, verifier, codexOAuthRedirectURI)
 }
 
@@ -104,7 +120,7 @@ func refreshCodexOAuthToken(
 		ExpiresIn    int    `json:"expires_in"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := common.DecodeJson(resp.Body, &payload); err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -165,7 +181,7 @@ func exchangeCodexAuthorizationCode(
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int    `json:"expires_in"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := common.DecodeJson(resp.Body, &payload); err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -179,6 +195,19 @@ func exchangeCodexAuthorizationCode(
 		RefreshToken: strings.TrimSpace(payload.RefreshToken),
 		ExpiresAt:    time.Now().Add(time.Duration(payload.ExpiresIn) * time.Second),
 	}, nil
+}
+
+func getCodexOAuthHTTPClient(proxyURL string) (*http.Client, error) {
+	baseClient, err := GetHttpClientWithProxy(strings.TrimSpace(proxyURL))
+	if err != nil {
+		return nil, err
+	}
+	if baseClient == nil {
+		return &http.Client{Timeout: defaultHTTPTimeout}, nil
+	}
+	clientCopy := *baseClient
+	clientCopy.Timeout = defaultHTTPTimeout
+	return &clientCopy, nil
 }
 
 func buildCodexAuthorizeURL(state string, challenge string) (string, error) {

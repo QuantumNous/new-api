@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	ViolationFeeCodePrefix = "violation_fee."
-	CSAMViolationMarker    = "Failed check: SAFETY_CHECK_TYPE_CSAM"
+	ViolationFeeCodePrefix     = "violation_fee."
+	CSAMViolationMarker        = "Failed check: SAFETY_CHECK_TYPE"
+	ContentViolatesUsageMarker = "Content violates usage guidelines"
 )
 
 func IsViolationFeeCode(code types.ErrorCode) bool {
@@ -30,11 +31,11 @@ func HasCSAMViolationMarker(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
-	if strings.Contains(err.Error(), CSAMViolationMarker) {
+	if strings.Contains(err.Error(), CSAMViolationMarker) || strings.Contains(err.Error(), ContentViolatesUsageMarker) {
 		return true
 	}
 	msg := err.ToOpenAIError().Message
-	return strings.Contains(msg, CSAMViolationMarker)
+	return strings.Contains(msg, CSAMViolationMarker) || strings.Contains(err.Error(), ContentViolatesUsageMarker)
 }
 
 func WrapAsViolationFeeGrokCSAM(err *types.NewAPIError) *types.NewAPIError {

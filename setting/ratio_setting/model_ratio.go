@@ -298,6 +298,10 @@ var defaultModelPrice = map[string]float64{
 	"sora-2":                         0.3,
 	"sora-2-pro":                     0.5,
 	"gpt-4o-mini-tts":                0.3,
+	"veo-3.0-generate-001":           0.4,
+	"veo-3.0-fast-generate-001":      0.15,
+	"veo-3.1-generate-preview":       0.4,
+	"veo-3.1-fast-generate-preview":  0.15,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -448,6 +452,44 @@ func GetCompletionRatio(name string) float64 {
 	return hardCodedRatio
 }
 
+type CompletionRatioInfo struct {
+	Ratio  float64 `json:"ratio"`
+	Locked bool    `json:"locked"`
+}
+
+func GetCompletionRatioInfo(name string) CompletionRatioInfo {
+	name = FormatMatchingModelName(name)
+
+	if strings.Contains(name, "/") {
+		if ratio, ok := completionRatioMap.Get(name); ok {
+			return CompletionRatioInfo{
+				Ratio:  ratio,
+				Locked: false,
+			}
+		}
+	}
+
+	hardCodedRatio, locked := getHardcodedCompletionModelRatio(name)
+	if locked {
+		return CompletionRatioInfo{
+			Ratio:  hardCodedRatio,
+			Locked: true,
+		}
+	}
+
+	if ratio, ok := completionRatioMap.Get(name); ok {
+		return CompletionRatioInfo{
+			Ratio:  ratio,
+			Locked: false,
+		}
+	}
+
+	return CompletionRatioInfo{
+		Ratio:  hardCodedRatio,
+		Locked: false,
+	}
+}
+
 func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 
 	isReservedModel := strings.HasSuffix(name, "-all") || strings.HasSuffix(name, "-gizmo-*")
@@ -467,6 +509,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
+			if strings.HasPrefix(name, "gpt-5.4") {
+				return 6, true
+			}
 			return 8, true
 		}
 		// gpt-4.5-preview匹配

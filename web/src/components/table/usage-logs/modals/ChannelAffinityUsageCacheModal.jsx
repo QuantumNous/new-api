@@ -39,6 +39,21 @@ function formatTokenRate(n, d) {
   return `${r.toFixed(2)}%`;
 }
 
+function formatCachedTokenRate(cachedTokens, promptTokens, mode) {
+  if (mode === 'cached_over_prompt_plus_cached') {
+    const denominator = Number(promptTokens || 0) + Number(cachedTokens || 0);
+    return formatTokenRate(cachedTokens, denominator);
+  }
+  if (mode === 'cached_over_prompt') {
+    return formatTokenRate(cachedTokens, promptTokens);
+  }
+  return '-';
+}
+
+function hasTextValue(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
 const ChannelAffinityUsageCacheModal = ({
   t,
   showChannelAffinityUsageCacheModal,
@@ -107,7 +122,7 @@ const ChannelAffinityUsageCacheModal = ({
     t,
   ]);
 
-  const rows = useMemo(() => {
+  const { rows, supportsTokenStats } = useMemo(() => {
     const s = stats || {};
     const hit = Number(s.hit || 0);
     const total = Number(s.total || 0);
@@ -118,48 +133,62 @@ const ChannelAffinityUsageCacheModal = ({
     const totalTokens = Number(s.total_tokens || 0);
     const cachedTokens = Number(s.cached_tokens || 0);
     const promptCacheHitTokens = Number(s.prompt_cache_hit_tokens || 0);
+    const cachedTokenRateMode = String(s.cached_token_rate_mode || '').trim();
+    const supportsTokenStats =
+      cachedTokenRateMode === 'cached_over_prompt' ||
+      cachedTokenRateMode === 'cached_over_prompt_plus_cached' ||
+      cachedTokenRateMode === 'mixed';
 
-    return [
-      { key: t('规则'), value: s.rule_name || params.rule_name || '-' },
-      { key: t('分组'), value: s.using_group || params.using_group || '-' },
-      {
-        key: t('Key 摘要'),
-        value: params.key_hint || '-',
-      },
-      {
-        key: t('Key 指纹'),
-        value: s.key_fp || params.key_fp || '-',
-      },
-      { key: t('TTL（秒）'), value: windowSeconds > 0 ? windowSeconds : '-' },
-      {
-        key: t('命中率'),
-        value: `${hit}/${total} (${formatRate(hit, total)})`,
-      },
-      {
-        key: t('Prompt tokens'),
-        value: promptTokens,
-      },
-      {
-        key: t('Cached tokens'),
-        value: `${cachedTokens} (${formatTokenRate(cachedTokens, promptTokens)})`,
-      },
-      {
-        key: t('Prompt cache hit tokens'),
-        value: promptCacheHitTokens,
-      },
-      {
-        key: t('Completion tokens'),
-        value: completionTokens,
-      },
-      {
-        key: t('Total tokens'),
-        value: totalTokens,
-      },
-      {
-        key: t('最近一次'),
-        value: lastSeenAt > 0 ? timestamp2string(lastSeenAt) : '-',
-      },
-    ];
+    const data = [];
+    const ruleName = String(s.rule_name || params.rule_name || '').trim();
+    const usingGroup = String(s.using_group || params.using_group || '').trim();
+    const keyHint = String(params.key_hint || '').trim();
+    const keyFp = String(s.key_fp || params.key_fp || '').trim();
+
+    if (hasTextValue(ruleName)) {
+      data.push({ key: t('规则'), value: ruleName });
+    }
+    if (hasTextValue(usingGroup)) {
+      data.push({ key: t('分组'), value: usingGroup });
+    }
+    if (hasTextValue(keyHint)) {
+      data.push({ key: t('Key 摘要'), value: keyHint });
+    }
+    if (hasTextValue(keyFp)) {
+      data.push({ key: t('Key 指纹'), value: keyFp });
+    }
+    if (windowSeconds > 0) {
+      data.push({ key: t('TTL（秒）'), value: windowSeconds });
+    }
+    if (total > 0) {
+      data.push({ key: t('命中率'), value: `${hit}/${total} (${formatRate(hit, total)})` });
+    }
+    if (lastSeenAt > 0) {
+      data.push({ key: t('最近一次'), value: timestamp2string(lastSeenAt) });
+    }
+
+    if (supportsTokenStats) {
+      if (promptTokens > 0) {
+        data.push({ key: t('Prompt tokens'), value: promptTokens });
+      }
+      if (promptTokens > 0 || cachedTokens > 0) {
+        data.push({
+          key: t('Cached tokens'),
+          value: `${cachedTokens} (${formatCachedTokenRate(cachedTokens, promptTokens, cachedTokenRateMode)})`,
+        });
+      }
+      if (promptCacheHitTokens > 0) {
+        data.push({ key: t('Prompt cache hit tokens'), value: promptCacheHitTokens });
+      }
+      if (completionTokens > 0) {
+        data.push({ key: t('Completion tokens'), value: completionTokens });
+      }
+      if (totalTokens > 0) {
+        data.push({ key: t('Total tokens'), value: totalTokens });
+      }
+    }
+
+    return { rows: data, supportsTokenStats };
   }, [stats, params, t]);
 
   return (
@@ -179,15 +208,27 @@ const ChannelAffinityUsageCacheModal = ({
             {t(
               '命中判定：usage 中存在 cached tokens（例如 cached_tokens/prompt_cache_hit_tokens）即视为命中。',
             )}
+            {' '}
+            {t(
+              'Cached tokens 占比口径由后端返回：Claude 语义按 cached/(prompt+cached)，其余按 cached/prompt。',
+            )}
+            {' '}
+            {t('当前仅 OpenAI / Claude 语义支持缓存 token 统计，其他通道将隐藏 token 相关字段。')}
+            {stats && !supportsTokenStats ? (
+              <>
+                {' '}
+                {t('该记录不包含可用的 token 统计口径。')}
+              </>
+            ) : null}
           </Text>
         </div>
         <Spin spinning={loading} tip={t('加载中...')}>
-          {stats ? (
+          {stats && rows.length > 0 ? (
             <Descriptions data={rows} />
           ) : (
             <div style={{ padding: '24px 0' }}>
               <Text type='tertiary' size='small'>
-                {loading ? t('加载中...') : t('暂无数据')}
+                {loading ? t('加载中...') : t('暂无可展示数据')}
               </Text>
             </div>
           )}

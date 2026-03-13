@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type Adaptor struct {
@@ -53,7 +54,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		sfRequest.ImageSize = request.Size
 	}
 	if sfRequest.BatchSize == 0 {
-		sfRequest.BatchSize = request.N
+		if request.N != nil {
+			sfRequest.BatchSize = lo.FromPtr(request.N)
+		}
 	}
 
 	return sfRequest, nil

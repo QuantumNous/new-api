@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 type Adaptor struct {
@@ -115,8 +116,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
-	if request.N > 0 {
-		inputPayload["num_outputs"] = int(request.N)
+	if imageN := lo.FromPtrOr(request.N, uint(0)); imageN > 0 {
+		inputPayload["num_outputs"] = int(imageN)
 	}
 
 	if strings.EqualFold(request.Quality, "hd") || strings.EqualFold(request.Quality, "high") {

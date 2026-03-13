@@ -251,9 +251,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             for (let key in chats[i]) {
               let link = chats[i][key];
               if (typeof link !== 'string') continue; // 确保链接是字符串
-              if (link.startsWith('fluent')) {
+              if (link.startsWith('fluent') || link.startsWith('ccswitch')) {
                 shouldSkip = true;
-                break; // 跳过 Fluent Read
+                break;
               }
               chat.text = key;
               chat.itemKey = 'chat' + i;

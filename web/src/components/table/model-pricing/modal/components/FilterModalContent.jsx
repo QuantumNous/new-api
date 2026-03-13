@@ -32,6 +32,7 @@ const FilterModalContent = ({ sidebarProps, t }) => {
     setShowWithRecharge,
     currency,
     setCurrency,
+    siteDisplayType,
     handleChange,
     setActiveKey,
     showRatio,
@@ -77,6 +78,7 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         setShowWithRecharge={setShowWithRecharge}
         currency={currency}
         setCurrency={setCurrency}
+        siteDisplayType={siteDisplayType}
         showRatio={showRatio}
         setShowRatio={setShowRatio}
         viewMode={viewMode}
@@ -96,15 +98,6 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         t={t}
       />
 
-      <PricingTags
-        filterTag={filterTag}
-        setFilterTag={setFilterTag}
-        models={tagModels}
-        allModels={categoryProps.models}
-        loading={loading}
-        t={t}
-      />
-
       <PricingGroups
         filterGroup={filterGroup}
         setFilterGroup={setFilterGroup}
@@ -119,6 +112,15 @@ const FilterModalContent = ({ sidebarProps, t }) => {
         filterQuotaType={filterQuotaType}
         setFilterQuotaType={setFilterQuotaType}
         models={quotaTypeModels}
+        loading={loading}
+        t={t}
+      />
+
+      <PricingTags
+        filterTag={filterTag}
+        setFilterTag={setFilterTag}
+        models={tagModels}
+        allModels={categoryProps.models}
         loading={loading}
         t={t}
       />

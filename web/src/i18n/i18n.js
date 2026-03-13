@@ -28,12 +28,14 @@ import zhTWTranslation from './locales/zh-TW.json';
 import ruTranslation from './locales/ru.json';
 import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
+import { supportedLanguages } from './language';
 
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     load: 'currentOnly',
+    supportedLngs: supportedLanguages,
     resources: {
       en: enTranslation,
       'zh-CN': zhCNTranslation,

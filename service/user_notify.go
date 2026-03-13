@@ -22,6 +22,32 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
+func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+	var users []model.User
+	if err := model.DB.
+		Select("id", "email", "role", "status", "setting").
+		Where("status = ? AND role >= ?", common.UserStatusEnabled, common.RoleAdminUser).
+		Find(&users).Error; err != nil {
+		common.SysLog(fmt.Sprintf("failed to query upstream update notification users: %s", err.Error()))
+		return
+	}
+
+	notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
+	sentCount := 0
+	for _, user := range users {
+		userSetting := user.GetSetting()
+		if !userSetting.UpstreamModelUpdateNotifyEnabled {
+			continue
+		}
+		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
+			common.SysLog(fmt.Sprintf("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
+			continue
+		}
+		sentCount++
+	}
+	common.SysLog(fmt.Sprintf("upstream model update notifications sent: %d", sentCount))
+}
+
 func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
 	notifyType := userSetting.NotifyType
 	if notifyType == "" {

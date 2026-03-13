@@ -29,7 +29,6 @@ const TokensActions = ({
   setShowEdit,
   batchCopyTokens,
   batchDeleteTokens,
-  copyText,
   t,
 }) => {
   // Modal states
@@ -99,8 +98,7 @@ const TokensActions = ({
       <CopyTokensModal
         visible={showCopyModal}
         onCancel={() => setShowCopyModal(false)}
-        selectedKeys={selectedKeys}
-        copyText={copyText}
+        batchCopyTokens={batchCopyTokens}
         t={t}
       />
 

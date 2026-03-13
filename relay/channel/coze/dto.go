@@ -17,7 +17,7 @@ type CozeEnterMessage struct {
 
 type CozeChatRequest struct {
 	BotId              string             `json:"bot_id"`
-	UserId             string             `json:"user_id"`
+	UserId             json.RawMessage    `json:"user_id"`
 	AdditionalMessages []CozeEnterMessage `json:"additional_messages,omitempty"`
 	Stream             bool               `json:"stream,omitempty"`
 	CustomVariables    json.RawMessage    `json:"custom_variables,omitempty"`

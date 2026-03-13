@@ -22,7 +22,8 @@ type PriceData struct {
 	AudioCompletionRatio float64
 	OtherRatios          map[string]float64
 	UsePrice             bool
-	QuotaToPreConsume    int // 预消耗额度
+	Quota                int // 按次计费的最终额度（MJ / Task）
+	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
 }
 
@@ -34,12 +35,6 @@ func (p *PriceData) AddOtherRatio(key string, ratio float64) {
 		return
 	}
 	p.OtherRatios[key] = ratio
-}
-
-type PerCallPriceData struct {
-	ModelPrice     float64
-	Quota          int
-	GroupRatioInfo GroupRatioInfo
 }
 
 func (p *PriceData) ToSetting() string {

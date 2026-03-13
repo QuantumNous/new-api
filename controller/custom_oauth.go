@@ -1,8 +1,13 @@
 package controller
 
 import (
+	"context"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -16,6 +21,7 @@ type CustomOAuthProviderResponse struct {
 	Id                    int    `json:"id"`
 	Name                  string `json:"name"`
 	Slug                  string `json:"slug"`
+	Icon                  string `json:"icon"`
 	Enabled               bool   `json:"enabled"`
 	ClientId              string `json:"client_id"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
@@ -28,6 +34,16 @@ type CustomOAuthProviderResponse struct {
 	EmailField            string `json:"email_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
+	AccessPolicy          string `json:"access_policy"`
+	AccessDeniedMessage   string `json:"access_denied_message"`
+}
+
+type UserOAuthBindingResponse struct {
+	ProviderId     int    `json:"provider_id"`
+	ProviderName   string `json:"provider_name"`
+	ProviderSlug   string `json:"provider_slug"`
+	ProviderIcon   string `json:"provider_icon"`
+	ProviderUserId string `json:"provider_user_id"`
 }
 
 func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthProviderResponse {
@@ -35,6 +51,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		Id:                    p.Id,
 		Name:                  p.Name,
 		Slug:                  p.Slug,
+		Icon:                  p.Icon,
 		Enabled:               p.Enabled,
 		ClientId:              p.ClientId,
 		AuthorizationEndpoint: p.AuthorizationEndpoint,
@@ -47,6 +64,8 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		EmailField:            p.EmailField,
 		WellKnown:             p.WellKnown,
 		AuthStyle:             p.AuthStyle,
+		AccessPolicy:          p.AccessPolicy,
+		AccessDeniedMessage:   p.AccessDeniedMessage,
 	}
 }
 
@@ -96,6 +115,7 @@ func GetCustomOAuthProvider(c *gin.Context) {
 type CreateCustomOAuthProviderRequest struct {
 	Name                  string `json:"name" binding:"required"`
 	Slug                  string `json:"slug" binding:"required"`
+	Icon                  string `json:"icon"`
 	Enabled               bool   `json:"enabled"`
 	ClientId              string `json:"client_id" binding:"required"`
 	ClientSecret          string `json:"client_secret" binding:"required"`
@@ -109,6 +129,85 @@ type CreateCustomOAuthProviderRequest struct {
 	EmailField            string `json:"email_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
+	AccessPolicy          string `json:"access_policy"`
+	AccessDeniedMessage   string `json:"access_denied_message"`
+}
+
+type FetchCustomOAuthDiscoveryRequest struct {
+	WellKnownURL string `json:"well_known_url"`
+	IssuerURL    string `json:"issuer_url"`
+}
+
+// FetchCustomOAuthDiscovery fetches OIDC discovery document via backend (root-only route)
+func FetchCustomOAuthDiscovery(c *gin.Context) {
+	var req FetchCustomOAuthDiscoveryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "无效的请求参数: "+err.Error())
+		return
+	}
+
+	wellKnownURL := strings.TrimSpace(req.WellKnownURL)
+	issuerURL := strings.TrimSpace(req.IssuerURL)
+
+	if wellKnownURL == "" && issuerURL == "" {
+		common.ApiErrorMsg(c, "请先填写 Discovery URL 或 Issuer URL")
+		return
+	}
+
+	targetURL := wellKnownURL
+	if targetURL == "" {
+		targetURL = strings.TrimRight(issuerURL, "/") + "/.well-known/openid-configuration"
+	}
+	targetURL = strings.TrimSpace(targetURL)
+
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		common.ApiErrorMsg(c, "Discovery URL 无效，仅支持 http/https")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		common.ApiErrorMsg(c, "创建 Discovery 请求失败: "+err.Error())
+		return
+	}
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			message = resp.Status
+		}
+		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+message)
+		return
+	}
+
+	var discovery map[string]any
+	if err = common.DecodeJson(resp.Body, &discovery); err != nil {
+		common.ApiErrorMsg(c, "解析 Discovery 配置失败: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"well_known_url": targetURL,
+			"discovery":      discovery,
+		},
+	})
 }
 
 // CreateCustomOAuthProvider creates a new custom OAuth provider
@@ -134,6 +233,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 	provider := &model.CustomOAuthProvider{
 		Name:                  req.Name,
 		Slug:                  req.Slug,
+		Icon:                  req.Icon,
 		Enabled:               req.Enabled,
 		ClientId:              req.ClientId,
 		ClientSecret:          req.ClientSecret,
@@ -147,6 +247,8 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		EmailField:            req.EmailField,
 		WellKnown:             req.WellKnown,
 		AuthStyle:             req.AuthStyle,
+		AccessPolicy:          req.AccessPolicy,
+		AccessDeniedMessage:   req.AccessDeniedMessage,
 	}
 
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
@@ -168,9 +270,10 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 type UpdateCustomOAuthProviderRequest struct {
 	Name                  string  `json:"name"`
 	Slug                  string  `json:"slug"`
-	Enabled               *bool   `json:"enabled"`               // Optional: if nil, keep existing
+	Icon                  *string `json:"icon"`    // Optional: if nil, keep existing
+	Enabled               *bool   `json:"enabled"` // Optional: if nil, keep existing
 	ClientId              string  `json:"client_id"`
-	ClientSecret          string  `json:"client_secret"`         // Optional: if empty, keep existing
+	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
 	AuthorizationEndpoint string  `json:"authorization_endpoint"`
 	TokenEndpoint         string  `json:"token_endpoint"`
 	UserInfoEndpoint      string  `json:"user_info_endpoint"`
@@ -181,6 +284,8 @@ type UpdateCustomOAuthProviderRequest struct {
 	EmailField            string  `json:"email_field"`
 	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
 	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
+	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
+	AccessDeniedMessage   *string `json:"access_denied_message"` // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -227,6 +332,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.Slug != "" {
 		provider.Slug = req.Slug
 	}
+	if req.Icon != nil {
+		provider.Icon = *req.Icon
+	}
 	if req.Enabled != nil {
 		provider.Enabled = *req.Enabled
 	}
@@ -265,6 +373,12 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.AuthStyle != nil {
 		provider.AuthStyle = *req.AuthStyle
+	}
+	if req.AccessPolicy != nil {
+		provider.AccessPolicy = *req.AccessPolicy
+	}
+	if req.AccessDeniedMessage != nil {
+		provider.AccessDeniedMessage = *req.AccessDeniedMessage
 	}
 
 	if err := model.UpdateCustomOAuthProvider(provider); err != nil {
@@ -327,6 +441,30 @@ func DeleteCustomOAuthProvider(c *gin.Context) {
 	})
 }
 
+func buildUserOAuthBindingsResponse(userId int) ([]UserOAuthBindingResponse, error) {
+	bindings, err := model.GetUserOAuthBindingsByUserId(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	response := make([]UserOAuthBindingResponse, 0, len(bindings))
+	for _, binding := range bindings {
+		provider, err := model.GetCustomOAuthProviderById(binding.ProviderId)
+		if err != nil {
+			continue
+		}
+		response = append(response, UserOAuthBindingResponse{
+			ProviderId:     binding.ProviderId,
+			ProviderName:   provider.Name,
+			ProviderSlug:   provider.Slug,
+			ProviderIcon:   provider.Icon,
+			ProviderUserId: binding.ProviderUserId,
+		})
+	}
+
+	return response, nil
+}
+
 // GetUserOAuthBindings returns all OAuth bindings for the current user
 func GetUserOAuthBindings(c *gin.Context) {
 	userId := c.GetInt("id")
@@ -335,32 +473,43 @@ func GetUserOAuthBindings(c *gin.Context) {
 		return
 	}
 
-	bindings, err := model.GetUserOAuthBindingsByUserId(userId)
+	response, err := buildUserOAuthBindingsResponse(userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	// Build response with provider info
-	type BindingResponse struct {
-		ProviderId     int    `json:"provider_id"`
-		ProviderName   string `json:"provider_name"`
-		ProviderSlug   string `json:"provider_slug"`
-		ProviderUserId string `json:"provider_user_id"`
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    response,
+	})
+}
+
+func GetUserOAuthBindingsByAdmin(c *gin.Context) {
+	userIdStr := c.Param("id")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid user id")
+		return
 	}
 
-	response := make([]BindingResponse, 0)
-	for _, binding := range bindings {
-		provider, err := model.GetCustomOAuthProviderById(binding.ProviderId)
-		if err != nil {
-			continue // Skip if provider not found
-		}
-		response = append(response, BindingResponse{
-			ProviderId:     binding.ProviderId,
-			ProviderName:   provider.Name,
-			ProviderSlug:   provider.Slug,
-			ProviderUserId: binding.ProviderUserId,
-		})
+	targetUser, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	myRole := c.GetInt("role")
+	if myRole <= targetUser.Role && myRole != common.RoleRootUser {
+		common.ApiErrorMsg(c, "no permission")
+		return
+	}
+
+	response, err := buildUserOAuthBindingsResponse(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -393,5 +542,43 @@ func UnbindCustomOAuth(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "解绑成功",
+	})
+}
+
+func UnbindCustomOAuthByAdmin(c *gin.Context) {
+	userIdStr := c.Param("id")
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid user id")
+		return
+	}
+
+	targetUser, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	myRole := c.GetInt("role")
+	if myRole <= targetUser.Role && myRole != common.RoleRootUser {
+		common.ApiErrorMsg(c, "no permission")
+		return
+	}
+
+	providerIdStr := c.Param("provider_id")
+	providerId, err := strconv.Atoi(providerIdStr)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid provider id")
+		return
+	}
+
+	if err := model.DeleteUserOAuthBinding(userId, providerId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "success",
 	})
 }

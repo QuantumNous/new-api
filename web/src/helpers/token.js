@@ -20,8 +20,22 @@ For commercial licensing, please contact support@quantumnous.com
 import { API } from './api';
 
 /**
- * 获取可用的token keys
- * @returns {Promise<string[]>} 返回active状态的token key数组
+ * 按需获取单个令牌的真实 key
+ * @param {number|string} tokenId
+ * @returns {Promise<string>} 返回不带 sk- 前缀的真实 token key
+ */
+export async function fetchTokenKey(tokenId) {
+  const response = await API.post(`/api/token/${tokenId}/key`);
+  const { success, data, message } = response.data || {};
+  if (!success || !data?.key) {
+    throw new Error(message || 'Failed to fetch token key');
+  }
+  return data.key;
+}
+
+/**
+ * 获取可用的 token keys
+ * @returns {Promise<string[]>} 返回 active 状态的不带 sk- 前缀的真实 token key 数组
  */
 export async function fetchTokenKeys() {
   try {
@@ -31,7 +45,12 @@ export async function fetchTokenKeys() {
 
     const tokenItems = Array.isArray(data) ? data : data.items || [];
     const activeTokens = tokenItems.filter((token) => token.status === 1);
-    return activeTokens.map((token) => token.key);
+    const keyResults = await Promise.allSettled(
+      activeTokens.map((token) => fetchTokenKey(token.id)),
+    );
+    return keyResults
+      .filter((result) => result.status === 'fulfilled' && result.value)
+      .map((result) => result.value);
   } catch (error) {
     console.error('Error fetching token keys:', error);
     return [];

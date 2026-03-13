@@ -35,6 +35,7 @@ const SearchActions = memo(
     setShowWithRecharge,
     currency,
     setCurrency,
+    siteDisplayType,
     showRatio,
     setShowRatio,
     viewMode,
@@ -43,6 +44,8 @@ const SearchActions = memo(
     setTokenUnit,
     t,
   }) => {
+    const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
+
     const handleCopyClick = useCallback(() => {
       if (copyText && selectedRowKeys.length > 0) {
         copyText(selectedRowKeys);
@@ -91,16 +94,18 @@ const SearchActions = memo(
             <Divider layout='vertical' margin='8px' />
 
             {/* 充值价格显示开关 */}
-            <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
-              <Switch
-                checked={showWithRecharge}
-                onChange={setShowWithRecharge}
-              />
-            </div>
+            {supportsCurrencyDisplay && (
+              <div className='flex items-center gap-2'>
+                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+                <Switch
+                  checked={showWithRecharge}
+                  onChange={setShowWithRecharge}
+                />
+              </div>
+            )}
 
             {/* 货币单位选择 */}
-            {showWithRecharge && (
+            {supportsCurrencyDisplay && showWithRecharge && (
               <Select
                 value={currency}
                 onChange={setCurrency}

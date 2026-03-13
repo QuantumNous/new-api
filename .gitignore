@@ -1,6 +1,7 @@
 .idea
 .vscode
 .zed
+.history
 upload
 *.exe
 *.db
@@ -20,6 +21,7 @@ tiktoken_cache
 .cache
 web/bun.lock
 plans
+.claude
 
 electron/node_modules
 electron/dist

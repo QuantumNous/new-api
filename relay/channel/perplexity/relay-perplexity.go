@@ -10,13 +10,12 @@ func requestOpenAI2Perplexity(request dto.GeneralOpenAIRequest) *dto.GeneralOpen
 			Content: message.Content,
 		})
 	}
-	return &dto.GeneralOpenAIRequest{
+	req := &dto.GeneralOpenAIRequest{
 		Model:                  request.Model,
 		Stream:                 request.Stream,
 		Messages:               messages,
 		Temperature:            request.Temperature,
 		TopP:                   request.TopP,
-		MaxTokens:              request.GetMaxTokens(),
 		FrequencyPenalty:       request.FrequencyPenalty,
 		PresencePenalty:        request.PresencePenalty,
 		SearchDomainFilter:     request.SearchDomainFilter,
@@ -25,4 +24,9 @@ func requestOpenAI2Perplexity(request dto.GeneralOpenAIRequest) *dto.GeneralOpen
 		ReturnRelatedQuestions: request.ReturnRelatedQuestions,
 		SearchMode:             request.SearchMode,
 	}
+	if request.MaxTokens != nil || request.MaxCompletionTokens != nil {
+		maxTokens := request.GetMaxTokens()
+		req.MaxTokens = &maxTokens
+	}
+	return req
 }

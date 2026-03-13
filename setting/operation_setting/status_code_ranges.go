@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/QuantumNous/new-api/types"
 )
 
 type StatusCodeRange struct {
@@ -24,6 +26,15 @@ var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
 	{Start: 500, End: 503},
 	{Start: 505, End: 523},
 	{Start: 525, End: 599},
+}
+
+var alwaysSkipRetryStatusCodes = map[int]struct{}{
+	504: {},
+	524: {},
+}
+
+var alwaysSkipRetryCodes = map[types.ErrorCode]struct{}{
+	types.ErrorCodeBadResponseBody: {},
 }
 
 func AutomaticDisableStatusCodesToString() string {
@@ -56,7 +67,20 @@ func AutomaticRetryStatusCodesFromString(s string) error {
 	return nil
 }
 
+func IsAlwaysSkipRetryStatusCode(code int) bool {
+	_, exists := alwaysSkipRetryStatusCodes[code]
+	return exists
+}
+
+func IsAlwaysSkipRetryCode(errorCode types.ErrorCode) bool {
+	_, exists := alwaysSkipRetryCodes[errorCode]
+	return exists
+}
+
 func ShouldRetryByStatusCode(code int) bool {
+	if IsAlwaysSkipRetryStatusCode(code) {
+		return false
+	}
 	return shouldMatchStatusCodeRanges(AutomaticRetryStatusCodeRanges, code)
 }
 

@@ -254,7 +254,7 @@ export default function SettingsMonitoring(props) {
                   label={t('自动重试状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
                   extraText={t(
-                    '支持填写单个状态码或范围（含首尾），使用逗号分隔',
+                    '支持填写单个状态码或范围（含首尾），使用逗号分隔；504 和 524 始终不重试，不受此处配置影响',
                   )}
                   field={'AutomaticRetryStatusCodes'}
                   onChange={(value) =>

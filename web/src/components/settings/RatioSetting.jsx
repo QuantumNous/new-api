@@ -95,19 +95,19 @@ const RatioSetting = () => {
 
   return (
     <Spin spinning={loading} size='large'>
-      {/* 模型倍率设置以及可视化编辑器 */}
+      {/* 模型倍率设置以及价格编辑器 */}
       <Card style={{ marginTop: '10px' }}>
-        <Tabs type='card'>
+        <Tabs type='card' defaultActiveKey='visual'>
           <Tabs.TabPane tab={t('模型倍率设置')} itemKey='model'>
             <ModelRatioSettings options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
-          <Tabs.TabPane tab={t('分组倍率设置')} itemKey='group'>
+          <Tabs.TabPane tab={t('分组相关设置')} itemKey='group'>
             <GroupRatioSettings options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
-          <Tabs.TabPane tab={t('可视化倍率设置')} itemKey='visual'>
+          <Tabs.TabPane tab={t('价格设置')} itemKey='visual'>
             <ModelSettingsVisualEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
-          <Tabs.TabPane tab={t('未设置倍率模型')} itemKey='unset_models'>
+          <Tabs.TabPane tab={t('未设置价格模型')} itemKey='unset_models'>
             <ModelRatioNotSetEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('上游倍率同步')} itemKey='upstream_sync'>

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Route, Routes, useLocation, useParams } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
 import NotFound from './pages/NotFound';
@@ -62,6 +62,11 @@ const PasswordResetConfirm = lazy(
 const OAuth2Callback = lazy(
   () => import('./components/auth/OAuth2Callback'),
 );
+
+function DynamicOAuth2Callback() {
+  const { provider } = useParams();
+  return <OAuth2Callback type={provider} />;
+}
 
 function App() {
   const location = useLocation();
@@ -254,6 +259,14 @@ function App() {
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <OAuth2Callback type='linuxdo'></OAuth2Callback>
+            </Suspense>
+          }
+        />
+        <Route
+          path='/oauth/:provider'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <DynamicOAuth2Callback />
             </Suspense>
           }
         />
