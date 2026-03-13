@@ -39,6 +39,11 @@ import { Plus, Trash2 } from 'lucide-react';
 
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
+  const creemWebhookUrl = getPaymentWebhookUrl(
+    props.options?.ServerAddress,
+    'creem',
+    t('网站地址'),
+  );
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     CreemApiKey: '',
@@ -271,7 +276,7 @@ export default function SettingsPaymentGatewayCreem(props) {
           <Banner type='info' description={t('Creem Setting Tips')} />
           <Banner
             type='info'
-            description={`Webhook 填：${getPaymentWebhookUrl(props.options.ServerAddress, 'creem')}`}
+            description={`${t('Webhook 填：')}${creemWebhookUrl}`}
           />
 
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>

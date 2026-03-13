@@ -10,6 +10,13 @@ test('builds creem webhook url from server address', () => {
   );
 });
 
-test('falls back to placeholder when server address is missing', () => {
-  assert.equal(getPaymentWebhookUrl('', 'creem'), '网站地址/api/creem/webhook');
+test('uses caller-provided fallback when server address is missing', () => {
+  assert.equal(
+    getPaymentWebhookUrl('', 'creem', 'Website Address'),
+    'Website Address/api/creem/webhook',
+  );
+});
+
+test('returns a relative webhook path when no fallback is provided', () => {
+  assert.equal(getPaymentWebhookUrl('', 'creem'), '/api/creem/webhook');
 });

@@ -17,11 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
-import { getFooterRenderMode, normalizeFooterValue } from '../../helpers/footer';
+import {
+  getFooterRenderMode,
+  normalizeFooterValue,
+} from '../../helpers/footer';
 import { StatusContext } from '../../context/Status';
 
 const FooterBar = () => {
@@ -57,7 +66,9 @@ const FooterBar = () => {
       if (nextHeight > 0) {
         setIframeHeight(nextHeight);
       }
-    } catch {}
+    } catch {
+      // Cross-origin iframe documents cannot be measured, so keep the fallback height.
+    }
   }, []);
 
   const currentYear = new Date().getFullYear();
