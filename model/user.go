@@ -1063,6 +1063,7 @@ func BindInviterByAffCode(userId int, affCode string) error {
 
 	// Wrap bind + reward in a transaction so a partial failure doesn't leave
 	// the user bound without receiving their quota (or vice-versa).
+	// All DB writes go through tx to ensure atomicity.
 	return DB.Transaction(func(tx *gorm.DB) error {
 		// Optimistic lock: only update when inviter_id is still 0, preventing race conditions.
 		result := tx.Model(&User{}).Where("id = ? AND inviter_id = 0", userId).
@@ -1074,13 +1075,25 @@ func BindInviterByAffCode(userId int, affCode string) error {
 			return errors.New("绑定失败，请重试")
 		}
 
-		// Grant rewards using the same logic as registration.
+		// Grant invitee quota reward via atomic SQL (uses tx, not DB).
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(userId, common.QuotaForInvitee, true)
+			if err := tx.Model(&User{}).Where("id = ?", userId).
+				Update("quota", gorm.Expr("quota + ?", common.QuotaForInvitee)).Error; err != nil {
+				return err
+			}
 			RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
 		}
+
+		// Grant inviter reward via atomic SQL (uses tx, not DB).
+		// Avoids the read-modify-write race in inviteUser().
 		if common.QuotaForInviter > 0 {
-			_ = inviteUser(inviterId)
+			if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
+				"aff_count":         gorm.Expr("aff_count + 1"),
+				"aff_quota":         gorm.Expr("aff_quota + ?", common.QuotaForInviter),
+				"aff_history_quota": gorm.Expr("aff_history_quota + ?", common.QuotaForInviter),
+			}).Error; err != nil {
+				return err
+			}
 			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
 		}
 
