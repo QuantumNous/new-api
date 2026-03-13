@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -271,9 +270,9 @@ func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
 
 	// Messages 为空时，处理 Prompt 字段
 	if r.Prompt != nil {
-		meta.MessageCount = 1 // Prompt 作为单个输入
 		switch v := r.Prompt.(type) {
 		case string:
+			meta.MessageCount = 1
 			meta.TextLength = utf8.RuneCountInString(v)
 			meta.TextLengthLast = meta.TextLength
 		case []any:
@@ -285,7 +284,11 @@ func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
 					meta.MessageCount++
 				}
 			}
+			if meta.MessageCount == 0 {
+				meta.MessageCount = 1
+			}
 		default:
+			meta.MessageCount = 1
 			str := fmt.Sprintf("%v", r.Prompt)
 			meta.TextLength = utf8.RuneCountInString(str)
 			meta.TextLengthLast = meta.TextLength
@@ -309,49 +312,6 @@ func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
 
 	// 所有字段都为空，返回空元数据而非 nil
 	return meta
-}
-
-// estimateTokens 简化版 token 估算
-func estimateTokens(model, text string) int {
-	if text == "" {
-		return 0
-	}
-
-	model = strings.ToLower(model)
-
-	// 根据模型类型选择估算系数
-	var cjkFactor, latinFactor float64
-	if strings.Contains(model, "claude") {
-		cjkFactor = 0.8
-		latinFactor = 0.2
-	} else if strings.Contains(model, "gemini") {
-		cjkFactor = 0.6
-		latinFactor = 0.2
-	} else {
-		// OpenAI 及其他模型
-		cjkFactor = 0.7
-		latinFactor = 0.2
-	}
-
-	var tokens float64
-	for _, r := range text {
-		if isCJK(r) {
-			tokens += cjkFactor
-		} else if unicode.IsLetter(r) || unicode.IsNumber(r) {
-			tokens += latinFactor
-		} else {
-			tokens += 0.3
-		}
-	}
-
-	return int(tokens + 0.5)
-}
-
-// isCJK 判断是否为中日韩字符
-func isCJK(r rune) bool {
-	return (r >= 0x4E00 && r <= 0x9FFF) || // 中文
-		(r >= 0x3040 && r <= 0x30FF) || // 日文
-		(r >= 0xAC00 && r <= 0xD7A3) // 韩文
 }
 
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
