@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetCodexChannelUsage returns Codex usage data and opportunistically persists refreshed OAuth metadata.
 func GetCodexChannelUsage(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -85,13 +86,28 @@ func GetCodexChannelUsage(c *gin.Context) {
 			oauthKey.RefreshToken = res.RefreshToken
 			oauthKey.LastRefresh = time.Now().Format(time.RFC3339)
 			oauthKey.Expired = res.ExpiresAt.Format(time.RFC3339)
+			if strings.TrimSpace(res.IDToken) != "" {
+				oauthKey.IDToken = strings.TrimSpace(res.IDToken)
+			}
+			if strings.TrimSpace(res.PlanType) != "" {
+				oauthKey.PlanType = strings.TrimSpace(res.PlanType)
+			}
 			if strings.TrimSpace(oauthKey.Type) == "" {
 				oauthKey.Type = "codex"
 			}
 
 			encoded, encErr := common.Marshal(oauthKey)
 			if encErr == nil {
-				_ = model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error
+				updates := map[string]any{
+					"key": string(encoded),
+				}
+				if otherInfo, mergeErr := service.MergeCodexPlanTypeIntoOtherInfo(ch.OtherInfo, oauthKey.PlanType); mergeErr == nil {
+					ch.OtherInfo = otherInfo
+					updates["other_info"] = otherInfo
+				}
+				if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error; err != nil {
+					common.SysLog(fmt.Sprintf("failed to persist refreshed codex oauth metadata: channel_id=%d, error=%v", ch.Id, err))
+				}
 				model.InitChannelCache()
 				service.ResetProxyClientCache()
 			}

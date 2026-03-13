@@ -52,8 +52,42 @@ import {
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
+// parseChannelOtherInfo safely parses channel metadata used by channel table helpers.
+const parseChannelOtherInfo = (otherInfo) => {
+  if (!otherInfo) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(otherInfo);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+// getCodexPlanTypeLabel normalizes Codex plan types into stable UI labels.
+const getCodexPlanTypeLabel = (planType) => {
+  const normalized = String(planType || '')
+    .trim()
+    .toLowerCase();
+  switch (normalized) {
+    case 'plus':
+      return 'Plus';
+    case 'team':
+      return 'Team';
+    case 'chatgptpro':
+    case 'pro':
+      return 'Pro';
+    case 'free':
+      return 'Free';
+    default:
+      return String(planType || '').trim();
+  }
+};
+
 const renderType = (type, record = {}, t) => {
   const channelInfo = record?.channel_info;
+  const parsedOtherInfo = parseChannelOtherInfo(record?.other_info);
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
     type2label[CHANNEL_OPTIONS[i].value] = CHANNEL_OPTIONS[i];
@@ -83,20 +117,29 @@ const renderType = (type, record = {}, t) => {
     </Tag>
   );
 
-  let ionetMeta = null;
-  if (record?.other_info) {
-    try {
-      const parsed = JSON.parse(record.other_info);
-      if (parsed && typeof parsed === 'object' && parsed.source === 'ionet') {
-        ionetMeta = parsed;
-      }
-    } catch (error) {
-      // ignore invalid metadata
-    }
-  }
+  const planTypeLabel = getCodexPlanTypeLabel(
+    parsedOtherInfo?.codex_plan_type,
+  );
+  const planTypeTag = planTypeLabel ? (
+    <Tag color='cyan' shape='circle' type='light'>
+      {planTypeLabel}
+    </Tag>
+  ) : null;
+
+  const ionetMeta =
+    parsedOtherInfo && parsedOtherInfo.source === 'ionet'
+      ? parsedOtherInfo
+      : null;
 
   if (!ionetMeta) {
-    return typeTag;
+    return planTypeTag ? (
+      <Space spacing={6}>
+        {typeTag}
+        {planTypeTag}
+      </Space>
+    ) : (
+      typeTag
+    );
   }
 
   const handleNavigate = (event) => {
@@ -111,6 +154,7 @@ const renderType = (type, record = {}, t) => {
   return (
     <Space spacing={6}>
       {typeTag}
+      {planTypeTag}
       <Tooltip
         content={
           <div className='max-w-xs'>
