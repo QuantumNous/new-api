@@ -33,11 +33,24 @@ import {
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import { API, showError, showSuccess } from '../../../helpers';
+import { getPaymentWebhookUrl } from '../../../helpers/paymentWebhook.js';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
 
+/**
+ * Creem 支付渠道设置面板，负责展示和提交网关配置及产品列表。
+ * @param {object} props - 组件属性
+ * @param {Record<string, string | undefined>} [props.options] - 当前已加载的配置项
+ * @param {() => void} [props.refresh] - 配置保存成功后的刷新回调
+ * @returns {JSX.Element} Creem 设置表单
+ */
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
+  const creemWebhookUrl = getPaymentWebhookUrl(
+    props.options?.ServerAddress,
+    'creem',
+    t('网站地址'),
+  );
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     CreemApiKey: '',
@@ -80,10 +93,19 @@ export default function SettingsPaymentGatewayCreem(props) {
     }
   }, [props.options]);
 
+  /**
+   * 同步表单的最新输入值。
+   * @param {Record<string, unknown>} values - 当前表单值
+   * @returns {void}
+   */
   const handleFormChange = (values) => {
     setInputs(values);
   };
 
+  /**
+   * 提交 Creem 网关配置和产品列表。
+   * @returns {Promise<void>}
+   */
   const submitCreemSetting = async () => {
     setLoading(true);
     try {
@@ -137,6 +159,11 @@ export default function SettingsPaymentGatewayCreem(props) {
     setLoading(false);
   };
 
+  /**
+   * 打开产品编辑弹窗，并在编辑时回填产品信息。
+   * @param {object | null} [product=null] - 待编辑的产品
+   * @returns {void}
+   */
   const openProductModal = (product = null) => {
     if (product) {
       setEditingProduct(product);
@@ -154,6 +181,10 @@ export default function SettingsPaymentGatewayCreem(props) {
     setShowProductModal(true);
   };
 
+  /**
+   * 关闭产品编辑弹窗并重置临时表单。
+   * @returns {void}
+   */
   const closeProductModal = () => {
     setShowProductModal(false);
     setEditingProduct(null);
@@ -166,6 +197,10 @@ export default function SettingsPaymentGatewayCreem(props) {
     });
   };
 
+  /**
+   * 校验并保存当前产品表单到产品列表。
+   * @returns {void}
+   */
   const saveProduct = () => {
     if (
       !productForm.name ||
@@ -200,6 +235,11 @@ export default function SettingsPaymentGatewayCreem(props) {
     closeProductModal();
   };
 
+  /**
+   * 从产品列表中移除指定产品。
+   * @param {string} productId - 产品标识
+   * @returns {void}
+   */
   const deleteProduct = (productId) => {
     const newProducts = products.filter((p) => p.productId !== productId);
     setProducts(newProducts);
@@ -268,6 +308,10 @@ export default function SettingsPaymentGatewayCreem(props) {
             <br />
           </Text>
           <Banner type='info' description={t('Creem Setting Tips')} />
+          <Banner
+            type='info'
+            description={`${t('Webhook 填：')}${creemWebhookUrl}`}
+          />
 
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
