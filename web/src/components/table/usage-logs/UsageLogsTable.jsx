@@ -44,16 +44,9 @@ const LogsTable = (logsData) => {
     hasExpandableRows,
     isAdminUser,
     billingDisplayMode,
-    groupBy,
-    getProcessedLogs,
     t,
     COLUMN_KEYS,
   } = logsData;
-
-  // Get processed logs (with grouping if applicable)
-  const displayLogs = useMemo(() => {
-    return getProcessedLogs();
-  }, [logs, groupBy]);
 
   // Get all columns
   const allColumns = useMemo(() => {
@@ -104,7 +97,7 @@ const LogsTable = (logsData) => {
         rowExpandable: (record) =>
           expandData[record.key] && expandData[record.key].length > 0,
       })}
-      dataSource={displayLogs}
+      dataSource={logs}
       rowKey='key'
       loading={loading}
       scroll={compactMode ? undefined : { x: 'max-content' }}

@@ -344,12 +344,6 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.TIME,
       title: t('时间'),
       dataIndex: 'timestamp2string',
-      render: (text, record, index) => {
-        if (record.isGroupSummary) {
-          return <span style={{ fontWeight: 'bold' }}>{record.groupKey}</span>;
-        }
-        return text;
-      },
     },
     {
       key: COLUMN_KEYS.CHANNEL,
@@ -590,10 +584,6 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
-        if (record.isGroupSummary) {
-          return <span style={{ fontWeight: 'bold' }}>{record.totalPromptTokens}</span>;
-        }
-
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
@@ -640,9 +630,6 @@ export const getLogsColumns = ({
       title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
-        if (record.isGroupSummary) {
-          return <span style={{ fontWeight: 'bold' }}>{record.totalCompletionTokens}</span>;
-        }
         return parseInt(text) > 0 &&
           (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
           <>{<span> {text} </span>}</>
@@ -656,9 +643,6 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (record.isGroupSummary) {
-          return <span style={{ fontWeight: 'bold' }}>{renderQuota(record.totalQuota, 6)}</span>;
-        }
         if (!(record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6)) {
           return <></>;
         }
