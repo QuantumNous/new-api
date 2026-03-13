@@ -129,6 +129,8 @@ topup.order_not_exists: "Top-up order does not exist"
 topup.order_status: "Top-up order status error"
 topup.failed: "Top-up failed, please try again later"
 topup.invalid_quota: "Invalid top-up quota"
+topup.amount_too_low: "Top-up amount cannot be less than {{.Min}}"
+topup.amount_too_high: "Top-up amount cannot be greater than {{.Max}}"
 
 # Channel messages
 channel.not_exists: "Channel does not exist"

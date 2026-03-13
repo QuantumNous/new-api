@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -55,7 +56,9 @@ func GetTopUpInfo(c *gin.Context) {
 		"creem_products":      setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
+		"max_topup":           operation_setting.GetPaymentSetting().MaxTopUp,
 		"stripe_min_topup":    setting.StripeMinTopUp,
+		"stripe_max_topup":    setting.StripeMaxTopUp,
 		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":            operation_setting.GetPaymentSetting().AmountDiscount,
 	}
@@ -125,6 +128,19 @@ func getMinTopup() int64 {
 	return int64(minTopup)
 }
 
+func getMaxTopup() int64 {
+	maxTopup := operation_setting.GetPaymentSetting().MaxTopUp
+	if maxTopup <= 0 {
+		return 0
+	}
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		dMaxTopup := decimal.NewFromInt(int64(maxTopup))
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		maxTopup = int(dMaxTopup.Mul(dQuotaPerUnit).IntPart())
+	}
+	return int64(maxTopup)
+}
+
 func RequestEpay(c *gin.Context) {
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
@@ -133,7 +149,11 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 	if req.Amount < getMinTopup() {
-		c.JSON(200, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow, map[string]any{"Min": getMinTopup()})})
+		return
+	}
+	if maxTopup := getMaxTopup(); maxTopup > 0 && req.Amount > maxTopup {
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooHigh, map[string]any{"Max": maxTopup})})
 		return
 	}
 
@@ -321,7 +341,11 @@ func RequestAmount(c *gin.Context) {
 	}
 
 	if req.Amount < getMinTopup() {
-		c.JSON(200, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow, map[string]any{"Min": getMinTopup()})})
+		return
+	}
+	if maxTopup := getMaxTopup(); maxTopup > 0 && req.Amount > maxTopup {
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooHigh, map[string]any{"Max": maxTopup})})
 		return
 	}
 	id := c.GetInt("id")

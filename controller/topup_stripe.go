@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -48,7 +49,11 @@ type StripeAdaptor struct {
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 	if req.Amount < getStripeMinTopup() {
-		c.JSON(200, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooLow, map[string]any{"Min": getStripeMinTopup()})})
+		return
+	}
+	if maxTopup := getStripeMaxTopup(); maxTopup > 0 && req.Amount > maxTopup {
+		c.JSON(200, gin.H{"message": "error", "data": i18n.T(c, i18n.MsgTopupAmountTooHigh, map[string]any{"Max": maxTopup})})
 		return
 	}
 	id := c.GetInt("id")
@@ -71,11 +76,11 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 	if req.Amount < getStripeMinTopup() {
-		c.JSON(200, gin.H{"message": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup()), "data": 10})
+		c.JSON(200, gin.H{"message": i18n.T(c, i18n.MsgTopupAmountTooLow, map[string]any{"Min": getStripeMinTopup()}), "data": 10})
 		return
 	}
-	if req.Amount > 10000 {
-		c.JSON(200, gin.H{"message": "充值数量不能大于 10000", "data": 10})
+	if maxTopup := getStripeMaxTopup(); maxTopup > 0 && req.Amount > maxTopup {
+		c.JSON(200, gin.H{"message": i18n.T(c, i18n.MsgTopupAmountTooHigh, map[string]any{"Max": maxTopup}), "data": 10})
 		return
 	}
 
@@ -351,4 +356,15 @@ func getStripeMinTopup() int64 {
 		minTopup = minTopup * int(common.QuotaPerUnit)
 	}
 	return int64(minTopup)
+}
+
+func getStripeMaxTopup() int64 {
+	maxTopup := setting.StripeMaxTopUp
+	if maxTopup <= 0 {
+		return 0
+	}
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		maxTopup = maxTopup * int(common.QuotaPerUnit)
+	}
+	return int64(maxTopup)
 }

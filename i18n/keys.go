@@ -147,6 +147,8 @@ const (
 	MsgTopupOrderStatus    = "topup.order_status"
 	MsgTopupFailed         = "topup.failed"
 	MsgTopupInvalidQuota   = "topup.invalid_quota"
+	MsgTopupAmountTooLow   = "topup.amount_too_low"
+	MsgTopupAmountTooHigh  = "topup.amount_too_high"
 )
 
 // Channel related messages
