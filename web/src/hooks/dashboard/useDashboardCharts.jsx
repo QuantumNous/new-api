@@ -259,6 +259,55 @@ export const useDashboardCharts = (
     },
   });
 
+  // 用户消耗排行柱状图
+  const [spec_user_rank_bar, setSpecUserRankBar] = useState({
+    type: 'bar',
+    data: [
+      {
+        id: 'userRankData',
+        values: [],
+      },
+    ],
+    direction: 'horizontal',
+    xField: 'quota',
+    yField: 'username',
+    seriesField: 'username',
+    legends: {
+      visible: false,
+    },
+    title: {
+      visible: true,
+      text: t('用户消耗排行'),
+      subtext: '',
+    },
+    bar: {
+      state: {
+        hover: {
+          stroke: '#000',
+          lineWidth: 1,
+        },
+      },
+    },
+    axes: [
+      {
+        orient: 'bottom',
+        label: {
+          formatMethod: (val) => renderQuota(val),
+        },
+      },
+    ],
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum) => datum['username'],
+            value: (datum) => renderQuota(datum['quota']),
+          },
+        ],
+      },
+    },
+  });
+
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
     const newModelColors = {};
@@ -439,6 +488,8 @@ export const useDashboardCharts = (
     spec_line,
     spec_model_line,
     spec_rank_bar,
+    spec_user_rank_bar,
+    setSpecUserRankBar,
 
     // 函数
     updateChartData,
