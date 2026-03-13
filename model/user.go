@@ -1061,25 +1061,29 @@ func BindInviterByAffCode(userId int, affCode string) error {
 		return errors.New("不能绑定自己的邀请码")
 	}
 
-	// Optimistic lock: only update when inviter_id is still 0, preventing race conditions.
-	result := DB.Model(&User{}).Where("id = ? AND inviter_id = 0", userId).
-		Update("inviter_id", inviterId)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("绑定失败，请重试")
-	}
+	// Wrap bind + reward in a transaction so a partial failure doesn't leave
+	// the user bound without receiving their quota (or vice-versa).
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// Optimistic lock: only update when inviter_id is still 0, preventing race conditions.
+		result := tx.Model(&User{}).Where("id = ? AND inviter_id = 0", userId).
+			Update("inviter_id", inviterId)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("绑定失败，请重试")
+		}
 
-	// Grant rewards using the same logic as registration.
-	if common.QuotaForInvitee > 0 {
-		_ = IncreaseUserQuota(userId, common.QuotaForInvitee, true)
-		RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-	}
-	if common.QuotaForInviter > 0 {
-		_ = inviteUser(inviterId)
-		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-	}
+		// Grant rewards using the same logic as registration.
+		if common.QuotaForInvitee > 0 {
+			_ = IncreaseUserQuota(userId, common.QuotaForInvitee, true)
+			RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		}
+		if common.QuotaForInviter > 0 {
+			_ = inviteUser(inviterId)
+			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+		}
 
-	return nil
+		return nil
+	})
 }

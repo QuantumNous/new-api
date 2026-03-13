@@ -42,6 +42,7 @@ const InvitationCard = ({
   showSuccess,
   showError,
   reloadUser,
+  allowBindInviter,
 }) => {
   const [bindAffCode, setBindAffCode] = useState('');
   const [bindLoading, setBindLoading] = useState(false);
@@ -224,8 +225,8 @@ const InvitationCard = ({
           />
         </Card>
 
-        {/* 绑定邀请人 - 仅在尚未绑定时显示 */}
-        {userState?.user?.inviter_id === 0 && (
+        {/* 绑定邀请人 - 仅在功能开启且尚未绑定时显示 */}
+        {allowBindInviter && userState?.user?.inviter_id === 0 && (
           <Card
             className='!rounded-xl w-full'
             title={

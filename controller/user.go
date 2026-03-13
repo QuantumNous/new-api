@@ -345,7 +345,12 @@ func BindAffCode(c *gin.Context) {
 	var req struct {
 		AffCode string `json:"aff_code"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.AffCode == "" {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "邀请码不能为空")
+		return
+	}
+	req.AffCode = strings.TrimSpace(req.AffCode)
+	if req.AffCode == "" {
 		common.ApiErrorMsg(c, "邀请码不能为空")
 		return
 	}
