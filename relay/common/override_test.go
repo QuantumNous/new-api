@@ -2153,30 +2153,25 @@ func TestBuildParamOverrideContext_SystemMetadata(t *testing.T) {
 
 	ctx := BuildParamOverrideContext(info)
 
-	// 验证 $ 存在
-	sysMeta, ok := ctx["$"].(map[string]interface{})
-	if !ok {
-		t.Fatal("Expected $ to be a map")
-	}
-
+	// 验证元数据在顶层
 	// 验证 count_image
 	if count, ok := ctx["count_image"].(int); !ok || count != 1 {
-		t.Errorf("Expected $.count_image to be 1, got %v", sysMeta["count_image"])
+		t.Errorf("Expected count_image to be 1, got %v", ctx["count_image"])
 	}
 
 	// 验证 message_count
 	if count, ok := ctx["message_count"].(int); !ok || count != 1 {
-		t.Errorf("Expected $.message_count to be 1, got %v", sysMeta["message_count"])
+		t.Errorf("Expected message_count to be 1, got %v", ctx["message_count"])
 	}
 
 	// 验证 text_length
 	if length, ok := ctx["text_length"].(int); !ok || length <= 0 {
-		t.Errorf("Expected $.text_length to be positive, got %v", sysMeta["text_length"])
+		t.Errorf("Expected text_length to be positive, got %v", ctx["text_length"])
 	}
 
 	// 验证 text_length_last
 	if length, ok := ctx["text_length_last"].(int); !ok || length <= 0 {
-		t.Errorf("Expected $.text_length_last to be positive, got %v", sysMeta["text_length_last"])
+		t.Errorf("Expected text_length_last to be positive, got %v", ctx["text_length_last"])
 	}
 }
 
@@ -2207,7 +2202,7 @@ func TestSystemMetadataCondition_ImageCount(t *testing.T) {
 				"value": 4096,
 				"conditions": []interface{}{
 					map[string]interface{}{
-						"path":  "$.count_image",
+						"path":  "count_image",
 						"mode":  "gte",
 						"value": 1,
 					},
@@ -2217,9 +2212,7 @@ func TestSystemMetadataCondition_ImageCount(t *testing.T) {
 	}
 
 	context := map[string]interface{}{
-		"$": map[string]interface{}{
-			"count_image": 2,
-		},
+		"count_image": 2,
 	}
 
 	out, err := ApplyParamOverride([]byte(input), override, context, nil)
@@ -2249,7 +2242,7 @@ func TestSystemMetadataCondition_MessageCount(t *testing.T) {
 				"value": 8192,
 				"conditions": []interface{}{
 					map[string]interface{}{
-						"path":  "$.message_count",
+						"path":  "message_count",
 						"mode":  "gt",
 						"value": 10,
 					},
@@ -2260,9 +2253,7 @@ func TestSystemMetadataCondition_MessageCount(t *testing.T) {
 
 	// 测试条件不满足的情况
 	context := map[string]interface{}{
-		"$": map[string]interface{}{
-			"message_count": 5,
-		},
+		"message_count": 5,
 	}
 
 	out, err := ApplyParamOverride([]byte(input), override, context, nil)
@@ -2314,19 +2305,18 @@ func TestBuildRequestMetadata_MultipleMediaTypes(t *testing.T) {
 	}
 
 	ctx := BuildParamOverrideContext(info)
-	sysMeta := ctx["$"].(map[string]interface{})
 
-	// 验证各种计数
-	if count, ok := sysMeta["count_image"].(int); !ok || count != 2 {
-		t.Errorf("Expected $.count_image to be 2, got %v", sysMeta["count_image"])
+	// 验证各种计数（元数据在顶层）
+	if count, ok := ctx["count_image"].(int); !ok || count != 2 {
+		t.Errorf("Expected count_image to be 2, got %v", ctx["count_image"])
 	}
-	if count, ok := sysMeta["count_audio"].(int); !ok || count != 1 {
-		t.Errorf("Expected $.count_audio to be 1, got %v", sysMeta["count_audio"])
+	if count, ok := ctx["count_audio"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_audio to be 1, got %v", ctx["count_audio"])
 	}
-	if count, ok := sysMeta["count_file"].(int); !ok || count != 1 {
-		t.Errorf("Expected $.count_file to be 1, got %v", sysMeta["count_file"])
+	if count, ok := ctx["count_file"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_file to be 1, got %v", ctx["count_file"])
 	}
-	if count, ok := sysMeta["message_count"].(int); !ok || count != 3 {
-		t.Errorf("Expected $.message_count to be 3, got %v", sysMeta["message_count"])
+	if count, ok := ctx["message_count"].(int); !ok || count != 3 {
+		t.Errorf("Expected message_count to be 3, got %v", ctx["message_count"])
 	}
 }

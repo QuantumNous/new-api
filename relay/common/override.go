@@ -1785,6 +1785,13 @@ func mergeObjects(jsonStr, path string, value interface{}, keepOrigin bool) (str
 //   - original_model：请求最初指定的模型名。
 //   - request_path：请求路径
 //   - is_channel_test：是否为渠道测试请求（同 is_test）。
+//   - message_count：请求中的消息数量
+//   - count_image：请求中的图片数量
+//   - count_audio：请求中的音频数量
+//   - count_video：请求中的视频数量
+//   - count_file：请求中的文件数量
+//   - text_length：所有消息的文本总长度
+//   - text_length_last：最后一条消息的文本长度
 func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 	if info == nil {
 		return nil
@@ -1855,16 +1862,6 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 				ctx["count_file"] = meta.CountFile
 				ctx["text_length"] = meta.TextLength
 				ctx["text_length_last"] = meta.TextLengthLast
-				// 添加 metadata 嵌套结构
-				metadata := make(map[string]interface{})
-				metadata["message_count"] = meta.MessageCount
-				metadata["count_image"] = meta.CountImage
-				metadata["count_audio"] = meta.CountAudio
-				metadata["count_video"] = meta.CountVideo
-				metadata["count_file"] = meta.CountFile
-				metadata["text_length"] = meta.TextLength
-				metadata["text_length_last"] = meta.TextLengthLast
-				ctx["metadata"] = metadata
 			}
 		}
 	}

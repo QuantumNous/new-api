@@ -391,7 +391,7 @@ func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
 		// 处理字符串类型的 content
 		if msg.IsStringContent() {
 			contentStr = msg.GetStringContent()
-			msgTextLength = len(contentStr)
+			msgTextLength = utf8.RuneCountInString(contentStr)
 		} else {
 			// 处理数组类型的 content
 			contents, err := msg.ParseContent()
