@@ -93,6 +93,7 @@ const Dashboard = () => {
       }
     });
     await dashboardData.loadUptimeData();
+    await dashboardData.loadTopUsersData();
   };
 
   const handleRefresh = async () => {
@@ -138,6 +139,30 @@ const Dashboard = () => {
     initChart();
   }, []);
 
+  // 更新用户消耗排行图表
+  useEffect(() => {
+    if (dashboardData.topUsersData && dashboardData.topUsersData.length > 0) {
+      const userRankData = dashboardData.topUsersData.map((item) => ({
+        username: item.username,
+        quota: item.quota,
+      }));
+
+      dashboardCharts.setSpecUserRankBar((prev) => ({
+        ...prev,
+        data: [
+          {
+            id: 'userRankData',
+            values: userRankData,
+          },
+        ],
+        title: {
+          ...prev.title,
+          subtext: `${dashboardData.t('总计')}：${userRankData.length}${dashboardData.t('个用户')}`,
+        },
+      }));
+    }
+  }, [dashboardData.topUsersData, dashboardData.t, dashboardCharts.setSpecUserRankBar]);
+
   return (
     <div className='h-full'>
       <DashboardHeader
@@ -182,10 +207,12 @@ const Dashboard = () => {
             spec_model_line={dashboardCharts.spec_model_line}
             spec_pie={dashboardCharts.spec_pie}
             spec_rank_bar={dashboardCharts.spec_rank_bar}
+            spec_user_rank_bar={dashboardCharts.spec_user_rank_bar}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
+            isAdminUser={dashboardData.isAdminUser}
             t={dashboardData.t}
           />
 
