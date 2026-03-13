@@ -41,6 +41,7 @@ import {
   Form,
   Col,
   Row,
+  Tooltip,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -62,6 +63,7 @@ const EditTokenModal = (props) => {
   const formApiRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [groupClusters, setGroupClusters] = useState([]);
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -149,6 +151,17 @@ const EditTokenModal = (props) => {
     }
   };
 
+  const loadGroupClusters = async () => {
+    try {
+      const res = await API.get('/api/user/self/group_clusters');
+      if (res.data.success) {
+        setGroupClusters(res.data.data || []);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const loadToken = async () => {
     setLoading(true);
     let res = await API.get(`/api/token/${props.editingToken.id}`);
@@ -179,6 +192,7 @@ const EditTokenModal = (props) => {
     }
     loadModels();
     loadGroups();
+    loadGroupClusters();
   }, [props.editingToken.id]);
 
   useEffect(() => {
@@ -378,6 +392,56 @@ const EditTokenModal = (props) => {
                       />
                     )}
                   </Col>
+                  {groupClusters.length > 0 && (
+                    <Col span={24}>
+                      <Form.Slot label={t('分组群快捷填充')}>
+                        <Space wrap>
+                          {groupClusters
+                            .filter((cluster) => {
+                              try {
+                                const items = cluster.items
+                                  ? JSON.parse(cluster.items)
+                                  : [];
+                                return (
+                                  Array.isArray(items) && items.length === 1
+                                );
+                              } catch {
+                                return false;
+                              }
+                            })
+                            .map((cluster) => {
+                              let groupName = '';
+                              try {
+                                groupName = JSON.parse(cluster.items)[0];
+                              } catch {
+                                // ignore
+                              }
+                              return (
+                                <Tooltip
+                                  key={cluster.id}
+                                  content={groupName}
+                                >
+                                  <Button
+                                    size='small'
+                                    theme='light'
+                                    onClick={() => {
+                                      if (groupName && formApiRef.current) {
+                                        formApiRef.current.setValue(
+                                          'group',
+                                          groupName,
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {cluster.name}
+                                  </Button>
+                                </Tooltip>
+                              );
+                            })}
+                        </Space>
+                      </Form.Slot>
+                    </Col>
+                  )}
                   <Col
                     span={24}
                     style={{
