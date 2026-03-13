@@ -1064,7 +1064,10 @@ func BindInviterByAffCode(userId int, affCode string) error {
 	// Wrap bind + reward in a transaction so a partial failure doesn't leave
 	// the user bound without receiving their quota (or vice-versa).
 	// All DB writes go through tx to ensure atomicity.
-	return DB.Transaction(func(tx *gorm.DB) error {
+	// RecordLog is deferred until after successful commit to avoid orphan logs on rollback.
+	inviteeRewarded := false
+	inviterRewarded := false
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		// Optimistic lock: only update when inviter_id is still 0, preventing race conditions.
 		result := tx.Model(&User{}).Where("id = ? AND inviter_id = 0", userId).
 			Update("inviter_id", inviterId)
@@ -1081,22 +1084,47 @@ func BindInviterByAffCode(userId int, affCode string) error {
 				Update("quota", gorm.Expr("quota + ?", common.QuotaForInvitee)).Error; err != nil {
 				return err
 			}
-			RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			inviteeRewarded = true
 		}
 
 		// Grant inviter reward via atomic SQL (uses tx, not DB).
 		// Avoids the read-modify-write race in inviteUser().
 		if common.QuotaForInviter > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
+			result := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
 				"aff_count":         gorm.Expr("aff_count + 1"),
 				"aff_quota":         gorm.Expr("aff_quota + ?", common.QuotaForInviter),
 				"aff_history_quota": gorm.Expr("aff_history_quota + ?", common.QuotaForInviter),
-			}).Error; err != nil {
-				return err
+			})
+			if result.Error != nil {
+				return result.Error
 			}
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			if result.RowsAffected != 1 {
+				return errors.New("邀请人不存在，绑定失败")
+			}
+			inviterRewarded = true
 		}
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Write logs only after successful commit to avoid orphan entries on rollback.
+	if inviteeRewarded {
+		RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		// Refresh invitee quota cache so the user sees the updated balance immediately.
+		gopool.Go(func() {
+			if err := cacheIncrUserQuota(userId, int64(common.QuotaForInvitee)); err != nil {
+				common.SysLog("failed to refresh invitee quota cache after bind: " + err.Error())
+			}
+		})
+	}
+	if inviterRewarded {
+		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+	}
+	// Invalidate cache for both parties so stale aff stats are cleared.
+	_ = invalidateUserCache(userId)
+	_ = invalidateUserCache(inviterId)
+	return nil
 }
