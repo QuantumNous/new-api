@@ -1989,15 +1989,17 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 {t('重置')}
               </Button>
             </Space>
-            <Button
-              type='tertiary'
-              theme='borderless'
-              size='small'
-              className='mt-1 whitespace-nowrap'
-              onClick={() => openFieldGuide('path')}
-            >
-              {t('字段速查')}
-            </Button>
+            {editMode === 'visual' && visualMode === 'operations' && (
+              <Button
+                type='tertiary'
+                theme='borderless'
+                size='small'
+                className='mt-1 whitespace-nowrap'
+                onClick={() => openFieldGuide('path')}
+              >
+                {t('字段速查')}
+              </Button>
+            )}
           </div>
         </Card>
 

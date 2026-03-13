@@ -58,10 +58,11 @@ var apiSamples = []APISample{
 	},
 	{
 		Format: APIFormatClaude,
-		Input:  `{"model":"anthropic/claude-3","max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		Input:  `{"model":"anthropic/claude-3","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
 		PathTransforms: map[string]string{
-			"model":      "model",
-			"max_tokens": "max_tokens",
+			"model":       "model",
+			"temperature": "temperature",
+			"max_tokens":  "max_tokens",
 		},
 	},
 	{
@@ -2187,6 +2188,206 @@ func TestBuildParamOverrideContext_NilRequest(t *testing.T) {
 	// 验证 $ 不存在
 	if _, exists := ctx["$"]; exists {
 		t.Error("Expected $ to not exist for nil request")
+	}
+}
+
+// TestParamOverrideEndToEnd_MetadataDriven 测试端到端的元数据驱动 override 功能
+// 验证 BuildParamOverrideContext 和 ApplyParamOverrideWithRelayInfo 的完整流程
+func TestParamOverrideEndToEnd_MetadataDriven(t *testing.T) {
+	// 创建一个包含图片、视频和文本的复杂请求
+	// 注意：video_url 使用字符串格式（根据 ParseContent 方法的实现）
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4o",
+		Messages: []dto.Message{
+			{
+				Role: "system",
+				Content: []any{
+					map[string]any{"type": "text", "text": "你是一个有用的助手"},
+				},
+			},
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "请分析这张图片和这个视频"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/image1.jpg"}},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/image2.png"}},
+					map[string]any{"type": "video_url", "video_url": "https://example.com/video.mp4"},
+				},
+			},
+		},
+	}
+
+	// 创建 ParamOverride，基于 token、图片数量、视频数量设置条件
+	paramOverride := map[string]interface{}{
+		"operations": []interface{}{
+			// 当图片数量 >= 2 时，增加 max_tokens
+			map[string]interface{}{
+				"path":  "max_tokens",
+				"mode":  "set",
+				"value": 8192,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "count_image",
+						"mode":  "gte",
+						"value": 2,
+					},
+				},
+			},
+			// 当视频数量 >= 1 时，设置 temperature 为 0.5
+			map[string]interface{}{
+				"path":  "temperature",
+				"mode":  "set",
+				"value": 0.5,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "count_video",
+						"mode":  "gte",
+						"value": 1,
+					},
+				},
+			},
+			// 当 estimate_tokens > 10 时，添加一个标记字段
+			map[string]interface{}{
+				"path":  "metadata.high_token_request",
+				"mode":  "set",
+				"value": true,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "estimate_tokens",
+						"mode":  "gt",
+						"value": 10,
+					},
+				},
+			},
+		},
+	}
+
+	// 创建 RelayInfo
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4o",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: paramOverride,
+		},
+	}
+	// 设置 estimatePromptTokens（模拟实际场景中的 token 估算）
+	info.SetEstimatePromptTokens(100)
+
+	// 步骤 1: 调用 BuildParamOverrideContext 构建上下文
+	ctx := BuildParamOverrideContext(info)
+
+	// 验证元数据被正确提取到上下文中
+	// 验证 count_image = 2
+	if count, ok := ctx["count_image"].(int); !ok || count != 2 {
+		t.Errorf("Expected count_image to be 2, got %v", ctx["count_image"])
+	}
+
+	// 验证 count_video = 1
+	if count, ok := ctx["count_video"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_video to be 1, got %v", ctx["count_video"])
+	}
+
+	// 验证 estimate_tokens = 100
+	if tokens, ok := ctx["estimate_tokens"].(int); !ok || tokens != 100 {
+		t.Errorf("Expected estimate_tokens to be 100, got %v", ctx["estimate_tokens"])
+	}
+
+	// 验证 message_count = 2
+	if count, ok := ctx["message_count"].(int); !ok || count != 2 {
+		t.Errorf("Expected message_count to be 2, got %v", ctx["message_count"])
+	}
+
+	// 验证 text_length > 0
+	if length, ok := ctx["text_length"].(int); !ok || length <= 0 {
+		t.Errorf("Expected text_length to be positive, got %v", ctx["text_length"])
+	}
+
+	// 步骤 2: 调用 ApplyParamOverrideWithRelayInfo 应用 override
+	input := `{"model":"gpt-4o","max_tokens":1000,"temperature":0.7}`
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(input), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+
+	// 解析结果
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	// 验证 override 效果：max_tokens 应该被设置为 8192（因为 count_image >= 2）
+	if maxTokens, ok := result["max_tokens"].(float64); !ok || maxTokens != 8192 {
+		t.Errorf("Expected max_tokens to be 8192 (override by image count), got %v", result["max_tokens"])
+	}
+
+	// 验证 override 效果：temperature 应该被设置为 0.5（因为 count_video >= 1）
+	if temp, ok := result["temperature"].(float64); !ok || temp != 0.5 {
+		t.Errorf("Expected temperature to be 0.5 (override by video count), got %v", result["temperature"])
+	}
+
+	// 验证 override 效果：metadata.high_token_request 应该被设置为 true（因为 estimate_tokens > 10）
+	metadata, ok := result["metadata"].(map[string]interface{})
+	if !ok {
+		t.Errorf("Expected metadata field to be present")
+	} else if highToken, ok := metadata["high_token_request"].(bool); !ok || !highToken {
+		t.Errorf("Expected metadata.high_token_request to be true (override by estimate_tokens), got %v", metadata["high_token_request"])
+	}
+}
+
+// TestParamOverrideEndToEnd_TokenBasedCondition 测试基于 estimate_tokens 的条件 override
+func TestParamOverrideEndToEnd_TokenBasedCondition(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "这是一段很长的文本内容，用于测试基于 token 数量的条件判断逻辑",
+			},
+		},
+	}
+
+	paramOverride := map[string]interface{}{
+		"operations": []interface{}{
+			// 当 estimate_tokens >= 50 时，启用 stream
+			map[string]interface{}{
+				"path":  "stream",
+				"mode":  "set",
+				"value": true,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "estimate_tokens",
+						"mode":  "gte",
+						"value": 50,
+					},
+				},
+			},
+		},
+	}
+
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: paramOverride,
+		},
+	}
+	info.SetEstimatePromptTokens(100)
+
+	// 调用 ApplyParamOverrideWithRelayInfo
+	input := `{"model":"gpt-4","max_tokens":500}`
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(input), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	// 验证 stream 被设置为 true
+	if stream, ok := result["stream"].(bool); !ok || !stream {
+		t.Errorf("Expected stream to be true (override by estimate_tokens >= 50), got %v", result["stream"])
 	}
 }
 

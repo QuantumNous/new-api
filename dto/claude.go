@@ -386,12 +386,10 @@ func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
 
 	for _, msg := range c.Messages {
 		var msgTextLength int
-		var contentStr string
 
 		// 处理字符串类型的 content
 		if msg.IsStringContent() {
-			contentStr = msg.GetStringContent()
-			msgTextLength = utf8.RuneCountInString(contentStr)
+			msgTextLength = utf8.RuneCountInString(msg.GetStringContent())
 		} else {
 			// 处理数组类型的 content
 			contents, err := msg.ParseContent()
@@ -414,8 +412,6 @@ func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
 					}
 				}
 			}
-			// 获取数组类型 content 的文本内容用于估算 token
-			contentStr = msg.GetStringContent()
 		}
 
 		meta.TextLength += msgTextLength
