@@ -55,6 +55,22 @@ type CameraControl struct {
 	Config *CameraConfig `json:"config,omitempty"`
 }
 
+// Omni-Video specific structures
+type ImageItem struct {
+	ImageUrl string `json:"image_url,omitempty"`
+	Type     string `json:"type,omitempty"` // first_frame or end_frame
+}
+
+type ElementItem struct {
+	ElementId int64 `json:"element_id,omitempty"`
+}
+
+type VideoItem struct {
+	VideoUrl          string `json:"video_url,omitempty"`
+	ReferType         string `json:"refer_type,omitempty"`          // feature or base
+	KeepOriginalSound string `json:"keep_original_sound,omitempty"` // yes or no
+}
+
 type requestPayload struct {
 	Prompt         string         `json:"prompt,omitempty"`
 	Image          string         `json:"image,omitempty"`
@@ -71,6 +87,10 @@ type requestPayload struct {
 	CameraControl  *CameraControl `json:"camera_control,omitempty"`
 	CallbackUrl    string         `json:"callback_url,omitempty"`
 	ExternalTaskId string         `json:"external_task_id,omitempty"`
+	// Omni-Video specific fields
+	ImageList   []ImageItem   `json:"image_list,omitempty"`
+	ElementList []ElementItem `json:"element_list,omitempty"`
+	VideoList   []VideoItem   `json:"video_list,omitempty"`
 }
 
 type responsePayload struct {
@@ -134,7 +154,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	path := lo.Ternary(info.Action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
+	var path string
+	if strings.Contains(info.OriginModelName, "o1") {
+		path = "/v1/videos/omni-video"
+	} else {
+		path = lo.Ternary(info.Action == constant.TaskActionGenerate, "/v1/videos/image2video", "/v1/videos/text2video")
+	}
 
 	if isNewAPIRelay(info.ApiKey) {
 		return fmt.Sprintf("%s/kling%s", a.baseURL, path), nil
@@ -159,11 +184,10 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 // BuildRequestBody converts request into Kling specific format.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	v, exists := c.Get("task_request")
-	if !exists {
-		return nil, fmt.Errorf("request not found in context")
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, err
 	}
-	req := v.(relaycommon.TaskSubmitReq)
 
 	body, err := a.convertToRequestPayload(&req, info)
 	if err != nil {
