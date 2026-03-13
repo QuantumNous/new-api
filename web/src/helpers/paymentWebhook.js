@@ -16,6 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
+/**
+ * 构建支付渠道的 webhook 回调地址。
+ * @param {string | null | undefined} serverAddress - 后台配置的站点地址
+ * @param {string} provider - 支付渠道标识
+ * @param {string} [fallbackBaseLabel=''] - 站点地址缺失时使用的展示占位
+ * @returns {string} 标准化后的 webhook 地址
+ */
 export function getPaymentWebhookUrl(
   serverAddress,
   provider,

@@ -37,6 +37,13 @@ import { getPaymentWebhookUrl } from '../../../helpers/paymentWebhook.js';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
 
+/**
+ * Creem 支付渠道设置面板，负责展示和提交网关配置及产品列表。
+ * @param {object} props - 组件属性
+ * @param {Record<string, string | undefined>} [props.options] - 当前已加载的配置项
+ * @param {() => void} [props.refresh] - 配置保存成功后的刷新回调
+ * @returns {JSX.Element} Creem 设置表单
+ */
 export default function SettingsPaymentGatewayCreem(props) {
   const { t } = useTranslation();
   const creemWebhookUrl = getPaymentWebhookUrl(
