@@ -167,6 +167,9 @@ export const useLogsData = () => {
     getInitialBillingDisplayMode,
   );
 
+  // Grouping state
+  const [groupBy, setGroupBy] = useState([]);
+
   // Compact mode
   const [compactMode, setCompactMode] = useTableCompactMode('logs');
 
@@ -658,6 +661,65 @@ export const useLogsData = () => {
     setLogs(logs);
   };
 
+  // Group logs data based on groupBy state
+  const getProcessedLogs = () => {
+    if (!groupBy || groupBy.length === 0) {
+      return logs;
+    }
+
+    // Create a map to group logs
+    const grouped = {};
+
+    logs.forEach((log) => {
+      // Build group key based on selected grouping options
+      const keyParts = [];
+
+      if (groupBy.includes('user')) {
+        keyParts.push(log.display_name || log.username || 'Unknown');
+      }
+      if (groupBy.includes('hour')) {
+        const date = new Date(log.created_at * 1000);
+        keyParts.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`);
+      }
+      if (groupBy.includes('model')) {
+        keyParts.push(log.model_name || 'No Model');
+      }
+
+      const groupKey = keyParts.join(' | ') || 'All';
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          key: groupKey,
+          groupKey: groupKey,
+          logs: [],
+          count: 0,
+          totalQuota: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+        };
+      }
+
+      grouped[groupKey].logs.push(log);
+      grouped[groupKey].count++;
+      grouped[groupKey].totalQuota += log.quota || 0;
+      grouped[groupKey].totalPromptTokens += log.prompt_tokens || 0;
+      grouped[groupKey].totalCompletionTokens += log.completion_tokens || 0;
+    });
+
+    // Convert grouped object to array and add summary as the first item
+    return Object.values(grouped).map((group) => ({
+      ...group.logs[0], // Use first log as base
+      key: group.groupKey,
+      groupKey: group.groupKey,
+      isGroupSummary: true,
+      groupedLogs: group.logs,
+      count: group.count,
+      totalQuota: group.totalQuota,
+      totalPromptTokens: group.totalPromptTokens,
+      totalCompletionTokens: group.totalCompletionTokens,
+    }));
+  };
+
   // Load logs function
   const loadLogs = async (startIdx, pageSize, customLogType = null) => {
     setLoading(true);
@@ -795,6 +857,11 @@ export const useLogsData = () => {
     handleSelectAll,
     initDefaultColumns,
     COLUMN_KEYS,
+
+    // Grouping
+    groupBy,
+    setGroupBy,
+    getProcessedLogs,
 
     // Compact mode
     compactMode,

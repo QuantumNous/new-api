@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Form, Select } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
@@ -32,6 +32,8 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  groupBy,
+  setGroupBy,
   t,
 }) => {
   return (
@@ -183,6 +185,18 @@ const LogsFilters = ({
             >
               {t('列设置')}
             </Button>
+            <Select
+              multiple
+              value={groupBy}
+              onChange={(value) => setGroupBy(value)}
+              placeholder={t('分组')}
+              size='small'
+              style={{ minWidth: '120px' }}
+            >
+              <Select.Option value='user'>{t('用户')}</Select.Option>
+              <Select.Option value='hour'>{t('小时')}</Select.Option>
+              <Select.Option value='model'>{t('模型')}</Select.Option>
+            </Select>
           </div>
         </div>
       </div>
