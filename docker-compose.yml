@@ -39,7 +39,7 @@ services:
 #      retries: 3
 
   new-api:
-    image: new-api:local
+    image: calciumion/new-api:latest
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
