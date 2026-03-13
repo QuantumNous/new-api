@@ -25,6 +25,7 @@ import { StatusContext } from '../../context/Status';
 import DashboardHeader from './DashboardHeader';
 import StatsCards from './StatsCards';
 import ChartsPanel from './ChartsPanel';
+import UserConsumeRankingPanel from './UserConsumeRankingPanel';
 import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
@@ -87,12 +88,10 @@ const Dashboard = () => {
 
   // ========== 数据处理 ==========
   const initChart = async () => {
-    await dashboardData.loadQuotaData().then((data) => {
-      if (data && data.length > 0) {
-        dashboardCharts.updateChartData(data);
-      }
-    });
-    await dashboardData.loadUptimeData();
+    const data = await dashboardData.refresh();
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
   };
 
   const handleRefresh = async () => {
@@ -202,6 +201,19 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {dashboardData.isAdminUser && (
+        <div className='mb-4'>
+          <UserConsumeRankingPanel
+            userConsumeRankings={dashboardData.userConsumeRankings}
+            userRankLoading={dashboardData.userRankLoading}
+            inputs={dashboardData.inputs}
+            CARD_PROPS={CARD_PROPS}
+            FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
+            t={dashboardData.t}
+          />
+        </div>
+      )}
 
       {/* 系统公告和常见问答卡片 */}
       {dashboardData.hasInfoPanels && (

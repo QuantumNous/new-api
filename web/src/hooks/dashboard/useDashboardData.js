@@ -81,6 +81,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [uptimeLoading, setUptimeLoading] = useState(false);
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
 
+  // ========== 用户排行数据 ==========
+  const [userConsumeRankings, setUserConsumeRankings] = useState({
+    token_rank: [],
+    quota_rank: [],
+  });
+  const [userRankLoading, setUserRankLoading] = useState(false);
+
   // ========== 常量 ==========
   const now = new Date();
   const isAdminUser = isAdmin();
@@ -213,6 +220,60 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [activeUptimeTab]);
 
+  const loadUserConsumeRankings = useCallback(async () => {
+    if (!isAdminUser) {
+      setUserConsumeRankings({
+        token_rank: [],
+        quota_rank: [],
+      });
+      return {
+        token_rank: [],
+        quota_rank: [],
+      };
+    }
+    setUserRankLoading(true);
+    try {
+      const { start_timestamp, end_timestamp, username } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const usernameQuery = username
+        ? `&username=${encodeURIComponent(username)}`
+        : '';
+      const url = `/api/data/rank/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&limit=20${usernameQuery}`;
+
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        const rankData = data || { token_rank: [], quota_rank: [] };
+        setUserConsumeRankings(rankData);
+        return rankData;
+      } else {
+        showError(message);
+        setUserConsumeRankings({
+          token_rank: [],
+          quota_rank: [],
+        });
+        return {
+          token_rank: [],
+          quota_rank: [],
+        };
+      }
+    } catch (err) {
+      console.error(err);
+      showError(t('加载失败'));
+      setUserConsumeRankings({
+        token_rank: [],
+        quota_rank: [],
+      });
+      return {
+        token_rank: [],
+        quota_rank: [],
+      };
+    } finally {
+      setUserRankLoading(false);
+    }
+  }, [inputs, isAdminUser, t]);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -224,10 +285,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [userDispatch]);
 
   const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
+    const [data] = await Promise.all([
+      loadQuotaData(),
+      loadUptimeData(),
+      loadUserConsumeRankings(),
+    ]);
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadUptimeData, loadUserConsumeRankings]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -293,6 +357,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     uptimeLoading,
     activeUptimeTab,
     setActiveUptimeTab,
+    userConsumeRankings,
+    userRankLoading,
 
     // 计算值
     timeOptions,
@@ -312,6 +378,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleCloseModal,
     loadQuotaData,
     loadUptimeData,
+    loadUserConsumeRankings,
     getUserData,
     refresh,
     handleSearchConfirm,
