@@ -783,6 +783,10 @@ const TopUp = () => {
           setOpenTransfer={setOpenTransfer}
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
+          API={API}
+          showSuccess={showSuccess}
+          showError={showError}
+          reloadUser={getUserQuota}
         />
       </div>
     </div>

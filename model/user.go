@@ -1037,3 +1037,49 @@ func RootUserExists() bool {
 	}
 	return true
 }
+
+// BindInviterByAffCode binds an existing user to an inviter via aff code.
+// Only allowed if the user has no inviter yet and the feature is enabled by admin.
+func BindInviterByAffCode(userId int, affCode string) error {
+	if !common.AllowExistingUserBindInviterEnabled {
+		return errors.New("管理员未开启此功能")
+	}
+
+	user, err := GetUserById(userId, false)
+	if err != nil {
+		return err
+	}
+	if user.InviterId != 0 {
+		return errors.New("您已绑定过邀请人，无法重复绑定")
+	}
+
+	inviterId, err := GetUserIdByAffCode(affCode)
+	if err != nil || inviterId == 0 {
+		return errors.New("邀请码无效")
+	}
+	if inviterId == userId {
+		return errors.New("不能绑定自己的邀请码")
+	}
+
+	// Optimistic lock: only update when inviter_id is still 0, preventing race conditions.
+	result := DB.Model(&User{}).Where("id = ? AND inviter_id = 0", userId).
+		Update("inviter_id", inviterId)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("绑定失败，请重试")
+	}
+
+	// Grant rewards using the same logic as registration.
+	if common.QuotaForInvitee > 0 {
+		_ = IncreaseUserQuota(userId, common.QuotaForInvitee, true)
+		RecordLog(userId, LogTypeSystem, fmt.Sprintf("绑定邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+	}
+	if common.QuotaForInviter > 0 {
+		_ = inviteUser(inviterId)
+		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("被邀请用户绑定赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+	}
+
+	return nil
+}

@@ -36,6 +36,7 @@ export default function SettingsCreditLimit(props) {
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
+    AllowExistingUserBindInviterEnabled: false,
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -162,6 +163,23 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       QuotaForInvitee: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col>
+                <Form.Switch
+                  label={t('允许已注册用户绑定邀请人')}
+                  field={'AllowExistingUserBindInviterEnabled'}
+                  extraText={t(
+                    '开启后，已注册用户可在邀请返利页填写邀请码绑定邀请人，双方均可获得额度奖励',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AllowExistingUserBindInviterEnabled: value,
                     })
                   }
                 />
