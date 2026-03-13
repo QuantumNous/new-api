@@ -153,7 +153,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 						if common.DebugEnabled {
 							println("ping data sent")
 						}
-					case <-time.After(10 * time.Second):
+					case <-time.After(time.Duration(constant.ChannelWriteTimeout) * time.Second):
 						logger.LogError(c, "ping data send timeout")
 						return
 					case <-ctx.Done():
