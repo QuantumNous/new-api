@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
-var Chats = []map[string]string{
+var Chats = []dto.ChatEntry{
 	//{
 	//	"ChatGPT Next Web 官方示例": "https://app.nextchat.dev/#/?settings={\"key\":\"{key}\",\"url\":\"{address}\"}",
 	//},
@@ -37,7 +38,7 @@ var Chats = []map[string]string{
 }
 
 func UpdateChatsByJsonString(jsonString string) error {
-	Chats = make([]map[string]string, 0)
+	Chats = make([]dto.ChatEntry, 0)
 	return json.Unmarshal([]byte(jsonString), &Chats)
 }
 

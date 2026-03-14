@@ -8,31 +8,27 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 	"github.com/go-webauthn/webauthn/protocol"
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
 func PasskeyRegisterBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
@@ -69,30 +65,22 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"options": creation,
-		},
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "",
+		Data:    dto.PasskeyOptionsData{Options: creation},
 	})
 }
 
 func PasskeyRegisterFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
@@ -135,19 +123,13 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Passkey 注册成功",
-	})
+	c.JSON(http.StatusOK, dto.ApiResponse{Success: true, Message: "Passkey 注册成功"})
 }
 
 func PasskeyDelete(c *gin.Context) {
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
@@ -156,30 +138,22 @@ func PasskeyDelete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Passkey 已解绑",
-	})
+	c.JSON(http.StatusOK, dto.ApiResponse{Success: true, Message: "Passkey 已解绑"})
 }
 
 func PasskeyStatus(c *gin.Context) {
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if errors.Is(err, model.ErrPasskeyNotFound) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "",
-			"data": gin.H{
-				"enabled": false,
-			},
+		c.JSON(http.StatusOK, dto.ApiResponse{
+			Success: true,
+			Message: "",
+			Data:    dto.PasskeyStatusData{Enabled: false},
 		})
 		return
 	}
@@ -188,24 +162,16 @@ func PasskeyStatus(c *gin.Context) {
 		return
 	}
 
-	data := gin.H{
-		"enabled":      true,
-		"last_used_at": credential.LastUsedAt,
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "",
+		Data:    dto.PasskeyStatusData{Enabled: true, LastUsedAt: credential.LastUsedAt},
 	})
 }
 
 func PasskeyLoginBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
@@ -226,21 +192,16 @@ func PasskeyLoginBegin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"options": assertion,
-		},
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "",
+		Data:    dto.PasskeyOptionsData{Options: assertion},
 	})
 }
 
 func PasskeyLoginFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
@@ -326,66 +287,46 @@ func PasskeyLoginFinish(c *gin.Context) {
 	return
 }
 
-func AdminResetPasskey(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func AdminResetPasskey(c fuego.ContextNoBody) (dto.MessageResponse, error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiErrorMsg(c, "无效的用户 ID")
-		return
+		return dto.FailMsg("无效的用户 ID")
 	}
 
 	user := &model.User{Id: id}
 	if err := user.FillUserById(); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 
 	if _, err := model.GetPasskeyByUserID(user.Id); err != nil {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "该用户尚未绑定 Passkey",
-			})
-			return
+			return dto.FailMsg("该用户尚未绑定 Passkey")
 		}
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 
 	if err := model.DeletePasskeyByUserID(user.Id); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Passkey 已重置",
-	})
+	return dto.Msg("Passkey 已重置")
 }
 
 func PasskeyVerifyBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户尚未绑定 Passkey",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "该用户尚未绑定 Passkey"})
 		return
 	}
 
@@ -407,30 +348,22 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data": gin.H{
-			"options": assertion,
-		},
+	c.JSON(http.StatusOK, dto.ApiResponse{
+		Success: true,
+		Message: "",
+		Data:    dto.PasskeyOptionsData{Options: assertion},
 	})
 }
 
 func PasskeyVerifyFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "管理员未启用 Passkey 登录",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "管理员未启用 Passkey 登录"})
 		return
 	}
 
 	user, err := getSessionUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, dto.ApiResponse{Message: err.Error()})
 		return
 	}
 
@@ -442,10 +375,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户尚未绑定 Passkey",
-		})
+		c.JSON(http.StatusOK, dto.ApiResponse{Message: "该用户尚未绑定 Passkey"})
 		return
 	}
 
@@ -470,10 +400,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Passkey 验证成功",
-	})
+	c.JSON(http.StatusOK, dto.ApiResponse{Success: true, Message: "Passkey 验证成功"})
 }
 
 func getSessionUser(c *gin.Context) (*model.User, error) {

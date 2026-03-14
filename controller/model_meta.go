@@ -6,21 +6,27 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
-// GetAllModelsMeta 获取模型列表（分页）
-func GetAllModelsMeta(c *gin.Context) {
+// ModelsMetaListData is a typed version for OpenAPI schema generation.
+type ModelsMetaListData struct {
+	Items        []*model.Model  `json:"items"`
+	Total        int64           `json:"total"`
+	Page         int             `json:"page"`
+	PageSize     int             `json:"page_size"`
+	VendorCounts map[int64]int64 `json:"vendor_counts"`
+}
 
-	pageInfo := common.GetPageQuery(c)
+// GetAllModelsMeta 获取模型列表（分页）
+func GetAllModelsMeta(c fuego.ContextNoBody) (*dto.Response[ModelsMetaListData], error) {
+	pageInfo := dto.PageInfo(c)
 	modelsMeta, err := model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[ModelsMetaListData](err.Error())
 	}
 	// 批量填充附加字段，提升列表接口性能
 	enrichModels(modelsMeta)
@@ -30,134 +36,110 @@ func GetAllModelsMeta(c *gin.Context) {
 	// 统计供应商计数（全部数据，不受分页影响）
 	vendorCounts, _ := model.GetVendorModelCounts()
 
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(modelsMeta)
-	common.ApiSuccess(c, gin.H{
-		"items":         modelsMeta,
-		"total":         total,
-		"page":          pageInfo.GetPage(),
-		"page_size":     pageInfo.GetPageSize(),
-		"vendor_counts": vendorCounts,
+	return dto.Ok(ModelsMetaListData{
+		Items:        modelsMeta,
+		Total:        total,
+		Page:         pageInfo.GetPage(),
+		PageSize:     pageInfo.GetPageSize(),
+		VendorCounts: vendorCounts,
 	})
 }
 
 // SearchModelsMeta 搜索模型列表
-func SearchModelsMeta(c *gin.Context) {
+func SearchModelsMeta(c fuego.ContextWithParams[dto.SearchModelsMetaParams]) (*dto.Response[dto.PageData[*model.Model]], error) {
+	p, _ := dto.ParseParams[dto.SearchModelsMetaParams](c)
+	pageInfo := dto.PageInfo(c)
 
-	keyword := c.Query("keyword")
-	vendor := c.Query("vendor")
-	pageInfo := common.GetPageQuery(c)
-
-	modelsMeta, total, err := model.SearchModels(keyword, vendor, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	modelsMeta, total, err := model.SearchModels(p.Keyword, p.Vendor, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Model](err.Error())
 	}
 	// 批量填充附加字段，提升列表接口性能
 	enrichModels(modelsMeta)
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(modelsMeta)
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(pageInfo, modelsMeta, int(total))
 }
 
 // GetModelMeta 根据 ID 获取单条模型信息
-func GetModelMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+func GetModelMeta(c fuego.ContextNoBody) (*dto.Response[model.Model], error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Model](err.Error())
 	}
 	var m model.Model
 	if err := model.DB.First(&m, id).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Model](err.Error())
 	}
 	enrichModels([]*model.Model{&m})
-	common.ApiSuccess(c, &m)
+	return dto.Ok(m)
 }
 
 // CreateModelMeta 新建模型
-func CreateModelMeta(c *gin.Context) {
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
-		common.ApiError(c, err)
-		return
+func CreateModelMeta(c fuego.ContextWithBody[model.Model]) (*dto.Response[model.Model], error) {
+	m, err := c.Body()
+	if err != nil {
+		return dto.Fail[model.Model](err.Error())
 	}
 	if m.ModelName == "" {
-		common.ApiErrorMsg(c, "模型名称不能为空")
-		return
+		return dto.Fail[model.Model]("模型名称不能为空")
 	}
 	// 名称冲突检查
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Model](err.Error())
 	} else if dup {
-		common.ApiErrorMsg(c, "模型名称已存在")
-		return
+		return dto.Fail[model.Model]("模型名称已存在")
 	}
 
 	if err := m.Insert(); err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Model](err.Error())
 	}
 	model.RefreshPricing()
-	common.ApiSuccess(c, &m)
+	return dto.Ok(m)
 }
 
 // UpdateModelMeta 更新模型
-func UpdateModelMeta(c *gin.Context) {
-	statusOnly := c.Query("status_only") == "true"
+func UpdateModelMeta(c fuego.Context[model.Model, dto.StatusOnlyParams]) (*dto.Response[model.Model], error) {
+	p, _ := dto.ParseParams[dto.StatusOnlyParams](c)
 
-	var m model.Model
-	if err := c.ShouldBindJSON(&m); err != nil {
-		common.ApiError(c, err)
-		return
+	m, err := c.Body()
+	if err != nil {
+		return dto.Fail[model.Model](err.Error())
 	}
 	if m.Id == 0 {
-		common.ApiErrorMsg(c, "缺少模型 ID")
-		return
+		return dto.Fail[model.Model]("缺少模型 ID")
 	}
 
-	if statusOnly {
+	if p.StatusOnly == "true" {
 		// 只更新状态，防止误清空其他字段
 		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[model.Model](err.Error())
 		}
 	} else {
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[model.Model](err.Error())
 		} else if dup {
-			common.ApiErrorMsg(c, "模型名称已存在")
-			return
+			return dto.Fail[model.Model]("模型名称已存在")
 		}
 
 		if err := m.Update(); err != nil {
-			common.ApiError(c, err)
-			return
+			return dto.Fail[model.Model](err.Error())
 		}
 	}
 	model.RefreshPricing()
-	common.ApiSuccess(c, &m)
+	return dto.Ok(m)
 }
 
 // DeleteModelMeta 删除模型
-func DeleteModelMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+func DeleteModelMeta(c fuego.ContextNoBody) (dto.MessageResponse, error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	if err := model.DB.Delete(&model.Model{}, id).Error; err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
 	model.RefreshPricing()
-	common.ApiSuccess(c, nil)
+	return dto.Msg("")
 }
 
 // enrichModels 批量填充附加信息：端点、渠道、分组、计费类型，避免 N+1 查询

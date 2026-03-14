@@ -1,187 +1,140 @@
 package controller
 
 import (
-	"net/http"
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/go-fuego/fuego"
 
 	"github.com/gin-gonic/gin"
 )
 
-func GetAllRedemptions(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func GetAllRedemptions(c fuego.ContextNoBody) (*dto.Response[dto.PageData[*model.Redemption]], error) {
+	pageInfo := dto.PageInfo(c)
 	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Redemption](err.Error())
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(redemptions)
-	common.ApiSuccess(c, pageInfo)
-	return
+	return dto.OkPage(pageInfo, redemptions, int(total))
 }
 
-func SearchRedemptions(c *gin.Context) {
-	keyword := c.Query("keyword")
-	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+func SearchRedemptions(c fuego.ContextWithParams[dto.SearchRedemptionsParams]) (*dto.Response[dto.PageData[*model.Redemption]], error) {
+	p, _ := dto.ParseParams[dto.SearchRedemptionsParams](c)
+	pageInfo := dto.PageInfo(c)
+	redemptions, total, err := model.SearchRedemptions(p.Keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailPage[*model.Redemption](err.Error())
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(redemptions)
-	common.ApiSuccess(c, pageInfo)
-	return
+	return dto.OkPage(pageInfo, redemptions, int(total))
 }
 
-func GetRedemption(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func GetRedemption(c fuego.ContextNoBody) (*dto.Response[model.Redemption], error) {
+	id, err := c.PathParamIntErr("id")
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Redemption](err.Error())
 	}
 	redemption, err := model.GetRedemptionById(id)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Redemption](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    redemption,
-	})
-	return
+	return dto.Ok(*redemption)
 }
 
-func AddRedemption(c *gin.Context) {
-	redemption := model.Redemption{}
-	err := c.ShouldBindJSON(&redemption)
+func AddRedemption(c fuego.ContextWithBody[model.Redemption]) (*dto.Response[[]string], error) {
+	ginCtx := dto.GinCtx(c)
+	redemption, err := c.Body()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[[]string](err.Error())
 	}
 	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
-		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
-		return
+		return dto.Fail[[]string](common.TranslateMessage(ginCtx, i18n.MsgRedemptionNameLength))
 	}
 	if redemption.Count <= 0 {
-		common.ApiErrorI18n(c, i18n.MsgRedemptionCountPositive)
-		return
+		return dto.Fail[[]string](common.TranslateMessage(ginCtx, i18n.MsgRedemptionCountPositive))
 	}
 	if redemption.Count > 100 {
-		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
-		return
+		return dto.Fail[[]string](common.TranslateMessage(ginCtx, i18n.MsgRedemptionCountMax))
 	}
-	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
-		return
+	if valid, msg := validateExpiredTime(ginCtx, redemption.ExpiredTime); !valid {
+		return dto.Fail[[]string](msg)
 	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
+			UserId:      dto.UserID(c),
 			Name:        redemption.Name,
 			Key:         key,
 			CreatedTime: common.GetTimestamp(),
 			Quota:       redemption.Quota,
 			ExpiredTime: redemption.ExpiredTime,
 		}
-		err = cleanRedemption.Insert()
+		err := cleanRedemption.Insert()
 		if err != nil {
 			common.SysError("failed to insert redemption: " + err.Error())
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": i18n.T(c, i18n.MsgRedemptionCreateFailed),
-				"data":    keys,
-			})
-			return
+			return &dto.Response[[]string]{
+				Message: common.TranslateMessage(ginCtx, i18n.MsgRedemptionCreateFailed),
+				Data:    keys,
+			}, nil
 		}
 		keys = append(keys, key)
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    keys,
-	})
-	return
+	return dto.Ok(keys)
 }
 
-func DeleteRedemption(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+func DeleteRedemption(c fuego.ContextNoBody) (dto.MessageResponse, error) {
+	id := c.PathParamInt("id")
 	err := model.DeleteRedemptionById(id)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.FailMsg(err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	return dto.Msg("")
 }
 
-func UpdateRedemption(c *gin.Context) {
-	statusOnly := c.Query("status_only")
-	redemption := model.Redemption{}
-	err := c.ShouldBindJSON(&redemption)
+func UpdateRedemption(c fuego.Context[model.Redemption, dto.StatusOnlyParams]) (*dto.Response[model.Redemption], error) {
+	ginCtx := dto.GinCtx(c)
+	p, _ := dto.ParseParams[dto.StatusOnlyParams](c)
+	redemption, err := c.Body()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Redemption](err.Error())
 	}
 	cleanRedemption, err := model.GetRedemptionById(redemption.Id)
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Redemption](err.Error())
 	}
-	if statusOnly == "" {
-		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
-			return
+	if p.StatusOnly == "" {
+		if valid, msg := validateExpiredTime(ginCtx, redemption.ExpiredTime); !valid {
+			return dto.Fail[model.Redemption](msg)
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
-	if statusOnly != "" {
+	if p.StatusOnly != "" {
 		cleanRedemption.Status = redemption.Status
 	}
 	err = cleanRedemption.Update()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[model.Redemption](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    cleanRedemption,
-	})
-	return
+	return dto.Ok(*cleanRedemption)
 }
 
-func DeleteInvalidRedemption(c *gin.Context) {
+func DeleteInvalidRedemption(c fuego.ContextNoBody) (*dto.Response[int64], error) {
 	rows, err := model.DeleteInvalidRedemptions()
 	if err != nil {
-		common.ApiError(c, err)
-		return
+		return dto.Fail[int64](err.Error())
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    rows,
-	})
-	return
+	return dto.Ok(rows)
 }
 
 func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {
 	if expired != 0 && expired < common.GetTimestamp() {
-		return false, i18n.T(c, i18n.MsgRedemptionExpireTimeInvalid)
+		return false, common.TranslateMessage(c, i18n.MsgRedemptionExpireTimeInvalid)
 	}
 	return true, ""
 }

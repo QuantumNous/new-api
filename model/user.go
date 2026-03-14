@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -23,7 +23,7 @@ const UserNameMaxLength = 20
 type User struct {
 	Id               int            `json:"id"`
 	Username         string         `json:"username" gorm:"unique;index" validate:"max=20"`
-	Password         string         `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	Password         string         `json:"password" gorm:"not null;" validate:"omitempty,min=8,max=20"`
 	OriginalPassword string         `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
@@ -76,8 +76,8 @@ func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
-func (user *User) GetSetting() dto.UserSetting {
-	setting := dto.UserSetting{}
+func (user *User) GetSetting() types.UserSetting {
+	setting := types.UserSetting{}
 	if user.Setting != "" {
 		err := json.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
@@ -87,7 +87,7 @@ func (user *User) GetSetting() dto.UserSetting {
 	return setting
 }
 
-func (user *User) SetSetting(setting dto.UserSetting) {
+func (user *User) SetSetting(setting types.UserSetting) {
 	settingBytes, err := json.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
@@ -390,7 +390,7 @@ func (user *User) Insert(inviterId int) error {
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := types.UserSetting{}
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
@@ -448,7 +448,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 
 	// 初始化用户设置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := types.UserSetting{}
 		user.SetSetting(defaultSetting)
 	}
 
@@ -834,7 +834,7 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 }
 
 // GetUserSetting gets setting from Redis first, falls back to DB if needed
-func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error) {
+func GetUserSetting(id int, fromDB bool) (settingMap types.UserSetting, err error) {
 	var setting string
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read

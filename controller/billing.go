@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -56,7 +57,7 @@ func GetSubscription(c *gin.Context) {
 	if token != nil && token.UnlimitedQuota {
 		amount = 100000000
 	}
-	subscription := OpenAISubscriptionResponse{
+	subscription := dto.OpenAISubscriptionResponse{
 		Object:             "billing_subscription",
 		HasPaymentMethod:   true,
 		SoftLimitUSD:       amount,
@@ -99,7 +100,7 @@ func GetUsage(c *gin.Context) {
 	default:
 		amount = amount / common.QuotaPerUnit
 	}
-	usage := OpenAIUsageResponse{
+	usage := dto.OpenAIUsageResponse{
 		Object:     "list",
 		TotalUsage: amount * 100,
 	}

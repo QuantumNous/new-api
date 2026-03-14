@@ -225,6 +225,9 @@ docker run --name new-api -d --restart always \
 - 🚧 **OpenAI Compatible ⇄ OpenAI Responses** - In development
 - 🔄 **Thinking-to-content functionality**
 
+**API Documentation:**
+- 📖 Auto-generated OpenAPI 3.0 spec — enable with `ENABLE_OPENAPI=true`, access at `/openapi.json` and `/swagger` (Scalar UI)
+
 **Reasoning Effort Support:**
 
 <details>
@@ -316,6 +319,7 @@ docker run --name new-api -d --restart always \
 | `STREAM_SCANNER_MAX_BUFFER_MB` | Max per-line buffer (MB) for the stream scanner; increase when upstream sends huge image/base64 payloads | `64` |
 | `MAX_REQUEST_BODY_MB` | Max request body size (MB, counted **after decompression**; prevents huge requests/zip bombs from exhausting memory). Exceeding it returns `413` | `32` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API version | `2025-04-01-preview` |
+| `ENABLE_OPENAPI` | Serve OpenAPI spec at `/openapi.json` and Scalar UI at `/swagger` | `false` |
 | `ERROR_LOG_ENABLED` | Error log switch | `false` |
 | `PYROSCOPE_URL` | Pyroscope server address | - |
 | `PYROSCOPE_APP_NAME` | Pyroscope application name | `new-api` |

@@ -6,7 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,8 +33,8 @@ func (user *UserBase) WriteContext(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyUserSetting, user.GetSetting())
 }
 
-func (user *UserBase) GetSetting() dto.UserSetting {
-	setting := dto.UserSetting{}
+func (user *UserBase) GetSetting() types.UserSetting {
+	setting := types.UserSetting{}
 	if user.Setting != "" {
 		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
@@ -170,10 +170,10 @@ func getUserNameCache(userId int) (string, error) {
 	return cache.Username, nil
 }
 
-func getUserSettingCache(userId int) (dto.UserSetting, error) {
+func getUserSettingCache(userId int) (types.UserSetting, error) {
 	cache, err := GetUserCache(userId)
 	if err != nil {
-		return dto.UserSetting{}, err
+		return types.UserSetting{}, err
 	}
 	return cache.GetSetting(), nil
 }

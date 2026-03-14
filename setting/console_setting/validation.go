@@ -8,6 +8,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
 var (
@@ -50,14 +53,6 @@ func checkDangerousContent(content string, index int, itemType string) error {
 	return nil
 }
 
-func getJSONList(jsonStr string) []map[string]interface{} {
-	if jsonStr == "" {
-		return []map[string]interface{}{}
-	}
-	var list []map[string]interface{}
-	json.Unmarshal([]byte(jsonStr), &list)
-	return list
-}
 
 func ValidateConsoleSettings(settingsStr string, settingType string) error {
 	if settingsStr == "" {
@@ -134,8 +129,16 @@ func validateApiInfo(apiInfoStr string) error {
 	return nil
 }
 
-func GetApiInfo() []map[string]interface{} {
-	return getJSONList(GetConsoleSetting().ApiInfo)
+func GetApiInfo() []dto.ApiInfoEntry {
+	cs := GetConsoleSetting()
+	if cs.ApiInfo == "" {
+		return []dto.ApiInfoEntry{}
+	}
+	var list []dto.ApiInfoEntry
+	if err := common.Unmarshal([]byte(cs.ApiInfo), &list); err != nil {
+		return []dto.ApiInfoEntry{}
+	}
+	return list
 }
 
 func validateAnnouncements(announcementsStr string) error {
@@ -211,27 +214,33 @@ func validateFAQ(faqStr string) error {
 	return nil
 }
 
-func getPublishTime(item map[string]interface{}) time.Time {
-	if v, ok := item["publishDate"]; ok {
-		if s, ok2 := v.(string); ok2 {
-			if t, err := time.Parse(time.RFC3339, s); err == nil {
-				return t
-			}
-		}
+func GetAnnouncements() []dto.AnnouncementEntry {
+	cs := GetConsoleSetting()
+	if cs.Announcements == "" {
+		return []dto.AnnouncementEntry{}
 	}
-	return time.Time{}
-}
-
-func GetAnnouncements() []map[string]interface{} {
-	list := getJSONList(GetConsoleSetting().Announcements)
+	var list []dto.AnnouncementEntry
+	if err := common.Unmarshal([]byte(cs.Announcements), &list); err != nil {
+		return []dto.AnnouncementEntry{}
+	}
 	sort.SliceStable(list, func(i, j int) bool {
-		return getPublishTime(list[i]).After(getPublishTime(list[j]))
+		ti, _ := time.Parse(time.RFC3339, list[i].PublishDate)
+		tj, _ := time.Parse(time.RFC3339, list[j].PublishDate)
+		return ti.After(tj)
 	})
 	return list
 }
 
-func GetFAQ() []map[string]interface{} {
-	return getJSONList(GetConsoleSetting().FAQ)
+func GetFAQ() []dto.FAQEntry {
+	cs := GetConsoleSetting()
+	if cs.FAQ == "" {
+		return []dto.FAQEntry{}
+	}
+	var list []dto.FAQEntry
+	if err := common.Unmarshal([]byte(cs.FAQ), &list); err != nil {
+		return []dto.FAQEntry{}
+	}
+	return list
 }
 
 func validateUptimeKumaGroups(groupsStr string) error {
@@ -299,6 +308,14 @@ func validateUptimeKumaGroups(groupsStr string) error {
 	return nil
 }
 
-func GetUptimeKumaGroups() []map[string]interface{} {
-	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
+func GetUptimeKumaGroups() []dto.UptimeKumaGroupConfig {
+	cs := GetConsoleSetting()
+	if cs.UptimeKumaGroups == "" {
+		return []dto.UptimeKumaGroupConfig{}
+	}
+	var list []dto.UptimeKumaGroupConfig
+	if err := common.Unmarshal([]byte(cs.UptimeKumaGroups), &list); err != nil {
+		return []dto.UptimeKumaGroupConfig{}
+	}
+	return list
 }
