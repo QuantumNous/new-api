@@ -268,7 +268,7 @@ const EditTagModal = (props) => {
     try {
       const res = await API.put('/api/channel/tag', data);
       if (res?.data?.success) {
-        showSuccess('标签更新成功！');
+        showSuccess(t('标签更新成功！'));
         refresh();
         handleClose();
       }

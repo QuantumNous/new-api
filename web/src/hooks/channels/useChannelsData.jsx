@@ -641,7 +641,7 @@ export const useChannelsData = () => {
     try {
       const res = await API.put('/api/channel/tag', data);
       if (res?.data?.success) {
-        showSuccess('更新成功！');
+        showSuccess(t('更新成功'));
         await refresh();
       }
     } catch (error) {

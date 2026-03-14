@@ -23,6 +23,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
+import krTranslation from './locales/kr.json';
 import zhCNTranslation from './locales/zh-CN.json';
 import zhTWTranslation from './locales/zh-TW.json';
 import ruTranslation from './locales/ru.json';
@@ -41,6 +42,7 @@ i18n
       'zh-CN': zhCNTranslation,
       'zh-TW': zhTWTranslation,
       fr: frTranslation,
+      kr: krTranslation,
       ru: ruTranslation,
       ja: jaTranslation,
       vi: viTranslation,

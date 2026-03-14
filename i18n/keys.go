@@ -1,4 +1,4 @@
-package i18n
+ 			package i18n
 
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings

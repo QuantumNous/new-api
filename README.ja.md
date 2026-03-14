@@ -11,7 +11,8 @@
   <a href="./README.zh_TW.md">繁體中文</a> |
   <a href="./README.md">English</a> |
   <a href="./README.fr.md">Français</a> |
-  <strong>日本語</strong>
+  <strong>日本語</strong> |
+  <a href="./README.kr.md">한국어</a>
 </p>
 
 <p align="center">
@@ -184,7 +185,7 @@ docker run --name new-api -d --restart always \
 | 機能 | 説明 |
 |------|------|
 | 🎨 新しいUI | モダンなユーザーインターフェースデザイン |
-| 🌍 多言語 | 簡体字中国語、繁体字中国語、英語、フランス語、日本語をサポート |
+| 🌍 多言語 | 簡体字中国語、繁体字中国語、英語、フランス語、日本語、韓国語をサポート |
 | 🔄 データ互換性 | オリジナルのOne APIデータベースと完全に互換性あり |
 | 📈 データダッシュボード | ビジュアルコンソールと統計分析 |
 | 🔒 権限管理 | トークングループ化、モデル制限、ユーザー管理 |

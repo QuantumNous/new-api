@@ -3262,6 +3262,8 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "Создание кэша 5m: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент создания кэша 5m {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "Создание кэша 1h: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент создания кэша 1h {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "Вывод: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент вывода {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "Пусто"
+    "空": "Пусто",
+    "已是最新版本：{{version}}": "Уже последняя версия: {{version}}",
+    "检查更新失败，请稍后再试": "Не удалось проверить обновления, попробуйте позже"
   }
 }

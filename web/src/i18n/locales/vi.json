@@ -3801,6 +3801,8 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "Tạo bộ nhớ đệm 5m: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số tạo bộ nhớ đệm 5m {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "Tạo bộ nhớ đệm 1h: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số tạo bộ nhớ đệm 1h {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "Đầu ra: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số đầu ra {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "Trống"
+    "空": "Trống",
+    "已是最新版本：{{version}}": "Đã là phiên bản mới nhất: {{version}}",
+    "检查更新失败，请稍后再试": "Kiểm tra cập nhật thất bại, vui lòng thử lại sau"
   }
 }

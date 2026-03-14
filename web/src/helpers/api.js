@@ -25,6 +25,7 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import i18n from '../i18n/i18n';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -319,7 +320,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     } else {
       // Relative path - this is a configuration error, show error message
       console.error('Custom OAuth authorization_endpoint must be a full URL:', provider.authorization_endpoint);
-      showError('OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）');
+      showError(i18n.t('OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'));
       return;
     }
     
@@ -332,7 +333,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     window.open(authUrl.toString());
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(i18n.t('OAuth 登录失败：') + (error.message || i18n.t('未知错误')));
   }
 }
 

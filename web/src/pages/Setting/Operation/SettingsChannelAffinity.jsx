@@ -364,6 +364,8 @@ export default function SettingsChannelAffinity(props) {
           <Text>{t('将删除所有仍在内存中的渠道亲和性缓存条目。')}</Text>
         </div>
       ),
+      okText: t('确认'),
+      cancelText: t('取消'),
       onOk: async () => {
         const res = await API.delete('/api/option/channel_affinity_cache', {
           params: { all: true },
@@ -395,6 +397,8 @@ export default function SettingsChannelAffinity(props) {
           <Text>{t('规则')}：</Text> <Text strong>{name}</Text>
         </div>
       ),
+      okText: t('确认'),
+      cancelText: t('取消'),
       onOk: async () => {
         const res = await API.delete('/api/option/channel_affinity_cache', {
           params: { rule_name: name },
@@ -483,6 +487,8 @@ export default function SettingsChannelAffinity(props) {
           <Text type='tertiary'>{t('将追加 2 条规则到现有规则列表。')}</Text>
         </div>
       ),
+      okText: t('确认'),
+      cancelText: t('取消'),
       onOk: doAppend,
     });
   };
