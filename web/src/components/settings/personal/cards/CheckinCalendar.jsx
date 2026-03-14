@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   Calendar,
@@ -39,7 +40,8 @@ import {
 import Turnstile from 'react-turnstile';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
 
-const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
+const CheckinCalendar = ({ status, turnstileEnabled, turnstileSiteKey }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [turnstileModalVisible, setTurnstileModalVisible] = useState(false);
@@ -141,7 +143,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
       } else {
         if (!token && shouldTriggerTurnstile(message)) {
           if (!turnstileSiteKey) {
-            showError('Turnstile is enabled but site key is empty.');
+            showError(t('已启用 Turnstile 但站点密钥为空'));
             return;
           }
           setTurnstileModalVisible(true);
@@ -215,7 +217,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   return (
     <Card className='!rounded-2xl'>
       <Modal
-        title='Security Check'
+        title={t('安全验证')}
         visible={turnstileModalVisible}
         footer={null}
         centered

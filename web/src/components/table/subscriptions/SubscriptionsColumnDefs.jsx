@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import {
   Button,
   Modal,
@@ -34,7 +35,7 @@ import { convertUSDToCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
 
-function formatDuration(plan, t) {
+function formatDuration(plan) {
   if (!plan) return '';
   const u = plan.duration_unit || 'month';
   if (u === 'custom') {
@@ -49,7 +50,7 @@ function formatDuration(plan, t) {
   return `${plan.duration_value || 0}${unitMap[u] || u}`;
 }
 
-function formatResetPeriod(plan, t) {
+function formatResetPeriod(plan) {
   const period = plan?.quota_reset_period || 'never';
   if (period === 'daily') return t('每天');
   if (period === 'weekly') return t('每周');
@@ -64,7 +65,7 @@ function formatResetPeriod(plan, t) {
   return t('不重置');
 }
 
-const renderPlanTitle = (text, record, t) => {
+const renderPlanTitle = (text, record) => {
   const subtitle = record?.plan?.subtitle;
   const plan = record?.plan;
   const popoverContent = (
@@ -98,9 +99,9 @@ const renderPlanTitle = (text, record, t) => {
             : t('不限')}
         </Text>
         <Text type='tertiary'>{t('有效期')}</Text>
-        <Text>{formatDuration(plan, t)}</Text>
+        <Text>{formatDuration(plan)}</Text>
         <Text type='tertiary'>{t('重置')}</Text>
-        <Text>{formatResetPeriod(plan, t)}</Text>
+        <Text>{formatResetPeriod(plan)}</Text>
       </div>
     </div>
   );
@@ -133,7 +134,7 @@ const renderPrice = (text) => {
   );
 };
 
-const renderPurchaseLimit = (text, record, t) => {
+const renderPurchaseLimit = (text, record) => {
   const limit = Number(record?.plan?.max_purchase_per_user || 0);
   return (
     <Text type={limit > 0 ? 'secondary' : 'tertiary'}>
@@ -142,11 +143,11 @@ const renderPurchaseLimit = (text, record, t) => {
   );
 };
 
-const renderDuration = (text, record, t) => {
-  return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
+const renderDuration = (text, record) => {
+  return <Text type='secondary'>{formatDuration(record?.plan)}</Text>;
 };
 
-const renderEnabled = (text, record, t) => {
+const renderEnabled = (text, record) => {
   return text ? (
     <Tag
       color='white'
@@ -168,7 +169,7 @@ const renderEnabled = (text, record, t) => {
   );
 };
 
-const renderTotalAmount = (text, record, t) => {
+const renderTotalAmount = (text, record) => {
   const total = Number(record?.plan?.total_amount || 0);
   return (
     <Text type={total > 0 ? 'secondary' : 'tertiary'}>
@@ -183,7 +184,7 @@ const renderTotalAmount = (text, record, t) => {
   );
 };
 
-const renderUpgradeGroup = (text, record, t) => {
+const renderUpgradeGroup = (text, record) => {
   const group = record?.plan?.upgrade_group || '';
   return (
     <Text type={group ? 'secondary' : 'tertiary'}>
@@ -192,17 +193,17 @@ const renderUpgradeGroup = (text, record, t) => {
   );
 };
 
-const renderResetPeriod = (text, record, t) => {
+const renderResetPeriod = (text, record) => {
   const period = record?.plan?.quota_reset_period || 'never';
   const isNever = period === 'never';
   return (
     <Text type={isNever ? 'tertiary' : 'secondary'}>
-      {formatResetPeriod(record?.plan, t)}
+      {formatResetPeriod(record?.plan)}
     </Text>
   );
 };
 
-const renderPaymentConfig = (text, record, t, enableEpay) => {
+const renderPaymentConfig = (text, record, enableEpay) => {
   const hasStripe = !!record?.plan?.stripe_price_id;
   const hasCreem = !!record?.plan?.creem_product_id;
   const hasEpay = !!enableEpay;
@@ -228,7 +229,7 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
   );
 };
 
-const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
+const renderOperations = (text, record, { openEdit, setPlanEnabled }) => {
   const isEnabled = record?.plan?.enabled;
 
   const handleToggle = () => {
@@ -278,7 +279,6 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
 };
 
 export const getSubscriptionsColumns = ({
-  t,
   openEdit,
   setPlanEnabled,
   enableEpay,
@@ -294,7 +294,7 @@ export const getSubscriptionsColumns = ({
       title: t('套餐'),
       dataIndex: ['plan', 'title'],
       width: 200,
-      render: (text, record) => renderPlanTitle(text, record, t),
+      render: (text, record) => renderPlanTitle(text, record),
     },
     {
       title: t('价格'),
@@ -305,7 +305,7 @@ export const getSubscriptionsColumns = ({
     {
       title: t('购买上限'),
       width: 90,
-      render: (text, record) => renderPurchaseLimit(text, record, t),
+      render: (text, record) => renderPurchaseLimit(text, record),
     },
     {
       title: t('优先级'),
@@ -316,34 +316,33 @@ export const getSubscriptionsColumns = ({
     {
       title: t('有效期'),
       width: 100,
-      render: (text, record) => renderDuration(text, record, t),
+      render: (text, record) => renderDuration(text, record),
     },
     {
       title: t('重置'),
       width: 80,
-      render: (text, record) => renderResetPeriod(text, record, t),
+      render: (text, record) => renderResetPeriod(text, record),
     },
     {
       title: t('状态'),
       dataIndex: ['plan', 'enabled'],
       width: 80,
-      render: (text, record) => renderEnabled(text, record, t),
+      render: (text, record) => renderEnabled(text, record),
     },
     {
       title: t('支付渠道'),
       width: 180,
-      render: (text, record) =>
-        renderPaymentConfig(text, record, t, enableEpay),
+      render: (text, record) => renderPaymentConfig(text, record, enableEpay),
     },
     {
       title: t('总额度'),
       width: 100,
-      render: (text, record) => renderTotalAmount(text, record, t),
+      render: (text, record) => renderTotalAmount(text, record),
     },
     {
       title: t('升级分组'),
       width: 100,
-      render: (text, record) => renderUpgradeGroup(text, record, t),
+      render: (text, record) => renderUpgradeGroup(text, record),
     },
     {
       title: t('操作'),
@@ -351,7 +350,7 @@ export const getSubscriptionsColumns = ({
       fixed: 'right',
       width: 160,
       render: (text, record) =>
-        renderOperations(text, record, { openEdit, setPlanEnabled, t }),
+        renderOperations(text, record, { openEdit, setPlanEnabled }),
     },
   ];
 };

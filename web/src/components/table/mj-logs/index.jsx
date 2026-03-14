@@ -28,8 +28,10 @@ import ContentModal from './modals/ContentModal';
 import { useMjLogsData } from '../../../hooks/mj-logs/useMjLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const MjLogsPage = () => {
+  const { t } = useTranslation();
   const mjLogsData = useMjLogsData();
   const isMobile = useIsMobile();
 
@@ -51,9 +53,9 @@ const MjLogsPage = () => {
             onPageChange: mjLogsData.handlePageChange,
             onPageSizeChange: mjLogsData.handlePageSizeChange,
             isMobile: isMobile,
-            t: mjLogsData.t,
+            t: t,
           })}
-          t={mjLogsData.t}
+          t={t}
         >
           <MjLogsTable {...mjLogsData} />
         </CardPro>

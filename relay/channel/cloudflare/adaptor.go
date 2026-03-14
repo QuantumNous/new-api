@@ -1,6 +1,7 @@
 package cloudflare
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ type Adaptor struct {
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
@@ -55,7 +56,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 	switch info.RelayMode {
 	case constant.RelayModeCompletions:
@@ -85,7 +86,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	// 添加文件字段
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
-		return nil, errors.New("file is required")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.file_is_required"))
 	}
 	defer file.Close()
 	// 打开临时文件用于保存上传的文件内容
@@ -100,7 +101,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {

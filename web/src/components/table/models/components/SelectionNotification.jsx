@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect } from 'react';
 import { Notification, Button, Space, Typography } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 // 固定通知 ID，保持同一个实例即可避免闪烁
 const NOTICE_ID = 'models-batch-actions';
@@ -30,12 +31,12 @@ const NOTICE_ID = 'models-batch-actions';
  */
 const SelectionNotification = ({
   selectedKeys = [],
-  t,
   onDelete,
   onAddPrefill,
   onClear,
   onCopy,
 }) => {
+  const { t } = useTranslation();
   // 根据选中数量决定显示/隐藏或更新通知
   useEffect(() => {
     const selectedCount = selectedKeys.length;

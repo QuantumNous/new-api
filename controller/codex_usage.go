@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -44,8 +45,8 @@ func GetCodexChannelUsage(c *gin.Context) {
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
-		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_parse_oauth_key") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "codex.parse_auth_failed")})
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
@@ -70,8 +71,8 @@ func GetCodexChannelUsage(c *gin.Context) {
 
 	statusCode, body, err := service.FetchCodexWhamUsage(ctx, client, ch.GetBaseURL(), accessToken, accountID)
 	if err != nil {
-		common.SysError("failed to fetch codex usage: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+		common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_fetch_codex_usage") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "common.retry_later")})
 		return
 	}
 
@@ -100,8 +101,8 @@ func GetCodexChannelUsage(c *gin.Context) {
 			defer cancel2()
 			statusCode, body, err = service.FetchCodexWhamUsage(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
-				common.SysError("failed to fetch codex usage after refresh: " + err.Error())
-				c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取用量信息失败，请稍后重试"})
+				common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_fetch_codex_usage_after_refresh") + err.Error())
+				c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "common.retry_later")})
 				return
 			}
 		}
@@ -120,7 +121,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 		"data":            payload,
 	}
 	if !ok {
-		resp["message"] = fmt.Sprintf("upstream status: %d", statusCode)
+		resp["message"] = fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.upstream_status"), statusCode)
 	}
 	c.JSON(http.StatusOK, resp)
 }

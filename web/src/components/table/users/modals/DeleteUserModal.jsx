@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const DeleteUserModal = ({
   visible,
@@ -29,8 +30,8 @@ const DeleteUserModal = ({
   activePage,
   refresh,
   manageUser,
-  t,
 }) => {
+  const { t } = useTranslation();
   const handleConfirm = async () => {
     await manageUser(user.id, 'delete', user);
     await refresh();

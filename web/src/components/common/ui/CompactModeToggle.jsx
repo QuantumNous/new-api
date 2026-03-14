@@ -21,6 +21,7 @@ import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 紧凑模式切换按钮组件
@@ -30,12 +31,12 @@ import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const CompactModeToggle = ({
   compactMode,
   setCompactMode,
-  t,
   size = 'small',
   type = 'tertiary',
   className = '',
   ...props
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
 
   // 在移动端隐藏紧凑列表切换按钮

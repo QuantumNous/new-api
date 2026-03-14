@@ -315,7 +315,5 @@ export const useUsersData = () => {
     closeEditUser,
     getFormValues,
 
-    // Translation
-    t,
   };
 };

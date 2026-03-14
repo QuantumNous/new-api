@@ -1,6 +1,7 @@
 package coze
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -209,7 +210,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 			return
 		}
 
-		common.SysLog(fmt.Sprintf("stream event error: %v %v", errorData.Code, errorData.Message))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.stream_event_error"), errorData.Code, errorData.Message))
 	}
 }
 
@@ -232,7 +233,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 		return err, false
 	}
 	if resp == nil { // 确保在 doRequest 失败时 resp 不为 nil 导致 panic
-		return fmt.Errorf("resp is nil"), false
+		return errors.New(i18n.Translate(i18n.DefaultLang, "relay.resp_is_nil")), false
 	}
 	defer resp.Body.Close() // 确保响应体被关闭
 
@@ -240,11 +241,11 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	var cozeResponse CozeChatResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("read response body failed: %w", err), false
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.read_response_body_failed"), err), false
 	}
 	err = json.Unmarshal(responseBody, &cozeResponse)
 	if err != nil {
-		return fmt.Errorf("unmarshal response body failed: %w", err), false
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.unmarshal_response_body_failed"), err), false
 	}
 	if cozeResponse.Data.Status == "completed" {
 		// 在上下文设置 usage
@@ -253,7 +254,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 		c.Set("coze_input_count", cozeResponse.Data.Usage.InputCount)
 		return nil, true
 	} else if cozeResponse.Data.Status == "failed" || cozeResponse.Data.Status == "canceled" || cozeResponse.Data.Status == "requires_action" {
-		return fmt.Errorf("chat status: %s", cozeResponse.Data.Status), false
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.chat_status"), cozeResponse.Data.Status), false
 	} else {
 		return nil, false
 	}
@@ -265,15 +266,15 @@ func getChatDetail(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (*ht
 	requestURL = requestURL + "?conversation_id=" + c.GetString("coze_conversation_id") + "&chat_id=" + c.GetString("coze_chat_id")
 	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("new request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_request_failed"), err)
 	}
 	err = a.SetupRequestHeader(c, &req.Header, info)
 	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.setup_request_header_failed"), err)
 	}
 	resp, err := doRequest(req, info)
 	if err != nil {
-		return nil, fmt.Errorf("do request failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.do_request_failed_0838"), err)
 	}
 	return resp, nil
 }
@@ -284,14 +285,14 @@ func doRequest(req *http.Request, info *relaycommon.RelayInfo) (*http.Response, 
 	if info.ChannelSetting.Proxy != "" {
 		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_proxy_http_client_failed"), err)
 		}
 	} else {
 		client = service.GetHttpClient()
 	}
 	resp, err := client.Do(req)
 	if err != nil { // 增加对 client.Do(req) 返回错误的检查
-		return nil, fmt.Errorf("client.Do failed: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.client_do_failed"), err)
 	}
 	// _ = resp.Body.Close()
 	return resp, nil

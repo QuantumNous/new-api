@@ -1,6 +1,8 @@
 package ionet
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/common"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,10 +13,10 @@ import (
 // GetAvailableReplicas retrieves available replicas per location for specified hardware
 func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableReplicasResponse, error) {
 	if hardwareID <= 0 {
-		return nil, fmt.Errorf("hardware_id must be greater than 0")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.hardware_id_must_be_greater_than_0"))
 	}
 	if gpuCount < 1 {
-		return nil, fmt.Errorf("gpu_count must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.gpu_count_must_be_at_least_1"))
 	}
 
 	params := map[string]interface{}{
@@ -26,7 +28,7 @@ func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableR
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get available replicas: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_available_replicas"), err)
 	}
 
 	type availableReplicaPayload struct {
@@ -38,7 +40,7 @@ func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableR
 	var payload []availableReplicaPayload
 
 	if err := decodeData(resp.Body, &payload); err != nil {
-		return nil, fmt.Errorf("failed to parse available replicas response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_available_replicas_response"), err)
 	}
 
 	replicas := lo.Map(payload, func(item availableReplicaPayload, _ int) AvailableReplica {
@@ -59,12 +61,12 @@ func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableR
 func (c *Client) GetMaxGPUsPerContainer() (*MaxGPUResponse, error) {
 	resp, err := c.makeRequest("GET", "/hardware/max-gpus-per-container", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get max GPUs per container: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_max_gpus_per_container"), err)
 	}
 
 	var maxGPUResp MaxGPUResponse
 	if err := decodeData(resp.Body, &maxGPUResp); err != nil {
-		return nil, fmt.Errorf("failed to parse max GPU response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_max_gpu_response"), err)
 	}
 
 	return &maxGPUResp, nil
@@ -74,13 +76,13 @@ func (c *Client) GetMaxGPUsPerContainer() (*MaxGPUResponse, error) {
 func (c *Client) ListHardwareTypes() ([]HardwareType, int, error) {
 	maxGPUResp, err := c.GetMaxGPUsPerContainer()
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list hardware types: %w", err)
+		return nil, 0, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_list_hardware_types"), err)
 	}
 
 	mapped := lo.Map(maxGPUResp.Hardware, func(hw MaxGPUInfo, _ int) HardwareType {
 		name := strings.TrimSpace(hw.HardwareName)
 		if name == "" {
-			name = fmt.Sprintf("Hardware %d", hw.HardwareID)
+			name = fmt.Sprintf(common.Translate(common.DefaultLang, "pkg.hardware"), hw.HardwareID)
 		}
 
 		return HardwareType{
@@ -113,12 +115,12 @@ func (c *Client) ListHardwareTypes() ([]HardwareType, int, error) {
 func (c *Client) ListLocations() (*LocationsResponse, error) {
 	resp, err := c.makeRequest("GET", "/locations", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list locations: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_list_locations"), err)
 	}
 
 	var locations LocationsResponse
 	if err := decodeData(resp.Body, &locations); err != nil {
-		return nil, fmt.Errorf("failed to parse locations response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_locations_response"), err)
 	}
 
 	locations.Locations = lo.Map(locations.Locations, func(location Location, _ int) Location {
@@ -138,20 +140,20 @@ func (c *Client) ListLocations() (*LocationsResponse, error) {
 // GetHardwareType retrieves details about a specific hardware type
 func (c *Client) GetHardwareType(hardwareID int) (*HardwareType, error) {
 	if hardwareID <= 0 {
-		return nil, fmt.Errorf("hardware ID must be greater than 0")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.hardware_id_must_be_greater_than_0_70e8"))
 	}
 
 	endpoint := fmt.Sprintf("/hardware/types/%d", hardwareID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get hardware type: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_hardware_type"), err)
 	}
 
 	// API response format not documented, assuming direct format
 	var hardwareType HardwareType
 	if err := json.Unmarshal(resp.Body, &hardwareType); err != nil {
-		return nil, fmt.Errorf("failed to parse hardware type: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_hardware_type"), err)
 	}
 
 	return &hardwareType, nil
@@ -160,20 +162,20 @@ func (c *Client) GetHardwareType(hardwareID int) (*HardwareType, error) {
 // GetLocation retrieves details about a specific location
 func (c *Client) GetLocation(locationID int) (*Location, error) {
 	if locationID <= 0 {
-		return nil, fmt.Errorf("location ID must be greater than 0")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.location_id_must_be_greater_than_0"))
 	}
 
 	endpoint := fmt.Sprintf("/locations/%d", locationID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get location: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_location"), err)
 	}
 
 	// API response format not documented, assuming direct format
 	var location Location
 	if err := json.Unmarshal(resp.Body, &location); err != nil {
-		return nil, fmt.Errorf("failed to parse location: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_location"), err)
 	}
 
 	return &location, nil
@@ -182,20 +184,20 @@ func (c *Client) GetLocation(locationID int) (*Location, error) {
 // GetLocationAvailability retrieves real-time availability for a specific location
 func (c *Client) GetLocationAvailability(locationID int) (*LocationAvailability, error) {
 	if locationID <= 0 {
-		return nil, fmt.Errorf("location ID must be greater than 0")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.location_id_must_be_greater_than_0"))
 	}
 
 	endpoint := fmt.Sprintf("/locations/%d/availability", locationID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get location availability: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_location_availability"), err)
 	}
 
 	// API response format not documented, assuming direct format
 	var availability LocationAvailability
 	if err := json.Unmarshal(resp.Body, &availability); err != nil {
-		return nil, fmt.Errorf("failed to parse location availability: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_location_availability"), err)
 	}
 
 	return &availability, nil

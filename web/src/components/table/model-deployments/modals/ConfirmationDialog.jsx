@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect } from 'react';
 import { Modal, Typography, Input } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -29,9 +30,9 @@ const ConfirmationDialog = ({
   title,
   type = 'danger',
   deployment,
-  t,
   loading = false,
 }) => {
+  const { t } = useTranslation();
   const [confirmText, setConfirmText] = useState('');
 
   useEffect(() => {

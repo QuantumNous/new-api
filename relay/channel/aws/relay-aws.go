@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -55,7 +56,7 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 	if info.ChannelSetting.Proxy != "" {
 		httpClient, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
 		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.new_proxy_http_client_failed"), err)
 		}
 	} else {
 		httpClient = service.GetHttpClient()
@@ -82,7 +83,7 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 			HTTPClient:  httpClient,
 		})
 	default:
-		return nil, errors.New("invalid aws secret key")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.invalid_aws_secret_key"))
 	}
 
 	return client, nil
@@ -282,10 +283,10 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 			}
 		case *bedrockruntimeTypes.UnknownUnionMember:
 			fmt.Println("unknown tag:", v.Tag)
-			return types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest), nil
+			return types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.unknown_response_type")), types.ErrorCodeInvalidRequest), nil
 		default:
-			fmt.Println("union is nil or unknown type")
-			return types.NewError(errors.New("nil or unknown response type"), types.ErrorCodeInvalidRequest), nil
+			fmt.Println(i18n.Translate(i18n.DefaultLang, "relay.union_is_nil_or_unknown_type"))
+			return types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.nil_or_unknown_response_type")), types.ErrorCodeInvalidRequest), nil
 		}
 	}
 

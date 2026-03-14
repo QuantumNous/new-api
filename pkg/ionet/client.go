@@ -1,6 +1,7 @@
 package ionet
 
 import (
+	"github.com/QuantumNous/new-api/common"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -34,7 +35,7 @@ func NewDefaultHTTPClient(timeout time.Duration) *DefaultHTTPClient {
 func (c *DefaultHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 	httpReq, err := http.NewRequest(req.Method, req.URL, bytes.NewReader(req.Body))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_create_http_request"), err)
 	}
 
 	// Set headers
@@ -44,7 +45,7 @@ func (c *DefaultHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.http_request_failed"), err)
 	}
 	defer resp.Body.Close()
 
@@ -52,7 +53,7 @@ func (c *DefaultHTTPClient) Do(req *HTTPRequest) (*HTTPResponse, error) {
 	var body bytes.Buffer
 	_, err = body.ReadFrom(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_read_response_body"), err)
 	}
 
 	// Convert headers
@@ -103,7 +104,7 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPRe
 	if body != nil {
 		reqBody, err = json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+			return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_marshal_request_body"), err)
 		}
 	}
 
@@ -121,7 +122,7 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPRe
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.request_failed"), err)
 	}
 
 	// Handle API errors
@@ -141,14 +142,14 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPRe
 				// Fallback: use raw body as details
 				apiErr = APIError{
 					Code:    resp.StatusCode,
-					Message: fmt.Sprintf("API request failed with status %d", resp.StatusCode),
+					Message: fmt.Sprintf(common.Translate(common.DefaultLang, "pkg.api_request_failed_with_status"), resp.StatusCode),
 					Details: string(resp.Body),
 				}
 			}
 		} else {
 			apiErr = APIError{
 				Code:    resp.StatusCode,
-				Message: fmt.Sprintf("API request failed with status %d", resp.StatusCode),
+				Message: fmt.Sprintf(common.Translate(common.DefaultLang, "pkg.api_request_failed_with_status"), resp.StatusCode),
 			}
 		}
 		return nil, &apiErr

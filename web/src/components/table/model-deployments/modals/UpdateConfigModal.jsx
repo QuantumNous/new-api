@@ -45,10 +45,12 @@ import {
   FaMinus,
 } from 'react-icons/fa';
 import { API, showError, showSuccess } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
 
-const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
+const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess }) => {
+  const { t } = useTranslation();
   const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [envVars, setEnvVars] = useState([]);

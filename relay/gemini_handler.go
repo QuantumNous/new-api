@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -57,12 +58,12 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	geminiReq, ok := info.Request.(*dto.GeminiChatRequest)
 	if !ok {
-		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.GeminiChatRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return types.NewErrorWithStatusCode(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.invalid_request_type_expected_dto_geminichatrequest_got"), info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	request, err := common.DeepCopy(geminiReq)
 	if err != nil {
-		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_copy_request_to_geminichatrequest"), err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
 	// model mapped 模型映射
@@ -91,7 +92,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+		return types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.invalid_api_type"), info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 
 	adaptor.Init(info)
@@ -163,7 +164,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		logger.LogDebug(c, "Gemini request body: "+string(jsonData))
+		logger.LogDebug(c, i18n.Translate(i18n.DefaultLang, "relay.gemini_request_body")+string(jsonData))
 
 		requestBody = bytes.NewReader(jsonData)
 	}
@@ -245,7 +246,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
-		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+		return types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.invalid_api_type"), info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
 
@@ -262,7 +263,7 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 			return newAPIErrorFromParamOverride(err)
 		}
 	}
-	logger.LogDebug(c, "Gemini embedding request body: "+string(jsonData))
+	logger.LogDebug(c, i18n.Translate(i18n.DefaultLang, "relay.gemini_embedding_request_body")+string(jsonData))
 	requestBody = bytes.NewReader(jsonData)
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)

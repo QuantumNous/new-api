@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"net/http"
 	"time"
@@ -277,7 +278,7 @@ func RetrieveModel(c *gin.Context, modelType int) {
 		}
 	} else {
 		openAIError := types.OpenAIError{
-			Message: fmt.Sprintf("The model '%s' does not exist", modelId),
+			Message: fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "ctrl.the_model_does_not_exist"), modelId),
 			Type:    "invalid_request_error",
 			Param:   "model",
 			Code:    "model_not_found",

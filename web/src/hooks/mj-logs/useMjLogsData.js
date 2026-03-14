@@ -332,7 +332,5 @@ export const useMjLogsData = () => {
     enrichLogs,
     syncPageData,
 
-    // Translation
-    t,
   };
 };

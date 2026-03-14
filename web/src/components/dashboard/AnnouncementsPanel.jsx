@@ -26,14 +26,15 @@ import {
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
+import { useTranslation } from 'react-i18next';
 
 const AnnouncementsPanel = ({
   announcementData,
   announcementLegendData,
   CARD_PROPS,
   ILLUSTRATION_SIZE,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Card
       {...CARD_PROPS}

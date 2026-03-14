@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
+import { t as i18nT } from '../../../../helpers/i18n';
 import {
   Avatar,
   Button,
@@ -48,20 +50,20 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
 
-const durationUnitOptions = [
-  { value: 'year', label: '年' },
-  { value: 'month', label: '月' },
-  { value: 'day', label: '日' },
-  { value: 'hour', label: '小时' },
-  { value: 'custom', label: '自定义(秒)' },
+const getDurationUnitOptions = () => [
+  { value: 'year', label: i18nT('年') },
+  { value: 'month', label: i18nT('月') },
+  { value: 'day', label: i18nT('日') },
+  { value: 'hour', label: i18nT('小时') },
+  { value: 'custom', label: i18nT('自定义(秒)') },
 ];
 
-const resetPeriodOptions = [
-  { value: 'never', label: '不重置' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-  { value: 'custom', label: '自定义(秒)' },
+const getResetPeriodOptions = () => [
+  { value: 'never', label: i18nT('不重置') },
+  { value: 'daily', label: i18nT('每天') },
+  { value: 'weekly', label: i18nT('每周') },
+  { value: 'monthly', label: i18nT('每月') },
+  { value: 'custom', label: i18nT('自定义(秒)') },
 ];
 
 const AddEditSubscriptionModal = ({
@@ -70,8 +72,8 @@ const AddEditSubscriptionModal = ({
   editingPlan,
   placement = 'left',
   refresh,
-  t,
 }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [groupOptions, setGroupOptions] = useState([]);
   const [groupLoading, setGroupLoading] = useState(false);
@@ -409,7 +411,7 @@ const AddEditSubscriptionModal = ({
                         required
                         rules={[{ required: true }]}
                       >
-                        {durationUnitOptions.map((o) => (
+                        {getDurationUnitOptions().map((o) => (
                           <Select.Option key={o.value} value={o.value}>
                             {o.label}
                           </Select.Option>
@@ -469,7 +471,7 @@ const AddEditSubscriptionModal = ({
                         field='quota_reset_period'
                         label={t('重置周期')}
                       >
-                        {resetPeriodOptions.map((o) => (
+                        {getResetPeriodOptions().map((o) => (
                           <Select.Option key={o.value} value={o.value}>
                             {o.label}
                           </Select.Option>

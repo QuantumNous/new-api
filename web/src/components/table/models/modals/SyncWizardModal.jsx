@@ -20,8 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState } from 'react';
 import { Modal, RadioGroup, Radio, Steps, Button } from '@douyinfe/semi-ui';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { useTranslation } from 'react-i18next';
 
-const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
+const SyncWizardModal = ({ visible, onClose, onConfirm, loading }) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [option, setOption] = useState('official');
   const [locale, setLocale] = useState('zh-CN');

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -23,7 +22,7 @@ type wechatLoginResponse struct {
 
 func getWeChatIdByCode(code string) (string, error) {
 	if code == "" {
-		return "", errors.New("无效的参数")
+		return "", fmt.Errorf("%s", common.TranslateMessage(nil, "common.invalid_params"))
 	}
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, code), nil)
 	if err != nil {
@@ -44,10 +43,10 @@ func getWeChatIdByCode(code string) (string, error) {
 		return "", err
 	}
 	if !res.Success {
-		return "", errors.New(res.Message)
+		return "", fmt.Errorf("%s", res.Message)
 	}
 	if res.Data == "" {
-		return "", errors.New("验证码错误或已过期")
+		return "", fmt.Errorf("%s", common.TranslateMessage(nil, "user.verification_code_error"))
 	}
 	return res.Data, nil
 }
@@ -55,7 +54,7 @@ func getWeChatIdByCode(code string) (string, error) {
 func WeChatAuth(c *gin.Context) {
 	if !common.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过微信登录以及注册",
+			"message": common.TranslateMessage(c, "option.wechat_required"),
 			"success": false,
 		})
 		return
@@ -84,7 +83,7 @@ func WeChatAuth(c *gin.Context) {
 		if user.Id == 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "用户已注销",
+				"message": common.TranslateMessage(c, "oauth.user_deleted"),
 			})
 			return
 		}
@@ -105,7 +104,7 @@ func WeChatAuth(c *gin.Context) {
 		} else {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "管理员关闭了新用户注册",
+				"message": common.TranslateMessage(c, "user.register_disabled"),
 			})
 			return
 		}
@@ -113,7 +112,7 @@ func WeChatAuth(c *gin.Context) {
 
 	if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "用户已被封禁",
+			"message": common.TranslateMessage(c, "oauth.user_banned"),
 			"success": false,
 		})
 		return
@@ -124,7 +123,7 @@ func WeChatAuth(c *gin.Context) {
 func WeChatBind(c *gin.Context) {
 	if !common.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过微信登录以及注册",
+			"message": common.TranslateMessage(c, "option.wechat_required"),
 			"success": false,
 		})
 		return
@@ -141,7 +140,7 @@ func WeChatBind(c *gin.Context) {
 	if model.IsWeChatIdAlreadyTaken(wechatId) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "该微信账号已被绑定",
+			"message": common.TranslateMessage(c, "oauth.already_bound"),
 		})
 		return
 	}

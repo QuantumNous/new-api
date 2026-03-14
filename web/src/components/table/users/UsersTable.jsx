@@ -32,8 +32,10 @@ import DeleteUserModal from './modals/DeleteUserModal';
 import ResetPasskeyModal from './modals/ResetPasskeyModal';
 import ResetTwoFAModal from './modals/ResetTwoFAModal';
 import UserSubscriptionsModal from './modals/UserSubscriptionsModal';
+import { useTranslation } from 'react-i18next';
 
 const UsersTable = (usersData) => {
+  const { t } = useTranslation();
   const {
     users,
     loading,
@@ -50,7 +52,6 @@ const UsersTable = (usersData) => {
     refresh,
     resetUserPasskey,
     resetUserTwoFA,
-    t,
   } = usersData;
 
   // Modal states
@@ -131,7 +132,6 @@ const UsersTable = (usersData) => {
   // Get all columns
   const columns = useMemo(() => {
     return getUsersColumns({
-      t,
       setEditingUser,
       setShowEditUser,
       showPromoteModal: showPromoteUserModal,
@@ -143,7 +143,6 @@ const UsersTable = (usersData) => {
       showUserSubscriptionsModal: showUserSubscriptionsUserModal,
     });
   }, [
-    t,
     setEditingUser,
     setShowEditUser,
     showPromoteUserModal,
@@ -257,7 +256,6 @@ const UsersTable = (usersData) => {
         visible={showUserSubscriptionsModal}
         onCancel={() => setShowUserSubscriptionsModal(false)}
         user={modalUser}
-        t={t}
         onSuccess={() => refresh?.()}
       />
     </>

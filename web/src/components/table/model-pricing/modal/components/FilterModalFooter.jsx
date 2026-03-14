@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
-const FilterModalFooter = ({ onReset, onConfirm, t }) => {
+const FilterModalFooter = ({ onReset, onConfirm }) => {
+  const { t } = useTranslation();
   return (
     <div className='flex justify-end'>
       <Button theme='outline' type='tertiary' onClick={onReset}>

@@ -1,6 +1,7 @@
 package ali
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"fmt"
 	"io"
@@ -48,7 +49,7 @@ func isSyncImageModel(modelName string) bool {
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
@@ -137,7 +138,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 	// docs: https://bailian.console.aliyun.com/?tab=api#/api/?type=model&url=2712216
 	// fix: InternalError.Algo.InvalidParameter: The value of the enable_thinking parameter is restricted to True.
@@ -165,7 +166,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		aliRequest, err := oaiImage2AliImageRequest(info, request, a.IsSyncImageModel)
 		if err != nil {
-			return nil, fmt.Errorf("convert image request to async ali image request failed: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.convert_image_request_to_async_ali_image_request"), err)
 		}
 		return aliRequest, nil
 	} else if info.RelayMode == constant.RelayModeImagesEdits {
@@ -184,18 +185,18 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 			aliRequest, err := oaiFormEdit2AliImageEdit(c, info, request)
 			if err != nil {
-				return nil, fmt.Errorf("convert image edit form request failed: %w", err)
+				return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.convert_image_edit_form_request_failed"), err)
 			}
 			return aliRequest, nil
 		} else {
 			aliRequest, err := oaiImage2AliImageRequest(info, request, a.IsSyncImageModel)
 			if err != nil {
-				return nil, fmt.Errorf("convert image request to async ali image request failed: %w", err)
+				return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.convert_image_request_to_async_ali_image_request"), err)
 			}
 			return aliRequest, nil
 		}
 	}
-	return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
+	return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.unsupported_image_relay_mode"), info.RelayMode)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -208,7 +209,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {

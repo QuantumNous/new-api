@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import { Tag, Button, Space, Popover, Dropdown } from '@douyinfe/semi-ui';
 import { IconMore } from '@douyinfe/semi-icons';
 import { renderQuota, timestamp2string } from '../../../helpers';
@@ -48,7 +49,7 @@ const renderTimestamp = (timestamp) => {
 /**
  * Render redemption code status
  */
-const renderStatus = (status, record, t) => {
+const renderStatus = (status, record) => {
   if (isExpired(record)) {
     return (
       <Tag color='orange' shape='circle'>
@@ -77,7 +78,6 @@ const renderStatus = (status, record, t) => {
  * Get redemption code table column definitions
  */
 export const getRedemptionsColumns = ({
-  t,
   manageRedemption,
   copyText,
   setEditingRedemption,
@@ -101,7 +101,7 @@ export const getRedemptionsColumns = ({
       dataIndex: 'status',
       key: 'status',
       render: (text, record) => {
-        return <div>{renderStatus(text, record, t)}</div>;
+        return <div>{renderStatus(text, record)}</div>;
       },
     },
     {

@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -34,8 +35,8 @@ const ChannelsFilters = ({
   groupOptions,
   loading,
   searching,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className='flex flex-col md:flex-row justify-between items-center gap-2 w-full'>
       <div className='flex gap-2 w-full md:w-auto order-2 md:order-1'>

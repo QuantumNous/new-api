@@ -1,6 +1,8 @@
 package ionet
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/common"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,19 +14,19 @@ import (
 // ListContainers retrieves all containers for a specific deployment
 func (c *Client) ListContainers(deploymentID string) (*ContainerList, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/containers", deploymentID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list containers: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_list_containers"), err)
 	}
 
 	var containerList ContainerList
 	if err := decodeDataWithFlexibleTimes(resp.Body, &containerList); err != nil {
-		return nil, fmt.Errorf("failed to parse containers list: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_containers_list"), err)
 	}
 
 	return &containerList, nil
@@ -33,23 +35,23 @@ func (c *Client) ListContainers(deploymentID string) (*ContainerList, error) {
 // GetContainerDetails retrieves detailed information about a specific container
 func (c *Client) GetContainerDetails(deploymentID, containerID string) (*Container, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return nil, fmt.Errorf("container ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/container/%s", deploymentID, containerID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get container details: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_container_details"), err)
 	}
 
 	// API response format not documented, assuming direct format
 	var container Container
 	if err := decodeWithFlexibleTimes(resp.Body, &container); err != nil {
-		return nil, fmt.Errorf("failed to parse container details: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_container_details"), err)
 	}
 
 	return &container, nil
@@ -58,22 +60,22 @@ func (c *Client) GetContainerDetails(deploymentID, containerID string) (*Contain
 // GetContainerJobs retrieves containers jobs for a specific container (similar to containers endpoint)
 func (c *Client) GetContainerJobs(deploymentID, containerID string) (*ContainerList, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return nil, fmt.Errorf("container ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/containers-jobs/%s", deploymentID, containerID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get container jobs: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_container_jobs"), err)
 	}
 
 	var containerList ContainerList
 	if err := decodeDataWithFlexibleTimes(resp.Body, &containerList); err != nil {
-		return nil, fmt.Errorf("failed to parse container jobs: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_container_jobs"), err)
 	}
 
 	return &containerList, nil
@@ -82,10 +84,10 @@ func (c *Client) GetContainerJobs(deploymentID, containerID string) (*ContainerL
 // buildLogEndpoint constructs the request path for fetching logs
 func buildLogEndpoint(deploymentID, containerID string, opts *GetLogsOptions) (string, error) {
 	if deploymentID == "" {
-		return "", fmt.Errorf("deployment ID cannot be empty")
+		return "", errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return "", fmt.Errorf("container ID cannot be empty")
+		return "", errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 
 	params := make(map[string]interface{})
@@ -157,7 +159,7 @@ func (c *Client) GetContainerLogsRaw(deploymentID, containerID string, opts *Get
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to get container logs: %w", err)
+		return "", fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_container_logs"), err)
 	}
 
 	return string(resp.Body), nil
@@ -167,13 +169,13 @@ func (c *Client) GetContainerLogsRaw(deploymentID, containerID string, opts *Get
 // This method uses a callback function to handle incoming log entries
 func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *GetLogsOptions, callback func(*LogEntry) error) error {
 	if deploymentID == "" {
-		return fmt.Errorf("deployment ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return fmt.Errorf("container ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 	if callback == nil {
-		return fmt.Errorf("callback function cannot be nil")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.callback_function_cannot_be_nil"))
 	}
 
 	// Set follow to true for streaming
@@ -192,18 +194,18 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 	for {
 		resp, err := c.makeRequest("GET", endpoint, nil)
 		if err != nil {
-			return fmt.Errorf("failed to stream container logs: %w", err)
+			return fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_stream_container_logs"), err)
 		}
 
 		var logs ContainerLogs
 		if err := decodeWithFlexibleTimes(resp.Body, &logs); err != nil {
-			return fmt.Errorf("failed to parse container logs: %w", err)
+			return fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_container_logs"), err)
 		}
 
 		// Call the callback for each log entry
 		for _, logEntry := range logs.Logs {
 			if err := callback(&logEntry); err != nil {
-				return fmt.Errorf("callback error: %w", err)
+				return fmt.Errorf(common.Translate(common.DefaultLang, "pkg.callback_error"), err)
 			}
 		}
 
@@ -231,17 +233,17 @@ func (c *Client) StreamContainerLogs(deploymentID, containerID string, opts *Get
 // RestartContainer restarts a specific container (if supported by the API)
 func (c *Client) RestartContainer(deploymentID, containerID string) error {
 	if deploymentID == "" {
-		return fmt.Errorf("deployment ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return fmt.Errorf("container ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/container/%s/restart", deploymentID, containerID)
 
 	_, err := c.makeRequest("POST", endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("failed to restart container: %w", err)
+		return fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_restart_container"), err)
 	}
 
 	return nil
@@ -250,17 +252,17 @@ func (c *Client) RestartContainer(deploymentID, containerID string) error {
 // StopContainer stops a specific container (if supported by the API)
 func (c *Client) StopContainer(deploymentID, containerID string) error {
 	if deploymentID == "" {
-		return fmt.Errorf("deployment ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return fmt.Errorf("container ID cannot be empty")
+		return errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/container/%s/stop", deploymentID, containerID)
 
 	_, err := c.makeRequest("POST", endpoint, nil)
 	if err != nil {
-		return fmt.Errorf("failed to stop container: %w", err)
+		return fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_stop_container"), err)
 	}
 
 	return nil
@@ -269,13 +271,13 @@ func (c *Client) StopContainer(deploymentID, containerID string) error {
 // ExecuteInContainer executes a command in a specific container (if supported by the API)
 func (c *Client) ExecuteInContainer(deploymentID, containerID string, command []string) (string, error) {
 	if deploymentID == "" {
-		return "", fmt.Errorf("deployment ID cannot be empty")
+		return "", errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if containerID == "" {
-		return "", fmt.Errorf("container ID cannot be empty")
+		return "", errors.New(common.Translate(common.DefaultLang, "pkg.container_id_cannot_be_empty"))
 	}
 	if len(command) == 0 {
-		return "", fmt.Errorf("command cannot be empty")
+		return "", errors.New(common.Translate(common.DefaultLang, "pkg.command_cannot_be_empty"))
 	}
 
 	reqBody := map[string]interface{}{
@@ -286,12 +288,12 @@ func (c *Client) ExecuteInContainer(deploymentID, containerID string, command []
 
 	resp, err := c.makeRequest("POST", endpoint, reqBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to execute command in container: %w", err)
+		return "", fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_execute_command_in_container"), err)
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(resp.Body, &result); err != nil {
-		return "", fmt.Errorf("failed to parse execution result: %w", err)
+		return "", fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_execution_result"), err)
 	}
 
 	if output, ok := result["output"].(string); ok {

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -23,16 +25,16 @@ type WorkerRequest struct {
 // DoWorkerRequest 通过Worker发送请求
 func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	if !system_setting.EnableWorker() {
-		return nil, fmt.Errorf("worker not enabled")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.worker_not_enabled"))
 	}
 	if !system_setting.WorkerAllowHttpImageRequestEnabled && !strings.HasPrefix(req.URL, "https") {
-		return nil, fmt.Errorf("only support https url")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.only_support_https_url"))
 	}
 
 	// SSRF防护：验证请求URL
 	fetchSetting := system_setting.GetFetchSetting()
 	if err := common.ValidateURLWithFetchSetting(req.URL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
-		return nil, fmt.Errorf("request reject: %v", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.request_reject"), err)
 	}
 
 	workerUrl := system_setting.WorkerUrl
@@ -43,7 +45,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	// 序列化worker请求数据
 	workerPayload, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.failed_to_marshal_worker_payload"), err)
 	}
 
 	return GetHttpClient().Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
@@ -51,7 +53,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {
 	if system_setting.EnableWorker() {
-		common.SysLog(fmt.Sprintf("downloading file from worker: %s, reason: %s", originUrl, strings.Join(reason, ", ")))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.downloading_file_from_worker_reason"), originUrl, strings.Join(reason, ", ")))
 		req := &WorkerRequest{
 			URL: originUrl,
 			Key: system_setting.WorkerValidKey,
@@ -61,10 +63,10 @@ func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response,
 		// SSRF防护：验证请求URL（非Worker模式）
 		fetchSetting := system_setting.GetFetchSetting()
 		if err := common.ValidateURLWithFetchSetting(originUrl, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
-			return nil, fmt.Errorf("request reject: %v", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.request_reject"), err)
 		}
 
-		common.SysLog(fmt.Sprintf("downloading from origin: %s, reason: %s", common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
+		common.SysLog(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.downloading_from_origin_reason"), common.MaskSensitiveInfo(originUrl), strings.Join(reason, ", ")))
 		return GetHttpClient().Get(originUrl)
 	}
 }

@@ -23,6 +23,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import {
   Modal,
@@ -53,10 +54,10 @@ const ChannelSelectorModal = forwardRef(
       setSelectedChannelIds,
       channelEndpoints,
       updateChannelEndpoint,
-      t,
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const [searchText, setSearchText] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);

@@ -28,17 +28,17 @@ import {
   Space,
 } from '@douyinfe/semi-ui';
 import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const InvitationCard = ({
-  t,
-  userState,
+const InvitationCard = ({ userState,
   renderQuota,
   setOpenTransfer,
   affLink,
   handleAffLinkClick,
 }) => {
+  const { t } = useTranslation();
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}

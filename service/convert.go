@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -53,7 +54,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 			reasoningJSON, err := json.Marshal(reasoning)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
+				return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.failed_to_marshal_reasoning"), err)
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
@@ -158,7 +159,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 					mediaMessages = append(mediaMessages, message)
 				case "image":
 					// Handle image conversion (base64 to URL or keep as is)
-					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
+					imageData := fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.data_base64"), mediaMsg.Source.MediaType, mediaMsg.Source.Data)
 					//textContent += fmt.Sprintf("[Image: %s]", imageData)
 					mediaMessage := dto.MediaContent{
 						Type:     "image_url",
@@ -659,7 +660,7 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 				mediaContent := dto.MediaContent{
 					Type: "image_url",
 					ImageUrl: &dto.MessageImageUrl{
-						Url:      fmt.Sprintf("data:%s;base64,%s", part.InlineData.MimeType, part.InlineData.Data),
+						Url:      fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.data_base64"), part.InlineData.MimeType, part.InlineData.Data),
 						Detail:   "auto",
 						MimeType: part.InlineData.MimeType,
 					},
@@ -678,7 +679,7 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 			} else if part.FunctionCall != nil {
 				// 处理 Gemini 的工具调用
 				toolCall := dto.ToolCallRequest{
-					ID:   fmt.Sprintf("call_%d", len(toolCalls)+1), // 生成唯一ID
+					ID:   fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.call"), len(toolCalls)+1), // 生成唯一ID
 					Type: "function",
 					Function: dto.FunctionRequest{
 						Name:      part.FunctionCall.FunctionName,
@@ -690,7 +691,7 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 				// 处理 Gemini 的工具响应，创建单独的 tool 消息
 				toolMessage := dto.Message{
 					Role:       "tool",
-					ToolCallId: fmt.Sprintf("call_%d", len(toolCalls)), // 使用对应的调用ID
+					ToolCallId: fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.call"), len(toolCalls)), // 使用对应的调用ID
 				}
 				toolMessage.SetStringContent(toJSONString(part.FunctionResponse.Response))
 				messages = append(messages, toolMessage)
@@ -744,7 +745,7 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 			if tool.FunctionDeclarations != nil {
 				functionDeclarations, err := common.Any2Type[[]dto.FunctionRequest](tool.FunctionDeclarations)
 				if err != nil {
-					common.SysError(fmt.Sprintf("failed to parse gemini function declarations: %v (type=%T)", err, tool.FunctionDeclarations))
+					common.SysError(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.failed_to_parse_gemini_function_declarations_type"), err, tool.FunctionDeclarations))
 					continue
 				}
 				for _, function := range functionDeclarations {

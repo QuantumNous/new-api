@@ -1,6 +1,7 @@
 package replicate
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -33,7 +34,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info == nil {
-		return "", errors.New("replicate adaptor: relay info is nil")
+		return "", errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_relay_info_is_nil"))
 	}
 	if info.ChannelBaseUrl == "" {
 		info.ChannelBaseUrl = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
@@ -47,10 +48,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	if info == nil {
-		return errors.New("replicate adaptor: relay info is nil")
+		return errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_relay_info_is_nil"))
 	}
 	if info.ApiKey == "" {
-		return errors.New("replicate adaptor: api key is required")
+		return errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_api_key_is_required"))
 	}
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
@@ -66,7 +67,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info == nil {
-		return nil, errors.New("replicate adaptor: relay info is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_relay_info_is_nil"))
 	}
 	if strings.TrimSpace(request.Prompt) == "" {
 		if v := c.PostForm("prompt"); strings.TrimSpace(v) != "" {
@@ -74,7 +75,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 	if strings.TrimSpace(request.Prompt) == "" {
-		return nil, errors.New("replicate adaptor: prompt is required")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_prompt_is_required"))
 	}
 
 	modelName := strings.TrimSpace(info.UpstreamModelName)
@@ -130,7 +131,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			return nil, err
 		}
 		if imageURL == "" {
-			return nil, errors.New("replicate adaptor: image file is required for edits")
+			return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_image_file_is_required_for_edits"))
 		}
 		inputPayload["image_prompt"] = imageURL
 	}
@@ -138,7 +139,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if len(request.ExtraFields) > 0 {
 		var extra map[string]any
 		if err := common.Unmarshal(request.ExtraFields, &extra); err != nil {
-			return nil, fmt.Errorf("replicate adaptor: failed to decode extra_fields: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_decode_extra_fields"), err)
 		}
 		for key, val := range extra {
 			inputPayload[key] = val
@@ -149,7 +150,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if strings.EqualFold(key, "input") {
 			var extraInput map[string]any
 			if err := common.Unmarshal(raw, &extraInput); err != nil {
-				return nil, fmt.Errorf("replicate adaptor: failed to decode extra input: %w", err)
+				return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_decode_extra_input"), err)
 			}
 			for k, v := range extraInput {
 				inputPayload[k] = v
@@ -161,7 +162,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		var val any
 		if err := common.Unmarshal(raw, &val); err != nil {
-			return nil, fmt.Errorf("replicate adaptor: failed to decode extra field %s: %w", key, err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_decode_extra_field"), key, err)
 		}
 		inputPayload[key] = val
 	}
@@ -177,7 +178,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	if resp == nil {
-		return nil, types.NewError(errors.New("replicate adaptor: empty response"), types.ErrorCodeBadResponse)
+		return nil, types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_empty_response")), types.ErrorCodeBadResponse)
 	}
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -188,7 +189,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	var prediction PredictionResponse
 	if err := common.Unmarshal(responseBody, &prediction); err != nil {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: failed to decode response: %w", err), types.ErrorCodeBadResponseBody)
+		return nil, types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_decode_response"), err), types.ErrorCodeBadResponseBody)
 	}
 
 	if prediction.Error != nil {
@@ -206,7 +207,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if prediction.Status != "" && !strings.EqualFold(prediction.Status, "succeeded") {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: prediction status %q", prediction.Status), types.ErrorCodeBadResponse)
+		return nil, types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_prediction_status"), prediction.Status), types.ErrorCodeBadResponse)
 	}
 
 	var urls []string
@@ -237,7 +238,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if len(urls) == 0 {
-		return nil, types.NewError(errors.New("replicate adaptor: empty prediction output"), types.ErrorCodeBadResponseBody)
+		return nil, types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_empty_prediction_output")), types.ErrorCodeBadResponseBody)
 	}
 
 	var imageReq *dto.ImageRequest
@@ -275,12 +276,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if len(imageResponse.Data) == 0 {
-		return nil, types.NewError(errors.New("replicate adaptor: no usable image data"), types.ErrorCodeBadResponse)
+		return nil, types.NewError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_no_usable_image_data")), types.ErrorCodeBadResponse)
 	}
 
 	responseBytes, err := common.Marshal(imageResponse)
 	if err != nil {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: encode response failed: %w", err), types.ErrorCodeBadResponseBody)
+		return nil, types.NewError(fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_encode_response_failed"), err), types.ErrorCodeBadResponseBody)
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")
@@ -307,7 +308,7 @@ func downloadImagesToBase64(urls []string) ([]string, error) {
 		}
 		_, data, err := service.GetImageFromUrl(url)
 		if err != nil {
-			return nil, fmt.Errorf("replicate adaptor: failed to download image from %s: %w", url, err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_download_image_from"), url, err)
 		}
 		results = append(results, data)
 	}
@@ -399,13 +400,13 @@ func normalizeFluxDimension(value int) int {
 
 func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandidates ...string) (string, error) {
 	if info == nil {
-		return "", errors.New("replicate adaptor: relay info is nil")
+		return "", errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_relay_info_is_nil"))
 	}
 
 	mf := c.Request.MultipartForm
 	if mf == nil {
 		if _, err := c.MultipartForm(); err != nil {
-			return "", fmt.Errorf("replicate adaptor: parse multipart form failed: %w", err)
+			return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_parse_multipart_form_failed"), err)
 		}
 		mf = c.Request.MultipartForm
 	}
@@ -438,7 +439,7 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: failed to open image file: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_failed_to_open_image_file"), err)
 	}
 	defer file.Close()
 
@@ -456,11 +457,11 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 	part, err := writer.CreatePart(hdr)
 	if err != nil {
 		writer.Close()
-		return "", fmt.Errorf("replicate adaptor: create upload form failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_create_upload_form_failed"), err)
 	}
 	if _, err := io.Copy(part, file); err != nil {
 		writer.Close()
-		return "", fmt.Errorf("replicate adaptor: copy image content failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_copy_image_content_failed"), err)
 	}
 	formContentType := writer.FormDataContentType()
 	writer.Close()
@@ -473,59 +474,59 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 
 	req, err := http.NewRequest(http.MethodPost, uploadURL, &body)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: create upload request failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_create_upload_request_failed"), err)
 	}
 	req.Header.Set("Content-Type", formContentType)
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
 
 	resp, err := service.GetHttpClient().Do(req)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: upload image failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_upload_image_failed"), err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: read upload response failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_read_upload_response_failed"), err)
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("replicate adaptor: upload image failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_upload_image_failed_with_status"), resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 
 	var uploadResp FileUploadResponse
 	if err := common.Unmarshal(respBody, &uploadResp); err != nil {
-		return "", fmt.Errorf("replicate adaptor: decode upload response failed: %w", err)
+		return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_decode_upload_response_failed"), err)
 	}
 	if uploadResp.Urls.Get == "" {
-		return "", errors.New("replicate adaptor: upload response missing url")
+		return "", errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_upload_response_missing_url"))
 	}
 	return uploadResp.Urls.Get, nil
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeneralOpenAIRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertOpenAIRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertopenairequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertRerankRequest(*gin.Context, int, dto.RerankRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertRerankRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertrerankrequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(*gin.Context, *relaycommon.RelayInfo, dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertEmbeddingRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertembeddingrequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertAudioRequest(*gin.Context, *relaycommon.RelayInfo, dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("replicate adaptor: ConvertAudioRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertaudiorequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(*gin.Context, *relaycommon.RelayInfo, dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertOpenAIResponsesRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertopenairesponsesrequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertClaudeRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertclauderequest_is_not_implemented"))
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	return nil, errors.New("replicate adaptor: ConvertGeminiRequest is not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.replicate_adaptor_convertgeminirequest_is_not_implemented"))
 }

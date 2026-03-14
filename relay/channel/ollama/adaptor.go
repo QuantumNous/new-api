@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
@@ -37,11 +38,11 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -65,7 +66,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 	// decide generate or chat
 	if strings.Contains(info.RequestURLPath, "/v1/completions") || info.RelayMode == relayconstant.RelayModeCompletions {
@@ -83,7 +84,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

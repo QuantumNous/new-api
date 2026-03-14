@@ -32,6 +32,7 @@ import {
 import { IconSearch, IconInfoCircle } from '@douyinfe/semi-icons';
 import { copy, showError, showInfo, showSuccess } from '../../../../helpers';
 import { MODEL_TABLE_PAGE_SIZE } from '../../../../constants';
+import { useTranslation } from 'react-i18next';
 
 const ModelTestModal = ({
   showModelTestModal,
@@ -54,8 +55,8 @@ const ModelTestModal = ({
   setIsStreamTest,
   allSelectingRef,
   isMobile,
-  t,
 }) => {
+  const { t } = useTranslation();
   const hasChannel = Boolean(currentTestChannel);
   const streamToggleDisabled = [
     'embeddings',

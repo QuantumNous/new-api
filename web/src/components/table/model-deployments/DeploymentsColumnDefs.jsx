@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
+import { useTranslation } from 'react-i18next';
 import { Button, Dropdown, Tag, Typography } from '@douyinfe/semi-ui';
 import { timestamp2string, showSuccess, showError } from '../../../helpers';
 import { IconMore } from '@douyinfe/semi-icons';
@@ -121,7 +123,7 @@ const clampPercent = (value) => {
   return Math.min(100, Math.max(0, Math.round(value)));
 };
 
-const formatRemainingMinutes = (minutes, t) => {
+const formatRemainingMinutes = (minutes) => {
   if (minutes === null || minutes === undefined) return null;
   const numeric = Number(minutes);
   if (!Number.isFinite(numeric)) return null;
@@ -176,7 +178,7 @@ const getRemainingTheme = (percentRemaining) => {
   };
 };
 
-const renderStatus = (status, t) => {
+const renderStatus = (status) => {
   const normalizedStatus = normalizeStatus(status);
   const config = STATUS_TAG_CONFIG[normalizedStatus] || DEFAULT_STATUS_CONFIG;
   const statusText = typeof status === 'string' ? status : '';
@@ -197,7 +199,8 @@ const renderStatus = (status, t) => {
 };
 
 // Container Name Cell Component - to properly handle React hooks
-const ContainerNameCell = ({ text, record, t }) => {
+const ContainerNameCell = ({ text, record }) => {
+  const { t } = useTranslation();
   const handleCopyId = async () => {
     try {
       await navigator.clipboard.writeText(record.id);
@@ -226,7 +229,7 @@ const ContainerNameCell = ({ text, record, t }) => {
 };
 
 // Render resource configuration
-const renderResourceConfig = (resource, t) => {
+const renderResourceConfig = (resource) => {
   if (!resource) return '-';
 
   const { cpu, memory, gpu } = resource;
@@ -242,7 +245,7 @@ const renderResourceConfig = (resource, t) => {
       {memory && (
         <div className='flex items-center gap-1 text-xs'>
           <FaMemory className='text-green-500' />
-          <span>内存: {memory}</span>
+          <span>{t('内存：')} {memory}</span>
         </div>
       )}
       {gpu && (
@@ -256,7 +259,7 @@ const renderResourceConfig = (resource, t) => {
 };
 
 // Render instance count with status indicator
-const renderInstanceCount = (count, record, t) => {
+const renderInstanceCount = (count, record) => {
   const normalizedStatus = normalizeStatus(record?.status);
   const statusConfig = STATUS_TAG_CONFIG[normalizedStatus];
   const countColor = statusConfig?.color ?? 'grey';
@@ -270,7 +273,6 @@ const renderInstanceCount = (count, record, t) => {
 
 // Main function to get all deployment columns
 export const getDeploymentsColumns = ({
-  t,
   COLUMN_KEYS,
   startDeployment,
   restartDeployment,
@@ -295,7 +297,7 @@ export const getDeploymentsColumns = ({
       width: 300,
       ellipsis: true,
       render: (text, record) => (
-        <ContainerNameCell text={text} record={record} t={t} />
+        <ContainerNameCell text={text} record={record} />
       ),
     },
     {
@@ -304,7 +306,7 @@ export const getDeploymentsColumns = ({
       key: COLUMN_KEYS.status,
       width: 140,
       render: (status) => (
-        <div className='flex items-center gap-2'>{renderStatus(status, t)}</div>
+        <div className='flex items-center gap-2'>{renderStatus(status)}</div>
       ),
     },
     {
@@ -364,7 +366,6 @@ export const getDeploymentsColumns = ({
         const timeDisplay = baseTimeDisplay;
         const humanReadable = formatRemainingMinutes(
           record.compute_minutes_remaining,
-          t,
         );
         const showProgress = !statusOverride && normalizedStatus === 'running';
         const showExtraInfo = Boolean(humanReadable || percentUsed !== null);

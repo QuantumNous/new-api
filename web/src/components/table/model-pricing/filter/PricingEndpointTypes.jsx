@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 端点类型筛选组件
@@ -34,8 +35,8 @@ const PricingEndpointTypes = ({
   models = [],
   allModels = [],
   loading = false,
-  t,
 }) => {
+  const { t } = useTranslation();
   // 获取系统中所有端点类型（基于 allModels，如果未提供则退化为 models）
   const getAllEndpointTypes = () => {
     const endpointTypes = new Set();

@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Popconfirm } from '@douyinfe/semi-ui';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { useTranslation } from 'react-i18next';
 
 const DeploymentsActions = ({
   selectedKeys,
@@ -32,8 +33,8 @@ const DeploymentsActions = ({
   setCompactMode,
   showCreateModal,
   setShowCreateModal,
-  t,
 }) => {
+  const { t } = useTranslation();
   const hasSelected = batchOperationsEnabled && selectedKeys.length > 0;
 
   const handleAddDeployment = () => {

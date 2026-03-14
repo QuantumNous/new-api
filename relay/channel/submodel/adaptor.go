@@ -1,6 +1,7 @@
 package submodel
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"io"
 	"net/http"
@@ -18,19 +19,19 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -48,21 +49,21 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 	return request, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("submodel channel: endpoint not supported")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.submodel_channel_endpoint_not_supported"))
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

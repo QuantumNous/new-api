@@ -28,7 +28,7 @@ func New(ctx context.Context, r *redis.Client) *RedisLimiter {
 		// 预加载脚本
 		limitSHA, err := r.ScriptLoad(ctx, rateLimitScript).Result()
 		if err != nil {
-			common.SysLog(fmt.Sprintf("Failed to load rate limit script: %v", err))
+			common.SysLog(fmt.Sprintf(common.Translate(common.DefaultLang, "common.failed_to_load_rate_limit_script"), err))
 		}
 		instance = &RedisLimiter{
 			client:         r,
@@ -63,7 +63,7 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 	).Int()
 
 	if err != nil {
-		return false, fmt.Errorf("rate limit failed: %w", err)
+		return false, fmt.Errorf(common.Translate(common.DefaultLang, "common.rate_limit_failed"), err)
 	}
 	return result == 1, nil
 }

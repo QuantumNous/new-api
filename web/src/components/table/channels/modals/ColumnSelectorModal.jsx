@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Modal, Button, Checkbox } from '@douyinfe/semi-ui';
 import { getChannelsColumns } from '../ChannelsColumnDefs';
+import { useTranslation } from 'react-i18next';
 
 const ColumnSelectorModal = ({
   showColumnSelector,
@@ -29,7 +30,6 @@ const ColumnSelectorModal = ({
   handleSelectAll,
   initDefaultColumns,
   COLUMN_KEYS,
-  t,
   // Props needed for getChannelsColumns
   updateChannelBalance,
   manageChannel,
@@ -47,9 +47,9 @@ const ColumnSelectorModal = ({
   activePage,
   channels,
 }) => {
+  const { t } = useTranslation();
   // Get all columns for display in selector
   const allColumns = getChannelsColumns({
-    t,
     COLUMN_KEYS,
     updateChannelBalance,
     manageChannel,

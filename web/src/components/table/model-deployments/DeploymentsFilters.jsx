@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch, IconRefresh } from '@douyinfe/semi-icons';
+import { useTranslation } from 'react-i18next';
 
 const DeploymentsFilters = ({
   formInitValues,
@@ -28,8 +29,8 @@ const DeploymentsFilters = ({
   loading,
   searching,
   setShowColumnSelector,
-  t,
 }) => {
+  const { t } = useTranslation();
   const formApiRef = useRef(null);
 
   const handleSubmit = (values) => {

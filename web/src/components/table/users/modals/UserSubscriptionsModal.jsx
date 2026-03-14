@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { t } from '../../../../helpers/i18n';
+import { useTranslation } from 'react-i18next';
 import {
   Button,
   Empty,
@@ -45,7 +47,7 @@ function formatTs(ts) {
   return new Date(ts * 1000).toLocaleString();
 }
 
-function renderStatusTag(sub, t) {
+function renderStatusTag(sub) {
   const now = Date.now() / 1000;
   const end = sub?.end_time || 0;
   const status = sub?.status || '';
@@ -73,7 +75,8 @@ function renderStatusTag(sub, t) {
   );
 }
 
-const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
+const UserSubscriptionsModal = ({ visible, onCancel, user, onSuccess }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -276,7 +279,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         title: t('状态'),
         key: 'status',
         width: 90,
-        render: (_, record) => renderStatusTag(record?.subscription, t),
+        render: (_, record) => renderStatusTag(record?.subscription),
       },
       {
         title: t('有效期'),

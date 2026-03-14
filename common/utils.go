@@ -276,7 +276,7 @@ func Max(a int, b int) int {
 }
 
 func MessageWithRequestId(message string, id string) string {
-	return fmt.Sprintf("%s (request id: %s)", message, id)
+	return fmt.Sprintf(Translate(DefaultLang, "common.request_id"), message, id)
 }
 
 func RandomSleep() {

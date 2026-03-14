@@ -16,11 +16,18 @@ import (
 )
 
 const (
-	LangZhCN    = "zh-CN"
-	LangZhTW    = "zh-TW"
-	LangEn      = "en"
-	DefaultLang = LangEn // Fallback to English if language not supported
+	LangZhCN = "zh-CN"
+	LangZhTW = "zh-TW"
+	LangEn   = "en"
+	LangFr   = "fr"
+	LangJa   = "ja"
+	LangRu   = "ru"
+	LangVi   = "vi"
 )
+
+// DefaultLang is the runtime default language, overridden by DEFAULT_LANGUAGE env var in Init().
+// Defaults to zh-CN (the source language for YAML files) if no env var is set.
+var DefaultLang = LangZhCN
 
 //go:embed locales/*.yaml
 var localeFS embed.FS
@@ -36,11 +43,25 @@ var (
 func Init() error {
 	var initErr error
 	initOnce.Do(func() {
+		// Override default language from env var
+		if envLang := common.GetEnvOrDefaultString("DEFAULT_LANGUAGE", ""); envLang != "" {
+			normalized := normalizeLang(envLang)
+			for _, supported := range SupportedLanguages() {
+				if normalized == supported {
+					DefaultLang = normalized
+					break
+				}
+			}
+		}
+
 		bundle = i18n.NewBundle(language.Chinese)
 		bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
 
 		// Load embedded translation files
-		files := []string{"locales/zh-CN.yaml", "locales/zh-TW.yaml", "locales/en.yaml"}
+		files := []string{
+			"locales/zh-CN.yaml", "locales/zh-TW.yaml", "locales/en.yaml",
+			"locales/fr.yaml", "locales/ja.yaml", "locales/ru.yaml", "locales/vi.yaml",
+		}
 		for _, file := range files {
 			_, err := bundle.LoadMessageFileFS(localeFS, file)
 			if err != nil {
@@ -50,12 +71,14 @@ func Init() error {
 		}
 
 		// Pre-create localizers for supported languages
-		localizers[LangZhCN] = i18n.NewLocalizer(bundle, LangZhCN)
-		localizers[LangZhTW] = i18n.NewLocalizer(bundle, LangZhTW)
-		localizers[LangEn] = i18n.NewLocalizer(bundle, LangEn)
+		for _, lang := range SupportedLanguages() {
+			localizers[lang] = i18n.NewLocalizer(bundle, lang)
+		}
 
-		// Set the TranslateMessage function in common package
+		// Set translation functions in common package (breaks circular imports)
 		common.TranslateMessage = T
+		common.Translate = Translate
+		common.DefaultLang = DefaultLang
 	})
 	return initErr
 }
@@ -203,12 +226,20 @@ func normalizeLang(lang string) string {
 
 	// Handle common variations
 	switch {
-	case strings.HasPrefix(lang, "zh-tw"):
+	case strings.HasPrefix(lang, "zh-tw"), strings.HasPrefix(lang, "zh-hant"):
 		return LangZhTW
 	case strings.HasPrefix(lang, "zh"):
 		return LangZhCN
 	case strings.HasPrefix(lang, "en"):
 		return LangEn
+	case strings.HasPrefix(lang, "fr"):
+		return LangFr
+	case strings.HasPrefix(lang, "ja"):
+		return LangJa
+	case strings.HasPrefix(lang, "ru"):
+		return LangRu
+	case strings.HasPrefix(lang, "vi"):
+		return LangVi
 	default:
 		return DefaultLang
 	}
@@ -216,7 +247,7 @@ func normalizeLang(lang string) string {
 
 // SupportedLanguages returns a list of supported language codes
 func SupportedLanguages() []string {
-	return []string{LangZhCN, LangZhTW, LangEn}
+	return []string{LangZhCN, LangZhTW, LangEn, LangFr, LangJa, LangRu, LangVi}
 }
 
 // IsSupported checks if a language code is supported

@@ -1,8 +1,9 @@
 package cachex
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/common"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -21,7 +22,7 @@ func (c IntCodec) Encode(v int) (string, error) {
 func (c IntCodec) Decode(s string) (int, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0, fmt.Errorf("empty int value")
+		return 0, errors.New(common.Translate(common.DefaultLang, "pkg.empty_int_value"))
 	}
 	return strconv.Atoi(s)
 }
@@ -44,7 +45,7 @@ func (c JSONCodec[V]) Encode(v V) (string, error) {
 func (c JSONCodec[V]) Decode(s string) (V, error) {
 	var v V
 	if strings.TrimSpace(s) == "" {
-		return v, fmt.Errorf("empty json value")
+		return v, errors.New(common.Translate(common.DefaultLang, "pkg.empty_json_value"))
 	}
 	if err := json.Unmarshal([]byte(s), &v); err != nil {
 		return v, err

@@ -1,6 +1,8 @@
 package ionet
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/common"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,42 +13,42 @@ import (
 // DeployContainer deploys a new container with the specified configuration
 func (c *Client) DeployContainer(req *DeploymentRequest) (*DeploymentResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("deployment request cannot be nil")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_request_cannot_be_nil"))
 	}
 
 	// Validate required fields
 	if req.ResourcePrivateName == "" {
-		return nil, fmt.Errorf("resource_private_name is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.resource_private_name_is_required"))
 	}
 	if len(req.LocationIDs) == 0 {
-		return nil, fmt.Errorf("location_ids is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.location_ids_is_required"))
 	}
 	if req.HardwareID <= 0 {
-		return nil, fmt.Errorf("hardware_id is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.hardware_id_is_required"))
 	}
 	if req.RegistryConfig.ImageURL == "" {
-		return nil, fmt.Errorf("registry_config.image_url is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.registry_config_image_url_is_required"))
 	}
 	if req.GPUsPerContainer < 1 {
-		return nil, fmt.Errorf("gpus_per_container must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.gpus_per_container_must_be_at_least_1"))
 	}
 	if req.DurationHours < 1 {
-		return nil, fmt.Errorf("duration_hours must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.duration_hours_must_be_at_least_1"))
 	}
 	if req.ContainerConfig.ReplicaCount < 1 {
-		return nil, fmt.Errorf("container_config.replica_count must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.container_config_replica_count_must_be_at_least"))
 	}
 
 	resp, err := c.makeRequest("POST", "/deploy", req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to deploy container: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_deploy_container"), err)
 	}
 
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var deployResp DeploymentResponse
 	if err := json.Unmarshal(resp.Body, &deployResp); err != nil {
-		return nil, fmt.Errorf("failed to parse deployment response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_deployment_response"), err)
 	}
 
 	return &deployResp, nil
@@ -69,12 +71,12 @@ func (c *Client) ListDeployments(opts *ListDeploymentsOptions) (*DeploymentList,
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list deployments: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_list_deployments"), err)
 	}
 
 	var deploymentList DeploymentList
 	if err := decodeData(resp.Body, &deploymentList); err != nil {
-		return nil, fmt.Errorf("failed to parse deployments list: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_deployments_list"), err)
 	}
 
 	deploymentList.Deployments = lo.Map(deploymentList.Deployments, func(deployment Deployment, _ int) Deployment {
@@ -89,19 +91,19 @@ func (c *Client) ListDeployments(opts *ListDeploymentsOptions) (*DeploymentList,
 // GetDeployment retrieves detailed information about a specific deployment
 func (c *Client) GetDeployment(deploymentID string) (*DeploymentDetail, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s", deploymentID)
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment details: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_deployment_details"), err)
 	}
 
 	var deploymentDetail DeploymentDetail
 	if err := decodeDataWithFlexibleTimes(resp.Body, &deploymentDetail); err != nil {
-		return nil, fmt.Errorf("failed to parse deployment details: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_deployment_details"), err)
 	}
 
 	return &deploymentDetail, nil
@@ -110,24 +112,24 @@ func (c *Client) GetDeployment(deploymentID string) (*DeploymentDetail, error) {
 // UpdateDeployment updates the configuration of an existing deployment
 func (c *Client) UpdateDeployment(deploymentID string, req *UpdateDeploymentRequest) (*UpdateDeploymentResponse, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if req == nil {
-		return nil, fmt.Errorf("update request cannot be nil")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.update_request_cannot_be_nil"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s", deploymentID)
 
 	resp, err := c.makeRequest("PATCH", endpoint, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update deployment: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_update_deployment"), err)
 	}
 
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var updateResp UpdateDeploymentResponse
 	if err := json.Unmarshal(resp.Body, &updateResp); err != nil {
-		return nil, fmt.Errorf("failed to parse update deployment response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_update_deployment_response"), err)
 	}
 
 	return &updateResp, nil
@@ -136,25 +138,25 @@ func (c *Client) UpdateDeployment(deploymentID string, req *UpdateDeploymentRequ
 // ExtendDeployment extends the duration of an existing deployment
 func (c *Client) ExtendDeployment(deploymentID string, req *ExtendDurationRequest) (*DeploymentDetail, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 	if req == nil {
-		return nil, fmt.Errorf("extend request cannot be nil")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.extend_request_cannot_be_nil"))
 	}
 	if req.DurationHours < 1 {
-		return nil, fmt.Errorf("duration_hours must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.duration_hours_must_be_at_least_1"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s/extend", deploymentID)
 
 	resp, err := c.makeRequest("POST", endpoint, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extend deployment: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_extend_deployment"), err)
 	}
 
 	var deploymentDetail DeploymentDetail
 	if err := decodeDataWithFlexibleTimes(resp.Body, &deploymentDetail); err != nil {
-		return nil, fmt.Errorf("failed to parse extended deployment details: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_extended_deployment_details"), err)
 	}
 
 	return &deploymentDetail, nil
@@ -163,21 +165,21 @@ func (c *Client) ExtendDeployment(deploymentID string, req *ExtendDurationReques
 // DeleteDeployment deletes an active deployment
 func (c *Client) DeleteDeployment(deploymentID string) (*UpdateDeploymentResponse, error) {
 	if deploymentID == "" {
-		return nil, fmt.Errorf("deployment ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.deployment_id_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/deployment/%s", deploymentID)
 
 	resp, err := c.makeRequest("DELETE", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete deployment: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_delete_deployment"), err)
 	}
 
 	// API returns direct format:
 	// {"status": "string", "deployment_id": "..."}
 	var deleteResp UpdateDeploymentResponse
 	if err := json.Unmarshal(resp.Body, &deleteResp); err != nil {
-		return nil, fmt.Errorf("failed to parse delete deployment response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_delete_deployment_response"), err)
 	}
 
 	return &deleteResp, nil
@@ -186,18 +188,18 @@ func (c *Client) DeleteDeployment(deploymentID string) (*UpdateDeploymentRespons
 // GetPriceEstimation calculates the estimated cost for a deployment
 func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimationResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("price estimation request cannot be nil")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.price_estimation_request_cannot_be_nil"))
 	}
 
 	// Validate required fields
 	if len(req.LocationIDs) == 0 {
-		return nil, fmt.Errorf("location_ids is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.location_ids_is_required"))
 	}
 	if req.HardwareID == 0 {
-		return nil, fmt.Errorf("hardware_id is required")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.hardware_id_is_required"))
 	}
 	if req.ReplicaCount < 1 {
-		return nil, fmt.Errorf("replica_count must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.replica_count_must_be_at_least_1"))
 	}
 
 	currency := strings.TrimSpace(req.Currency)
@@ -218,7 +220,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 		durationQty = req.DurationHours
 	}
 	if durationQty < 1 {
-		return nil, fmt.Errorf("duration_qty must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.duration_qty_must_be_at_least_1"))
 	}
 
 	hardwareQty := req.HardwareQty
@@ -226,7 +228,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 		hardwareQty = req.GPUsPerContainer
 	}
 	if hardwareQty < 1 {
-		return nil, fmt.Errorf("hardware_qty must be at least 1")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.hardware_qty_must_be_at_least_1"))
 	}
 
 	durationHoursForRate := req.DurationHours
@@ -270,7 +272,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get price estimation: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_get_price_estimation"), err)
 	}
 
 	// Parse according to the actual API response format from docs:
@@ -300,7 +302,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 	}
 
 	if err := decodeData(resp.Body, &pricingData); err != nil {
-		return nil, fmt.Errorf("failed to parse price estimation response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_price_estimation_response"), err)
 	}
 
 	// Convert to our internal format
@@ -326,7 +328,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 // CheckClusterNameAvailability checks if a cluster name is available
 func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) {
 	if clusterName == "" {
-		return false, fmt.Errorf("cluster name cannot be empty")
+		return false, errors.New(common.Translate(common.DefaultLang, "pkg.cluster_name_cannot_be_empty"))
 	}
 
 	params := map[string]interface{}{
@@ -337,12 +339,12 @@ func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) 
 
 	resp, err := c.makeRequest("GET", endpoint, nil)
 	if err != nil {
-		return false, fmt.Errorf("failed to check cluster name availability: %w", err)
+		return false, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_check_cluster_name_availability"), err)
 	}
 
 	var availabilityResp bool
 	if err := json.Unmarshal(resp.Body, &availabilityResp); err != nil {
-		return false, fmt.Errorf("failed to parse cluster name availability response: %w", err)
+		return false, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_cluster_name_availability_response"), err)
 	}
 
 	return availabilityResp, nil
@@ -351,26 +353,26 @@ func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) 
 // UpdateClusterName updates the name of an existing cluster/deployment
 func (c *Client) UpdateClusterName(clusterID string, req *UpdateClusterNameRequest) (*UpdateClusterNameResponse, error) {
 	if clusterID == "" {
-		return nil, fmt.Errorf("cluster ID cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.cluster_id_cannot_be_empty"))
 	}
 	if req == nil {
-		return nil, fmt.Errorf("update cluster name request cannot be nil")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.update_cluster_name_request_cannot_be_nil"))
 	}
 	if req.Name == "" {
-		return nil, fmt.Errorf("cluster name cannot be empty")
+		return nil, errors.New(common.Translate(common.DefaultLang, "pkg.cluster_name_cannot_be_empty"))
 	}
 
 	endpoint := fmt.Sprintf("/clusters/%s/update-name", clusterID)
 
 	resp, err := c.makeRequest("PUT", endpoint, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to update cluster name: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_update_cluster_name"), err)
 	}
 
 	// Parse the response directly without data wrapper based on API docs
 	var updateResp UpdateClusterNameResponse
 	if err := json.Unmarshal(resp.Body, &updateResp); err != nil {
-		return nil, fmt.Errorf("failed to parse update cluster name response: %w", err)
+		return nil, fmt.Errorf(common.Translate(common.DefaultLang, "pkg.failed_to_parse_update_cluster_name_response"), err)
 	}
 
 	return &updateResp, nil

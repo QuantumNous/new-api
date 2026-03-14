@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -202,7 +203,7 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 				buf := bodyCache[url]
 				cacheMutex.RUnlock()
 				if len(buf) == 0 {
-					lastErr = errors.New("cache miss for 304 response")
+					lastErr = errors.New(i18n.Translate(i18n.DefaultLang, "ctrl.cache_miss_for_304_response"))
 					return
 				}
 				if err := json.Unmarshal(buf, out); err != nil {
@@ -272,8 +273,8 @@ func SyncUpstreamModels(c *gin.Context) {
 	// 1) 获取未配置模型列表
 	missing, err := model.GetMissingModels()
 	if err != nil {
-		common.SysError("failed to get missing models: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取模型列表失败，请稍后重试"})
+		common.SysError(i18n.Translate(i18n.DefaultLang, "ctrl.failed_to_get_missing_models") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "sync.get_model_list_failed")})
 		return
 	}
 
@@ -323,7 +324,7 @@ func SyncUpstreamModels(c *gin.Context) {
 	}()
 	wg.Wait()
 	if fetchErr != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取上游模型失败: " + fetchErr.Error(), "locale": req.Locale, "source_urls": gin.H{"models_url": modelsURL, "vendors_url": vendorsURL}})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "sync.get_upstream_model_failed"), "locale": req.Locale, "source_urls": gin.H{"models_url": modelsURL, "vendors_url": vendorsURL}})
 		return
 	}
 
@@ -522,7 +523,7 @@ func SyncUpstreamPreview(c *gin.Context) {
 	}()
 	wg.Wait()
 	if fetchErr != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取上游模型失败: " + fetchErr.Error(), "locale": locale, "source_urls": gin.H{"models_url": modelsURL, "vendors_url": vendorsURL}})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "sync.get_upstream_model_failed", map[string]any{"Error": fetchErr.Error()}), "locale": locale, "source_urls": gin.H{"models_url": modelsURL, "vendors_url": vendorsURL}})
 		return
 	}
 

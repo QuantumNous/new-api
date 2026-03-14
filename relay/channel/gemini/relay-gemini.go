@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"encoding/json"
 	"errors"
@@ -242,7 +243,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	if len(textRequest.ExtraBody) > 0 {
 		var extraBody map[string]interface{}
 		if err := common.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
-			return nil, fmt.Errorf("invalid extra body: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.invalid_extra_body"), err)
 		}
 
 		// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
@@ -251,13 +252,13 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				adaptorWithExtraBody = true
 				// check error param name like thinkingConfig, should be thinking_config
 				if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.thinkingConfig is not supported, use extra_body.google.thinking_config instead")
+					return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_thinkingconfig_is_not_supported_use"))
 				}
 
 				if thinkingConfig, ok := googleBody["thinking_config"].(map[string]interface{}); ok {
 					// check error param name like thinkingBudget, should be thinking_budget
 					if _, hasErrorParam := thinkingConfig["thinkingBudget"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
+						return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_thinking_config_thinkingbudget_is_not"))
 					}
 					var hasThinkingConfig bool
 					var tempThinkingConfig dto.GeminiThinkingConfig
@@ -276,7 +277,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 							}
 							hasThinkingConfig = true
 						default:
-							return nil, errors.New("extra_body.google.thinking_config.thinking_budget must be an integer")
+							return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_thinking_config_thinking_budget_must"))
 						}
 					}
 
@@ -285,7 +286,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 							tempThinkingConfig.IncludeThoughts = v
 							hasThinkingConfig = true
 						} else {
-							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
+							return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_thinking_config_include_thoughts_must"))
 						}
 					}
 					if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
@@ -293,7 +294,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 							tempThinkingConfig.ThinkingLevel = v
 							hasThinkingConfig = true
 						} else {
-							return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
+							return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_thinking_config_thinking_level_must"))
 						}
 					}
 
@@ -317,17 +318,17 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 
 			// check error param name like imageConfig, should be image_config
 			if _, hasErrorParam := googleBody["imageConfig"]; hasErrorParam {
-				return nil, errors.New("extra_body.google.imageConfig is not supported, use extra_body.google.image_config instead")
+				return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_imageconfig_is_not_supported_use"))
 			}
 
 			if imageConfig, ok := googleBody["image_config"].(map[string]interface{}); ok {
 				// check error param name like aspectRatio, should be aspect_ratio
 				if _, hasErrorParam := imageConfig["aspectRatio"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.image_config.aspectRatio is not supported, use extra_body.google.image_config.aspect_ratio instead")
+					return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_image_config_aspectratio_is_not"))
 				}
 				// check error param name like imageSize, should be image_size
 				if _, hasErrorParam := imageConfig["imageSize"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.image_config.imageSize is not supported, use extra_body.google.image_config.image_size instead")
+					return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.extra_body_google_image_config_imagesize_is_not"))
 				}
 
 				// convert snake_case to camelCase for Gemini API
@@ -342,7 +343,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				if len(geminiImageConfig) > 0 {
 					imageConfigBytes, err := common.Marshal(geminiImageConfig)
 					if err != nil {
-						return nil, fmt.Errorf("failed to marshal image_config: %w", err)
+						return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_marshal_image_config"), err)
 					}
 					geminiRequest.GenerationConfig.ImageConfig = imageConfigBytes
 				}
@@ -501,7 +502,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				args := map[string]interface{}{}
 				if call.Function.Arguments != "" {
 					if json.Unmarshal([]byte(call.Function.Arguments), &args) != nil {
-						return nil, fmt.Errorf("invalid arguments for function %s, args: %s", call.Function.Name, call.Function.Arguments)
+						return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.invalid_arguments_for_function_args"), call.Function.Name, call.Function.Arguments)
 					}
 				}
 				toolCall := dto.GeminiPart{
@@ -562,7 +563,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 					dataUrl := text[bracketIdx+2 : closeIdx]
 					format, base64String, err := service.DecodeBase64FileData(dataUrl)
 					if err != nil {
-						return nil, fmt.Errorf("decode markdown base64 image data failed: %s", err.Error())
+						return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.decode_markdown_base64_image_data_failed"), err.Error())
 					}
 					imgPart := dto.GeminiPart{
 						InlineData: &dto.GeminiInlineData{
@@ -594,12 +595,12 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				}
 				base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Gemini")
 				if err != nil {
-					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+					return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.get_file_data_from_failed"), source.GetIdentifier(), err)
 				}
 
 				// 校验 MimeType 是否在 Gemini 支持的白名单中
 				if _, ok := geminiSupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
-					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
+					return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.mime_type_is_not_supported_by_gemini_url"), mimeType, source.GetIdentifier(), getSupportedMimeTypesList())
 				}
 
 				parts = append(parts, dto.GeminiPart{
@@ -610,12 +611,12 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				})
 			} else if part.Type == dto.ContentTypeFile {
 				if part.GetFile().FileId != "" {
-					return nil, fmt.Errorf("only base64 file is supported in gemini")
+					return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.only_base64_file_is_supported_in_gemini"))
 				}
 				fileSource := types.NewBase64FileSource(part.GetFile().FileData, "")
 				base64Data, mimeType, err := service.GetBase64Data(c, fileSource, "formatting file for Gemini")
 				if err != nil {
-					return nil, fmt.Errorf("decode base64 file data failed: %s", err.Error())
+					return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.decode_base64_file_data_failed"), err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
@@ -625,12 +626,12 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				})
 			} else if part.Type == dto.ContentTypeInputAudio {
 				if part.GetInputAudio().Data == "" {
-					return nil, fmt.Errorf("only base64 audio is supported in gemini")
+					return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.only_base64_audio_is_supported_in_gemini"))
 				}
 				audioSource := types.NewBase64FileSource(part.GetInputAudio().Data, "audio/"+part.GetInputAudio().Format)
 				base64Data, mimeType, err := service.GetBase64Data(c, audioSource, "formatting audio for Gemini")
 				if err != nil {
-					return nil, fmt.Errorf("decode base64 audio data failed: %s", err.Error())
+					return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.decode_base64_audio_data_failed"), err.Error())
 				}
 				parts = append(parts, dto.GeminiPart{
 					InlineData: &dto.GeminiInlineData{
@@ -962,7 +963,7 @@ func unescapeString(s string) (string, error) {
 	for i < len(s) {
 		r, size := utf8.DecodeRuneInString(s[i:]) // 正确解码UTF-8字符
 		if r == utf8.RuneError {
-			return "", fmt.Errorf("invalid UTF-8 encoding")
+			return "", errors.New(i18n.Translate(i18n.DefaultLang, "relay.invalid_utf_8_encoding"))
 		}
 
 		if escaped {
@@ -1034,7 +1035,7 @@ func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 		return nil
 	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
+		ID:   fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.call"), common.GetUUID()),
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),
@@ -1111,7 +1112,7 @@ func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse)
 						texts = append(texts, imgText)
 					} else {
 						// 其他媒体类型，直接显示链接
-						texts = append(texts, fmt.Sprintf("[media](data:%s;base64,%s)", part.InlineData.MimeType, part.InlineData.Data))
+						texts = append(texts, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.media_data_base64"), part.InlineData.MimeType, part.InlineData.Data))
 					}
 				} else if part.FunctionCall != nil {
 					choice.FinishReason = constant.FinishReasonToolCalls
@@ -1274,11 +1275,11 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
 	streamData, err := common.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_marshal_stream_response"), err)
 	}
 	err = openai.HandleStreamFormat(c, info, string(streamData), info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 	if err != nil {
-		return fmt.Errorf("failed to handle stream format: %w", err)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_handle_stream_format"), err)
 	}
 	return nil
 }
@@ -1286,7 +1287,7 @@ func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCom
 func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
 	streamData, err := common.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+		return fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.failed_to_marshal_stream_response"), err)
 	}
 	openai.HandleFinalResponse(c, info, string(streamData), resp.Id, resp.Created, resp.Model, resp.GetSystemFingerprint(), resp.Usage, false)
 	return nil
@@ -1306,7 +1307,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.gemini_block_reason"), *geminiResponse.PromptFeedback.BlockReason))
 		}
 
 		// 统计图片数量
@@ -1383,7 +1384,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			}
 		}
 
-		logger.LogDebug(c, fmt.Sprintf("info.SendResponseCount = %d", info.SendResponseCount))
+		logger.LogDebug(c, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.info_sendresponsecount"), info.SendResponseCount))
 		if info.SendResponseCount == 0 {
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
@@ -1432,7 +1433,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
 	handleErr := handleFinalStream(c, info, response)
 	if handleErr != nil {
-		common.SysLog("send final response failed: " + handleErr.Error())
+		common.SysLog(i18n.Translate(i18n.DefaultLang, "relay.send_final_response_failed") + handleErr.Error())
 	}
 	return usage, nil
 }
@@ -1456,7 +1457,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 
 		var newAPIError *types.NewAPIError
 		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "relay.gemini_block_reason"), *geminiResponse.PromptFeedback.BlockReason))
 			newAPIError = types.NewOpenAIError(
 				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
 				types.ErrorCodePromptBlocked,
@@ -1465,7 +1466,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		} else {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
 			newAPIError = types.NewOpenAIError(
-				errors.New("empty response from Gemini API"),
+				errors.New(i18n.Translate(i18n.DefaultLang, "relay.empty_response_from_gemini_api")),
 				types.ErrorCodeEmptyResponse,
 				http.StatusInternalServerError,
 			)
@@ -1572,7 +1573,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	if len(geminiResponse.Predictions) == 0 {
-		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(errors.New(i18n.Translate(i18n.DefaultLang, "relay.no_images_generated")), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	// convert to openai format response

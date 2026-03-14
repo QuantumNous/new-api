@@ -87,14 +87,14 @@ export const usePlaygroundState = () => {
 
   // 消息相关状态 - 使用加载的消息或默认消息初始化
   const [message, setMessage] = useState(
-    () => initialMessages || getDefaultMessages(t),
+    () => initialMessages || getDefaultMessages(),
   );
 
   // 当语言改变时，如果是默认消息则更新
   useEffect(() => {
     // 只在没有保存的消息时才更新默认消息
     if (!initialMessages) {
-      setMessage(getDefaultMessages(t));
+      setMessage(getDefaultMessages());
     }
   }, [t, initialMessages]); // 当语言改变时
 
@@ -203,7 +203,7 @@ export const usePlaygroundState = () => {
     if (resetMessages) {
       setMessage([]);
       setTimeout(() => {
-        setMessage(getDefaultMessages(t));
+        setMessage(getDefaultMessages());
       }, 0);
     }
   }, []);

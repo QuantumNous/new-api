@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"fmt"
 	"log"
@@ -108,12 +109,12 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 			// file type
 			return 3 * baseTokens, nil
 		}
-		return 0, errors.New(fmt.Sprintf("fail to decode image config: %s", fileMeta.GetIdentifier()))
+		return 0, errors.New(fmt.Sprintf(i18n.Translate(i18n.DefaultLang, "svc.fail_to_decode_image_config"), fileMeta.GetIdentifier()))
 	}
 
 	width := config.Width
 	height := config.Height
-	log.Printf("format: %s, width: %d, height: %d", format, width, height)
+	log.Printf(i18n.Translate(i18n.DefaultLang, "svc.format_width_height"), format, width, height)
 
 	if isPatchBased {
 		// 32x32 patch-based calculation with 1536 cap and model multiplier
@@ -174,7 +175,7 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 	tiles := tilesW * tilesH
 
 	if common.DebugEnabled {
-		log.Printf("scaled to: %dx%d, tiles: %d", finalW, finalH, tiles)
+		log.Printf(i18n.Translate(i18n.DefaultLang, "svc.scaled_to_x_tiles"), finalW, finalH, tiles)
 	}
 
 	return tiles*tileTokens + baseTokens, nil
@@ -187,7 +188,7 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	}
 
 	if meta == nil {
-		return 0, errors.New("token count meta is nil")
+		return 0, errors.New(i18n.Translate(i18n.DefaultLang, "svc.token_count_meta_is_nil"))
 	}
 
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime {
@@ -196,21 +197,21 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	if info.RelayMode == constant2.RelayModeAudioTranscription || info.RelayMode == constant2.RelayModeAudioTranslation {
 		multiForm, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
-			return 0, fmt.Errorf("error parsing multipart form: %v", err)
+			return 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_parsing_multipart_form"), err)
 		}
 		fileHeaders := multiForm.File["file"]
 		totalAudioToken := 0
 		for _, fileHeader := range fileHeaders {
 			file, err := fileHeader.Open()
 			if err != nil {
-				return 0, fmt.Errorf("error opening audio file: %v", err)
+				return 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_opening_audio_file"), err)
 			}
 			defer file.Close()
 			// get ext and io.seeker
 			ext := filepath.Ext(fileHeader.Filename)
 			duration, err := common.GetAudioDuration(c.Request.Context(), file, ext)
 			if err != nil {
-				return 0, fmt.Errorf("error getting audio duration: %v", err)
+				return 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_getting_audio_duration"), err)
 			}
 			// 一分钟 1000 token，与 $price / minute 对齐
 			totalAudioToken += int(math.Round(math.Ceil(duration) / 60.0 * 1000))
@@ -264,7 +265,7 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 			cachedData, err := LoadFileSource(c, file.Source, "token_counter")
 			if err != nil {
 				if shouldFetchFiles {
-					return 0, fmt.Errorf("error getting file type: %v", err)
+					return 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_getting_file_type"), err)
 				}
 				continue
 			}
@@ -279,7 +280,7 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 			if common.IsOpenAITextModel(model) {
 				token, err := getImageToken(c, file, model, info.IsStream)
 				if err != nil {
-					return 0, fmt.Errorf("error counting image token, media index[%d], identifier[%s], err: %v", i, file.GetIdentifier(), err)
+					return 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_counting_image_token_media_index_identifier_err"), i, file.GetIdentifier(), err)
 				}
 				tkm += token
 			} else {
@@ -313,7 +314,7 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 		// count audio token
 		atk, err := CountAudioTokenOutput(request.Delta, info.OutputAudioFormat)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error counting audio token: %v", err)
+			return 0, 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_counting_audio_token"), err)
 		}
 		audioToken += atk
 	case dto.RealtimeEventResponseAudioTranscriptionDelta, dto.RealtimeEventResponseFunctionCallArgumentsDelta:
@@ -324,7 +325,7 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 		// count audio token
 		atk, err := CountAudioTokenInput(request.Audio, info.InputAudioFormat)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error counting audio token: %v", err)
+			return 0, 0, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "svc.error_counting_audio_token"), err)
 		}
 		audioToken += atk
 	case dto.RealtimeEventConversationItemCreated:

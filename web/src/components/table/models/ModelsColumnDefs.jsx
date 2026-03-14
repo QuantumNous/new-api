@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { t } from '../../../helpers/i18n';
 import {
   Button,
   Space,
@@ -55,7 +56,7 @@ const renderModelIconCol = (record, vendorMap) => {
 };
 
 // Render vendor column with icon
-const renderVendorTag = (vendorId, vendorMap, t) => {
+const renderVendorTag = (vendorId, vendorMap) => {
   if (!vendorId || !vendorMap[vendorId]) return '-';
   const v = vendorMap[vendorId];
   return (
@@ -132,7 +133,7 @@ const renderEndpoints = (value) => {
 };
 
 // Render quota types (array) using common limited items renderer
-const renderQuotaTypes = (arr, t) => {
+const renderQuotaTypes = (arr) => {
   if (!Array.isArray(arr) || arr.length === 0) return '-';
   return renderLimitedItems({
     items: arr,
@@ -182,7 +183,6 @@ const renderOperations = (
   setShowEdit,
   manageModel,
   refresh,
-  t,
 ) => {
   return (
     <Space wrap>
@@ -237,7 +237,7 @@ const renderOperations = (
 };
 
 // 名称匹配类型渲染（带匹配数量 Tooltip）
-const renderNameRule = (rule, record, t) => {
+const renderNameRule = (rule, record) => {
   const map = {
     0: { color: 'green', label: t('精确') },
     1: { color: 'blue', label: t('前缀') },
@@ -274,7 +274,6 @@ const renderNameRule = (rule, record, t) => {
 };
 
 export const getModelsColumns = ({
-  t,
   manageModel,
   setEditingModel,
   setShowEdit,
@@ -301,7 +300,7 @@ export const getModelsColumns = ({
     {
       title: t('匹配类型'),
       dataIndex: 'name_rule',
-      render: (val, record) => renderNameRule(val, record, t),
+      render: (val, record) => renderNameRule(val, record),
     },
     {
       title: t('参与官方同步'),
@@ -320,7 +319,7 @@ export const getModelsColumns = ({
     {
       title: t('供应商'),
       dataIndex: 'vendor_id',
-      render: (vendorId, record) => renderVendorTag(vendorId, vendorMap, t),
+      render: (vendorId, record) => renderVendorTag(vendorId, vendorMap),
     },
     {
       title: t('标签'),
@@ -345,7 +344,7 @@ export const getModelsColumns = ({
     {
       title: t('计费类型'),
       dataIndex: 'quota_types',
-      render: (qts) => renderQuotaTypes(qts, t),
+      render: (qts) => renderQuotaTypes(qts),
     },
     {
       title: t('创建时间'),
@@ -373,7 +372,6 @@ export const getModelsColumns = ({
           setShowEdit,
           manageModel,
           refresh,
-          t,
         ),
     },
   ];

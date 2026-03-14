@@ -1,6 +1,7 @@
 package volcengine
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -34,7 +35,7 @@ type Adaptor struct {
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, errors.New(i18n.Translate(i18n.DefaultLang, "common.not_implemented"))
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
@@ -48,7 +49,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	if info.RelayMode != constant.RelayModeAudioSpeech {
-		return nil, errors.New("unsupported audio relay mode")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "relay.unsupported_audio_relay_mode"))
 	}
 
 	appID, token, err := parseVolcengineAuth(info.ApiKey)
@@ -87,7 +88,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	if len(request.Metadata) > 0 {
 		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
-			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
+			return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.error_unmarshalling_metadata_to_volcengine_request"), err)
 		}
 	}
 
@@ -99,7 +100,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	jsonData, err := json.Marshal(volcRequest)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling volcengine request: %w", err)
+		return nil, fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.error_marshalling_volcengine_request"), err)
 	}
 
 	return bytes.NewReader(jsonData), nil
@@ -281,7 +282,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		default:
 		}
 	}
-	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
+	return "", fmt.Errorf(i18n.Translate(i18n.DefaultLang, "relay.unsupported_relay_mode"), info.RelayMode)
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -304,7 +305,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate(i18n.DefaultLang, "svc.request_is_nil"))
 	}
 
 	if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) &&
@@ -359,7 +360,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			volcRequestInterface, exists := c.Get(contextKeyTTSRequest)
 			if !exists {
 				return nil, types.NewErrorWithStatusCode(
-					errors.New("volcengine TTS request not found in context"),
+					errors.New(i18n.Translate(i18n.DefaultLang, "relay.volcengine_tts_request_not_found_in_context")),
 					types.ErrorCodeBadRequestBody,
 					http.StatusInternalServerError,
 				)
@@ -368,7 +369,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			volcRequest, ok := volcRequestInterface.(VolcengineTTSRequest)
 			if !ok {
 				return nil, types.NewErrorWithStatusCode(
-					errors.New("invalid volcengine TTS request type"),
+					errors.New(i18n.Translate(i18n.DefaultLang, "relay.invalid_volcengine_tts_request_type")),
 					types.ErrorCodeBadRequestBody,
 					http.StatusInternalServerError,
 				)
