@@ -105,6 +105,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		usage       = &dto.Usage{}
 		outputText  strings.Builder
 		usageText   strings.Builder
+		streamed    bool
 		sentStart   bool
 		sentStop    bool
 		sawToolCall bool
@@ -133,6 +134,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 				return false
 			}
+			streamed = streamed || c.Writer.Written()
 			return true
 		}
 
@@ -145,6 +147,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 			return false
 		}
+		streamed = streamed || c.Writer.Written()
 		return true
 	}
 
@@ -485,13 +488,22 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			}
 
 		case "response.error", "response.failed":
+			streamHasStarted := streamed || c.Writer.Written()
+			var eventErr *types.NewAPIError
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
-					return false
+					eventErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
 				}
 			}
-			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			if eventErr == nil {
+				eventErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			}
+			if !streamHasStarted {
+				streamErr = eventErr
+				return false
+			}
+			// Stream already committed; keep existing behavior by surfacing the stream error and stopping.
+			streamErr = eventErr
 			return false
 
 		default:

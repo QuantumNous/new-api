@@ -78,13 +78,29 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var streamErr *types.NewAPIError
+	streamStarted := false
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 
 		// 检查当前数据是否包含 completed 状态和 usage 信息
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err == nil {
+			if streamResponse.Type == "response.error" || streamResponse.Type == "response.failed" {
+				if !streamStarted && !c.Writer.Written() {
+					if streamResponse.Response != nil {
+						if oaiErr := streamResponse.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
+							streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+							return false
+						}
+					}
+					streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResponse.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+					return false
+				}
+			}
+
 			sendResponsesStreamData(c, streamResponse, data)
+			streamStarted = streamStarted || c.Writer.Written()
 			switch streamResponse.Type {
 			case "response.completed":
 				if streamResponse.Response != nil {
@@ -129,6 +145,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		return true
 	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
