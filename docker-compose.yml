@@ -15,6 +15,33 @@
 version: '3.4' # For compatibility with older Docker versions
 
 services:
+# Optional: Cloudflare Tunnel — expose new-api without opening firewall ports.
+# To enable:
+#   1. Create a tunnel at https://one.dash.cloudflare.com/
+#   2. Set TUNNEL_TOKEN in your .env file
+#   3. Uncomment the cloudflared service below
+#   4. For tunnel-only deployments (no direct host exposure): remove or comment
+#      out the "ports: - '3000:3000'" block on the new-api service below, or
+#      replace it with "expose: - '3000'" so the port is reachable within the
+#      Docker network but is NOT published to the host.
+#
+#  cloudflared:
+#    image: cloudflare/cloudflared:latest
+#    container_name: cloudflared-tunnel-new-api
+#    restart: always
+#    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+#    environment:
+#      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+#    networks:
+#      - new-api-network
+#    depends_on:
+#      - new-api
+#    healthcheck:
+#      test: ["CMD", "cloudflared", "--version"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+
   new-api:
     image: calciumion/new-api:latest
     container_name: new-api

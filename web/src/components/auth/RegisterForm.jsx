@@ -140,6 +140,8 @@ const RegisterForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const passwordRegisterEnabled = status.password_register_enabled !== false;
+  const passwordLoginEnabled = status.password_login_enabled !== false;
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
 
@@ -520,33 +522,39 @@ const RegisterForm = () => {
                   </div>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
+                {passwordRegisterEnabled && (
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
 
-                <Button
-                  theme='solid'
-                  type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
-                  onClick={handleEmailRegisterClick}
-                  loading={emailRegisterLoading}
-                >
-                  <span className='ml-3'>{t('使用 用户名 注册')}</span>
-                </Button>
+                    <Button
+                      theme='solid'
+                      type='primary'
+                      className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                      icon={<IconMail size='large' />}
+                      onClick={handleEmailRegisterClick}
+                      loading={emailRegisterLoading}
+                    >
+                      <span className='ml-3'>{t('使用 用户名 注册')}</span>
+                    </Button>
+                  </>
+                )}
               </div>
 
-              <div className='mt-6 text-center text-sm'>
-                <Text>
-                  {t('已有账户？')}{' '}
-                  <Link
-                    to='/login'
-                    className='text-blue-600 hover:text-blue-800 font-medium'
-                  >
-                    {t('登录')}
-                  </Link>
-                </Text>
-              </div>
+              {(passwordLoginEnabled || hasOAuthRegisterOptions) && (
+                <div className='mt-6 text-center text-sm'>
+                  <Text>
+                    {t('已有账户？')}{' '}
+                    <Link
+                      to='/login'
+                      className='text-blue-600 hover:text-blue-800 font-medium'
+                    >
+                      {t('登录')}
+                    </Link>
+                  </Text>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -712,17 +720,19 @@ const RegisterForm = () => {
                 </>
               )}
 
-              <div className='mt-6 text-center text-sm'>
-                <Text>
-                  {t('已有账户？')}{' '}
-                  <Link
-                    to='/login'
-                    className='text-blue-600 hover:text-blue-800 font-medium'
-                  >
-                    {t('登录')}
-                  </Link>
-                </Text>
-              </div>
+              {(passwordLoginEnabled || hasOAuthRegisterOptions) && (
+                <div className='mt-6 text-center text-sm'>
+                  <Text>
+                    {t('已有账户？')}{' '}
+                    <Link
+                      to='/login'
+                      className='text-blue-600 hover:text-blue-800 font-medium'
+                    >
+                      {t('登录')}
+                    </Link>
+                  </Text>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -781,8 +791,26 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
+        {!passwordRegisterEnabled && !hasOAuthRegisterOptions
+          ? (
+            <div className='flex flex-col items-center justify-center py-12'>
+              <Text>{t('注册已停用')}</Text>
+              <div className='mt-4 text-sm'>
+                <Text>
+                  {t('已有账户？')}{' '}
+                  <Link
+                    to='/login'
+                    className='text-blue-600 hover:text-blue-800 font-medium'
+                  >
+                    {t('登录')}
+                  </Link>
+                </Text>
+              </div>
+            </div>
+          )
+          : !passwordRegisterEnabled && hasOAuthRegisterOptions
+          ? renderOAuthOptions()
+          : showEmailRegister || !hasOAuthRegisterOptions
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
