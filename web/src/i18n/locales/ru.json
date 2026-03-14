@@ -577,6 +577,7 @@
     "全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用": "Глобальный контроль отображения области и функций боковой панели, пользователи не могут включить функции, скрытые администратором",
     "全局设置": "Глобальные настройки",
     "全选": "Выбрать все",
+    "全选当前搜索结果": "Выбрать все результаты поиска",
     "全部": "Все",
     "全部供应商": "Все поставщики",
     "全部分组": "Все группы",
@@ -3262,6 +3263,7 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "Создание кэша 5m: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент создания кэша 5m {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "Создание кэша 1h: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент создания кэша 1h {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "Вывод: {{tokens}} / 1M * коэффициент модели {{modelRatio}} * коэффициент вывода {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "Пусто"
+    "空": "Пусто",
+    "每页条数": "На странице"
   }
 }

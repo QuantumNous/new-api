@@ -574,6 +574,7 @@
     "全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用": "Contrôle global des zones et des fonctions de la barre latérale, les utilisateurs ne peuvent pas activer les fonctions masquées par les administrateurs",
     "全局设置": "Paramètres globaux",
     "全选": "Tout sélectionner",
+    "全选当前搜索结果": "Sélectionner tous les résultats de recherche",
     "全部": "Tous",
     "全部供应商": "Tous les fournisseurs",
     "全部分组": "Tous les groupes",
@@ -3248,6 +3249,7 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "Création du cache 5m : {{tokens}} / 1M * ratio du modèle {{modelRatio}} * ratio de création du cache 5m {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "Création du cache 1h : {{tokens}} / 1M * ratio du modèle {{modelRatio}} * ratio de création du cache 1h {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "Sortie : {{tokens}} / 1M * ratio du modèle {{modelRatio}} * ratio de sortie {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "Vide"
+    "空": "Vide",
+    "每页条数": "Par page"
   }
 }

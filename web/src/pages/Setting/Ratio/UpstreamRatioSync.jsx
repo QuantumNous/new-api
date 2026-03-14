@@ -29,6 +29,7 @@ import {
   Tooltip,
   Select,
   Modal,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 import {
@@ -63,6 +64,16 @@ const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json';
 
+/**
+ * Modal for confirming and resolving pricing ratio conflicts during upstream sync.
+ * @param {object} props
+ * @param {Function} props.t - i18n translation function
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Array} props.items - Conflict items to display
+ * @param {Function} props.onOk - Confirm callback
+ * @param {Function} props.onCancel - Cancel callback
+ * @returns {JSX.Element}
+ */
 function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
   const isMobile = useIsMobile();
   const columns = [
@@ -98,6 +109,11 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
   );
 }
 
+/**
+ * Panel for synchronizing model pricing ratios from upstream channels or external presets.
+ * @param {object} props - Component props passed from parent
+ * @returns {JSX.Element}
+ */
 export default function UpstreamRatioSync(props) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);
@@ -814,29 +830,41 @@ export default function UpstreamRatioSync(props) {
     ];
 
     return (
-      <Table
-        columns={columns}
-        dataSource={getCurrentPageData(filteredDataSource)}
-        pagination={{
-          currentPage: currentPage,
-          pageSize: pageSize,
-          total: filteredDataSource.length,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          pageSizeOptions: ['5', '10', '20', '50'],
-          onChange: (page, size) => {
-            setCurrentPage(page);
-            setPageSize(size);
-          },
-          onShowSizeChange: (current, size) => {
-            setCurrentPage(1);
-            setPageSize(size);
-          },
-        }}
-        scroll={{ x: 'max-content' }}
-        size='middle'
-        loading={loading || syncLoading}
-      />
+      <>
+        <Table
+          columns={columns}
+          dataSource={getCurrentPageData(filteredDataSource)}
+          pagination={{
+            currentPage: currentPage,
+            pageSize: pageSize,
+            total: filteredDataSource.length,
+            showSizeChanger: false,
+            showQuickJumper: true,
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+          }}
+          scroll={{ x: 'max-content' }}
+          size='middle'
+          loading={loading || syncLoading}
+        />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
+          <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+          <InputNumber
+            size='small'
+            min={1}
+            value={pageSize}
+            onChange={(val) => {
+              if (val && val >= 1) {
+                setCurrentPage(1);
+                setPageSize(Math.floor(val));
+              }
+            }}
+            style={{ width: 80 }}
+          />
+        </div>
+      </>
     );
   };
 

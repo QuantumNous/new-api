@@ -27,6 +27,7 @@ import {
   Empty,
   Button,
   Collapsible,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import { IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import PropTypes from 'prop-types';
@@ -223,8 +224,28 @@ const CardTable = ({
         />
       ))}
       {!hidePagination && tableProps.pagination && dataSource.length > 0 && (
-        <div className='mt-2 flex justify-center'>
-          <Pagination {...tableProps.pagination} />
+        <div className='mt-2 flex flex-col items-center gap-2'>
+          <Pagination {...tableProps.pagination} showSizeChanger={false} />
+          <div className='flex items-center gap-2'>
+            <span
+              className='text-sm select-none'
+              style={{ color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}
+            >
+              {t('每页条数')}
+            </span>
+            <InputNumber
+              size='small'
+              min={1}
+              value={tableProps.pagination.pageSize}
+              onChange={(val) => {
+                if (val && val >= 1) {
+                  const handler = tableProps.pagination.onPageSizeChange;
+                  if (handler) handler(Math.floor(val));
+                }
+              }}
+              style={{ width: 80 }}
+            />
+          </div>
         </div>
       )}
     </div>

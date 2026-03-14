@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getTaskLogsColumns } from './TaskLogsColumnDefs';
 
+/**
+ * Task logs table component with media preview support for video and audio content.
+ * @param {object} taskLogsData - Props including logs, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const TaskLogsTable = (taskLogsData) => {
   const {
     logs,
@@ -99,8 +104,7 @@ const TaskLogsTable = (taskLogsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        pageSizeOptions: [10, 20, 50, 100],
-        showSizeChanger: true,
+        showSizeChanger: false,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

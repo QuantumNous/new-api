@@ -25,6 +25,7 @@ import {
   Checkbox,
   Empty,
   Input,
+  InputNumber,
   Modal,
   Radio,
   RadioGroup,
@@ -42,7 +43,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import {
-  PAGE_SIZE,
+  DEFAULT_PAGE_SIZE,
   PRICE_SUFFIX,
   buildSummaryText,
   hasValue,
@@ -53,6 +54,14 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
+/**
+ * Controlled numeric input component for price values with validation and optional suffix.
+ * @param {object} props
+ * @param {string} props.label - Input label text
+ * @param {string} props.value - Current input value
+ * @param {string} props.placeholder - Placeholder text
+ * @returns {JSX.Element}
+ */
 const PriceInput = ({
   label,
   value,
@@ -84,6 +93,15 @@ const PriceInput = ({
   </div>
 );
 
+/**
+ * Comprehensive editor for configuring model pricing with per-token and per-request billing modes.
+ * Supports batch operations, conflict detection, and preview of calculated ratios.
+ * @param {object} props
+ * @param {object} props.options - Current ratio settings
+ * @param {Function} props.refresh - Callback to refresh settings data
+ * @param {string[]} [props.candidateModelNames] - Suggested model names for autocomplete
+ * @returns {JSX.Element}
+ */
 export default function ModelPricingEditor({
   options,
   refresh,
@@ -112,6 +130,8 @@ export default function ModelPricingEditor({
     setSearchText,
     currentPage,
     setCurrentPage,
+    pageSize,
+    setPageSize,
     loading,
     conflictOnly,
     setConflictOnly,
@@ -135,8 +155,66 @@ export default function ModelPricingEditor({
     filterMode,
   });
 
+  const handleHeaderCheckboxChange = (e) => {
+    const currentPageKeys = pagedData.map((m) => m.name);
+    const allFilteredKeys = filteredModels.map((m) => m.name);
+    const allFilteredSelected =
+      allFilteredKeys.length > 0 &&
+      allFilteredKeys.every((k) => selectedModelNames.includes(k));
+    const allPageSelected =
+      currentPageKeys.length > 0 &&
+      currentPageKeys.every((k) => selectedModelNames.includes(k));
+
+    if (allFilteredSelected) {
+      // All filtered selected → deselect all
+      setSelectedModelNames([]);
+    } else if (allPageSelected) {
+      // Current page selected but not all → select all filtered
+      setSelectedModelNames(allFilteredKeys);
+    } else {
+      // Not all page selected → select current page
+      const otherPageKeys = selectedModelNames.filter(
+        (k) => !currentPageKeys.includes(k),
+      );
+      setSelectedModelNames([...otherPageKeys, ...currentPageKeys]);
+    }
+  };
+
+  const handleRowCheckboxChange = (name, checked) => {
+    if (checked) {
+      setSelectedModelNames([...selectedModelNames, name]);
+    } else {
+      setSelectedModelNames(selectedModelNames.filter((k) => k !== name));
+    }
+  };
+
+  const allFilteredSelected =
+    filteredModels.length > 0 &&
+    filteredModels.every((m) => selectedModelNames.includes(m.name));
+  const someSelected = selectedModelNames.length > 0;
+
   const columns = useMemo(
     () => [
+      {
+        title: (
+          <Checkbox
+            checked={allFilteredSelected}
+            indeterminate={someSelected && !allFilteredSelected}
+            onChange={handleHeaderCheckboxChange}
+          />
+        ),
+        dataIndex: '_select',
+        key: '_select',
+        width: 50,
+        render: (_, record) => (
+          <Checkbox
+            checked={selectedModelNames.includes(record.name)}
+            onChange={(e) =>
+              handleRowCheckboxChange(record.name, e.target.checked)
+            }
+          />
+        ),
+      },
       {
         title: t('模型名称'),
         dataIndex: 'name',
@@ -207,10 +285,14 @@ export default function ModelPricingEditor({
     ],
     [
       allowDeleteModel,
+      allFilteredSelected,
       deleteModel,
+      handleHeaderCheckboxChange,
+      handleRowCheckboxChange,
       selectedModelName,
       selectedModelNames,
       setSelectedModelName,
+      someSelected,
       t,
     ],
   );
@@ -222,10 +304,6 @@ export default function ModelPricingEditor({
     }
   };
 
-  const rowSelection = {
-    selectedRowKeys: selectedModelNames,
-    onChange: (selectedRowKeys) => setSelectedModelNames(selectedRowKeys),
-  };
 
   return (
     <>
@@ -313,10 +391,9 @@ export default function ModelPricingEditor({
                 columns={columns}
                 dataSource={pagedData}
                 rowKey='name'
-                rowSelection={rowSelection}
                 pagination={{
                   currentPage,
-                  pageSize: PAGE_SIZE,
+                  pageSize: pageSize,
                   total: filteredModels.length,
                   onPageChange: (page) => setCurrentPage(page),
                   showTotal: true,
@@ -344,6 +421,21 @@ export default function ModelPricingEditor({
                   onClick: () => setSelectedModelName(record.name),
                 })}
                 scroll={isMobile ? { x: 720 } : undefined}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 12px', gap: 8 }}>
+              <span style={{ fontSize: 14, color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+              <InputNumber
+                size='small'
+                min={1}
+                value={pageSize}
+                onChange={(val) => {
+                  if (val && val >= 1) {
+                    setPageSize(Math.floor(val));
+                    setCurrentPage(1);
+                  }
+                }}
+                style={{ width: 80 }}
               />
             </div>
           </Card>

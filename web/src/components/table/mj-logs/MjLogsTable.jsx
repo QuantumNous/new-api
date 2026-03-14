@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getMjLogsColumns } from './MjLogsColumnDefs';
 
+/**
+ * Midjourney task logs table component with image preview support.
+ * @param {object} mjLogsData - Props including logs, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const MjLogsTable = (mjLogsData) => {
   const {
     logs,
@@ -95,8 +100,7 @@ const MjLogsTable = (mjLogsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        pageSizeOptions: [10, 20, 50, 100],
-        showSizeChanger: true,
+        showSizeChanger: false,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getChannelsColumns } from './ChannelsColumnDefs';
 
+/**
+ * Channels management table component with pagination, column visibility, and compact mode support.
+ * @param {object} channelsData - Props including channels, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const ChannelsTable = (channelsData) => {
   const {
     channels,
@@ -140,8 +145,7 @@ const ChannelsTable = (channelsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: channelCount,
-        pageSizeOpts: [10, 20, 50, 100],
-        showSizeChanger: true,
+        showSizeChanger: false,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

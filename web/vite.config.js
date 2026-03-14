@@ -18,14 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import react from '@vitejs/plugin-react';
-import { defineConfig, transformWithEsbuild } from 'vite';
+import { defineConfig, transformWithEsbuild, loadEnv } from 'vite';
 import pkg from '@douyinfe/vite-plugin-semi';
 import path from 'path';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 const { vitePluginSemi } = pkg;
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -91,17 +94,18 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: env.API_HOST || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/mj': {
-        target: 'http://localhost:3000',
+        target: env.MJ_HOST || 'http://localhost:3000',
         changeOrigin: true,
       },
       '/pg': {
-        target: 'http://localhost:3000',
+        target: env.PG_HOST || 'http://localhost:3000',
         changeOrigin: true,
       },
     },
   },
+  };
 });

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { Toast, Pagination } from '@douyinfe/semi-ui';
+import { Toast, Pagination, InputNumber } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
@@ -28,10 +28,20 @@ import {
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 
+/**
+ * Toast content component that renders raw HTML.
+ * @param {object} props
+ * @param {string} props.htmlContent - HTML string to render
+ * @returns {JSX.Element}
+ */
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 };
 export default HTMLToastContent;
+/**
+ * Checks whether the current user has admin privileges (role >= 10).
+ * @returns {boolean}
+ */
 export function isAdmin() {
   let user = localStorage.getItem('user');
   if (!user) return false;
@@ -39,6 +49,10 @@ export function isAdmin() {
   return user.role >= 10;
 }
 
+/**
+ * Checks whether the current user has root privileges (role >= 100).
+ * @returns {boolean}
+ */
 export function isRoot() {
   let user = localStorage.getItem('user');
   if (!user) return false;
@@ -46,18 +60,30 @@ export function isRoot() {
   return user.role >= 100;
 }
 
+/**
+ * Retrieves the system name from localStorage, defaults to 'New API'.
+ * @returns {string}
+ */
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
   if (!system_name) return 'New API';
   return system_name;
 }
 
+/**
+ * Retrieves the logo URL from localStorage, defaults to '/logo.png'.
+ * @returns {string}
+ */
 export function getLogo() {
   let logo = localStorage.getItem('logo');
   if (!logo) return '/logo.png';
   return logo;
 }
 
+/**
+ * Retrieves the current user's ID from localStorage.
+ * @returns {number} User ID, or -1 if not found
+ */
 export function getUserIdFromLocalStorage() {
   let user = localStorage.getItem('user');
   if (!user) return -1;
@@ -65,10 +91,19 @@ export function getUserIdFromLocalStorage() {
   return user.id;
 }
 
+/**
+ * Retrieves the footer HTML content from localStorage.
+ * @returns {string|null}
+ */
 export function getFooterHTML() {
   return localStorage.getItem('footer_html');
 }
 
+/**
+ * Copies the given text to the clipboard, with a textarea fallback for older browsers.
+ * @param {string} text - Text to copy
+ * @returns {Promise<boolean>} Whether the copy succeeded
+ */
 export async function copy(text) {
   let okay = true;
   try {
@@ -119,6 +154,10 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
+/**
+ * Displays an error toast. Handles Axios errors with status-specific messages.
+ * @param {Error|string} error - Error object or message string
+ */
 export function showError(error) {
   console.error(error);
   if (error.message) {
@@ -150,18 +189,35 @@ export function showError(error) {
   }
 }
 
+/**
+ * Displays a warning toast.
+ * @param {string} message
+ */
 export function showWarning(message) {
   Toast.warning(message);
 }
 
+/**
+ * Displays a success toast.
+ * @param {string} message
+ */
 export function showSuccess(message) {
   Toast.success(message);
 }
 
+/**
+ * Displays an info toast.
+ * @param {string} message
+ */
 export function showInfo(message) {
   Toast.info(message);
 }
 
+/**
+ * Displays a persistent info toast, optionally rendering HTML content.
+ * @param {string} message - Text or HTML content
+ * @param {boolean} [isHTML=false] - Whether to render as HTML
+ */
 export function showNotice(message, isHTML = false) {
   if (isHTML) {
     toast(<HTMLToastContent htmlContent={message} />, showNoticeOptions);
@@ -170,10 +226,19 @@ export function showNotice(message, isHTML = false) {
   }
 }
 
+/**
+ * Opens the given URL in a new browser tab/window.
+ * @param {string} url
+ */
 export function openPage(url) {
   window.open(url);
 }
 
+/**
+ * Removes the trailing slash from a URL string.
+ * @param {string} url
+ * @returns {string}
+ */
 export function removeTrailingSlash(url) {
   if (!url) return '';
   if (url.endsWith('/')) {
@@ -183,12 +248,21 @@ export function removeTrailingSlash(url) {
   }
 }
 
+/**
+ * Returns the Unix timestamp (seconds) for the start of today (00:00:00).
+ * @returns {number}
+ */
 export function getTodayStartTimestamp() {
   var now = new Date();
   now.setHours(0, 0, 0, 0);
   return Math.floor(now.getTime() / 1000);
 }
 
+/**
+ * Formats a Unix timestamp (seconds) to "YYYY-MM-DD HH:mm:ss".
+ * @param {number} timestamp - Unix timestamp in seconds
+ * @returns {string}
+ */
 export function timestamp2string(timestamp) {
   let date = new Date(timestamp * 1000);
   let year = date.getFullYear().toString();
@@ -217,6 +291,13 @@ export function timestamp2string(timestamp) {
   );
 }
 
+/**
+ * Formats a Unix timestamp with configurable granularity (hour, day, or week range).
+ * @param {number} timestamp - Unix timestamp in seconds
+ * @param {string} [dataExportDefaultTime='hour'] - Granularity: 'hour', 'day', or 'week'
+ * @param {boolean} [showYear=false] - Whether to include the year
+ * @returns {string}
+ */
 export function timestamp2string1(
   timestamp,
   dataExportDefaultTime = 'hour',
@@ -260,7 +341,11 @@ export function timestamp2string1(
   return str;
 }
 
-// 检查时间戳数组是否跨年
+/**
+ * Checks whether a set of Unix timestamps span across multiple calendar years.
+ * @param {number[]} timestamps - Array of Unix timestamps in seconds
+ * @returns {boolean}
+ */
 export function isDataCrossYear(timestamps) {
   if (!timestamps || timestamps.length === 0) return false;
   const years = new Set(
@@ -269,6 +354,11 @@ export function isDataCrossYear(timestamps) {
   return years.size > 1;
 }
 
+/**
+ * Downloads the given text content as a file.
+ * @param {string} text - File content
+ * @param {string} filename - Download filename
+ */
 export function downloadTextAsFile(text, filename) {
   let blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   let url = URL.createObjectURL(blob);
@@ -278,6 +368,11 @@ export function downloadTextAsFile(text, filename) {
   a.click();
 }
 
+/**
+ * Validates whether a string is valid JSON.
+ * @param {string} str
+ * @returns {boolean}
+ */
 export const verifyJSON = (str) => {
   try {
     JSON.parse(str);
@@ -287,6 +382,11 @@ export const verifyJSON = (str) => {
   return true;
 };
 
+/**
+ * Validates a JSON string, returning a resolved or rejected Promise.
+ * @param {string} value
+ * @returns {Promise<void>}
+ */
 export function verifyJSONPromise(value) {
   try {
     JSON.parse(value);
@@ -296,11 +396,20 @@ export function verifyJSONPromise(value) {
   }
 }
 
+/**
+ * Checks if a one-time prompt with the given ID should be displayed.
+ * @param {string} id - Prompt identifier
+ * @returns {boolean}
+ */
 export function shouldShowPrompt(id) {
   let prompt = localStorage.getItem(`prompt-${id}`);
   return !prompt;
 }
 
+/**
+ * Marks a one-time prompt as shown so it won't display again.
+ * @param {string} id - Prompt identifier
+ */
 export function setPromptShown(id) {
   localStorage.setItem(`prompt-${id}`, 'true');
 }
@@ -332,11 +441,18 @@ export function compareObjects(oldObject, newObject) {
 
 // playground message
 
-// 生成唯一ID
+/**
+ * Generates a unique auto-incrementing message ID string.
+ * @returns {string}
+ */
 let messageId = 4;
 export const generateMessageId = () => `${messageId++}`;
 
-// 提取消息中的文本内容
+/**
+ * Extracts the text content from a message object.
+ * @param {object} message - Message with string or array content
+ * @returns {string}
+ */
 export const getTextContent = (message) => {
   if (!message || !message.content) return '';
 
@@ -347,7 +463,12 @@ export const getTextContent = (message) => {
   return typeof message.content === 'string' ? message.content : '';
 };
 
-// 处理 think 标签
+/**
+ * Extracts and separates `<think>` tag content from the main content string.
+ * @param {string} content - Raw content possibly containing <think> tags
+ * @param {string} [reasoningContent=''] - Existing reasoning content to append to
+ * @returns {{content: string, reasoningContent: string}}
+ */
 export const processThinkTags = (content, reasoningContent = '') => {
   if (!content || !content.includes('<think>')) {
     return { content, reasoningContent };
@@ -382,7 +503,12 @@ export const processThinkTags = (content, reasoningContent = '') => {
   };
 };
 
-// 处理未完成的 think 标签
+/**
+ * Processes content with potentially unclosed `<think>` tags during streaming.
+ * @param {string} content - Raw streaming content
+ * @param {string} [reasoningContent=''] - Existing reasoning content
+ * @returns {{content: string, reasoningContent: string}}
+ */
 export const processIncompleteThinkTags = (content, reasoningContent = '') => {
   if (!content) return { content: '', reasoningContent };
 
@@ -409,7 +535,13 @@ export const processIncompleteThinkTags = (content, reasoningContent = '') => {
   return processThinkTags(content, reasoningContent);
 };
 
-// 构建消息内容（包含图片）
+/**
+ * Builds message content, optionally including image URLs as multimodal content parts.
+ * @param {string} textContent - Text content of the message
+ * @param {string[]} [imageUrls=[]] - Array of image URLs
+ * @param {boolean} [imageEnabled=false] - Whether image mode is active
+ * @returns {string|Array<object>}
+ */
 export const buildMessageContent = (
   textContent,
   imageUrls = [],
@@ -434,7 +566,13 @@ export const buildMessageContent = (
   return textContent || '';
 };
 
-// 创建新消息
+/**
+ * Creates a new message object with auto-generated ID and timestamp.
+ * @param {string} role - Message role (e.g. 'user', 'assistant', 'system')
+ * @param {string|Array} content - Message content
+ * @param {object} [options={}] - Additional message properties
+ * @returns {object}
+ */
 export const createMessage = (role, content, options = {}) => ({
   role,
   content,
@@ -443,7 +581,10 @@ export const createMessage = (role, content, options = {}) => ({
   ...options,
 });
 
-// 创建加载中的助手消息
+/**
+ * Creates a loading placeholder assistant message for streaming responses.
+ * @returns {object}
+ */
 export const createLoadingAssistantMessage = () =>
   createMessage(MESSAGE_ROLES.ASSISTANT, '', {
     reasoningContent: '',
@@ -453,7 +594,11 @@ export const createLoadingAssistantMessage = () =>
     status: 'loading',
   });
 
-// 检查消息是否包含图片
+/**
+ * Checks whether a message contains image_url content parts.
+ * @param {object} message
+ * @returns {boolean}
+ */
 export const hasImageContent = (message) => {
   return (
     message &&
@@ -462,7 +607,11 @@ export const hasImageContent = (message) => {
   );
 };
 
-// 格式化消息用于API请求
+/**
+ * Formats a message object into the shape expected by the chat API.
+ * @param {object} message
+ * @returns {{role: string, content: string|Array}|null}
+ */
 export const formatMessageForAPI = (message) => {
   if (!message) return null;
 
@@ -472,12 +621,20 @@ export const formatMessageForAPI = (message) => {
   };
 };
 
-// 验证消息是否有效
+/**
+ * Checks whether a message object has a valid role and content.
+ * @param {object} message
+ * @returns {boolean}
+ */
 export const isValidMessage = (message) => {
   return message && message.role && (message.content || message.content === '');
 };
 
-// 获取最后一条用户消息
+/**
+ * Returns the last message with role 'user' from the messages array.
+ * @param {object[]} messages
+ * @returns {object|null}
+ */
 export const getLastUserMessage = (messages) => {
   if (!Array.isArray(messages)) return null;
 
@@ -489,7 +646,11 @@ export const getLastUserMessage = (messages) => {
   return null;
 };
 
-// 获取最后一条助手消息
+/**
+ * Returns the last message with role 'assistant' from the messages array.
+ * @param {object[]} messages
+ * @returns {object|null}
+ */
 export const getLastAssistantMessage = (messages) => {
   if (!Array.isArray(messages)) return null;
 
@@ -501,7 +662,11 @@ export const getLastAssistantMessage = (messages) => {
   return null;
 };
 
-// 计算相对时间（几天前、几小时前等）
+/**
+ * Returns a human-readable relative time string (e.g. "3 hours ago") for the given date.
+ * @param {string|Date} publishDate
+ * @returns {string}
+ */
 export const getRelativeTime = (publishDate) => {
   if (!publishDate) return '';
 
@@ -546,7 +711,11 @@ export const getRelativeTime = (publishDate) => {
   }
 };
 
-// 格式化日期字符串
+/**
+ * Formats a Date object to "YYYY-MM-DD" string.
+ * @param {Date} date
+ * @returns {string}
+ */
 export const formatDateString = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -554,7 +723,11 @@ export const formatDateString = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// 格式化日期时间字符串（包含时间）
+/**
+ * Formats a Date object to "YYYY-MM-DD HH:mm" string.
+ * @param {Date} date
+ * @returns {string}
+ */
 export const formatDateTimeString = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -581,11 +754,21 @@ function writeTableCompactModes(modes) {
   }
 }
 
+/**
+ * Gets the compact mode setting for a specific table from localStorage.
+ * @param {string} [tableKey='global'] - Table identifier
+ * @returns {boolean}
+ */
 export function getTableCompactMode(tableKey = 'global') {
   const modes = readTableCompactModes();
   return !!modes[tableKey];
 }
 
+/**
+ * Persists the compact mode setting for a specific table to localStorage.
+ * @param {boolean} compact
+ * @param {string} [tableKey='global'] - Table identifier
+ */
 export function setTableCompactMode(compact, tableKey = 'global') {
   const modes = readTableCompactModes();
   modes[tableKey] = compact;
@@ -594,8 +777,12 @@ export function setTableCompactMode(compact, tableKey = 'global') {
 
 // -------------------------------
 // Select 组件统一过滤逻辑
-// 使用方式： <Select filter={selectFilter} ... />
-// 统一的 Select 搜索过滤逻辑 -- 支持同时匹配 option.value 与 option.label
+/**
+ * Unified Select component filter function that matches against both option value and label.
+ * @param {string} input - Search keyword
+ * @param {object} option - Select option with value and label
+ * @returns {boolean}
+ */
 export const selectFilter = (input, option) => {
   if (!input) return true;
 
@@ -607,7 +794,19 @@ export const selectFilter = (input, option) => {
 };
 
 // -------------------------------
-// 模型定价计算工具函数
+/**
+ * Calculates display prices for a model based on its billing type, group ratio, and currency.
+ * @param {object} params
+ * @param {object} params.record - Model record with pricing fields
+ * @param {string} params.selectedGroup - Selected user group
+ * @param {object} params.groupRatio - Map of group names to ratio multipliers
+ * @param {string} params.tokenUnit - Token unit ('K' or 'M')
+ * @param {Function} params.displayPrice - Function to convert USD price to display value
+ * @param {string} params.currency - Currency code ('USD', 'CNY', 'CUSTOM')
+ * @param {string} [params.quotaDisplayType='USD'] - Display type
+ * @param {number} [params.precision=4] - Decimal precision
+ * @returns {object} Computed price data
+ */
 export const calculateModelPrice = ({
   record,
   selectedGroup,
@@ -761,6 +960,13 @@ export const calculateModelPrice = ({
   };
 };
 
+/**
+ * Converts computed price data into an array of label/value items for display.
+ * @param {object} priceData - Price data from calculateModelPrice
+ * @param {Function} t - i18n translation function
+ * @param {string} [quotaDisplayType='USD'] - Display type
+ * @returns {Array<{key: string, label: string, value: string, suffix: string}>}
+ */
 export const getModelPriceItems = (
   priceData,
   t,
@@ -874,7 +1080,13 @@ export const getModelPriceItems = (
   ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
 };
 
-// 格式化价格信息（用于卡片视图）
+/**
+ * Renders price data as inline JSX spans for card views.
+ * @param {object} priceData - Price data from calculateModelPrice
+ * @param {Function} t - i18n translation function
+ * @param {string} [quotaDisplayType='USD'] - Display type
+ * @returns {JSX.Element}
+ */
 export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
   const items = getModelPriceItems(priceData, t, quotaDisplayType);
   return (
@@ -890,8 +1102,18 @@ export const formatPriceInfo = (priceData, t, quotaDisplayType = 'USD') => {
 };
 
 // -------------------------------
-// CardPro 分页配置函数
-// 用于创建 CardPro 的 paginationArea 配置
+/**
+ * Creates a pagination area element for CardPro components with page navigation and page size input.
+ * @param {object} params
+ * @param {number} params.currentPage - Current page number
+ * @param {number} params.pageSize - Items per page
+ * @param {number} params.total - Total item count
+ * @param {Function} params.onPageChange - Page change callback
+ * @param {Function} params.onPageSizeChange - Page size change callback
+ * @param {boolean} [params.isMobile=false] - Whether in mobile viewport
+ * @param {Function} [params.t] - i18n translation function
+ * @returns {JSX.Element|null}
+ */
 export const createCardProPagination = ({
   currentPage,
   pageSize,
@@ -899,8 +1121,6 @@ export const createCardProPagination = ({
   onPageChange,
   onPageSizeChange,
   isMobile = false,
-  pageSizeOpts = [10, 20, 50, 100],
-  showSizeChanger = true,
   t = (key) => key,
 }) => {
   if (!total || total <= 0) return null;
@@ -922,18 +1142,35 @@ export const createCardProPagination = ({
       )}
 
       {/* 右侧分页控件 */}
-      <Pagination
-        currentPage={currentPage}
-        pageSize={pageSize}
-        total={total}
-        pageSizeOpts={pageSizeOpts}
-        showSizeChanger={showSizeChanger}
-        onPageSizeChange={onPageSizeChange}
-        onPageChange={onPageChange}
-        size={isMobile ? 'small' : 'default'}
-        showQuickJumper={isMobile}
-        showTotal
-      />
+      <div className='flex items-center gap-2'>
+        <Pagination
+          currentPage={currentPage}
+          pageSize={pageSize}
+          total={total}
+          showSizeChanger={false}
+          onPageChange={onPageChange}
+          size={isMobile ? 'small' : 'default'}
+          showQuickJumper={isMobile}
+          showTotal
+        />
+        <span
+          className='text-sm select-none'
+          style={{ color: 'var(--semi-color-text-2)', whiteSpace: 'nowrap' }}
+        >
+          {t('每页条数')}
+        </span>
+        <InputNumber
+          size='small'
+          min={1}
+          value={pageSize}
+          onChange={(val) => {
+            if (val && val >= 1) {
+              onPageSizeChange(Math.floor(val));
+            }
+          }}
+          style={{ width: 80 }}
+        />
+      </div>
     </>
   );
 };
@@ -954,7 +1191,10 @@ const DEFAULT_PRICING_FILTERS = {
   currentPage: 1,
 };
 
-// 重置模型定价筛选条件
+/**
+ * Resets all model pricing filter states to their default values.
+ * @param {object} params - Object containing setter functions for each filter
+ */
 export const resetPricingFilters = ({
   handleChange,
   setShowWithRecharge,

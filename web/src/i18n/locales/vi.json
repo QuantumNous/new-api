@@ -571,6 +571,7 @@
     "全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用": "Kiểm soát toàn cầu các khu vực và chức năng thanh bên, người dùng không thể bật các chức năng bị quản trị viên ẩn",
     "全局设置": "Cài đặt toàn cầu",
     "全选": "Chọn tất cả",
+    "全选当前搜索结果": "Chọn tất cả kết quả tìm kiếm",
     "全部": "Tất cả",
     "全部供应商": "Tất cả nhà cung cấp",
     "全部分组": "Tất cả các nhóm",
@@ -3801,6 +3802,7 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "Tạo bộ nhớ đệm 5m: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số tạo bộ nhớ đệm 5m {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "Tạo bộ nhớ đệm 1h: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số tạo bộ nhớ đệm 1h {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "Đầu ra: {{tokens}} / 1M * hệ số mô hình {{modelRatio}} * hệ số đầu ra {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "Trống"
+    "空": "Trống",
+    "每页条数": "Mỗi trang"
   }
 }

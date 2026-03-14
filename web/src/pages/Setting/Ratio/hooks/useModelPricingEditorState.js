@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API, showError, showSuccess } from '../../../../helpers';
 
-export const PAGE_SIZE = 10;
+/** @constant {number} Default number of items per page */
+export const DEFAULT_PAGE_SIZE = 10;
+/** @constant {number[]} Available page size options */
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+/** @constant {string} Price unit suffix label */
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
@@ -32,6 +36,11 @@ const EMPTY_MODEL = {
 
 const NUMERIC_INPUT_REGEX = /^(\d+(\.\d*)?|\.\d*)?$/;
 
+/**
+ * Checks whether a value is non-empty (not '', null, undefined, or false).
+ * @param {*} value
+ * @returns {boolean}
+ */
 export const hasValue = (value) =>
   value !== '' && value !== null && value !== undefined && value !== false;
 
@@ -173,9 +182,20 @@ const buildModelState = (name, sourceMaps) => {
   };
 };
 
+/**
+ * Checks whether a model has neither fixed price nor input price set.
+ * @param {object} model - Model pricing data
+ * @returns {boolean}
+ */
 export const isBasePricingUnset = (model) =>
   !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
 
+/**
+ * Returns an array of warning messages for a model's pricing configuration.
+ * @param {object} model - Model pricing data
+ * @param {Function} t - i18n translation function
+ * @returns {string[]}
+ */
 export const getModelWarnings = (model, t) => {
   if (!model) {
     return [];
@@ -226,6 +246,12 @@ export const getModelWarnings = (model, t) => {
   return warnings;
 };
 
+/**
+ * Builds a short summary text describing a model's current pricing configuration.
+ * @param {object} model - Model pricing data
+ * @param {Function} t - i18n translation function
+ * @returns {string}
+ */
 export const buildSummaryText = (model, t) => {
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
@@ -248,6 +274,11 @@ export const buildSummaryText = (model, t) => {
   return t('未设置价格');
 };
 
+/**
+ * Determines which optional price fields should be shown based on the model's current values.
+ * @param {object} model - Model pricing data
+ * @returns {object} Map of field names to boolean visibility flags
+ */
 export const buildOptionalFieldToggles = (model) => ({
   completionPrice: model.completionRatioLocked || hasValue(model.completionPrice),
   cachePrice: hasValue(model.cachePrice),
@@ -362,6 +393,12 @@ const serializeModel = (model, t) => {
   return result;
 };
 
+/**
+ * Builds preview table rows showing the computed ratios for a model's pricing configuration.
+ * @param {object} model - Model pricing data
+ * @param {Function} t - i18n translation function
+ * @returns {Array<{key: string, label: string, value: string}>}
+ */
 export const buildPreviewRows = (model, t) => {
   if (!model) return [];
 
@@ -489,6 +526,17 @@ export const buildPreviewRows = (model, t) => {
   ];
 };
 
+/**
+ * Custom hook that manages complete state for the model pricing editor.
+ * Handles model loading, price calculations, CRUD operations, pagination, and batch updates.
+ * @param {object} params
+ * @param {object} params.options - Current ratio settings from the server
+ * @param {Function} params.refresh - Callback to refresh settings data
+ * @param {Function} params.t - i18n translation function
+ * @param {string[]} [params.candidateModelNames] - Suggested model names for autocomplete
+ * @param {string} [params.filterMode='all'] - Filter mode for model list
+ * @returns {object} State values, computed data, and handler functions
+ */
 export function useModelPricingEditorState({
   options,
   refresh,
@@ -502,6 +550,7 @@ export function useModelPricingEditorState({
   const [selectedModelNames, setSelectedModelNames] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
   const [conflictOnly, setConflictOnly] = useState(false);
   const [optionalFieldToggles, setOptionalFieldToggles] = useState({});
@@ -580,9 +629,9 @@ export function useModelPricingEditorState({
   }, [conflictOnly, searchText, visibleModels]);
 
   const pagedData = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredModels.slice(start, start + PAGE_SIZE);
-  }, [currentPage, filteredModels]);
+    const start = (currentPage - 1) * pageSize;
+    return filteredModels.slice(start, start + pageSize);
+  }, [currentPage, filteredModels, pageSize]);
 
   const selectedModel = useMemo(
     () => visibleModels.find((model) => model.name === selectedModelName) || null,
@@ -785,6 +834,14 @@ export function useModelPricingEditorState({
     }
   };
 
+  const selectAllFiltered = () => {
+    setSelectedModelNames(filteredModels.map((model) => model.name));
+  };
+
+  const deselectAll = () => {
+    setSelectedModelNames([]);
+  };
+
   const applySelectedModelPricing = () => {
     if (!selectedModel) {
       showError(t('请先选择一个作为模板的模型'));
@@ -918,6 +975,8 @@ export function useModelPricingEditorState({
     setSearchText,
     currentPage,
     setCurrentPage,
+    pageSize,
+    setPageSize,
     loading,
     conflictOnly,
     setConflictOnly,
@@ -932,6 +991,8 @@ export function useModelPricingEditorState({
     handleSubmit,
     addModel,
     deleteModel,
+    selectAllFiltered,
+    deselectAll,
     applySelectedModelPricing,
   };
 }

@@ -30,6 +30,7 @@ import {
   Modal,
   Tag,
   Switch,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -41,6 +42,13 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
+/**
+ * Admin settings panel for managing API information endpoint entries with CRUD operations.
+ * @param {object} props
+ * @param {object} props.options - Current dashboard settings options
+ * @param {Function} props.refresh - Callback to refresh settings data
+ * @returns {JSX.Element}
+ */
 const SettingsAPIInfo = ({ options, refresh }) => {
   const { t } = useTranslation();
 
@@ -409,15 +417,10 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             currentPage: currentPage,
             pageSize: pageSize,
             total: apiInfoList.length,
-            showSizeChanger: true,
+            showSizeChanger: false,
             showQuickJumper: true,
-            pageSizeOptions: ['5', '10', '20', '50'],
             onChange: (page, size) => {
               setCurrentPage(page);
-              setPageSize(size);
-            },
-            onShowSizeChange: (current, size) => {
-              setCurrentPage(1);
               setPageSize(size);
             },
           }}
@@ -437,6 +440,21 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           }
           className='overflow-hidden'
         />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
+          <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+          <InputNumber
+            size='small'
+            min={1}
+            value={pageSize}
+            onChange={(val) => {
+              if (val && val >= 1) {
+                setCurrentPage(1);
+                setPageSize(Math.floor(val));
+              }
+            }}
+            style={{ width: 80 }}
+          />
+        </div>
       </Form.Section>
 
       <Modal

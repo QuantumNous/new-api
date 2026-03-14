@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getLogsColumns } from './UsageLogsColumnDefs';
 
+/**
+ * Usage logs table component with expandable row details and billing display modes.
+ * @param {object} logsData - Props including logs, loading, pagination, and display settings
+ * @returns {JSX.Element}
+ */
 const LogsTable = (logsData) => {
   const {
     logs,
@@ -117,8 +122,7 @@ const LogsTable = (logsData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: logCount,
-        pageSizeOptions: [10, 20, 50, 100],
-        showSizeChanger: true,
+        showSizeChanger: false,
         onPageSizeChange: (size) => {
           handlePageSizeChange(size);
         },

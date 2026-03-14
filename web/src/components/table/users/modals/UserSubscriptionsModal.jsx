@@ -73,6 +73,16 @@ function renderStatusTag(sub, t) {
   );
 }
 
+/**
+ * SideSheet for viewing and managing user subscription plans.
+ * @param {object} props
+ * @param {boolean} props.visible - Whether the side sheet is visible
+ * @param {Function} props.onCancel - Close callback
+ * @param {object} props.user - User object whose subscriptions to manage
+ * @param {Function} props.t - i18n translation function
+ * @param {Function} props.onSuccess - Callback after successful subscription operation
+ * @returns {JSX.Element}
+ */
 const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
@@ -407,7 +417,6 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             currentPage,
             pageSize,
             total: subs.length,
-            pageSizeOpts: [10, 20, 50],
             showSizeChanger: false,
             onPageChange: handlePageChange,
           }}

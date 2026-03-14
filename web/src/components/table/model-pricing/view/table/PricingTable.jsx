@@ -18,13 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useMemo } from 'react';
-import { Card, Table, Empty } from '@douyinfe/semi-ui';
+import { Card, Table, Empty, InputNumber } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getPricingTableColumns } from './PricingTableColumns';
 
+/**
+ * Table-based view for displaying model pricing with row selection and search filtering.
+ * @param {object} props
+ * @param {Array} props.filteredModels - Filtered model data to display
+ * @param {boolean} props.loading - Loading state
+ * @param {number} props.currentPage - Current page number
+ * @param {number} props.pageSize - Items per page
+ * @param {Function} props.onPageChange - Page change callback
+ * @param {Function} props.onPageSizeChange - Page size change callback
+ * @returns {JSX.Element}
+ */
 const PricingTable = ({
   filteredModels,
   loading,
@@ -121,8 +132,7 @@ const PricingTable = ({
           pagination={{
             defaultPageSize: 20,
             pageSize: pageSize,
-            showSizeChanger: true,
-            pageSizeOptions: [10, 20, 50, 100],
+            showSizeChanger: false,
             onPageSizeChange: (size) => setPageSize(size),
           }}
         />
@@ -141,7 +151,23 @@ const PricingTable = ({
     ],
   );
 
-  return ModelTable;
+  return (
+    <>
+      {ModelTable}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
+        <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+        <InputNumber
+          size='small'
+          min={1}
+          value={pageSize}
+          onChange={(val) => {
+            if (val && val >= 1) setPageSize(Math.floor(val));
+          }}
+          style={{ width: 80 }}
+        />
+      </div>
+    </>
+  );
 };
 
 export default PricingTable;

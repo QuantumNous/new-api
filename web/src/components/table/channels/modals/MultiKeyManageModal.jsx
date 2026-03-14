@@ -36,6 +36,7 @@ import {
   Badge,
   Progress,
   Card,
+  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
@@ -50,6 +51,15 @@ import {
 
 const { Text } = Typography;
 
+/**
+ * Modal for managing API keys in multi-key channels with enable/disable/delete operations.
+ * @param {object} props
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Function} props.onCancel - Close callback
+ * @param {object} props.channel - Channel data containing keys to manage
+ * @param {Function} props.onRefresh - Callback to refresh channel data after changes
+ * @returns {JSX.Element}
+ */
 const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -697,16 +707,11 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                   currentPage: currentPage,
                   pageSize: pageSize,
                   total: total,
-                  showSizeChanger: true,
+                  showSizeChanger: false,
                   showQuickJumper: true,
-                  pageSizeOpts: [10, 20, 50, 100],
                   onChange: (page, size) => {
                     setCurrentPage(page);
                     loadKeyStatus(page, size);
-                  },
-                  onShowSizeChange: (current, size) => {
-                    setCurrentPage(1);
-                    handlePageSizeChange(size);
                   },
                 }}
                 size='small'
@@ -732,6 +737,20 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                 }
               />
             </Card>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '8px 0', gap: 8 }}>
+              <span className='text-sm select-none' style={{ color: 'var(--semi-color-text-2)' }}>{t('每页条数')}</span>
+              <InputNumber
+                size='small'
+                min={1}
+                value={pageSize}
+                onChange={(val) => {
+                  if (val && val >= 1) {
+                    handlePageSizeChange(Math.floor(val));
+                  }
+                }}
+                style={{ width: 80 }}
+              />
+            </div>
           </Spin>
         </div>
       </div>

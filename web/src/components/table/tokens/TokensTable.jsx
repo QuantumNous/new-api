@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getTokensColumns } from './TokensColumnDefs';
 
+/**
+ * API tokens management table component with pagination, visibility toggle, and copy functionality.
+ * @param {object} tokensData - Props including tokens, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const TokensTable = (tokensData) => {
   const {
     tokens,
@@ -102,8 +107,7 @@ const TokensTable = (tokensData) => {
         currentPage: activePage,
         pageSize: pageSize,
         total: tokenCount,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 20, 50, 100],
+        showSizeChanger: false,
         onPageSizeChange: handlePageSizeChange,
         onPageChange: handlePageChange,
       }}

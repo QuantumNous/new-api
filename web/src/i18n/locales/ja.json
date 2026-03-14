@@ -570,6 +570,7 @@
     "全局控制侧边栏区域和功能显示，管理员隐藏的功能用户无法启用": "サイドバーの表示項目と機能をグローバルに制御します。管理者が非表示にした機能は、ユーザーは有効にできません",
     "全局设置": "グローバル設定",
     "全选": "すべて選択",
+    "全选当前搜索结果": "現在の検索結果をすべて選択",
     "全部": "すべて",
     "全部供应商": "すべて",
     "全部分组": "すべて",
@@ -3229,6 +3230,7 @@
     "5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}": "5m キャッシュ作成: {{tokens}} / 1M * モデル倍率 {{modelRatio}} * 5m キャッシュ作成倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}",
     "1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}": "1h キャッシュ作成: {{tokens}} / 1M * モデル倍率 {{modelRatio}} * 1h キャッシュ作成倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}",
     "输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}": "出力: {{tokens}} / 1M * モデル倍率 {{modelRatio}} * 出力倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}",
-    "空": "空"
+    "空": "空",
+    "每页条数": "件/ページ"
   }
 }

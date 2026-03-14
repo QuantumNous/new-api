@@ -56,6 +56,15 @@
     },
     {
       "name": "系统设置"
+    },
+    {
+      "name": "订阅管理"
+    },
+    {
+      "name": "订阅管理（管理员）"
+    },
+    {
+      "name": "订阅支付回调"
     }
   ],
   "paths": {
@@ -4942,10 +4951,1000 @@
           }
         ]
       }
+    },
+    "/api/subscription/plans": {
+      "get": {
+        "summary": "获取可用订阅计划列表",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）\n\n获取所有已启用的订阅计划，供用户选择购买。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "plan": {
+                            "$ref": "#/components/schemas/SubscriptionPlan"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self": {
+      "get": {
+        "summary": "获取当前用户订阅状态",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）\n\n获取当前用户的计费偏好和所有订阅记录（含活跃和已过期）。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "billing_preference": {
+                          "type": "string",
+                          "enum": ["consumption", "subscription"],
+                          "description": "计费偏好"
+                        },
+                        "subscriptions": {
+                          "type": "array",
+                          "description": "活跃订阅",
+                          "items": {
+                            "$ref": "#/components/schemas/UserSubscription"
+                          }
+                        },
+                        "all_subscriptions": {
+                          "type": "array",
+                          "description": "全部订阅（含已过期）",
+                          "items": {
+                            "$ref": "#/components/schemas/UserSubscription"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/self/preference": {
+      "put": {
+        "summary": "更新计费偏好",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）\n\n切换用户的计费偏好：按量计费（consumption）或订阅计费（subscription）。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "billing_preference": {
+                    "type": "string",
+                    "enum": ["consumption", "subscription"],
+                    "description": "计费偏好"
+                  }
+                },
+                "required": ["billing_preference"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/epay/pay": {
+      "post": {
+        "summary": "发起易支付订阅付款",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）⚡ 频率限制\n\n发起易支付渠道的订阅计划付款，返回支付跳转地址。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan_id": {
+                    "type": "integer",
+                    "description": "订阅计划 ID"
+                  },
+                  "payment_method": {
+                    "type": "string",
+                    "description": "支付方式（如 alipay、wechat 等）"
+                  }
+                },
+                "required": ["plan_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "易支付参数"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "支付跳转地址"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/stripe/pay": {
+      "post": {
+        "summary": "发起 Stripe 订阅付款",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）⚡ 频率限制\n\n发起 Stripe 渠道的订阅计划付款。计划需配置 stripe_price_id，用户需有邮箱。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan_id": {
+                    "type": "integer",
+                    "description": "订阅计划 ID"
+                  }
+                },
+                "required": ["plan_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "pay_link": {
+                          "type": "string",
+                          "description": "Stripe Checkout 跳转地址"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/creem/pay": {
+      "post": {
+        "summary": "发起 Creem 订阅付款",
+        "deprecated": false,
+        "description": "🔐 需要登录（User权限）⚡ 频率限制\n\n发起 Creem 渠道的订阅计划付款。计划需配置 creem_product_id。",
+        "tags": [
+          "订阅管理"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan_id": {
+                    "type": "integer",
+                    "description": "订阅计划 ID"
+                  }
+                },
+                "required": ["plan_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "checkout_url": {
+                          "type": "string",
+                          "description": "Creem 支付跳转地址"
+                        },
+                        "order_id": {
+                          "type": "string",
+                          "description": "订单号"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/plans": {
+      "get": {
+        "summary": "获取全部订阅计划",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n获取所有订阅计划，包含已禁用的计划。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "plan": {
+                            "$ref": "#/components/schemas/SubscriptionPlan"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "创建订阅计划",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n创建新的订阅计划。title 不能为空，price_amount 范围 0-9999，currency 强制为 USD。若设置 upgrade_group 则该分组必须在倍率设置中存在。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan": {
+                    "$ref": "#/components/schemas/SubscriptionPlan"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/plans/{id}": {
+      "put": {
+        "summary": "更新订阅计划",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n更新指定订阅计划的全部字段。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "订阅计划 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan": {
+                    "$ref": "#/components/schemas/SubscriptionPlan"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "patch": {
+        "summary": "更新订阅计划启用状态",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n仅更新订阅计划的 enabled（上架/下架）状态。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "订阅计划 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  }
+                },
+                "required": ["enabled"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/bind": {
+      "post": {
+        "summary": "手动绑定订阅",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n管理员手动为指定用户绑定订阅计划（无需支付）。绑定后可能触发用户分组升级。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "integer",
+                    "description": "用户 ID"
+                  },
+                  "plan_id": {
+                    "type": "integer",
+                    "description": "订阅计划 ID"
+                  }
+                },
+                "required": ["user_id", "plan_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/users/{id}/subscriptions": {
+      "get": {
+        "summary": "查看用户订阅记录",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n获取指定用户的所有订阅记录（含活跃和已过期）。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserSubscription"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "为用户创建订阅",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n管理员为指定用户创建订阅（无需支付），效果同手动绑定。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "plan_id": {
+                    "type": "integer",
+                    "description": "订阅计划 ID"
+                  }
+                },
+                "required": ["plan_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/user_subscriptions/{id}/invalidate": {
+      "post": {
+        "summary": "使订阅失效",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n立即取消指定用户订阅，状态设为 cancelled，到期时间设为当前时间。可能触发用户分组降级。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户订阅记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/admin/user_subscriptions/{id}": {
+      "delete": {
+        "summary": "删除订阅记录",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）\n\n永久删除指定用户订阅记录。可能触发用户分组降级。",
+        "tags": [
+          "订阅管理（管理员）"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "用户订阅记录 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/epay/notify": {
+      "get": {
+        "summary": "易支付异步通知（GET）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权（支付回调）\n\n易支付服务端异步通知接口，通过签名验证。成功返回 \"success\"。",
+        "tags": [
+          "订阅支付回调"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "返回 success 或 fail",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "易支付异步通知（POST）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权（支付回调）\n\n易支付服务端异步通知接口，通过签名验证。成功返回 \"success\"。",
+        "tags": [
+          "订阅支付回调"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "返回 success 或 fail",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
+    "/api/subscription/epay/return": {
+      "get": {
+        "summary": "易支付同步回调（GET）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权（支付回调）\n\n用户支付完成后浏览器跳转回调，自动重定向到 /console/topup?pay=success|fail|pending。",
+        "tags": [
+          "订阅支付回调"
+        ],
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "重定向到前端充值页面",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "易支付同步回调（POST）",
+        "deprecated": false,
+        "description": "🔓 无需鉴权（支付回调）\n\n用户支付完成后浏览器跳转回调，自动重定向到 /console/topup?pay=success|fail|pending。",
+        "tags": [
+          "订阅支付回调"
+        ],
+        "parameters": [],
+        "responses": {
+          "302": {
+            "description": "重定向到前端充值页面",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "SubscriptionPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "计划 ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "计划标题"
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "计划副标题"
+          },
+          "price_amount": {
+            "type": "number",
+            "description": "价格金额（0-9999）"
+          },
+          "currency": {
+            "type": "string",
+            "description": "货币（固定为 USD）"
+          },
+          "duration_unit": {
+            "type": "string",
+            "enum": ["month", "year", "day", "hour", "custom"],
+            "description": "时长单位"
+          },
+          "duration_value": {
+            "type": "integer",
+            "description": "时长数值"
+          },
+          "custom_seconds": {
+            "type": "integer",
+            "description": "自定义时长（秒），duration_unit 为 custom 时使用"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "是否启用"
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "排序权重"
+          },
+          "stripe_price_id": {
+            "type": "string",
+            "description": "Stripe Price ID"
+          },
+          "creem_product_id": {
+            "type": "string",
+            "description": "Creem Product ID"
+          },
+          "max_purchase_per_user": {
+            "type": "integer",
+            "description": "每用户最大购买次数（0 为不限）"
+          },
+          "upgrade_group": {
+            "type": "string",
+            "description": "订阅后升级到的用户分组"
+          },
+          "total_amount": {
+            "type": "integer",
+            "description": "订阅总额度"
+          },
+          "quota_reset_period": {
+            "type": "string",
+            "enum": ["never", "daily", "weekly", "monthly", "custom"],
+            "description": "额度重置周期"
+          },
+          "quota_reset_custom_seconds": {
+            "type": "integer",
+            "description": "自定义重置周期（秒）"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "创建时间（时间戳）"
+          },
+          "updated_at": {
+            "type": "integer",
+            "description": "更新时间（时间戳）"
+          }
+        }
+      },
+      "UserSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "订阅记录 ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "用户 ID"
+          },
+          "plan_id": {
+            "type": "integer",
+            "description": "订阅计划 ID"
+          },
+          "amount_total": {
+            "type": "integer",
+            "description": "总额度"
+          },
+          "amount_used": {
+            "type": "integer",
+            "description": "已使用额度"
+          },
+          "start_time": {
+            "type": "integer",
+            "description": "开始时间（时间戳）"
+          },
+          "end_time": {
+            "type": "integer",
+            "description": "到期时间（时间戳）"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "expired", "cancelled"],
+            "description": "订阅状态"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["order", "admin"],
+            "description": "来源：order（付款）或 admin（管理员手动绑定）"
+          },
+          "last_reset_time": {
+            "type": "integer",
+            "description": "上次额度重置时间"
+          },
+          "next_reset_time": {
+            "type": "integer",
+            "description": "下次额度重置时间"
+          },
+          "upgrade_group": {
+            "type": "string",
+            "description": "升级的用户分组"
+          },
+          "prev_user_group": {
+            "type": "string",
+            "description": "升级前的用户分组（用于取消时降级恢复）"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "创建时间（时间戳）"
+          },
+          "updated_at": {
+            "type": "integer",
+            "description": "更新时间（时间戳）"
+          }
+        }
+      },
       "ApiResponse": {
         "type": "object",
         "properties": {

@@ -33,6 +33,11 @@ import ViewDetailsModal from './modals/ViewDetailsModal';
 import UpdateConfigModal from './modals/UpdateConfigModal';
 import ConfirmationDialog from './modals/ConfirmationDialog';
 
+/**
+ * Model deployments management table with lifecycle operations and configuration modals.
+ * @param {object} deploymentsData - Props including deployments, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const DeploymentsTable = (deploymentsData) => {
   const {
     deployments,
@@ -175,8 +180,7 @@ const DeploymentsTable = (deploymentsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: deploymentCount,
-          pageSizeOpts: [10, 20, 50, 100],
-          showSizeChanger: true,
+          showSizeChanger: false,
           onPageSizeChange: handlePageSizeChange,
           onPageChange: handlePageChange,
         }}

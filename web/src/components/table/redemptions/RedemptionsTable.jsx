@@ -27,6 +27,11 @@ import {
 import { getRedemptionsColumns, isExpired } from './RedemptionsColumnDefs';
 import DeleteRedemptionModal from './modals/DeleteRedemptionModal';
 
+/**
+ * Redemption codes management table with status tracking and batch operations.
+ * @param {object} redemptionsData - Props including redemptions, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const RedemptionsTable = (redemptionsData) => {
   const {
     redemptions,
@@ -104,8 +109,7 @@ const RedemptionsTable = (redemptionsData) => {
           currentPage: activePage,
           pageSize: pageSize,
           total: tokenCount,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
+          showSizeChanger: false,
           onPageSizeChange: redemptionsData.handlePageSizeChange,
           onPageChange: handlePageChange,
         }}
