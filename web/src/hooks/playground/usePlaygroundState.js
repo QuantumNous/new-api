@@ -31,6 +31,8 @@ import {
   saveConfig,
   loadMessages,
   saveMessages,
+  clearMessages,
+  runStorageMigration,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
 
@@ -38,7 +40,10 @@ export const usePlaygroundState = () => {
   const { t } = useTranslation();
 
   // 使用惰性初始化，确保只在组件首次挂载时加载配置和消息
-  const [savedConfig] = useState(() => loadConfig());
+  const [savedConfig] = useState(() => {
+    runStorageMigration();
+    return loadConfig();
+  });
   const [initialMessages] = useState(() => {
     const loaded = loadMessages();
     // 检查是否是旧的中文默认消息，如果是则清除
@@ -54,8 +59,7 @@ export const usePlaygroundState = () => {
         loaded[1].content === '你好！很高兴见到你。有什么我可以帮助你的吗？';
 
       if (hasOldChinese) {
-        // 清除旧的默认消息
-        localStorage.removeItem('playground_messages');
+        clearMessages();
         return null;
       }
     }

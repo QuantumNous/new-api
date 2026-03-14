@@ -22,7 +22,44 @@ import {
   DEFAULT_CONFIG,
 } from '../../constants/playground.constants';
 
-const MESSAGES_STORAGE_KEY = 'playground_messages';
+function getCurrentUserId() {
+  try {
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      if (user && user.id) return user.id;
+    }
+  } catch {}
+  return null;
+}
+
+function getUserStorageKey(baseKey) {
+  const userId = getCurrentUserId();
+  return userId ? `${baseKey}_${userId}` : baseKey;
+}
+
+/**
+ * Migrate data from the old global key to the current user-scoped key.
+ * Only runs once per user per key — the old key is removed after migration.
+ */
+function migrateGlobalKey(baseKey) {
+  try {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    const userKey = `${baseKey}_${userId}`;
+    if (localStorage.getItem(userKey)) return;
+    const globalData = localStorage.getItem(baseKey);
+    if (globalData) {
+      localStorage.setItem(userKey, globalData);
+      localStorage.removeItem(baseKey);
+    }
+  } catch {}
+}
+
+export function runStorageMigration() {
+  migrateGlobalKey(STORAGE_KEYS.CONFIG);
+  migrateGlobalKey(STORAGE_KEYS.MESSAGES);
+}
 
 /**
  * 保存配置到 localStorage
@@ -34,7 +71,10 @@ export const saveConfig = (config) => {
       ...config,
       timestamp: new Date().toISOString(),
     };
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
+    localStorage.setItem(
+      getUserStorageKey(STORAGE_KEYS.CONFIG),
+      JSON.stringify(configToSave),
+    );
   } catch (error) {
     console.error('保存配置失败:', error);
   }
@@ -50,7 +90,10 @@ export const saveMessages = (messages) => {
       messages,
       timestamp: new Date().toISOString(),
     };
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messagesToSave));
+    localStorage.setItem(
+      getUserStorageKey(STORAGE_KEYS.MESSAGES),
+      JSON.stringify(messagesToSave),
+    );
   } catch (error) {
     console.error('保存消息失败:', error);
   }
@@ -62,7 +105,9 @@ export const saveMessages = (messages) => {
  */
 export const loadConfig = () => {
   try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
+    const savedConfig = localStorage.getItem(
+      getUserStorageKey(STORAGE_KEYS.CONFIG),
+    );
     if (savedConfig) {
       const parsedConfig = JSON.parse(savedConfig);
 
@@ -98,7 +143,9 @@ export const loadConfig = () => {
  */
 export const loadMessages = () => {
   try {
-    const savedMessages = localStorage.getItem(STORAGE_KEYS.MESSAGES);
+    const savedMessages = localStorage.getItem(
+      getUserStorageKey(STORAGE_KEYS.MESSAGES),
+    );
     if (savedMessages) {
       const parsedMessages = JSON.parse(savedMessages);
       return parsedMessages.messages || null;
@@ -115,8 +162,8 @@ export const loadMessages = () => {
  */
 export const clearConfig = () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.CONFIG);
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES); // 同时清除消息
+    localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.CONFIG));
+    localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.MESSAGES));
   } catch (error) {
     console.error('清除配置失败:', error);
   }
@@ -127,7 +174,7 @@ export const clearConfig = () => {
  */
 export const clearMessages = () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+    localStorage.removeItem(getUserStorageKey(STORAGE_KEYS.MESSAGES));
   } catch (error) {
     console.error('清除消息失败:', error);
   }
@@ -139,7 +186,9 @@ export const clearMessages = () => {
  */
 export const hasStoredConfig = () => {
   try {
-    return localStorage.getItem(STORAGE_KEYS.CONFIG) !== null;
+    return (
+      localStorage.getItem(getUserStorageKey(STORAGE_KEYS.CONFIG)) !== null
+    );
   } catch (error) {
     console.error('检查配置失败:', error);
     return false;
@@ -152,7 +201,9 @@ export const hasStoredConfig = () => {
  */
 export const getConfigTimestamp = () => {
   try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
+    const savedConfig = localStorage.getItem(
+      getUserStorageKey(STORAGE_KEYS.CONFIG),
+    );
     if (savedConfig) {
       const parsedConfig = JSON.parse(savedConfig);
       return parsedConfig.timestamp || null;
