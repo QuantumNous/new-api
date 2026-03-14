@@ -22,7 +22,7 @@ type OAuthKey struct {
 
 // ParseOAuthKey parses a serialized Codex OAuth key payload.
 func ParseOAuthKey(raw string) (*OAuthKey, error) {
-	if raw == "" {
+	if strings.TrimSpace(raw) == "" {
 		return nil, errors.New("codex channel: empty oauth key")
 	}
 	var key OAuthKey
