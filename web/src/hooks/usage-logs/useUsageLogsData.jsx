@@ -161,7 +161,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -362,9 +364,15 @@ export const useLogsData = () => {
       logs[i].timestamp2string = timestamp2string(logs[i].created_at);
       logs[i].key = logs[i].id;
       let other = getLogOther(logs[i].other);
+      const hasSplitCacheCreation =
+        (other?.cache_creation_tokens_5m || 0) > 0 ||
+        (other?.cache_creation_tokens_1h || 0) > 0;
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -400,10 +408,22 @@ export const useLogsData = () => {
           value: other.cache_tokens,
         });
       }
-      if (other?.cache_creation_tokens > 0) {
+      if (!hasSplitCacheCreation && other?.cache_creation_tokens > 0) {
         expandDataLocal.push({
           key: t('缓存创建 Tokens'),
           value: other.cache_creation_tokens,
+        });
+      }
+      if (other?.cache_creation_tokens_5m > 0) {
+        expandDataLocal.push({
+          key: t('缓存创建 Tokens (5m)'),
+          value: other.cache_creation_tokens_5m,
+        });
+      }
+      if (other?.cache_creation_tokens_1h > 0) {
+        expandDataLocal.push({
+          key: t('缓存创建 Tokens (1h)'),
+          value: other.cache_creation_tokens_1h,
         });
       }
       if (logs[i].type === 2) {
@@ -435,6 +455,16 @@ export const useLogsData = () => {
                 other.group_ratio,
                 other?.user_group_ratio,
                 other.cache_ratio || 1.0,
+                other.cache_creation_tokens || 0,
+                other.cache_creation_ratio || 1.0,
+                other.cache_creation_tokens_5m || 0,
+                other.cache_creation_ratio_5m ||
+                  other.cache_creation_ratio ||
+                  1.0,
+                other.cache_creation_tokens_1h || 0,
+                other.cache_creation_ratio_1h ||
+                  other.cache_creation_ratio ||
+                  1.0,
                 false,
                 1.0,
                 other.web_search || false,
@@ -545,6 +575,17 @@ export const useLogsData = () => {
               other?.audio_input_price || 0,
               other?.image_generation_call || false,
               other?.image_generation_call_price || 0,
+              other?.cache_creation_tokens || 0,
+              other?.cache_creation_ratio || 1.0,
+              other?.cache_creation_tokens_5m || 0,
+              other?.cache_creation_ratio_5m ||
+                other?.cache_creation_ratio ||
+                1.0,
+              other?.cache_creation_tokens_1h || 0,
+              other?.cache_creation_ratio_1h ||
+                other?.cache_creation_ratio ||
+                1.0,
+              other?.input_tokens_total || 0,
               billingDisplayMode,
             );
           }
@@ -571,7 +612,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),

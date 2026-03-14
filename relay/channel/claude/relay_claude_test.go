@@ -173,3 +173,85 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
 	}
 }
+
+func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         30,
+			CachedCreationTokens: 50,
+		},
+		ClaudeCacheCreation5mTokens: 10,
+		ClaudeCacheCreation1hTokens: 20,
+		UsageSemantic:               "anthropic",
+	}
+
+	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+	if openAIUsage.PromptTokens != 180 {
+		t.Fatalf("PromptTokens = %d, want 180", openAIUsage.PromptTokens)
+	}
+	if openAIUsage.InputTokens != 180 {
+		t.Fatalf("InputTokens = %d, want 180", openAIUsage.InputTokens)
+	}
+	if openAIUsage.TotalTokens != 200 {
+		t.Fatalf("TotalTokens = %d, want 200", openAIUsage.TotalTokens)
+	}
+	if openAIUsage.UsageSemantic != "openai" {
+		t.Fatalf("UsageSemantic = %s, want openai", openAIUsage.UsageSemantic)
+	}
+	if openAIUsage.UsageSource != "anthropic" {
+		t.Fatalf("UsageSource = %s, want anthropic", openAIUsage.UsageSource)
+	}
+}
+
+func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *testing.T) {
+	tests := []struct {
+		name                    string
+		cachedCreationTokens    int
+		cacheCreationTokens5m   int
+		cacheCreationTokens1h   int
+		expectedTotalInputToken int
+	}{
+		{
+			name:                    "prefers aggregate when it includes remainder",
+			cachedCreationTokens:    50,
+			cacheCreationTokens5m:   10,
+			cacheCreationTokens1h:   20,
+			expectedTotalInputToken: 180,
+		},
+		{
+			name:                    "falls back to split tokens when aggregate missing",
+			cachedCreationTokens:    0,
+			cacheCreationTokens5m:   10,
+			cacheCreationTokens1h:   20,
+			expectedTotalInputToken: 160,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usage := &dto.Usage{
+				PromptTokens:     100,
+				CompletionTokens: 20,
+				PromptTokensDetails: dto.InputTokenDetails{
+					CachedTokens:         30,
+					CachedCreationTokens: tt.cachedCreationTokens,
+				},
+				ClaudeCacheCreation5mTokens: tt.cacheCreationTokens5m,
+				ClaudeCacheCreation1hTokens: tt.cacheCreationTokens1h,
+				UsageSemantic:               "anthropic",
+			}
+
+			openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
+
+			if openAIUsage.PromptTokens != tt.expectedTotalInputToken {
+				t.Fatalf("PromptTokens = %d, want %d", openAIUsage.PromptTokens, tt.expectedTotalInputToken)
+			}
+			if openAIUsage.InputTokens != tt.expectedTotalInputToken {
+				t.Fatalf("InputTokens = %d, want %d", openAIUsage.InputTokens, tt.expectedTotalInputToken)
+			}
+		})
+	}
+}

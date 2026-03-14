@@ -25,7 +25,7 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Button
+  Button,
 } from '@douyinfe/semi-ui';
 import {
   timestamp2string,
@@ -310,15 +310,21 @@ function getPromptCacheSummary(other) {
   }
 
   const cacheReadTokens = toTokenNumber(other.cache_tokens);
+  const normalizedCacheWriteTokens = toTokenNumber(other.cache_write_tokens);
   const cacheCreationTokens = toTokenNumber(other.cache_creation_tokens);
   const cacheCreationTokens5m = toTokenNumber(other.cache_creation_tokens_5m);
   const cacheCreationTokens1h = toTokenNumber(other.cache_creation_tokens_1h);
 
   const hasSplitCacheCreation =
     cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
-  const cacheWriteTokens = hasSplitCacheCreation
-    ? cacheCreationTokens5m + cacheCreationTokens1h
-    : cacheCreationTokens;
+  const cacheWriteTokens = normalizedCacheWriteTokens > 0
+    ? normalizedCacheWriteTokens
+    : hasSplitCacheCreation
+      ? Math.max(
+          cacheCreationTokens,
+          cacheCreationTokens5m + cacheCreationTokens1h,
+        )
+      : cacheCreationTokens;
 
   if (cacheReadTokens <= 0 && cacheWriteTokens <= 0) {
     return null;
@@ -375,7 +381,10 @@ export const getLogsColumns = ({
         }
 
         return isAdminUser &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
@@ -466,7 +475,10 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div>
             <Tag
               color='grey'
@@ -489,7 +501,12 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) {
+        if (
+          record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6
+        ) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -529,7 +546,10 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -574,7 +594,7 @@ export const getLogsColumns = ({
           {t('输入')}
           <Tooltip
             content={t(
-              '根据 Anthropic 协定，/v1/messages 的输入 tokens 仅统计非缓存输入，不包含缓存读取与缓存写入 tokens。',
+              '若最终请求格式为 /v1/messages，这里主值仅显示未命中缓存的输入 tokens；若为 OpenAI 或 Gemini 兼容格式，这里主值显示输入 tokens 与缓存写入 tokens 的合计。无论哪种格式，下方都会展示缓存读取与缓存写入明细。',
             )}
           >
             <IconHelpCircle className='text-gray-400 cursor-help' />
@@ -585,6 +605,9 @@ export const getLogsColumns = ({
       render: (text, record, index) => {
         const other = getLogOther(record.other);
         const cacheSummary = getPromptCacheSummary(other);
+        const displayInputTokens = other?.claude
+          ? Number(text) || 0
+          : Number(other?.input_tokens_total ?? text) || 0;
         const hasCacheRead = (cacheSummary?.cacheReadTokens || 0) > 0;
         const hasCacheWrite = (cacheSummary?.cacheWriteTokens || 0) > 0;
         let cacheText = '';
@@ -596,7 +619,10 @@ export const getLogsColumns = ({
           cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div
             style={{
               display: 'inline-flex',
@@ -605,7 +631,7 @@ export const getLogsColumns = ({
               lineHeight: 1.2,
             }}
           >
-            <span>{text}</span>
+            <span>{displayInputTokens}</span>
             {cacheText ? (
               <span
                 style={{
@@ -630,7 +656,10 @@ export const getLogsColumns = ({
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -642,7 +671,14 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (!(record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6)) {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          )
+        ) {
           return <></>;
         }
         const other = getLogOther(record.other);
@@ -709,9 +745,9 @@ export const getLogsColumns = ({
           }
           if (other.admin_info !== undefined) {
             if (
-                other.admin_info.use_channel !== null &&
-                other.admin_info.use_channel !== undefined &&
-                other.admin_info.use_channel !== ''
+              other.admin_info.use_channel !== null &&
+              other.admin_info.use_channel !== undefined &&
+              other.admin_info.use_channel !== ''
             ) {
               let useChannel = other.admin_info.use_channel;
               let useChannelStr = useChannel.join('->');
@@ -817,12 +853,16 @@ export const getLogsColumns = ({
               other?.user_group_ratio,
               other.cache_tokens || 0,
               other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
+              other.cache_creation_tokens || 0,
+              other.cache_creation_ratio || 1.0,
+              other.cache_creation_tokens_5m || 0,
+              other.cache_creation_ratio_5m ||
+                other.cache_creation_ratio ||
+                1.0,
+              other.cache_creation_tokens_1h || 0,
+              other.cache_creation_ratio_1h ||
+                other.cache_creation_ratio ||
+                1.0,
               false,
               1.0,
               other?.is_system_prompt_overwritten,
@@ -830,14 +870,14 @@ export const getLogsColumns = ({
               billingDisplayMode,
             );
         return (
-            <Typography.Paragraph
-                ellipsis={{
-                  rows: 3,
-                }}
-                style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-            >
-              {content}
-            </Typography.Paragraph>
+          <Typography.Paragraph
+            ellipsis={{
+              rows: 3,
+            }}
+            style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
+          >
+            {content}
+          </Typography.Paragraph>
         );
       },
     },

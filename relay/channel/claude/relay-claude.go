@@ -555,6 +555,35 @@ type ClaudeResponseInfo struct {
 	Done         bool
 }
 
+func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
+	if usage == nil {
+		return 0
+	}
+	splitCacheCreationTokens := usage.ClaudeCacheCreation5mTokens + usage.ClaudeCacheCreation1hTokens
+	if splitCacheCreationTokens == 0 {
+		return usage.PromptTokensDetails.CachedCreationTokens
+	}
+	if usage.PromptTokensDetails.CachedCreationTokens > splitCacheCreationTokens {
+		return usage.PromptTokensDetails.CachedCreationTokens
+	}
+	return splitCacheCreationTokens
+}
+
+func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
+	if usage == nil {
+		return dto.Usage{}
+	}
+	clone := *usage
+	cacheCreationTokens := cacheCreationTokensForOpenAIUsage(usage)
+	totalInputTokens := usage.PromptTokens + usage.PromptTokensDetails.CachedTokens + cacheCreationTokens
+	clone.PromptTokens = totalInputTokens
+	clone.InputTokens = totalInputTokens
+	clone.TotalTokens = totalInputTokens + usage.CompletionTokens
+	clone.UsageSemantic = "openai"
+	clone.UsageSource = "anthropic"
+	return clone
+}
+
 func buildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo *ClaudeResponseInfo) *dto.ClaudeUsage {
 	usage := &dto.ClaudeUsage{}
 	if claudeResponse != nil && claudeResponse.Usage != nil {
@@ -643,6 +672,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 		// message_start, 获取usage
 		if claudeResponse.Message != nil && claudeResponse.Message.Usage != nil {
 			claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
+			claudeInfo.Usage.UsageSemantic = "anthropic"
 			claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
 			claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
 			claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Message.Usage.GetCacheCreation5mTokens()
@@ -661,6 +691,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	} else if claudeResponse.Type == "message_delta" {
 		// 最终的usage获取
 		if claudeResponse.Usage != nil {
+			claudeInfo.Usage.UsageSemantic = "anthropic"
 			if claudeResponse.Usage.InputTokens > 0 {
 				// 不叠加，只取最新的
 				claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
@@ -754,12 +785,16 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		}
 		claudeInfo.Usage = service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
 	}
+	if claudeInfo.Usage != nil {
+		claudeInfo.Usage.UsageSemantic = "anthropic"
+	}
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		//
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		if info.ShouldIncludeUsage {
-			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, info.UpstreamModelName, *claudeInfo.Usage)
+			openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, info.UpstreamModelName, openAIUsage)
 			err := helper.ObjectData(c, response)
 			if err != nil {
 				common.SysLog("send final response failed: " + err.Error())
@@ -810,6 +845,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
 		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
+		claudeInfo.Usage.UsageSemantic = "anthropic"
 		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
@@ -819,7 +855,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
-		openaiResponse.Usage = *claudeInfo.Usage
+		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
 		responseData, err = json.Marshal(openaiResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
