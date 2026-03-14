@@ -563,7 +563,7 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    return amount.toFixed(2) + ' ' + t('元');
   };
 
   const getAmount = async (value) => {
