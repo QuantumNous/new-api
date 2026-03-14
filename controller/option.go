@@ -68,7 +68,7 @@ func GetOptions(c *gin.Context) {
 		value := common.Interface2String(v)
 		if strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
+			(strings.HasSuffix(k, "Key") && k != "TurnstileSiteKey") ||
 			strings.HasSuffix(k, "secret") ||
 			strings.HasSuffix(k, "api_key") {
 			continue
