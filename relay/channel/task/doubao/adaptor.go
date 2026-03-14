@@ -13,7 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
-	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
@@ -26,37 +26,37 @@ import (
 // ============================
 
 type ContentItem struct {
-	Type     string          `json:"type"`                // "text", "image_url" or "video"
-	Text     string          `json:"text,omitempty"`      // for text type
-	ImageURL *ImageURL       `json:"image_url,omitempty"` // for image_url type
-	Video    *VideoReference `json:"video,omitempty"`     // for video (sample) type
-	Role     string          `json:"role,omitempty"`      // reference_image / first_frame / last_frame
+	Type     string    `json:"type,omitempty"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *MediaURL `json:"image_url,omitempty"`
+	VideoURL *MediaURL `json:"video_url,omitempty"`
+	AudioURL *MediaURL `json:"audio_url,omitempty"`
+	Role     string    `json:"role,omitempty"`
 }
 
-type ImageURL struct {
-	URL string `json:"url"`
-}
-
-type VideoReference struct {
-	URL string `json:"url"` // Draft video URL
+type MediaURL struct {
+	URL string `json:"url,omitempty"`
 }
 
 type requestPayload struct {
 	Model                 string         `json:"model"`
-	Content               []ContentItem  `json:"content"`
+	Content               []ContentItem  `json:"content,omitempty"`
 	CallbackURL           string         `json:"callback_url,omitempty"`
 	ReturnLastFrame       *dto.BoolValue `json:"return_last_frame,omitempty"`
 	ServiceTier           string         `json:"service_tier,omitempty"`
-	ExecutionExpiresAfter dto.IntValue   `json:"execution_expires_after,omitempty"`
+	ExecutionExpiresAfter *dto.IntValue  `json:"execution_expires_after,omitempty"`
 	GenerateAudio         *dto.BoolValue `json:"generate_audio,omitempty"`
 	Draft                 *dto.BoolValue `json:"draft,omitempty"`
-	Resolution            string         `json:"resolution,omitempty"`
-	Ratio                 string         `json:"ratio,omitempty"`
-	Duration              dto.IntValue   `json:"duration,omitempty"`
-	Frames                dto.IntValue   `json:"frames,omitempty"`
-	Seed                  dto.IntValue   `json:"seed,omitempty"`
-	CameraFixed           *dto.BoolValue `json:"camera_fixed,omitempty"`
-	Watermark             *dto.BoolValue `json:"watermark,omitempty"`
+	Tools                 []struct {
+		Type string `json:"type,omitempty"`
+	} `json:"tools,omitempty"`
+	Resolution  string         `json:"resolution,omitempty"`
+	Ratio       string         `json:"ratio,omitempty"`
+	Duration    *dto.IntValue  `json:"duration,omitempty"`
+	Frames      *dto.IntValue  `json:"frames,omitempty"`
+	Seed        *dto.IntValue  `json:"seed,omitempty"`
+	CameraFixed *dto.BoolValue `json:"camera_fixed,omitempty"`
+	Watermark   *dto.BoolValue `json:"watermark,omitempty"`
 }
 
 type responsePayload struct {
@@ -76,9 +76,15 @@ type responseTask struct {
 	Ratio           string `json:"ratio"`
 	FramesPerSecond int    `json:"framespersecond"`
 	ServiceTier     string `json:"service_tier"`
-	Usage           struct {
+	Tools           []struct {
+		Type string `json:"type"`
+	} `json:"tools"`
+	Usage struct {
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
+		ToolUsage        struct {
+			WebSearch int `json:"web_search"`
+		} `json:"tool_usage"`
 	} `json:"usage"`
 	CreatedAt int64 `json:"created_at"`
 	UpdatedAt int64 `json:"updated_at"`
@@ -108,12 +114,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 // BuildRequestURL constructs the upstream URL.
-func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
 	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
 }
 
 // BuildRequestHeader sets required headers.
-func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
@@ -231,7 +237,7 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		for _, imgURL := range req.Images {
 			r.Content = append(r.Content, ContentItem{
 				Type: "image_url",
-				ImageURL: &ImageURL{
+				ImageURL: &MediaURL{
 					URL: imgURL,
 				},
 			})
