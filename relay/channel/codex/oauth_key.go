@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
+// OAuthKey is the serialized Codex OAuth credential payload stored in channel keys.
 type OAuthKey struct {
 	IDToken      string `json:"id_token,omitempty"`
 	AccessToken  string `json:"access_token,omitempty"`
@@ -19,6 +20,7 @@ type OAuthKey struct {
 	Expired     string `json:"expired,omitempty"`
 }
 
+// ParseOAuthKey parses a serialized Codex OAuth key payload.
 func ParseOAuthKey(raw string) (*OAuthKey, error) {
 	if raw == "" {
 		return nil, errors.New("codex channel: empty oauth key")

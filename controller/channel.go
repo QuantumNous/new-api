@@ -68,6 +68,7 @@ func clearChannelInfo(channel *model.Channel) {
 	}
 }
 
+// bestEffortSyncCodexPlanType refreshes the in-memory Codex plan type derived from the stored key payload.
 func bestEffortSyncCodexPlanType(channel *model.Channel, rawKey string) {
 	if channel == nil {
 		return
@@ -84,6 +85,7 @@ func bestEffortSyncCodexPlanType(channel *model.Channel, rawKey string) {
 	channel.OtherInfo = otherInfo
 }
 
+// attachCodexPlanTypeForDisplay fills missing Codex plan types on channel rows before they are returned to the UI.
 func attachCodexPlanTypeForDisplay(channels []*model.Channel) {
 	if len(channels) == 0 {
 		return
@@ -120,6 +122,7 @@ func attachCodexPlanTypeForDisplay(channels []*model.Channel) {
 	}
 }
 
+// GetAllChannels returns paged channel rows and backfills Codex plan types for display.
 func GetAllChannels(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	channelData := make([]*model.Channel, 0)
@@ -299,6 +302,7 @@ func FixChannelsAbilities(c *gin.Context) {
 	})
 }
 
+// SearchChannels searches channels and backfills Codex plan types on the paged result set.
 func SearchChannels(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
@@ -414,6 +418,7 @@ func SearchChannels(c *gin.Context) {
 	return
 }
 
+// GetChannel returns a single channel and ensures Codex plan type metadata is ready for display.
 func GetChannel(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -549,6 +554,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	return nil
 }
 
+// RefreshCodexChannelCredential refreshes the stored Codex OAuth credential for a channel.
 func RefreshCodexChannelCredential(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -621,6 +627,7 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 	return cleanKeys, nil
 }
 
+// AddChannel creates channels and derives Codex plan type metadata from newly provided OAuth keys.
 func AddChannel(c *gin.Context) {
 	addChannelRequest := AddChannelRequest{}
 	err := c.ShouldBindJSON(&addChannelRequest)
@@ -898,6 +905,7 @@ type PatchChannel struct {
 	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
 }
 
+// UpdateChannel updates a channel while preserving and resyncing Codex plan type metadata when needed.
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
 	err := c.ShouldBindJSON(&channel)

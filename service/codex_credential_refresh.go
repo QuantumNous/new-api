@@ -12,10 +12,12 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
+// CodexCredentialRefreshOptions controls cache invalidation after credential refresh.
 type CodexCredentialRefreshOptions struct {
 	ResetCaches bool
 }
 
+// CodexOAuthKey is the persisted Codex OAuth credential payload stored on a channel.
 type CodexOAuthKey struct {
 	IDToken      string `json:"id_token,omitempty"`
 	AccessToken  string `json:"access_token,omitempty"`
@@ -29,6 +31,7 @@ type CodexOAuthKey struct {
 	Expired     string `json:"expired,omitempty"`
 }
 
+// parseCodexOAuthKey parses the stored Codex channel key payload into a typed struct.
 func parseCodexOAuthKey(raw string) (*CodexOAuthKey, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, errors.New("codex channel: empty oauth key")
@@ -40,6 +43,7 @@ func parseCodexOAuthKey(raw string) (*CodexOAuthKey, error) {
 	return &key, nil
 }
 
+// RefreshCodexChannelCredential refreshes a Codex channel token and keeps its derived metadata in sync.
 func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts CodexCredentialRefreshOptions) (*CodexOAuthKey, *model.Channel, error) {
 	ch, err := model.GetChannelById(channelID, true)
 	if err != nil {

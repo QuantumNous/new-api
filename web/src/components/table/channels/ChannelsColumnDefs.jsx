@@ -52,6 +52,7 @@ import {
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
+// parseChannelOtherInfo safely parses channel metadata used by channel table helpers.
 const parseChannelOtherInfo = (otherInfo) => {
   if (!otherInfo) {
     return null;
@@ -64,6 +65,7 @@ const parseChannelOtherInfo = (otherInfo) => {
   }
 };
 
+// getCodexPlanTypeLabel normalizes Codex plan types into stable UI labels.
 const getCodexPlanTypeLabel = (planType) => {
   const normalized = String(planType || '')
     .trim()

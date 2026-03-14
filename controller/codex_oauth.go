@@ -123,6 +123,7 @@ func CompleteCodexOAuthForChannel(c *gin.Context) {
 	completeCodexOAuthWithChannelID(c, channelID)
 }
 
+// completeCodexOAuthWithChannelID finalizes a Codex OAuth flow and optionally writes the refreshed key back to a channel.
 func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	req := codexOAuthCompleteRequest{}
 	if err := c.ShouldBindJSON(&req); err != nil {
