@@ -596,6 +596,11 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
 		info.ReasoningEffort = request.Reasoning.Effort
 	}
+	if constant.RemoveResponsesReasoningInput {
+		if err := request.RemoveReasoningFromInput(); err != nil {
+			return nil, fmt.Errorf("remove reasoning input from responses request: %w", err)
+		}
+	}
 	return request, nil
 }
 
