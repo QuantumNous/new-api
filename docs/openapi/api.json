@@ -3430,10 +3430,37 @@
           {
             "name": "keyword",
             "in": "query",
-            "description": "",
+            "description": "名称关键词，默认模糊匹配",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "令牌密钥，完整匹配（支持 sk- 前缀）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "integer"
             }
           }
         ],

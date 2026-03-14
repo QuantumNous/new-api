@@ -133,13 +133,21 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		offset = 0
 	}
 
+	// 搜索语义：关键词默认模糊；密钥仅支持完整匹配（允许 sk- 前缀）。
+	keyword = strings.TrimSpace(keyword)
+	token = strings.TrimSpace(token)
 	if token != "" {
 		token = strings.TrimPrefix(token, "sk-")
 	}
 
+	// 密钥禁止模糊匹配，避免误用 LIKE 通配符。
+	if strings.Contains(token, "%") {
+		return nil, 0, errors.New("密钥仅支持完整匹配")
+	}
+
 	// 超量用户（令牌数超过上限）只允许精确搜索，禁止模糊搜索
 	maxTokens := operation_setting.GetMaxUserTokens()
-	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
+	hasFuzzy := strings.Contains(keyword, "%")
 	if hasFuzzy {
 		count, err := CountUserTokens(userId)
 		if err != nil {
@@ -159,14 +167,15 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		if err != nil {
 			return nil, 0, err
 		}
+		// 未显式指定通配符时，默认模糊匹配。
+		if !strings.Contains(keywordPattern, "%") {
+			keywordPattern = "%" + keywordPattern + "%"
+		}
 		baseQuery = baseQuery.Where("name LIKE ? ESCAPE '!'", keywordPattern)
 	}
 	if token != "" {
-		tokenPattern, err := sanitizeLikePattern(token)
-		if err != nil {
-			return nil, 0, err
-		}
-		baseQuery = baseQuery.Where(commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
+		// 密钥仅允许精确匹配（不走 LIKE）。
+		baseQuery = baseQuery.Where(commonKeyCol+" = ?", token)
 	}
 
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）

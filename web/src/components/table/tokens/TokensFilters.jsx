@@ -60,7 +60,8 @@ const TokensFilters = ({
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('搜索关键字')}
+            placeholder={t('名称关键词（模糊）')}
+            // 提示关键词默认为模糊匹配，避免误解为精确搜索。
             showClear
             pure
             size='small'
@@ -71,7 +72,8 @@ const TokensFilters = ({
           <Form.Input
             field='searchToken'
             prefix={<IconSearch />}
-            placeholder={t('密钥')}
+            placeholder={t('密钥（完整匹配）')}
+            // 提示密钥仅支持完整匹配（可包含 sk- 前缀）。
             showClear
             pure
             size='small'
