@@ -976,7 +976,7 @@ const LoginForm = () => {
                   <div className='px-2 py-12 text-center'>
                     <Text>{t('登录已停用')}</Text>
                     {!status.self_use_mode_enabled && passwordRegisterEnabled && (
-                      <div className='mt-4 text-sm'>
+                      <div className='mt-6 text-sm'>
                         <Text>
                           {t('没有账户？')}{' '}
                           <Link

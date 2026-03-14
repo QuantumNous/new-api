@@ -797,6 +797,7 @@ const RegisterForm = () => {
               <Text>{t('注册已停用')}</Text>
               <div className='mt-4 text-sm'>
                 <Text>
+                  {t('已有账户？')}{' '}
                   <Link
                     to='/login'
                     className='text-blue-600 hover:text-blue-800 font-medium'
