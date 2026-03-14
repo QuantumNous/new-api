@@ -1070,24 +1070,24 @@ const EditChannelModal = (props) => {
       return;
     }
 
-    let modelsToUse = fetchedModels;
-    if (!Array.isArray(modelsToUse) || modelsToUse.length === 0) {
-      const fetched = await fetchUpstreamModelList('models', { silent: true });
-      if (Array.isArray(fetched)) {
-        modelsToUse = fetched;
-      }
+    const fetched = await fetchUpstreamModelList('models', { silent: true });
+    if (!Array.isArray(fetched)) {
+      return;
     }
-
-    if (!Array.isArray(modelsToUse) || modelsToUse.length === 0) {
+    if (fetched.length === 0) {
       showInfo(t('暂无模型'));
       return;
     }
 
     const normalizedModelsToUse = Array.from(
       new Set(
-        modelsToUse.map((model) => String(model ?? '').trim()).filter(Boolean),
+        fetched.map((model) => String(model ?? '').trim()).filter(Boolean),
       ),
     );
+    if (normalizedModelsToUse.length === 0) {
+      showInfo(t('暂无模型'));
+      return;
+    }
     const currentValue = String(value ?? '').trim();
 
     setModelMappingValueModalModels(normalizedModelsToUse);
