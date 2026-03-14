@@ -276,9 +276,7 @@ export async function onOIDCClicked(
 export async function onGitHubOAuthClicked(github_client_id, options = {}) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  window.open(
-    `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}&scope=user:email`,
-  );
+  window.location.href = `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}&scope=user:email`;
 }
 
 export async function onLinuxDOOAuthClicked(
@@ -287,9 +285,7 @@ export async function onLinuxDOOAuthClicked(
 ) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  window.open(
-    `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
-  );
+  window.location.href = `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`;
 }
 
 /**
@@ -327,7 +323,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
     authUrl.searchParams.set('state', state);
     
-    window.open(authUrl.toString());
+    window.location.href = authUrl.toString();
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
     showError('OAuth 登录失败：' + (error.message || '未知错误'));

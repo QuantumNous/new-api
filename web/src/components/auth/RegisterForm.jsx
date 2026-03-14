@@ -792,7 +792,21 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {!passwordRegisterEnabled && !hasOAuthRegisterOptions
-          ? <div className='flex flex-col items-center justify-center py-12'><Text>{t('注册已停用')}</Text></div>
+          ? (
+            <div className='flex flex-col items-center justify-center py-12'>
+              <Text>{t('注册已停用')}</Text>
+              <div className='mt-4 text-sm'>
+                <Text>
+                  <Link
+                    to='/login'
+                    className='text-blue-600 hover:text-blue-800 font-medium'
+                  >
+                    {t('登录')}
+                  </Link>
+                </Text>
+              </div>
+            </div>
+          )
           : !passwordRegisterEnabled && hasOAuthRegisterOptions
           ? renderOAuthOptions()
           : showEmailRegister || !hasOAuthRegisterOptions

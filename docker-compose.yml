@@ -20,6 +20,10 @@ services:
 #   1. Create a tunnel at https://one.dash.cloudflare.com/
 #   2. Set TUNNEL_TOKEN in your .env file
 #   3. Uncomment the cloudflared service below
+#   4. For tunnel-only deployments (no direct host exposure): remove or comment
+#      out the "ports: - '3000:3000'" block on the new-api service below, or
+#      replace it with "expose: - '3000'" so the port is reachable within the
+#      Docker network but is NOT published to the host.
 #
 #  cloudflared:
 #    image: cloudflare/cloudflared:latest
