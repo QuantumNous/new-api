@@ -25,6 +25,17 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getPricingTableColumns } from './PricingTableColumns';
 
+/**
+ * Table-based view for displaying model pricing with row selection and search filtering.
+ * @param {object} props
+ * @param {Array} props.filteredModels - Filtered model data to display
+ * @param {boolean} props.loading - Loading state
+ * @param {number} props.currentPage - Current page number
+ * @param {number} props.pageSize - Items per page
+ * @param {Function} props.onPageChange - Page change callback
+ * @param {Function} props.onPageSizeChange - Page size change callback
+ * @returns {JSX.Element}
+ */
 const PricingTable = ({
   filteredModels,
   loading,

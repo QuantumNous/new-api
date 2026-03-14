@@ -26,6 +26,11 @@ import {
 } from '@douyinfe/semi-illustrations';
 import { getModelsColumns } from './ModelsColumnDefs';
 
+/**
+ * Models management table component with vendor mapping and batch selection support.
+ * @param {object} modelsData - Props including models, loading, pagination, and action callbacks
+ * @returns {JSX.Element}
+ */
 const ModelsTable = (modelsData) => {
   const {
     models,

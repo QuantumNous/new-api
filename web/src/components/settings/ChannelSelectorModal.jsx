@@ -43,6 +43,17 @@ const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const OFFICIAL_RATIO_PRESET_BASE_URL = 'https://basellm.github.io';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 
+/**
+ * Modal for selecting and configuring upstream channels with endpoint settings.
+ * Exposes `resetPagination` method via ref (useImperativeHandle).
+ * @param {object} props
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Function} props.onCancel - Close callback
+ * @param {Function} props.onOk - Confirm callback
+ * @param {Array} props.allChannels - Available channels to select from
+ * @param {React.Ref} ref - Forwarded ref
+ * @returns {JSX.Element}
+ */
 const ChannelSelectorModal = forwardRef(
   (
     {

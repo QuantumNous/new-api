@@ -51,6 +51,15 @@ import {
 
 const { Text } = Typography;
 
+/**
+ * Modal for managing API keys in multi-key channels with enable/disable/delete operations.
+ * @param {object} props
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Function} props.onCancel - Close callback
+ * @param {object} props.channel - Channel data containing keys to manage
+ * @param {Function} props.onRefresh - Callback to refresh channel data after changes
+ * @returns {JSX.Element}
+ */
 const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);

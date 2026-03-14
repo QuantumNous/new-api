@@ -49,6 +49,13 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
+/**
+ * Admin settings panel for managing system announcements with rich content (markdown/HTML) support.
+ * @param {object} props
+ * @param {object} props.options - Current dashboard settings options
+ * @param {Function} props.refresh - Callback to refresh settings data
+ * @returns {JSX.Element}
+ */
 const SettingsAnnouncements = ({ options, refresh }) => {
   const { t } = useTranslation();
 

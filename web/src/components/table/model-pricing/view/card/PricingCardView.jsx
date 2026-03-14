@@ -54,6 +54,17 @@ const CARD_STYLES = {
   default: 'border-gray-200 hover:border-gray-300',
 };
 
+/**
+ * Card-based grid layout for displaying model pricing with icons, tags, and pagination.
+ * @param {object} props
+ * @param {Array} props.filteredModels - Filtered model data to display
+ * @param {boolean} props.loading - Loading state
+ * @param {number} props.currentPage - Current page number
+ * @param {number} props.pageSize - Items per page
+ * @param {Function} props.onPageChange - Page change callback
+ * @param {Function} props.onPageSizeChange - Page size change callback
+ * @returns {JSX.Element}
+ */
 const PricingCardView = ({
   filteredModels,
   loading,

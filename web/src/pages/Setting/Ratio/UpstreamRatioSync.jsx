@@ -64,6 +64,16 @@ const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json';
 
+/**
+ * Modal for confirming and resolving pricing ratio conflicts during upstream sync.
+ * @param {object} props
+ * @param {Function} props.t - i18n translation function
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Array} props.items - Conflict items to display
+ * @param {Function} props.onOk - Confirm callback
+ * @param {Function} props.onCancel - Cancel callback
+ * @returns {JSX.Element}
+ */
 function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
   const isMobile = useIsMobile();
   const columns = [
@@ -99,6 +109,11 @@ function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
   );
 }
 
+/**
+ * Panel for synchronizing model pricing ratios from upstream channels or external presets.
+ * @param {object} props - Component props passed from parent
+ * @returns {JSX.Element}
+ */
 export default function UpstreamRatioSync(props) {
   const { t } = useTranslation();
   const [modalVisible, setModalVisible] = useState(false);

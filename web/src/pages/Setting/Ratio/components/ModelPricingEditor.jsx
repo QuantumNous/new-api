@@ -54,6 +54,14 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
+/**
+ * Controlled numeric input component for price values with validation and optional suffix.
+ * @param {object} props
+ * @param {string} props.label - Input label text
+ * @param {string} props.value - Current input value
+ * @param {string} props.placeholder - Placeholder text
+ * @returns {JSX.Element}
+ */
 const PriceInput = ({
   label,
   value,
@@ -85,6 +93,15 @@ const PriceInput = ({
   </div>
 );
 
+/**
+ * Comprehensive editor for configuring model pricing with per-token and per-request billing modes.
+ * Supports batch operations, conflict detection, and preview of calculated ratios.
+ * @param {object} props
+ * @param {object} props.options - Current ratio settings
+ * @param {Function} props.refresh - Callback to refresh settings data
+ * @param {string[]} [props.candidateModelNames] - Suggested model names for autocomplete
+ * @returns {JSX.Element}
+ */
 export default function ModelPricingEditor({
   options,
   refresh,

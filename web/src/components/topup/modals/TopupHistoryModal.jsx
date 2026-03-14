@@ -56,6 +56,14 @@ const PAYMENT_METHOD_MAP = {
   wxpay: '微信',
 };
 
+/**
+ * Modal for displaying the user's top-up/recharge transaction history with search and filtering.
+ * @param {object} props
+ * @param {boolean} props.visible - Whether the modal is visible
+ * @param {Function} props.onCancel - Close callback
+ * @param {Function} props.t - i18n translation function
+ * @returns {JSX.Element}
+ */
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);

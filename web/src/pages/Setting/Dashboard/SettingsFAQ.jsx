@@ -41,6 +41,13 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
+/**
+ * Admin settings panel for managing FAQ question-and-answer entries.
+ * @param {object} props
+ * @param {object} props.options - Current dashboard settings options
+ * @param {Function} props.refresh - Callback to refresh settings data
+ * @returns {JSX.Element}
+ */
 const SettingsFAQ = ({ options, refresh }) => {
   const { t } = useTranslation();
 
