@@ -691,6 +691,36 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 	return converted, nil
 }
 
+// officialModelProviders maps model name prefixes of well-known closed-source
+// models to the provider key used by models.dev. When syncing prices from
+// models.dev, only the official provider's pricing is accepted for these models.
+var officialModelProviders = []struct {
+	Prefix   string
+	Provider string
+}{
+	{"claude", "anthropic"},
+	{"gpt", "openai"},
+	{"grok", "xai"},
+	{"gemini", "google"},
+}
+
+// getOfficialProvider returns the required models.dev provider key for a model
+// if the model matches a known closed-source prefix.
+func getOfficialProvider(modelName string) (string, bool) {
+	lower := strings.ToLower(modelName)
+	// gpt-oss* models are open-source and can be served by multiple providers.
+	// Do not force OpenAI-only provider filtering for these IDs.
+	if strings.HasPrefix(lower, "gpt-oss") {
+		return "", false
+	}
+	for _, entry := range officialModelProviders {
+		if strings.HasPrefix(lower, entry.Prefix) {
+			return entry.Provider, true
+		}
+	}
+	return "", false
+}
+
 type modelsDevProvider struct {
 	Models map[string]modelsDevModel `json:"models"`
 }
@@ -819,6 +849,11 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 		for _, modelName := range modelNames {
 			candidate, ok := buildModelsDevCandidate(provider, providerData.Models[modelName].Cost)
 			if !ok {
+				continue
+			}
+			// For well-known closed-source models, only accept pricing from
+			// the official provider to avoid incorrect third-party prices.
+			if officialProv, restricted := getOfficialProvider(modelName); restricted && provider != officialProv {
 				continue
 			}
 			current, exists := selectedCandidates[modelName]
