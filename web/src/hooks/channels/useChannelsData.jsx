@@ -910,22 +910,23 @@ export const useChannelsData = () => {
           channel.test_time = Date.now() / 1000;
         });
 
+        let successMsg;
         if (!model || model === '') {
-          showInfo(
-            t('通道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。')
+          successMsg = t('通道 ${name} 测试成功，耗时 ${time.toFixed(2)} 秒。')
               .replace('${name}', record.name)
-              .replace('${time.toFixed(2)}', time.toFixed(2)),
-          );
+              .replace('${time.toFixed(2)}', time.toFixed(2));
         } else {
-          showInfo(
-            t(
+          successMsg = t(
               '通道 ${name} 测试成功，模型 ${model} 耗时 ${time.toFixed(2)} 秒。',
             )
               .replace('${name}', record.name)
               .replace('${model}', model)
-              .replace('${time.toFixed(2)}', time.toFixed(2)),
-          );
+              .replace('${time.toFixed(2)}', time.toFixed(2));
         }
+        if (message) {
+          successMsg += ' ' + message;
+        }
+        showInfo(successMsg);
       } else {
         showError(`${t('模型')} ${model}: ${message}`);
       }
