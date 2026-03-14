@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,10 +179,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:        c,
-		TokenGroup: relayInfo.TokenGroup,
-		ModelName:  relayInfo.OriginModelName,
-		Retry:      common.GetPointer(0),
+		Ctx:          c,
+		TokenGroup:   relayInfo.TokenGroup,
+		ModelName:    relayInfo.OriginModelName,
+		EndpointType: service.ResolveRequestEndpointType(c.Request.URL.Path, relayInfo.RelayMode),
+		Retry:        common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
@@ -254,6 +256,22 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	c.Set("use_channel", useChannel)
 }
 
+func getUsedChannelIDs(c *gin.Context) map[int]struct{} {
+	useChannel := c.GetStringSlice("use_channel")
+	if len(useChannel) == 0 {
+		return nil
+	}
+	usedChannelIDs := make(map[int]struct{}, len(useChannel))
+	for _, channelIDStr := range useChannel {
+		channelID, err := strconv.Atoi(channelIDStr)
+		if err != nil {
+			continue
+		}
+		usedChannelIDs[channelID] = struct{}{}
+	}
+	return usedChannelIDs
+}
+
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	if request == nil {
 		return &types.TokenCountMeta{}
@@ -296,6 +314,11 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
 		}, nil
+	}
+	if common.RetryEachChannelOnce {
+		retryParam.ExcludeChannelIDs = getUsedChannelIDs(c)
+	} else {
+		retryParam.ExcludeChannelIDs = nil
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 
@@ -501,10 +524,11 @@ func RelayTask(c *gin.Context) {
 	}()
 
 	retryParam := &service.RetryParam{
-		Ctx:        c,
-		TokenGroup: relayInfo.TokenGroup,
-		ModelName:  relayInfo.OriginModelName,
-		Retry:      common.GetPointer(0),
+		Ctx:          c,
+		TokenGroup:   relayInfo.TokenGroup,
+		ModelName:    relayInfo.OriginModelName,
+		EndpointType: service.ResolveRequestEndpointType(c.Request.URL.Path, relayInfo.RelayMode),
+		Retry:        common.GetPointer(0),
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {

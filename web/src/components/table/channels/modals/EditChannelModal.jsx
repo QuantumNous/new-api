@@ -27,7 +27,11 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  CHANNEL_SUPPORTED_ENDPOINT_OPTIONS,
+    MODEL_FETCHABLE_CHANNEL_TYPES
+} from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -93,6 +97,11 @@ const MODEL_MAPPING_EXAMPLE = {
 const STATUS_CODE_MAPPING_EXAMPLE = {
   400: '500',
 };
+
+const CODEX_DEFAULT_SUPPORTED_ENDPOINTS = [
+  'openai-response',
+  'openai-response-compact',
+];
 
 const REGION_EXAMPLE = {
   default: 'global',
@@ -176,6 +185,7 @@ const EditChannelModal = (props) => {
     param_override: '',
     status_code_mapping: '',
     models: [],
+    supported_endpoints: [],
     auto_ban: 1,
     test_model: '',
     groups: ['default'],
@@ -590,6 +600,9 @@ const EditChannelModal = (props) => {
     if (name === 'models' && Array.isArray(value)) {
       value = Array.from(new Set(value.map((m) => (m || '').trim())));
     }
+    if (name === 'supported_endpoints' && Array.isArray(value)) {
+      value = Array.from(new Set(value.map((v) => (v || '').trim())));
+    }
 
     if (name === 'base_url' && value.endsWith('/v1')) {
       Modal.confirm({
@@ -670,7 +683,21 @@ const EditChannelModal = (props) => {
         if (formApiRef.current) {
           formApiRef.current.setValue('vertex_files', []);
         }
-        setInputs((prev) => ({ ...prev, vertex_files: [] }));
+        if (!isEdit) {
+          if (formApiRef.current) {
+            formApiRef.current.setValue(
+              'supported_endpoints',
+              CODEX_DEFAULT_SUPPORTED_ENDPOINTS,
+            );
+          }
+          setInputs((prev) => ({
+            ...prev,
+            vertex_files: [],
+            supported_endpoints: CODEX_DEFAULT_SUPPORTED_ENDPOINTS,
+          }));
+        } else {
+          setInputs((prev) => ({ ...prev, vertex_files: [] }));
+        }
       }
     }
     //setAutoBan
@@ -806,6 +833,14 @@ const EditChannelModal = (props) => {
         data.models = [];
       } else {
         data.models = data.models.split(',');
+      }
+      if (data.supported_endpoints === '') {
+        data.supported_endpoints = [];
+      } else {
+        data.supported_endpoints = (data.supported_endpoints || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
       }
       if (data.group === '') {
         data.groups = [];
@@ -1790,6 +1825,21 @@ const EditChannelModal = (props) => {
 
     let res;
     localInputs.auto_ban = localInputs.auto_ban ? 1 : 0;
+    const normalizedSupportedEndpoints = Array.from(
+      new Set(
+        (localInputs.supported_endpoints || [])
+          .map((item) => (item || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (
+      normalizedSupportedEndpoints.length ===
+      CHANNEL_SUPPORTED_ENDPOINT_OPTIONS.length
+    ) {
+      localInputs.supported_endpoints = '';
+    } else {
+      localInputs.supported_endpoints = normalizedSupportedEndpoints.join(',');
+    }
     localInputs.models = localInputs.models.join(',');
     localInputs.group = (localInputs.groups || []).join(',');
 
@@ -3398,6 +3448,21 @@ const EditChannelModal = (props) => {
                       optionList={groupOptions}
                       style={{ width: '100%' }}
                       onChange={(value) => handleInputChange('groups', value)}
+                    />
+
+                    <Form.Select
+                      field='supported_endpoints'
+                      label={t('支持端点')}
+                      placeholder={t('不选择表示支持所有端点')}
+                      multiple
+                      optionList={CHANNEL_SUPPORTED_ENDPOINT_OPTIONS}
+                      style={{ width: '100%' }}
+                      onChange={(value) =>
+                        handleInputChange('supported_endpoints', value)
+                      }
+                      extraText={t(
+                        '限制该渠道可被哪些请求端点选中；为空表示全部支持',
+                      )}
                     />
 
                     <Form.Input

@@ -41,18 +41,39 @@ import {
 } from '../../../helpers';
 import {
   CHANNEL_OPTIONS,
-  MODEL_FETCHABLE_CHANNEL_TYPES,
+  CHANNEL_SUPPORTED_ENDPOINT_OPTIONS,
+    MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
+  IconFilter,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
 const renderType = (type, record = {}, t) => {
+  const endpointLabelMap = CHANNEL_SUPPORTED_ENDPOINT_OPTIONS.reduce(
+    (acc, option) => {
+      acc[option.value] = option.label;
+      return acc;
+    },
+    {},
+  );
+  const supportedEndpointsRaw = record?.supported_endpoints;
+  const supportedEndpoints = Array.from(
+    new Set(
+      (Array.isArray(supportedEndpointsRaw)
+        ? supportedEndpointsRaw
+        : String(supportedEndpointsRaw || '').split(',')
+      )
+        .map((item) => String(item || '').trim())
+        .filter(Boolean),
+    ),
+  );
+
   const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
@@ -82,6 +103,36 @@ const renderType = (type, record = {}, t) => {
       {type2label[type]?.label}
     </Tag>
   );
+  const endpointRestrictedTag =
+    supportedEndpoints.length > 0 ? (
+      <Tooltip
+        content={
+          <div className='max-w-xs'>
+            <div className='text-xs text-gray-600 mb-1'>{t('已限制端点')}</div>
+            <div className='flex flex-col gap-1'>
+              {supportedEndpoints.map((endpoint) => (
+                <div key={endpoint} className='text-xs break-all'>
+                  {endpointLabelMap[endpoint] || endpoint}
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+      >
+        <span
+          className='inline-flex items-center justify-center cursor-help transition-all'
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: 9999,
+            backgroundColor: 'var(--semi-color-warning-light-default)',
+            color: 'var(--semi-color-warning)',
+          }}
+        >
+          <IconFilter size='small' />
+        </span>
+      </Tooltip>
+    ) : null;
 
   let ionetMeta = null;
   if (record?.other_info) {
@@ -96,7 +147,15 @@ const renderType = (type, record = {}, t) => {
   }
 
   if (!ionetMeta) {
-    return typeTag;
+    if (!endpointRestrictedTag) {
+      return typeTag;
+    }
+    return (
+      <Space spacing={6}>
+        {typeTag}
+        {endpointRestrictedTag}
+      </Space>
+    );
   }
 
   const handleNavigate = (event) => {
@@ -111,6 +170,7 @@ const renderType = (type, record = {}, t) => {
   return (
     <Space spacing={6}>
       {typeTag}
+      {endpointRestrictedTag}
       <Tooltip
         content={
           <div className='max-w-xs'>

@@ -3,10 +3,12 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -58,89 +60,105 @@ func GetAllEnableAbilities() []Ability {
 	return abilities
 }
 
-func getPriority(group string, model string, retry int) (int, error) {
-
-	var priorities []int
-	err := DB.Model(&Ability{}).
-		Select("DISTINCT(priority)").
-		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").              // 按优先级降序排序
-		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
-
-	if err != nil {
-		// 处理错误
-		return 0, err
-	}
-
-	if len(priorities) == 0 {
-		// 如果没有查询到优先级，则返回错误
-		return 0, errors.New("数据库一致性被破坏")
-	}
-
-	// 确定要使用的优先级
-	var priorityToUse int
-	if retry >= len(priorities) {
-		// 如果重试次数大于优先级数，则使用最小的优先级
-		priorityToUse = priorities[len(priorities)-1]
-	} else {
-		priorityToUse = priorities[retry]
-	}
-	return priorityToUse, nil
+func GetChannel(group string, model string, retry int, endpointType constant.EndpointType) (*Channel, error) {
+	return getChannelWithExcluded(group, model, retry, endpointType, nil)
 }
 
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
-	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
-	if retry != 0 {
-		priority, err := getPriority(group, model, retry)
-		if err != nil {
-			return nil, err
-		} else {
-			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
-		}
-	}
-
-	return channelQuery, nil
-}
-
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func getChannelWithExcluded(group string, model string, retry int, endpointType constant.EndpointType, excludedChannelIDs map[int]struct{}) (*Channel, error) {
 	var abilities []Ability
 
-	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").
+		Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
-	if err != nil {
-		return nil, err
-	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(abilities) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	channelIDSet := make(map[int]struct{}, len(abilities))
+	channelIDs := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		if _, exists := channelIDSet[ability.ChannelId]; exists {
+			continue
+		}
+		channelIDSet[ability.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, ability.ChannelId)
+	}
+
+	channels, err := GetChannelsByIds(channelIDs)
+	if err != nil {
+		return nil, err
+	}
+	channelMap := make(map[int]*Channel, len(channels))
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		channelMap[channel.Id] = channel
+	}
+
+	candidates := make([]Ability, 0, len(abilities))
+	priorityBuckets := make(map[int64][]Ability)
+	uniquePriorities := make(map[int64]struct{})
+	for _, ability := range abilities {
+		if _, excluded := excludedChannelIDs[ability.ChannelId]; excluded {
+			continue
+		}
+		channel, ok := channelMap[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", ability.ChannelId)
+		}
+		if !channel.SupportsEndpointType(endpointType) {
+			continue
+		}
+		candidates = append(candidates, ability)
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		uniquePriorities[priority] = struct{}{}
+		priorityBuckets[priority] = append(priorityBuckets[priority], ability)
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	sortedPriorities := make([]int64, 0, len(uniquePriorities))
+	for priority := range uniquePriorities {
+		sortedPriorities = append(sortedPriorities, priority)
+	}
+	sort.Slice(sortedPriorities, func(i, j int) bool {
+		return sortedPriorities[i] > sortedPriorities[j]
+	})
+	if retry >= len(sortedPriorities) {
+		retry = len(sortedPriorities) - 1
+	}
+	targetPriority := sortedPriorities[retry]
+	candidates = priorityBuckets[targetPriority]
+
+	weightSum := uint(0)
+	for _, ability := range candidates {
+		weightSum += ability.Weight + 10
+	}
+	weight := common.GetRandomInt(int(weightSum))
+	selectedChannelID := 0
+	for _, ability := range candidates {
+		weight -= int(ability.Weight) + 10
+		if weight <= 0 {
+			selectedChannelID = ability.ChannelId
+			break
+		}
+	}
+	if selectedChannelID == 0 {
+		selectedChannelID = candidates[len(candidates)-1].ChannelId
+	}
+	channel, ok := channelMap[selectedChannelID]
+	if !ok {
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", selectedChannelID)
+	}
+	return channel, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
