@@ -775,7 +775,50 @@ func GeminiToOpenAIRequest(geminiRequest *dto.GeminiChatRequest, info *relaycomm
 		openaiRequest.Messages = append([]dto.Message{systemMessage}, openaiRequest.Messages...)
 	}
 
+	// 转换 responseModalities → modalities（OpenRouter 格式）
+	// Gemini 使用 "IMAGE"/"TEXT"，OpenRouter 使用 "image"/"text"
+	if len(geminiRequest.GenerationConfig.ResponseModalities) > 0 {
+		modalities := make([]string, len(geminiRequest.GenerationConfig.ResponseModalities))
+		for i, m := range geminiRequest.GenerationConfig.ResponseModalities {
+			modalities[i] = strings.ToLower(m)
+		}
+		modalitiesJSON, err := common.Marshal(modalities)
+		if err == nil {
+			openaiRequest.Modalities = modalitiesJSON
+		}
+	}
+
+	// 转换 imageConfig → image_config（OpenRouter 格式）
+	// Gemini 使用 camelCase (aspectRatio, imageSize)，OpenRouter 使用 snake_case (aspect_ratio, image_size)
+	if len(geminiRequest.GenerationConfig.ImageConfig) > 0 {
+		var imageConfig map[string]interface{}
+		if err := common.Unmarshal(geminiRequest.GenerationConfig.ImageConfig, &imageConfig); err == nil {
+			converted := convertGeminiImageConfigToOpenRouter(imageConfig)
+			if convertedJSON, err := common.Marshal(converted); err == nil {
+				openaiRequest.ImageConfig = convertedJSON
+			}
+		}
+	}
+
 	return openaiRequest, nil
+}
+
+// convertGeminiImageConfigToOpenRouter converts Gemini camelCase imageConfig keys to OpenRouter snake_case
+func convertGeminiImageConfigToOpenRouter(config map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	camelToSnake := map[string]string{
+		"aspectRatio": "aspect_ratio",
+		"imageSize":   "image_size",
+	}
+	for key, value := range config {
+		if snakeKey, ok := camelToSnake[key]; ok {
+			result[snakeKey] = value
+		} else {
+			// already snake_case or unknown key, pass through
+			result[key] = value
+		}
+	}
+	return result
 }
 
 func convertGeminiRoleToOpenAI(geminiRole string) string {
@@ -863,13 +906,54 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relayco
 				content.Parts = append(content.Parts, part)
 			}
 		} else {
-			// 处理文本内容
-			textContent := choice.Message.StringContent()
-			if textContent != "" {
-				part := dto.GeminiPart{
-					Text: textContent,
+			// 先尝试处理 OpenRouter 的 images 数组（图片生成响应）
+			hasImageFromImages := false
+			if len(choice.Message.Images) > 0 {
+				var images []dto.OpenRouterImage
+				if err := common.Unmarshal(choice.Message.Images, &images); err == nil {
+					for _, img := range images {
+						if img.Type == "image_url" && img.ImageUrl != nil {
+							inlineData := parseBase64DataURL(img.ImageUrl.Url)
+							if inlineData != nil {
+								content.Parts = append(content.Parts, dto.GeminiPart{
+									InlineData: inlineData,
+								})
+								hasImageFromImages = true
+							}
+						}
+					}
 				}
-				content.Parts = append(content.Parts, part)
+			}
+
+			// 处理 message content（可能包含 image_url 类型的多模态内容）
+			parsedContent := choice.Message.ParseContent()
+			for _, mc := range parsedContent {
+				switch mc.Type {
+				case "text":
+					if mc.Text != "" {
+						content.Parts = append(content.Parts, dto.GeminiPart{Text: mc.Text})
+					}
+				case "image_url":
+					imageMedia := mc.GetImageMedia()
+					if imageMedia != nil {
+						inlineData := parseBase64DataURL(imageMedia.Url)
+						if inlineData != nil {
+							content.Parts = append(content.Parts, dto.GeminiPart{
+								InlineData: inlineData,
+							})
+						}
+					}
+				}
+			}
+
+			// 如果没有从多模态内容中提取到，且没有从 images 中提取到，尝试简单文本
+			if len(content.Parts) == 0 && !hasImageFromImages {
+				textContent := choice.Message.StringContent()
+				if textContent != "" {
+					content.Parts = append(content.Parts, dto.GeminiPart{
+						Text: textContent,
+					})
+				}
 			}
 		}
 
@@ -878,6 +962,29 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 
 	return geminiResponse
+}
+
+// parseBase64DataURL parses a data URL (e.g. "data:image/png;base64,iVBOR...") into GeminiInlineData
+func parseBase64DataURL(url string) *dto.GeminiInlineData {
+	if !strings.HasPrefix(url, "data:") {
+		return nil
+	}
+	// Format: data:<mimeType>;base64,<data>
+	rest := strings.TrimPrefix(url, "data:")
+	parts := strings.SplitN(rest, ",", 2)
+	if len(parts) != 2 {
+		return nil
+	}
+	// parts[0] is like "image/png;base64"
+	metaParts := strings.Split(parts[0], ";")
+	mimeType := metaParts[0]
+	if mimeType == "" {
+		mimeType = "image/png" // fallback
+	}
+	return &dto.GeminiInlineData{
+		MimeType: mimeType,
+		Data:     parts[1],
+	}
 }
 
 // StreamResponseOpenAI2Gemini 将 OpenAI 流式响应转换为 Gemini 格式
