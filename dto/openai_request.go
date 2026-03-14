@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -232,6 +233,85 @@ func (r *GeneralOpenAIRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (r *GeneralOpenAIRequest) ExtractMetadata() *RequestMetadata {
+	if r == nil {
+		return nil
+	}
+
+	meta := &RequestMetadata{}
+
+	// 优先处理 Messages 字段
+	if len(r.Messages) > 0 {
+		meta.MessageCount = len(r.Messages)
+		for _, msg := range r.Messages {
+			var msgTextLength int
+			for _, content := range msg.ParseContent() {
+				switch content.Type {
+				case ContentTypeImageURL:
+					meta.CountImage++
+				case ContentTypeInputAudio:
+					meta.CountAudio++
+				case ContentTypeVideoUrl:
+					meta.CountVideo++
+				case ContentTypeFile:
+					meta.CountFile++
+				case ContentTypeText:
+					msgTextLength += utf8.RuneCountInString(content.Text)
+				}
+			}
+			meta.TextLength += msgTextLength
+			meta.TextLengthLast = msgTextLength
+		}
+		return meta
+	}
+
+	// Messages 为空时，处理 Prompt 字段
+	if r.Prompt != nil {
+		switch v := r.Prompt.(type) {
+		case string:
+			meta.MessageCount = 1
+			meta.TextLength = utf8.RuneCountInString(v)
+			meta.TextLengthLast = meta.TextLength
+		case []any:
+			for _, item := range v {
+				if str, ok := item.(string); ok {
+					length := utf8.RuneCountInString(str)
+					meta.TextLength += length
+					meta.TextLengthLast = length
+					meta.MessageCount++
+				}
+			}
+			if meta.MessageCount == 0 {
+				meta.MessageCount = 1
+			}
+		default:
+			meta.MessageCount = 1
+			str := fmt.Sprintf("%v", r.Prompt)
+			meta.TextLength = utf8.RuneCountInString(str)
+			meta.TextLengthLast = meta.TextLength
+		}
+		return meta
+	}
+
+	// 处理 Input 字段
+	if r.Input != nil {
+		inputs := r.ParseInput()
+		if len(inputs) > 0 {
+			meta.MessageCount = len(inputs)
+			for _, input := range inputs {
+				length := utf8.RuneCountInString(input)
+				meta.TextLength += length
+				meta.TextLengthLast = length
+			}
+			return meta
+		}
+	}
+
+	// 所有字段都为空，返回空元数据而非 nil
+	return meta
 }
 
 func (r *GeneralOpenAIRequest) ToMap() map[string]any {
@@ -921,6 +1001,82 @@ func (r *OpenAIResponsesRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		r.Model = modelName
 	}
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+// 按顶级输入项（而非扁平化部分）统计响应元数据
+func (r *OpenAIResponsesRequest) ExtractMetadata() *RequestMetadata {
+	if r == nil || r.Input == nil {
+		return nil
+	}
+
+	meta := &RequestMetadata{}
+
+	// 首先尝试作为字符串处理（单个输入）
+	if common.GetJsonType(r.Input) == "string" {
+		var str string
+		_ = common.Unmarshal(r.Input, &str)
+		meta.MessageCount = 1
+		meta.TextLength = utf8.RuneCountInString(str)
+		meta.TextLengthLast = meta.TextLength
+		return meta
+	}
+
+	// 尝试作为数组处理（多个顶级输入）
+	if common.GetJsonType(r.Input) == "array" {
+		var inputs []Input
+		_ = common.Unmarshal(r.Input, &inputs)
+		if len(inputs) == 0 {
+			return nil
+		}
+
+		meta.MessageCount = len(inputs)
+		for _, input := range inputs {
+			var topLevelTextLength int
+			var topLevelImageCount int
+			var topLevelFileCount int
+
+			// 处理 Content 字段
+			if common.GetJsonType(input.Content) == "string" {
+				var str string
+				_ = common.Unmarshal(input.Content, &str)
+				topLevelTextLength = utf8.RuneCountInString(str)
+			} else if common.GetJsonType(input.Content) == "array" {
+				// 解析 Content 数组中的部件
+				var array []any
+				_ = common.Unmarshal(input.Content, &array)
+				for _, itemAny := range array {
+					item, ok := itemAny.(map[string]any)
+					if !ok {
+						continue
+					}
+					typeVal, ok := item["type"].(string)
+					if !ok {
+						continue
+					}
+					switch typeVal {
+					case "input_text":
+						if text, ok := item["text"].(string); ok {
+							topLevelTextLength += utf8.RuneCountInString(text)
+						}
+					case "input_image":
+						topLevelImageCount++
+					case "input_file":
+						topLevelFileCount++
+					}
+				}
+			}
+
+			// 累加到元数据
+			meta.CountImage += topLevelImageCount
+			meta.CountFile += topLevelFileCount
+			meta.TextLength += topLevelTextLength
+			meta.TextLengthLast = topLevelTextLength
+		}
+		return meta
+	}
+
+	return nil
 }
 
 func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {

@@ -32,13 +32,13 @@ import {
   Switch,
   Tag,
   TextArea,
-  Typography,
+  Typography
 } from '@douyinfe/semi-ui';
 import { IconDelete, IconMenu, IconPlus } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
+  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE
 } from '../../../../constants/channel-affinity-template.constants';
 
 const { Text } = Typography;
@@ -445,43 +445,68 @@ const FIELD_GUIDE_TARGET_OPTIONS = [
 
 const BUILTIN_FIELD_SECTIONS = [
   {
-    title: '常用请求字段',
+    titleKey: '常用请求字段',
     fields: [
       {
         key: 'model',
-        label: '模型名称',
-        tip: '支持多级模型名，例如 openai/gpt-4o-mini',
+        labelKey: '模型名称',
+        tipKey: '支持多级模型名，例如 openai/gpt-4o-mini',
       },
-      { key: 'temperature', label: '采样温度', tip: '控制输出随机性' },
-      { key: 'max_tokens', label: '最大输出 Token', tip: '控制输出长度上限' },
-      { key: 'messages.-1.content', label: '最后一条消息内容', tip: '常用于重写用户输入' },
+      { key: 'temperature', labelKey: '采样温度', tipKey: '控制输出随机性' },
+      { key: 'max_tokens', labelKey: '最大输出 Token', tipKey: '控制输出长度上限' },
+      {
+        key: 'messages.-1.content',
+        labelKey: '最后一条消息内容',
+        tipKey: '常用于重写用户输入',
+      },
     ],
   },
   {
-    title: '上下文字段',
+    titleKey: '上下文字段',
     fields: [
-      { key: 'retry.is_retry', label: '是否重试', tip: 'true 表示重试请求' },
-      { key: 'last_error.code', label: '上次错误码', tip: '配合重试策略使用' },
+      { key: 'retry.is_retry', labelKey: '是否重试', tipKey: 'true 表示重试请求' },
+      { key: 'last_error.code', labelKey: '上次错误码', tipKey: '配合重试策略使用' },
       {
         key: 'metadata.conversation_id',
-        label: '会话 ID',
-        tip: '可用于路由或缓存命中',
+        labelKey: '会话 ID',
+        tipKey: '可用于路由或缓存命中',
       },
     ],
   },
   {
-    title: '请求头映射字段',
+    titleKey: '请求头映射字段',
     fields: [
       {
         key: 'header_override_normalized.authorization',
-        label: '标准化 Authorization',
-        tip: '统一小写后可稳定匹配',
+        labelKey: '标准化 Authorization',
+        tipKey: '统一小写后可稳定匹配',
       },
       {
         key: 'header_override_normalized.x_debug_mode',
-        label: '标准化 X-Debug-Mode',
-        tip: '适合灰度 / 调试开关判断',
+        labelKey: '标准化 X-Debug-Mode',
+        tipKey: '适合灰度 / 调试开关判断',
       },
+    ],
+  },
+  {
+    titleKey: '请求元数据',
+    fields: [
+      { key: 'count_image', labelKey: '图片数量', tipKey: '请求中包含的图片数量' },
+      { key: 'count_audio', labelKey: '音频数量', tipKey: '请求中包含的音频数量' },
+      { key: 'count_video', labelKey: '视频数量', tipKey: '请求中包含的视频数量' },
+      { key: 'count_file', labelKey: '文件数量', tipKey: '请求中包含的文件数量' },
+      {
+        key: 'estimate_tokens',
+        labelKey: 'Token 数量',
+        tipKey: '估算的总 Token 数量',
+      },
+      { key: 'text_length', labelKey: '文本长度', tipKey: '文本字符长度' },
+      {
+        key: 'text_length_last',
+        labelKey: '最后消息文本长度',
+        tipKey: '最后一条消息的文本字符长度',
+      },
+      { key: 'message_count', labelKey: '消息数量', tipKey: '消息总条数' },
     ],
   },
 ];
@@ -1523,19 +1548,34 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const filteredFieldGuideSections = useMemo(() => {
     const keyword = fieldGuideKeyword.trim().toLowerCase();
     if (!keyword) {
-      return BUILTIN_FIELD_SECTIONS;
+      return BUILTIN_FIELD_SECTIONS.map((section) => ({
+        ...section,
+        title: t(section.titleKey),
+        fields: section.fields.map((field) => ({
+          ...field,
+          label: t(field.labelKey),
+          tip: field.tipKey ? t(field.tipKey) : '',
+        })),
+      }));
     }
     return BUILTIN_FIELD_SECTIONS.map((section) => ({
       ...section,
-      fields: section.fields.filter((field) =>
-        [field.key, field.label, field.tip]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(keyword),
-      ),
+      title: t(section.titleKey),
+      fields: section.fields
+        .map((field) => ({
+          ...field,
+          label: t(field.labelKey),
+          tip: field.tipKey ? t(field.tipKey) : '',
+        }))
+        .filter((field) =>
+          [field.key, field.label, field.tip]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(keyword),
+        ),
     })).filter((section) => section.fields.length > 0);
-  }, [fieldGuideKeyword]);
+  }, [fieldGuideKeyword, t]);
 
   const fieldGuideActionLabel = useMemo(() => {
     if (fieldGuideTarget === 'from') return t('填入来源');
@@ -1949,6 +1989,17 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 {t('重置')}
               </Button>
             </Space>
+            {editMode === 'visual' && visualMode === 'operations' && (
+              <Button
+                type='tertiary'
+                theme='borderless'
+                size='small'
+                className='mt-1 whitespace-nowrap'
+                onClick={() => openFieldGuide('path')}
+              >
+                {t('字段速查')}
+              </Button>
+            )}
           </div>
         </Card>
 

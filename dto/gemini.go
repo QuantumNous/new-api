@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -126,6 +127,57 @@ func (r *GeminiChatRequest) IsStream(c *gin.Context) bool {
 
 func (r *GeminiChatRequest) SetModelName(modelName string) {
 	// GeminiChatRequest does not have a model field, so this method does nothing.
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (r *GeminiChatRequest) ExtractMetadata() *RequestMetadata {
+	if r == nil || len(r.Contents) == 0 {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		MessageCount: len(r.Contents),
+	}
+
+	for _, content := range r.Contents {
+		var msgTextLength int
+		for _, part := range content.Parts {
+			// 处理内联数据（根据 MIME 类型判断文件类型）
+			if part.InlineData != nil && part.InlineData.Data != "" {
+				mimeType := strings.ToLower(part.InlineData.MimeType)
+				if strings.HasPrefix(mimeType, "image/") {
+					meta.CountImage++
+				} else if strings.HasPrefix(mimeType, "audio/") {
+					meta.CountAudio++
+				} else if strings.HasPrefix(mimeType, "video/") {
+					meta.CountVideo++
+				} else {
+					meta.CountFile++
+				}
+			}
+			// 处理文件数据引用
+			if part.FileData != nil && part.FileData.FileUri != "" {
+				mimeType := strings.ToLower(part.FileData.MimeType)
+				if strings.HasPrefix(mimeType, "image/") {
+					meta.CountImage++
+				} else if strings.HasPrefix(mimeType, "audio/") {
+					meta.CountAudio++
+				} else if strings.HasPrefix(mimeType, "video/") {
+					meta.CountVideo++
+				} else {
+					meta.CountFile++
+				}
+			}
+			// 处理文本
+			if part.Text != "" {
+				msgTextLength += utf8.RuneCountInString(part.Text)
+			}
+		}
+		meta.TextLength += msgTextLength
+		meta.TextLengthLast = msgTextLength
+	}
+
+	return meta
 }
 
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {

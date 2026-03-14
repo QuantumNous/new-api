@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
@@ -114,7 +115,7 @@ func NewAPIErrorFromParamOverride(err *ParamOverrideReturnError) *types.NewAPIEr
 	}, statusCode, opts...)
 }
 
-func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, conditionContext map[string]interface{}) ([]byte, error) {
+func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, conditionContext map[string]interface{}, info *RelayInfo) ([]byte, error) {
 	if len(paramOverride) == 0 {
 		return jsonData, nil
 	}
@@ -125,19 +126,19 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 		workingJSON := jsonData
 		var err error
 		if len(legacyOverride) > 0 {
-			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride)
+			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride, info)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		// 使用新方法
-		result, err := applyOperations(string(workingJSON), operations, conditionContext)
+		result, err := applyOperations(string(workingJSON), operations, conditionContext, info)
 		return []byte(result), err
 	}
 
 	// 直接使用旧方法
-	return applyOperationsLegacy(jsonData, paramOverride)
+	return applyOperationsLegacy(jsonData, paramOverride, info)
 }
 
 func buildLegacyParamOverride(paramOverride map[string]interface{}) map[string]interface{} {
@@ -161,10 +162,11 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	}
 
 	overrideCtx := BuildParamOverrideContext(info)
-	result, err := ApplyParamOverride(jsonData, paramOverride, overrideCtx)
+	result, err := ApplyParamOverride(jsonData, paramOverride, overrideCtx, info)
 	if err != nil {
 		return nil, err
 	}
+
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	return result, nil
 }
@@ -455,7 +457,7 @@ func compareNumeric(jsonValue, targetValue gjson.Result, operator string) (bool,
 }
 
 // applyOperationsLegacy 原参数覆盖方法
-func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}) ([]byte, error) {
+func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}, info *RelayInfo) ([]byte, error) {
 	reqMap := make(map[string]interface{})
 	err := common.Unmarshal(jsonData, &reqMap)
 	if err != nil {
@@ -464,12 +466,19 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 
 	for key, value := range paramOverride {
 		reqMap[key] = value
+		// 同步修改到 RelayInfo
+		if key == "model" {
+			if modelStr, ok := value.(string); ok && modelStr != "" && info != nil {
+				info.UpstreamModelName = modelStr
+				info.IsModelMapped = true
+			}
+		}
 	}
 
 	return common.Marshal(reqMap)
 }
 
-func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}) (string, error) {
+func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}, info *RelayInfo) (string, error) {
 	context := ensureContextMap(conditionContext)
 	contextJSON, err := marshalContextJSON(context)
 	if err != nil {
@@ -515,6 +524,13 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				result, err = sjson.Set(result, path, op.Value)
 				if err != nil {
 					break
+				}
+				// 同步 model 修改到 RelayInfo
+				if path == "model" {
+					if modelStr, ok := op.Value.(string); ok && modelStr != "" && info != nil {
+						info.UpstreamModelName = modelStr
+						info.IsModelMapped = true
+					}
 				}
 			}
 		case "move":
@@ -1769,6 +1785,13 @@ func mergeObjects(jsonStr, path string, value interface{}, keepOrigin bool) (str
 //   - original_model：请求最初指定的模型名。
 //   - request_path：请求路径
 //   - is_channel_test：是否为渠道测试请求（同 is_test）。
+//   - message_count：请求中的消息数量
+//   - count_image：请求中的图片数量
+//   - count_audio：请求中的音频数量
+//   - count_video：请求中的视频数量
+//   - count_file：请求中的文件数量
+//   - text_length：所有消息的文本总长度
+//   - text_length_last：最后一条消息的文本长度
 func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 	if info == nil {
 		return nil
@@ -1825,5 +1848,22 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 	}
 
 	ctx["is_channel_test"] = info.IsChannelTest
+	ctx["estimate_tokens"] = info.GetEstimatePromptTokens()
+	// 添加系统元数据
+	if info.Request != nil {
+		if extractor, ok := info.Request.(dto.MetadataExtractor); ok {
+			meta := extractor.ExtractMetadata()
+			if meta != nil {
+				// 保留顶层字段以保持向后兼容
+				ctx["message_count"] = meta.MessageCount
+				ctx["count_image"] = meta.CountImage
+				ctx["count_audio"] = meta.CountAudio
+				ctx["count_video"] = meta.CountVideo
+				ctx["count_file"] = meta.CountFile
+				ctx["text_length"] = meta.TextLength
+				ctx["text_length_last"] = meta.TextLengthLast
+			}
+		}
+	}
 	return ctx
 }

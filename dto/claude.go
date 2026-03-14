@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
@@ -371,6 +372,53 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		c.Model = modelName
 	}
+}
+
+// ExtractMetadata 提取请求元数据，用于参数重写功能
+func (c *ClaudeRequest) ExtractMetadata() *RequestMetadata {
+	if c == nil || len(c.Messages) == 0 {
+		return nil
+	}
+
+	meta := &RequestMetadata{
+		MessageCount: len(c.Messages),
+	}
+
+	for _, msg := range c.Messages {
+		var msgTextLength int
+
+		// 处理字符串类型的 content
+		if msg.IsStringContent() {
+			msgTextLength = utf8.RuneCountInString(msg.GetStringContent())
+		} else {
+			// 处理数组类型的 content
+			contents, err := msg.ParseContent()
+			if err != nil {
+				continue
+			}
+			for _, content := range contents {
+				switch content.Type {
+				case "image":
+					meta.CountImage++
+				case "audio":
+					meta.CountAudio++
+				case "video":
+					meta.CountVideo++
+				case "file":
+					meta.CountFile++
+				case "text":
+					if content.Text != nil {
+						msgTextLength += utf8.RuneCountInString(*content.Text)
+					}
+				}
+			}
+		}
+
+		meta.TextLength += msgTextLength
+		meta.TextLengthLast = msgTextLength
+	}
+
+	return meta
 }
 
 func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {

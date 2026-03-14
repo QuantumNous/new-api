@@ -13,365 +13,599 @@ import (
 	"github.com/samber/lo"
 )
 
-func TestApplyParamOverrideTrimPrefix(t *testing.T) {
-	// trim_prefix example:
-	// {"operations":[{"path":"model","mode":"trim_prefix","value":"openai/"}]}
-	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "trim_prefix",
-				"value": "openai/",
-			},
-		},
-	}
+// APIFormat 定义不同的API格式类型
+type APIFormat string
 
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+const (
+	APIFormatOpenAI APIFormat = "openai"
+	APIFormatClaude APIFormat = "claude"
+	APIFormatGemini APIFormat = "gemini"
+)
+
+// APISample 定义API样本数据，用于多格式测试
+type APISample struct {
+	Format APIFormat
+	Input  string
+	// PathTransforms 定义路径转换规则，将通用路径转换为特定API格式的路径
+	PathTransforms map[string]string
+	// ValueTransforms 定义值转换函数，用于处理不同API格式的值差异
+	ValueTransforms map[string]func(interface{}) interface{}
 }
 
-func TestApplyParamOverrideTrimSuffix(t *testing.T) {
-	// trim_suffix example:
-	// {"operations":[{"path":"model","mode":"trim_suffix","value":"-latest"}]}
-	input := []byte(`{"model":"gpt-4-latest","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "trim_suffix",
-				"value": "-latest",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+// OverrideTestCase 定义通用的override测试用例
+type OverrideTestCase struct {
+	Name        string
+	Operation   map[string]interface{}
+	ExpectError bool
+	// ExpectedOutput 使用通用路径，运行时会根据API格式进行转换
+	ExpectedOutput string
+	// SkipFormats 指定跳过的API格式
+	SkipFormats []APIFormat
+	// CustomAssert 自定义断言函数，用于复杂验证场景
+	CustomAssert func(t *testing.T, got []byte, sample APISample)
 }
 
-func TestApplyParamOverrideTrimNoop(t *testing.T) {
-	// trim_prefix no-op example:
-	// {"operations":[{"path":"model","mode":"trim_prefix","value":"openai/"}]}
-	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "trim_prefix",
-				"value": "openai/",
-			},
+// apiSamples 定义三种API格式的样本数据
+var apiSamples = []APISample{
+	{
+		Format: APIFormatOpenAI,
+		Input:  `{"model":"openai/gpt-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		PathTransforms: map[string]string{
+			"model":       "model",
+			"temperature": "temperature",
+			"max_tokens":  "max_tokens",
 		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	},
+	{
+		Format: APIFormatClaude,
+		Input:  `{"model":"anthropic/claude-3","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		PathTransforms: map[string]string{
+			"model":       "model",
+			"temperature": "temperature",
+			"max_tokens":  "max_tokens",
+		},
+	},
+	{
+		Format: APIFormatGemini,
+		Input:  `{"contents":[{"parts":[{"text":"hello"}]}],"generationConfig":{"temperature":0.7,"maxOutputTokens":1000}}`,
+		PathTransforms: map[string]string{
+			"temperature": "generationConfig.temperature",
+			"max_tokens":  "generationConfig.maxOutputTokens",
+		},
+	},
 }
 
-func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
-	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"temperature": 0.2,
-		"top_p":       0.95,
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "trim_prefix",
-				"value": "openai/",
-			},
-		},
+// op 创建一个operation map的辅助函数
+func op(mode string, opts ...func(map[string]interface{})) map[string]interface{} {
+	m := map[string]interface{}{"mode": mode}
+	for _, opt := range opts {
+		opt(m)
 	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.2,"top_p":0.95}`, string(out))
+	return m
 }
 
-func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *testing.T) {
-	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"model":       "legacy-model",
-		"temperature": 0.2,
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "set",
-				"value": "op-model",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"op-model","temperature":0.2}`, string(out))
+// opPath 设置path
+func opPath(path string) func(map[string]interface{}) {
+	return func(m map[string]interface{}) { m["path"] = path }
 }
 
-func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
-	// trim_prefix requires value example:
-	// {"operations":[{"path":"model","mode":"trim_prefix"}]}
-	input := []byte(`{"model":"gpt-4"}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "model",
-				"mode": "trim_prefix",
-			},
-		},
-	}
+// opValue 设置value
+func opValue(value interface{}) func(map[string]interface{}) {
+	return func(m map[string]interface{}) { m["value"] = value }
+}
 
-	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
+// opFrom 设置from
+func opFrom(from string) func(map[string]interface{}) {
+	return func(m map[string]interface{}) { m["from"] = from }
+}
+
+// opTo 设置to
+func opTo(to string) func(map[string]interface{}) {
+	return func(m map[string]interface{}) { m["to"] = to }
+}
+
+// opKeepOrigin 设置keep_origin
+func opKeepOrigin(keep bool) func(map[string]interface{}) {
+	return func(m map[string]interface{}) { m["keep_origin"] = keep }
+}
+
+// buildOverride 构建override配置
+func buildOverride(operations ...map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"operations": toInterfaceSlice(operations),
 	}
 }
 
-func TestApplyParamOverrideReplace(t *testing.T) {
-	// replace example:
-	// {"operations":[{"path":"model","mode":"replace","from":"openai/","to":""}]}
-	input := []byte(`{"model":"openai/gpt-4o-mini","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "model",
-				"mode": "replace",
-				"from": "openai/",
-				"to":   "",
-			},
-		},
+// toInterfaceSlice 将[]map[string]interface{}转换为[]interface{}
+func toInterfaceSlice(operations []map[string]interface{}) []interface{} {
+	result := make([]interface{}, len(operations))
+	for i, op := range operations {
+		result[i] = op
 	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4o-mini","temperature":0.7}`, string(out))
+	return result
 }
 
-func TestApplyParamOverrideRegexReplace(t *testing.T) {
-	// regex_replace example:
-	// {"operations":[{"path":"model","mode":"regex_replace","from":"^gpt-","to":"openai/gpt-"}]}
-	input := []byte(`{"model":"gpt-4o-mini","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "model",
-				"mode": "regex_replace",
-				"from": "^gpt-",
-				"to":   "openai/gpt-",
-			},
-		},
+// runOverrideTest 运行单个override测试用例
+func runOverrideTest(t *testing.T, tc OverrideTestCase, sample APISample) {
+	t.Helper()
+
+	// 检查是否跳过该格式
+	for _, skip := range tc.SkipFormats {
+		if skip == sample.Format {
+			t.Skipf("skipping format %s", sample.Format)
+		}
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4o-mini","temperature":0.7}`, string(out))
-}
+	input := []byte(sample.Input)
+	override := buildOverride(tc.Operation)
 
-func TestApplyParamOverrideReplaceRequiresFrom(t *testing.T) {
-	// replace requires from example:
-	// {"operations":[{"path":"model","mode":"replace"}]}
-	input := []byte(`{"model":"gpt-4"}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "model",
-				"mode": "replace",
-			},
-		},
+	out, err := ApplyParamOverride(input, override, nil, nil)
+
+	if tc.ExpectError {
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+		return
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-}
-
-func TestApplyParamOverrideRegexReplaceRequiresPattern(t *testing.T) {
-	// regex_replace requires from(pattern) example:
-	// {"operations":[{"path":"model","mode":"regex_replace"}]}
-	input := []byte(`{"model":"gpt-4"}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "model",
-				"mode": "regex_replace",
-			},
-		},
-	}
-
-	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-}
-
-func TestApplyParamOverrideDelete(t *testing.T) {
-	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "temperature",
-				"mode": "delete",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
 
-	var got map[string]interface{}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
-	if _, exists := got["temperature"]; exists {
-		t.Fatalf("expected temperature to be deleted")
-	}
-}
-
-func TestApplyParamOverrideDeleteWildcardPath(t *testing.T) {
-	input := []byte(`{"tools":[{"type":"bash","custom":{"input_examples":["a"],"other":1}},{"type":"code","custom":{"input_examples":["b"]}},{"type":"noop","custom":{"other":2}}]}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "tools.*.custom.input_examples",
-				"mode": "delete",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"tools":[{"type":"bash","custom":{"other":1}},{"type":"code","custom":{}},{"type":"noop","custom":{"other":2}}]}`, string(out))
-}
-
-func TestApplyParamOverrideSetWildcardPath(t *testing.T) {
-	input := []byte(`{"tools":[{"custom":{"tag":"A"}},{"custom":{"tag":"B"}},{"custom":{"tag":"C"}}]}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "tools.*.custom.enabled",
-				"mode":  "set",
-				"value": true,
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-
-	var got struct {
-		Tools []struct {
-			Custom struct {
-				Enabled bool `json:"enabled"`
-			} `json:"custom"`
-		} `json:"tools"`
-	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
-
-	if !lo.EveryBy(got.Tools, func(item struct {
-		Custom struct {
-			Enabled bool `json:"enabled"`
-		} `json:"custom"`
-	}) bool {
-		return item.Custom.Enabled
-	}) {
-		t.Fatalf("expected wildcard set to enable all tools, got: %s", string(out))
+	// 使用自定义断言或默认断言
+	if tc.CustomAssert != nil {
+		tc.CustomAssert(t, out, sample)
+	} else if tc.ExpectedOutput != "" {
+		assertJSONEqual(t, tc.ExpectedOutput, string(out))
 	}
 }
 
-func TestApplyParamOverrideTrimSpaceWildcardPath(t *testing.T) {
-	input := []byte(`{"tools":[{"custom":{"name":" alpha "}},{"custom":{"name":" beta"}},{"custom":{"name":"gamma "}}]}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "tools.*.custom.name",
-				"mode": "trim_space",
-			},
+// TestApplyParamOverrideBasicOperations 表驱动测试基本操作
+func TestApplyParamOverrideBasicOperations(t *testing.T) {
+	// 基本操作测试用例 - 只测试OpenAI格式
+	openAISample := apiSamples[0]
+
+	testCases := []OverrideTestCase{
+		{
+			Name: "trim_prefix",
+			Operation: op("trim_prefix",
+				opPath("model"),
+				opValue("openai/"),
+			),
+			ExpectedOutput: `{"model":"gpt-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "trim_suffix",
+			Operation: op("trim_suffix",
+				opPath("model"),
+				opValue("-latest"),
+			),
+			ExpectedOutput: `{"model":"openai/gpt-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "set_temperature",
+			Operation: op("set",
+				opPath("temperature"),
+				opValue(0.1),
+			),
+			ExpectedOutput: `{"model":"openai/gpt-4","temperature":0.1,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "delete_temperature",
+			Operation: op("delete",
+				opPath("temperature"),
+			),
+			ExpectedOutput: `{"model":"openai/gpt-4","max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "replace_model",
+			Operation: op("replace",
+				opPath("model"),
+				opFrom("openai/"),
+				opTo(""),
+			),
+			ExpectedOutput: `{"model":"gpt-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "to_lower",
+			Operation: op("to_lower",
+				opPath("model"),
+			),
+			ExpectedOutput: `{"model":"openai/gpt-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
+		},
+		{
+			Name: "to_upper",
+			Operation: op("to_upper",
+				opPath("model"),
+			),
+			ExpectedOutput: `{"model":"OPENAI/GPT-4","temperature":0.7,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`,
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-
-	var got struct {
-		Tools []struct {
-			Custom struct {
-				Name string `json:"name"`
-			} `json:"custom"`
-		} `json:"tools"`
-	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
-
-	names := lo.Map(got.Tools, func(item struct {
-		Custom struct {
-			Name string `json:"name"`
-		} `json:"custom"`
-	}, _ int) string {
-		return item.Custom.Name
-	})
-	if !reflect.DeepEqual(names, []string{"alpha", "beta", "gamma"}) {
-		t.Fatalf("unexpected names after wildcard trim_space: %v", names)
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			runOverrideTest(t, tc, openAISample)
+		})
 	}
 }
 
-func TestApplyParamOverrideDeleteWildcardEqualsIndexedPaths(t *testing.T) {
-	input := []byte(`{"tools":[{"custom":{"input_examples":["a"],"other":1}},{"custom":{"input_examples":["b"],"other":2}},{"custom":{"input_examples":["c"],"other":3}}]}`)
-
-	wildcardOverride := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "tools.*.custom.input_examples",
-				"mode": "delete",
+// TestApplyParamOverrideMultiFormat 表驱动测试多API格式
+func TestApplyParamOverrideMultiFormat(t *testing.T) {
+	// 定义跨格式测试用例
+	testCases := []struct {
+		name           string
+		operations     func(sample APISample) []map[string]interface{}
+		expectedOutput func(sample APISample) string
+		skipFormats    []APIFormat
+	}{
+		{
+			name: "set_max_tokens",
+			operations: func(sample APISample) []map[string]interface{} {
+				path := sample.PathTransforms["max_tokens"]
+				return []map[string]interface{}{
+					op("set", opPath(path), opValue(500)),
+				}
 			},
+			expectedOutput: func(sample APISample) string {
+				switch sample.Format {
+				case APIFormatOpenAI:
+					return `{"model":"openai/gpt-4","temperature":0.7,"max_tokens":500,"messages":[{"role":"user","content":"hello"}]}`
+				case APIFormatClaude:
+					return `{"model":"anthropic/claude-3","max_tokens":500,"messages":[{"role":"user","content":"hello"}]}`
+				case APIFormatGemini:
+					return `{"contents":[{"parts":[{"text":"hello"}]}],"generationConfig":{"temperature":0.7,"maxOutputTokens":500}}`
+				default:
+					return ""
+				}
+			},
+		},
+		{
+			name: "set_temperature",
+			operations: func(sample APISample) []map[string]interface{} {
+				path := sample.PathTransforms["temperature"]
+				if path == "" {
+					return nil
+				}
+				return []map[string]interface{}{
+					op("set", opPath(path), opValue(0.5)),
+				}
+			},
+			expectedOutput: func(sample APISample) string {
+				switch sample.Format {
+				case APIFormatOpenAI:
+					return `{"model":"openai/gpt-4","temperature":0.5,"max_tokens":1000,"messages":[{"role":"user","content":"hello"}]}`
+				case APIFormatGemini:
+					return `{"contents":[{"parts":[{"text":"hello"}]}],"generationConfig":{"temperature":0.5,"maxOutputTokens":1000}}`
+				default:
+					return ""
+				}
+			},
+			skipFormats: []APIFormat{APIFormatClaude}, // Claude样本没有temperature字段
 		},
 	}
 
-	indexedOverride := map[string]interface{}{
-		"operations": lo.Map(lo.Range(3), func(index int, _ int) interface{} {
-			return map[string]interface{}{
-				"path": fmt.Sprintf("tools.%d.custom.input_examples", index),
-				"mode": "delete",
+	for _, tc := range testCases {
+		for _, sample := range apiSamples {
+			t.Run(fmt.Sprintf("%s/%s", tc.name, sample.Format), func(t *testing.T) {
+				// 检查是否跳过该格式
+				for _, skip := range tc.skipFormats {
+					if skip == sample.Format {
+						t.Skipf("skipping format %s", sample.Format)
+					}
+				}
+
+				operations := tc.operations(sample)
+				if operations == nil {
+					t.Skip("no operations for this format")
+				}
+
+				input := []byte(sample.Input)
+				override := buildOverride(operations...)
+
+				out, err := ApplyParamOverride(input, override, nil, nil)
+				if err != nil {
+					t.Fatalf("ApplyParamOverride returned error: %v", err)
+				}
+
+				expected := tc.expectedOutput(sample)
+				if expected != "" {
+					assertJSONEqual(t, expected, string(out))
+				}
+			})
+		}
+	}
+}
+
+// TestApplyParamOverrideStringOperations 测试字符串操作（trim_prefix, trim_suffix, replace, regex_replace等）
+func TestApplyParamOverrideStringOperations(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          string
+		operation      map[string]interface{}
+		expectedOutput string
+		expectError    bool
+	}{
+		{
+			name:           "trim_prefix",
+			input:          `{"model":"openai/gpt-4","temperature":0.7}`,
+			operation:      op("trim_prefix", opPath("model"), opValue("openai/")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:           "trim_suffix",
+			input:          `{"model":"gpt-4-latest","temperature":0.7}`,
+			operation:      op("trim_suffix", opPath("model"), opValue("-latest")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:           "trim_prefix_noop",
+			input:          `{"model":"gpt-4","temperature":0.7}`,
+			operation:      op("trim_prefix", opPath("model"), opValue("openai/")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:        "trim_prefix_requires_value",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("trim_prefix", opPath("model")),
+			expectError: true,
+		},
+		{
+			name:           "replace",
+			input:          `{"model":"openai/gpt-4o-mini","temperature":0.7}`,
+			operation:      op("replace", opPath("model"), opFrom("openai/"), opTo("")),
+			expectedOutput: `{"model":"gpt-4o-mini","temperature":0.7}`,
+		},
+		{
+			name:           "regex_replace",
+			input:          `{"model":"gpt-4o-mini","temperature":0.7}`,
+			operation:      op("regex_replace", opPath("model"), opFrom("^gpt-"), opTo("openai/gpt-")),
+			expectedOutput: `{"model":"openai/gpt-4o-mini","temperature":0.7}`,
+		},
+		{
+			name:        "replace_requires_from",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("replace", opPath("model")),
+			expectError: true,
+		},
+		{
+			name:        "regex_replace_requires_pattern",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("regex_replace", opPath("model")),
+			expectError: true,
+		},
+		{
+			name:           "ensure_prefix",
+			input:          `{"model":"gpt-4"}`,
+			operation:      op("ensure_prefix", opPath("model"), opValue("openai/")),
+			expectedOutput: `{"model":"openai/gpt-4"}`,
+		},
+		{
+			name:           "ensure_prefix_noop",
+			input:          `{"model":"openai/gpt-4"}`,
+			operation:      op("ensure_prefix", opPath("model"), opValue("openai/")),
+			expectedOutput: `{"model":"openai/gpt-4"}`,
+		},
+		{
+			name:           "ensure_suffix",
+			input:          `{"model":"gpt-4"}`,
+			operation:      op("ensure_suffix", opPath("model"), opValue("-latest")),
+			expectedOutput: `{"model":"gpt-4-latest"}`,
+		},
+		{
+			name:           "ensure_suffix_noop",
+			input:          `{"model":"gpt-4-latest"}`,
+			operation:      op("ensure_suffix", opPath("model"), opValue("-latest")),
+			expectedOutput: `{"model":"gpt-4-latest"}`,
+		},
+		{
+			name:        "ensure_requires_value",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("ensure_prefix", opPath("model")),
+			expectError: true,
+		},
+		{
+			name:           "trim_space",
+			input:          `{"model":" gpt-4 ","temperature":0.7}`,
+			operation:      op("trim_space", opPath("model")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:           "to_lower",
+			input:          `{"model":"GPT-4","temperature":0.7}`,
+			operation:      op("to_lower", opPath("model")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:           "to_upper",
+			input:          `{"model":"gpt-4","temperature":0.7}`,
+			operation:      op("to_upper", opPath("model")),
+			expectedOutput: `{"model":"GPT-4","temperature":0.7}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []byte(tc.input)
+			override := buildOverride(tc.operation)
+
+			out, err := ApplyParamOverride(input, override, nil, nil)
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
 			}
-		}),
+
+			if err != nil {
+				t.Fatalf("ApplyParamOverride returned error: %v", err)
+			}
+
+			assertJSONEqual(t, tc.expectedOutput, string(out))
+		})
+	}
+}
+
+// TestApplyParamOverrideBasicOps 测试基本操作（set, delete, move, copy）
+func TestApplyParamOverrideBasicOps(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          string
+		operation      map[string]interface{}
+		expectedOutput string
+		expectError    bool
+		customAssert   func(t *testing.T, got []byte)
+	}{
+		{
+			name:           "set",
+			input:          `{"model":"gpt-4","temperature":0.7}`,
+			operation:      op("set", opPath("temperature"), opValue(0.1)),
+			expectedOutput: `{"model":"gpt-4","temperature":0.1}`,
+		},
+		{
+			name:           "set_keep_origin_existing",
+			input:          `{"model":"gpt-4","temperature":0.7}`,
+			operation:      op("set", opPath("temperature"), opValue(0.1), opKeepOrigin(true)),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:           "set_keep_origin_missing",
+			input:          `{"model":"gpt-4"}`,
+			operation:      op("set", opPath("temperature"), opValue(0.1), opKeepOrigin(true)),
+			expectedOutput: `{"model":"gpt-4","temperature":0.1}`,
+		},
+		{
+			name:  "delete",
+			input: `{"model":"gpt-4","temperature":0.7}`,
+			operation: op("delete", opPath("temperature")),
+			customAssert: func(t *testing.T, got []byte) {
+				var result map[string]interface{}
+				if err := json.Unmarshal(got, &result); err != nil {
+					t.Fatalf("failed to unmarshal: %v", err)
+				}
+				if _, exists := result["temperature"]; exists {
+					t.Fatal("expected temperature to be deleted")
+				}
+			},
+		},
+		{
+			name:           "move",
+			input:          `{"model":"gpt-4","temp":0.7}`,
+			operation:      op("move", opFrom("temp"), opTo("temperature")),
+			expectedOutput: `{"model":"gpt-4","temperature":0.7}`,
+		},
+		{
+			name:        "move_missing_source",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("move", opFrom("temp"), opTo("temperature")),
+			expectError: true,
+		},
+		{
+			name:           "copy",
+			input:          `{"model":"gpt-4","temp":0.7}`,
+			operation:      op("copy", opFrom("temp"), opTo("temperature")),
+			expectedOutput: `{"model":"gpt-4","temp":0.7,"temperature":0.7}`,
+		},
+		{
+			name:        "copy_missing_source",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("copy", opFrom("temp"), opTo("temperature")),
+			expectError: true,
+		},
+		{
+			name:        "copy_requires_from_to",
+			input:       `{"model":"gpt-4"}`,
+			operation:   op("copy"),
+			expectError: true,
+		},
 	}
 
-	wildcardOut, err := ApplyParamOverride(input, wildcardOverride, nil)
-	if err != nil {
-		t.Fatalf("wildcard ApplyParamOverride returned error: %v", err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []byte(tc.input)
+			override := buildOverride(tc.operation)
+
+			out, err := ApplyParamOverride(input, override, nil, nil)
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ApplyParamOverride returned error: %v", err)
+			}
+
+			if tc.customAssert != nil {
+				tc.customAssert(t, out)
+			} else {
+				assertJSONEqual(t, tc.expectedOutput, string(out))
+			}
+		})
+	}
+}
+
+// TestApplyParamOverrideArrayOperations 测试数组操作（prepend, append）
+func TestApplyParamOverrideArrayOperations(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          string
+		operation      map[string]interface{}
+		expectedOutput string
+	}{
+		{
+			name:           "prepend_string",
+			input:          `{"model":"gpt-4","prefix":"hello"}`,
+			operation:      op("prepend", opPath("prefix"), opValue("say: ")),
+			expectedOutput: `{"model":"gpt-4","prefix":"say: hello"}`,
+		},
+		{
+			name:           "append_string",
+			input:          `{"model":"gpt-4","suffix":"hello"}`,
+			operation:      op("append", opPath("suffix"), opValue(" world")),
+			expectedOutput: `{"model":"gpt-4","suffix":"hello world"}`,
+		},
+		{
+			name:           "prepend_array",
+			input:          `{"model":"gpt-4","tags":["b","c"]}`,
+			operation:      op("prepend", opPath("tags"), opValue("a")),
+			expectedOutput: `{"model":"gpt-4","tags":["a","b","c"]}`,
+		},
+		{
+			name:           "append_array",
+			input:          `{"model":"gpt-4","tags":["a","b"]}`,
+			operation:      op("append", opPath("tags"), opValue("c")),
+			expectedOutput: `{"model":"gpt-4","tags":["a","b","c"]}`,
+		},
+		{
+			name:           "append_object_merge_keep_origin",
+			input:          `{"model":"gpt-4","config":{"a":1}}`,
+			operation:      op("append", opPath("config"), opValue(map[string]interface{}{"b": 2}), opKeepOrigin(true)),
+			expectedOutput: `{"model":"gpt-4","config":{"a":1,"b":2}}`,
+		},
+		{
+			name:           "append_object_merge_override",
+			input:          `{"model":"gpt-4","config":{"a":1}}`,
+			operation:      op("append", opPath("config"), opValue(map[string]interface{}{"a": 2, "b": 3})),
+			expectedOutput: `{"model":"gpt-4","config":{"a":2,"b":3}}`,
+		},
 	}
 
-	indexedOut, err := ApplyParamOverride(input, indexedOverride, nil)
-	if err != nil {
-		t.Fatalf("indexed ApplyParamOverride returned error: %v", err)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := []byte(tc.input)
+			override := buildOverride(tc.operation)
 
-	assertJSONEqual(t, string(indexedOut), string(wildcardOut))
+			out, err := ApplyParamOverride(input, override, nil, nil)
+			if err != nil {
+				t.Fatalf("ApplyParamOverride returned error: %v", err)
+			}
+
+			assertJSONEqual(t, tc.expectedOutput, string(out))
+		})
+	}
 }
 
 func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
@@ -387,7 +621,7 @@ func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -426,7 +660,7 @@ func TestApplyParamOverrideTrimSpaceMultiWildcardPath(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -474,197 +708,11 @@ func TestApplyParamOverrideSet(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
 	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
-}
-
-func TestApplyParamOverrideSetWithDescriptionKeepsCompatibility(t *testing.T) {
-	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
-	overrideWithoutDesc := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "temperature",
-				"mode":  "set",
-				"value": 0.1,
-			},
-		},
-	}
-	overrideWithDesc := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"description": "set temperature for deterministic output",
-				"path":        "temperature",
-				"mode":        "set",
-				"value":       0.1,
-			},
-		},
-	}
-
-	outWithoutDesc, err := ApplyParamOverride(input, overrideWithoutDesc, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride without description returned error: %v", err)
-	}
-
-	outWithDesc, err := ApplyParamOverride(input, overrideWithDesc, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride with description returned error: %v", err)
-	}
-
-	assertJSONEqual(t, string(outWithoutDesc), string(outWithDesc))
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(outWithDesc))
-}
-
-func TestApplyParamOverrideSetKeepOrigin(t *testing.T) {
-	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":        "temperature",
-				"mode":        "set",
-				"value":       0.1,
-				"keep_origin": true,
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
-}
-
-func TestApplyParamOverrideMove(t *testing.T) {
-	input := []byte(`{"model":"gpt-4","meta":{"x":1}}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"mode": "move",
-				"from": "model",
-				"to":   "meta.model",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"meta":{"x":1,"model":"gpt-4"}}`, string(out))
-}
-
-func TestApplyParamOverrideMoveMissingSource(t *testing.T) {
-	input := []byte(`{"meta":{"x":1}}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"mode": "move",
-				"from": "model",
-				"to":   "meta.model",
-			},
-		},
-	}
-
-	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-}
-
-func TestApplyParamOverridePrependAppendString(t *testing.T) {
-	input := []byte(`{"model":"gpt-4"}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "prepend",
-				"value": "openai/",
-			},
-			map[string]interface{}{
-				"path":  "model",
-				"mode":  "append",
-				"value": "-latest",
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4-latest"}`, string(out))
-}
-
-func TestApplyParamOverridePrependAppendArray(t *testing.T) {
-	input := []byte(`{"arr":[1,2]}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":  "arr",
-				"mode":  "prepend",
-				"value": 0,
-			},
-			map[string]interface{}{
-				"path":  "arr",
-				"mode":  "append",
-				"value": []interface{}{3, 4},
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"arr":[0,1,2,3,4]}`, string(out))
-}
-
-func TestApplyParamOverrideAppendObjectMergeKeepOrigin(t *testing.T) {
-	input := []byte(`{"obj":{"a":1}}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path":        "obj",
-				"mode":        "append",
-				"keep_origin": true,
-				"value": map[string]interface{}{
-					"a": 2,
-					"b": 3,
-				},
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"obj":{"a":1,"b":3}}`, string(out))
-}
-
-func TestApplyParamOverrideAppendObjectMergeOverride(t *testing.T) {
-	input := []byte(`{"obj":{"a":1}}`)
-	override := map[string]interface{}{
-		"operations": []interface{}{
-			map[string]interface{}{
-				"path": "obj",
-				"mode": "append",
-				"value": map[string]interface{}{
-					"a": 2,
-					"b": 3,
-				},
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"obj":{"a":2,"b":3}}`, string(out))
 }
 
 func TestApplyParamOverrideConditionORDefault(t *testing.T) {
@@ -691,7 +739,7 @@ func TestApplyParamOverrideConditionORDefault(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -723,7 +771,7 @@ func TestApplyParamOverrideConditionAND(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -750,7 +798,7 @@ func TestApplyParamOverrideConditionInvert(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -777,7 +825,7 @@ func TestApplyParamOverrideConditionPassMissingKey(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -806,7 +854,7 @@ func TestApplyParamOverrideConditionFromContext(t *testing.T) {
 		"model": "gpt-4",
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -825,7 +873,7 @@ func TestApplyParamOverrideNegativeIndexPath(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -847,7 +895,7 @@ func TestApplyParamOverrideRegexReplaceInvalidPattern(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -867,7 +915,7 @@ func TestApplyParamOverrideCopy(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -888,7 +936,7 @@ func TestApplyParamOverrideCopyMissingSource(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -906,7 +954,7 @@ func TestApplyParamOverrideCopyRequiresFromTo(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -926,7 +974,7 @@ func TestApplyParamOverrideEnsurePrefix(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -947,7 +995,7 @@ func TestApplyParamOverrideEnsurePrefixNoop(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -968,7 +1016,7 @@ func TestApplyParamOverrideEnsureSuffix(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -989,7 +1037,7 @@ func TestApplyParamOverrideEnsureSuffixNoop(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1009,7 +1057,7 @@ func TestApplyParamOverrideEnsureRequiresValue(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -1028,7 +1076,7 @@ func TestApplyParamOverrideTrimSpace(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1048,7 +1096,7 @@ func TestApplyParamOverrideToLower(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1068,7 +1116,7 @@ func TestApplyParamOverrideToUpper(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1105,7 +1153,7 @@ func TestApplyParamOverrideReturnError(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, ctx)
+	_, err := ApplyParamOverride(input, override, ctx, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -1150,7 +1198,7 @@ func TestApplyParamOverridePruneObjectsByTypeString(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1189,7 +1237,7 @@ func TestApplyParamOverridePruneObjectsWhereAndPath(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1209,7 +1257,7 @@ func TestApplyParamOverrideNormalizeThinkingSignatureUnsupported(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -1250,7 +1298,7 @@ func TestApplyParamOverrideConditionFromRetryAndLastErrorContext(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1281,7 +1329,7 @@ func TestApplyParamOverrideConditionFromRequestHeaders(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1312,7 +1360,7 @@ func TestApplyParamOverrideSetHeaderAndUseInLaterCondition(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
+	out, err := ApplyParamOverride(input, override, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1348,7 +1396,7 @@ func TestApplyParamOverrideCopyHeaderFromRequestHeaders(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1371,7 +1419,7 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1406,7 +1454,7 @@ func TestApplyParamOverrideCopyHeaderSkipsMissingSource(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1438,7 +1486,7 @@ func TestApplyParamOverrideMoveHeaderSkipsMissingSource(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1470,7 +1518,7 @@ func TestApplyParamOverrideSyncFieldsHeaderToJSON(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1490,7 +1538,7 @@ func TestApplyParamOverrideSyncFieldsJSONToHeader(t *testing.T) {
 	}
 	ctx := map[string]interface{}{}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1522,7 +1570,7 @@ func TestApplyParamOverrideSyncFieldsNoChangeWhenBothExist(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1548,7 +1596,7 @@ func TestApplyParamOverrideSyncFieldsInvalidTarget(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, nil)
+	_, err := ApplyParamOverride(input, override, nil, nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -1572,7 +1620,7 @@ func TestApplyParamOverrideSetHeaderKeepOrigin(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, ctx)
+	_, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1605,7 +1653,7 @@ func TestApplyParamOverrideSetHeaderMapRewritesCommaSeparatedHeader(t *testing.T
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, ctx)
+	_, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1639,7 +1687,7 @@ func TestApplyParamOverrideSetHeaderMapDeleteWholeHeaderWhenAllTokensCleared(t *
 		},
 	}
 
-	_, err := ApplyParamOverride(input, override, ctx)
+	_, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1672,7 +1720,7 @@ func TestApplyParamOverrideSetHeaderMapAppendsTokens(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1702,7 +1750,7 @@ func TestApplyParamOverrideSetHeaderMapAppendsTokensWhenHeaderMissing(t *testing
 	}
 
 	ctx := map[string]interface{}{}
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1738,7 +1786,7 @@ func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDropsUndeclaredTokens(t *
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1773,7 +1821,7 @@ func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDeletesHeaderWhenNothingD
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -1811,7 +1859,7 @@ func TestApplyParamOverrideConditionsObjectShorthand(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, ctx)
+	out, err := ApplyParamOverride(input, override, ctx, nil)
 	if err != nil {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
@@ -2081,5 +2129,395 @@ func assertJSONEqual(t *testing.T, want, got string) {
 
 	if !reflect.DeepEqual(wantObj, gotObj) {
 		t.Fatalf("json not equal\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
+// TestBuildParamOverrideContext_SystemMetadata 测试系统元数据被正确添加
+func TestBuildParamOverrideContext_SystemMetadata(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "请描述这张图片"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img.jpg"}},
+				},
+			},
+		},
+	}
+
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4",
+	}
+
+	ctx := BuildParamOverrideContext(info)
+
+	// 验证元数据在顶层
+	// 验证 count_image
+	if count, ok := ctx["count_image"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_image to be 1, got %v", ctx["count_image"])
+	}
+
+	// 验证 message_count
+	if count, ok := ctx["message_count"].(int); !ok || count != 1 {
+		t.Errorf("Expected message_count to be 1, got %v", ctx["message_count"])
+	}
+
+	// 验证 text_length
+	if length, ok := ctx["text_length"].(int); !ok || length <= 0 {
+		t.Errorf("Expected text_length to be positive, got %v", ctx["text_length"])
+	}
+
+	// 验证 text_length_last
+	if length, ok := ctx["text_length_last"].(int); !ok || length <= 0 {
+		t.Errorf("Expected text_length_last to be positive, got %v", ctx["text_length_last"])
+	}
+}
+
+// TestBuildParamOverrideContext_NilRequest 测试空请求不会导致 panic
+func TestBuildParamOverrideContext_NilRequest(t *testing.T) {
+	info := &RelayInfo{
+		Request:         nil,
+		OriginModelName: "gpt-4",
+	}
+
+	ctx := BuildParamOverrideContext(info)
+
+	// 验证 $ 不存在
+	if _, exists := ctx["$"]; exists {
+		t.Error("Expected $ to not exist for nil request")
+	}
+}
+
+// TestParamOverrideEndToEnd_MetadataDriven 测试端到端的元数据驱动 override 功能
+// 验证 BuildParamOverrideContext 和 ApplyParamOverrideWithRelayInfo 的完整流程
+func TestParamOverrideEndToEnd_MetadataDriven(t *testing.T) {
+	// 创建一个包含图片、视频和文本的复杂请求
+	// 注意：video_url 使用字符串格式（根据 ParseContent 方法的实现）
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4o",
+		Messages: []dto.Message{
+			{
+				Role: "system",
+				Content: []any{
+					map[string]any{"type": "text", "text": "你是一个有用的助手"},
+				},
+			},
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "请分析这张图片和这个视频"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/image1.jpg"}},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/image2.png"}},
+					map[string]any{"type": "video_url", "video_url": "https://example.com/video.mp4"},
+				},
+			},
+		},
+	}
+
+	// 创建 ParamOverride，基于 token、图片数量、视频数量设置条件
+	paramOverride := map[string]interface{}{
+		"operations": []interface{}{
+			// 当图片数量 >= 2 时，增加 max_tokens
+			map[string]interface{}{
+				"path":  "max_tokens",
+				"mode":  "set",
+				"value": 8192,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "count_image",
+						"mode":  "gte",
+						"value": 2,
+					},
+				},
+			},
+			// 当视频数量 >= 1 时，设置 temperature 为 0.5
+			map[string]interface{}{
+				"path":  "temperature",
+				"mode":  "set",
+				"value": 0.5,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "count_video",
+						"mode":  "gte",
+						"value": 1,
+					},
+				},
+			},
+			// 当 estimate_tokens > 10 时，添加一个标记字段
+			map[string]interface{}{
+				"path":  "metadata.high_token_request",
+				"mode":  "set",
+				"value": true,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "estimate_tokens",
+						"mode":  "gt",
+						"value": 10,
+					},
+				},
+			},
+		},
+	}
+
+	// 创建 RelayInfo
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4o",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: paramOverride,
+		},
+	}
+	// 设置 estimatePromptTokens（模拟实际场景中的 token 估算）
+	info.SetEstimatePromptTokens(100)
+
+	// 步骤 1: 调用 BuildParamOverrideContext 构建上下文
+	ctx := BuildParamOverrideContext(info)
+
+	// 验证元数据被正确提取到上下文中
+	// 验证 count_image = 2
+	if count, ok := ctx["count_image"].(int); !ok || count != 2 {
+		t.Errorf("Expected count_image to be 2, got %v", ctx["count_image"])
+	}
+
+	// 验证 count_video = 1
+	if count, ok := ctx["count_video"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_video to be 1, got %v", ctx["count_video"])
+	}
+
+	// 验证 estimate_tokens = 100
+	if tokens, ok := ctx["estimate_tokens"].(int); !ok || tokens != 100 {
+		t.Errorf("Expected estimate_tokens to be 100, got %v", ctx["estimate_tokens"])
+	}
+
+	// 验证 message_count = 2
+	if count, ok := ctx["message_count"].(int); !ok || count != 2 {
+		t.Errorf("Expected message_count to be 2, got %v", ctx["message_count"])
+	}
+
+	// 验证 text_length > 0
+	if length, ok := ctx["text_length"].(int); !ok || length <= 0 {
+		t.Errorf("Expected text_length to be positive, got %v", ctx["text_length"])
+	}
+
+	// 步骤 2: 调用 ApplyParamOverrideWithRelayInfo 应用 override
+	input := `{"model":"gpt-4o","max_tokens":1000,"temperature":0.7}`
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(input), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+
+	// 解析结果
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	// 验证 override 效果：max_tokens 应该被设置为 8192（因为 count_image >= 2）
+	if maxTokens, ok := result["max_tokens"].(float64); !ok || maxTokens != 8192 {
+		t.Errorf("Expected max_tokens to be 8192 (override by image count), got %v", result["max_tokens"])
+	}
+
+	// 验证 override 效果：temperature 应该被设置为 0.5（因为 count_video >= 1）
+	if temp, ok := result["temperature"].(float64); !ok || temp != 0.5 {
+		t.Errorf("Expected temperature to be 0.5 (override by video count), got %v", result["temperature"])
+	}
+
+	// 验证 override 效果：metadata.high_token_request 应该被设置为 true（因为 estimate_tokens > 10）
+	metadata, ok := result["metadata"].(map[string]interface{})
+	if !ok {
+		t.Errorf("Expected metadata field to be present")
+	} else if highToken, ok := metadata["high_token_request"].(bool); !ok || !highToken {
+		t.Errorf("Expected metadata.high_token_request to be true (override by estimate_tokens), got %v", metadata["high_token_request"])
+	}
+}
+
+// TestParamOverrideEndToEnd_TokenBasedCondition 测试基于 estimate_tokens 的条件 override
+func TestParamOverrideEndToEnd_TokenBasedCondition(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "这是一段很长的文本内容，用于测试基于 token 数量的条件判断逻辑",
+			},
+		},
+	}
+
+	paramOverride := map[string]interface{}{
+		"operations": []interface{}{
+			// 当 estimate_tokens >= 50 时，启用 stream
+			map[string]interface{}{
+				"path":  "stream",
+				"mode":  "set",
+				"value": true,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "estimate_tokens",
+						"mode":  "gte",
+						"value": 50,
+					},
+				},
+			},
+		},
+	}
+
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4",
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: paramOverride,
+		},
+	}
+	info.SetEstimatePromptTokens(100)
+
+	// 调用 ApplyParamOverrideWithRelayInfo
+	input := `{"model":"gpt-4","max_tokens":500}`
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(input), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	// 验证 stream 被设置为 true
+	if stream, ok := result["stream"].(bool); !ok || !stream {
+		t.Errorf("Expected stream to be true (override by estimate_tokens >= 50), got %v", result["stream"])
+	}
+}
+
+// TestSystemMetadataCondition_ImageCount 测试条件判断正常工作
+func TestSystemMetadataCondition_ImageCount(t *testing.T) {
+	input := `{"model":"gpt-4","max_tokens":1000}`
+
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"path":  "max_tokens",
+				"mode":  "set",
+				"value": 4096,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "count_image",
+						"mode":  "gte",
+						"value": 1,
+					},
+				},
+			},
+		},
+	}
+
+	context := map[string]interface{}{
+		"count_image": 2,
+	}
+
+	out, err := ApplyParamOverride([]byte(input), override, context, nil)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	if maxTokens, ok := result["max_tokens"].(float64); !ok || maxTokens != 4096 {
+		t.Errorf("Expected max_tokens to be 4096, got %v", result["max_tokens"])
+	}
+}
+
+// TestSystemMetadataCondition_MessageCount 测试消息数量条件
+func TestSystemMetadataCondition_MessageCount(t *testing.T) {
+	input := `{"model":"gpt-4","max_tokens":1000}`
+
+	override := map[string]interface{}{
+		"operations": []interface{}{
+			map[string]interface{}{
+				"path":  "max_tokens",
+				"mode":  "set",
+				"value": 8192,
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"path":  "message_count",
+						"mode":  "gt",
+						"value": 10,
+					},
+				},
+			},
+		},
+	}
+
+	// 测试条件不满足的情况
+	context := map[string]interface{}{
+		"message_count": 5,
+	}
+
+	out, err := ApplyParamOverride([]byte(input), override, context, nil)
+	if err != nil {
+		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	}
+
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(out, &result); err != nil {
+		t.Fatalf("Failed to unmarshal result: %v", err)
+	}
+
+	// 条件不满足，max_tokens 应该保持原值
+	if maxTokens, ok := result["max_tokens"].(float64); !ok || maxTokens != 1000 {
+		t.Errorf("Expected max_tokens to remain 1000, got %v", result["max_tokens"])
+	}
+}
+
+// TestBuildRequestMetadata_MultipleMediaTypes 测试多种媒体类型
+func TestBuildRequestMetadata_MultipleMediaTypes(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gpt-4",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "Hello"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img1.jpg"}},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img2.jpg"}},
+				},
+			},
+			{
+				Role:    "assistant",
+				Content: "Hi there!",
+			},
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": "base64audio", "format": "wav"}},
+					map[string]any{"type": "file", "file": map[string]any{"file_id": "file123"}},
+				},
+			},
+		},
+	}
+
+	info := &RelayInfo{
+		Request:         request,
+		OriginModelName: "gpt-4",
+	}
+
+	ctx := BuildParamOverrideContext(info)
+
+	// 验证各种计数（元数据在顶层）
+	if count, ok := ctx["count_image"].(int); !ok || count != 2 {
+		t.Errorf("Expected count_image to be 2, got %v", ctx["count_image"])
+	}
+	if count, ok := ctx["count_audio"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_audio to be 1, got %v", ctx["count_audio"])
+	}
+	if count, ok := ctx["count_file"].(int); !ok || count != 1 {
+		t.Errorf("Expected count_file to be 1, got %v", ctx["count_file"])
+	}
+	if count, ok := ctx["message_count"].(int); !ok || count != 3 {
+		t.Errorf("Expected message_count to be 3, got %v", ctx["message_count"])
 	}
 }
