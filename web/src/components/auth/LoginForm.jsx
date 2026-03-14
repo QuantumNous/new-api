@@ -144,6 +144,8 @@ const LoginForm = () => {
   );
   const passwordLoginEnabled = status.password_login_enabled !== false;
   const passwordRegisterEnabled = status.password_register_enabled !== false;
+  const passkeyLoginAvailable = status.passkey_login && passkeySupported;
+  const hasNonPasswordLoginOptions = hasOAuthLoginOptions || passkeyLoginAvailable;
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -964,7 +966,7 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {!passwordLoginEnabled && !hasOAuthLoginOptions
+        {!passwordLoginEnabled && !hasNonPasswordLoginOptions
           ? (
             <div className='flex flex-col items-center'>
               <div className='w-full max-w-md'>
@@ -993,7 +995,7 @@ const LoginForm = () => {
               </div>
             </div>
           )
-          : !passwordLoginEnabled && hasOAuthLoginOptions
+          : !passwordLoginEnabled && hasNonPasswordLoginOptions
           ? renderOAuthOptions()
           : showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
