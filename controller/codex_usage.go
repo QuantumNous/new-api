@@ -105,7 +105,9 @@ func GetCodexChannelUsage(c *gin.Context) {
 					ch.OtherInfo = otherInfo
 					updates["other_info"] = otherInfo
 				}
-				_ = model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error
+				if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Updates(updates).Error; err != nil {
+					common.SysLog(fmt.Sprintf("failed to persist refreshed codex oauth metadata: channel_id=%d, error=%v", ch.Id, err))
+				}
 				model.InitChannelCache()
 				service.ResetProxyClientCache()
 			}
