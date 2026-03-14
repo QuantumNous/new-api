@@ -542,7 +542,7 @@ const RegisterForm = () => {
                 )}
               </div>
 
-              {passwordLoginEnabled && (
+              {(passwordLoginEnabled || hasOAuthRegisterOptions) && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('已有账户？')}{' '}
@@ -720,7 +720,7 @@ const RegisterForm = () => {
                 </>
               )}
 
-              {passwordLoginEnabled && (
+              {(passwordLoginEnabled || hasOAuthRegisterOptions) && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('已有账户？')}{' '}
