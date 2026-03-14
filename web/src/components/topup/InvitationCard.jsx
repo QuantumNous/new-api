@@ -38,7 +38,14 @@ const InvitationCard = ({
   setOpenTransfer,
   affLink,
   handleAffLinkClick,
+  inviteCommissionEnabled,
+  inviteCommissionRatio,
 }) => {
+  const commissionPercent = Math.max(
+    0,
+    Number((Number(inviteCommissionRatio || 0) * 100).toFixed(2)),
+  );
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -199,6 +206,15 @@ const InvitationCard = ({
           title={<Text type='tertiary'>{t('奖励说明')}</Text>}
         >
           <div className='space-y-3'>
+            <div className='flex items-start gap-2'>
+              <Badge dot type={inviteCommissionEnabled ? 'success' : 'warning'} />
+              <Text type='tertiary' className='text-sm'>
+                {inviteCommissionEnabled
+                  ? `Invite commission is enabled. Ratio: ${commissionPercent}%`
+                  : 'Invite commission is disabled'}
+              </Text>
+            </div>
+
             <div className='flex items-start gap-2'>
               <Badge dot type='success' />
               <Text type='tertiary' className='text-sm'>

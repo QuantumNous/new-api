@@ -52,6 +52,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
+		"invite_commission_enabled": common.InviteCommissionEnabled,
+		"invite_commission_ratio":   common.InviteCommissionRatio,
 		"creem_products":      setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
@@ -306,6 +308,10 @@ func EpayNotify(c *gin.Context) {
 			}
 			log.Printf("易支付回调更新用户成功 %v", topUp)
 			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+
+			if err = model.SettleInviteCommissionByTradeNo(topUp.TradeNo, topUp.UserId, quotaToAdd); err != nil {
+				common.SysError("settle invite commission failed: " + err.Error())
+			}
 		}
 	} else {
 		log.Printf("易支付异常回调: %v", verifyInfo)

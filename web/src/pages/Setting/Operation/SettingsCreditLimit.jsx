@@ -36,6 +36,8 @@ export default function SettingsCreditLimit(props) {
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
+    InviteCommissionEnabled: false,
+    InviteCommissionRatio: '',
     'quota_setting.enable_free_model_pre_consume': true,
   });
   const refForm = useRef();
@@ -162,6 +164,43 @@ export default function SettingsCreditLimit(props) {
                     setInputs({
                       ...inputs,
                       QuotaForInvitee: String(value),
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  label={t('Enable invite commission')}
+                  field={'InviteCommissionEnabled'}
+                  extraText={t(
+                    'When enabled, inviter receives commission after invitee topup',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InviteCommissionEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  label={t('Invite commission ratio')}
+                  field={'InviteCommissionRatio'}
+                  step={0.01}
+                  min={0}
+                  max={1}
+                  disabled={!inputs.InviteCommissionEnabled}
+                  extraText={t(
+                    'Use a decimal between 0 and 1, e.g. 0.1 means 10%',
+                  )}
+                  placeholder={'0.1'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      InviteCommissionRatio: String(value ?? ''),
                     })
                   }
                 />

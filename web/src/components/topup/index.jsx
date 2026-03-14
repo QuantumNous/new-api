@@ -103,6 +103,8 @@ const TopUp = () => {
   const [topupInfo, setTopupInfo] = useState({
     amount_options: [],
     discount: {},
+    invite_commission_enabled: false,
+    invite_commission_ratio: 0,
   });
 
   const topUp = async () => {
@@ -389,6 +391,10 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
+          invite_commission_enabled: Boolean(
+            data.invite_commission_enabled || false,
+          ),
+          invite_commission_ratio: Number(data.invite_commission_ratio || 0),
         });
 
         // 处理支付方式
@@ -783,6 +789,8 @@ const TopUp = () => {
           setOpenTransfer={setOpenTransfer}
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
+          inviteCommissionEnabled={topupInfo.invite_commission_enabled}
+          inviteCommissionRatio={topupInfo.invite_commission_ratio}
         />
       </div>
     </div>

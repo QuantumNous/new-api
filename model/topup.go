@@ -12,15 +12,17 @@ import (
 )
 
 type TopUp struct {
-	Id            int     `json:"id"`
-	UserId        int     `json:"user_id" gorm:"index"`
-	Amount        int64   `json:"amount"`
-	Money         float64 `json:"money"`
-	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`
-	CreateTime    int64   `json:"create_time"`
-	CompleteTime  int64   `json:"complete_time"`
-	Status        string  `json:"status"`
+	Id                      int     `json:"id"`
+	UserId                  int     `json:"user_id" gorm:"index"`
+	Amount                  int64   `json:"amount"`
+	Money                   float64 `json:"money"`
+	TradeNo                 string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod           string  `json:"payment_method" gorm:"type:varchar(50)"`
+	CreateTime              int64   `json:"create_time"`
+	CompleteTime            int64   `json:"complete_time"`
+	Status                  string  `json:"status"`
+	InviteCommissionSettled bool    `json:"-" gorm:"column:invite_commission_settled;default:false"`
+	InviteCommissionQuota   int     `json:"-" gorm:"column:invite_commission_quota;type:int;default:0"`
 }
 
 func (topUp *TopUp) Insert() error {
@@ -53,6 +55,96 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 		return nil
 	}
 	return topUp
+}
+
+// SettleInviteCommissionByTradeNo settles inviter commission once per top-up order.
+// Commission is added to inviter's aff quota so they can transfer it with existing workflow.
+func SettleInviteCommissionByTradeNo(tradeNo string, payerUserID int, rechargeQuota int) error {
+	if tradeNo == "" || rechargeQuota <= 0 {
+		return nil
+	}
+	if !common.InviteCommissionEnabled || common.InviteCommissionRatio <= 0 {
+		return nil
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	var inviterId int
+	var commission int
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return err
+		}
+		if topUp.InviteCommissionSettled {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusSuccess {
+			return fmt.Errorf("topup order is not success: %s", tradeNo)
+		}
+		if payerUserID != 0 && topUp.UserId != payerUserID {
+			return fmt.Errorf("payer user mismatch for trade_no: %s", tradeNo)
+		}
+
+		var payer User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Select("id", "inviter_id").Where("id = ?", topUp.UserId).First(&payer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				topUp.InviteCommissionSettled = true
+				topUp.InviteCommissionQuota = 0
+				return tx.Save(topUp).Error
+			}
+			return err
+		}
+
+		// Skip self-invite or no inviter, but still mark as settled for idempotency.
+		if payer.InviterId == 0 || payer.InviterId == payer.Id {
+			topUp.InviteCommissionSettled = true
+			topUp.InviteCommissionQuota = 0
+			return tx.Save(topUp).Error
+		}
+
+		inviterId = payer.InviterId
+		var inviter User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Select("id").Where("id = ?", inviterId).First(&inviter).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				topUp.InviteCommissionSettled = true
+				topUp.InviteCommissionQuota = 0
+				return tx.Save(topUp).Error
+			}
+			return err
+		}
+
+		ratio := decimal.NewFromFloat(common.InviteCommissionRatio)
+		commission = int(decimal.NewFromInt(int64(rechargeQuota)).Mul(ratio).Floor().IntPart())
+		if commission <= 0 {
+			topUp.InviteCommissionSettled = true
+			topUp.InviteCommissionQuota = 0
+			return tx.Save(topUp).Error
+		}
+
+		if err := tx.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
+			"aff_quota":   gorm.Expr("aff_quota + ?", commission),
+			"aff_history": gorm.Expr("aff_history + ?", commission),
+		}).Error; err != nil {
+			return err
+		}
+
+		topUp.InviteCommissionSettled = true
+		topUp.InviteCommissionQuota = commission
+		return tx.Save(topUp).Error
+	})
+	if err != nil {
+		return err
+	}
+
+	if inviterId != 0 && commission > 0 {
+		RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("Invite commission reward %s", logger.LogQuota(commission)))
+	}
+	return nil
 }
 
 func Recharge(referenceId string, customerId string) (err error) {
@@ -100,6 +192,10 @@ func Recharge(referenceId string, customerId string) (err error) {
 	}
 
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount))
+
+	if err = SettleInviteCommissionByTradeNo(referenceId, topUp.UserId, int(quota)); err != nil {
+		common.SysError("settle invite commission failed: " + err.Error())
+	}
 
 	return nil
 }
@@ -304,6 +400,10 @@ func ManualCompleteTopUp(tradeNo string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
+
+	if err = SettleInviteCommissionByTradeNo(tradeNo, userId, quotaToAdd); err != nil {
+		common.SysError("settle invite commission failed: " + err.Error())
+	}
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string) (err error) {
@@ -373,6 +473,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money))
+
+	if err = SettleInviteCommissionByTradeNo(referenceId, topUp.UserId, int(quota)); err != nil {
+		common.SysError("settle invite commission failed: " + err.Error())
+	}
 
 	return nil
 }
