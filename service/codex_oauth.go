@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,15 +22,20 @@ const (
 	codexOAuthRedirectURI  = "http://localhost:1455/auth/callback"
 	codexOAuthScope        = "openid profile email offline_access"
 	codexJWTClaimPath      = "https://api.openai.com/auth"
+	codexPlanTypeInfoKey   = "codex_plan_type"
 	defaultHTTPTimeout     = 20 * time.Second
 )
 
+// CodexOAuthTokenResult carries the tokens returned by the Codex OAuth endpoints.
 type CodexOAuthTokenResult struct {
 	AccessToken  string
 	RefreshToken string
+	IDToken      string
 	ExpiresAt    time.Time
+	PlanType     string
 }
 
+// CodexOAuthAuthorizationFlow contains the PKCE parameters needed to start a Codex OAuth login.
 type CodexOAuthAuthorizationFlow struct {
 	State        string
 	Verifier     string
@@ -39,10 +43,12 @@ type CodexOAuthAuthorizationFlow struct {
 	AuthorizeURL string
 }
 
+// RefreshCodexOAuthToken refreshes a Codex OAuth token without a channel-specific proxy override.
 func RefreshCodexOAuthToken(ctx context.Context, refreshToken string) (*CodexOAuthTokenResult, error) {
 	return RefreshCodexOAuthTokenWithProxy(ctx, refreshToken, "")
 }
 
+// RefreshCodexOAuthTokenWithProxy refreshes a Codex OAuth token using an optional proxy URL.
 func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, proxyURL string) (*CodexOAuthTokenResult, error) {
 	client, err := getCodexOAuthHTTPClient(proxyURL)
 	if err != nil {
@@ -51,10 +57,12 @@ func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, p
 	return refreshCodexOAuthToken(ctx, client, codexOAuthTokenURL, codexOAuthClientID, refreshToken)
 }
 
+// ExchangeCodexAuthorizationCode exchanges a Codex authorization code without a proxy override.
 func ExchangeCodexAuthorizationCode(ctx context.Context, code string, verifier string) (*CodexOAuthTokenResult, error) {
 	return ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, "")
 }
 
+// ExchangeCodexAuthorizationCodeWithProxy exchanges a Codex authorization code using an optional proxy URL.
 func ExchangeCodexAuthorizationCodeWithProxy(ctx context.Context, code string, verifier string, proxyURL string) (*CodexOAuthTokenResult, error) {
 	client, err := getCodexOAuthHTTPClient(proxyURL)
 	if err != nil {
@@ -63,6 +71,7 @@ func ExchangeCodexAuthorizationCodeWithProxy(ctx context.Context, code string, v
 	return exchangeCodexAuthorizationCode(ctx, client, codexOAuthTokenURL, codexOAuthClientID, code, verifier, codexOAuthRedirectURI)
 }
 
+// CreateCodexOAuthAuthorizationFlow creates the PKCE state and authorize URL for a Codex login attempt.
 func CreateCodexOAuthAuthorizationFlow() (*CodexOAuthAuthorizationFlow, error) {
 	state, err := createStateHex(16)
 	if err != nil {
@@ -84,6 +93,7 @@ func CreateCodexOAuthAuthorizationFlow() (*CodexOAuthAuthorizationFlow, error) {
 	}, nil
 }
 
+// refreshCodexOAuthToken performs the OAuth refresh request and derives plan metadata from the response tokens.
 func refreshCodexOAuthToken(
 	ctx context.Context,
 	client *http.Client,
@@ -117,6 +127,7 @@ func refreshCodexOAuthToken(
 	var payload struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
+		IDToken      string `json:"id_token"`
 		ExpiresIn    int    `json:"expires_in"`
 	}
 
@@ -131,13 +142,17 @@ func refreshCodexOAuthToken(
 		return nil, errors.New("codex oauth refresh response missing fields")
 	}
 
-	return &CodexOAuthTokenResult{
+	result := &CodexOAuthTokenResult{
 		AccessToken:  strings.TrimSpace(payload.AccessToken),
 		RefreshToken: strings.TrimSpace(payload.RefreshToken),
+		IDToken:      strings.TrimSpace(payload.IDToken),
 		ExpiresAt:    time.Now().Add(time.Duration(payload.ExpiresIn) * time.Second),
-	}, nil
+	}
+	result.PlanType = extractCodexPlanTypeFromTokens(result.IDToken, result.AccessToken)
+	return result, nil
 }
 
+// exchangeCodexAuthorizationCode performs the authorization-code exchange and derives plan metadata from the response tokens.
 func exchangeCodexAuthorizationCode(
 	ctx context.Context,
 	client *http.Client,
@@ -179,6 +194,7 @@ func exchangeCodexAuthorizationCode(
 	var payload struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
+		IDToken      string `json:"id_token"`
 		ExpiresIn    int    `json:"expires_in"`
 	}
 	if err := common.DecodeJson(resp.Body, &payload); err != nil {
@@ -190,11 +206,14 @@ func exchangeCodexAuthorizationCode(
 	if strings.TrimSpace(payload.AccessToken) == "" || strings.TrimSpace(payload.RefreshToken) == "" || payload.ExpiresIn <= 0 {
 		return nil, errors.New("codex oauth token response missing fields")
 	}
-	return &CodexOAuthTokenResult{
+	result := &CodexOAuthTokenResult{
 		AccessToken:  strings.TrimSpace(payload.AccessToken),
 		RefreshToken: strings.TrimSpace(payload.RefreshToken),
+		IDToken:      strings.TrimSpace(payload.IDToken),
 		ExpiresAt:    time.Now().Add(time.Duration(payload.ExpiresIn) * time.Second),
-	}, nil
+	}
+	result.PlanType = extractCodexPlanTypeFromTokens(result.IDToken, result.AccessToken)
+	return result, nil
 }
 
 func getCodexOAuthHTTPClient(proxyURL string) (*http.Client, error) {
@@ -252,34 +271,21 @@ func generatePKCEPair() (verifier string, challenge string, err error) {
 	return verifier, challenge, nil
 }
 
+// ExtractCodexAccountIDFromJWT reads the Codex account id claim from a JWT payload.
 func ExtractCodexAccountIDFromJWT(token string) (string, bool) {
-	claims, ok := decodeJWTClaims(token)
-	if !ok {
-		return "", false
-	}
-	raw, ok := claims[codexJWTClaimPath]
-	if !ok {
-		return "", false
-	}
-	obj, ok := raw.(map[string]any)
-	if !ok {
-		return "", false
-	}
-	v, ok := obj["chatgpt_account_id"]
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", false
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", false
-	}
-	return s, true
+	return extractCodexAuthClaimFromJWT(token, "chatgpt_account_id")
 }
 
+// ExtractCodexPlanTypeFromJWT reads and normalizes the Codex plan type claim from a JWT payload.
+func ExtractCodexPlanTypeFromJWT(token string) (string, bool) {
+	planType, ok := extractCodexAuthClaimFromJWT(token, "chatgpt_plan_type")
+	if !ok {
+		return "", false
+	}
+	return normalizeCodexPlanType(planType), true
+}
+
+// ExtractEmailFromJWT reads the email claim from a JWT payload.
 func ExtractEmailFromJWT(token string) (string, bool) {
 	claims, ok := decodeJWTClaims(token)
 	if !ok {
@@ -300,6 +306,80 @@ func ExtractEmailFromJWT(token string) (string, bool) {
 	return s, true
 }
 
+// ExtractCodexPlanTypeFromOAuthKey loads a serialized Codex OAuth key and returns its plan type.
+func ExtractCodexPlanTypeFromOAuthKey(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	var payload struct {
+		PlanType    string `json:"plan_type,omitempty"`
+		IDToken     string `json:"id_token,omitempty"`
+		AccessToken string `json:"access_token,omitempty"`
+	}
+	if err := common.Unmarshal([]byte(raw), &payload); err != nil {
+		return "", false
+	}
+	if planType := normalizeCodexPlanType(payload.PlanType); planType != "" {
+		return planType, true
+	}
+	planType := extractCodexPlanTypeFromTokens(payload.IDToken, payload.AccessToken)
+	return planType, planType != ""
+}
+
+// ExtractCodexPlanTypeFromOtherInfo reads the persisted Codex plan type from channel metadata.
+func ExtractCodexPlanTypeFromOtherInfo(otherInfo string) (string, bool) {
+	trimmed := strings.TrimSpace(otherInfo)
+	if trimmed == "" {
+		return "", false
+	}
+	var payload map[string]any
+	if err := common.Unmarshal([]byte(trimmed), &payload); err != nil {
+		return "", false
+	}
+	value, ok := payload[codexPlanTypeInfoKey]
+	if !ok {
+		return "", false
+	}
+	planType, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	planType = normalizeCodexPlanType(planType)
+	if planType == "" {
+		return "", false
+	}
+	return planType, true
+}
+
+// MergeCodexPlanTypeIntoOtherInfo upserts the normalized plan type into channel metadata JSON.
+func MergeCodexPlanTypeIntoOtherInfo(otherInfo string, planType string) (string, error) {
+	normalizedPlanType := normalizeCodexPlanType(planType)
+	trimmed := strings.TrimSpace(otherInfo)
+	payload := make(map[string]any)
+	if trimmed != "" {
+		if err := common.Unmarshal([]byte(trimmed), &payload); err != nil {
+			return "", err
+		}
+	}
+
+	if normalizedPlanType == "" {
+		delete(payload, codexPlanTypeInfoKey)
+	} else {
+		payload[codexPlanTypeInfoKey] = normalizedPlanType
+	}
+
+	if len(payload) == 0 {
+		return "", nil
+	}
+	encoded, err := common.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+// decodeJWTClaims decodes the payload section of a JWT without signature verification.
 func decodeJWTClaims(token string) (map[string]any, bool) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -310,8 +390,53 @@ func decodeJWTClaims(token string) (map[string]any, bool) {
 		return nil, false
 	}
 	var claims map[string]any
-	if err := json.Unmarshal(payloadRaw, &claims); err != nil {
+	if err := common.Unmarshal(payloadRaw, &claims); err != nil {
 		return nil, false
 	}
 	return claims, true
+}
+
+// extractCodexAuthClaimFromJWT reads a nested OpenAI auth claim from a JWT payload.
+func extractCodexAuthClaimFromJWT(token string, claim string) (string, bool) {
+	claims, ok := decodeJWTClaims(token)
+	if !ok {
+		return "", false
+	}
+	raw, ok := claims[codexJWTClaimPath]
+	if !ok {
+		return "", false
+	}
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	value, ok := obj[claim]
+	if !ok {
+		return "", false
+	}
+	s, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", false
+	}
+	return s, true
+}
+
+// extractCodexPlanTypeFromTokens prefers the id token and falls back to the access token for plan type detection.
+func extractCodexPlanTypeFromTokens(idToken string, accessToken string) string {
+	if planType, ok := ExtractCodexPlanTypeFromJWT(idToken); ok {
+		return planType
+	}
+	if planType, ok := ExtractCodexPlanTypeFromJWT(accessToken); ok {
+		return planType
+	}
+	return ""
+}
+
+// normalizeCodexPlanType canonicalizes plan type values for persistence and display.
+func normalizeCodexPlanType(planType string) string {
+	return strings.ToLower(strings.TrimSpace(planType))
 }

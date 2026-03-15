@@ -123,6 +123,7 @@ func CompleteCodexOAuthForChannel(c *gin.Context) {
 	completeCodexOAuthWithChannelID(c, channelID)
 }
 
+// completeCodexOAuthWithChannelID finalizes a Codex OAuth flow and optionally writes the refreshed key back to a channel.
 func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	req := codexOAuthCompleteRequest{}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -146,21 +147,22 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	}
 
 	channelProxy := ""
+	var channel *model.Channel
 	if channelID > 0 {
-		ch, err := model.GetChannelById(channelID, false)
+		channel, err = model.GetChannelById(channelID, false)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if ch == nil {
+		if channel == nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
 			return
 		}
-		if ch.Type != constant.ChannelTypeCodex {
+		if channel.Type != constant.ChannelTypeCodex {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
 			return
 		}
-		channelProxy = ch.GetSetting().Proxy
+		channelProxy = channel.GetSetting().Proxy
 	}
 
 	session := sessions.Default(c)
@@ -193,12 +195,14 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	email, _ := service.ExtractEmailFromJWT(tokenRes.AccessToken)
 
 	key := codex.OAuthKey{
+		IDToken:      tokenRes.IDToken,
 		AccessToken:  tokenRes.AccessToken,
 		RefreshToken: tokenRes.RefreshToken,
 		AccountID:    accountID,
 		LastRefresh:  time.Now().Format(time.RFC3339),
 		Expired:      tokenRes.ExpiresAt.Format(time.RFC3339),
 		Email:        email,
+		PlanType:     tokenRes.PlanType,
 		Type:         "codex",
 	}
 	encoded, err := common.Marshal(key)
@@ -213,7 +217,15 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	_ = session.Save()
 
 	if channelID > 0 {
-		if err := model.DB.Model(&model.Channel{}).Where("id = ?", channelID).Update("key", string(encoded)).Error; err != nil {
+		mergedOtherInfo := channel.OtherInfo
+		if otherInfo, mergeErr := service.MergeCodexPlanTypeIntoOtherInfo(channel.OtherInfo, key.PlanType); mergeErr == nil {
+			mergedOtherInfo = otherInfo
+		}
+		updates := map[string]any{
+			"key":        string(encoded),
+			"other_info": mergedOtherInfo,
+		}
+		if err := model.DB.Model(&model.Channel{}).Where("id = ?", channelID).Updates(updates).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -226,6 +238,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 				"channel_id":   channelID,
 				"account_id":   accountID,
 				"email":        email,
+				"plan_type":    key.PlanType,
 				"expires_at":   key.Expired,
 				"last_refresh": key.LastRefresh,
 			},
@@ -240,6 +253,7 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			"key":          string(encoded),
 			"account_id":   accountID,
 			"email":        email,
+			"plan_type":    key.PlanType,
 			"expires_at":   key.Expired,
 			"last_refresh": key.LastRefresh,
 		},
