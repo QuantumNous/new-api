@@ -40,6 +40,7 @@ export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
+    StripeEnabled: false,
     StripeApiSecret: '',
     StripeWebhookSecret: '',
     StripePriceId: '',
@@ -53,6 +54,10 @@ export default function SettingsPaymentGateway(props) {
   useEffect(() => {
     if (props.options && formApiRef.current) {
       const currentInputs = {
+        StripeEnabled:
+          props.options.StripeEnabled !== undefined
+            ? props.options.StripeEnabled === 'true' || props.options.StripeEnabled === true
+            : false,
         StripeApiSecret: props.options.StripeApiSecret || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
         StripePriceId: props.options.StripePriceId || '',
@@ -88,6 +93,16 @@ export default function SettingsPaymentGateway(props) {
     setLoading(true);
     try {
       const options = [];
+
+      if (
+        originInputs['StripeEnabled'] !== inputs.StripeEnabled &&
+        inputs.StripeEnabled !== undefined
+      ) {
+        options.push({
+          key: 'StripeEnabled',
+          value: inputs.StripeEnabled ? 'true' : 'false',
+        });
+      }
 
       if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
@@ -166,6 +181,13 @@ export default function SettingsPaymentGateway(props) {
         getFormApi={(api) => (formApiRef.current = api)}
       >
         <Form.Section text={t('Stripe 设置')}>
+          <Form.Switch
+            field='StripeEnabled'
+            size='default'
+            checkedText='｜'
+            uncheckedText='〇'
+            label={t('启用 Stripe 支付')}
+          />
           <Text>
             Stripe 密钥、Webhook 等设置请
             <a

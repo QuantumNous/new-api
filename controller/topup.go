@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,32 +27,41 @@ func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
 
-	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "" {
-		// 检查是否已经包含 Stripe
-		hasStripe := false
-		for _, method := range payMethods {
-			if method["type"] == "stripe" {
-				hasStripe = true
-				break
-			}
-		}
+	// 如果启用了 Stripe 支付，添加到支付方法列表；否则过滤掉已存储的 Stripe 条目
+	stripeConfigured := setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != ""
+	stripeEnabled := setting.StripeEnabled && stripeConfigured
 
-		if !hasStripe {
-			stripeMethod := map[string]string{
-				"name":      "Stripe",
-				"type":      "stripe",
-				"color":     "rgba(var(--semi-purple-5), 1)",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+	filteredMethods := make([]map[string]string, 0, len(payMethods))
+	hasStripe := false
+	for _, method := range payMethods {
+		if method["type"] == "stripe" {
+			if !stripeEnabled {
+				continue
 			}
-			payMethods = append(payMethods, stripeMethod)
+			hasStripe = true
 		}
+		filteredMethods = append(filteredMethods, method)
 	}
+	payMethods = filteredMethods
+
+	if stripeEnabled && !hasStripe {
+		stripeMethod := map[string]string{
+			"name":      "Stripe",
+			"type":      "stripe",
+			"color":     "rgba(var(--semi-purple-5), 1)",
+			"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+		}
+		payMethods = append(payMethods, stripeMethod)
+	}
+
+	// Creem 启用检查：API key 非空且产品配置是非空有效 JSON 数组
+	creemProducts := strings.TrimSpace(setting.CreemProducts)
+	creemConfigured := setting.CreemApiKey != "" && creemProducts != "" && creemProducts != "[]"
 
 	data := gin.H{
 		"enable_online_topup": operation_setting.PayAddress != "" && operation_setting.EpayId != "" && operation_setting.EpayKey != "",
-		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
-		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
+		"enable_stripe_topup": stripeEnabled,
+		"enable_creem_topup":  setting.CreemEnabled && creemConfigured,
 		"creem_products":      setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
