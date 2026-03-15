@@ -29,3 +29,6 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+findings.md
+progress.md
+task_plan.md
