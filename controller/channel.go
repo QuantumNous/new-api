@@ -438,6 +438,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	if channel.GetSetting().ChannelRPMLimit < 0 {
+		return fmt.Errorf("渠道 RPM 限制不能小于 0")
+	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {

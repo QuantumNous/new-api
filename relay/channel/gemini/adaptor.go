@@ -11,7 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -40,6 +41,8 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
+	prepareExplicitCache(c, info, request)
+	service.MarkGeminiCacheDiagnostics(c, info, request, info.GetEstimatePromptTokens())
 	return request, nil
 }
 
@@ -163,7 +166,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	action := "generateContent"
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
-		if info.RelayMode == constant.RelayModeGemini {
+		if info.RelayMode == relayconstant.RelayModeGemini {
 			info.DisablePing = true
 		}
 	}
@@ -185,6 +188,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
+	prepareExplicitCache(c, info, geminiRequest)
+	service.MarkGeminiCacheDiagnostics(c, info, geminiRequest, info.GetEstimatePromptTokens())
 
 	return geminiRequest, nil
 }
@@ -247,7 +252,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode == constant.RelayModeGemini {
+	if info.RelayMode == relayconstant.RelayModeGemini {
 		if strings.Contains(info.RequestURLPath, ":embedContent") ||
 			strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 			return NativeGeminiEmbeddingHandler(c, resp, info)

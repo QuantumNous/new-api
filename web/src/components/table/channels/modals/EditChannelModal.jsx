@@ -186,6 +186,7 @@ const EditChannelModal = (props) => {
     // 渠道额外设置的默认值
     force_format: false,
     thinking_to_content: false,
+    channel_rpm_limit: 0,
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
@@ -522,6 +523,7 @@ const EditChannelModal = (props) => {
   const [channelSettings, setChannelSettings] = useState({
     force_format: false,
     thinking_to_content: false,
+    channel_rpm_limit: 0,
     proxy: '',
     pass_through_body_enabled: false,
     system_prompt: '',
@@ -839,6 +841,10 @@ const EditChannelModal = (props) => {
           data.force_format = parsedSettings.force_format || false;
           data.thinking_to_content =
             parsedSettings.thinking_to_content || false;
+          data.channel_rpm_limit = Number(parsedSettings.channel_rpm_limit || 0);
+          if (Number.isNaN(data.channel_rpm_limit) || data.channel_rpm_limit < 0) {
+            data.channel_rpm_limit = 0;
+          }
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
@@ -849,6 +855,7 @@ const EditChannelModal = (props) => {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
           data.thinking_to_content = false;
+          data.channel_rpm_limit = 0;
           data.proxy = '';
           data.pass_through_body_enabled = false;
           data.system_prompt = '';
@@ -857,6 +864,7 @@ const EditChannelModal = (props) => {
       } else {
         data.force_format = false;
         data.thinking_to_content = false;
+        data.channel_rpm_limit = 0;
         data.proxy = '';
         data.pass_through_body_enabled = false;
         data.system_prompt = '';
@@ -962,6 +970,7 @@ const EditChannelModal = (props) => {
       setChannelSettings({
         force_format: data.force_format,
         thinking_to_content: data.thinking_to_content,
+        channel_rpm_limit: data.channel_rpm_limit || 0,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
         system_prompt: data.system_prompt,
@@ -1320,6 +1329,7 @@ const EditChannelModal = (props) => {
     setChannelSettings({
       force_format: false,
       thinking_to_content: false,
+      channel_rpm_limit: 0,
       proxy: '',
       pass_through_body_enabled: false,
       system_prompt: '',
@@ -1686,6 +1696,7 @@ const EditChannelModal = (props) => {
     const channelExtraSettings = {
       force_format: localInputs.force_format || false,
       thinking_to_content: localInputs.thinking_to_content || false,
+      channel_rpm_limit: Number(localInputs.channel_rpm_limit || 0),
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       system_prompt: localInputs.system_prompt || '',
@@ -1766,6 +1777,7 @@ const EditChannelModal = (props) => {
     // 清理不需要发送到后端的字段
     delete localInputs.force_format;
     delete localInputs.thinking_to_content;
+    delete localInputs.channel_rpm_limit;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
     delete localInputs.system_prompt;
@@ -3867,6 +3879,21 @@ const EditChannelModal = (props) => {
                       extraText={t(
                         '将 reasoning_content 转换为 <think> 标签拼接到内容中',
                       )}
+                    />
+
+                    <Form.InputNumber
+                      field='channel_rpm_limit'
+                      label={t('渠道 RPM 限制')}
+                      min={0}
+                      step={1}
+                      suffix={t('次/分钟')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'channel_rpm_limit',
+                          Number(value || 0),
+                        )
+                      }
+                      extraText={t('每个渠道每分钟允许的最大请求数，0 表示不限制')}
                     />
 
                     <Form.Switch

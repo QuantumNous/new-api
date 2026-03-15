@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -101,9 +104,52 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+func isWhitelistedForCriticalRateLimit(ip string) bool {
+	if ip == "" {
+		return false
+	}
+
+	whitelist := os.Getenv("CRITICAL_RATE_LIMIT_WHITELIST")
+	if whitelist == "" {
+		return false
+	}
+
+	clientIP, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range strings.Split(whitelist, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+
+		if prefix, err := netip.ParsePrefix(entry); err == nil {
+			if prefix.Contains(clientIP) {
+				return true
+			}
+			continue
+		}
+
+		if allowedIP, err := netip.ParseAddr(entry); err == nil && allowedIP == clientIP {
+			return true
+		}
+	}
+
+	return false
+}
+
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
-		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
+		limiter := rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
+		return func(c *gin.Context) {
+			if isWhitelistedForCriticalRateLimit(c.ClientIP()) {
+				c.Next()
+				return
+			}
+			limiter(c)
+		}
 	}
 	return defNext
 }
