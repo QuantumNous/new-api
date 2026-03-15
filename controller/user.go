@@ -365,6 +365,16 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+func GetReferralCommissions(c *gin.Context) {
+	id := c.GetInt("id")
+	commissions, err := model.GetUserReferralCommissions(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, commissions)
+}
+
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
