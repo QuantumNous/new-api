@@ -188,6 +188,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    use_responses_api: false,
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -524,6 +525,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    use_responses_api: false,
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -842,6 +844,8 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.use_responses_api =
+            parsedSettings.use_responses_api || false;
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -851,6 +855,7 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.use_responses_api = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -859,6 +864,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.use_responses_api = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -964,6 +970,7 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        use_responses_api: data.use_responses_api,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1322,6 +1329,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      use_responses_api: false,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1688,6 +1696,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      use_responses_api: localInputs.use_responses_api || false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1768,6 +1777,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.use_responses_api;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -3866,6 +3876,22 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '将 reasoning_content 转换为 <think> 标签拼接到内容中',
+                      )}
+                    />
+
+                    <Form.Switch
+                      field='use_responses_api'
+                      label={t('使用 Responses API')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'use_responses_api',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '开启后，该渠道收到 chat/completions 请求时自动转换为 Responses API 格式发送给上游',
                       )}
                     />
 
