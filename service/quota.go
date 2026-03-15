@@ -261,7 +261,6 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 	cacheCreationTokens1h := usage.ClaudeCacheCreation1hTokens
 
 	if relayInfo.ChannelType == constant.ChannelTypeOpenRouter {
-		promptTokens -= cacheTokens
 		isUsingCustomSettings := relayInfo.PriceData.UsePrice || hasCustomModelRatio(modelName, relayInfo.PriceData.ModelRatio)
 		if cacheCreationTokens == 0 && relayInfo.PriceData.CacheCreationRatio != 1 && usage.Cost != 0 && !isUsingCustomSettings {
 			maybeCacheCreationTokens := CalcOpenRouterCacheCreateTokens(*usage, relayInfo.PriceData)
@@ -269,6 +268,14 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, 
 				cacheCreationTokens = maybeCacheCreationTokens
 			}
 		}
+	}
+
+	// Anthropic API's input_tokens already excludes cached tokens, no subtraction needed.
+	// Other providers (Gemini, OpenAI, OpenRouter, etc.) include cached tokens in prompt_tokens,
+	// so we must subtract them to avoid double-counting.
+	isClaudeUsageSemantic := relayInfo.GetFinalRequestRelayFormat() == types.RelayFormatClaude
+	if !isClaudeUsageSemantic {
+		promptTokens -= cacheTokens
 		promptTokens -= cacheCreationTokens
 	}
 
