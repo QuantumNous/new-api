@@ -27,9 +27,11 @@ import {
   renderQuotaWithAmount,
   copy,
   getQuotaPerUnit,
+  timestamp2string,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 
@@ -39,10 +41,35 @@ import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
+const allowedTopupTabs = new Set(['topup', 'subscription']);
+
+const normalizeTopupTab = (search) => {
+  const tab = new URLSearchParams(search).get('tab');
+  return allowedTopupTabs.has(tab) ? tab : null;
+};
+
 const TopUp = () => {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+  const preferredTab = normalizeTopupTab(location.search);
+
+  const syncTabQuery = (tabKey) => {
+    if (!allowedTopupTabs.has(tabKey)) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.set('tab', tabKey);
+    const nextSearch = `?${searchParams.toString()}`;
+
+    if (nextSearch === location.search) return;
+
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch,
+    });
+  };
 
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
@@ -117,20 +144,37 @@ const TopUp = () => {
       });
       const { success, message, data } = res.data;
       if (success) {
+        const redeemResult =
+          typeof data === 'number'
+            ? { redemption_type: 'quota', quota: data }
+            : data || {};
+        const redemptionType = redeemResult.redemption_type || 'quota';
         showSuccess(t('兑换成功！'));
-        Modal.success({
-          title: t('兑换成功！'),
-          content: t('成功兑换额度：') + renderQuota(data),
-          centered: true,
-        });
-        if (userState.user) {
-          const updatedUser = {
-            ...userState.user,
-            quota: userState.user.quota + data,
-          };
-          userDispatch({ type: 'login', payload: updatedUser });
+        if (redemptionType === 'subscription') {
+          const planTitle =
+            redeemResult?.subscription_plan?.plan_title || t('订阅套餐');
+          const endTime = redeemResult?.subscription?.end_time
+            ? timestamp2string(redeemResult.subscription.end_time)
+            : '';
+          Modal.success({
+            title: t('兑换成功！'),
+            content: endTime
+              ? t('已激活订阅套餐：{{planTitle}}，有效期至 {{endTime}}', {
+                  planTitle,
+                  endTime,
+                })
+              : t('已激活订阅套餐：{{planTitle}}', { planTitle }),
+            centered: true,
+          });
+        } else {
+          Modal.success({
+            title: t('兑换成功！'),
+            content: t('成功兑换额度：') + renderQuota(redeemResult.quota || 0),
+            centered: true,
+          });
         }
         setRedemptionCode('');
+        void Promise.allSettled([getUserQuota(), getSubscriptionSelf()]);
       } else {
         showError(message);
       }
@@ -735,6 +779,8 @@ const TopUp = () => {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
           t={t}
+          preferredTab={preferredTab}
+          onTabChange={syncTabQuery}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
           enableCreemTopUp={enableCreemTopUp}

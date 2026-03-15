@@ -25,6 +25,8 @@ import {
   REDEMPTION_STATUS,
   REDEMPTION_STATUS_MAP,
   REDEMPTION_ACTIONS,
+  REDEMPTION_TYPES,
+  REDEMPTION_TYPE_MAP,
 } from '../../../constants/redemption.constants';
 
 /**
@@ -73,6 +75,44 @@ const renderStatus = (status, record, t) => {
   );
 };
 
+const renderRedemptionType = (record, t) => {
+  const redemptionType = record?.redemption_type || REDEMPTION_TYPES.QUOTA;
+  const config = REDEMPTION_TYPE_MAP[redemptionType];
+  if (!config) {
+    return (
+      <Tag color='black' shape='circle'>
+        {t('未知类型')}
+      </Tag>
+    );
+  }
+  return (
+    <Tag color={config.color} shape='circle'>
+      {t(config.text)}
+    </Tag>
+  );
+};
+
+const renderRedemptionContent = (record, t) => {
+  const redemptionType = record?.redemption_type || REDEMPTION_TYPES.QUOTA;
+  if (redemptionType === REDEMPTION_TYPES.SUBSCRIPTION) {
+    const title =
+      record?.subscription_plan?.plan_title ||
+      (record?.subscription_plan_id
+        ? `#${record.subscription_plan_id}`
+        : t('无'));
+    return (
+      <Tag color='violet' shape='circle'>
+        {title}
+      </Tag>
+    );
+  }
+  return (
+    <Tag color='grey' shape='circle'>
+      {renderQuota(parseInt(record?.quota || 0, 10))}
+    </Tag>
+  );
+};
+
 /**
  * Get redemption code table column definitions
  */
@@ -105,16 +145,17 @@ export const getRedemptionsColumns = ({
       },
     },
     {
-      title: t('额度'),
-      dataIndex: 'quota',
-      render: (text) => {
-        return (
-          <div>
-            <Tag color='grey' shape='circle'>
-              {renderQuota(parseInt(text))}
-            </Tag>
-          </div>
-        );
+      title: t('类型'),
+      key: 'redemption_type',
+      render: (_, record) => {
+        return <div>{renderRedemptionType(record, t)}</div>;
+      },
+    },
+    {
+      title: t('兑换内容'),
+      key: 'redemption_content',
+      render: (_, record) => {
+        return <div>{renderRedemptionContent(record, t)}</div>;
       },
     },
     {
