@@ -120,29 +120,27 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 		if info.ChannelSetting.SystemPrompt != "" {
 			// 如果有系统提示，则将其添加到请求中
-			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-			if ok {
+			switch req := convertedRequest.(type) {
+			case *dto.GeneralOpenAIRequest:
 				containSystemPrompt := false
-				for _, message := range request.Messages {
-					if message.Role == request.GetSystemRoleName() {
+				for _, message := range req.Messages {
+					if message.Role == req.GetSystemRoleName() {
 						containSystemPrompt = true
 						break
 					}
 				}
 				if !containSystemPrompt {
-					// 如果没有系统提示，则添加系统提示
 					systemMessage := dto.Message{
-						Role:    request.GetSystemRoleName(),
+						Role:    req.GetSystemRoleName(),
 						Content: info.ChannelSetting.SystemPrompt,
 					}
-					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
+					req.Messages = append([]dto.Message{systemMessage}, req.Messages...)
 				} else if info.ChannelSetting.SystemPromptOverride {
 					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-					// 如果有系统提示，且允许覆盖，则拼接到前面
-					for i, message := range request.Messages {
-						if message.Role == request.GetSystemRoleName() {
+					for i, message := range req.Messages {
+						if message.Role == req.GetSystemRoleName() {
 							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+								req.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
 							} else {
 								contents := message.ParseContent()
 								contents = append([]dto.MediaContent{
@@ -151,9 +149,32 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 										Text: info.ChannelSetting.SystemPrompt,
 									},
 								}, contents...)
-								request.Messages[i].Content = contents
+								req.Messages[i].Content = contents
 							}
 							break
+						}
+					}
+				}
+			case *dto.ClaudeRequest:
+				if req.System == nil {
+					req.SetStringSystem(info.ChannelSetting.SystemPrompt)
+				} else if info.ChannelSetting.SystemPromptOverride {
+					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+					if req.IsStringSystem() {
+						existing := strings.TrimSpace(req.GetStringSystem())
+						if existing == "" {
+							req.SetStringSystem(info.ChannelSetting.SystemPrompt)
+						} else {
+							req.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+						}
+					} else {
+						systemContents := req.ParseSystem()
+						newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+						newSystem.SetText(info.ChannelSetting.SystemPrompt)
+						if len(systemContents) == 0 {
+							req.System = []dto.ClaudeMediaMessage{newSystem}
+						} else {
+							req.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
 						}
 					}
 				}
