@@ -100,6 +100,9 @@ func getHeaderPassthroughRegex(pattern string) (*regexp.Regexp, error) {
 	return compiled, nil
 }
 
+func IsHeaderPassthroughRuleKey(key string) bool {
+	return isHeaderPassthroughRuleKey(key)
+}
 func isHeaderPassthroughRuleKey(key string) bool {
 	key = strings.TrimSpace(key)
 	if key == "" {

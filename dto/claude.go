@@ -218,6 +218,11 @@ type ClaudeRequest struct {
 	ServiceTier string `json:"service_tier,omitempty"`
 }
 
+// OutputConfigForEffort just for extract effort
+type OutputConfigForEffort struct {
+	Effort string `json:"effort,omitempty"`
+}
+
 // createClaudeFileSource 根据数据内容创建正确类型的 FileSource
 func createClaudeFileSource(data string) *types.FileSource {
 	if strings.HasPrefix(data, "http://") || strings.HasPrefix(data, "https://") {
@@ -407,6 +412,15 @@ func (c *ClaudeRequest) GetTools() []any {
 	default:
 		return nil
 	}
+}
+
+func (c *ClaudeRequest) GetEfforts() string {
+	var OutputConfig OutputConfigForEffort
+	if err := json.Unmarshal(c.OutputConfig, &OutputConfig); err == nil {
+		effort := OutputConfig.Effort
+		return effort
+	}
+	return ""
 }
 
 // ProcessTools 处理工具列表，支持类型断言

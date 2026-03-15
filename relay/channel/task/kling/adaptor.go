@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,15 +82,28 @@ type responsePayload struct {
 		TaskId        string `json:"task_id"`
 		TaskStatus    string `json:"task_status"`
 		TaskStatusMsg string `json:"task_status_msg"`
-		TaskResult    struct {
+		TaskInfo      struct {
+			ExternalTaskId string `json:"external_task_id"`
+		} `json:"task_info"`
+		WatermarkInfo struct {
+			Enabled bool `json:"enabled"`
+		} `json:"watermark_info"`
+		TaskResult struct {
 			Videos []struct {
-				Id       string `json:"id"`
-				Url      string `json:"url"`
-				Duration string `json:"duration"`
+				Id           string `json:"id"`
+				Url          string `json:"url"`
+				WatermarkUrl string `json:"watermark_url"`
+				Duration     string `json:"duration"`
 			} `json:"videos"`
+			Images []struct {
+				Index        int    `json:"index"`
+				Url          string `json:"url"`
+				WatermarkUrl string `json:"watermark_url"`
+			} `json:"images"`
 		} `json:"task_result"`
-		CreatedAt int64 `json:"created_at"`
-		UpdatedAt int64 `json:"updated_at"`
+		CreatedAt          int64  `json:"created_at"`
+		UpdatedAt          int64  `json:"updated_at"`
+		FinalUnitDeduction string `json:"final_unit_deduction"`
 	} `json:"data"`
 }
 
@@ -338,14 +353,21 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskInfo.Status = model.TaskStatusInProgress
 	case "succeed":
 		taskInfo.Status = model.TaskStatusSuccess
+		if videos := resPayload.Data.TaskResult.Videos; len(videos) > 0 {
+			video := videos[0]
+			taskInfo.Url = video.Url
+		}
+		if tokens, err := strconv.ParseFloat(resPayload.Data.FinalUnitDeduction, 64); err == nil {
+			rounded := int(math.Ceil(tokens))
+			if rounded > 0 {
+				taskInfo.CompletionTokens = rounded
+				taskInfo.TotalTokens = rounded
+			}
+		}
 	case "failed":
 		taskInfo.Status = model.TaskStatusFailure
 	default:
 		return nil, fmt.Errorf("unknown task status: %s", status)
-	}
-	if videos := resPayload.Data.TaskResult.Videos; len(videos) > 0 {
-		video := videos[0]
-		taskInfo.Url = video.Url
 	}
 	return taskInfo, nil
 }
@@ -381,6 +403,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		openAIVideo.Error = &dto.OpenAIVideoError{
 			Message: klingResp.Message,
 			Code:    fmt.Sprintf("%d", klingResp.Code),
+		}
+	}
+
+	// https://app.klingai.com/cn/dev/document-api/apiReference/model/textToVideo
+	if data := klingResp.Data; data.TaskStatus == "failed" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: data.TaskStatusMsg,
 		}
 	}
 	return common.Marshal(openAIVideo)

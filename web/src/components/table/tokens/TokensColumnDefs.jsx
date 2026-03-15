@@ -108,17 +108,28 @@ const renderGroupColumn = (text, record, t) => {
 };
 
 // Render token key column with show/hide and copy functionality
-const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
-  const fullKey = 'sk-' + record.key;
-  const maskedKey =
-    'sk-' + record.key.slice(0, 4) + '**********' + record.key.slice(-4);
+const renderTokenKey = (
+  text,
+  record,
+  showKeys,
+  resolvedTokenKeys,
+  loadingTokenKeys,
+  toggleTokenVisibility,
+  copyTokenKey,
+) => {
   const revealed = !!showKeys[record.id];
+  const loading = !!loadingTokenKeys[record.id];
+  const keyValue =
+    revealed && resolvedTokenKeys[record.id]
+      ? resolvedTokenKeys[record.id]
+      : record.key || '';
+  const displayedKey = keyValue ? `sk-${keyValue}` : '';
 
   return (
     <div className='w-[200px]'>
       <Input
         readOnly
-        value={revealed ? fullKey : maskedKey}
+        value={displayedKey}
         size='small'
         suffix={
           <div className='flex items-center'>
@@ -127,10 +138,11 @@ const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
               size='small'
               type='tertiary'
               icon={revealed ? <IconEyeClosed /> : <IconEyeOpened />}
+              loading={loading}
               aria-label='toggle token visibility'
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                setShowKeys((prev) => ({ ...prev, [record.id]: !revealed }));
+                await toggleTokenVisibility(record);
               }}
             />
             <Button
@@ -138,10 +150,11 @@ const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
               size='small'
               type='tertiary'
               icon={<IconCopy />}
+              loading={loading}
               aria-label='copy token key'
               onClick={async (e) => {
                 e.stopPropagation();
-                await copyText(fullKey);
+                await copyTokenKey(record);
               }}
             />
           </div>
@@ -427,8 +440,10 @@ const renderOperations = (
 export const getTokensColumns = ({
   t,
   showKeys,
-  setShowKeys,
-  copyText,
+  resolvedTokenKeys,
+  loadingTokenKeys,
+  toggleTokenVisibility,
+  copyTokenKey,
   manageToken,
   onOpenLink,
   setEditingToken,
@@ -461,7 +476,15 @@ export const getTokensColumns = ({
       title: t('密钥'),
       key: 'token_key',
       render: (text, record) =>
-        renderTokenKey(text, record, showKeys, setShowKeys, copyText),
+        renderTokenKey(
+          text,
+          record,
+          showKeys,
+          resolvedTokenKeys,
+          loadingTokenKeys,
+          toggleTokenVisibility,
+          copyTokenKey,
+        ),
     },
     {
       title: t('可用模型'),

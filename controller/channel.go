@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
@@ -183,6 +184,9 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 
 	headerOverride := channel.GetHeaderOverride()
 	for k, v := range headerOverride {
+		if relaychannel.IsHeaderPassthroughRuleKey(k) {
+			continue
+		}
 		str, ok := v.(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid header override for key %s", k)

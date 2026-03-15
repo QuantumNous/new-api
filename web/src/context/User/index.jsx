@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reducer, initialState } from './reducer';
+import { normalizeLanguage } from '../../i18n/language';
 
 export const UserContext = React.createContext({
   state: initialState,
@@ -35,8 +36,12 @@ export const UserProvider = ({ children }) => {
     if (state.user?.setting) {
       try {
         const settings = JSON.parse(state.user.setting);
-        if (settings.language && settings.language !== i18n.language) {
-          i18n.changeLanguage(settings.language);
+        const normalizedLanguage = normalizeLanguage(settings.language);
+        if (normalizedLanguage && normalizedLanguage !== i18n.language) {
+          i18n.changeLanguage(normalizedLanguage);
+        }
+        if (normalizedLanguage) {
+          localStorage.setItem('i18nextLng', normalizedLanguage);
         }
       } catch (e) {
         // Ignore parse errors
