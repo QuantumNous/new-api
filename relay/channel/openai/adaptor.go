@@ -384,19 +384,17 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		if err2 != nil {
 			return nil, fmt.Errorf("error parsing multipart form: %w", err2)
 		}
+		formValues := buildAudioFormValues(c, formData.Value)
 
 		// 打印类似 curl 命令格式的信息
 		logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form 'model=\"%s\"'", request.Model))
 
 		// 遍历表单字段并打印输出
-		for key, values := range formData.Value {
+		for key, values := range formValues {
 			if key == "model" {
 				continue
 			}
-			for _, value := range values {
-				writer.WriteField(key, value)
-				logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form '%s=\"%s\"'", key, value))
-			}
+			writeMultipartFieldValues(c, writer, key, values)
 		}
 
 		// 从 formData 中获取文件
@@ -430,6 +428,45 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		logger.LogDebug(c.Request.Context(), fmt.Sprintf("--header 'Content-Type: %s'", writer.FormDataContentType()))
 		return &requestBody, nil
 	}
+}
+
+func buildAudioFormValues(c *gin.Context, original map[string][]string) map[string]any {
+	if override := common.GetContextKeyStringMap(c, constant.ContextKeyAudioFormOverride); len(override) > 0 {
+		return override
+	}
+
+	values := make(map[string]any, len(original))
+	for key, items := range original {
+		if len(items) == 1 {
+			values[key] = items[0]
+			continue
+		}
+		copied := make([]string, len(items))
+		copy(copied, items)
+		values[key] = copied
+	}
+	return values
+}
+
+func writeMultipartFieldValues(c *gin.Context, writer *multipart.Writer, key string, value any) {
+	switch typed := value.(type) {
+	case []string:
+		for _, item := range typed {
+			writeMultipartFieldValue(c, writer, key, item)
+		}
+	case []any:
+		for _, item := range typed {
+			writeMultipartFieldValue(c, writer, key, item)
+		}
+	default:
+		writeMultipartFieldValue(c, writer, key, typed)
+	}
+}
+
+func writeMultipartFieldValue(c *gin.Context, writer *multipart.Writer, key string, value any) {
+	stringValue := fmt.Sprintf("%v", value)
+	writer.WriteField(key, stringValue)
+	logger.LogDebug(c.Request.Context(), fmt.Sprintf("--form '%s=\"%s\"'", key, stringValue))
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
