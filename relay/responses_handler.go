@@ -65,6 +65,24 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	// Image generation models may not be supported via /v1/responses on
+	// upstream proxies. Convert to /v1/chat/completions and convert the
+	// response back to Responses format.
+	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		shouldResponsesUseChatCompletions(info) {
+		adaptor := GetAdaptor(info.ApiType)
+		if adaptor != nil {
+			adaptor.Init(info)
+			usage, newApiErr := responsesViaChatCompletions(c, info, adaptor, request)
+			if newApiErr != nil {
+				return newApiErr
+			}
+			postConsumeQuota(c, info, usage)
+			return nil
+		}
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
