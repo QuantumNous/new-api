@@ -359,9 +359,17 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	headerOverride := ch.GetHeaderOverride()
+	if len(privateData.ResolvedHeaders) > 0 {
+		headerOverride = make(map[string]any, len(privateData.ResolvedHeaders))
+		for k, v := range privateData.ResolvedHeaders {
+			headerOverride[k] = v
+		}
+	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
+		"task_id":         task.GetUpstreamTaskID(),
+		"action":          task.Action,
+		"header_override": headerOverride,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
