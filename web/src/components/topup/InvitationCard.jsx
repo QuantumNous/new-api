@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Avatar,
   Typography,
@@ -27,7 +27,7 @@ import {
   Badge,
   Space,
 } from '@douyinfe/semi-ui';
-import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import { Copy, Users, BarChart2, TrendingUp, Gift, Zap, UserPlus } from 'lucide-react';
 
 const { Text } = Typography;
 
@@ -38,7 +38,39 @@ const InvitationCard = ({
   setOpenTransfer,
   affLink,
   handleAffLinkClick,
+  API,
+  showSuccess,
+  showError,
+  reloadUser,
+  allowBindInviter,
 }) => {
+  const [bindAffCode, setBindAffCode] = useState('');
+  const [bindLoading, setBindLoading] = useState(false);
+
+  const handleBindAff = async () => {
+    if (!bindAffCode.trim()) {
+      showError(t('邀请码不能为空'));
+      return;
+    }
+    setBindLoading(true);
+    try {
+      const res = await API.post('/api/user/bind_aff', {
+        aff_code: bindAffCode.trim(),
+      });
+      if (res.data.success) {
+        showSuccess(t('绑定成功！'));
+        setBindAffCode('');
+        if (reloadUser) reloadUser();
+      } else {
+        showError(res.data.message);
+      }
+    } catch {
+      showError(t('请求失败'));
+    } finally {
+      setBindLoading(false);
+    }
+  };
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
       {/* 卡片头部 */}
@@ -192,6 +224,42 @@ const InvitationCard = ({
             }
           />
         </Card>
+
+        {/* 绑定邀请人 - 仅在功能开启且尚未绑定时显示 */}
+        {allowBindInviter && userState?.user?.inviter_id === 0 && (
+          <Card
+            className='!rounded-xl w-full'
+            title={
+              <div className='flex items-center gap-2'>
+                <UserPlus size={14} />
+                <Text type='tertiary'>{t('绑定邀请人')}</Text>
+              </div>
+            }
+          >
+            <Input
+              value={bindAffCode}
+              onChange={(v) => setBindAffCode(v)}
+              placeholder={t('输入邀请码')}
+              maxLength={32}
+              className='!rounded-lg'
+              suffix={
+                <Button
+                  type='primary'
+                  theme='solid'
+                  size='small'
+                  loading={bindLoading}
+                  onClick={handleBindAff}
+                  className='!rounded-lg'
+                >
+                  {t('绑定')}
+                </Button>
+              }
+            />
+            <Text type='tertiary' className='text-xs mt-2 block'>
+              {t('绑定后无法更改，绑定成功双方均可获得额度奖励')}
+            </Text>
+          </Card>
+        )}
 
         {/* 奖励说明 */}
         <Card

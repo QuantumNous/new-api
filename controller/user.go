@@ -340,6 +340,27 @@ func TransferAffQuota(c *gin.Context) {
 	common.ApiSuccessI18n(c, i18n.MsgUserTransferSuccess, nil)
 }
 
+func BindAffCode(c *gin.Context) {
+	id := c.GetInt("id")
+	var req struct {
+		AffCode string `json:"aff_code"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "邀请码不能为空")
+		return
+	}
+	req.AffCode = strings.TrimSpace(req.AffCode)
+	if req.AffCode == "" {
+		common.ApiErrorMsg(c, "邀请码不能为空")
+		return
+	}
+	if err := model.BindInviterByAffCode(id, req.AffCode); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, true)

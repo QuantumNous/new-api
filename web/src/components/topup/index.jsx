@@ -783,6 +783,11 @@ const TopUp = () => {
           setOpenTransfer={setOpenTransfer}
           affLink={affLink}
           handleAffLinkClick={handleAffLinkClick}
+          API={API}
+          showSuccess={showSuccess}
+          showError={showError}
+          reloadUser={getUserQuota}
+          allowBindInviter={statusState?.status?.allow_existing_user_bind_inviter || false}
         />
       </div>
     </div>
