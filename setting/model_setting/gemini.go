@@ -6,14 +6,25 @@ import (
 
 // GeminiSettings defines Gemini model configuration. 注意bool要以enabled结尾才可以生效编辑
 type GeminiSettings struct {
-	SafetySettings                        map[string]string `json:"safety_settings"`
-	VersionSettings                       map[string]string `json:"version_settings"`
-	SupportedImagineModels                []string          `json:"supported_imagine_models"`
-	ThinkingAdapterEnabled                bool              `json:"thinking_adapter_enabled"`
-	ThinkingAdapterBudgetTokensPercentage float64           `json:"thinking_adapter_budget_tokens_percentage"`
-	FunctionCallThoughtSignatureEnabled   bool              `json:"function_call_thought_signature_enabled"`
-	RemoveFunctionResponseIdEnabled       bool              `json:"remove_function_response_id_enabled"`
+	SafetySettings                        map[string]string   `json:"safety_settings"`
+	VersionSettings                       map[string]string   `json:"version_settings"`
+	SupportedImagineModels                []string            `json:"supported_imagine_models"`
+	CacheStrategy                         GeminiCacheStrategy `json:"cache_strategy"`
+	ExplicitCacheTTLSeconds               int                 `json:"explicit_cache_ttl_seconds"`
+	ExplicitCacheMinInputTokens           int                 `json:"explicit_cache_min_input_tokens"`
+	ThinkingAdapterEnabled                bool                `json:"thinking_adapter_enabled"`
+	ThinkingAdapterBudgetTokensPercentage float64             `json:"thinking_adapter_budget_tokens_percentage"`
+	FunctionCallThoughtSignatureEnabled   bool                `json:"function_call_thought_signature_enabled"`
+	RemoveFunctionResponseIdEnabled       bool                `json:"remove_function_response_id_enabled"`
 }
+
+type GeminiCacheStrategy string
+
+const (
+	GeminiCacheStrategyObserveOnly    GeminiCacheStrategy = "observe_only"
+	GeminiCacheStrategyStrictAffinity GeminiCacheStrategy = "strict_affinity"
+	GeminiCacheStrategyExplicitCache  GeminiCacheStrategy = "explicit_cache"
+)
 
 // 默认配置
 var defaultGeminiSettings = GeminiSettings{
@@ -31,6 +42,9 @@ var defaultGeminiSettings = GeminiSettings{
 		"gemini-2.5-flash-image",
 		"gemini-3.1-flash-image-preview",
 	},
+	CacheStrategy:                         GeminiCacheStrategyStrictAffinity,
+	ExplicitCacheTTLSeconds:               3600,
+	ExplicitCacheMinInputTokens:           4096,
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
 	FunctionCallThoughtSignatureEnabled:   true,

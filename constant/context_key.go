@@ -65,4 +65,6 @@ const (
 
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
+
+	ContextKeyGeminiCacheDiagnostics ContextKey = "gemini_cache_diagnostics"
 )

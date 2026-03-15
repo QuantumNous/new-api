@@ -42,6 +42,95 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+type autoTestAttempt struct {
+	isStream   bool
+	result     testResult
+	durationMs int64
+}
+
+type autoTestDecision struct {
+	passed         bool
+	shouldDisable  bool
+	shouldEnable   bool
+	newAPIError    *types.NewAPIError
+	responseTimeMs int64
+	actionResult   testResult
+}
+
+func getAutoTestStreamOrder(channel *model.Channel) []bool {
+	if channel != nil && channel.Type == constant.ChannelTypeCodex {
+		return []bool{true, false}
+	}
+	return []bool{false, true}
+}
+
+func evaluateAutoTestAttempts(channel *model.Channel, attempts []autoTestAttempt, disableThreshold int64) autoTestDecision {
+	decision := autoTestDecision{}
+	if channel == nil || len(attempts) == 0 {
+		return decision
+	}
+
+	preferredAttempt := attempts[0]
+	selectedDurationMs := preferredAttempt.durationMs
+	selectedResult := preferredAttempt.result
+	lastErrorIndex := -1
+	disableErrorIndex := -1
+
+	for i, attempt := range attempts {
+		if attempt.result.localErr == nil && attempt.result.newAPIError == nil {
+			decision.passed = true
+			selectedDurationMs = attempt.durationMs
+			selectedResult = attempt.result
+			break
+		}
+		if attempt.result.newAPIError != nil {
+			lastErrorIndex = i
+			if disableErrorIndex < 0 && service.ShouldDisableChannel(channel.Type, attempt.result.newAPIError) {
+				disableErrorIndex = i
+			}
+		}
+	}
+
+	selectedErrorIndex := disableErrorIndex
+	if selectedErrorIndex < 0 {
+		selectedErrorIndex = lastErrorIndex
+	}
+	if selectedErrorIndex >= 0 {
+		decision.newAPIError = attempts[selectedErrorIndex].result.newAPIError
+		if !decision.passed {
+			selectedDurationMs = attempts[selectedErrorIndex].durationMs
+			selectedResult = attempts[selectedErrorIndex].result
+		}
+	}
+
+	if common.AutomaticDisableChannelEnabled && disableThreshold > 0 && selectedDurationMs > disableThreshold {
+		timeoutErr := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(selectedDurationMs)/1000.0, float64(disableThreshold)/1000.0)
+		decision.shouldDisable = true
+		decision.newAPIError = types.NewOpenAIError(timeoutErr, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+	}
+
+	if !decision.shouldDisable && !decision.passed && decision.newAPIError != nil {
+		decision.shouldDisable = service.ShouldDisableChannel(channel.Type, decision.newAPIError)
+	}
+
+	if decision.passed && !decision.shouldDisable {
+		decision.shouldEnable = service.ShouldEnableChannel(nil, channel.Status)
+	}
+
+	if selectedResult.context == nil {
+		for _, attempt := range attempts {
+			if attempt.result.context != nil {
+				selectedResult.context = attempt.result.context
+				break
+			}
+		}
+	}
+
+	decision.responseTimeMs = selectedDurationMs
+	decision.actionResult = selectedResult
+	return decision
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -785,6 +874,31 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
+func runAutoTestAttempts(channel *model.Channel) []autoTestAttempt {
+	streamOrder := getAutoTestStreamOrder(channel)
+	attempts := make([]autoTestAttempt, 0, len(streamOrder))
+	for _, isStream := range streamOrder {
+		tik := time.Now()
+		result := testChannel(channel, "", "", isStream)
+		attempts = append(attempts, autoTestAttempt{
+			isStream:   isStream,
+			result:     result,
+			durationMs: time.Since(tik).Milliseconds(),
+		})
+		common.SysLog(fmt.Sprintf(
+			"auto test channel #%d stream=%t success=%t err=%v",
+			channel.Id,
+			isStream,
+			result.localErr == nil && result.newAPIError == nil,
+			result.localErr,
+		))
+		if result.localErr == nil && result.newAPIError == nil {
+			break
+		}
+	}
+	return attempts
+}
+
 func testAllChannels(notify bool) error {
 
 	testAllChannelsLock.Lock()
@@ -815,38 +929,20 @@ func testAllChannels(notify bool) error {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
-			tik := time.Now()
-			result := testChannel(channel, "", "", false)
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
-
-			shouldBanChannel := false
-			newAPIError := result.newAPIError
-			// request error disables the channel
-			if newAPIError != nil {
-				shouldBanChannel = service.ShouldDisableChannel(channel.Type, result.newAPIError)
-			}
-
-			// 当错误检查通过，才检查响应时间
-			if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
-				if milliseconds > disableThreshold {
-					err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
-					newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
-					shouldBanChannel = true
-				}
-			}
+			attempts := runAutoTestAttempts(channel)
+			decision := evaluateAutoTestAttempts(channel, attempts, disableThreshold)
 
 			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
-				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			if isChannelEnabled && decision.shouldDisable && channel.GetAutoBan() && decision.newAPIError != nil {
+				processChannelError(decision.actionResult.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(decision.actionResult.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), decision.newAPIError)
 			}
 
 			// enable channel
-			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+			if !isChannelEnabled && decision.shouldEnable {
+				service.EnableChannel(channel.Id, common.GetContextKeyString(decision.actionResult.context, constant.ContextKeyChannelKey), channel.Name)
 			}
 
-			channel.UpdateResponseTime(milliseconds)
+			channel.UpdateResponseTime(decision.responseTimeMs)
 			time.Sleep(common.RequestInterval)
 		}
 

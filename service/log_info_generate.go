@@ -69,6 +69,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	AppendGeminiCacheAdminInfo(ctx, relayInfo, adminInfo, cacheTokens)
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
