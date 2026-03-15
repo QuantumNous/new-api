@@ -60,6 +60,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		}
 	}
 
+	// 计算实际支付金额：USD 价格 × 充值汇率
+	// 与额度充值逻辑保持一致，使用 operation_setting.Price 作为汇率
+	payAmount := plan.PriceAmount * operation_setting.Price
+	
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
@@ -84,7 +88,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:        userId,
 		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
+		Money:         payAmount,
 		TradeNo:       tradeNo,
 		PaymentMethod: req.PaymentMethod,
 		CreateTime:    time.Now().Unix(),
@@ -98,7 +102,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		Type:           req.PaymentMethod,
 		ServiceTradeNo: tradeNo,
 		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		Money:          strconv.FormatFloat(payAmount, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
