@@ -59,6 +59,11 @@ const formatNumber = (value) => {
   return parseFloat(num.toFixed(12)).toString();
 };
 
+const toNormalizedNumber = (value) => {
+  const formatted = formatNumber(value);
+  return formatted === '' ? null : Number(formatted);
+};
+
 const parseOptionJSON = (rawValue) => {
   if (!rawValue || rawValue.trim() === '') {
     return {};
@@ -123,7 +128,11 @@ const buildModelState = (name, sourceMaps) => {
     lockedCompletionRatio: completionRatioMeta.ratio,
     completionPrice:
       inputPriceNumber !== null &&
-      hasValue(completionRatioMeta.locked ? completionRatioMeta.ratio : completionRatio)
+      hasValue(
+        completionRatioMeta.locked
+          ? completionRatioMeta.ratio
+          : completionRatio,
+      )
         ? formatNumber(
             inputPriceNumber *
               Number(
@@ -192,7 +201,9 @@ export const getModelWarnings = (model, t) => {
   ].some(hasValue);
 
   if (model.hasConflict) {
-    warnings.push(t('当前模型同时存在按次价格和倍率配置，保存时会按当前计费方式覆盖。'));
+    warnings.push(
+      t('当前模型同时存在按次价格和倍率配置，保存时会按当前计费方式覆盖。'),
+    );
   }
 
   if (
@@ -207,11 +218,17 @@ export const getModelWarnings = (model, t) => {
     ].some(hasValue)
   ) {
     warnings.push(
-      t('当前模型存在未显式设置输入倍率的扩展倍率；填写输入价格后会自动换算为价格字段。'),
+      t(
+        '当前模型存在未显式设置输入倍率的扩展倍率；填写输入价格后会自动换算为价格字段。',
+      ),
     );
   }
 
-  if (model.billingMode === 'per-token' && hasDerivedPricing && !hasValue(model.inputPrice)) {
+  if (
+    model.billingMode === 'per-token' &&
+    hasDerivedPricing &&
+    !hasValue(model.inputPrice)
+  ) {
     warnings.push(t('按量计费下需要先填写输入价格，才能保存其它价格项。'));
   }
 
@@ -249,7 +266,8 @@ export const buildSummaryText = (model, t) => {
 };
 
 export const buildOptionalFieldToggles = (model) => ({
-  completionPrice: model.completionRatioLocked || hasValue(model.completionPrice),
+  completionPrice:
+    model.completionRatioLocked || hasValue(model.completionPrice),
   cachePrice: hasValue(model.cachePrice),
   createCachePrice: hasValue(model.createCachePrice),
   imagePrice: hasValue(model.imagePrice),
@@ -271,7 +289,7 @@ const serializeModel = (model, t) => {
 
   if (model.billingMode === 'per-request') {
     if (hasValue(model.fixedPrice)) {
-      result.ModelPrice = Number(model.fixedPrice);
+      result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
     return result;
   }
@@ -296,57 +314,68 @@ const serializeModel = (model, t) => {
   if (inputPrice === null) {
     if (hasDependentPrice) {
       throw new Error(
-        t('模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率', {
-          name: model.name,
-        }),
+        t(
+          '模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率',
+          {
+            name: model.name,
+          },
+        ),
       );
     }
 
     if (hasValue(model.rawRatios.modelRatio)) {
-      result.ModelRatio = Number(model.rawRatios.modelRatio);
+      result.ModelRatio = toNormalizedNumber(model.rawRatios.modelRatio);
     }
     if (hasValue(model.rawRatios.completionRatio)) {
-      result.CompletionRatio = Number(model.rawRatios.completionRatio);
+      result.CompletionRatio = toNormalizedNumber(
+        model.rawRatios.completionRatio,
+      );
     }
     if (hasValue(model.rawRatios.cacheRatio)) {
-      result.CacheRatio = Number(model.rawRatios.cacheRatio);
+      result.CacheRatio = toNormalizedNumber(model.rawRatios.cacheRatio);
     }
     if (hasValue(model.rawRatios.createCacheRatio)) {
-      result.CreateCacheRatio = Number(model.rawRatios.createCacheRatio);
+      result.CreateCacheRatio = toNormalizedNumber(
+        model.rawRatios.createCacheRatio,
+      );
     }
     if (hasValue(model.rawRatios.imageRatio)) {
-      result.ImageRatio = Number(model.rawRatios.imageRatio);
+      result.ImageRatio = toNormalizedNumber(model.rawRatios.imageRatio);
     }
     if (hasValue(model.rawRatios.audioRatio)) {
-      result.AudioRatio = Number(model.rawRatios.audioRatio);
+      result.AudioRatio = toNormalizedNumber(model.rawRatios.audioRatio);
     }
     if (hasValue(model.rawRatios.audioCompletionRatio)) {
-      result.AudioCompletionRatio = Number(model.rawRatios.audioCompletionRatio);
+      result.AudioCompletionRatio = toNormalizedNumber(
+        model.rawRatios.audioCompletionRatio,
+      );
     }
     return result;
   }
 
-  result.ModelRatio = inputPrice / 2;
+  result.ModelRatio = toNormalizedNumber(inputPrice / 2);
 
   if (!model.completionRatioLocked && completionPrice !== null) {
-    result.CompletionRatio = completionPrice / inputPrice;
+    result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
   } else if (
     model.completionRatioLocked &&
     hasValue(model.rawRatios.completionRatio)
   ) {
-    result.CompletionRatio = Number(model.rawRatios.completionRatio);
+    result.CompletionRatio = toNormalizedNumber(
+      model.rawRatios.completionRatio,
+    );
   }
   if (cachePrice !== null) {
-    result.CacheRatio = cachePrice / inputPrice;
+    result.CacheRatio = toNormalizedNumber(cachePrice / inputPrice);
   }
   if (createCachePrice !== null) {
-    result.CreateCacheRatio = createCachePrice / inputPrice;
+    result.CreateCacheRatio = toNormalizedNumber(createCachePrice / inputPrice);
   }
   if (imagePrice !== null) {
-    result.ImageRatio = imagePrice / inputPrice;
+    result.ImageRatio = toNormalizedNumber(imagePrice / inputPrice);
   }
   if (audioInputPrice !== null) {
-    result.AudioRatio = audioInputPrice / inputPrice;
+    result.AudioRatio = toNormalizedNumber(audioInputPrice / inputPrice);
   }
   if (audioOutputPrice !== null) {
     if (audioInputPrice === null || audioInputPrice === 0) {
@@ -356,7 +385,9 @@ const serializeModel = (model, t) => {
         }),
       );
     }
-    result.AudioCompletionRatio = audioOutputPrice / audioInputPrice;
+    result.AudioCompletionRatio = toNormalizedNumber(
+      audioOutputPrice / audioInputPrice,
+    );
   }
 
   return result;
@@ -455,7 +486,8 @@ export const buildPreviewRows = (model, t) => {
     {
       key: 'CacheRatio',
       label: 'CacheRatio',
-      value: cachePrice !== null ? formatNumber(cachePrice / inputPrice) : t('空'),
+      value:
+        cachePrice !== null ? formatNumber(cachePrice / inputPrice) : t('空'),
     },
     {
       key: 'CreateCacheRatio',
@@ -468,7 +500,8 @@ export const buildPreviewRows = (model, t) => {
     {
       key: 'ImageRatio',
       label: 'ImageRatio',
-      value: imagePrice !== null ? formatNumber(imagePrice / inputPrice) : t('空'),
+      value:
+        imagePrice !== null ? formatNumber(imagePrice / inputPrice) : t('空'),
     },
     {
       key: 'AudioRatio',
@@ -482,7 +515,9 @@ export const buildPreviewRows = (model, t) => {
       key: 'AudioCompletionRatio',
       label: 'AudioCompletionRatio',
       value:
-        audioOutputPrice !== null && audioInputPrice !== null && audioInputPrice !== 0
+        audioOutputPrice !== null &&
+        audioInputPrice !== null &&
+        audioInputPrice !== 0
           ? formatNumber(audioOutputPrice / audioInputPrice)
           : t('空'),
     },
@@ -585,7 +620,8 @@ export function useModelPricingEditorState({
   }, [currentPage, filteredModels]);
 
   const selectedModel = useMemo(
-    () => visibleModels.find((model) => model.name === selectedModelName) || null,
+    () =>
+      visibleModels.find((model) => model.name === selectedModelName) || null,
     [selectedModelName, visibleModels],
   );
 
@@ -605,7 +641,9 @@ export function useModelPricingEditorState({
 
   useEffect(() => {
     setSelectedModelNames((previous) =>
-      previous.filter((name) => visibleModels.some((model) => model.name === name)),
+      previous.filter((name) =>
+        visibleModels.some((model) => model.name === name),
+      ),
     );
   }, [visibleModels]);
 
@@ -779,7 +817,9 @@ export function useModelPricingEditorState({
       delete next[name];
       return next;
     });
-    setSelectedModelNames((previous) => previous.filter((item) => item !== name));
+    setSelectedModelNames((previous) =>
+      previous.filter((item) => item !== name),
+    );
     if (selectedModelName === name) {
       setSelectedModelName(nextModels[0]?.name || '');
     }
@@ -823,7 +863,8 @@ export function useModelPricingEditorState({
           hasValue(nextModel.lockedCompletionRatio)
         ) {
           nextModel.completionPrice = formatNumber(
-            Number(nextModel.inputPrice) * Number(nextModel.lockedCompletionRatio),
+            Number(nextModel.inputPrice) *
+              Number(nextModel.lockedCompletionRatio),
           );
         }
 
