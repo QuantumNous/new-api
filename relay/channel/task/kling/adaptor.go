@@ -405,5 +405,12 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 			Code:    fmt.Sprintf("%d", klingResp.Code),
 		}
 	}
+
+	// https://app.klingai.com/cn/dev/document-api/apiReference/model/textToVideo
+	if data := klingResp.Data; data.TaskStatus == "failed" {
+		openAIVideo.Error = &dto.OpenAIVideoError{
+			Message: data.TaskStatusMsg,
+		}
+	}
 	return common.Marshal(openAIVideo)
 }
