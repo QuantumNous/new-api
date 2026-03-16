@@ -45,6 +45,12 @@ func GetGroupEnabledModels(group string) []string {
 	return models
 }
 
+func GetGroupEnabledModelsByTag(group string, tag string) []string {
+	var models []string
+	DB.Table("abilities").Where(commonGroupCol+" = ? AND enabled = ? AND tag = ?", group, true, tag).Distinct("model").Pluck("model", &models)
+	return models
+}
+
 func GetEnabledModels() []string {
 	var models []string
 	// Find distinct models

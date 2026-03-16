@@ -111,6 +111,7 @@ func init() {
 
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
+	tag := c.Query("tag")
 
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
@@ -169,7 +170,12 @@ func ListModels(c *gin.Context, modelType int) {
 		var models []string
 		if tokenGroup == "auto" {
 			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
+				var groupModels []string
+				if tag != "" {
+					groupModels = model.GetGroupEnabledModelsByTag(autoGroup, tag)
+				} else {
+					groupModels = model.GetGroupEnabledModels(autoGroup)
+				}
 				for _, g := range groupModels {
 					if !common.StringsContains(models, g) {
 						models = append(models, g)
@@ -177,7 +183,11 @@ func ListModels(c *gin.Context, modelType int) {
 				}
 			}
 		} else {
-			models = model.GetGroupEnabledModels(group)
+			if tag != "" {
+				models = model.GetGroupEnabledModelsByTag(group, tag)
+			} else {
+				models = model.GetGroupEnabledModels(group)
+			}
 		}
 		for _, modelName := range models {
 			if !acceptUnsetRatioModel {
