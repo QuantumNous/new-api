@@ -81,6 +81,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [uptimeLoading, setUptimeLoading] = useState(false);
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
 
+  // ========== Top Users 数据 ==========
+  const [topUsersData, setTopUsersData] = useState([]);
+  const [topUsersLoading, setTopUsersLoading] = useState(false);
+
   // ========== 常量 ==========
   const now = new Date();
   const isAdminUser = isAdmin();
@@ -213,6 +217,33 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [activeUptimeTab]);
 
+  const loadTopUsersData = useCallback(async () => {
+    if (!isAdminUser) {
+      setTopUsersData([]);
+      return;
+    }
+    setTopUsersLoading(true);
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const url = `/api/data/top-users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&limit=10`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        setTopUsersData(data || []);
+      } else {
+        setTopUsersData([]);
+        showError(message);
+      }
+    } catch (err) {
+      setTopUsersData([]);
+      console.error(err);
+    } finally {
+      setTopUsersLoading(false);
+    }
+  }, [inputs, isAdminUser]);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -224,10 +255,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [userDispatch]);
 
   const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
+    const [data] = await Promise.all([
+      loadQuotaData(),
+      loadUptimeData(),
+      loadTopUsersData(),
+    ]);
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadUptimeData, loadTopUsersData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -294,6 +328,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     activeUptimeTab,
     setActiveUptimeTab,
 
+    // Top Users 数据
+    topUsersData,
+    topUsersLoading,
+
     // 计算值
     timeOptions,
     performanceMetrics,
@@ -312,6 +350,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleCloseModal,
     loadQuotaData,
     loadUptimeData,
+    loadTopUsersData,
     getUserData,
     refresh,
     handleSearchConfirm,

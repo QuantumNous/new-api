@@ -29,10 +29,12 @@ const ChartsPanel = ({
   spec_model_line,
   spec_pie,
   spec_rank_bar,
+  spec_user_rank_bar,
   CARD_PROPS,
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
   hasApiInfoPanel,
+  isAdminUser,
   t,
 }) => {
   return (
@@ -54,6 +56,9 @@ const ChartsPanel = ({
             <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
             <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
             <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
+            {isAdminUser && (
+              <TabPane tab={<span>{t('用户消耗排行')}</span>} itemKey='5' />
+            )}
           </Tabs>
         </div>
       }
@@ -71,6 +76,9 @@ const ChartsPanel = ({
         )}
         {activeChartTab === '4' && (
           <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '5' && isAdminUser && (
+          <VChart spec={spec_user_rank_bar} option={CHART_CONFIG} />
         )}
       </div>
     </Card>

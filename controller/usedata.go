@@ -51,3 +51,23 @@ func GetUserQuotaDates(c *gin.Context) {
 	})
 	return
 }
+
+func GetTopUsersByQuota(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 || limit > 100 {
+		limit = 10 // 默认返回前10名
+	}
+	dates, err := model.GetTopUsersByQuota(startTimestamp, endTimestamp, limit)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    dates,
+	})
+	return
+}

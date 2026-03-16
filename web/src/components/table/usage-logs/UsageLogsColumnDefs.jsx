@@ -573,6 +573,7 @@ export const getLogsColumns = ({
       title: t('用户'),
       dataIndex: 'username',
       render: (text, record, index) => {
+        const displayText = record.display_name || text;
         return isAdminUser ? (
           <div>
             <Avatar
@@ -584,9 +585,9 @@ export const getLogsColumns = ({
                 showUserInfoFunc(record.user_id);
               }}
             >
-              {typeof text === 'string' && text.slice(0, 1)}
+              {typeof displayText === 'string' && displayText.slice(0, 1)}
             </Avatar>
-            {text}
+            {displayText}
           </div>
         ) : (
           <></>
