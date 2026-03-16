@@ -38,7 +38,7 @@ import { useTableCompactMode } from '../common/useTableCompactMode';
 import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
-import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+import { openCodexUsageModal, openBulkCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -753,6 +753,17 @@ export const useChannelsData = () => {
     }
   };
 
+  const openAllCodexUsage = () => {
+    openBulkCodexUsageModal({
+      t,
+      onCopy: async (text) => {
+        const ok = await copy(text);
+        if (ok) showSuccess(t('已复制'));
+        else showError(t('复制失败'));
+      },
+    });
+  };
+
   const updateChannelBalance = async (record) => {
     if (record?.type === 57) {
       openCodexUsageModal({
@@ -1231,6 +1242,7 @@ export const useChannelsData = () => {
     deleteAllDisabledChannels,
     updateAllChannelsBalance,
     updateChannelBalance,
+    openAllCodexUsage,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,

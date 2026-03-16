@@ -52,6 +52,7 @@ const ChannelsActions = ({
   getFormValues,
   loadChannels,
   searchChannels,
+  openAllCodexUsage,
   activeTypeKey,
   activePage,
   pageSize,
@@ -229,6 +230,18 @@ const ChannelsActions = ({
             t={t}
           />
         </div>
+
+        {activeTypeKey === '57' && !enableTagMode ? (
+          <Button
+            size='small'
+            type='primary'
+            theme='outline'
+            onClick={openAllCodexUsage}
+            className='w-full md:w-auto order-3 md:order-none'
+          >
+            {t('查看全部 Codex 用量')}
+          </Button>
+        ) : null}
 
         {/* 右侧：设置开关区域 */}
         <div className='flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto order-1 md:order-2'>
