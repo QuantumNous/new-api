@@ -196,6 +196,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		addUsedChannel(c, channel.Id)
+
+		var tokenLimit = channel.GetTokenLimit()
+		if tokenLimit > 0 && tokens > tokenLimit {
+			relayInfo.InitChannelMeta(c)
+			newAPIError = types.NewError(fmt.Errorf("prompt tokens (%d) is greater than channel token limit (%d)", tokens, tokenLimit), types.ErrorCodePromptTokensTooLarge)
+			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+
+			if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+				break
+			}
+			continue
+		}
+
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)
@@ -290,11 +303,13 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		if !autoBan {
 			autoBanInt = 0
 		}
+		tokenLimit := c.GetInt("channel_token_limit")
 		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
-			Type:    c.GetInt("channel_type"),
-			Name:    c.GetString("channel_name"),
-			AutoBan: &autoBanInt,
+			Id:         c.GetInt("channel_id"),
+			Type:       c.GetInt("channel_type"),
+			Name:       c.GetString("channel_name"),
+			TokenLimit: &tokenLimit,
+			AutoBan:    &autoBanInt,
 		}, nil
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
