@@ -37,10 +37,15 @@ type requestPayload struct {
 	ReqKey           string   `json:"req_key"`
 	BinaryDataBase64 []string `json:"binary_data_base64,omitempty"`
 	ImageUrls        []string `json:"image_urls,omitempty"`
+	ImageURL         string   `json:"image_url,omitempty"`
+	MaskURL          []string `json:"mask_url,omitempty"`
+	AudioURL         string   `json:"audio_url,omitempty"`
 	Prompt           string   `json:"prompt,omitempty"`
-	Seed             int64    `json:"seed"`
-	AspectRatio      string   `json:"aspect_ratio"`
+	Seed             *int64   `json:"seed,omitempty"`
+	AspectRatio      *string  `json:"aspect_ratio,omitempty"`
 	Frames           int      `json:"frames,omitempty"`
+	OutputResolution *int     `json:"output_resolution,omitempty"`
+	PeFastMode       *bool    `json:"pe_fast_mode,omitempty"`
 }
 
 type responsePayload struct {
@@ -103,10 +108,14 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if isNewAPIRelay(info.ApiKey) {
-		return fmt.Sprintf("%s/jimeng/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31", a.baseURL), nil
+	requestURL := "/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31"
+	if isOmniHumanModel(info.UpstreamModelName) {
+		requestURL = "/?Action=CVSubmitTask&Version=2022-08-31"
 	}
-	return fmt.Sprintf("%s/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31", a.baseURL), nil
+	if isNewAPIRelay(info.ApiKey) {
+		requestURL = fmt.Sprintf("/jimeng%s", requestURL)
+	}
+	return fmt.Sprintf("%s%s", a.baseURL, requestURL), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -131,7 +140,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, fmt.Errorf("invalid request type in context")
 	}
 	// 支持openai sdk的图片上传方式
-	if mf, err := c.MultipartForm(); err == nil {
+	if mf, err := c.MultipartForm(); err == nil && len(req.Images) == 0 {
 		if files, exists := mf.File["input_reference"]; exists && len(files) > 0 {
 			if len(files) == 1 {
 				info.Action = constant.TaskActionGenerate
@@ -213,15 +222,19 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 
 // FetchTask fetch task status
 func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	requestURL := "/?Action=CVSync2AsyncGetResult&Version=2022-08-31"
+	if reqKey, _ := body["req_key"].(string); isOmniHumanModel(reqKey) {
+		requestURL = "/?Action=CVGetResult&Version=2022-08-31"
+	}
 	taskID, ok := body["task_id"].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/?Action=CVSync2AsyncGetResult&Version=2022-08-31", baseUrl)
 	if isNewAPIRelay(key) {
-		uri = fmt.Sprintf("%s/jimeng/?Action=CVSync2AsyncGetResult&Version=2022-08-31", a.baseURL)
+		requestURL = fmt.Sprintf("/jimeng%s", requestURL)
 	}
+	uri := fmt.Sprintf("%s%s", baseUrl, requestURL)
 	payload := map[string]string{
 		"req_key": "jimeng_vgfm_t2v_l20", // This is fixed value from doc: https://www.volcengine.com/docs/85621/1544774
 		"task_id": taskID,
@@ -440,11 +453,20 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Progress = "100%"
 	}
 	switch resTask.Data.Status {
+	case "processing":
+		taskResult.Status = model.TaskStatusQueued
+		taskResult.Progress = "5%"
 	case "in_queue":
 		taskResult.Status = model.TaskStatusQueued
 		taskResult.Progress = "10%"
+	case "generating":
+		taskResult.Status = model.TaskStatusInProgress
+		taskResult.Progress = "50%"
 	case "done":
 		taskResult.Status = model.TaskStatusSuccess
+		taskResult.Progress = "100%"
+	case "not_found", "expired":
+		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 	}
 	taskResult.Url = resTask.Data.VideoUrl
