@@ -25,6 +25,21 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 		mappingModelName = strings.TrimSuffix(originModelName, ratio_setting.CompactModelSuffix)
 	}
 
+	// Handle model prefix stripping first (before model mapping)
+	modelPrefix := c.GetString("model_prefix")
+	if modelPrefix != "" {
+		// Ensure prefix ends with /
+		if !strings.HasSuffix(modelPrefix, "/") {
+			modelPrefix = modelPrefix + "/"
+		}
+		// Strip prefix from the model name to get the upstream model
+		if strings.HasPrefix(mappingModelName, modelPrefix) {
+			mappingModelName = strings.TrimPrefix(mappingModelName, modelPrefix)
+			info.IsModelMapped = true
+			info.UpstreamModelName = mappingModelName
+		}
+	}
+
 	// map model name
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {

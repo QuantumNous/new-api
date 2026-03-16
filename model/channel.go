@@ -48,6 +48,7 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	ModelPrefix       *string `json:"model_prefix" gorm:"type:varchar(64)" validate:"max=64"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
@@ -198,6 +199,47 @@ func (channel *Channel) GetModels() []string {
 		return []string{}
 	}
 	return strings.Split(strings.Trim(channel.Models, ","), ",")
+}
+
+func (channel *Channel) GetModelPrefix() string {
+	if channel.ModelPrefix == nil {
+		return ""
+	}
+	return *channel.ModelPrefix
+}
+
+// GetModelsWithPrefix returns models with prefix applied (used for Ability creation)
+func (channel *Channel) GetModelsWithPrefix() []string {
+	models := channel.GetModels()
+	prefix := channel.GetModelPrefix()
+	if prefix == "" {
+		return models
+	}
+	// Ensure prefix ends with /
+	if !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+	prefixedModels := make([]string, len(models))
+	for i, model := range models {
+		prefixedModels[i] = prefix + model
+	}
+	return prefixedModels
+}
+
+// StripModelPrefix removes the prefix from a model name if it matches this channel's prefix
+func (channel *Channel) StripModelPrefix(modelName string) string {
+	prefix := channel.GetModelPrefix()
+	if prefix == "" {
+		return modelName
+	}
+	// Ensure prefix ends with /
+	if !strings.HasSuffix(prefix, "/") {
+		prefix = prefix + "/"
+	}
+	if strings.HasPrefix(modelName, prefix) {
+		return strings.TrimPrefix(modelName, prefix)
+	}
+	return modelName
 }
 
 func (channel *Channel) GetGroups() []string {
@@ -697,7 +739,7 @@ func DisableChannelByTag(tag string) error {
 	return err
 }
 
-func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
+func EditChannelByTag(tag string, newTag *string, modelMapping *string, modelPrefix *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
@@ -708,6 +750,10 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	}
 	if modelMapping != nil && *modelMapping != "" {
 		updateData.ModelMapping = modelMapping
+	}
+	if modelPrefix != nil {
+		shouldReCreateAbilities = true
+		updateData.ModelPrefix = modelPrefix
 	}
 	if models != nil && *models != "" {
 		shouldReCreateAbilities = true

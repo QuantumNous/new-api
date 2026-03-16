@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -453,6 +454,15 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	// 校验模型前缀
+	if channel.ModelPrefix != nil {
+		trimmed := strings.TrimSpace(*channel.ModelPrefix)
+		if strings.ContainsFunc(trimmed, unicode.IsSpace) {
+			return fmt.Errorf("模型前缀不能包含空白字符")
+		}
+		channel.ModelPrefix = common.GetPointer[string](trimmed)
+	}
+
 	// VertexAI 特殊校验
 	if channel.Type == constant.ChannelTypeVertexAi {
 		if channel.Other == "" {
@@ -700,6 +710,7 @@ type ChannelTag struct {
 	Priority       *int64  `json:"priority"`
 	Weight         *uint   `json:"weight"`
 	ModelMapping   *string `json:"model_mapping"`
+	ModelPrefix    *string `json:"model_prefix"`
 	Models         *string `json:"models"`
 	Groups         *string `json:"groups"`
 	ParamOverride  *string `json:"param_override"`
@@ -791,7 +802,18 @@ func EditTagChannels(c *gin.Context) {
 		}
 		channelTag.HeaderOverride = common.GetPointer[string](trimmed)
 	}
-	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
+	if channelTag.ModelPrefix != nil {
+		trimmed := strings.TrimSpace(*channelTag.ModelPrefix)
+		if strings.ContainsFunc(trimmed, unicode.IsSpace) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型前缀不能包含空白字符",
+			})
+			return
+		}
+		channelTag.ModelPrefix = common.GetPointer[string](trimmed)
+	}
+	err = model.EditChannelByTag(channelTag.Tag, channelTag.NewTag, channelTag.ModelMapping, channelTag.ModelPrefix, channelTag.Models, channelTag.Groups, channelTag.Priority, channelTag.Weight, channelTag.ParamOverride, channelTag.HeaderOverride)
 	if err != nil {
 		common.ApiError(c, err)
 		return
