@@ -186,13 +186,23 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 						Name:       &toolName,
 						ToolCallId: mediaMsg.ToolUseId,
 					}
+					var toolContent string
 					//oaiToolMessage.SetStringContent(*mediaMsg.GetMediaContent().Text)
 					if mediaMsg.IsStringContent() {
-						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
+						toolContent = mediaMsg.GetStringContent()
 					} else {
 						mediaContents := mediaMsg.ParseMediaContent()
 						encodeJson, _ := common.Marshal(mediaContents)
-						oaiToolMessage.SetStringContent(string(encodeJson))
+						toolContent = string(encodeJson)
+					}
+					if len(mediaMsg.CacheControl) > 0 {
+						oaiToolMessage.SetMediaContent([]dto.MediaContent{{
+							Type:         "text",
+							Text:         toolContent,
+							CacheControl: mediaMsg.CacheControl,
+						}})
+					} else {
+						oaiToolMessage.SetStringContent(toolContent)
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
 				}
