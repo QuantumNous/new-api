@@ -25,21 +25,14 @@ import {
   Tooltip,
   Popover,
   Typography,
-  Button
 } from '@douyinfe/semi-ui';
 import {
-  timestamp2string,
   renderGroup,
   renderQuota,
   stringToColor,
   getLogOther,
   renderModelTag,
-  renderClaudeLogContent,
-  renderLogContent,
   renderModelPriceSimple,
-  renderAudioModelPrice,
-  renderClaudeModelPrice,
-  renderModelPrice,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { Route, Sparkles } from 'lucide-react';
@@ -330,6 +323,142 @@ function getPromptCacheSummary(other) {
   };
 }
 
+function normalizeDetailText(detail) {
+  return String(detail || '')
+    .replace(/\n\r/g, '\n')
+    .replace(/\r\n/g, '\n');
+}
+
+function getUsageLogGroupSummary(groupRatio, userGroupRatio, t) {
+  const parsedUserGroupRatio = Number(userGroupRatio);
+  const useUserGroupRatio =
+    Number.isFinite(parsedUserGroupRatio) && parsedUserGroupRatio !== -1;
+  const ratio = useUserGroupRatio ? userGroupRatio : groupRatio;
+  if (ratio === undefined || ratio === null || ratio === '') {
+    return '';
+  }
+  return `${useUserGroupRatio ? t('专属倍率') : t('分组')} ${formatRatio(ratio)}x`;
+}
+
+function renderCompactDetailSummary(summarySegments) {
+  const segments = Array.isArray(summarySegments)
+    ? summarySegments.filter((segment) => segment?.text)
+    : [];
+  if (!segments.length) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        maxWidth: 180,
+        lineHeight: 1.35,
+      }}
+    >
+      {segments.map((segment, index) => (
+        <Typography.Text
+          key={`${segment.text}-${index}`}
+          type={segment.tone === 'secondary' ? 'tertiary' : undefined}
+          size={segment.tone === 'secondary' ? 'small' : undefined}
+          style={{
+            display: 'block',
+            maxWidth: '100%',
+            fontSize: 12,
+            marginTop: index === 0 ? 0 : 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {segment.text}
+        </Typography.Text>
+      ))}
+    </div>
+  );
+}
+
+function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
+  const other = getLogOther(record.other);
+
+  if (record.type === 6) {
+    return {
+      segments: [{ text: t('异步任务退款'), tone: 'primary' }],
+    };
+  }
+
+  if (other == null || record.type !== 2) {
+    return null;
+  }
+
+  if (
+    other?.violation_fee === true ||
+    Boolean(other?.violation_fee_code) ||
+    Boolean(other?.violation_fee_marker)
+  ) {
+    const feeQuota = other?.fee_quota ?? record?.quota;
+    const groupText = getUsageLogGroupSummary(
+      other?.group_ratio,
+      other?.user_group_ratio,
+      t,
+    );
+    return {
+      segments: [
+        groupText ? { text: groupText, tone: 'primary' } : null,
+        { text: t('违规扣费'), tone: 'primary' },
+        {
+          text: `${t('扣费')}：${renderQuota(feeQuota, 6)}`,
+          tone: 'secondary',
+        },
+        text ? { text: `${t('详情')}：${text}`, tone: 'secondary' } : null,
+      ].filter(Boolean),
+    };
+  }
+
+  return {
+    segments: other?.claude
+      ? renderModelPriceSimple(
+          other.model_ratio,
+          other.model_price,
+          other.group_ratio,
+          other?.user_group_ratio,
+          other.cache_tokens || 0,
+          other.cache_ratio || 1.0,
+          other.cache_creation_tokens || 0,
+          other.cache_creation_ratio || 1.0,
+          other.cache_creation_tokens_5m || 0,
+          other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+          other.cache_creation_tokens_1h || 0,
+          other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+          false,
+          1.0,
+          other?.is_system_prompt_overwritten,
+          'claude',
+          billingDisplayMode,
+          'segments',
+        )
+      : renderModelPriceSimple(
+          other.model_ratio,
+          other.model_price,
+          other.group_ratio,
+          other?.user_group_ratio,
+          other.cache_tokens || 0,
+          other.cache_ratio || 1.0,
+          0,
+          1.0,
+          0,
+          1.0,
+          0,
+          1.0,
+          false,
+          1.0,
+          other?.is_system_prompt_overwritten,
+          'openai',
+          billingDisplayMode,
+          'segments',
+        ),
+  };
+}
+
 export const getLogsColumns = ({
   t,
   COLUMN_KEYS,
@@ -375,7 +504,10 @@ export const getLogsColumns = ({
         }
 
         return isAdminUser &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
@@ -466,7 +598,10 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div>
             <Tag
               color='grey'
@@ -489,7 +624,12 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) {
+        if (
+          record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6
+        ) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -529,7 +669,10 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -596,7 +739,10 @@ export const getLogsColumns = ({
           cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
-        return record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6 ? (
+        return record.type === 0 ||
+          record.type === 2 ||
+          record.type === 5 ||
+          record.type === 6 ? (
           <div
             style={{
               display: 'inline-flex',
@@ -630,7 +776,10 @@ export const getLogsColumns = ({
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&
-          (record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6) ? (
+          (record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -642,7 +791,14 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (!(record.type === 0 || record.type === 2 || record.type === 5 || record.type === 6)) {
+        if (
+          !(
+            record.type === 0 ||
+            record.type === 2 ||
+            record.type === 5 ||
+            record.type === 6
+          )
+        ) {
           return <></>;
         }
         const other = getLogOther(record.other);
@@ -709,9 +865,9 @@ export const getLogsColumns = ({
           }
           if (other.admin_info !== undefined) {
             if (
-                other.admin_info.use_channel !== null &&
-                other.admin_info.use_channel !== undefined &&
-                other.admin_info.use_channel !== ''
+              other.admin_info.use_channel !== null &&
+              other.admin_info.use_channel !== undefined &&
+              other.admin_info.use_channel !== ''
             ) {
               let useChannel = other.admin_info.use_channel;
               let useChannelStr = useChannel.join('->');
@@ -727,118 +883,29 @@ export const getLogsColumns = ({
       title: t('详情'),
       dataIndex: 'content',
       fixed: 'right',
+      width: 200,
       render: (text, record, index) => {
-        let other = getLogOther(record.other);
-        if (record.type === 6) {
-          return (
-            <Typography.Paragraph
-              ellipsis={{ rows: 2 }}
-              style={{ maxWidth: 240 }}
-            >
-              {t('异步任务退款')}
-            </Typography.Paragraph>
-          );
-        }
-        if (other == null || record.type !== 2) {
+        const detailSummary = getUsageLogDetailSummary(
+          record,
+          text,
+          billingDisplayMode,
+          t,
+        );
+
+        if (!detailSummary) {
           return (
             <Typography.Paragraph
               ellipsis={{
                 rows: 2,
-                showTooltip: {
-                  type: 'popover',
-                  opts: { style: { width: 240 } },
-                },
               }}
-              style={{ maxWidth: 240 }}
+              style={{ maxWidth: 200, marginBottom: 0 }}
             >
               {text}
             </Typography.Paragraph>
           );
         }
 
-        if (
-          other?.violation_fee === true ||
-          Boolean(other?.violation_fee_code) ||
-          Boolean(other?.violation_fee_marker)
-        ) {
-          const feeQuota = other?.fee_quota ?? record?.quota;
-          const summary = [
-            t('违规扣费'),
-            `${t('扣费')}：${renderQuota(feeQuota, 6)}`,
-            `${t('分组倍率')}：${formatRatio(other?.group_ratio)}`,
-            text ? `${t('详情')}：${text}` : null,
-          ]
-            .filter(Boolean)
-            .join('\n');
-          return (
-            <Typography.Paragraph
-              ellipsis={{
-                rows: 2,
-                showTooltip: {
-                  type: 'popover',
-                  opts: { style: { width: 240 } },
-                },
-              }}
-              style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-            >
-              {summary}
-            </Typography.Paragraph>
-          );
-        }
-
-        let content = other?.claude
-          ? renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m ||
-                other.cache_creation_ratio ||
-                1.0,
-              other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h ||
-                other.cache_creation_ratio ||
-                1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'claude',
-              billingDisplayMode,
-            )
-          : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'openai',
-              billingDisplayMode,
-            );
-        return (
-            <Typography.Paragraph
-                ellipsis={{
-                  rows: 3,
-                }}
-                style={{ maxWidth: 240, whiteSpace: 'pre-line' }}
-            >
-              {content}
-            </Typography.Paragraph>
-        );
+        return renderCompactDetailSummary(detailSummary.segments);
       },
     },
   ];
