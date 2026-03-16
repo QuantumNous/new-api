@@ -68,6 +68,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 
+			switch convertedRequest.(type) {
+			case dto.ImageRequest:
+				if mergedJson, err := mergeExtraBody(c, jsonData); err != nil {
+					logger.LogWarn(c, fmt.Sprintf("merge body fields failed: %v, use original json data", err))
+				} else {
+					jsonData = mergedJson
+				}
+			}
+
 			// apply param override
 			if len(info.ParamOverride) > 0 {
 				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)

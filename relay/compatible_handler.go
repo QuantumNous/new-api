@@ -221,6 +221,36 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	return nil
 }
 
+func mergeExtraBody(c *gin.Context, jsonData []byte) ([]byte, error) {
+	var converted map[string]any
+	if err := common.Unmarshal(jsonData, &converted); err != nil {
+		return nil, err
+	}
+	var original map[string]any
+	if err := common.UnmarshalBodyReusable(c, &original); err != nil {
+		return jsonData, err
+	}
+
+	for key, value := range original {
+		if _, exists := converted[key]; exists {
+			continue
+		}
+		if strVal, ok := value.(string); ok {
+			trimmed := strings.TrimSpace(strVal)
+			if (strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")) ||
+				(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")) {
+				var decoded any
+				if err := common.Unmarshal([]byte(trimmed), &decoded); err == nil {
+					converted[key] = decoded
+					continue
+				}
+			}
+		}
+		converted[key] = value
+	}
+	return common.Marshal(converted)
+}
+
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {
 	originUsage := usage
 	if usage == nil {
