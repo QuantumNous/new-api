@@ -255,9 +255,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [userDispatch]);
 
   const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
-    await loadTopUsersData();
+    const [data] = await Promise.all([
+      loadQuotaData(),
+      loadUptimeData(),
+      loadTopUsersData(),
+    ]);
     return data;
   }, [loadQuotaData, loadUptimeData, loadTopUsersData]);
 
