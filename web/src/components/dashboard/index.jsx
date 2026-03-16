@@ -142,7 +142,7 @@ const Dashboard = () => {
   // 更新用户消耗排行图表
   useEffect(() => {
     if (dashboardData.topUsersData && dashboardData.topUsersData.length > 0) {
-      const userRankData = dashboardData.topUsersData.map((item) => ({
+      const userRankData =  (dashboardData.topUsersData || []).map((item) => ({
         username: item.username,
         quota: item.quota,
       }));
