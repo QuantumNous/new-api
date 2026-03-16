@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONTAINER_NAME="new-api"
-IMAGE="calciumion/new-api:latest"
+IMAGE="new-api:latest"
 ENV_FILE=".env"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -85,10 +85,10 @@ do_status() {
     fi
 }
 
-do_pull() {
+do_build() {
     check_docker
-    echo "Pulling latest image..."
-    docker pull "$IMAGE"
+    echo "Building image..."
+    docker build -t "$IMAGE" "$SCRIPT_DIR"
     echo "Done. Run '$0 restart' to apply the update."
 }
 
@@ -98,9 +98,9 @@ case "${1:-start}" in
     restart) do_restart ;;
     logs)    do_logs    ;;
     status)  do_status  ;;
-    pull)    do_pull    ;;
+    build)   do_build   ;;
     *)
-        echo "Usage: $0 {start|stop|restart|logs|status|pull}" >&2
+        echo "Usage: $0 {start|stop|restart|logs|status|build}" >&2
         exit 1
         ;;
 esac
