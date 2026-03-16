@@ -219,6 +219,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const loadTopUsersData = useCallback(async () => {
     if (!isAdminUser) {
+      setTopUsersData([]);
       return;
     }
     setTopUsersLoading(true);
@@ -232,9 +233,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (success) {
         setTopUsersData(data || []);
       } else {
+        setTopUsersData([]);
         showError(message);
       }
     } catch (err) {
+      setTopUsersData([]);
       console.error(err);
     } finally {
       setTopUsersLoading(false);
