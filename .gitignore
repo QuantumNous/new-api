@@ -29,3 +29,29 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+
+# E2E test artifacts (not source)
+e2e-screenshots/
+e2e-report/
+e2e-results.json
+test-results/
+.playwright-mcp/
+e2e/.auth-state.json
+node_modules/
+
+# Dev artifacts
+E2E-*.md
+e2e-*.md
+qa-*.md
+new-api-system-analysis.md
+
+# Claude Code local config
+.claude/
+**/CLAUDE.md
+
+# Demo video
+demo-video/
+docker-compose.local.yml
+
+# Screenshots (generated)
+screenshot-pages.mjs
