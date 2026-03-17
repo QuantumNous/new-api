@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -70,13 +71,16 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	var requestBody io.Reader
+	var requestBodyBytes []byte
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.ReaderOnly(storage)
+		requestBodyBytes, err = storage.Bytes()
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
@@ -105,20 +109,43 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if common.DebugEnabled {
 			println("requestBody: ", string(jsonData))
 		}
-		requestBody = bytes.NewBuffer(jsonData)
+		requestBodyBytes = jsonData
+	}
+
+	doResponsesRequest := func() (*http.Response, error) {
+		var requestBody io.Reader = bytes.NewReader(requestBodyBytes)
+		respAny, reqErr := adaptor.DoRequest(c, info, requestBody)
+		if reqErr != nil {
+			return nil, reqErr
+		}
+		if respAny == nil {
+			return nil, nil
+		}
+		httpResp, ok := respAny.(*http.Response)
+		if !ok {
+			return nil, fmt.Errorf("invalid response type %T", respAny)
+		}
+		return httpResp, nil
 	}
 
 	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	httpResp, err = doResponsesRequest()
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+	if shouldFallbackResponsesCompactionToResponses(info, httpResp) {
+		logger.LogInfo(c, "upstream does not support /v1/responses/compact, fallback to /v1/responses")
+		service.CloseResponseBodyGracefully(httpResp)
+		info.RequestURLPath = strings.Replace(info.RequestURLPath, "/v1/responses/compact", "/v1/responses", 1)
+		httpResp, err = doResponsesRequest()
+		if err != nil {
+			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+		}
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
-	if resp != nil {
-		httpResp = resp.(*http.Response)
-
+	if httpResp != nil {
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
@@ -139,7 +166,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		originModelName := info.OriginModelName
 		originPriceData := info.PriceData
 
-		_, err := helper.ModelPriceHelper(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+		_, err = helper.ModelPriceHelper(c, info, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
 		if err != nil {
 			info.OriginModelName = originModelName
 			info.PriceData = originPriceData
@@ -158,4 +185,17 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		postConsumeQuota(c, info, usageDto)
 	}
 	return nil
+}
+
+func shouldFallbackResponsesCompactionToResponses(info *relaycommon.RelayInfo, resp *http.Response) bool {
+	if info == nil || resp == nil {
+		return false
+	}
+	if info.RelayMode != relayconstant.RelayModeResponsesCompact {
+		return false
+	}
+	if info.ApiType != appconstant.APITypeOpenAI {
+		return false
+	}
+	return resp.StatusCode == http.StatusNotFound
 }
