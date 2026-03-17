@@ -63,6 +63,11 @@ const (
 	// It is not returned to end users, but can be persisted into consume/error logs for debugging.
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
 
+	// ContextKeyClaudeResponsesStreamState holds the chat-to-responses stream
+	// state when routing /v1/responses through a Claude-family adaptor. It
+	// persists across streaming chunks and into the final flush.
+	ContextKeyClaudeResponsesStreamState ContextKey = "claude_responses_stream_state"
+
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
