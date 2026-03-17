@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"fmt"
 	"io"
@@ -19,7 +20,7 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 	}
 	err := httpResponse.Body.Close()
 	if err != nil {
-		common.SysError("failed to close response body: " + err.Error())
+		common.SysError(i18n.Translate("svc.failed_to_close_response_body") + err.Error())
 	}
 }
 
@@ -73,7 +74,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 
 	_, err := io.Copy(c.Writer, body)
 	if err != nil {
-		logger.LogError(c, fmt.Sprintf("failed to copy response body: %s", err.Error()))
+		logger.LogError(c, fmt.Sprintf(i18n.Translate("svc.failed_to_copy_response_body"), err.Error()))
 	}
 	c.Writer.Flush()
 }

@@ -1,6 +1,7 @@
 package volcengine
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -110,7 +111,7 @@ var responseFormatToEncodingMap = map[string]string{
 func parseVolcengineAuth(apiKey string) (appID, token string, err error) {
 	parts := strings.Split(apiKey, "|")
 	if len(parts) != 2 {
-		return "", "", errors.New("invalid api key format, expected: appid|access_token")
+		return "", "", errors.New(i18n.Translate("relay.invalid_api_key_format_expected_appid_access_token"))
 	}
 	return parts[0], parts[1], nil
 }
@@ -146,7 +147,7 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return nil, types.NewErrorWithStatusCode(
-			errors.New("failed to read volcengine response"),
+			errors.New(i18n.Translate("relay.failed_to_read_volcengine_response")),
 			types.ErrorCodeReadResponseBodyFailed,
 			http.StatusInternalServerError,
 		)
@@ -156,7 +157,7 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 	var volcResp VolcengineTTSResponse
 	if unmarshalErr := json.Unmarshal(body, &volcResp); unmarshalErr != nil {
 		return nil, types.NewErrorWithStatusCode(
-			errors.New("failed to parse volcengine response"),
+			errors.New(i18n.Translate("relay.failed_to_parse_volcengine_response")),
 			types.ErrorCodeBadResponseBody,
 			http.StatusInternalServerError,
 		)
@@ -173,7 +174,7 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 	audioData, decodeErr := base64.StdEncoding.DecodeString(volcResp.Data)
 	if decodeErr != nil {
 		return nil, types.NewErrorWithStatusCode(
-			errors.New("failed to decode audio data"),
+			errors.New(i18n.Translate("relay.failed_to_decode_audio_data")),
 			types.ErrorCodeBadResponseBody,
 			http.StatusInternalServerError,
 		)
@@ -207,19 +208,19 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 	}
 
 	header := http.Header{}
-	header.Set("Authorization", fmt.Sprintf("Bearer;%s", token))
+	header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	conn, resp, dialErr := websocket.DefaultDialer.DialContext(context.Background(), requestURL, header)
 	if dialErr != nil {
 		if resp != nil {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("failed to connect to websocket: %w, status: %d", dialErr, resp.StatusCode),
+				fmt.Errorf(i18n.Translate("relay.failed_to_connect_to_websocket_status"), dialErr, resp.StatusCode),
 				types.ErrorCodeBadResponseStatusCode,
 				http.StatusBadGateway,
 			)
 		}
 		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("failed to connect to websocket: %w", dialErr),
+			fmt.Errorf(i18n.Translate("relay.failed_to_connect_to_websocket"), dialErr),
 			types.ErrorCodeBadResponseStatusCode,
 			http.StatusBadGateway,
 		)
@@ -229,7 +230,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 	payload, marshalErr := json.Marshal(volcRequest)
 	if marshalErr != nil {
 		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("failed to marshal request: %w", marshalErr),
+			fmt.Errorf(i18n.Translate("relay.failed_to_marshal_request"), marshalErr),
 			types.ErrorCodeBadRequestBody,
 			http.StatusInternalServerError,
 		)
@@ -237,7 +238,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 
 	if sendErr := FullClientRequest(conn, payload); sendErr != nil {
 		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("failed to send request: %w", sendErr),
+			fmt.Errorf(i18n.Translate("relay.failed_to_send_request_2cb6"), sendErr),
 			types.ErrorCodeBadRequestBody,
 			http.StatusInternalServerError,
 		)
@@ -254,7 +255,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 				break
 			}
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("failed to receive message: %w", recvErr),
+				fmt.Errorf(i18n.Translate("relay.failed_to_receive_message"), recvErr),
 				types.ErrorCodeBadResponse,
 				http.StatusInternalServerError,
 			)
@@ -263,7 +264,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 		switch msg.MsgType {
 		case MsgTypeError:
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("received error from server: code=%d, %s", msg.ErrorCode, string(msg.Payload)),
+				fmt.Errorf(i18n.Translate("relay.received_error_from_server_code"), msg.ErrorCode, string(msg.Payload)),
 				types.ErrorCodeBadResponse,
 				http.StatusBadRequest,
 			)
@@ -273,7 +274,7 @@ func handleTTSWebSocketResponse(c *gin.Context, requestURL string, volcRequest V
 			if len(msg.Payload) > 0 {
 				if _, writeErr := c.Writer.Write(msg.Payload); writeErr != nil {
 					return nil, types.NewErrorWithStatusCode(
-						fmt.Errorf("failed to write audio data: %w", writeErr),
+						fmt.Errorf(i18n.Translate("relay.failed_to_write_audio_data"), writeErr),
 						types.ErrorCodeBadResponse,
 						http.StatusInternalServerError,
 					)

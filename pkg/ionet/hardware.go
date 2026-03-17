@@ -1,6 +1,7 @@
 package ionet
 
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,10 +12,10 @@ import (
 // GetAvailableReplicas retrieves available replicas per location for specified hardware
 func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableReplicasResponse, error) {
 	if hardwareID <= 0 {
-		return nil, fmt.Errorf("hardware_id must be greater than 0")
+		return nil, errors.New("hardware_id must be greater than 0")
 	}
 	if gpuCount < 1 {
-		return nil, fmt.Errorf("gpu_count must be at least 1")
+		return nil, errors.New("gpu_count must be at least 1")
 	}
 
 	params := map[string]interface{}{
@@ -138,7 +139,7 @@ func (c *Client) ListLocations() (*LocationsResponse, error) {
 // GetHardwareType retrieves details about a specific hardware type
 func (c *Client) GetHardwareType(hardwareID int) (*HardwareType, error) {
 	if hardwareID <= 0 {
-		return nil, fmt.Errorf("hardware ID must be greater than 0")
+		return nil, errors.New("hardware ID must be greater than 0")
 	}
 
 	endpoint := fmt.Sprintf("/hardware/types/%d", hardwareID)
@@ -160,7 +161,7 @@ func (c *Client) GetHardwareType(hardwareID int) (*HardwareType, error) {
 // GetLocation retrieves details about a specific location
 func (c *Client) GetLocation(locationID int) (*Location, error) {
 	if locationID <= 0 {
-		return nil, fmt.Errorf("location ID must be greater than 0")
+		return nil, errors.New("location ID must be greater than 0")
 	}
 
 	endpoint := fmt.Sprintf("/locations/%d", locationID)
@@ -182,7 +183,7 @@ func (c *Client) GetLocation(locationID int) (*Location, error) {
 // GetLocationAvailability retrieves real-time availability for a specific location
 func (c *Client) GetLocationAvailability(locationID int) (*LocationAvailability, error) {
 	if locationID <= 0 {
-		return nil, fmt.Errorf("location ID must be greater than 0")
+		return nil, errors.New("location ID must be greater than 0")
 	}
 
 	endpoint := fmt.Sprintf("/locations/%d/availability", locationID)

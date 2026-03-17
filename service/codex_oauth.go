@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -47,7 +48,7 @@ func refreshCodexOAuthToken(
 ) (*CodexOAuthTokenResult, error) {
 	rt := strings.TrimSpace(refreshToken)
 	if rt == "" {
-		return nil, errors.New("empty refresh_token")
+		return nil, errors.New(i18n.Translate("svc.empty_refresh_token"))
 	}
 
 	form := url.Values{}
@@ -78,11 +79,11 @@ func refreshCodexOAuthToken(
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("codex oauth refresh failed: status=%d", resp.StatusCode)
+		return nil, fmt.Errorf(i18n.Translate("svc.codex_oauth_refresh_failed_status"), resp.StatusCode)
 	}
 
 	if strings.TrimSpace(payload.AccessToken) == "" || strings.TrimSpace(payload.RefreshToken) == "" || payload.ExpiresIn <= 0 {
-		return nil, errors.New("codex oauth refresh response missing fields")
+		return nil, errors.New(i18n.Translate("svc.codex_oauth_refresh_response_missing_fields"))
 	}
 
 	return &CodexOAuthTokenResult{
