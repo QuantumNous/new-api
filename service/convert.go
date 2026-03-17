@@ -195,15 +195,14 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 						encodeJson, _ := common.Marshal(mediaContents)
 						toolContent = string(encodeJson)
 					}
-					if len(mediaMsg.CacheControl) > 0 {
-						oaiToolMessage.SetMediaContent([]dto.MediaContent{{
-							Type:         "text",
-							Text:         toolContent,
-							CacheControl: mediaMsg.CacheControl,
-						}})
-					} else {
-						oaiToolMessage.SetStringContent(toolContent)
+					toolContentItem := map[string]any{
+						"type": "text",
+						"text": toolContent,
 					}
+					if len(mediaMsg.CacheControl) > 0 {
+						toolContentItem["cache_control"] = mediaMsg.CacheControl
+					}
+					oaiToolMessage.Content = []any{toolContentItem}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
 				}
 			}
