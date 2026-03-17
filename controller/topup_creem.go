@@ -6,7 +6,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/common"
@@ -76,7 +75,7 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	// 解析产品列表
 	var products []CreemProduct
-	err := json.Unmarshal([]byte(setting.CreemProducts), &products)
+	err := common.Unmarshal([]byte(setting.CreemProducts), &products)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 产品配置解析失败 user_id=%d error=%q", c.GetInt("id"), err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "产品配置错误"})
@@ -358,13 +357,15 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	c.Status(http.StatusOK)
 }
 
+type CreemCustomer struct {
+	Email string `json:"email"`
+}
+
 type CreemCheckoutRequest struct {
-	ProductId string `json:"product_id"`
-	RequestId string `json:"request_id"`
-	Customer  struct {
-		Email string `json:"email"`
-	} `json:"customer"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	ProductId string         `json:"product_id"`
+	RequestId string         `json:"request_id"`
+	Customer  *CreemCustomer `json:"customer,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 type CreemCheckoutResponse struct {
@@ -384,15 +385,10 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 		logger.LogInfo(ctx, fmt.Sprintf("Creem 使用测试环境 api_url=%s", apiUrl))
 	}
 
-	// 构建请求数据，确保包含用户邮箱
+	// 构建请求数据
 	requestData := CreemCheckoutRequest{
 		ProductId: product.ProductId,
-		RequestId: referenceId, // 这个作为订单ID传递给Creem
-		Customer: struct {
-			Email string `json:"email"`
-		}{
-			Email: email, // 用户邮箱会在支付页面预填充
-		},
+		RequestId: referenceId,
 		Metadata: map[string]string{
 			"username":     username,
 			"reference_id": referenceId,
@@ -400,9 +396,12 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 			"quota":        fmt.Sprintf("%d", product.Quota),
 		},
 	}
+	if email != "" {
+		requestData.Customer = &CreemCustomer{Email: email}
+	}
 
 	// 序列化请求数据
-	jsonData, err := json.Marshal(requestData)
+	jsonData, err := common.Marshal(requestData)
 	if err != nil {
 		return "", fmt.Errorf("序列化请求数据失败: %v", err)
 	}
@@ -443,7 +442,7 @@ func genCreemLink(ctx context.Context, referenceId string, product *CreemProduct
 	}
 	// 解析响应
 	var checkoutResp CreemCheckoutResponse
-	err = json.Unmarshal(body, &checkoutResp)
+	err = common.Unmarshal(body, &checkoutResp)
 	if err != nil {
 		return "", fmt.Errorf("解析响应失败: %v", err)
 	}
