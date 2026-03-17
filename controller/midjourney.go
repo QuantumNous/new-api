@@ -9,15 +9,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
 func UpdateMidjourneyTaskBulk() {
@@ -254,15 +252,16 @@ func checkMjTaskNeedUpdate(oldTask *model.Midjourney, newTask dto.MidjourneyDto)
 	return false
 }
 
-func GetAllMidjourney(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func GetAllMidjourney(c fuego.ContextWithParams[dto.GetAllMidjourneyParams]) (*dto.Response[dto.PageData[*model.Midjourney]], error) {
+	p, _ := dto.ParseParams[dto.GetAllMidjourneyParams](c)
+	pageInfo := dto.PageInfo(c)
 
 	// 解析其他查询参数
 	queryParams := model.TaskQueryParams{
-		ChannelID:      c.Query("channel_id"),
-		MjID:           c.Query("mj_id"),
-		StartTimestamp: c.Query("start_timestamp"),
-		EndTimestamp:   c.Query("end_timestamp"),
+		ChannelID:      p.ChannelID,
+		MjID:           p.MjID,
+		StartTimestamp: p.StartTimestamp,
+		EndTimestamp:   p.EndTimestamp,
 	}
 
 	items := model.GetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
@@ -274,20 +273,19 @@ func GetAllMidjourney(c *gin.Context) {
 			items[i] = midjourney
 		}
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(items)
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(pageInfo, items, int(total))
 }
 
-func GetUserMidjourney(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func GetUserMidjourney(c fuego.ContextWithParams[dto.GetUserMidjourneyParams]) (*dto.Response[dto.PageData[*model.Midjourney]], error) {
+	p, _ := dto.ParseParams[dto.GetUserMidjourneyParams](c)
+	pageInfo := dto.PageInfo(c)
 
-	userId := c.GetInt("id")
+	userId := dto.UserID(c)
 
 	queryParams := model.TaskQueryParams{
-		MjID:           c.Query("mj_id"),
-		StartTimestamp: c.Query("start_timestamp"),
-		EndTimestamp:   c.Query("end_timestamp"),
+		MjID:           p.MjID,
+		StartTimestamp: p.StartTimestamp,
+		EndTimestamp:   p.EndTimestamp,
 	}
 
 	items := model.GetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
@@ -299,7 +297,5 @@ func GetUserMidjourney(c *gin.Context) {
 			items[i] = midjourney
 		}
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(items)
-	common.ApiSuccess(c, pageInfo)
+	return dto.OkPage(pageInfo, items, int(total))
 }

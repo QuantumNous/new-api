@@ -1,4 +1,4 @@
-package dto
+package types
 
 type ChannelSettings struct {
 	ForceFormat            bool   `json:"force_format,omitempty"`

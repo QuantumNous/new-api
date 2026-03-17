@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 	"github.com/samber/lo"
 )
 
@@ -156,10 +157,7 @@ func ListModels(c *gin.Context, modelType int) {
 		userId := c.GetInt("id")
 		userGroup, err := model.GetUserGroup(userId, false)
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "get user group failed",
-			})
+			c.JSON(http.StatusOK, dto.ApiResponse{Message: "get user group failed"})
 			return
 		}
 		group := userGroup
@@ -213,12 +211,15 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
-		c.JSON(200, gin.H{
-			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
-			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
-		})
+		resp := dto.AnthropicModelList{
+			Data:    useranthropicModels,
+			HasMore: false,
+		}
+		if len(useranthropicModels) > 0 {
+			resp.FirstID = useranthropicModels[0].ID
+			resp.LastID = useranthropicModels[len(useranthropicModels)-1].ID
+		}
+		c.JSON(200, resp)
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
 		for i, model := range userOpenAiModels {
@@ -227,38 +228,31 @@ func ListModels(c *gin.Context, modelType int) {
 				DisplayName: model.Id,
 			}
 		}
-		c.JSON(200, gin.H{
-			"models":        userGeminiModels,
-			"nextPageToken": nil,
+		c.JSON(200, dto.GeminiModelList{
+			Models:        userGeminiModels,
+			NextPageToken: nil,
 		})
 	default:
-		c.JSON(200, gin.H{
-			"success": true,
-			"data":    userOpenAiModels,
-			"object":  "list",
+		c.JSON(200, dto.ApiResponse{
+			Success: true,
+			Data:    userOpenAiModels,
 		})
 	}
 }
 
-func ChannelListModels(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"success": true,
-		"data":    openAIModels,
-	})
+func ChannelListModels(c fuego.ContextNoBody) (*dto.Response[[]dto.OpenAIModels], error) {
+	return dto.Ok(openAIModels)
 }
 
-func DashboardListModels(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"success": true,
-		"data":    channelId2Models,
-	})
+// ChannelModelsMap is map[channelID]→modelNames, used for the dashboard models endpoint.
+type ChannelModelsMap = map[int][]string
+
+func DashboardListModels(c fuego.ContextNoBody) (*dto.Response[ChannelModelsMap], error) {
+	return dto.Ok(channelId2Models)
 }
 
-func EnabledListModels(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"success": true,
-		"data":    model.GetEnabledModels(),
-	})
+func EnabledListModels(c fuego.ContextNoBody) (*dto.Response[[]string], error) {
+	return dto.Ok(model.GetEnabledModels())
 }
 
 func RetrieveModel(c *gin.Context, modelType int) {

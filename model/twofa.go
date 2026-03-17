@@ -296,8 +296,15 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	return true, nil
 }
 
+// TwoFAStats is the response data for 2FA statistics.
+type TwoFAStats struct {
+	TotalUsers   int64  `json:"total_users"`
+	EnabledUsers int64  `json:"enabled_users"`
+	EnabledRate  string `json:"enabled_rate"`
+}
+
 // GetTwoFAStats 获取2FA统计信息（管理员使用）
-func GetTwoFAStats() (map[string]interface{}, error) {
+func GetTwoFAStats() (*TwoFAStats, error) {
 	var totalUsers, enabledUsers int64
 
 	// 总用户数
@@ -315,9 +322,9 @@ func GetTwoFAStats() (map[string]interface{}, error) {
 		enabledRate = float64(enabledUsers) / float64(totalUsers) * 100
 	}
 
-	return map[string]interface{}{
-		"total_users":   totalUsers,
-		"enabled_users": enabledUsers,
-		"enabled_rate":  fmt.Sprintf("%.1f%%", enabledRate),
+	return &TwoFAStats{
+		TotalUsers:   totalUsers,
+		EnabledUsers: enabledUsers,
+		EnabledRate:  fmt.Sprintf("%.1f%%", enabledRate),
 	}, nil
 }
