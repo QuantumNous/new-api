@@ -30,26 +30,29 @@ func GetTopUpInfo(c *gin.Context) {
 		payMethods = []map[string]string{}
 	}
 
-	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if isStripeTopUpEnabled() {
-		// 检查是否已经包含 Stripe
-		hasStripe := false
-		for _, method := range payMethods {
-			if method["type"] == "stripe" {
-				hasStripe = true
-				break
-			}
-		}
+	stripeEnabled := isStripeTopUpEnabled()
 
-		if !hasStripe {
-			stripeMethod := map[string]string{
-				"name":      "Stripe",
-				"type":      "stripe",
-				"color":     "#635BFF",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+	filteredMethods := make([]map[string]string, 0, len(payMethods))
+	hasStripe := false
+	for _, method := range payMethods {
+		if method["type"] == "stripe" {
+			if !stripeEnabled {
+				continue
 			}
-			payMethods = append(payMethods, stripeMethod)
+			hasStripe = true
 		}
+		filteredMethods = append(filteredMethods, method)
+	}
+	payMethods = filteredMethods
+
+	if stripeEnabled && !hasStripe {
+		stripeMethod := map[string]string{
+			"name":      "Stripe",
+			"type":      "stripe",
+			"color":     "rgba(var(--semi-purple-5), 1)",
+			"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+		}
+		payMethods = append(payMethods, stripeMethod)
 	}
 
 	// Waffo Pancake is displayed above the standard Waffo gateway.

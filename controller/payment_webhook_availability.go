@@ -15,7 +15,8 @@ func isStripeTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
-	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
+	return setting.StripeEnabled &&
+		strings.TrimSpace(setting.StripeApiSecret) != "" &&
 		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(setting.StripePriceId) != ""
 }
@@ -33,7 +34,8 @@ func isCreemTopUpEnabled() bool {
 		return false
 	}
 	products := strings.TrimSpace(setting.CreemProducts)
-	return strings.TrimSpace(setting.CreemApiKey) != "" &&
+	return setting.CreemEnabled &&
+		strings.TrimSpace(setting.CreemApiKey) != "" &&
 		products != "" &&
 		products != "[]"
 }
