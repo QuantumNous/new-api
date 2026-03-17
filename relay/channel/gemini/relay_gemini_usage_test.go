@@ -20,7 +20,8 @@ func TestGeminiChatHandlerCompletionTokensExcludeToolUsePromptTokens(t *testing.
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	info := &relaycommon.RelayInfo{
@@ -48,6 +49,7 @@ func TestGeminiChatHandlerCompletionTokensExcludeToolUsePromptTokens(t *testing.
 			CandidatesTokenCount:    1089,
 			ThoughtsTokenCount:      1120,
 			TotalTokenCount:         20689,
+			TrafficType:             "ON_DEMAND_PRIORITY",
 		},
 	}
 
@@ -65,11 +67,14 @@ func TestGeminiChatHandlerCompletionTokensExcludeToolUsePromptTokens(t *testing.
 	require.Equal(t, 2209, usage.CompletionTokens)
 	require.Equal(t, 20689, usage.TotalTokens)
 	require.Equal(t, 1120, usage.CompletionTokenDetails.ReasoningTokens)
+	require.Equal(t, "ON_DEMAND_PRIORITY", usage.TrafficType)
+	require.Contains(t, recorder.Body.String(), "\"trafficType\":\"ON_DEMAND_PRIORITY\"")
 }
 
 func TestGeminiStreamHandlerCompletionTokensExcludeToolUsePromptTokens(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	oldStreamingTimeout := constant.StreamingTimeout
@@ -79,7 +84,9 @@ func TestGeminiStreamHandlerCompletionTokensExcludeToolUsePromptTokens(t *testin
 	})
 
 	info := &relaycommon.RelayInfo{
-		OriginModelName: "gemini-3-flash-preview",
+		RelayFormat:        types.RelayFormatOpenAI,
+		OriginModelName:    "gemini-3-flash-preview",
+		ShouldIncludeUsage: true,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			UpstreamModelName: "gemini-3-flash-preview",
 		},
@@ -102,6 +109,7 @@ func TestGeminiStreamHandlerCompletionTokensExcludeToolUsePromptTokens(t *testin
 			CandidatesTokenCount:    1089,
 			ThoughtsTokenCount:      1120,
 			TotalTokenCount:         20689,
+			TrafficType:             "ON_DEMAND_PRIORITY",
 		},
 	}
 
@@ -113,15 +121,64 @@ func TestGeminiStreamHandlerCompletionTokensExcludeToolUsePromptTokens(t *testin
 		Body: io.NopCloser(bytes.NewReader(streamBody)),
 	}
 
-	usage, newAPIError := geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
-		return true
-	})
+	usage, newAPIError := GeminiChatStreamHandler(c, info, resp)
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
 	require.Equal(t, 18480, usage.PromptTokens)
 	require.Equal(t, 2209, usage.CompletionTokens)
 	require.Equal(t, 20689, usage.TotalTokens)
 	require.Equal(t, 1120, usage.CompletionTokenDetails.ReasoningTokens)
+	require.Equal(t, "ON_DEMAND_PRIORITY", usage.TrafficType)
+	require.Contains(t, recorder.Body.String(), "\"traffic_type\":\"ON_DEMAND_PRIORITY\"")
+}
+
+func TestGeminiChatHandlerOpenAIResponseIncludesTrafficType(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gemini-3-flash-preview",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3-flash-preview",
+		},
+	}
+
+	payload := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				Content: dto.GeminiChatContent{
+					Role: "model",
+					Parts: []dto.GeminiPart{
+						{Text: "ok"},
+					},
+				},
+			},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     10,
+			CandidatesTokenCount: 20,
+			TotalTokenCount:      30,
+			TrafficType:          "ON_DEMAND_PRIORITY",
+		},
+	}
+
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+
+	usage, newAPIError := GeminiChatHandler(c, info, resp)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, "ON_DEMAND_PRIORITY", usage.TrafficType)
+	require.Contains(t, recorder.Body.String(), "\"traffic_type\":\"ON_DEMAND_PRIORITY\"")
 }
 
 func TestGeminiTextGenerationHandlerPromptTokensIncludeToolUsePromptTokens(t *testing.T) {

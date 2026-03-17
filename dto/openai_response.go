@@ -237,6 +237,9 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+
+	// Gemini/Vertex specific usage metadata.
+	TrafficType string `json:"traffic_type,omitempty"`
 }
 
 type OpenAIVideoResponse struct {
