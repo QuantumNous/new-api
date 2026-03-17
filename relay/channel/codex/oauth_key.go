@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,11 +21,11 @@ type OAuthKey struct {
 
 func ParseOAuthKey(raw string) (*OAuthKey, error) {
 	if raw == "" {
-		return nil, errors.New("codex channel: empty oauth key")
+		return nil, errors.New(i18n.Translate("svc.codex_channel_empty_oauth_key"))
 	}
 	var key OAuthKey
 	if err := common.Unmarshal([]byte(raw), &key); err != nil {
-		return nil, errors.New("codex channel: invalid oauth key json")
+		return nil, errors.New(i18n.Translate("svc.codex_channel_invalid_oauth_key_json"))
 	}
 	return &key, nil
 }
