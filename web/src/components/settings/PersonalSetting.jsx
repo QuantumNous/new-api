@@ -87,6 +87,7 @@ const PersonalSetting = () => {
     gotifyToken: '',
     gotifyPriority: 5,
     upstreamModelUpdateNotifyEnabled: false,
+    userQuotaNotifyThresholdForAdmin: 0,
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
   });
@@ -161,6 +162,8 @@ const PersonalSetting = () => {
           settings.gotify_priority !== undefined ? settings.gotify_priority : 5,
         upstreamModelUpdateNotifyEnabled:
           settings.upstream_model_update_notify_enabled === true,
+        userQuotaNotifyThresholdForAdmin:
+          settings.user_quota_notify_threshold_for_admin || 0,
         acceptUnsetModelRatioModel:
           settings.accept_unset_model_ratio_model || false,
         recordIpLog: settings.record_ip_log || false,
@@ -431,6 +434,8 @@ const PersonalSetting = () => {
         })(),
         upstream_model_update_notify_enabled:
           notificationSettings.upstreamModelUpdateNotifyEnabled === true,
+        user_quota_notify_threshold_for_admin:
+          parseFloat(notificationSettings.userQuotaNotifyThresholdForAdmin) || 0,
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
         record_ip_log: notificationSettings.recordIpLog,

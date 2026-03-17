@@ -557,6 +557,10 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			}
 		}
+
+		// 通知管理员：用户余额低于管理员配置的预警阈值
+		remainingQuota := relayInfo.UserQuota - consumeQuota
+		NotifyAdminsOfUserQuotaLow(relayInfo.UserId, relayInfo.UserEmail, remainingQuota)
 	})
 }
 

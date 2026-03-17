@@ -11,6 +11,7 @@ type UserSetting struct {
 	GotifyToken                      string  `json:"gotify_token,omitempty"`                         // GotifyToken Gotify应用令牌
 	GotifyPriority                   int     `json:"gotify_priority"`                                // GotifyPriority Gotify消息优先级
 	UpstreamModelUpdateNotifyEnabled bool    `json:"upstream_model_update_notify_enabled,omitempty"` // 是否接收上游模型更新定时检测通知（仅管理员）
+	UserQuotaNotifyThresholdForAdmin float64 `json:"user_quota_notify_threshold_for_admin,omitempty"` // 用户额度预警阈值（仅管理员），低于此值时向管理员发送通知
 	AcceptUnsetRatioModel            bool    `json:"accept_unset_model_ratio_model,omitempty"`       // AcceptUnsetRatioModel 是否接受未设置价格的模型
 	RecordIpLog                      bool    `json:"record_ip_log,omitempty"`                        // 是否记录请求和错误日志IP
 	SidebarModules                   string  `json:"sidebar_modules,omitempty"`                      // SidebarModules 左侧边栏模块配置

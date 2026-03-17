@@ -486,6 +486,29 @@ const NotificationSettings = ({
                   />
                 )}
 
+                {isAdminOrRoot && (
+                  <Form.AutoComplete
+                    field='userQuotaNotifyThresholdForAdmin'
+                    label={t('用户额度预警阈值（管理员）')}
+                    placeholder={t('请输入阈值，0 表示不启用')}
+                    data={[
+                      { value: 0, label: t('不启用') },
+                      { value: 100000, label: '0.2$' },
+                      { value: 500000, label: '1$' },
+                      { value: 1000000, label: '2$' },
+                      { value: 5000000, label: '10$' },
+                    ]}
+                    onChange={(val) =>
+                      handleFormChange('userQuotaNotifyThresholdForAdmin', val)
+                    }
+                    prefix={<IconBell />}
+                    extraText={t(
+                      '仅管理员可用。当任意用户的钱包余额低于此值时，系统将按你选择的通知方式向你发送预警通知。设为 0 表示不启用。',
+                    )}
+                    style={{ width: '100%', maxWidth: '300px' }}
+                  />
+                )}
+
                 {/* 邮件通知设置 */}
                 {notificationSettings.warningType === 'email' && (
                   <Form.Input

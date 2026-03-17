@@ -22,6 +22,54 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
+// NotifyAdminsOfUserQuotaLow 当用户余额低于管理员配置的阈值时，向所有设置了该阈值的管理员发送通知
+func NotifyAdminsOfUserQuotaLow(userId int, userEmail string, userQuota int) {
+	var admins []model.User
+	if err := model.DB.
+		Select("id", "email", "role", "status", "setting").
+		Where("status = ? AND role >= ?", common.UserStatusEnabled, common.RoleAdminUser).
+		Find(&admins).Error; err != nil {
+		common.SysLog(fmt.Sprintf("failed to query admin users for quota low notify: %s", err.Error()))
+		return
+	}
+
+	// 只有存在至少一个启用了阈值且用户余额低于该阈值的管理员时才继续
+	needNotify := false
+	for _, admin := range admins {
+		threshold := admin.GetSetting().UserQuotaNotifyThresholdForAdmin
+		if threshold > 0 && userQuota < int(threshold) {
+			needNotify = true
+			break
+		}
+	}
+	if !needNotify {
+		return
+	}
+
+	username, err := model.GetUsernameById(userId, false)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to get username for user %d in quota low notify: %s", userId, err.Error()))
+		username = userEmail // 查不到时降级用邮箱
+	}
+
+	for _, admin := range admins {
+		adminSetting := admin.GetSetting()
+		if adminSetting.UserQuotaNotifyThresholdForAdmin <= 0 {
+			continue
+		}
+		if userQuota >= int(adminSetting.UserQuotaNotifyThresholdForAdmin) {
+			continue
+		}
+		subject := "用户额度预警"
+		content := "用户 {{value}}（#{{value}}）当前余额 {{value}}，已低于预警阈值 {{value}}，请关注。"
+		values := []interface{}{username, userId, userQuota, int(adminSetting.UserQuotaNotifyThresholdForAdmin)}
+		notification := dto.NewNotify(dto.NotifyTypeUserQuotaWarningForAdmin, subject, content, values)
+		if err := NotifyUser(admin.Id, admin.Email, adminSetting, notification); err != nil {
+			common.SysLog(fmt.Sprintf("failed to notify admin %d for user %d quota low: %s", admin.Id, userId, err.Error()))
+		}
+	}
+}
+
 func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 	var users []model.User
 	if err := model.DB.

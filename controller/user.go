@@ -1032,18 +1032,19 @@ func TopUp(c *gin.Context) {
 }
 
 type UpdateUserSettingRequest struct {
-	QuotaWarningType                 string  `json:"notify_type"`
-	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
-	WebhookUrl                       string  `json:"webhook_url,omitempty"`
-	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
-	NotificationEmail                string  `json:"notification_email,omitempty"`
-	BarkUrl                          string  `json:"bark_url,omitempty"`
-	GotifyUrl                        string  `json:"gotify_url,omitempty"`
-	GotifyToken                      string  `json:"gotify_token,omitempty"`
-	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
-	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
-	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
-	RecordIpLog                      bool    `json:"record_ip_log"`
+	QuotaWarningType                 string   `json:"notify_type"`
+	QuotaWarningThreshold            float64  `json:"quota_warning_threshold"`
+	WebhookUrl                       string   `json:"webhook_url,omitempty"`
+	WebhookSecret                    string   `json:"webhook_secret,omitempty"`
+	NotificationEmail                string   `json:"notification_email,omitempty"`
+	BarkUrl                          string   `json:"bark_url,omitempty"`
+	GotifyUrl                        string   `json:"gotify_url,omitempty"`
+	GotifyToken                      string   `json:"gotify_token,omitempty"`
+	GotifyPriority                   int      `json:"gotify_priority,omitempty"`
+	UpstreamModelUpdateNotifyEnabled *bool    `json:"upstream_model_update_notify_enabled,omitempty"`
+	UserQuotaNotifyThresholdForAdmin *float64 `json:"user_quota_notify_threshold_for_admin,omitempty"`
+	AcceptUnsetModelRatioModel       bool     `json:"accept_unset_model_ratio_model"`
+	RecordIpLog                      bool     `json:"record_ip_log"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1135,8 +1136,14 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 	existingSettings := user.GetSetting()
 	upstreamModelUpdateNotifyEnabled := existingSettings.UpstreamModelUpdateNotifyEnabled
-	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
-		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
+	userQuotaNotifyThresholdForAdmin := existingSettings.UserQuotaNotifyThresholdForAdmin
+	if user.Role >= common.RoleAdminUser {
+		if req.UpstreamModelUpdateNotifyEnabled != nil {
+			upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
+		}
+		if req.UserQuotaNotifyThresholdForAdmin != nil {
+			userQuotaNotifyThresholdForAdmin = *req.UserQuotaNotifyThresholdForAdmin
+		}
 	}
 
 	// 构建设置
@@ -1144,6 +1151,7 @@ func UpdateUserSetting(c *gin.Context) {
 		NotifyType:                       req.QuotaWarningType,
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
+		UserQuotaNotifyThresholdForAdmin: userQuotaNotifyThresholdForAdmin,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
 	}
