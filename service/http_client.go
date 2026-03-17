@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"github.com/QuantumNous/new-api/i18n"
 	"context"
 	"fmt"
 	"net"
@@ -41,10 +43,10 @@ type proxyURLConfig struct {
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	urlStr := req.URL.String()
 	if err := validateURLWithCurrentFetchSetting(urlStr, true); err != nil {
-		return fmt.Errorf("redirect to %s blocked: %v", urlStr, err)
+		return fmt.Errorf(i18n.Translate("svc.redirect_to_blocked"), urlStr, err)
 	}
 	if len(via) >= 10 {
-		return fmt.Errorf("stopped after 10 redirects")
+		return errors.New(i18n.Translate("svc.stopped_after_10_redirects"))
 	}
 	return nil
 }

@@ -48,7 +48,7 @@ var (
 func TelegramBindStart(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员未开启通过 Telegram 登录以及注册",
+			"message": common.TranslateMessage(c, "option.telegram_required"),
 			"success": false,
 		})
 		return
@@ -236,7 +236,7 @@ func telegramBindFailure(c *gin.Context, errorCode string) {
 func TelegramLogin(c *gin.Context) {
 	if !common.TelegramOAuthEnabled {
 		c.JSON(200, gin.H{
-			"message": "管理员未开启通过 Telegram 登录以及注册",
+			"message": common.TranslateMessage(c, "option.telegram_required"),
 			"success": false,
 		})
 		return
@@ -246,7 +246,7 @@ func TelegramLogin(c *gin.Context) {
 	if err != nil {
 		common.SysLog("TelegramLogin authorization failed: " + err.Error())
 		c.JSON(200, gin.H{
-			"message": "无效的请求",
+			"message": common.TranslateMessage(c, "common.invalid_params"),
 			"success": false,
 		})
 		return

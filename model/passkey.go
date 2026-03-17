@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	ErrPasskeyNotFound         = errors.New("passkey credential not found")
-	ErrFriendlyPasskeyNotFound = errors.New("Passkey 验证失败，请重试或联系管理员")
+	ErrPasskeyNotFound         = errors.New("model.passkey_credential_not_found")
+	ErrFriendlyPasskeyNotFound = errors.New("passkey.verify_failed_model")
 )
 
 type PasskeyCredential struct {
@@ -122,7 +123,7 @@ func NewPasskeyCredentialFromWebAuthn(userID int, credential *webauthn.Credentia
 
 func GetPasskeyByUserID(userID int) (*PasskeyCredential, error) {
 	if userID == 0 {
-		common.SysLog("GetPasskeyByUserID: empty user ID")
+		common.SysLog(i18n.Translate("model.getpasskeybyuserid_empty_user_id"))
 		return nil, ErrFriendlyPasskeyNotFound
 	}
 	var credential PasskeyCredential
@@ -132,7 +133,7 @@ func GetPasskeyByUserID(userID int) (*PasskeyCredential, error) {
 			return nil, ErrPasskeyNotFound
 		}
 		// 只有真正的数据库错误才记录日志
-		common.SysLog(fmt.Sprintf("GetPasskeyByUserID: database error for user %d: %v", userID, err))
+		common.SysLog(fmt.Sprintf(i18n.Translate("model.getpasskeybyuserid_database_error_for_user"), userID, err))
 		return nil, ErrFriendlyPasskeyNotFound
 	}
 	return &credential, nil
@@ -140,7 +141,7 @@ func GetPasskeyByUserID(userID int) (*PasskeyCredential, error) {
 
 func GetPasskeyByCredentialID(credentialID []byte) (*PasskeyCredential, error) {
 	if len(credentialID) == 0 {
-		common.SysLog("GetPasskeyByCredentialID: empty credential ID")
+		common.SysLog(i18n.Translate("model.getpasskeybycredentialid_empty_credential_id"))
 		return nil, ErrFriendlyPasskeyNotFound
 	}
 
@@ -148,10 +149,10 @@ func GetPasskeyByCredentialID(credentialID []byte) (*PasskeyCredential, error) {
 	var credential PasskeyCredential
 	if err := DB.Where("credential_id = ?", credIDStr).First(&credential).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			common.SysLog(fmt.Sprintf("GetPasskeyByCredentialID: passkey not found for credential ID length %d", len(credentialID)))
+			common.SysLog(fmt.Sprintf(i18n.Translate("model.getpasskeybycredentialid_passkey_not_found_for_credential_id"), len(credentialID)))
 			return nil, ErrFriendlyPasskeyNotFound
 		}
-		common.SysLog(fmt.Sprintf("GetPasskeyByCredentialID: database error for credential ID: %v", err))
+		common.SysLog(fmt.Sprintf(i18n.Translate("model.getpasskeybycredentialid_database_error_for_credential_id"), err))
 		return nil, ErrFriendlyPasskeyNotFound
 	}
 

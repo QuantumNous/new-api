@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -50,7 +51,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	// 序列化负载
 	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal webhook payload: %v", err)
+		return fmt.Errorf(i18n.Translate("svc.failed_to_marshal_webhook_payload"), err)
 	}
 
 	// 创建 HTTP 请求
@@ -78,23 +79,23 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 
 		resp, err = DoWorkerRequest(workerReq)
 		if err != nil {
-			return fmt.Errorf("failed to send webhook request through worker: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_webhook_request_through_worker"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("webhook request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.webhook_request_failed_with_status_code"), resp.StatusCode)
 		}
 	} else {
 		// SSRF防护：验证Webhook URL（非Worker模式）
 		if err := ValidateSSRFProtectedFetchURL(webhookURL); err != nil {
-			return fmt.Errorf("request reject: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.request_reject"), err)
 		}
 
 		req, err = http.NewRequest(http.MethodPost, webhookURL, bytes.NewBuffer(payloadBytes))
 		if err != nil {
-			return fmt.Errorf("failed to create webhook request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_create_webhook_request"), err)
 		}
 
 		// 设置请求头
@@ -110,13 +111,13 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 		client := GetSSRFProtectedHTTPClient()
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("failed to send webhook request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_webhook_request"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("webhook request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.webhook_request_failed_with_status_code"), resp.StatusCode)
 		}
 	}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 
 	"gorm.io/gorm"
 )
@@ -38,7 +39,7 @@ type TwoFABackupCode struct {
 // GetTwoFAByUserId 根据用户ID获取2FA设置
 func GetTwoFAByUserId(userId int) (*TwoFA, error) {
 	if userId == 0 {
-		return nil, errors.New("用户ID不能为空")
+		return nil, errors.New(i18n.Translate("twofa.user_id_cannot_be_empty"))
 	}
 
 	var twoFA TwoFA
@@ -74,14 +75,14 @@ func (t *TwoFA) CreatePendingTwoFASetup() error {
 		return err
 	}
 	if existing != nil {
-		return errors.New("用户已存在2FA设置")
+		return errors.New(i18n.Translate("twofa.already_configured"))
 	}
 
 	// 验证用户存在
 	var user User
 	if err := DB.First(&user, t.UserId).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.New("用户不存在")
+			return errors.New(i18n.Translate("twofa.user_not_found"))
 		}
 		return err
 	}
@@ -91,7 +92,7 @@ func (t *TwoFA) CreatePendingTwoFASetup() error {
 
 func (t *TwoFA) updateUsageState() error {
 	if t.Id == 0 {
-		return errors.New("2FA记录ID不能为空")
+		return errors.New(i18n.Translate("twofa.record_id_cannot_be_empty"))
 	}
 	return DB.Model(&TwoFA{}).Where("id = ?", t.Id).Updates(map[string]interface{}{
 		"failed_attempts": t.FailedAttempts,
@@ -236,7 +237,7 @@ func ReplaceBackupCodesWithAuthVersion(userId int, codes []string) error {
 // ValidateBackupCode 验证并使用备用码
 func ValidateBackupCode(userId int, code string) (bool, error) {
 	if !common.ValidateBackupCode(code) {
-		return false, errors.New("验证码或备用码不正确")
+		return false, errors.New(i18n.Translate("twofa.invalid_code_or_backup"))
 	}
 
 	normalizedCode := common.NormalizeBackupCode(code)
@@ -337,14 +338,14 @@ func (t *TwoFA) EnableWithAuthVersion() error {
 func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
 	// 检查是否被锁定
 	if t.IsLocked() {
-		return false, fmt.Errorf("账户已被锁定，请在%v后重试", t.LockedUntil.Format("2006-01-02 15:04:05"))
+		return false, errors.New(i18n.Translate("twofa.account_locked_model", map[string]any{"Time": t.LockedUntil.Format("2006-01-02 15:04:05")}))
 	}
 
 	// 验证TOTP码
 	if !common.ValidateTOTPCode(t.Secret, code) {
 		// 增加失败次数
 		if err := t.IncrementFailedAttempts(); err != nil {
-			common.SysLog("更新2FA失败次数失败: " + err.Error())
+			common.SysLog(i18n.Translate("log.twofa_update_attempt_failed", map[string]any{"Error": err}))
 		}
 		return false, nil
 	}
@@ -356,7 +357,7 @@ func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
 	t.LastUsedAt = &now
 
 	if err := t.updateUsageState(); err != nil {
-		common.SysLog("更新2FA使用记录失败: " + err.Error())
+		common.SysLog(i18n.Translate("model.failed_to_update_2fa_usage_record") + err.Error())
 	}
 
 	return true, nil
@@ -366,7 +367,7 @@ func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
 func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	// 检查是否被锁定
 	if t.IsLocked() {
-		return false, fmt.Errorf("账户已被锁定，请在%v后重试", t.LockedUntil.Format("2006-01-02 15:04:05"))
+		return false, errors.New(i18n.Translate("twofa.account_locked_model", map[string]any{"Time": t.LockedUntil.Format("2006-01-02 15:04:05")}))
 	}
 
 	// 验证备用码
@@ -378,7 +379,7 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	if !valid {
 		// 增加失败次数
 		if err := t.IncrementFailedAttempts(); err != nil {
-			common.SysLog("更新2FA失败次数失败: " + err.Error())
+			common.SysLog(i18n.Translate("log.twofa_update_attempt_failed", map[string]any{"Error": err}))
 		}
 		return false, nil
 	}
@@ -390,7 +391,7 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	t.LastUsedAt = &now
 
 	if err := t.updateUsageState(); err != nil {
-		common.SysLog("更新2FA使用记录失败: " + err.Error())
+		common.SysLog(i18n.Translate("model.failed_to_update_2fa_usage_record") + err.Error())
 	}
 
 	return true, nil

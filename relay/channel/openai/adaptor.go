@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/QuantumNous/new-api/i18n"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -243,7 +244,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
-		return nil, errors.New("request is nil")
+		return nil, errors.New(i18n.Translate("svc.request_is_nil"))
 	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
@@ -266,7 +267,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 				}
 				marshal, err := common.Marshal(reasoning)
 				if err != nil {
-					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+					return nil, fmt.Errorf(i18n.Translate("relay.error_marshalling_reasoning"), err)
 				}
 				request.Reasoning = marshal
 			}
@@ -283,7 +284,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 						reasoning["effort"] = request.ReasoningEffort
 						marshal, err := common.Marshal(reasoning)
 						if err != nil {
-							return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+							return nil, fmt.Errorf(i18n.Translate("relay.error_marshalling_reasoning"), err)
 						}
 						request.Reasoning = marshal
 					}
@@ -297,14 +298,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if request.THINKING != nil && strings.HasPrefix(info.UpstreamModelName, "anthropic") {
 			var thinking dto.Thinking // Claude标准Thinking格式
 			if err := json.Unmarshal(request.THINKING, &thinking); err != nil {
-				return nil, fmt.Errorf("error Unmarshal thinking: %w", err)
+				return nil, fmt.Errorf(i18n.Translate("relay.error_unmarshal_thinking"), err)
 			}
 
 			// 只有当 thinking.Type 是 "enabled" 时才处理
 			if thinking.Type == "enabled" {
 				// 检查 BudgetTokens 是否为 nil
 				if thinking.BudgetTokens == nil {
-					return nil, fmt.Errorf("BudgetTokens is nil when thinking is enabled")
+					return nil, errors.New(i18n.Translate("relay.budgettokens_is_nil_when_thinking_is_enabled"))
 				}
 
 				reasoning := openrouter.RequestReasoning{
@@ -314,7 +315,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 
 				marshal, err := common.Marshal(reasoning)
 				if err != nil {
-					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+					return nil, fmt.Errorf(i18n.Translate("relay.error_marshalling_reasoning"), err)
 				}
 
 				request.Reasoning = marshal
@@ -379,7 +380,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
 		jsonData, err := common.Marshal(request)
 		if err != nil {
-			return nil, fmt.Errorf("error marshalling object: %w", err)
+			return nil, fmt.Errorf(i18n.Translate("relay.error_marshalling_object"), err)
 		}
 		return bytes.NewReader(jsonData), nil
 	} else {
@@ -390,7 +391,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		formData, err2 := common.ParseMultipartFormReusable(c)
 		if err2 != nil {
-			return nil, fmt.Errorf("error parsing multipart form: %w", err2)
+			return nil, fmt.Errorf(i18n.Translate("relay.error_parsing_multipart_form"), err2)
 		}
 
 		// 打印类似 curl 命令格式的信息
@@ -410,7 +411,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		// 从 formData 中获取文件
 		fileHeaders := formData.File["file"]
 		if len(fileHeaders) == 0 {
-			return nil, errors.New("file is required")
+			return nil, errors.New(i18n.Translate("relay.file_is_required"))
 		}
 
 		// 使用 formData 中的第一个文件
@@ -420,16 +421,16 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 		file, err := fileHeader.Open()
 		if err != nil {
-			return nil, fmt.Errorf("error opening audio file: %v", err)
+			return nil, fmt.Errorf(i18n.Translate("svc.error_opening_audio_file"), err)
 		}
 		defer file.Close()
 
 		part, err := writer.CreateFormFile("file", fileHeader.Filename)
 		if err != nil {
-			return nil, errors.New("create form file failed")
+			return nil, errors.New(i18n.Translate("relay.create_form_file_failed"))
 		}
 		if _, err := io.Copy(part, file); err != nil {
-			return nil, errors.New("copy file failed")
+			return nil, errors.New(i18n.Translate("relay.copy_file_failed"))
 		}
 
 		// 关闭 multipart 编写器以设置分界线
@@ -456,7 +457,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		if mf == nil {
 			form, err := common.ParseMultipartFormReusable(c)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse multipart form: %w", err)
+				return nil, errors.New(i18n.Translate("relay.failed_to_parse_multipart_form"))
 			}
 			c.Request.MultipartForm = form
 			c.Request.PostForm = url.Values(form.Value)
@@ -495,7 +496,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 					// If no image fields found at all
 					if !foundArrayImages && (len(imageFiles) == 0) {
-						return nil, errors.New("image is required")
+						return nil, errors.New(i18n.Translate("relay.image_is_required"))
 					}
 				}
 			}
@@ -504,7 +505,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			for i, fileHeader := range imageFiles {
 				file, err := fileHeader.Open()
 				if err != nil {
-					return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
+					return nil, fmt.Errorf(i18n.Translate("relay.failed_to_open_image_file"), i, err)
 				}
 
 				// If multiple images, use image[] as the field name
@@ -523,11 +524,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 				part, err := writer.CreatePart(h)
 				if err != nil {
-					return nil, fmt.Errorf("create form part failed for image %d: %w", i, err)
+					return nil, fmt.Errorf(i18n.Translate("relay.create_form_part_failed_for_image"), i, err)
 				}
 
 				if _, err := io.Copy(part, file); err != nil {
-					return nil, fmt.Errorf("copy file failed for image %d: %w", i, err)
+					return nil, fmt.Errorf(i18n.Translate("relay.copy_file_failed_for_image"), i, err)
 				}
 
 				// 复制完立即关闭，避免在循环内使用 defer 占用资源
@@ -538,7 +539,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
 				maskFile, err := maskFiles[0].Open()
 				if err != nil {
-					return nil, errors.New("failed to open mask file")
+					return nil, errors.New(i18n.Translate("relay.failed_to_open_mask_file"))
 				}
 				// 复制完立即关闭，避免在循环内使用 defer 占用资源
 
@@ -552,16 +553,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 				maskPart, err := writer.CreatePart(h)
 				if err != nil {
-					return nil, errors.New("create form file failed for mask")
+					return nil, errors.New(i18n.Translate("relay.create_form_file_failed_for_mask"))
 				}
 
 				if _, err := io.Copy(maskPart, maskFile); err != nil {
-					return nil, errors.New("copy mask file failed")
+					return nil, errors.New(i18n.Translate("relay.copy_mask_file_failed"))
 				}
 				_ = maskFile.Close()
 			}
 		} else {
-			return nil, errors.New("no multipart form data found")
+			return nil, errors.New(i18n.Translate("relay.no_multipart_form_data_found"))
 		}
 
 		// 关闭 multipart 编写器以设置分界线

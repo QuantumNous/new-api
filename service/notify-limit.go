@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"fmt"
 	"strconv"
 	"sync"
@@ -55,12 +56,12 @@ func CheckNotificationLimit(userId int, notifyType string) (bool, error) {
 }
 
 func checkRedisLimit(userId int, notifyType string) (bool, error) {
-	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+	key := fmt.Sprintf(i18n.Translate("svc.notify_limit"), userId, notifyType, time.Now().Format("2006010215"))
 
 	// Get current count
 	count, err := common.RedisGet(key)
 	if err != nil && err.Error() != "redis: nil" {
-		return false, fmt.Errorf("failed to get notification count: %w", err)
+		return false, fmt.Errorf(i18n.Translate("svc.failed_to_get_notification_count"), err)
 	}
 
 	// If key doesn't exist, initialize it
@@ -80,7 +81,7 @@ func checkRedisLimit(userId int, notifyType string) (bool, error) {
 	// Only increment if under limit
 	err = common.RedisIncr(key, 1)
 	if err != nil {
-		return false, fmt.Errorf("failed to increment notification count: %w", err)
+		return false, fmt.Errorf(i18n.Translate("svc.failed_to_increment_notification_count"), err)
 	}
 
 	return true, nil

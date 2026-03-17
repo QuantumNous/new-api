@@ -3,10 +3,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/QuantumNous/new-api/i18n"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/google/uuid"
@@ -20,19 +23,19 @@ func FetchCodexWhamUsage(
 	accountID string,
 ) (statusCode int, body []byte, err error) {
 	if client == nil {
-		return 0, nil, fmt.Errorf("nil http client")
+		return 0, nil, errors.New(i18n.Translate("svc.nil_http_client"))
 	}
 	bu := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if bu == "" {
-		return 0, nil, fmt.Errorf("empty baseURL")
+		return 0, nil, errors.New(i18n.Translate("svc.empty_baseurl"))
 	}
 	at := strings.TrimSpace(accessToken)
 	aid := strings.TrimSpace(accountID)
 	if at == "" {
-		return 0, nil, fmt.Errorf("empty accessToken")
+		return 0, nil, errors.New(i18n.Translate("svc.empty_accesstoken"))
 	}
 	if aid == "" {
-		return 0, nil, fmt.Errorf("empty accountID")
+		return 0, nil, errors.New(i18n.Translate("svc.empty_accountid"))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, bu+"/backend-api/wham/usage", nil)

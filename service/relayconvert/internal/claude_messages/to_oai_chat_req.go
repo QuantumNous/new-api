@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
 )
@@ -62,7 +63,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 			}
 			reasoningJSON, err := common.Marshal(reasoningConfig)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
+				return nil, fmt.Errorf(i18n.Translate("svc.failed_to_marshal_reasoning"), err)
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}

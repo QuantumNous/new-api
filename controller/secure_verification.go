@@ -68,7 +68,7 @@ func UniversalVerify(c *gin.Context) {
 	model.RecordLog(identity.UserID, model.LogTypeSystem, "通用安全验证成功 (验证方式: 2FA)")
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "验证成功",
+		"message": common.TranslateMessage(c, "common.operation_success"),
 		"data": gin.H{
 			"proof_token": proofToken,
 			"expires_at":  expiresAt,

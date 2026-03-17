@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/QuantumNous/new-api/i18n"
 	"io"
 	"net/http"
 	"strings"
@@ -114,11 +115,11 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
 	streamData, err := common.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+		return fmt.Errorf(i18n.Translate("relay.failed_to_marshal_stream_response"), err)
 	}
 	err = openai.HandleStreamFormat(c, info, string(streamData), info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 	if err != nil {
-		return fmt.Errorf("failed to handle stream format: %w", err)
+		return fmt.Errorf(i18n.Translate("relay.failed_to_handle_stream_format"), err)
 	}
 	return nil
 }
@@ -126,7 +127,7 @@ func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCom
 func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
 	streamData, err := common.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+		return fmt.Errorf(i18n.Translate("relay.failed_to_marshal_stream_response"), err)
 	}
 	openai.HandleFinalResponse(c, info, string(streamData), resp.Id, resp.Created, resp.Model, resp.GetSystemFingerprint(), resp.Usage, false)
 	return nil
@@ -146,7 +147,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf(i18n.Translate("relay.gemini_block_reason"), *geminiResponse.PromptFeedback.BlockReason))
 		}
 
 		// 统计图片数量
@@ -291,7 +292,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	}
 	handleErr := handleFinalStream(c, info, response)
 	if handleErr != nil {
-		common.SysLog("send final response failed: " + handleErr.Error())
+		common.SysLog(i18n.Translate("relay.send_final_response_failed") + handleErr.Error())
 	}
 	return usage, nil
 }
@@ -313,7 +314,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 
 		var newAPIError *types.NewAPIError
 		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
-			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf(i18n.Translate("relay.gemini_block_reason"), *geminiResponse.PromptFeedback.BlockReason))
 			newAPIError = types.NewOpenAIError(
 				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),
 				types.ErrorCodePromptBlocked,
@@ -322,7 +323,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		} else {
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "gemini_empty_candidates")
 			newAPIError = types.NewOpenAIError(
-				errors.New("empty response from Gemini API"),
+				errors.New(i18n.Translate("relay.empty_response_from_gemini_api")),
 				types.ErrorCodeEmptyResponse,
 				http.StatusInternalServerError,
 			)
@@ -432,7 +433,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	}
 
 	if len(geminiResponse.Predictions) == 0 {
-		return nil, types.NewOpenAIError(errors.New("no images generated"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(errors.New(i18n.Translate("relay.no_images_generated")), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	// convert to openai format response

@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,7 @@ func (user *UserBase) GetSetting() dto.UserSetting {
 	if user.Setting != "" {
 		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
-			common.SysLog("failed to unmarshal setting: " + err.Error())
+			common.SysLog(i18n.Translate("model.failed_to_unmarshal_setting") + err.Error())
 		}
 	}
 	return setting
@@ -122,7 +123,7 @@ func GetUserCache(userId int) (*UserBase, error) {
 
 func cacheGetUserBase(userId int) (*UserBase, error) {
 	if !common.RedisEnabled {
-		return nil, fmt.Errorf("redis is not enabled")
+		return nil, errors.New(i18n.Translate("model.redis_is_not_enabled"))
 	}
 	var userCache UserBase
 	// Try getting from Redis first

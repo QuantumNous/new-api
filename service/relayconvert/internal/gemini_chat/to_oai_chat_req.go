@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service/relayconvert/internal/jsonutil"
 	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
@@ -120,7 +121,7 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 			}
 			functionDeclarations, err := common.Any2Type[[]dto.FunctionRequest](tool.FunctionDeclarations)
 			if err != nil {
-				common.SysError(fmt.Sprintf("failed to parse gemini function declarations: %v (type=%T)", err, tool.FunctionDeclarations))
+				common.SysError(fmt.Sprintf(i18n.Translate("svc.failed_to_parse_gemini_function_declarations_type"), err, tool.FunctionDeclarations))
 				continue
 			}
 			for _, function := range functionDeclarations {

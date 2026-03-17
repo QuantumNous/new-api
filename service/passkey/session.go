@@ -10,7 +10,7 @@ import (
 	webauthn "github.com/go-webauthn/webauthn/webauthn"
 )
 
-var errSessionNotFound = errors.New("Passkey 会话不存在或已过期")
+var errSessionNotFound = errors.New("passkey.session_not_found")
 
 const passkeyFlowTTL = 5 * time.Minute
 

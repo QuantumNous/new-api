@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -50,7 +51,7 @@ func PasskeyRegisterBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -128,7 +129,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -196,7 +197,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 
 	passkeyCredential := model.NewPasskeyCredentialFromWebAuthn(user.Id, credential)
 	if passkeyCredential == nil {
-		common.ApiErrorMsg(c, "无法创建 Passkey 凭证")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "passkey.create_failed"))
 		return
 	}
 
@@ -213,7 +214,7 @@ func PasskeyRegisterFinish(c *gin.Context) {
 	recordUserSecurityAudit(c, user.Id, "user.passkey_register", nil)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 注册成功",
+		"message": common.TranslateMessage(c, "passkey.register_success"),
 		"data":    authRotationData(bundle),
 	})
 }
@@ -250,7 +251,7 @@ func PasskeyDelete(c *gin.Context) {
 	recordUserSecurityAudit(c, user.Id, "user.passkey_delete", nil)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 已解绑",
+		"message": common.TranslateMessage(c, "passkey.unbound"),
 		"data":    authRotationData(bundle),
 	})
 }
@@ -297,7 +298,7 @@ func PasskeyLoginBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -341,7 +342,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -378,26 +379,26 @@ func PasskeyLoginFinish(c *gin.Context) {
 		// 首先通过凭证ID查找用户
 		credential, err := model.GetPasskeyByCredentialID(rawID)
 		if err != nil {
-			return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
+			return nil, fmt.Errorf("%s: %w", common.TranslateMessage(c, "passkey.credential_not_found"), err)
 		}
 
 		// 通过凭证获取用户
 		user := &model.User{Id: credential.UserID}
 		if err := user.FillUserById(); err != nil {
-			return nil, fmt.Errorf("用户信息获取失败: %w", err)
+			return nil, fmt.Errorf("%s", common.TranslateMessage(c, "passkey.user_get_failed"))
 		}
 
 		if user.Status != common.UserStatusEnabled {
-			return nil, errors.New("该用户已被禁用")
+			return nil, errors.New(common.TranslateMessage(c, "user.disabled"))
 		}
 
 		if len(userHandle) > 0 {
 			userID, parseErr := strconv.Atoi(string(userHandle))
 			if parseErr != nil {
 				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
-				common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
+				common.SysLog(fmt.Sprintf(i18n.Translate("ctrl.passkeylogin_userhandle_parse_error_for_credential_length"), len(userHandle)))
 			} else if userID != user.Id {
-				return nil, errors.New("用户句柄与凭证不匹配")
+				return nil, errors.New(common.TranslateMessage(c, "passkey.user_handle_mismatch"))
 			}
 		}
 
@@ -412,18 +413,18 @@ func PasskeyLoginFinish(c *gin.Context) {
 
 	userWrapper, ok := waUser.(*passkeysvc.WebAuthnUser)
 	if !ok {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "passkey.login_abnormal"))
 		return
 	}
 
 	modelUser := userWrapper.ModelUser()
 	if modelUser == nil {
-		common.ApiErrorMsg(c, "Passkey 登录状态异常")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "passkey.login_abnormal"))
 		return
 	}
 
 	if modelUser.Status != common.UserStatusEnabled {
-		common.ApiErrorMsg(c, "该用户已被禁用")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "user.disabled"))
 		return
 	}
 
@@ -438,7 +439,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 func AdminResetPasskey(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiErrorMsg(c, "无效的用户 ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "passkey.invalid_user_id"))
 		return
 	}
 
@@ -457,7 +458,7 @@ func AdminResetPasskey(c *gin.Context) {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "该用户尚未绑定 Passkey",
+				"message": common.TranslateMessage(c, "passkey.not_bound"),
 			})
 			return
 		}
@@ -480,7 +481,7 @@ func AdminResetPasskey(c *gin.Context) {
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 已重置",
+		"message": common.TranslateMessage(c, "passkey.reset"),
 	})
 }
 
@@ -488,7 +489,7 @@ func PasskeyVerifyBegin(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -515,7 +516,7 @@ func PasskeyVerifyBegin(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "该用户尚未绑定 Passkey",
+			"message": common.TranslateMessage(c, "passkey.not_bound"),
 		})
 		return
 	}
@@ -565,7 +566,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 	if !system_setting.GetPasskeySettings().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "管理员未启用 Passkey 登录",
+			"message": common.TranslateMessage(c, "passkey.not_enabled"),
 		})
 		return
 	}
@@ -600,7 +601,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "该用户尚未绑定 Passkey",
+			"message": common.TranslateMessage(c, "passkey.not_bound"),
 		})
 		return
 	}
@@ -641,7 +642,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Passkey 验证成功",
+		"message": common.TranslateMessage(c, "passkey.verify_success"),
 		"data": gin.H{
 			"proof_token": proofToken,
 			"expires_at":  proofExpiresAt,
@@ -654,14 +655,14 @@ func PasskeyVerifyFinish(c *gin.Context) {
 func getAuthenticatedUser(c *gin.Context) (*model.User, error) {
 	id := c.GetInt("id")
 	if id == 0 {
-		return nil, errors.New("未登录")
+		return nil, errors.New(common.TranslateMessage(c, "common.not_logged_in"))
 	}
 	user := &model.User{Id: id}
 	if err := user.FillUserById(); err != nil {
 		return nil, err
 	}
 	if user.Status != common.UserStatusEnabled {
-		return nil, errors.New("该用户已被禁用")
+		return nil, errors.New(common.TranslateMessage(c, "user.disabled"))
 	}
 	return user, nil
 }
@@ -693,7 +694,7 @@ func requirePasskeyDeleteVerification(c *gin.Context, userID int) bool {
 		if errors.Is(err, model.ErrPasskeyNotFound) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "该用户尚未绑定 Passkey",
+				"message": i18n.Translate("passkey.user_no_passkey_bound"),
 			})
 			return false
 		}

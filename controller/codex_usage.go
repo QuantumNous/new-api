@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -84,8 +85,8 @@ func fetchCodexChannelWhamData(
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
-		common.SysError("failed to parse oauth key: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析凭证失败，请检查渠道配置"})
+		common.SysError(i18n.Translate("ctrl.failed_to_parse_oauth_key") + err.Error())
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": common.TranslateMessage(c, "codex.parse_auth_failed")})
 		return
 	}
 	accessToken := strings.TrimSpace(oauthKey.AccessToken)
@@ -159,7 +160,7 @@ func fetchCodexChannelWhamData(
 		"data":            payload,
 	}
 	if !ok {
-		resp["message"] = fmt.Sprintf("upstream status: %d", statusCode)
+		resp["message"] = fmt.Sprintf(i18n.Translate("ctrl.upstream_status"), statusCode)
 	}
 	c.JSON(http.StatusOK, resp)
 }

@@ -16,7 +16,6 @@ func SecureVerificationRequired() gin.HandlerFunc {
 		if !RequireSecurityProof(c, "channel.key.read", []string{"2fa", "passkey"}) {
 			return
 		}
-		c.Set("secure_verified", true)
 		c.Next()
 	}
 }

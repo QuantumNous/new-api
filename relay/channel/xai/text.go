@@ -1,6 +1,7 @@
 package xai
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"io"
 	"net/http"
 	"strings"
@@ -46,7 +47,7 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var xAIResp *dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &xAIResp); err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			common.SysLog(i18n.Translate("relay.error_unmarshalling_stream_response") + err.Error())
 			sr.Error(err)
 			return
 		}

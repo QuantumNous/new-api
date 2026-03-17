@@ -148,25 +148,25 @@ func parsePortRanges(portConfigs []string) ([]int, error) {
 			// 处理端口范围 "8000-9000"
 			parts := strings.Split(config, "-")
 			if len(parts) != 2 {
-				return nil, fmt.Errorf("invalid port range format: %s", config)
+				return nil, fmt.Errorf(Translate("common.invalid_port_range_format"), config)
 			}
 
 			startPort, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 			if err != nil {
-				return nil, fmt.Errorf("invalid start port in range %s: %v", config, err)
+				return nil, fmt.Errorf(Translate("common.invalid_start_port_in_range"), config, err)
 			}
 
 			endPort, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 			if err != nil {
-				return nil, fmt.Errorf("invalid end port in range %s: %v", config, err)
+				return nil, fmt.Errorf(Translate("common.invalid_end_port_in_range"), config, err)
 			}
 
 			if startPort > endPort {
-				return nil, fmt.Errorf("invalid port range %s: start port cannot be greater than end port", config)
+				return nil, fmt.Errorf(Translate("common.invalid_port_range_start_port_cannot_be_greater"), config)
 			}
 
 			if startPort < 1 || startPort > 65535 || endPort < 1 || endPort > 65535 {
-				return nil, fmt.Errorf("port range %s contains invalid port numbers (must be 1-65535)", config)
+				return nil, fmt.Errorf(Translate("common.port_range_contains_invalid_port_numbers_must_be"), config)
 			}
 
 			// 添加范围内的所有端口
@@ -177,11 +177,11 @@ func parsePortRanges(portConfigs []string) ([]int, error) {
 			// 处理单个端口 "80"
 			port, err := strconv.Atoi(config)
 			if err != nil {
-				return nil, fmt.Errorf("invalid port number: %s", config)
+				return nil, fmt.Errorf(Translate("common.invalid_port_number"), config)
 			}
 
 			if port < 1 || port > 65535 {
-				return nil, fmt.Errorf("invalid port number %d (must be 1-65535)", port)
+				return nil, fmt.Errorf(Translate("common.invalid_port_number_must_be_1_65535"), port)
 			}
 
 			ports = append(ports, port)
@@ -269,21 +269,21 @@ func (p *SSRFProtection) IsIPAccessAllowed(ip net.IP) bool {
 func (p *SSRFProtection) ipAccessError(host string, ip net.IP) error {
 	if host != "" {
 		if isPrivateIP(ip) && !p.AllowPrivateIp {
-			return fmt.Errorf("private IP address not allowed: %s resolves to %s", host, ip.String())
+			return fmt.Errorf(Translate("common.private_ip_address_not_allowed_resolves_to"), host, ip.String())
 		}
 		if p.IpFilterMode {
-			return fmt.Errorf("ip not in whitelist: %s resolves to %s", host, ip.String())
+			return fmt.Errorf(Translate("common.ip_not_in_whitelist_resolves_to"), host, ip.String())
 		}
-		return fmt.Errorf("ip in blacklist: %s resolves to %s", host, ip.String())
+		return fmt.Errorf(Translate("common.ip_in_blacklist_resolves_to"), host, ip.String())
 	}
 
 	if isPrivateIP(ip) && !p.AllowPrivateIp {
-		return fmt.Errorf("private IP address not allowed: %s", ip.String())
+		return fmt.Errorf(Translate("common.private_ip_address_not_allowed"), ip.String())
 	}
 	if p.IpFilterMode {
-		return fmt.Errorf("ip not in whitelist: %s", ip.String())
+		return fmt.Errorf(Translate("common.ip_not_in_whitelist"), ip.String())
 	}
-	return fmt.Errorf("ip in blacklist: %s", ip.String())
+	return fmt.Errorf(Translate("common.ip_in_blacklist"), ip.String())
 }
 
 // ValidateNetworkTarget validates the host and port before dialing.
@@ -296,7 +296,7 @@ func (p *SSRFProtection) ValidateNetworkTarget(host string, port int) error {
 		return fmt.Errorf("invalid port: %d", port)
 	}
 	if !p.isAllowedPort(port) {
-		return fmt.Errorf("port %d is not allowed", port)
+		return fmt.Errorf(Translate("common.port_is_not_allowed"), port)
 	}
 
 	if ip := net.ParseIP(host); ip != nil {
@@ -308,9 +308,9 @@ func (p *SSRFProtection) ValidateNetworkTarget(host string, port int) error {
 
 	if !p.isDomainAllowed(host) {
 		if p.DomainFilterMode {
-			return fmt.Errorf("domain not in whitelist: %s", host)
+			return fmt.Errorf(Translate("common.domain_not_in_whitelist"), host)
 		}
-		return fmt.Errorf("domain in blacklist: %s", host)
+		return fmt.Errorf(Translate("common.domain_in_blacklist"), host)
 	}
 	return nil
 }
@@ -328,7 +328,7 @@ func (p *SSRFProtection) ValidateURL(urlStr string) error {
 	// 解析URL
 	u, err := url.Parse(urlStr)
 	if err != nil {
-		return fmt.Errorf("invalid URL format: %v", err)
+		return fmt.Errorf(Translate("common.invalid_url_format_b201"), err)
 	}
 
 	// 只允许HTTP/HTTPS协议
@@ -351,7 +351,7 @@ func (p *SSRFProtection) ValidateURL(urlStr string) error {
 	// 验证端口
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return fmt.Errorf("invalid port: %s", portStr)
+		return fmt.Errorf(Translate("common.invalid_port"), portStr)
 	}
 
 	if err := p.ValidateNetworkTarget(host, port); err != nil {
@@ -366,7 +366,7 @@ func (p *SSRFProtection) ValidateURL(urlStr string) error {
 	// 解析域名对应IP并检查
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		return fmt.Errorf("DNS resolution failed for %s: %v", host, err)
+		return fmt.Errorf(Translate("common.dns_resolution_failed_for"), host, err)
 	}
 	for _, ip := range ips {
 		if err := p.ValidateResolvedIP(host, ip); err != nil {
@@ -385,7 +385,7 @@ func ValidateURLWithFetchSetting(urlStr string, enableSSRFProtection, allowPriva
 
 	protection, err := NewSSRFProtectionFromFetchSetting(allowPrivateIp, domainFilterMode, ipFilterMode, domainList, ipList, allowedPorts, applyIPFilterForDomain)
 	if err != nil {
-		return err
+		return fmt.Errorf(Translate("common.request_reject_invalid_port_configuration"), err)
 	}
 	return protection.ValidateURL(urlStr)
 }

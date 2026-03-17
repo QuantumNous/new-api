@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"errors"
 	"fmt"
 	"strings"
@@ -148,31 +149,31 @@ func IsSlugTaken(slug string, excludeId int) bool {
 // validateCustomOAuthProvider validates a custom OAuth provider configuration
 func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if provider.Name == "" {
-		return errors.New("provider name is required")
+		return errors.New(i18n.Translate("model.provider_name_is_required"))
 	}
 	if provider.Slug == "" {
-		return errors.New("provider slug is required")
+		return errors.New(i18n.Translate("model.provider_slug_is_required"))
 	}
 	// Slug must be lowercase and contain only alphanumeric characters and hyphens
 	slug := strings.ToLower(provider.Slug)
 	for _, c := range slug {
 		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
-			return errors.New("provider slug must contain only lowercase letters, numbers, and hyphens")
+			return errors.New(i18n.Translate("model.provider_slug_must_contain_only_lowercase_letters_numbers"))
 		}
 	}
 	provider.Slug = slug
 
 	if provider.ClientId == "" {
-		return errors.New("client ID is required")
+		return errors.New(i18n.Translate("model.client_id_is_required"))
 	}
 	if provider.AuthorizationEndpoint == "" {
-		return errors.New("authorization endpoint is required")
+		return errors.New(i18n.Translate("model.authorization_endpoint_is_required"))
 	}
 	if provider.TokenEndpoint == "" {
-		return errors.New("token endpoint is required")
+		return errors.New(i18n.Translate("model.token_endpoint_is_required"))
 	}
 	if provider.UserInfoEndpoint == "" {
-		return errors.New("user info endpoint is required")
+		return errors.New(i18n.Translate("model.user_info_endpoint_is_required"))
 	}
 
 	// Set defaults for field mappings if empty
@@ -194,10 +195,10 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if strings.TrimSpace(provider.AccessPolicy) != "" {
 		var policy accessPolicyPayload
 		if err := common.UnmarshalJsonStr(provider.AccessPolicy, &policy); err != nil {
-			return errors.New("access_policy must be valid JSON")
+			return errors.New(i18n.Translate("model.access_policy_must_be_valid_json"))
 		}
 		if err := validateAccessPolicyPayload(&policy); err != nil {
-			return fmt.Errorf("access_policy is invalid: %w", err)
+			return fmt.Errorf(i18n.Translate("model.access_policy_is_invalid"), err)
 		}
 	}
 
@@ -206,7 +207,7 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 
 func validateAccessPolicyPayload(policy *accessPolicyPayload) error {
 	if policy == nil {
-		return errors.New("policy is nil")
+		return errors.New(i18n.Translate("model.policy_is_nil"))
 	}
 
 	logic := strings.ToLower(strings.TrimSpace(policy.Logic))
@@ -214,32 +215,32 @@ func validateAccessPolicyPayload(policy *accessPolicyPayload) error {
 		logic = "and"
 	}
 	if logic != "and" && logic != "or" {
-		return fmt.Errorf("unsupported logic: %s", logic)
+		return fmt.Errorf(i18n.Translate("model.unsupported_logic"), logic)
 	}
 
 	if len(policy.Conditions) == 0 && len(policy.Groups) == 0 {
-		return errors.New("policy requires at least one condition or group")
+		return errors.New(i18n.Translate("model.policy_requires_at_least_one_condition_or_group"))
 	}
 
 	for index, condition := range policy.Conditions {
 		field := strings.TrimSpace(condition.Field)
 		if field == "" {
-			return fmt.Errorf("condition[%d].field is required", index)
+			return fmt.Errorf(i18n.Translate("model.condition_field_is_required"), index)
 		}
 		op := strings.ToLower(strings.TrimSpace(condition.Op))
 		if _, ok := supportedAccessPolicyOps[op]; !ok {
-			return fmt.Errorf("condition[%d].op is unsupported: %s", index, op)
+			return fmt.Errorf(i18n.Translate("model.condition_op_is_unsupported"), index, op)
 		}
 		if op == "in" || op == "not_in" {
 			if _, ok := condition.Value.([]any); !ok {
-				return fmt.Errorf("condition[%d].value must be an array for op %s", index, op)
+				return fmt.Errorf(i18n.Translate("model.condition_value_must_be_an_array_for_op"), index, op)
 			}
 		}
 	}
 
 	for index := range policy.Groups {
 		if err := validateAccessPolicyPayload(&policy.Groups[index]); err != nil {
-			return fmt.Errorf("group[%d]: %w", index, err)
+			return fmt.Errorf(i18n.Translate("model.group"), index, err)
 		}
 	}
 
