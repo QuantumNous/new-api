@@ -66,7 +66,7 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 	userId := c.GetInt("id")
 	var req BillingPreferenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	pref := common.NormalizeBillingPreference(req.BillingPreference)
@@ -110,20 +110,20 @@ type AdminUpsertSubscriptionPlanRequest struct {
 func AdminCreateSubscriptionPlan(c *gin.Context) {
 	var req AdminUpsertSubscriptionPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	req.Plan.Id = 0
 	if strings.TrimSpace(req.Plan.Title) == "" {
-		common.ApiErrorMsg(c, "套餐标题不能为空")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.title_empty"))
 		return
 	}
 	if req.Plan.PriceAmount < 0 {
-		common.ApiErrorMsg(c, "价格不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.price_negative"))
 		return
 	}
 	if req.Plan.PriceAmount > 9999 {
-		common.ApiErrorMsg(c, "价格不能超过9999")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.price_max"))
 		return
 	}
 	if req.Plan.Currency == "" {
@@ -137,23 +137,23 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.DurationValue = 1
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
-		common.ApiErrorMsg(c, "购买上限不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.purchase_limit_negative"))
 		return
 	}
 	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.quota_negative"))
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
-			common.ApiErrorMsg(c, "升级分组不存在")
+			common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.group_not_exists"))
 			return
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.reset_cycle_gt_zero"))
 		return
 	}
 	err := model.DB.Create(&req.Plan).Error
@@ -168,24 +168,24 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if id <= 0 {
-		common.ApiErrorMsg(c, "无效的ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_id"))
 		return
 	}
 	var req AdminUpsertSubscriptionPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
-		common.ApiErrorMsg(c, "套餐标题不能为空")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.title_empty"))
 		return
 	}
 	if req.Plan.PriceAmount < 0 {
-		common.ApiErrorMsg(c, "价格不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.price_negative"))
 		return
 	}
 	if req.Plan.PriceAmount > 9999 {
-		common.ApiErrorMsg(c, "价格不能超过9999")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.price_max"))
 		return
 	}
 	req.Plan.Id = id
@@ -200,23 +200,23 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		req.Plan.DurationValue = 1
 	}
 	if req.Plan.MaxPurchasePerUser < 0 {
-		common.ApiErrorMsg(c, "购买上限不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.purchase_limit_negative"))
 		return
 	}
 	if req.Plan.TotalAmount < 0 {
-		common.ApiErrorMsg(c, "总额度不能为负数")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.quota_negative"))
 		return
 	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
-			common.ApiErrorMsg(c, "升级分组不存在")
+			common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.group_not_exists"))
 			return
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.reset_cycle_gt_zero"))
 		return
 	}
 
@@ -261,12 +261,12 @@ type AdminUpdateSubscriptionPlanStatusRequest struct {
 func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if id <= 0 {
-		common.ApiErrorMsg(c, "无效的ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_id"))
 		return
 	}
 	var req AdminUpdateSubscriptionPlanStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
@@ -285,7 +285,7 @@ type AdminBindSubscriptionRequest struct {
 func AdminBindSubscription(c *gin.Context) {
 	var req AdminBindSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
@@ -305,7 +305,7 @@ func AdminBindSubscription(c *gin.Context) {
 func AdminListUserSubscriptions(c *gin.Context) {
 	userId, _ := strconv.Atoi(c.Param("id"))
 	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_user_id"))
 		return
 	}
 	subs, err := model.GetAllUserSubscriptions(userId)
@@ -324,12 +324,12 @@ type AdminCreateUserSubscriptionRequest struct {
 func AdminCreateUserSubscription(c *gin.Context) {
 	userId, _ := strconv.Atoi(c.Param("id"))
 	if userId <= 0 {
-		common.ApiErrorMsg(c, "无效的用户ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_user_id"))
 		return
 	}
 	var req AdminCreateUserSubscriptionRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "common.invalid_params"))
 		return
 	}
 	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
@@ -348,7 +348,7 @@ func AdminCreateUserSubscription(c *gin.Context) {
 func AdminInvalidateUserSubscription(c *gin.Context) {
 	subId, _ := strconv.Atoi(c.Param("id"))
 	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_id"))
 		return
 	}
 	msg, err := model.AdminInvalidateUserSubscription(subId)
@@ -367,7 +367,7 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 func AdminDeleteUserSubscription(c *gin.Context) {
 	subId, _ := strconv.Atoi(c.Param("id"))
 	if subId <= 0 {
-		common.ApiErrorMsg(c, "无效的订阅ID")
+		common.ApiErrorMsg(c, common.TranslateMessage(c, "subscription.invalid_id"))
 		return
 	}
 	msg, err := model.AdminDeleteUserSubscription(subId)

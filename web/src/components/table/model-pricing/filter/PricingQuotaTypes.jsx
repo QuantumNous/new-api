@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 计费类型筛选组件
@@ -33,8 +34,8 @@ const PricingQuotaTypes = ({
   setFilterQuotaType,
   models = [],
   loading = false,
-  t,
 }) => {
+  const { t } = useTranslation();
   const qtyCount = (type) =>
     models.filter((m) => (type === 'all' ? true : m.quota_type === type))
       .length;

@@ -38,12 +38,14 @@ import {
   IconCopy,
 } from '@douyinfe/semi-icons';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { QRCodeSVG } from 'qrcode.react';
 
 const { Text, Paragraph } = Typography;
 
-const TwoFASetting = ({ t }) => {
+const TwoFASetting = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({
     enabled: false,

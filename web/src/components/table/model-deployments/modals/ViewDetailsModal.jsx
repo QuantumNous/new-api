@@ -49,10 +49,12 @@ import {
   showSuccess,
   timestamp2string,
 } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const { Text, Title } = Typography;
 
-const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
+const ViewDetailsModal = ({ visible, onCancel, deployment }) => {
+  const { t } = useTranslation();
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [containers, setContainers] = useState([]);

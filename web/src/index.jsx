@@ -31,7 +31,12 @@ import './index.css';
 import { LocaleProvider } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
+import zh_TW from '@douyinfe/semi-ui/lib/es/locale/source/zh_TW';
 import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
+import fr from '@douyinfe/semi-ui/lib/es/locale/source/fr';
+import ru_RU from '@douyinfe/semi-ui/lib/es/locale/source/ru_RU';
+import ja_JP from '@douyinfe/semi-ui/lib/es/locale/source/ja_JP';
+import vi_VN from '@douyinfe/semi-ui/lib/es/locale/source/vi_VN';
 
 // 欢迎信息（二次开发者未经允许不准将此移除）
 // Welcome message (Do not remove this without permission from the original developer)
@@ -46,7 +51,16 @@ if (typeof window !== 'undefined') {
 function SemiLocaleWrapper({ children }) {
   const { i18n } = useTranslation();
   const semiLocale = React.useMemo(
-    () => ({ zh: zh_CN, en: en_GB })[i18n.language] || zh_CN,
+    () =>
+      ({
+        'zh-CN': zh_CN,
+        'zh-TW': zh_TW,
+        en: en_GB,
+        fr: fr,
+        ru: ru_RU,
+        ja: ja_JP,
+        vi: vi_VN,
+      })[i18n.language] || en_GB,
     [i18n.language],
   );
   return <LocaleProvider locale={semiLocale}>{children}</LocaleProvider>;

@@ -27,6 +27,7 @@ import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
 import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -44,8 +45,8 @@ const ModelDetailSideSheet = ({
   vendorsMap,
   endpointMap,
   autoGroups,
-  t,
 }) => {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
 
   return (

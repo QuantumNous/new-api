@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -54,6 +55,7 @@ import {
 
 const Dashboard = () => {
   // ========== Context ==========
+  const { t } = useTranslation();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState, statusDispatch] = useContext(StatusContext);
 
@@ -70,7 +72,7 @@ const Dashboard = () => {
     dashboardData.setPieData,
     dashboardData.setLineData,
     dashboardData.setModelColors,
-    dashboardData.t,
+    t,
   );
 
   // ========== 统计数据 ==========
@@ -78,11 +80,11 @@ const Dashboard = () => {
     userState,
     dashboardData.consumeQuota,
     dashboardData.consumeTokens,
-    dashboardData.times,
-    dashboardData.trendData,
+    times,
+    trendData,
     dashboardData.performanceMetrics,
     dashboardData.navigate,
-    dashboardData.t,
+    t,
   );
 
   // ========== 数据处理 ==========
@@ -141,7 +143,7 @@ const Dashboard = () => {
     ([status, info]) => ({
       status: Number(status),
       color: info.color,
-      label: dashboardData.t(info.label),
+      label: t(info.label),
     }),
   );
 
@@ -158,7 +160,7 @@ const Dashboard = () => {
         showSearchModal={dashboardData.showSearchModal}
         refresh={handleRefresh}
         loading={dashboardData.loading}
-        t={dashboardData.t}
+        t={t}
       />
 
       <SearchModal
@@ -169,9 +171,9 @@ const Dashboard = () => {
         isAdminUser={dashboardData.isAdminUser}
         inputs={dashboardData.inputs}
         dataExportDefaultTime={dashboardData.dataExportDefaultTime}
-        timeOptions={dashboardData.timeOptions}
+        timeOptions={timeOptions}
         handleInputChange={dashboardData.handleInputChange}
-        t={dashboardData.t}
+        t={t}
       />
 
       <StatsCards
@@ -201,18 +203,18 @@ const Dashboard = () => {
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
-            t={dashboardData.t}
+            t={t}
           />
 
           {dashboardData.hasApiInfoPanel && (
             <ApiInfoPanel
               apiInfoData={apiInfoData}
-              handleCopyUrl={(url) => handleCopyUrl(url, dashboardData.t)}
+              handleCopyUrl={(url) => handleCopyUrl(url)}
               handleSpeedTest={handleSpeedTest}
               CARD_PROPS={CARD_PROPS}
               FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
               ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-              t={dashboardData.t}
+              t={t}
             />
           )}
         </div>
@@ -229,12 +231,12 @@ const Dashboard = () => {
                 announcementLegendData={ANNOUNCEMENT_LEGEND_DATA.map(
                   (item) => ({
                     ...item,
-                    label: dashboardData.t(item.label),
+                    label: t(item.label),
                   }),
                 )}
                 CARD_PROPS={CARD_PROPS}
                 ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
+                t={t}
               />
             )}
 
@@ -245,7 +247,7 @@ const Dashboard = () => {
                 CARD_PROPS={CARD_PROPS}
                 FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
                 ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
+                t={t}
               />
             )}
 
@@ -262,18 +264,12 @@ const Dashboard = () => {
                   renderMonitorList(
                     monitors,
                     (status) => getUptimeStatusColor(status, UPTIME_STATUS_MAP),
-                    (status) =>
-                      getUptimeStatusText(
-                        status,
-                        UPTIME_STATUS_MAP,
-                        dashboardData.t,
-                      ),
-                    dashboardData.t,
+                    (status) => t(getUptimeStatusText(status, UPTIME_STATUS_MAP)),
                   )
                 }
                 CARD_PROPS={CARD_PROPS}
                 ILLUSTRATION_SIZE={ILLUSTRATION_SIZE}
-                t={dashboardData.t}
+                t={t}
               />
             )}
           </div>

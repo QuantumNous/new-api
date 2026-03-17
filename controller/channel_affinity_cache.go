@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -36,7 +37,7 @@ func ClearChannelAffinityCache(c *gin.Context) {
 	if ruleName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "缺少参数：rule_name，或使用 all=true 清空全部",
+			"message": common.TranslateMessage(c, "affinity_cache.missing_param"),
 		})
 		return
 	}

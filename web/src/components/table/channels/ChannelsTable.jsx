@@ -25,8 +25,10 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getChannelsColumns } from './ChannelsColumnDefs';
+import { useTranslation } from 'react-i18next';
 
 const ChannelsTable = (channelsData) => {
+  const { t } = useTranslation();
   const {
     channels,
     loading,
@@ -41,7 +43,6 @@ const ChannelsTable = (channelsData) => {
     handlePageChange,
     handlePageSizeChange,
     handleRow,
-    t,
     COLUMN_KEYS,
     // Column functions and data
     updateChannelBalance,
@@ -68,7 +69,6 @@ const ChannelsTable = (channelsData) => {
   // Get all columns
   const allColumns = useMemo(() => {
     return getChannelsColumns({
-      t,
       COLUMN_KEYS,
       updateChannelBalance,
       manageChannel,
@@ -92,7 +92,6 @@ const ChannelsTable = (channelsData) => {
       detectChannelUpstreamUpdates,
     });
   }, [
-    t,
     COLUMN_KEYS,
     updateChannelBalance,
     manageChannel,

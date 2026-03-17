@@ -1,6 +1,7 @@
 package tencent
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bufio"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -107,7 +108,7 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 		var tencentResponse TencentChatResponse
 		err := common.Unmarshal([]byte(data), &tencentResponse)
 		if err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+			common.SysLog(i18n.Translate("relay.error_unmarshalling_stream_response") + err.Error())
 			continue
 		}
 
@@ -123,7 +124,7 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 	}
 
 	if err := scanner.Err(); err != nil {
-		common.SysLog("error reading stream: " + err.Error())
+		common.SysLog(i18n.Translate("relay.error_reading_stream") + err.Error())
 	}
 
 	helper.Done(c)
@@ -164,7 +165,7 @@ func tencentHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Resp
 func parseTencentConfig(config string) (appId int64, secretId string, secretKey string, err error) {
 	parts := strings.Split(config, "|")
 	if len(parts) != 3 {
-		err = errors.New("invalid tencent config")
+		err = errors.New(i18n.Translate("relay.invalid_tencent_config"))
 		return
 	}
 	appId, err = strconv.ParseInt(parts[0], 10, 64)
@@ -190,7 +191,7 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 	httpRequestMethod := "POST"
 	canonicalURI := "/"
 	canonicalQueryString := ""
-	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-tc-action:%s\n",
+	canonicalHeaders := fmt.Sprintf(i18n.Translate("relay.content_type_nhost_nx_tc_action_n"),
 		"application/json", host, strings.ToLower(adaptor.Action))
 	signedHeaders := "content-type;host;x-tc-action"
 	payload, _ := json.Marshal(req)
@@ -224,7 +225,7 @@ func getTencentSign(req TencentChatRequest, adaptor *Adaptor, secId, secKey stri
 	signature := hex.EncodeToString([]byte(hmacSha256(string2sign, secretKey)))
 
 	// build authorization
-	authorization := fmt.Sprintf("%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
+	authorization := fmt.Sprintf(i18n.Translate("relay.credential_signedheaders_signature"),
 		algorithm,
 		secId,
 		credentialScope,

@@ -29,8 +29,10 @@ import AudioPreviewModal from './modals/AudioPreviewModal';
 import { useTaskLogsData } from '../../../hooks/task-logs/useTaskLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const TaskLogsPage = () => {
+  const { t } = useTranslation();
   const taskLogsData = useTaskLogsData();
   const isMobile = useIsMobile();
 
@@ -64,9 +66,9 @@ const TaskLogsPage = () => {
             onPageChange: taskLogsData.handlePageChange,
             onPageSizeChange: taskLogsData.handlePageSizeChange,
             isMobile: isMobile,
-            t: taskLogsData.t,
+            t: t,
           })}
-          t={taskLogsData.t}
+          t={t}
         >
           <TaskLogsTable {...taskLogsData} />
         </CardPro>

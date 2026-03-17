@@ -20,13 +20,14 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Modal, Badge } from '@douyinfe/semi-ui';
 import { renderQuota, renderNumber } from '../../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const UserInfoModal = ({
   showUserInfo,
   setShowUserInfoModal,
   userInfoData,
-  t,
 }) => {
+  const { t } = useTranslation();
   const infoItemStyle = {
     marginBottom: '16px',
   };

@@ -22,8 +22,10 @@ import { Modal } from '@douyinfe/semi-ui';
 import { resetPricingFilters } from '../../../../helpers/utils';
 import FilterModalContent from './components/FilterModalContent';
 import FilterModalFooter from './components/FilterModalFooter';
+import { useTranslation } from 'react-i18next';
 
-const PricingFilterModal = ({ visible, onClose, sidebarProps, t }) => {
+const PricingFilterModal = ({ visible, onClose, sidebarProps }) => {
+  const { t } = useTranslation();
   const handleResetFilters = () =>
     resetPricingFilters({
       handleChange: sidebarProps.handleChange,

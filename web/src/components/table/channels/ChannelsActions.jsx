@@ -27,6 +27,7 @@ import {
   Select,
 } from '@douyinfe/semi-ui';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { useTranslation } from 'react-i18next';
 
 const ChannelsActions = ({
   enableBatchDelete,
@@ -56,8 +57,8 @@ const ChannelsActions = ({
   activePage,
   pageSize,
   setActivePage,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className='flex flex-col gap-2'>
       {/* 第一行：批量操作按钮 + 设置开关 */}

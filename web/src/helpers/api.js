@@ -24,6 +24,7 @@ import {
   isValidMessage,
 } from './utils';
 import axios from 'axios';
+import i18next from 'i18next';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
 export let API = axios.create({
@@ -346,7 +347,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
         provider.authorization_endpoint,
       );
       showError(
-        'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
+        i18next.t('OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'),
       );
       return;
     }
@@ -363,7 +364,7 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     redirectToOAuthUrl(authUrl);
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(i18next.t('OAuth 登录失败：') + (error.message || i18next.t('未知错误')));
   }
 }
 

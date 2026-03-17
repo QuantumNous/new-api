@@ -27,6 +27,7 @@ import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import SelectionNotification from './components/SelectionNotification';
 import UpstreamConflictModal from './modals/UpstreamConflictModal';
 import SyncWizardModal from './modals/SyncWizardModal';
+import { useTranslation } from 'react-i18next';
 
 const ModelsActions = ({
   selectedKeys,
@@ -41,8 +42,8 @@ const ModelsActions = ({
   applyUpstreamOverwrite,
   compactMode,
   setCompactMode,
-  t,
 }) => {
+  const { t } = useTranslation();
   // Modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showMissingModal, setShowMissingModal] = useState(false);

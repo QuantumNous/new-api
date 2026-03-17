@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { Modal, Form } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 const SearchModal = ({
   searchModalVisible,
@@ -30,8 +31,8 @@ const SearchModal = ({
   dataExportDefaultTime,
   timeOptions,
   handleInputChange,
-  t,
 }) => {
+  const { t } = useTranslation();
   const formRef = useRef();
 
   const FORM_FIELD_PROPS = {

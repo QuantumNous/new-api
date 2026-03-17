@@ -22,6 +22,7 @@ import { Tabs, TabPane, Tag, Button, Dropdown, Modal } from '@douyinfe/semi-ui';
 import { IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import { getLobeHubIcon, showError, showSuccess } from '../../../helpers';
 import { API } from '../../../helpers';
+import { useTranslation } from 'react-i18next';
 
 const ModelsTabs = ({
   activeVendorKey,
@@ -36,8 +37,8 @@ const ModelsTabs = ({
   setShowEditVendor,
   setEditingVendor,
   loadVendors,
-  t,
 }) => {
+  const { t } = useTranslation();
   const handleTabChange = (key) => {
     setActiveVendorKey(key);
     setActivePage(1);

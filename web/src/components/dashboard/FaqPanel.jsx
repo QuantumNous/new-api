@@ -27,14 +27,15 @@ import {
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import ScrollableContainer from '../common/ui/ScrollableContainer';
+import { useTranslation } from 'react-i18next';
 
 const FaqPanel = ({
   faqData,
   CARD_PROPS,
   FLEX_CENTER_GAP2,
   ILLUSTRATION_SIZE,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <Card
       {...CARD_PROPS}

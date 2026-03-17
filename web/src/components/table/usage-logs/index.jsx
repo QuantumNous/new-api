@@ -29,8 +29,10 @@ import ParamOverrideModal from './modals/ParamOverrideModal';
 import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { useTranslation } from 'react-i18next';
 
 const LogsPage = () => {
+  const { t } = useTranslation();
   const logsData = useLogsData();
   const isMobile = useIsMobile();
 
@@ -54,9 +56,9 @@ const LogsPage = () => {
           onPageChange: logsData.handlePageChange,
           onPageSizeChange: logsData.handlePageSizeChange,
           isMobile: isMobile,
-          t: logsData.t,
+          t: t,
         })}
-        t={logsData.t}
+        t={t}
       >
         <LogsTable {...logsData} />
       </CardPro>

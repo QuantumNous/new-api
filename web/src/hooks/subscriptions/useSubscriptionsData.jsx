@@ -160,7 +160,5 @@ export const useSubscriptionsData = () => {
     openCreate,
     openEdit,
 
-    // Translation
-    t,
   };
 };

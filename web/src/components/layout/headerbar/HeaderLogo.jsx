@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Typography, Tag } from '@douyinfe/semi-ui';
 import SkeletonWrapper from '../components/SkeletonWrapper';
@@ -31,8 +32,8 @@ const HeaderLogo = ({
   systemName,
   isSelfUseMode,
   isDemoSiteMode,
-  t,
 }) => {
+  const { t } = useTranslation();
   if (isMobile && isConsoleRoute) {
     return null;
   }

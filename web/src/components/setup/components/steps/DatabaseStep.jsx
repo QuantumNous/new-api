@@ -19,12 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Banner } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 数据库检查步骤组件
  * 显示当前数据库类型和相关警告信息
  */
-const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
+const DatabaseStep = ({ setupStatus, renderNavigationButtons }) => {
+  const { t } = useTranslation();
   // 检测是否在 Electron 环境中运行
   const isElectron =
     typeof window !== 'undefined' && window.electron?.isElectron;

@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 分组筛选组件
@@ -37,8 +38,8 @@ const PricingGroups = ({
   groupRatio = {},
   models = [],
   loading = false,
-  t,
 }) => {
+  const { t } = useTranslation();
   const groups = [
     'all',
     ...Object.keys(usableGroup).filter((key) => key !== ''),

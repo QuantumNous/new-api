@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -18,34 +19,39 @@ func NotifyRootUser(t string, subject string, content string) {
 	user := model.GetRootUser().ToBaseUser()
 	err := NotifyUser(user.Id, user.Email, user.GetSetting(), dto.NewNotify(t, subject, content, nil))
 	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
+		common.SysLog(fmt.Sprintf(i18n.Translate("svc.failed_to_notify_root_user"), err.Error()))
 	}
 }
 
-func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+// NotifyUpstreamModelUpdateWatchers broadcasts an upstream model update notification
+// to all admin users who opted in. The subject and content are rendered per-user in
+// their preferred language via the provided builder, so each recipient receives the
+// message localized to their own setting instead of the server default.
+func NotifyUpstreamModelUpdateWatchers(build func(lang string) (subject string, content string)) {
 	var users []model.User
 	if err := model.DB.
 		Select("id", "email", "role", "status", "setting").
 		Where("status = ? AND role >= ?", common.UserStatusEnabled, common.RoleAdminUser).
 		Find(&users).Error; err != nil {
-		common.SysLog(fmt.Sprintf("failed to query upstream update notification users: %s", err.Error()))
+		common.SysLog(fmt.Sprintf(i18n.Translate("svc.failed_to_query_upstream_update_notification_users"), err.Error()))
 		return
 	}
 
-	notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
 	sentCount := 0
 	for _, user := range users {
 		userSetting := user.GetSetting()
 		if !userSetting.UpstreamModelUpdateNotifyEnabled {
 			continue
 		}
+		subject, content := build(userSetting.Language)
+		notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
 		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
-			common.SysLog(fmt.Sprintf("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
+			common.SysLog(fmt.Sprintf(i18n.Translate("svc.failed_to_notify_user_for_upstream_model"), user.Id, err.Error()))
 			continue
 		}
 		sentCount++
 	}
-	common.SysLog(fmt.Sprintf("upstream model update notifications sent: %d", sentCount))
+	common.SysLog(fmt.Sprintf(i18n.Translate("svc.upstream_model_update_notifications_sent"), sentCount))
 }
 
 func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
@@ -57,29 +63,31 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	// Check notification limit
 	canSend, err := CheckNotificationLimit(userId, data.Type)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to check notification limit: %s", err.Error()))
+		common.SysLog(fmt.Sprintf(i18n.Translate("svc.failed_to_check_notification_limit"), err.Error()))
 		return err
 	}
 	if !canSend {
-		return fmt.Errorf("notification limit exceeded for user %d with type %s", userId, notifyType)
+		return fmt.Errorf(i18n.Translate("svc.notification_limit_exceeded_for_user_ith_type"), userId, notifyType)
 	}
 
 	switch notifyType {
 	case dto.NotifyTypeEmail:
-		// 优先使用设置中的通知邮箱，如果为空则使用用户的默认邮箱
+		// 优先使用设置中的通知邮箱。
+		// 对于用户主动订阅类通知（如额度预警），必须显式设置通知邮箱才会发送，
+		// 避免向仅用于登录的绑定邮箱发送非必要通知。
 		emailToUse := userSetting.NotificationEmail
-		if emailToUse == "" {
+		if emailToUse == "" && data.Type != dto.NotifyTypeQuotaExceed {
 			emailToUse = userEmail
 		}
 		if emailToUse == "" {
-			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
+			common.SysLog(fmt.Sprintf(i18n.Translate("svc.user_has_no_email_skip_sending_email"), userId))
 			return nil
 		}
 		return sendEmailNotify(emailToUse, data)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
-			common.SysLog(fmt.Sprintf("user %d has no webhook url, skip sending webhook", userId))
+			common.SysLog(fmt.Sprintf(i18n.Translate("svc.user_has_no_webhook_url_skip_sending"), userId))
 			return nil
 		}
 
@@ -89,7 +97,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl
 		if barkURL == "" {
-			common.SysLog(fmt.Sprintf("user %d has no bark url, skip sending bark", userId))
+			common.SysLog(fmt.Sprintf(i18n.Translate("svc.user_has_no_bark_url_skip_sending"), userId))
 			return nil
 		}
 		return sendBarkNotify(barkURL, data)
@@ -97,7 +105,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 		gotifyUrl := userSetting.GotifyUrl
 		gotifyToken := userSetting.GotifyToken
 		if gotifyUrl == "" || gotifyToken == "" {
-			common.SysLog(fmt.Sprintf("user %d has no gotify url or token, skip sending gotify", userId))
+			common.SysLog(fmt.Sprintf(i18n.Translate("svc.user_has_no_gotify_url_or_token"), userId))
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
@@ -144,25 +152,25 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 
 		resp, err = DoWorkerRequest(workerReq)
 		if err != nil {
-			return fmt.Errorf("failed to send bark request through worker: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_bark_request_through_worker"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("bark request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.bark_request_failed_with_status_code"), resp.StatusCode)
 		}
 	} else {
 		// SSRF防护：验证Bark URL（非Worker模式）
 		fetchSetting := system_setting.GetFetchSetting()
 		if err := common.ValidateURLWithFetchSetting(finalURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
-			return fmt.Errorf("request reject: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.request_reject_1fbf"), err)
 		}
 
 		// 直接发送请求
 		req, err = http.NewRequest(http.MethodGet, finalURL, nil)
 		if err != nil {
-			return fmt.Errorf("failed to create bark request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_create_bark_request"), err)
 		}
 
 		// 设置User-Agent
@@ -172,13 +180,13 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 		client := GetHttpClient()
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("failed to send bark request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_bark_request"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("bark request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.bark_request_failed_with_status_code_b220"), resp.StatusCode)
 		}
 	}
 
@@ -217,7 +225,7 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 	// 序列化为 JSON
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal gotify payload: %v", err)
+		return fmt.Errorf(i18n.Translate("svc.failed_to_marshal_gotify_payload"), err)
 	}
 
 	var req *http.Request
@@ -238,25 +246,25 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 
 		resp, err = DoWorkerRequest(workerReq)
 		if err != nil {
-			return fmt.Errorf("failed to send gotify request through worker: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_gotify_request_through_worker"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("gotify request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.gotify_request_failed_with_status_code"), resp.StatusCode)
 		}
 	} else {
 		// SSRF防护：验证Gotify URL（非Worker模式）
 		fetchSetting := system_setting.GetFetchSetting()
 		if err := common.ValidateURLWithFetchSetting(finalURL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
-			return fmt.Errorf("request reject: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.request_reject_ef0f"), err)
 		}
 
 		// 直接发送请求
 		req, err = http.NewRequest(http.MethodPost, finalURL, bytes.NewBuffer(payloadBytes))
 		if err != nil {
-			return fmt.Errorf("failed to create gotify request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_create_gotify_request"), err)
 		}
 
 		// 设置请求头
@@ -267,13 +275,13 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 		client := GetHttpClient()
 		resp, err = client.Do(req)
 		if err != nil {
-			return fmt.Errorf("failed to send gotify request: %v", err)
+			return fmt.Errorf(i18n.Translate("svc.failed_to_send_gotify_request"), err)
 		}
 		defer resp.Body.Close()
 
 		// 检查响应状态
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return fmt.Errorf("gotify request failed with status code: %d", resp.StatusCode)
+			return fmt.Errorf(i18n.Translate("svc.gotify_request_failed_with_status_code_abb9"), resp.StatusCode)
 		}
 	}
 

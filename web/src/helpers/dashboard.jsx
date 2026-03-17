@@ -30,6 +30,7 @@ import {
   copy,
   showSuccess,
 } from './utils';
+import { t } from './i18n';
 import {
   STORAGE_KEYS,
   DEFAULT_TIME_INTERVALS,
@@ -148,7 +149,7 @@ export const createFormField = (Component, props, FORM_FIELD_PROPS) => (
 );
 
 // ========== 操作处理函数 ==========
-export const handleCopyUrl = async (url, t) => {
+export const handleCopyUrl = async (url) => {
   if (await copy(url)) {
     showSuccess(t('复制成功'));
   }
@@ -164,7 +165,7 @@ export const handleSpeedTest = (apiUrl) => {
 export const getUptimeStatusColor = (status, uptimeStatusMap) =>
   uptimeStatusMap[status]?.color || '#8b9aa7';
 
-export const getUptimeStatusText = (status, uptimeStatusMap, t) =>
+export const getUptimeStatusText = (status, uptimeStatusMap) =>
   uptimeStatusMap[status]?.text || t('未知');
 
 // ========== 监控列表渲染函数 ==========
@@ -172,7 +173,6 @@ export const renderMonitorList = (
   monitors,
   getUptimeStatusColor,
   getUptimeStatusText,
-  t,
 ) => {
   if (!monitors || monitors.length === 0) {
     return (

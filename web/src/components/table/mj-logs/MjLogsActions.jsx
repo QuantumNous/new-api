@@ -22,6 +22,7 @@ import { Skeleton, Typography } from '@douyinfe/semi-ui';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
 import { IconEyeOpened } from '@douyinfe/semi-icons';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
+import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
@@ -31,8 +32,8 @@ const MjLogsActions = ({
   isAdminUser,
   compactMode,
   setCompactMode,
-  t,
 }) => {
+  const { t } = useTranslation();
   const showSkeleton = useMinimumLoadingTime(loading);
 
   const placeholder = (

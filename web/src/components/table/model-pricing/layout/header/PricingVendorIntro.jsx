@@ -26,6 +26,8 @@ import {
   Tooltip,
   Modal,
 } from '@douyinfe/semi-ui';
+import { t } from '../../../../../helpers/i18n';
+import { useTranslation } from 'react-i18next';
 import { getLobeHubIcon } from '../../../../../helpers';
 import SearchActions from './SearchActions';
 
@@ -78,7 +80,7 @@ const CONTENT_TEXTS = {
   },
 };
 
-const getVendorDisplayName = (vendorName, t) => {
+const getVendorDisplayName = (vendorName) => {
   return vendorName === CONFIG.UNKNOWN_VENDOR
     ? CONTENT_TEXTS.unknown.displayName(t)
     : vendorName;
@@ -117,12 +119,12 @@ const createAvatarContent = (vendor, isAllVendors) => {
   );
 };
 
-const renderVendorAvatar = (vendor, t, isAllVendors = false) => {
+const renderVendorAvatar = (vendor, isAllVendors = false) => {
   if (!vendor) {
     return createDefaultAvatar();
   }
 
-  const displayName = getVendorDisplayName(vendor.name, t);
+  const displayName = getVendorDisplayName(vendor.name);
   const avatarContent = createAvatarContent(vendor, isAllVendors);
 
   return (
@@ -137,7 +139,6 @@ const PricingVendorIntro = memo(
     filterVendor,
     models = [],
     allModels = [],
-    t,
     selectedRowKeys = [],
     copyText,
     handleChange,
@@ -186,7 +187,7 @@ const PricingVendorIntro = memo(
           <div className='text-sm mb-4'>{descModalContent}</div>
         </Modal>
       ),
-      [descModalVisible, descModalContent, handleCloseDescModal, isMobile, t],
+      [descModalVisible, descModalContent, handleCloseDescModal, isMobile],
     );
 
     const vendorInfo = useMemo(() => {
@@ -228,7 +229,7 @@ const PricingVendorIntro = memo(
       }
 
       return vendorList;
-    }, [allModels, models, t]);
+    }, [allModels, models]);
 
     const currentModelCount = models.length;
 
@@ -256,7 +257,7 @@ const PricingVendorIntro = memo(
         const vendor = vendorInfo.find((v) => v.name === vendorKey);
         return vendor?.description || CONTENT_TEXTS.fallback.description(t);
       },
-      [vendorInfo, t],
+      [vendorInfo],
     );
 
     const createCoverStyle = useCallback(
@@ -313,7 +314,6 @@ const PricingVendorIntro = memo(
         setViewMode,
         tokenUnit,
         setTokenUnit,
-        t,
       ],
     );
 
@@ -362,7 +362,7 @@ const PricingVendorIntro = memo(
           {renderSearchActions()}
         </Card>
       ),
-      [renderSearchActions, createCoverStyle, handleOpenDescModal, t],
+      [renderSearchActions, createCoverStyle, handleOpenDescModal],
     );
 
     const renderAllVendorsAvatar = useCallback(() => {
@@ -370,8 +370,8 @@ const PricingVendorIntro = memo(
         vendorInfo.length > 0
           ? vendorInfo[currentOffset % vendorInfo.length]
           : null;
-      return renderVendorAvatar(currentVendor, t, true);
-    }, [vendorInfo, currentOffset, t]);
+      return renderVendorAvatar(currentVendor, true);
+    }, [vendorInfo, currentOffset]);
 
     if (filterVendor === 'all') {
       const headerCard = renderHeaderCard({
@@ -394,14 +394,14 @@ const PricingVendorIntro = memo(
       return null;
     }
 
-    const vendorDisplayName = getVendorDisplayName(currentVendor.name, t);
+    const vendorDisplayName = getVendorDisplayName(currentVendor.name);
 
     const headerCard = renderHeaderCard({
       title: vendorDisplayName,
       count: currentModelCount,
       description:
         currentVendor.description || getVendorDescription(currentVendor.name),
-      rightContent: renderVendorAvatar(currentVendor, t, false),
+      rightContent: renderVendorAvatar(currentVendor, false),
       primaryDarkerChannel: THEME_COLORS.specific.primary,
     });
 

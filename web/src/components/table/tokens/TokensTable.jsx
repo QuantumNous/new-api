@@ -56,7 +56,6 @@ const TokensTable = (tokensData) => {
   // Get all columns
   const columns = useMemo(() => {
     return getTokensColumns({
-      t,
       showKeys,
       resolvedTokenKeys,
       loadingTokenKeys,
@@ -71,7 +70,6 @@ const TokensTable = (tokensData) => {
       groupRatios,
     });
   }, [
-    t,
     showKeys,
     resolvedTokenKeys,
     loadingTokenKeys,

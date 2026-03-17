@@ -351,17 +351,17 @@ func TokenAuth() func(c *gin.Context) {
 		allowIps := token.GetIpLimits()
 		if len(allowIps) > 0 {
 			clientIp := c.ClientIP()
-			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
+			logger.LogDebug(c, i18n.Translate("mw.token_has_ip_restrictions_checking_client_ip"), clientIp)
 			ip := net.ParseIP(clientIp)
 			if ip == nil {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, "auth.cannot_parse_ip"))
 				return
 			}
 			if common.IsIpInCIDRList(ip, allowIps) == false {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, "auth.ip_not_allowed"), types.ErrorCodeAccessDenied)
 				return
 			}
-			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
+			logger.LogDebug(c, i18n.Translate("mw.client_ip_passed_the_token_ip_restrictions_check"), clientIp)
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
@@ -384,13 +384,13 @@ func TokenAuth() func(c *gin.Context) {
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, "auth.group_access_denied"))
 				return
 			}
 			// check group in common.GroupRatio
 			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
 				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, "auth.group_deprecated"))
 					return
 				}
 			}
@@ -408,7 +408,7 @@ func TokenAuth() func(c *gin.Context) {
 
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {
 	if token == nil {
-		return fmt.Errorf("token is nil")
+		return errors.New(i18n.Translate("mw.token_is_nil"))
 	}
 	c.Set("id", token.UserId)
 	c.Set("token_id", token.Id)
@@ -431,8 +431,8 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 			c.Set("specific_channel_id", parts[1])
 		} else {
 			c.Header("specific_channel_version", "701e3ae1dc3f7975556d354e0675168d004891c8")
-			abortWithOpenAiMessage(c, http.StatusForbidden, "普通用户不支持指定渠道")
-			return fmt.Errorf("普通用户不支持指定渠道")
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, "auth.non_admin_channel_denied"))
+			return fmt.Errorf("%s", i18n.T(c, "auth.non_admin_channel_denied"))
 		}
 	}
 	return nil

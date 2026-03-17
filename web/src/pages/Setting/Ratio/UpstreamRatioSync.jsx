@@ -63,7 +63,8 @@ const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json';
 
-function ConflictConfirmModal({ t, visible, items, onOk, onCancel }) {
+function ConflictConfirmModal({ visible, items, onOk, onCancel }) {
+  const { t } = useTranslation();
   const isMobile = useIsMobile();
   const columns = [
     { title: t('渠道'), dataIndex: 'channel' },
@@ -859,7 +860,6 @@ export default function UpstreamRatioSync(props) {
 
       <ChannelSelectorModal
         ref={channelSelectorRef}
-        t={t}
         visible={modalVisible}
         onCancel={handleModalClose}
         onOk={confirmChannelSelection}
@@ -871,7 +871,6 @@ export default function UpstreamRatioSync(props) {
       />
 
       <ConflictConfirmModal
-        t={t}
         visible={confirmVisible}
         items={conflictItems}
         onOk={async () => {
