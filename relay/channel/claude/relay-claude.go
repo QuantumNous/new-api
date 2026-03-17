@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
+	openaicompat "github.com/QuantumNous/new-api/service/openaicompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -462,7 +463,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 			if claudeResponse.ContentBlock.Type == "text" && claudeResponse.ContentBlock.Text != nil {
 				choice.Delta.SetContentString(*claudeResponse.ContentBlock.Text)
 			}
-			if claudeResponse.ContentBlock.Type == "tool_use" {
+			if claudeResponse.ContentBlock.Type == "tool_use" || claudeResponse.ContentBlock.Type == "server_tool_use" {
 				tools = append(tools, dto.ToolCallResponse{
 					Index: common.GetPointer(fcIdx),
 					ID:    claudeResponse.ContentBlock.Id,
@@ -539,7 +540,7 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	fullTextResponse.Id = claudeResponse.Id
 	for _, message := range claudeResponse.Content {
 		switch message.Type {
-		case "tool_use":
+		case "tool_use", "server_tool_use":
 			args, _ := json.Marshal(message.Input)
 			tools = append(tools, dto.ToolCallResponse{
 				ID:   message.Id,
@@ -580,12 +581,13 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId           string
+	Created              int64
+	Model                string
+	ResponseText         strings.Builder
+	Usage                *dto.Usage
+	Done                 bool
+	ResponsesStreamState *openaicompat.ChatToResponsesStreamState
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -824,6 +826,22 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		response := StreamResponseClaude2OpenAI(&claudeResponse)
+		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
+			return nil
+		}
+		if claudeInfo.ResponsesStreamState == nil {
+			claudeInfo.ResponsesStreamState = openaicompat.NewChatToResponsesStreamState(claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
+		}
+		for _, event := range claudeInfo.ResponsesStreamState.HandleChatChunk(response) {
+			jsonData, marshalErr := common.Marshal(event)
+			if marshalErr != nil {
+				logger.LogError(c, "send_stream_response_failed: "+marshalErr.Error())
+				continue
+			}
+			helper.ResponseChunkData(c, event, string(jsonData))
+		}
 	}
 	return nil
 }
@@ -861,6 +879,19 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			if err != nil {
 				common.SysLog("send final response failed: " + err.Error())
 			}
+		}
+		helper.Done(c)
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		if claudeInfo.ResponsesStreamState == nil {
+			claudeInfo.ResponsesStreamState = openaicompat.NewChatToResponsesStreamState(claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
+		}
+		for _, event := range claudeInfo.ResponsesStreamState.FinalEvents(claudeInfo.Usage) {
+			jsonData, err := common.Marshal(event)
+			if err != nil {
+				common.SysLog("send final response failed: " + err.Error())
+				continue
+			}
+			helper.ResponseChunkData(c, event, string(jsonData))
 		}
 		helper.Done(c)
 	}
@@ -918,6 +949,17 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
 		responseData, err = json.Marshal(openaiResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+	case types.RelayFormatOpenAIResponses:
+		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
+		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		responsesResp, convErr := service.ChatCompletionsResponseToResponsesResponse(openaiResponse, info.UpstreamModelName)
+		if convErr != nil {
+			return types.NewError(convErr, types.ErrorCodeBadResponseBody)
+		}
+		responseData, err = json.Marshal(responsesResp)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
