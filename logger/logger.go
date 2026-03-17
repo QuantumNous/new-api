@@ -30,6 +30,10 @@ var logCount int
 var setupLogLock sync.Mutex
 var setupLogWorking bool
 
+// SetupLogger initializes the logger by opening a new log file in the configured
+// log directory. The file is named with a "newapi-" prefix and a timestamp suffix.
+// It redirects Gin's default writer and error writer to write to both stdout/stderr
+// and the log file. If log rotation is already in progress, the call is a no-op.
 func SetupLogger() {
 	defer func() {
 		setupLogWorking = false
@@ -53,18 +57,24 @@ func SetupLogger() {
 	}
 }
 
+// LogInfo writes an INFO-level log message associated with the given context.
 func LogInfo(ctx context.Context, msg string) {
 	logHelper(ctx, loggerINFO, msg)
 }
 
+// LogWarn writes a WARN-level log message associated with the given context.
 func LogWarn(ctx context.Context, msg string) {
 	logHelper(ctx, loggerWarn, msg)
 }
 
+// LogError writes an ERR-level log message associated with the given context.
 func LogError(ctx context.Context, msg string) {
 	logHelper(ctx, loggerError, msg)
 }
 
+// LogDebug writes a DEBUG-level log message associated with the given context.
+// The message is only written when debug mode is enabled. Optional args are
+// formatted into msg using fmt.Sprintf.
 func LogDebug(ctx context.Context, msg string, args ...any) {
 	if common.DebugEnabled {
 		if len(args) > 0 {
@@ -95,6 +105,8 @@ func logHelper(ctx context.Context, level string, msg string) {
 	}
 }
 
+// LogQuota formats a quota value as a human-readable string according to the
+// configured quota display type (USD, CNY, custom currency, or tokens).
 func LogQuota(quota int) string {
 	// 新逻辑：根据额度展示类型输出
 	q := float64(quota)
@@ -122,6 +134,8 @@ func LogQuota(quota int) string {
 	}
 }
 
+// FormatQuota formats a quota value as a numeric string (without the "额度" suffix)
+// according to the configured quota display type.
 func FormatQuota(quota int) string {
 	q := float64(quota)
 	switch operation_setting.GetQuotaDisplayType() {
