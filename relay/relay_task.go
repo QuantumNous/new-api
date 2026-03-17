@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"github.com/QuantumNous/new-api/i18n"
 	"bytes"
 	"errors"
 	"fmt"
@@ -46,7 +47,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	if info.Action == constant.TaskActionRemix {
 		videoID := c.Param("video_id")
 		if strings.TrimSpace(videoID) == "" {
-			return service.TaskErrorWrapperLocal(fmt.Errorf("video_id is required"), "invalid_request", http.StatusBadRequest)
+			return service.TaskErrorWrapperLocal(errors.New(i18n.Translate("relay.video_id_is_required")), "invalid_request", http.StatusBadRequest)
 		}
 		info.OriginTaskID = videoID
 	}
@@ -85,7 +86,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		return service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
 	}
 	if ch.Status != common.ChannelStatusEnabled {
-		return service.TaskErrorWrapperLocal(errors.New("the channel of the origin task is disabled"), "task_channel_disable", http.StatusBadRequest)
+		return service.TaskErrorWrapperLocal(errors.New(i18n.Translate("relay.the_channel_of_the_origin_task_is_disabled")), "task_channel_disable", http.StatusBadRequest)
 	}
 	info.LockedChannel = ch
 
@@ -151,7 +152,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
-		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf(i18n.Translate("relay.invalid_api_platform"), platform), "invalid_api_platform", http.StatusBadRequest)
 	}
 	adaptor.Init(info)
 	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
@@ -388,7 +389,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
-			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf(i18n.Translate("relay.invalid_channel_id"), originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
 			return
 		}
 		if converter, ok := adaptor.(channel.OpenAIVideoConverter); ok {
