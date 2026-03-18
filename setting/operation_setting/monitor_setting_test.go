@@ -37,6 +37,9 @@ func TestShouldRetryChannelTestWithStream(t *testing.T) {
 	if ShouldRetryChannelTestWithStream(400, "bad response status code 400, message: invalid request") {
 		t.Fatal("did not expect retry for non-matching keyword")
 	}
+	if !ShouldRetryChannelTestWithStream(400, "bad response status code 500, message: Stream must be set to true") {
+		t.Fatal("expected preserved upstream status code to allow retry even if wrapped error text mentions 500")
+	}
 
 	monitorSetting.ChannelTestStreamRetryEnabled = false
 	if ShouldRetryChannelTestWithStream(400, "bad response status code 400, message: Stream must be set to true") {
