@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
+import i18n from '../i18n/i18n';
 import { toastConstants } from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
@@ -131,22 +132,22 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          Toast.error(i18n.t('错误：请求次数过多，请稍后再试！'));
           break;
         case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
+          Toast.error(i18n.t('错误：服务器内部错误，请联系管理员！'));
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.info(i18n.t('本站仅作演示之用，无服务端！'));
           break;
         default:
-          Toast.error('错误：' + error.message);
+          Toast.error(i18n.t('错误：') + error.message);
       }
       return;
     }
-    Toast.error('错误：' + error.message);
+    Toast.error(i18n.t('错误：') + error.message);
   } else {
-    Toast.error('错误：' + error);
+    Toast.error(i18n.t('错误：') + error);
   }
 }
 
@@ -527,19 +528,19 @@ export const getRelativeTime = (publishDate) => {
 
   // 根据时间差返回相应的描述
   if (diffSeconds < 60) {
-    return '刚刚';
+    return i18n.t('刚刚');
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return i18n.t('{{count}} 分钟前', { count: diffMinutes });
   } else if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return i18n.t('{{count}} 小时前', { count: diffHours });
   } else if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return i18n.t('{{count}} 天前', { count: diffDays });
   } else if (diffWeeks < 4) {
-    return `${diffWeeks} 周前`;
+    return i18n.t('{{count}} 周前', { count: diffWeeks });
   } else if (diffMonths < 12) {
-    return `${diffMonths} 个月前`;
+    return i18n.t('{{count}} 个月前', { count: diffMonths });
   } else if (diffYears < 2) {
-    return '1 年前';
+    return i18n.t('1 年前');
   } else {
     // 超过2年显示具体日期
     return formatDateString(pubDate);
@@ -715,7 +716,9 @@ export const calculateModelPrice = ({
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(
+            inputRatioPriceUSD * Number(record.create_cache_ratio),
+          )
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
@@ -761,11 +764,7 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
   if (priceData.isPerToken) {
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
@@ -861,7 +860,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ].filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return [
@@ -871,7 +873,10 @@ export const getModelPriceItems = (
       value: priceData.price,
       suffix: ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ].filter(
+    (item) =>
+      item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化价格信息（用于卡片视图）

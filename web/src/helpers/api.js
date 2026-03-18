@@ -25,6 +25,7 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import i18n from '../i18n/i18n';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -35,20 +36,6 @@ export let API = axios.create({
     'Cache-Control': 'no-store',
   },
 });
-
-
-function redirectToOAuthUrl(url, options = {}) {
-  const { openInNewTab = false } = options;
-  const targetUrl = typeof url === 'string' ? url : url.toString();
-
-  if (openInNewTab) {
-    window.open(targetUrl, '_blank');
-    return;
-  }
-
-  window.location.assign(targetUrl);
-}
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -263,7 +250,7 @@ export async function onDiscordOAuthClicked(client_id, options = {}) {
   const redirect_uri = `${window.location.origin}/oauth/discord`;
   const response_type = 'code';
   const scope = 'identify+openid';
-  redirectToOAuthUrl(
+  window.open(
     `https://discord.com/oauth2/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=${response_type}&scope=${scope}&state=${state}`,
   );
 }
@@ -282,13 +269,17 @@ export async function onOIDCClicked(
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', 'openid profile email');
   url.searchParams.set('state', state);
-  redirectToOAuthUrl(url, { openInNewTab });
+  if (openInNewTab) {
+    window.open(url.toString(), '_blank');
+  } else {
+    window.location.href = url.toString();
+  }
 }
 
 export async function onGitHubOAuthClicked(github_client_id, options = {}) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  redirectToOAuthUrl(
+  window.open(
     `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}&scope=user:email`,
   );
 }
@@ -299,7 +290,7 @@ export async function onLinuxDOOAuthClicked(
 ) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-  redirectToOAuthUrl(
+  window.open(
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
 }
@@ -317,42 +308,32 @@ export async function onLinuxDOOAuthClicked(
 export async function onCustomOAuthClicked(provider, options = {}) {
   const state = await prepareOAuthState(options);
   if (!state) return;
-
+  
   try {
     const redirect_uri = `${window.location.origin}/oauth/${provider.slug}`;
-
+    
     // Check if authorization_endpoint is a full URL or relative path
     let authUrl;
-    if (
-      provider.authorization_endpoint.startsWith('http://') ||
-      provider.authorization_endpoint.startsWith('https://')
-    ) {
+    if (provider.authorization_endpoint.startsWith('http://') || 
+        provider.authorization_endpoint.startsWith('https://')) {
       authUrl = new URL(provider.authorization_endpoint);
     } else {
       // Relative path - this is a configuration error, show error message
-      console.error(
-        'Custom OAuth authorization_endpoint must be a full URL:',
-        provider.authorization_endpoint,
-      );
-      showError(
-        'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
-      );
+      console.error('Custom OAuth authorization_endpoint must be a full URL:', provider.authorization_endpoint);
+      showError(i18n.t('OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'));
       return;
     }
-
+    
     authUrl.searchParams.set('client_id', provider.client_id);
     authUrl.searchParams.set('redirect_uri', redirect_uri);
     authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set(
-      'scope',
-      provider.scopes || 'openid profile email',
-    );
+    authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
     authUrl.searchParams.set('state', state);
-
-    redirectToOAuthUrl(authUrl);
+    
+    window.open(authUrl.toString());
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(i18n.t('OAuth 登录失败：') + (error.message || i18n.t('未知错误')));
   }
 }
 
