@@ -26,10 +26,12 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const { Title, Text, Paragraph } = Typography;
 
 const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
