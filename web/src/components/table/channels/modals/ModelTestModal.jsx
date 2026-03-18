@@ -198,6 +198,7 @@ const ModelTestModal = ({
                 record.model,
                 selectedEndpointType,
                 isStreamTest,
+                true,
               )
             }
             loading={isTesting}

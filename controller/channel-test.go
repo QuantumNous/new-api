@@ -42,6 +42,28 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func shouldRetryChannelTestWithStream(result testResult) bool {
+	if result.newAPIError == nil {
+		return false
+	}
+	return operation_setting.ShouldRetryChannelTestWithStream(result.newAPIError.StatusCode, result.newAPIError.Error())
+}
+
+func testChannelWithOptionalStreamRetry(channel *model.Channel, testModel string, endpointType string, isStream bool, allowStreamRetry bool) testResult {
+	result := testChannel(channel, testModel, endpointType, isStream)
+	if !allowStreamRetry || isStream || !shouldRetryChannelTestWithStream(result) {
+		return result
+	}
+	common.SysLog(fmt.Sprintf(
+		"channel test retrying with stream enabled: channel_id=%d name=%s model=%s endpoint_type=%s",
+		channel.Id,
+		channel.Name,
+		strings.TrimSpace(testModel),
+		strings.TrimSpace(endpointType),
+	))
+	return testChannel(channel, testModel, endpointType, true)
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -753,8 +775,10 @@ func TestChannel(c *gin.Context) {
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	manualTest, _ := strconv.ParseBool(c.Query("manual_test"))
+	allowStreamRetry := !manualTest && c.Query("stream") == "" && strings.TrimSpace(endpointType) == ""
 	tik := time.Now()
-	result := testChannel(channel, testModel, endpointType, isStream)
+	result := testChannelWithOptionalStreamRetry(channel, testModel, endpointType, isStream, allowStreamRetry)
 	if result.localErr != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -816,7 +840,7 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := testChannelWithOptionalStreamRetry(channel, "", "", false, true)
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 

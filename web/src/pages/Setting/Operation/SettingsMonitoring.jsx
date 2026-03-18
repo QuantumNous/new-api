@@ -44,6 +44,10 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.channel_test_stream_retry_enabled': true,
+    'monitor_setting.channel_test_stream_retry_status_codes': '400',
+    'monitor_setting.channel_test_stream_retry_keywords':
+      'stream must be set to true',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -52,6 +56,9 @@ export default function SettingsMonitoring(props) {
   );
   const parsedAutoRetryStatusCodes = parseHttpStatusCodeRules(
     inputs.AutomaticRetryStatusCodes || '',
+  );
+  const parsedChannelTestStreamRetryStatusCodes = parseHttpStatusCodeRules(
+    inputs['monitor_setting.channel_test_stream_retry_status_codes'] || '',
   );
 
   function onSubmit() {
@@ -73,6 +80,16 @@ export default function SettingsMonitoring(props) {
           : '';
       return showError(`${t('自动重试状态码格式不正确')}${details}`);
     }
+    if (!parsedChannelTestStreamRetryStatusCodes.ok) {
+      const details =
+        parsedChannelTestStreamRetryStatusCodes.invalidTokens &&
+        parsedChannelTestStreamRetryStatusCodes.invalidTokens.length > 0
+          ? `: ${parsedChannelTestStreamRetryStatusCodes.invalidTokens.join(', ')}`
+          : '';
+      return showError(
+        `${t('测试时自动切换流式重试状态码格式不正确')}${details}`,
+      );
+    }
     const requestQueue = updateArray.map((item) => {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
@@ -81,6 +98,8 @@ export default function SettingsMonitoring(props) {
         const normalizedMap = {
           AutomaticDisableStatusCodes: parsedAutoDisableStatusCodes.normalized,
           AutomaticRetryStatusCodes: parsedAutoRetryStatusCodes.normalized,
+          'monitor_setting.channel_test_stream_retry_status_codes':
+            parsedChannelTestStreamRetryStatusCodes.normalized,
         };
         value = normalizedMap[item.key] ?? inputs[item.key];
       }
@@ -236,7 +255,55 @@ export default function SettingsMonitoring(props) {
               </Col>
             </Row>
             <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'monitor_setting.channel_test_stream_retry_enabled'}
+                  label={t('测试失败后自动切换流式重试')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.channel_test_stream_retry_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
               <Col xs={24} sm={16}>
+                <HttpStatusCodeRulesInput
+                  label={t('测试时自动切换流式重试状态码')}
+                  placeholder={t('例如：400')}
+                  extraText={t(
+                    '仅在默认渠道测试中生效；首次非流式失败后，命中这些状态码才会尝试改用流式重试',
+                  )}
+                  field={'monitor_setting.channel_test_stream_retry_status_codes'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.channel_test_stream_retry_status_codes': value,
+                    })
+                  }
+                  parsed={parsedChannelTestStreamRetryStatusCodes}
+                  invalidText={t('测试时自动切换流式重试状态码格式不正确')}
+                />
+                <Form.TextArea
+                  label={t('测试时自动切换流式重试关键词')}
+                  placeholder={t('一行一个，不区分大小写')}
+                  extraText={t(
+                    '仅在默认渠道测试中生效；错误信息包含这些关键词时，才会在失败后改用流式重试',
+                  )}
+                  field={'monitor_setting.channel_test_stream_retry_keywords'}
+                  autosize={{ minRows: 4, maxRows: 8 }}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.channel_test_stream_retry_keywords': value,
+                    })
+                  }
+                />
                 <HttpStatusCodeRulesInput
                   label={t('自动禁用状态码')}
                   placeholder={t('例如：401, 403, 429, 500-599')}
