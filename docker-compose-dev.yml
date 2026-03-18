@@ -1,0 +1,65 @@
+# new-api Docker Compose for Local Development
+#
+# Quick Start:
+#   docker-compose -f docker-compose-dev.yml up -d
+#
+# Purpose:
+#   This file contains only external services (database, cache) needed for development.
+#   The main new-api application runs on your local machine.
+#
+# Services:
+#   - postgres: PostgreSQL 17 database
+#   - redis: Redis cache server
+#   - redis-commander: Redis web UI (optional, for viewing cache)
+#   - pgadmin4: PostgreSQL web UI (optional, for database management)
+#
+version: '3.8'
+name: new-api-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: new-api-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache Server
+  redis:
+    image: bitnamilegacy/redis:8.0
+    container_name: new-api-redis-dev
+    restart: unless-stopped
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: new-api-dev-network

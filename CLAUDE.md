@@ -4,6 +4,104 @@
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
 
+## Common Development Commands
+
+### Backend (Go)
+
+```bash
+# Run backend development server
+go run main.go
+
+# Run with debug mode
+GIN_MODE=debug DEBUG=true go run main.go
+
+# Run with custom port
+PORT=8080 go run main.go
+
+# Run tests
+go test ./...
+
+# Run specific test
+go test ./relay/channel -v -run TestClaude
+
+# Run specific test file
+go test ./relay/channel/api_request_test.go -v
+```
+
+### Frontend (React + Vite)
+
+```bash
+# Install dependencies (uses Bun)
+cd web && bun install
+
+# Run development server (runs on http://localhost:5173)
+cd web && bun run dev
+
+# Build for production
+cd web && bun run build
+
+# Run ESLint
+cd web && bun run eslint
+
+# Fix ESLint issues
+cd web && bun run eslint:fix
+
+# Format code with Prettier
+cd web && bun run lint:fix
+
+# i18n tools
+cd web && bun run i18n:extract  # Extract new translation keys
+cd web && bun run i18n:sync      # Sync translations
+cd web && bun run i18n:lint      # Lint translation files
+```
+
+### Full Stack Development
+
+```bash
+# Using makefile
+make build-frontend    # Build frontend assets
+make start-backend     # Start backend server
+make all              # Build frontend + start backend (parallel)
+
+# Manually (two terminals)
+# Terminal 1: Frontend dev server
+cd web && bun run dev
+
+# Terminal 2: Backend dev server
+go run main.go
+```
+
+### Docker Development
+
+```bash
+# Start full stack with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### Environment Configuration
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+cp .env.example .env
+# Then edit .env with your settings
+```
+
+Key environment variables:
+- `SQL_DSN` - Database connection string (default: SQLite in `/data`)
+- `REDIS_CONN_STRING` - Redis connection for cache
+- `SESSION_SECRET` - Required for multi-machine deployments
+- `CRYPTO_SECRET` - Required when using Redis
+- `STREAMING_TIMEOUT` - Streaming timeout in seconds (default: 300)
+- `DEBUG` - Enable debug mode
+- `GIN_MODE` - Gin mode (`debug` or `release`)
+
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
@@ -24,6 +122,8 @@ service/       — Business logic
 model/         — Data models and DB access (GORM)
 relay/         — AI API relay/proxy with provider adapters
   relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
+  relay/common/  — Relay utilities and RelayInfo struct
+  relay/helper/  — Stream scanner, billing helpers, etc.
 middleware/    — Auth, rate limiting, CORS, logging, distribution
 setting/       — Configuration management (ratio, model, operation, system, performance)
 common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
@@ -36,6 +136,26 @@ pkg/           — Internal packages (cachex, ionet)
 web/           — React frontend
   web/src/i18n/  — Frontend internationalization (i18next, zh/en/fr/ru/ja/vi)
 ```
+
+### Relay System
+
+The relay system is the core of the gateway, handling requests from clients and forwarding them to upstream AI providers:
+
+- **Adaptor Interface** (`relay/channel/adapter.go`): All channel adapters implement this interface with methods like `Init`, `GetRequestURL`, `SetupRequestHeader`, `ConvertOpenAIRequest`, `DoRequest`, `DoResponse`, etc.
+- **RelayInfo** (`relay/common/relay_info.go`): Contains all context for a single relay request - user/token info, channel metadata, pricing, billing session, request conversion chain.
+- **Request Format Conversion**: Supports multiple relay formats - OpenAI, Claude Messages, Gemini, Responses, Rerank, Embedding, Audio, Image, Realtime, Task (async). Adapters convert between formats as needed.
+- **Stream Handling**: `relay/helper/stream_scanner.go` handles streaming responses with configurable buffer size.
+- **TaskAdaptor Interface**: For async task-based providers (Midjourney, Suno, etc.), implements polling-based task lifecycle management with billing hooks.
+
+### Request Flow
+
+1. Router receives request → Middleware (auth, rate limit, distribution)
+2. Controller parses request → Validates token/channel
+3. Service layer handles business logic (quota, billing)
+4. Relay layer calls appropriate channel adaptor
+5. Adaptor converts request format and forwards to upstream
+6. Response is converted back and sent to client
+7. Billing session settles quota (pre-consume -> adjust delta -> final settle)
 
 ## Internationalization (i18n)
 
