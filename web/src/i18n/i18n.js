@@ -20,36 +20,69 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { normalizeLanguage, supportedLanguages } from './language';
 
-import enTranslation from './locales/en.json';
-import frTranslation from './locales/fr.json';
-import zhCNTranslation from './locales/zh-CN.json';
-import zhTWTranslation from './locales/zh-TW.json';
-import ruTranslation from './locales/ru.json';
-import jaTranslation from './locales/ja.json';
-import viTranslation from './locales/vi.json';
-import { supportedLanguages } from './language';
+const localeLoaders = {
+  'zh-CN': () => import('./locales/zh-CN.json'),
+  'zh-TW': () => import('./locales/zh-TW.json'),
+  en: () => import('./locales/en.json'),
+  fr: () => import('./locales/fr.json'),
+  ru: () => import('./locales/ru.json'),
+  ja: () => import('./locales/ja.json'),
+  vi: () => import('./locales/vi.json'),
+};
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    load: 'currentOnly',
-    supportedLngs: supportedLanguages,
-    resources: {
-      en: enTranslation,
-      'zh-CN': zhCNTranslation,
-      'zh-TW': zhTWTranslation,
-      fr: frTranslation,
-      ru: ruTranslation,
-      ja: jaTranslation,
-      vi: viTranslation,
-    },
-    fallbackLng: 'zh-CN',
-    nsSeparator: false,
-    interpolation: {
-      escapeValue: false,
-    },
+const defaultLanguage = 'zh-CN';
+const loadedLanguages = new Set([defaultLanguage]);
+
+async function ensureLanguageLoaded(language) {
+  const normalizedLanguage = normalizeLanguage(language) || defaultLanguage;
+  const targetLanguage = supportedLanguages.includes(normalizedLanguage)
+    ? normalizedLanguage
+    : defaultLanguage;
+
+  if (loadedLanguages.has(targetLanguage)) {
+    return;
+  }
+
+  const loader = localeLoaders[targetLanguage];
+  if (!loader) {
+    return;
+  }
+
+  const localeModule = await loader();
+  const locale = localeModule.default || localeModule;
+  i18n.addResourceBundle(targetLanguage, 'translation', locale, true, true);
+  loadedLanguages.add(targetLanguage);
+}
+
+export const i18nReady = (async () => {
+  const defaultLocaleModule = await localeLoaders[defaultLanguage]();
+  const defaultLocale = defaultLocaleModule.default || defaultLocaleModule;
+
+  await i18n
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      load: 'currentOnly',
+      supportedLngs: supportedLanguages,
+      resources: {
+        'zh-CN': {
+          translation: defaultLocale,
+        },
+      },
+      fallbackLng: defaultLanguage,
+      nsSeparator: false,
+      interpolation: {
+        escapeValue: false,
+      },
+    });
+
+  i18n.on('languageChanged', (language) => {
+    void ensureLanguageLoaded(language);
   });
+
+  await ensureLanguageLoaded(i18n.language);
+})();
 
 export default i18n;

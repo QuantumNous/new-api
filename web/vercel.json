@@ -1,5 +1,23 @@
 {
   "github": {
     "silent": true
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/mj",
+      "destination": "https://api.meeyo.org/mj"
+    },
+    {
+      "source": "/mj/(.*)",
+      "destination": "https://api.meeyo.org/mj/$1"
+    },
+    {
+      "source": "/pg",
+      "destination": "https://api.meeyo.org/pg"
+    },
+    {
+      "source": "/pg/(.*)",
+      "destination": "https://api.meeyo.org/pg/$1"
+    }
+  ]
 }

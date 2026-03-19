@@ -27,6 +27,7 @@ const { vitePluginSemi } = pkg;
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  const isProd = mode === 'production';
   const backendTarget =
     env.VITE_API_BASE_URL ||
     env.VITE_REACT_APP_SERVER_URL ||
@@ -39,9 +40,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     plugins: [
-      codeInspectorPlugin({
-        bundler: 'vite',
-      }),
+      !isProd &&
+        codeInspectorPlugin({
+          bundler: 'vite',
+        }),
       {
         name: 'treat-js-files-as-jsx',
         async transform(code, id) {
@@ -61,7 +63,7 @@ export default defineConfig(({ mode }) => {
       vitePluginSemi({
         cssLayer: true,
       }),
-    ],
+    ].filter(Boolean),
     optimizeDeps: {
       force: true,
       esbuildOptions: {
@@ -77,6 +79,7 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             'react-core': ['react', 'react-dom', 'react-router-dom'],
             'semi-ui': ['@douyinfe/semi-icons', '@douyinfe/semi-ui'],
+            charting: ['@visactor/react-vchart', '@visactor/vchart'],
             tools: ['axios', 'history', 'marked'],
             'react-components': [
               'react-dropzone',
@@ -84,11 +87,6 @@ export default defineConfig(({ mode }) => {
               'react-telegram-login',
               'react-toastify',
               'react-turnstile',
-            ],
-            i18n: [
-              'i18next',
-              'react-i18next',
-              'i18next-browser-languagedetector',
             ],
           },
         },
