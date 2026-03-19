@@ -29,7 +29,12 @@ jobs:
           node-version: '24'
           
       - name: 安装依赖
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
         
       - name: 构建项目
         run: npm run build  # 执行构建，生成dist文件夹
