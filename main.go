@@ -192,6 +192,10 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
+	if common.MetricsEnabled {
+		common.SysLog("metrics endpoint enabled at http://localhost:" + port + "/metrics")
+	}
+
 	err = server.Run(":" + port)
 	if err != nil {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
