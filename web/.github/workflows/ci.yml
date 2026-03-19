@@ -14,6 +14,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest  # 使用最新的Ubuntu环境
+    defaults:
+      run:
+        working-directory: ./web
     
     # 定义步骤
     steps:
@@ -25,6 +28,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+          cache-dependency-path: web/package-lock.json
           
       - name: 安装依赖
         run: npm ci
@@ -34,12 +38,13 @@ jobs:
         env:
           # 如果有环境变量，在这里设置
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        
           
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/  # 上传dist文件夹，可供后续部署使用
+          path: web/dist/  # 上传dist文件夹，可供后续部署使用
 
       - name: 部署到服务器
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -49,6 +54,6 @@ jobs:
           port: 22
           username: ${{ env.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
-          source: dist/*
+          source: web/dist/*
           target: /opt/www/meeyo
           overwrite: true
