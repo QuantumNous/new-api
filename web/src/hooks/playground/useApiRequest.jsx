@@ -30,6 +30,7 @@ import {
   handleApiError,
   processThinkTags,
   processIncompleteThinkTags,
+  resolveRequestUrl,
 } from '../../helpers';
 
 export const useApiRequest = (
@@ -40,6 +41,7 @@ export const useApiRequest = (
   saveMessages,
 ) => {
   const { t } = useTranslation();
+  const chatCompletionsUrl = resolveRequestUrl(API_ENDPOINTS.CHAT_COMPLETIONS);
 
   // 处理消息自动关闭逻辑的公共函数
   const applyAutoCollapseLogic = useCallback(
@@ -185,7 +187,7 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        const response = await fetch(chatCompletionsUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -301,7 +303,7 @@ export const useApiRequest = (
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
-      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+      const source = new SSE(chatCompletionsUrl, {
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
@@ -450,6 +452,7 @@ export const useApiRequest = (
       completeMessage,
       t,
       applyAutoCollapseLogic,
+      chatCompletionsUrl,
     ],
   );
 

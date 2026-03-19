@@ -47,6 +47,7 @@ import {
   API,
   authHeader,
   getUserIdFromLocalStorage,
+  resolveRequestUrl,
   showError,
   showSuccess,
 } from '../../../../helpers';
@@ -339,7 +340,9 @@ const OllamaModelModal = ({
         ...authHeaders,
       };
 
-      const response = await fetch('/api/channel/ollama/pull/stream', {
+      const response = await fetch(
+        resolveRequestUrl('/api/channel/ollama/pull/stream'),
+        {
         method: 'POST',
         headers: fetchHeaders,
         body: JSON.stringify({
@@ -347,7 +350,8 @@ const OllamaModelModal = ({
           model_name: pullModelName.trim(),
         }),
         signal: controller.signal,
-      });
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

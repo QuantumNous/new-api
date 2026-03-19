@@ -26,18 +26,36 @@ import {
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
-const resolveServerUrl = () => {
+const normalizeServerUrl = (url = '') =>
+  String(url)
+    .trim()
+    .replace(/\/+$/, '');
+
+export const resolveServerUrl = () => {
   const envServerUrl =
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_REACT_APP_SERVER_URL ||
     '';
 
   if (envServerUrl) {
-    return envServerUrl;
+    return normalizeServerUrl(envServerUrl);
   }
 
   // 环境变量未设置时，退回同源地址，便于反向代理部署。
-  return window.location.origin;
+  return normalizeServerUrl(window.location.origin);
+};
+
+export const resolveRequestUrl = (path = '') => {
+  if (!path) {
+    return resolveServerUrl();
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${resolveServerUrl()}${normalizedPath}`;
 };
 
 const createAPIInstance = () =>
