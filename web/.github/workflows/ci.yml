@@ -20,16 +20,17 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4  # 将你的代码拉取到CI环境中
         
-      - name: 设置Bun环境
-        uses: oven-sh/setup-bun@v2
+      - name: 设置Node.js 24环境
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '24'
+          cache: npm
           
       - name: 安装依赖
-        run: bun install --frozen-lockfile
+        run: npm ci
         
       - name: 构建项目
-        run: bun run build  # 执行构建，生成dist文件夹
+        run: npm run build  # 执行构建，生成dist文件夹
         env:
           # 如果有环境变量，在这里设置
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
