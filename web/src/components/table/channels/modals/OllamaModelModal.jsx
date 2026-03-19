@@ -344,6 +344,7 @@ const OllamaModelModal = ({
         resolveRequestUrl('/api/channel/ollama/pull/stream'),
         {
         method: 'POST',
+        credentials: 'include',
         headers: fetchHeaders,
         body: JSON.stringify({
           channel_id: channelId,

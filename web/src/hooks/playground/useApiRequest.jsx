@@ -189,6 +189,7 @@ export const useApiRequest = (
       try {
         const response = await fetch(chatCompletionsUrl, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             'New-Api-User': getUserIdFromLocalStorage(),
@@ -304,6 +305,7 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       const source = new SSE(chatCompletionsUrl, {
+        withCredentials: true,
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
