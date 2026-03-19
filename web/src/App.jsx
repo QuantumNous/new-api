@@ -36,8 +36,6 @@ import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import Log from './pages/Log';
-import Chat from './pages/Chat';
-import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
 import Task from './pages/Task';
@@ -52,7 +50,7 @@ import SetupCheck from './components/layout/SetupCheck';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const About = lazy(() => import('./pages/About'));
+const Docs = lazy(() => import('./pages/Docs'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -335,10 +333,10 @@ function App() {
           }
         />
         <Route
-          path='/about'
+          path='/docs'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <About />
+              <Docs />
             </Suspense>
           }
         />
@@ -356,25 +354,6 @@ function App() {
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <PrivacyPolicy />
             </Suspense>
-          }
-        />
-        <Route
-          path='/console/chat/:id?'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <Chat />
-            </Suspense>
-          }
-        />
-        {/* 方便使用chat2link直接跳转聊天... */}
-        <Route
-          path='/chat2link'
-          element={
-            <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Chat2Link />
-              </Suspense>
-            </PrivateRoute>
           }
         />
         <Route path='*' element={<NotFound />} />

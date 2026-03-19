@@ -26,15 +26,30 @@ import {
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
-export let API = axios.create({
-  baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-    ? import.meta.env.VITE_REACT_APP_SERVER_URL
-    : '',
-  headers: {
-    'New-API-User': getUserIdFromLocalStorage(),
-    'Cache-Control': 'no-store',
-  },
-});
+const resolveServerUrl = () => {
+  const envServerUrl =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_REACT_APP_SERVER_URL ||
+    '';
+
+  if (envServerUrl) {
+    return envServerUrl;
+  }
+
+  // 环境变量未设置时，退回同源地址，便于反向代理部署。
+  return window.location.origin;
+};
+
+const createAPIInstance = () =>
+  axios.create({
+    baseURL: resolveServerUrl(),
+    headers: {
+      'New-API-User': getUserIdFromLocalStorage(),
+      'Cache-Control': 'no-store',
+    },
+  });
+
+export let API = createAPIInstance();
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -67,15 +82,7 @@ function patchAPIInstance(instance) {
 patchAPIInstance(API);
 
 export function updateAPI() {
-  API = axios.create({
-    baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-      ? import.meta.env.VITE_REACT_APP_SERVER_URL
-      : '',
-    headers: {
-      'New-API-User': getUserIdFromLocalStorage(),
-      'Cache-Control': 'no-store',
-    },
-  });
+  API = createAPIInstance();
 
   patchAPIInstance(API);
 }

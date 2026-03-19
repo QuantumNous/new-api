@@ -29,6 +29,19 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+const ALIPAY_ENTERPRISE_PAYMETHODS = JSON.stringify(
+  [
+    {
+      name: '支付宝',
+      type: 'alipay',
+      min_topup: 1,
+      color: 'rgba(var(--semi-blue-5), 1)',
+    },
+  ],
+  null,
+  2,
+);
+
 export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -63,7 +76,7 @@ export default function SettingsPaymentGateway(props) {
             : 1,
         TopupGroupRatio: props.options.TopupGroupRatio || '',
         CustomCallbackAddress: props.options.CustomCallbackAddress || '',
-        PayMethods: props.options.PayMethods || '',
+        PayMethods: props.options.PayMethods || ALIPAY_ENTERPRISE_PAYMETHODS,
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
       };
@@ -282,8 +295,9 @@ export default function SettingsPaymentGateway(props) {
           <Form.TextArea
             field='PayMethods'
             label={t('充值方式设置')}
-            placeholder={t('为一个 JSON 文本')}
+            placeholder={t('为一个 JSON 文本，建议仅保留支付宝')}
             autosize
+            extraText={t('默认已填充“支付宝”配置模板，保存后生效')}
           />
 
           <Row

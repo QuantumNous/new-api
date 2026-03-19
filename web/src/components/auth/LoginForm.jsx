@@ -805,7 +805,7 @@ const LoginForm = () => {
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className='w-full !rounded-full login-continue-btn'
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}

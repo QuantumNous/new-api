@@ -74,12 +74,10 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
-  const docsLink = statusState?.status?.docs_link || '';
-  const serverAddress =
-    statusState?.status?.server_address || `${window.location.origin}`;
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
+  const displayServerLink = 'https://api.meeyo.org';
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
@@ -111,26 +109,18 @@ const Home = () => {
   };
 
   const handleCopyBaseURL = async () => {
-    const ok = await copy(serverAddress);
+    const ok = await copy(displayServerLink);
     if (ok) {
       showSuccess(t('已复制到剪切板'));
     }
   };
 
   useEffect(() => {
-    const checkNoticeAndShow = async () => {
+    const checkNoticeAndShow = () => {
       const lastCloseDate = localStorage.getItem('notice_close_date');
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
-        try {
-          const res = await API.get('/api/notice');
-          const { success, data } = res.data;
-          if (success && data && data.trim() !== '') {
-            setNoticeVisible(true);
-          }
-        } catch (error) {
-          console.error('获取公告失败:', error);
-        }
+        setNoticeVisible(true);
       }
     };
 
@@ -156,18 +146,20 @@ const Home = () => {
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='w-full overflow-x-hidden'>
+        <div className='w-full overflow-x-hidden home-page-shell'>
           {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
+          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden home-tech-hero'>
+            <div className='home-tech-grid' />
             {/* 背景模糊晕染球 */}
             <div className='blur-ball blur-ball-indigo' />
             <div className='blur-ball blur-ball-teal' />
             <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
               {/* 居中内容区 */}
               <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
-                <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
+                <div className='home-tech-badge mb-6 home-reveal-item'>{t('YOUMI API · AI GATEWAY')}</div>
+                <div className='flex flex-col items-center justify-center mb-6 md:mb-8 home-glass-panel home-reveal-item'>
                   <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
+                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight home-tech-title ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
                   >
                     <>
                       {t('统一的')}
@@ -179,26 +171,28 @@ const Home = () => {
                     {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
                   </p>
                   {/* BASE URL 与端点选择 */}
-                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
+                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-2xl'>
                     <Input
                       readonly
-                      value={serverAddress}
-                      className='flex-1 !rounded-full'
+                      value={displayServerLink}
+                      className='flex-1 !rounded-full home-url-input'
                       size={isMobile ? 'default' : 'large'}
                       suffix={
                         <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
+                          <div className='home-endpoint-wheel'>
+                            <ScrollList
+                              bodyHeight={32}
+                              style={{ border: 'unset', boxShadow: 'unset' }}
+                            >
+                              <ScrollItem
+                                mode='wheel'
+                                cycled={true}
+                                list={endpointItems}
+                                selectedIndex={endpointIndex}
+                                onSelect={({ index }) => setEndpointIndex(index)}
+                              />
+                            </ScrollList>
+                          </div>
                           <Button
                             type='primary'
                             onClick={handleCopyBaseURL}
@@ -212,13 +206,13 @@ const Home = () => {
                 </div>
 
                 {/* 操作按钮 */}
-                <div className='flex flex-row gap-4 justify-center items-center'>
+                <div className='flex flex-row gap-4 justify-center items-center mt-2 home-reveal-item home-actions-group'>
                   <Link to='/console'>
                     <Button
                       theme='solid'
                       type='primary'
                       size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
+                      className='!rounded-3xl px-8 py-2 home-primary-button'
                       icon={<IconPlay />}
                     >
                       {t('获取密钥')}
@@ -227,7 +221,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
+                      className='flex items-center !rounded-3xl px-6 py-2 home-secondary-button'
                       icon={<IconGithubLogo />}
                       onClick={() =>
                         window.open(
@@ -239,21 +233,20 @@ const Home = () => {
                       {statusState.status.version}
                     </Button>
                   ) : (
-                    docsLink && (
+                    <Link to='/docs'>
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
+                        className='flex items-center !rounded-3xl px-6 py-2 home-secondary-button'
                         icon={<IconFile />}
-                        onClick={() => window.open(docsLink, '_blank')}
                       >
                         {t('文档')}
                       </Button>
-                    )
+                    </Link>
                   )}
                 </div>
 
                 {/* 框架兼容性图标 */}
-                <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
+                <div className='mt-12 md:mt-16 lg:mt-20 w-full home-provider-panel'>
                   <div className='flex items-center mb-6 md:mb-8 justify-center'>
                     <Text
                       type='tertiary'
@@ -262,7 +255,7 @@ const Home = () => {
                       {t('支持众多的大模型供应商')}
                     </Text>
                   </div>
-                  <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
+                  <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4 home-provider-icons'>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                       <Moonshot size={40} />
                     </div>

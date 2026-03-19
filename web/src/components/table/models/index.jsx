@@ -108,7 +108,7 @@ const ModelsPage = () => {
   };
 
   return (
-    <>
+    <div className='model-marketplace-page'>
       <EditModelModal
         refresh={refresh}
         editingModel={editingModel}
@@ -203,7 +203,7 @@ const ModelsPage = () => {
       >
         <ModelsTable {...modelsData} />
       </CardPro>
-    </>
+    </div>
   );
 };
 

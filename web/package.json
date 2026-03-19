@@ -5,11 +5,12 @@
   "type": "module",
   "dependencies": {
     "@douyinfe/semi-icons": "^2.63.1",
-    "@douyinfe/semi-ui": "^2.69.1",
+    "@douyinfe/semi-ui": "^2.93.0",
     "@lobehub/icons": "^2.0.0",
     "@visactor/react-vchart": "~1.8.8",
     "@visactor/vchart": "~1.8.8",
     "@visactor/vchart-semi-theme": "~1.8.8",
+    "antd": "^6.3.3",
     "axios": "1.13.5",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.11",

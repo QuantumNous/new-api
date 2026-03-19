@@ -64,7 +64,7 @@ const HeaderLogo = ({
           </SkeletonWrapper>
           {(isSelfUseMode || isDemoSiteMode) && !isLoading && (
             <Tag
-              color={isSelfUseMode ? 'purple' : 'blue'}
+              color='blue'
               className='text-xs px-1.5 py-0.5 rounded whitespace-nowrap shadow-sm'
               size='small'
               shape='circle'

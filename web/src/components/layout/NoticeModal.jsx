@@ -27,14 +27,14 @@ import {
   Timeline,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { API, showError, getRelativeTime } from '../../helpers';
+import { getRelativeTime } from '../../helpers';
 import { marked } from 'marked';
 import {
   IllustrationNoContent,
   IllustrationNoContentDark,
 } from '@douyinfe/semi-illustrations';
 import { StatusContext } from '../../context/Status';
-import { Bell, Megaphone } from 'lucide-react';
+import { ArrowRight, Bell, BookOpen, Megaphone, MessageCircle } from 'lucide-react';
 
 const NoticeModal = ({
   visible,
@@ -44,8 +44,6 @@ const NoticeModal = ({
   unreadKeys = [],
 }) => {
   const { t } = useTranslation();
-  const [noticeContent, setNoticeContent] = useState('');
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   const [statusState] = useContext(StatusContext);
@@ -82,70 +80,68 @@ const NoticeModal = ({
     onClose();
   };
 
-  const displayNotice = async () => {
-    setLoading(true);
-    try {
-      const res = await API.get('/api/notice');
-      const { success, message, data } = res.data;
-      if (success) {
-        if (data !== '') {
-          const htmlNotice = marked.parse(data);
-          setNoticeContent(htmlNotice);
-        } else {
-          setNoticeContent('');
-        }
-      } else {
-        showError(message);
-      }
-    } catch (error) {
-      showError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (visible) {
-      displayNotice();
-    }
-  }, [visible]);
-
   useEffect(() => {
     if (visible) {
       setActiveTab(defaultTab);
     }
   }, [defaultTab, visible]);
 
-  const renderMarkdownNotice = () => {
-    if (loading) {
-      return (
-        <div className='py-12'>
-          <Empty description={t('加载中...')} />
-        </div>
-      );
-    }
-
-    if (!noticeContent) {
-      return (
-        <div className='py-12'>
-          <Empty
-            image={
-              <IllustrationNoContent style={{ width: 150, height: 150 }} />
-            }
-            darkModeImage={
-              <IllustrationNoContentDark style={{ width: 150, height: 150 }} />
-            }
-            description={t('暂无公告')}
-          />
-        </div>
-      );
-    }
+  const renderWelcomeNotice = () => {
+    const quickLinks = [
+      {
+        key: 'docs',
+        title: '教程说明',
+        description: '前往文档查看完整使用指南',
+        hint: '快速上手 · 常见问题',
+        href: '/docs',
+        icon: <BookOpen size={18} />,
+      },
+      {
+        key: 'qq',
+        title: 'QQ群',
+        description: '打开群二维码图片，加入交流群',
+        hint: '群号749308101.来找悠米玩~',
+        href: '/qq-group.jpg',
+        icon: <MessageCircle size={18} />,
+      },
+    ];
 
     return (
-      <div
-        dangerouslySetInnerHTML={{ __html: noticeContent }}
-        className='notice-content-scroll max-h-[55vh] overflow-y-auto pr-2'
-      />
+      <div className='youmi-notice-shell'>
+        <div className='youmi-notice-head'>
+          <div className='youmi-notice-emoji'>✨</div>
+          <h3 className='youmi-notice-title'>欢迎来到悠米の小窝！</h3>
+          <p className='youmi-notice-subtitle'>
+            吃尽兴后可以来小窝找悠米和小伙伴们聊天喔~
+          </p>
+        </div>
+
+        <div className='youmi-notice-divider' />
+
+        <div className='youmi-notice-badge'>功能入口</div>
+
+        <div className='youmi-notice-grid'>
+          {quickLinks.map((item) => (
+            <a
+              key={item.key}
+              href={item.href}
+              target='_blank'
+              rel='noreferrer'
+              className='youmi-notice-card'
+            >
+              <div className='youmi-notice-card-icon'>{item.icon}</div>
+              <div className='youmi-notice-card-main'>
+                <div className='youmi-notice-card-title'>
+                  {item.title}
+                  <ArrowRight size={14} className='youmi-notice-card-arrow' />
+                </div>
+                <div className='youmi-notice-card-desc'>{item.description}</div>
+                <div className='youmi-notice-card-hint'>{item.hint}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
     );
   };
 
@@ -203,17 +199,23 @@ const NoticeModal = ({
 
   const renderBody = () => {
     if (activeTab === 'inApp') {
-      return renderMarkdownNotice();
+      return renderWelcomeNotice();
     }
     return renderAnnouncementTimeline();
   };
 
   return (
     <Modal
+      className='youmi-notice-modal'
       title={
-        <div className='flex items-center justify-between w-full'>
-          <span>{t('系统公告')}</span>
-          <Tabs activeKey={activeTab} onChange={setActiveTab} type='button'>
+        <div className='flex items-center justify-between w-full gap-3'>
+          <span className='youmi-notice-header-title'>{t('系统公告')}</span>
+          <Tabs
+            className='youmi-notice-tabs'
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            type='button'
+          >
             <TabPane
               tab={
                 <span className='flex items-center gap-1'>
@@ -236,11 +238,19 @@ const NoticeModal = ({
       visible={visible}
       onCancel={onClose}
       footer={
-        <div className='flex justify-end'>
-          <Button type='secondary' onClick={handleCloseTodayNotice}>
+        <div className='youmi-notice-footer-actions'>
+          <Button
+            className='youmi-notice-btn youmi-notice-btn-secondary'
+            type='secondary'
+            onClick={handleCloseTodayNotice}
+          >
             {t('今日关闭')}
           </Button>
-          <Button type='primary' onClick={onClose}>
+          <Button
+            className='youmi-notice-btn youmi-notice-btn-primary'
+            type='primary'
+            onClick={onClose}
+          >
             {t('关闭公告')}
           </Button>
         </div>

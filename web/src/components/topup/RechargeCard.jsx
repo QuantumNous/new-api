@@ -87,9 +87,6 @@ const RechargeCard = ({
   statusLoading,
   topupInfo,
   onOpenHistory,
-  enableWaffoTopUp,
-  waffoTopUp,
-  waffoPayMethods,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -227,19 +224,19 @@ const RechargeCard = ({
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>
-        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp ? (
+        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
           >
             <div className='space-y-6'>
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
                       label={t('充值数量')}
-                      disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
+                      disabled={!enableOnlineTopUp && !enableStripeTopUp}
                       placeholder={
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
@@ -291,11 +288,11 @@ const RechargeCard = ({
                       style={{ width: '100%' }}
                     />
                   </Col>
-                  {payMethods && payMethods.filter(m => m.type !== 'waffo').length > 0 && (
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                     <Form.Slot label={t('选择支付方式')}>
+                      {payMethods && payMethods.length > 0 ? (
                         <Space wrap>
-                          {payMethods.filter(m => m.type !== 'waffo').map((payMethod) => {
+                          {payMethods.map((payMethod) => {
                             const minTopupVal = Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
                             const disabled =
@@ -355,13 +352,17 @@ const RechargeCard = ({
                             );
                           })}
                         </Space>
+                      ) : (
+                        <div className='text-gray-500 text-sm p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300'>
+                          {t('支付宝企业账户收款通道暂未配置，请联系管理员')}
+                        </div>
+                      )}
                     </Form.Slot>
                   </Col>
-                  )}
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp) && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
@@ -482,46 +483,6 @@ const RechargeCard = ({
                 </Form.Slot>
               )}
 
-              {/* Waffo 充值区域 */}
-              {enableWaffoTopUp &&
-                waffoPayMethods &&
-                waffoPayMethods.length > 0 && (
-                  <Form.Slot label={t('Waffo 充值')}>
-                    <Space wrap>
-                      {waffoPayMethods.map((method, index) => (
-                        <Button
-                          key={index}
-                          theme='outline'
-                          type='tertiary'
-                          onClick={() => waffoTopUp(index)}
-                          loading={paymentLoading}
-                          icon={
-                            method.icon ? (
-                              <img
-                                src={method.icon}
-                                alt={method.name}
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  objectFit: 'contain',
-                                }}
-                              />
-                            ) : (
-                              <CreditCard
-                                size={18}
-                                color='var(--semi-color-text-2)'
-                              />
-                            )
-                          }
-                          className='!rounded-lg !px-4 !py-2'
-                        >
-                          {method.name}
-                        </Button>
-                      ))}
-                    </Space>
-                  </Form.Slot>
-                )}
-
               {/* Creem 充值区域 */}
               {enableCreemTopUp && creemProducts.length > 0 && (
                 <Form.Slot label={t('Creem 充值')}>
@@ -554,7 +515,7 @@ const RechargeCard = ({
           <Banner
             type='info'
             description={t(
-              '管理员未开启在线充值功能，请联系管理员开启或使用兑换码充值。',
+              '当前仅支持支付宝企业账户收款，请联系管理员开启在线充值或使用兑换码充值。',
             )}
             className='!rounded-xl'
             closeIcon={null}
@@ -629,7 +590,7 @@ const RechargeCard = ({
             <Typography.Text className='text-lg font-medium'>
               {t('账户充值')}
             </Typography.Text>
-            <div className='text-xs'>{t('多种充值方式，安全便捷')}</div>
+            <div className='text-xs'>{t('支付宝企业账户收款，安全便捷')}</div>
           </div>
         </div>
         <Button

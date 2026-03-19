@@ -69,7 +69,15 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isHomeRoute = location.pathname === '/';
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+
+  useEffect(() => {
+    document.body.classList.toggle('console-route', isConsoleRoute);
+    return () => {
+      document.body.classList.remove('console-route');
+    };
+  }, [isConsoleRoute]);
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -103,10 +111,7 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
+    document.title = 'YOUMI API';
     let logo = getLogo();
     if (logo) {
       let linkElement = document.querySelector("link[rel~='icon']");
@@ -145,7 +150,7 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className='app-layout'
+      className='app-layout global-tech-app'
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -208,6 +213,7 @@ const PageLayout = () => {
           }}
         >
           <Content
+            className={`global-tech-content ${isHomeRoute ? 'global-tech-content-home' : ''}`}
             style={{
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',
