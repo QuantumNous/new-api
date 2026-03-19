@@ -31,9 +31,9 @@ jobs:
       - name: 安装依赖
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci --legacy-peer-deps
           else
-            npm install
+            npm install --legacy-peer-deps
           fi
         
       - name: 构建项目
