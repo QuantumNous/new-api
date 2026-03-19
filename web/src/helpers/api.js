@@ -43,6 +43,7 @@ const resolveServerUrl = () => {
 const createAPIInstance = () =>
   axios.create({
     baseURL: resolveServerUrl(),
+    withCredentials: true,
     headers: {
       'New-API-User': getUserIdFromLocalStorage(),
       'Cache-Control': 'no-store',
