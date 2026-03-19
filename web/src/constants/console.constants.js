@@ -37,6 +37,11 @@ export const DATE_RANGE_PRESETS = [
     end: () => dayjs().endOf('week').toDate(),
   },
   {
+    text: '上周',
+    start: () => dayjs().subtract(1, 'week').startOf('week').toDate(),
+    end: () => dayjs().subtract(1, 'week').endOf('week').toDate(),
+  },
+  {
     text: '近 30 天',
     start: () => dayjs().subtract(29, 'day').startOf('day').toDate(),
     end: () => dayjs().endOf('day').toDate(),
