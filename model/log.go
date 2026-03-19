@@ -36,6 +36,7 @@ type Log struct {
 	Group            string `json:"group" gorm:"index"`
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	RequestPath      string `json:"request_path,omitempty" gorm:"type:varchar(255);index:idx_logs_request_path;default:''"`
 	Other            string `json:"other"`
 }
 
@@ -124,8 +125,9 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:   requestId,
+		RequestPath: resolveLogRequestPath(c.Request.URL.Path, other),
+		Other:       otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -145,6 +147,7 @@ type RecordConsumeLogParams struct {
 	UseTimeSeconds   int                    `json:"use_time_seconds"`
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
+	RequestPath      string                 `json:"request_path"`
 	Other            map[string]interface{} `json:"other"`
 }
 
@@ -185,8 +188,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:   requestId,
+		RequestPath: resolveLogRequestPath(params.RequestPath, params.Other),
+		Other:       otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -200,15 +204,16 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 }
 
 type RecordTaskBillingLogParams struct {
-	UserId    int
-	LogType   int
-	Content   string
-	ChannelId int
-	ModelName string
-	Quota     int
-	TokenId   int
-	Group     string
-	Other     map[string]interface{}
+	UserId      int
+	LogType     int
+	Content     string
+	ChannelId   int
+	ModelName   string
+	Quota       int
+	TokenId     int
+	Group       string
+	RequestPath string
+	Other       map[string]interface{}
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -223,23 +228,45 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		}
 	}
 	log := &Log{
-		UserId:    params.UserId,
-		Username:  username,
-		CreatedAt: common.GetTimestamp(),
-		Type:      params.LogType,
-		Content:   params.Content,
-		TokenName: tokenName,
-		ModelName: params.ModelName,
-		Quota:     params.Quota,
-		ChannelId: params.ChannelId,
-		TokenId:   params.TokenId,
-		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		UserId:      params.UserId,
+		Username:    username,
+		CreatedAt:   common.GetTimestamp(),
+		Type:        params.LogType,
+		Content:     params.Content,
+		TokenName:   tokenName,
+		ModelName:   params.ModelName,
+		Quota:       params.Quota,
+		ChannelId:   params.ChannelId,
+		TokenId:     params.TokenId,
+		Group:       params.Group,
+		RequestPath: resolveLogRequestPath(params.RequestPath, params.Other),
+		Other:       common.MapToJsonStr(params.Other),
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
+}
+
+func resolveLogRequestPath(explicit string, other map[string]interface{}) string {
+	if explicit != "" {
+		return explicit
+	}
+	if other == nil {
+		return ""
+	}
+	value, ok := other["request_path"]
+	if !ok || value == nil {
+		return ""
+	}
+	if path, ok := value.(string); ok {
+		return path
+	}
+	path := fmt.Sprint(value)
+	if path == "<nil>" {
+		return ""
+	}
+	return path
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
