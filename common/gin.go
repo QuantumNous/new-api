@@ -57,10 +57,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 	}
 
-	maxMB := constant.MaxRequestBodyMB
-	if maxMB <= 0 {
-		maxMB = 128 // 默认 128MB
-	}
+	maxMB := constant.EffectiveMaxRequestBodyMB()
 	maxBytes := int64(maxMB) << 20
 
 	contentLength := c.Request.ContentLength
