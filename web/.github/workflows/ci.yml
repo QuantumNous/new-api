@@ -7,6 +7,9 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  USERNAME: deployer
+
 # 定义要执行的任务
 jobs:
   build:
@@ -36,3 +39,15 @@ jobs:
         with:
           name: dist
           path: dist/  # 上传dist文件夹，可供后续部署使用
+
+      - name: 部署到服务器
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_IP }}
+          port: 22
+          username: ${{ env.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          source: dist/*
+          target: /opt/www/meeyo
+          overwrite: true
