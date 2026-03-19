@@ -40,7 +40,7 @@ jobs:
         run: npm run build  # 执行构建，生成dist文件夹
         env:
           # 如果有环境变量，在这里设置
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_API_BASE_URL: https://api.meeyo.org
           
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
