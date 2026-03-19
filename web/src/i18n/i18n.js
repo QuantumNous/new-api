@@ -29,10 +29,15 @@ import zhTWTranslation from './locales/zh-TW.json';
 import ruTranslation from './locales/ru.json';
 import jaTranslation from './locales/ja.json';
 import viTranslation from './locales/vi.json';
-import { supportedLanguages } from './language';
+import { normalizeLanguage, supportedLanguages } from './language';
+
+// Create custom language detector that normalizes detected language codes
+const languageDetector = new LanguageDetector();
+const originalDetect = languageDetector.detect.bind(languageDetector);
+languageDetector.detect = () => normalizeLanguage(originalDetect());
 
 i18n
-  .use(LanguageDetector)
+  .use(languageDetector)
   .use(initReactI18next)
   .init({
     load: 'currentOnly',

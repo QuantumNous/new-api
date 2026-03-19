@@ -54,7 +54,7 @@ export const normalizeLanguage = (language) => {
     return 'zh-TW';
   }
 
-  if (lower === 'ko' || /^ko(-|$)/.test(lower)) {
+  if (/^ko(-|$)/.test(lower)) {
     return 'kr';
   }
 
