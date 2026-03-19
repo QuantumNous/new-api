@@ -69,6 +69,10 @@ const EditTokenModal = (props) => {
     remain_quota: 0,
     expired_time: -1,
     unlimited_quota: true,
+    quota_period: '',
+    quota_limit: 0,
+    quota_used_in_period: 0,
+    quota_next_reset_time: 0,
     model_limits_enabled: false,
     model_limits: [],
     allow_ips: '',
@@ -210,6 +214,10 @@ const EditTokenModal = (props) => {
     if (isEdit) {
       let { tokenCount: _tc, ...localInputs } = values;
       localInputs.remain_quota = parseInt(localInputs.remain_quota);
+      localInputs.quota_limit = parseInt(localInputs.quota_limit) || 0;
+      if (!localInputs.quota_period) {
+        localInputs.quota_limit = 0;
+      }
       if (localInputs.expired_time !== -1) {
         let time = Date.parse(localInputs.expired_time);
         if (isNaN(time)) {
@@ -246,6 +254,10 @@ const EditTokenModal = (props) => {
           localInputs.name = baseName;
         }
         localInputs.remain_quota = parseInt(localInputs.remain_quota);
+        localInputs.quota_limit = parseInt(localInputs.quota_limit) || 0;
+        if (!localInputs.quota_period) {
+          localInputs.quota_limit = 0;
+        }
 
         if (localInputs.expired_time !== -1) {
           let time = Date.parse(localInputs.expired_time);
@@ -521,6 +533,78 @@ const EditTokenModal = (props) => {
                       )}
                     />
                   </Col>
+                  <Col span={12}>
+                    <Form.Select
+                      field='quota_period'
+                      label={t('周期额度')}
+                      placeholder={t('请选择周期额度')}
+                      optionList={[
+                        { label: t('未启用'), value: '' },
+                        { label: t('每日额度'), value: 'daily' },
+                        { label: t('每月额度'), value: 'monthly' },
+                      ]}
+                      onChange={(value) => {
+                        if (!value) {
+                          formApiRef.current?.setValue('quota_limit', 0);
+                        }
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.AutoComplete
+                      field='quota_limit'
+                      label={t('周期额度上限')}
+                      placeholder={t('请输入周期额度上限')}
+                      type='number'
+                      disabled={!values.quota_period}
+                      extraText={
+                        values.quota_period
+                          ? renderQuotaWithPrompt(values.quota_limit)
+                          : t('未启用周期额度时将忽略该值')
+                      }
+                      rules={
+                        values.quota_period
+                          ? [
+                              {
+                                required: true,
+                                message: t('请输入周期额度上限'),
+                              },
+                              {
+                                validator: (rule, value) => {
+                                  if (!values.quota_period) {
+                                    return Promise.resolve();
+                                  }
+                                  if (parseInt(value, 10) > 0) {
+                                    return Promise.resolve();
+                                  }
+                                  return Promise.reject(
+                                    t('周期额度上限必须大于 0'),
+                                  );
+                                },
+                              },
+                            ]
+                          : []
+                      }
+                      data={[
+                        { value: 500000, label: '1$' },
+                        { value: 2500000, label: '5$' },
+                        { value: 5000000, label: '10$' },
+                        { value: 25000000, label: '50$' },
+                        { value: 50000000, label: '100$' },
+                      ]}
+                    />
+                  </Col>
+                  {isEdit && values.quota_period && (
+                    <Col span={24}>
+                      <div className='text-xs text-gray-600'>
+                        {t('当前周期已用额度')}: {renderQuotaWithPrompt(values.quota_used_in_period || 0)}
+                        {values.quota_next_reset_time > 0
+                          ? ` · ${t('下次重置时间')}: ${timestamp2string(values.quota_next_reset_time)}`
+                          : ''}
+                      </div>
+                    </Col>
+                  )}
                 </Row>
               </Card>
 

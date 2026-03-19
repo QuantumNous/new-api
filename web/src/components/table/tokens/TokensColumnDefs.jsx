@@ -319,6 +319,68 @@ const renderQuotaUsage = (text, record, t) => {
   );
 };
 
+const renderPeriodQuota = (record, t) => {
+  const period = record.quota_period;
+  const limit = parseInt(record.quota_limit) || 0;
+  const used = parseInt(record.quota_used_in_period) || 0;
+
+  if (!period || limit <= 0) {
+    return (
+      <Tag color='white' shape='circle'>
+        {t('未启用')}
+      </Tag>
+    );
+  }
+
+  const percent = Math.min((used / limit) * 100, 100);
+  const periodLabel = period === 'daily' ? t('每日额度') : t('每月额度');
+  const popoverContent = (
+    <div className='text-xs p-2'>
+      <Typography.Paragraph>
+        {periodLabel}
+      </Typography.Paragraph>
+      <Typography.Paragraph>
+        {t('当前周期已用额度')}: {renderQuota(used)}
+      </Typography.Paragraph>
+      <Typography.Paragraph>
+        {t('周期额度上限')}: {renderQuota(limit)}
+      </Typography.Paragraph>
+    </div>
+  );
+
+  return (
+    <Popover content={popoverContent} position='top'>
+      <Tag color='white' shape='circle'>
+        <div className='flex flex-col items-start'>
+          <span className='text-xs leading-none'>{periodLabel}</span>
+          <span className='text-xs leading-none mt-1'>
+            {renderQuota(used)} / {renderQuota(limit)}
+          </span>
+          <Progress
+            percent={percent}
+            stroke={getProgressColor(100 - percent)}
+            aria-label='period quota usage'
+            format={() => `${percent.toFixed(0)}%`}
+            style={{ width: '100%', marginTop: '4px', marginBottom: 0 }}
+          />
+        </div>
+      </Tag>
+    </Popover>
+  );
+};
+
+const renderNextResetTime = (record, t) => {
+  if (!record.quota_period || !record.quota_limit || !record.quota_next_reset_time) {
+    return (
+      <Tag color='white' shape='circle'>
+        {t('未启用')}
+      </Tag>
+    );
+  }
+
+  return <div>{renderTimestamp(record.quota_next_reset_time)}</div>;
+};
+
 // Render operations column
 const renderOperations = (
   text,
@@ -471,6 +533,16 @@ export const getTokensColumns = ({
       dataIndex: 'group',
       key: 'group',
       render: (text, record) => renderGroupColumn(text, record, t),
+    },
+    {
+      title: t('周期额度'),
+      key: 'period_quota',
+      render: (text, record) => renderPeriodQuota(record, t),
+    },
+    {
+      title: t('下次重置时间'),
+      key: 'period_quota_next_reset',
+      render: (text, record) => renderNextResetTime(record, t),
     },
     {
       title: t('密钥'),
