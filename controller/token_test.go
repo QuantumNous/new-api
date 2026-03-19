@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -36,6 +37,14 @@ type tokenResponseItem struct {
 
 type tokenKeyResponse struct {
 	Key string `json:"key"`
+}
+
+type tokenPeriodQuotaRecord struct {
+	QuotaPeriod        string `gorm:"column:quota_period"`
+	QuotaLimit         int    `gorm:"column:quota_limit"`
+	QuotaUsedInPeriod  int    `gorm:"column:quota_used_in_period"`
+	QuotaLastResetTime int64  `gorm:"column:quota_last_reset_time"`
+	QuotaNextResetTime int64  `gorm:"column:quota_next_reset_time"`
 }
 
 func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
@@ -67,6 +76,44 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	})
 
 	return db
+}
+
+func ensureTokenPeriodQuotaColumns(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	type tableInfoRow struct {
+		Name string `gorm:"column:name"`
+	}
+
+	var columns []tableInfoRow
+	if err := db.Raw("PRAGMA table_info(tokens)").Scan(&columns).Error; err != nil {
+		t.Fatalf("failed to inspect token columns: %v", err)
+	}
+
+	existing := make(map[string]struct{}, len(columns))
+	for _, column := range columns {
+		existing[column.Name] = struct{}{}
+	}
+
+	statements := []struct {
+		column string
+		sql    string
+	}{
+		{column: "quota_period", sql: "ALTER TABLE tokens ADD COLUMN quota_period TEXT DEFAULT ''"},
+		{column: "quota_limit", sql: "ALTER TABLE tokens ADD COLUMN quota_limit INTEGER DEFAULT 0"},
+		{column: "quota_used_in_period", sql: "ALTER TABLE tokens ADD COLUMN quota_used_in_period INTEGER DEFAULT 0"},
+		{column: "quota_last_reset_time", sql: "ALTER TABLE tokens ADD COLUMN quota_last_reset_time BIGINT DEFAULT 0"},
+		{column: "quota_next_reset_time", sql: "ALTER TABLE tokens ADD COLUMN quota_next_reset_time BIGINT DEFAULT 0"},
+	}
+
+	for _, statement := range statements {
+		if _, ok := existing[statement.column]; ok {
+			continue
+		}
+		if err := db.Exec(statement.sql).Error; err != nil {
+			t.Fatalf("failed to add token period quota column %s: %v", statement.column, err)
+		}
+	}
 }
 
 func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string) *model.Token {
@@ -271,5 +318,133 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestAddTokenPersistsPeriodQuotaSettings(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	ensureTokenPeriodQuotaColumns(t, db)
+
+	body := map[string]any{
+		"name":                 "period-token",
+		"expired_time":         -1,
+		"remain_quota":         1200,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"quota_period":         "daily",
+		"quota_limit":          600,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var record tokenPeriodQuotaRecord
+	if err := db.Raw("SELECT quota_period, quota_limit, quota_used_in_period, quota_last_reset_time, quota_next_reset_time FROM tokens ORDER BY id DESC LIMIT 1").Scan(&record).Error; err != nil {
+		t.Fatalf("failed to query stored token period quota: %v", err)
+	}
+
+	if record.QuotaPeriod != "daily" {
+		t.Fatalf("expected quota_period to be persisted as daily, got %q", record.QuotaPeriod)
+	}
+	if record.QuotaLimit != 600 {
+		t.Fatalf("expected quota_limit to be persisted as 600, got %d", record.QuotaLimit)
+	}
+}
+
+func TestUpdateTokenResetsPeriodQuotaWindowWhenModeChanges(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	ensureTokenPeriodQuotaColumns(t, db)
+	token := seedToken(t, db, 1, "editable-period-token", "period1234token5678")
+
+	now := time.Now()
+	lastReset := now.Add(-48 * time.Hour).Unix()
+	nextReset := now.Add(-24 * time.Hour).Unix()
+	if err := db.Exec(
+		"UPDATE tokens SET quota_period = ?, quota_limit = ?, quota_used_in_period = ?, quota_last_reset_time = ?, quota_next_reset_time = ? WHERE id = ?",
+		"monthly", 900, 450, lastReset, nextReset, token.Id,
+	).Error; err != nil {
+		t.Fatalf("failed to seed token period quota state: %v", err)
+	}
+
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "editable-period-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"quota_period":         "daily",
+		"quota_limit":          300,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var record tokenPeriodQuotaRecord
+	if err := db.Raw("SELECT quota_period, quota_limit, quota_used_in_period, quota_last_reset_time, quota_next_reset_time FROM tokens WHERE id = ?", token.Id).Scan(&record).Error; err != nil {
+		t.Fatalf("failed to query updated token period quota: %v", err)
+	}
+
+	if record.QuotaPeriod != "daily" {
+		t.Fatalf("expected quota_period to be updated to daily, got %q", record.QuotaPeriod)
+	}
+	if record.QuotaLimit != 300 {
+		t.Fatalf("expected quota_limit to be updated to 300, got %d", record.QuotaLimit)
+	}
+	if record.QuotaUsedInPeriod != 0 {
+		t.Fatalf("expected quota_used_in_period to reset to 0, got %d", record.QuotaUsedInPeriod)
+	}
+	if record.QuotaNextResetTime <= common.GetTimestamp() {
+		t.Fatalf("expected quota_next_reset_time to move to a future window, got %d", record.QuotaNextResetTime)
+	}
+}
+
+func TestAddTokenRejectsInvalidPeriodQuotaValues(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	ensureTokenPeriodQuotaColumns(t, db)
+
+	body := map[string]any{
+		"name":                 "invalid-period-token",
+		"expired_time":         -1,
+		"remain_quota":         1200,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"quota_period":         "weekly",
+		"quota_limit":          600,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected invalid quota_period to be rejected")
+	}
+
+	var count int64
+	if err := db.Model(&model.Token{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count tokens: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected invalid token request to avoid creating a token, found %d rows", count)
 	}
 }

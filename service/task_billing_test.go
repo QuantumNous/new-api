@@ -287,6 +287,29 @@ func TestRefundTaskQuota_NoToken(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
 
+func TestRefundTaskQuota_RollsBackPeriodQuotaUsage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	ensureTokenPeriodQuotaColumnsForServiceTests(t)
+
+	const userID, tokenID, channelID = 5, 5, 5
+	const initQuota, preConsumed = 10000, 1800
+	const tokenRemain = 5000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-period-refund", tokenRemain)
+	seedChannel(t, channelID)
+
+	now := time.Now().Unix()
+	setTokenPeriodQuotaStateForServiceTests(t, tokenID, "daily", 3000, preConsumed, now-(2*3600), now+(2*3600))
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	RefundTaskQuota(ctx, task, "period quota refund")
+
+	assert.Equal(t, 0, getTokenPeriodQuotaUsedForServiceTests(t, tokenID))
+}
+
 // ===========================================================================
 // RecalculateTaskQuota tests
 // ===========================================================================
@@ -425,6 +448,54 @@ func TestRecalculate_Subscription_NegativeDelta(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRecalculate_PositiveDeltaUpdatesPeriodQuotaUsage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	ensureTokenPeriodQuotaColumnsForServiceTests(t)
+
+	const userID, tokenID, channelID = 15, 15, 15
+	const initQuota, preConsumed = 10000, 2000
+	const actualQuota = 3200
+	const tokenRemain = 6000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-period-recalc-pos", tokenRemain)
+	seedChannel(t, channelID)
+
+	now := time.Now().Unix()
+	setTokenPeriodQuotaStateForServiceTests(t, tokenID, "monthly", 10000, preConsumed, now-(24*3600), now+(24*3600))
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "period quota delta increase")
+
+	assert.Equal(t, actualQuota, getTokenPeriodQuotaUsedForServiceTests(t, tokenID))
+}
+
+func TestRecalculate_NegativeDeltaUpdatesPeriodQuotaUsage(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	ensureTokenPeriodQuotaColumnsForServiceTests(t)
+
+	const userID, tokenID, channelID = 16, 16, 16
+	const initQuota, preConsumed = 10000, 5000
+	const actualQuota = 2600
+	const tokenRemain = 7000
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-period-recalc-neg", tokenRemain)
+	seedChannel(t, channelID)
+
+	now := time.Now().Unix()
+	setTokenPeriodQuotaStateForServiceTests(t, tokenID, "monthly", 10000, preConsumed, now-(24*3600), now+(24*3600))
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+
+	RecalculateTaskQuota(ctx, task, actualQuota, "period quota delta decrease")
+
+	assert.Equal(t, actualQuota, getTokenPeriodQuotaUsedForServiceTests(t, tokenID))
 }
 
 // ===========================================================================
