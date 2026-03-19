@@ -28,12 +28,72 @@ func parseLogFilter(c *gin.Context) model.LogFilter {
 	}
 }
 
-func GetAllLogs(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
+func parseAdminLogFilter(c *gin.Context) model.LogFilter {
 	filters := parseLogFilter(c)
 	filters.Username = c.Query("username")
 	channel, _ := strconv.Atoi(c.Query("channel"))
 	filters.ChannelID = channel
+	return filters
+}
+
+func writeLogsCSV(c *gin.Context, logs []*model.Log, includeChannel bool) {
+	header := []string{
+		"used_at",
+		"username",
+		"token_name",
+		"model_name",
+		"request_path",
+		"quota",
+		"prompt_tokens",
+		"completion_tokens",
+		"ip",
+		"request_id",
+		"group",
+		"log_type",
+	}
+	if includeChannel {
+		header = append(header, "channel_id")
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=\"usage-logs-"+time.Now().Format("2006-01-02")+".csv\"")
+	c.Status(http.StatusOK)
+
+	_, _ = c.Writer.Write([]byte("\xEF\xBB\xBF"))
+	writer := csv.NewWriter(c.Writer)
+	defer writer.Flush()
+
+	if err := writer.Write(header); err != nil {
+		return
+	}
+
+	for _, log := range logs {
+		record := []string{
+			time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			log.Username,
+			log.TokenName,
+			log.ModelName,
+			log.RequestPath,
+			strconv.Itoa(log.Quota),
+			strconv.Itoa(log.PromptTokens),
+			strconv.Itoa(log.CompletionTokens),
+			log.Ip,
+			log.RequestId,
+			log.Group,
+			strconv.Itoa(log.Type),
+		}
+		if includeChannel {
+			record = append(record, strconv.Itoa(log.ChannelId))
+		}
+		if err := writer.Write(record); err != nil {
+			return
+		}
+	}
+}
+
+func GetAllLogs(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	filters := parseAdminLogFilter(c)
 	logs, total, err := model.GetAllLogsByFilter(filters, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
@@ -61,6 +121,16 @@ func GetUserLogs(c *gin.Context) {
 	return
 }
 
+func ExportAllLogsCSV(c *gin.Context) {
+	filters := parseAdminLogFilter(c)
+	logs, err := model.GetAllLogsForExport(filters)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	writeLogsCSV(c, logs, true)
+}
+
 func ExportUserLogsCSV(c *gin.Context) {
 	userId := c.GetInt("id")
 	filters := parseLogFilter(c)
@@ -71,52 +141,7 @@ func ExportUserLogsCSV(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", "attachment; filename=\"usage-logs-"+time.Now().Format("2006-01-02")+".csv\"")
-	c.Status(http.StatusOK)
-
-	_, _ = c.Writer.Write([]byte("\xEF\xBB\xBF"))
-	writer := csv.NewWriter(c.Writer)
-	defer writer.Flush()
-
-	header := []string{
-		"used_at",
-		"username",
-		"token_name",
-		"model_name",
-		"request_path",
-		"quota",
-		"prompt_tokens",
-		"completion_tokens",
-		"ip",
-		"request_id",
-		"group",
-		"log_type",
-	}
-	if err = writer.Write(header); err != nil {
-		return
-	}
-
-	for _, log := range logs {
-		record := []string{
-			time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
-			log.Username,
-			log.TokenName,
-			log.ModelName,
-			log.RequestPath,
-			strconv.Itoa(log.Quota),
-			strconv.Itoa(log.PromptTokens),
-			strconv.Itoa(log.CompletionTokens),
-			log.Ip,
-			log.RequestId,
-			log.Group,
-			strconv.Itoa(log.Type),
-		}
-		if err = writer.Write(record); err != nil {
-			return
-		}
-	}
+	writeLogsCSV(c, logs, false)
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。

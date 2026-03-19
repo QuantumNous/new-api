@@ -810,16 +810,17 @@ export const useLogsData = () => {
   };
 
   const handleExport = async () => {
-    if (exporting || isAdminUser) {
+    if (exporting) {
       return;
     }
 
     setExporting(true);
     try {
       const query = buildQueryString(
-        buildLogQueryParams({ includeAdminFields: false }),
+        buildLogQueryParams({ includeAdminFields: isAdminUser }),
       );
-      const response = await API.get(`/api/log/self/export?${query}`, {
+      const exportUrl = isAdminUser ? '/api/log/export' : '/api/log/self/export';
+      const response = await API.get(`${exportUrl}?${query}`, {
         responseType: 'blob',
         disableDuplicate: true,
         skipErrorHandler: true,

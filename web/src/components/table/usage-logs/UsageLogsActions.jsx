@@ -31,7 +31,6 @@ const LogsActions = ({
   setCompactMode,
   handleExport,
   exporting,
-  isAdminUser,
   t,
 }) => {
   const showSkeleton = useMinimumLoadingTime(loadingStat);
@@ -87,16 +86,14 @@ const LogsActions = ({
       </Skeleton>
 
       <div className='flex items-center gap-2'>
-        {!isAdminUser && (
-          <Button
-            type='tertiary'
-            size='small'
-            loading={exporting}
-            onClick={handleExport}
-          >
-            {exporting ? `${t('导出')}...` : `${t('导出')} CSV`}
-          </Button>
-        )}
+        <Button
+          type='tertiary'
+          size='small'
+          loading={exporting}
+          onClick={handleExport}
+        >
+          {exporting ? `${t('导出')}...` : `${t('导出')} CSV`}
+        </Button>
         <CompactModeToggle
           compactMode={compactMode}
           setCompactMode={setCompactMode}

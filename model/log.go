@@ -530,6 +530,19 @@ func GetUserLogsForExport(filters LogFilter) (logs []*Log, err error) {
 	return logs, nil
 }
 
+func GetAllLogsForExport(filters LogFilter) (logs []*Log, err error) {
+	tx, err := applyLogFilters(LOG_DB.Model(&Log{}), filters)
+	if err != nil {
+		return nil, err
+	}
+	err = tx.Order("logs.created_at asc, logs.id asc").Find(&logs).Error
+	if err != nil {
+		common.SysError("failed to query logs for export: " + err.Error())
+		return nil, errors.New("failed to query logs for export")
+	}
+	return logs, nil
+}
+
 type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
