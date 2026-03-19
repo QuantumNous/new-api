@@ -24,6 +24,27 @@ type Adaptor struct {
 	IsSyncImageModel bool
 }
 
+// https://bailian.console.aliyun.com/cn-beijing?tab=doc#/doc/?type=model&url=2949529
+// aliAnthropicExplicitModels 列出明确支持阿里云 Anthropic Messages 接口的非 Qwen 模型
+var aliAnthropicExplicitModels = map[string]struct{}{
+	"kimi-k2.5":        {},
+	"kimi-k2-thinking": {},
+	"glm-5":            {},
+	"glm-4.7":          {},
+	"glm-4.6":          {},
+	"minimax-m2.5":     {},
+	"minimax-m2.1":     {},
+}
+
+func supportsAliAnthropicMessages(modelName string) bool {
+	lower := strings.ToLower(modelName)
+	if strings.Contains(lower, "qwen") {
+		return true
+	}
+	_, ok := aliAnthropicExplicitModels[lower]
+	return ok
+}
+
 /*
 	var syncModels = []string{
 		"z-image",
@@ -31,16 +52,6 @@ type Adaptor struct {
 		"wan2.6",
 	}
 */
-func supportsAliAnthropicMessages(modelName string) bool {
-	// Only models with the "qwen" designation can use the Claude-compatible interface; others require conversion.
-	return strings.Contains(strings.ToLower(modelName), "qwen")
-}
-
-var syncModels = []string{
-	"z-image",
-	"qwen-image",
-	"wan2.6",
-}
 
 func isSyncImageModel(modelName string) bool {
 	return model_setting.IsSyncImageModel(modelName)
