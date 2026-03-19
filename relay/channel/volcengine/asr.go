@@ -132,6 +132,8 @@ func detectAudioFormat(filename string, contentType string) string {
 }
 
 func handleASRResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, responseFormat string) (usage any, err *types.NewAPIError) {
+	defer resp.Body.Close()
+
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
 		return nil, types.NewErrorWithStatusCode(
@@ -140,7 +142,6 @@ func handleASRResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 			http.StatusInternalServerError,
 		)
 	}
-	defer resp.Body.Close()
 
 	var volcResp VolcengineASRResponse
 	if unmarshalErr := common.Unmarshal(body, &volcResp); unmarshalErr != nil {
@@ -175,6 +176,8 @@ func handleASRResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		transcript = volcResp.Result.Text
 	}
 
+	// VolcEngine flash ASR currently maps safely to OpenAI-style `json` and `text`
+	// outputs only. `srt` and `vtt` are not generated here.
 	switch responseFormat {
 	case "", "json", "verbose_json":
 		payload, marshalErr := common.Marshal(dto.AudioResponse{Text: transcript})
@@ -194,7 +197,7 @@ func handleASRResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		_, _ = io.Copy(c.Writer, bytes.NewBufferString(transcript))
 	default:
 		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("unsupported response_format for volcengine asr: %s", responseFormat),
+			fmt.Errorf("unsupported response_format for volcengine asr: %s (unsupported formats include srt and vtt)", responseFormat),
 			types.ErrorCodeInvalidRequest,
 			http.StatusBadRequest,
 		)
