@@ -21,9 +21,22 @@ var negativeIndexRegexp = regexp.MustCompile(`\.(-\d+)`)
 const (
 	paramOverrideContextRequestHeaders = "request_headers"
 	paramOverrideContextHeaderOverride = "header_override"
+	paramOverrideContextAuditRecorder  = "__param_override_audit_recorder"
 )
 
 var errSourceHeaderNotFound = errors.New("source header does not exist")
+
+var paramOverrideKeyAuditPaths = map[string]struct{}{
+	"model":          {},
+	"original_model": {},
+	"upstream_model": {},
+	"service_tier":   {},
+	"inference_geo":  {},
+}
+
+type paramOverrideAuditRecorder struct {
+	lines []string
+}
 
 type ConditionOperation struct {
 	Path           string      `json:"path"`             // JSON路径
@@ -118,6 +131,7 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 	if len(paramOverride) == 0 {
 		return jsonData, nil
 	}
+	auditRecorder := getParamOverrideAuditRecorder(conditionContext)
 
 	// 尝试断言为操作格式
 	if operations, ok := tryParseOperations(paramOverride); ok {
@@ -125,7 +139,7 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 		workingJSON := jsonData
 		var err error
 		if len(legacyOverride) > 0 {
-			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride)
+			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride, auditRecorder)
 			if err != nil {
 				return nil, err
 			}
@@ -137,7 +151,7 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 	}
 
 	// 直接使用旧方法
-	return applyOperationsLegacy(jsonData, paramOverride)
+	return applyOperationsLegacy(jsonData, paramOverride, auditRecorder)
 }
 
 func buildLegacyParamOverride(paramOverride map[string]interface{}) map[string]interface{} {
@@ -161,12 +175,198 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	}
 
 	overrideCtx := BuildParamOverrideContext(info)
+	var recorder *paramOverrideAuditRecorder
+	if shouldEnableParamOverrideAudit(paramOverride) {
+		recorder = &paramOverrideAuditRecorder{}
+		overrideCtx[paramOverrideContextAuditRecorder] = recorder
+	}
 	result, err := ApplyParamOverride(jsonData, paramOverride, overrideCtx)
 	if err != nil {
 		return nil, err
 	}
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
+	if info != nil {
+		if recorder != nil {
+			info.ParamOverrideAudit = recorder.lines
+		} else {
+			info.ParamOverrideAudit = nil
+		}
+	}
 	return result, nil
+}
+
+func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
+	if common.DebugEnabled {
+		return true
+	}
+	if len(paramOverride) == 0 {
+		return false
+	}
+	if operations, ok := tryParseOperations(paramOverride); ok {
+		for _, operation := range operations {
+			if shouldAuditParamPath(strings.TrimSpace(operation.Path)) ||
+				shouldAuditParamPath(strings.TrimSpace(operation.To)) {
+				return true
+			}
+		}
+		for key := range buildLegacyParamOverride(paramOverride) {
+			if shouldAuditParamPath(strings.TrimSpace(key)) {
+				return true
+			}
+		}
+		return false
+	}
+	for key := range paramOverride {
+		if shouldAuditParamPath(strings.TrimSpace(key)) {
+			return true
+		}
+	}
+	return false
+}
+
+func getParamOverrideAuditRecorder(context map[string]interface{}) *paramOverrideAuditRecorder {
+	if context == nil {
+		return nil
+	}
+	recorder, _ := context[paramOverrideContextAuditRecorder].(*paramOverrideAuditRecorder)
+	return recorder
+}
+
+func (r *paramOverrideAuditRecorder) recordOperation(mode, path, from, to string, value interface{}) {
+	if r == nil {
+		return
+	}
+	line := buildParamOverrideAuditLine(mode, path, from, to, value)
+	if line == "" {
+		return
+	}
+	if lo.Contains(r.lines, line) {
+		return
+	}
+	r.lines = append(r.lines, line)
+}
+
+func shouldAuditParamPath(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
+	if common.DebugEnabled {
+		return true
+	}
+	_, ok := paramOverrideKeyAuditPaths[path]
+	return ok
+}
+
+func shouldAuditOperation(mode, path, from, to string) bool {
+	if common.DebugEnabled {
+		return true
+	}
+	for _, candidate := range []string{path, to} {
+		if shouldAuditParamPath(candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+func formatParamOverrideAuditValue(value interface{}) string {
+	switch typed := value.(type) {
+	case nil:
+		return "<empty>"
+	case string:
+		return typed
+	default:
+		return common.GetJsonString(typed)
+	}
+}
+
+func buildParamOverrideAuditLine(mode, path, from, to string, value interface{}) string {
+	mode = strings.TrimSpace(mode)
+	path = strings.TrimSpace(path)
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+
+	if !shouldAuditOperation(mode, path, from, to) {
+		return ""
+	}
+
+	switch mode {
+	case "set":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("set %s = %s", path, formatParamOverrideAuditValue(value))
+	case "delete":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("delete %s", path)
+	case "copy":
+		if from == "" || to == "" {
+			return ""
+		}
+		return fmt.Sprintf("copy %s -> %s", from, to)
+	case "move":
+		if from == "" || to == "" {
+			return ""
+		}
+		return fmt.Sprintf("move %s -> %s", from, to)
+	case "prepend":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("prepend %s with %s", path, formatParamOverrideAuditValue(value))
+	case "append":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("append %s with %s", path, formatParamOverrideAuditValue(value))
+	case "trim_prefix", "trim_suffix", "ensure_prefix", "ensure_suffix":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s with %s", mode, path, formatParamOverrideAuditValue(value))
+	case "trim_space", "to_lower", "to_upper":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s", mode, path)
+	case "replace", "regex_replace":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s from %s to %s", mode, path, from, to)
+	case "set_header":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("set_header %s = %s", path, formatParamOverrideAuditValue(value))
+	case "delete_header":
+		if path == "" {
+			return ""
+		}
+		return fmt.Sprintf("delete_header %s", path)
+	case "copy_header", "move_header":
+		if from == "" || to == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s -> %s", mode, from, to)
+	case "pass_headers":
+		return fmt.Sprintf("pass_headers %s", formatParamOverrideAuditValue(value))
+	case "sync_fields":
+		if from == "" || to == "" {
+			return ""
+		}
+		return fmt.Sprintf("sync_fields %s -> %s", from, to)
+	case "return_error":
+		return fmt.Sprintf("return_error %s", formatParamOverrideAuditValue(value))
+	default:
+		if path == "" {
+			return mode
+		}
+		return fmt.Sprintf("%s %s", mode, path)
+	}
 }
 
 func getParamOverrideMap(info *RelayInfo) map[string]interface{} {
@@ -455,7 +655,7 @@ func compareNumeric(jsonValue, targetValue gjson.Result, operator string) (bool,
 }
 
 // applyOperationsLegacy 原参数覆盖方法
-func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}) ([]byte, error) {
+func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}, auditRecorder *paramOverrideAuditRecorder) ([]byte, error) {
 	reqMap := make(map[string]interface{})
 	err := common.Unmarshal(jsonData, &reqMap)
 	if err != nil {
@@ -464,6 +664,7 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 
 	for key, value := range paramOverride {
 		reqMap[key] = value
+		auditRecorder.recordOperation("set", key, "", "", value)
 	}
 
 	return common.Marshal(reqMap)
@@ -471,6 +672,7 @@ func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}
 
 func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}) (string, error) {
 	context := ensureContextMap(conditionContext)
+	auditRecorder := getParamOverrideAuditRecorder(context)
 	contextJSON, err := marshalContextJSON(context)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal condition context: %v", err)
@@ -506,6 +708,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("delete", path, "", "", nil)
 			}
 		case "set":
 			for _, path := range opPaths {
@@ -516,11 +719,15 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("set", path, "", "", op.Value)
 			}
 		case "move":
 			opFrom := processNegativeIndex(result, op.From)
 			opTo := processNegativeIndex(result, op.To)
 			result, err = moveValue(result, opFrom, opTo)
+			if err == nil {
+				auditRecorder.recordOperation("move", "", opFrom, opTo, nil)
+			}
 		case "copy":
 			if op.From == "" || op.To == "" {
 				return "", fmt.Errorf("copy from/to is required")
@@ -528,12 +735,16 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 			opFrom := processNegativeIndex(result, op.From)
 			opTo := processNegativeIndex(result, op.To)
 			result, err = copyValue(result, opFrom, opTo)
+			if err == nil {
+				auditRecorder.recordOperation("copy", "", opFrom, opTo, nil)
+			}
 		case "prepend":
 			for _, path := range opPaths {
 				result, err = modifyValue(result, path, op.Value, op.KeepOrigin, true)
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("prepend", path, "", "", op.Value)
 			}
 		case "append":
 			for _, path := range opPaths {
@@ -541,6 +752,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("append", path, "", "", op.Value)
 			}
 		case "trim_prefix":
 			for _, path := range opPaths {
@@ -548,6 +760,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("trim_prefix", path, "", "", op.Value)
 			}
 		case "trim_suffix":
 			for _, path := range opPaths {
@@ -555,6 +768,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("trim_suffix", path, "", "", op.Value)
 			}
 		case "ensure_prefix":
 			for _, path := range opPaths {
@@ -562,6 +776,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("ensure_prefix", path, "", "", op.Value)
 			}
 		case "ensure_suffix":
 			for _, path := range opPaths {
@@ -569,6 +784,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("ensure_suffix", path, "", "", op.Value)
 			}
 		case "trim_space":
 			for _, path := range opPaths {
@@ -576,6 +792,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("trim_space", path, "", "", nil)
 			}
 		case "to_lower":
 			for _, path := range opPaths {
@@ -583,6 +800,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("to_lower", path, "", "", nil)
 			}
 		case "to_upper":
 			for _, path := range opPaths {
@@ -590,6 +808,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("to_upper", path, "", "", nil)
 			}
 		case "replace":
 			for _, path := range opPaths {
@@ -597,6 +816,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("replace", path, op.From, op.To, nil)
 			}
 		case "regex_replace":
 			for _, path := range opPaths {
@@ -604,8 +824,10 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				if err != nil {
 					break
 				}
+				auditRecorder.recordOperation("regex_replace", path, op.From, op.To, nil)
 			}
 		case "return_error":
+			auditRecorder.recordOperation("return_error", op.Path, "", "", op.Value)
 			returnErr, parseErr := parseParamOverrideReturnError(op.Value)
 			if parseErr != nil {
 				return "", parseErr
@@ -621,11 +843,13 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 		case "set_header":
 			err = setHeaderOverrideInContext(context, op.Path, op.Value, op.KeepOrigin)
 			if err == nil {
+				auditRecorder.recordOperation("set_header", op.Path, "", "", op.Value)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		case "delete_header":
 			err = deleteHeaderOverrideInContext(context, op.Path)
 			if err == nil {
+				auditRecorder.recordOperation("delete_header", op.Path, "", "", nil)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		case "copy_header":
@@ -642,6 +866,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				err = nil
 			}
 			if err == nil {
+				auditRecorder.recordOperation("copy_header", "", sourceHeader, targetHeader, nil)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		case "move_header":
@@ -658,6 +883,7 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				err = nil
 			}
 			if err == nil {
+				auditRecorder.recordOperation("move_header", "", sourceHeader, targetHeader, nil)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		case "pass_headers":
@@ -675,11 +901,13 @@ func applyOperations(jsonStr string, operations []ParamOperation, conditionConte
 				}
 			}
 			if err == nil {
+				auditRecorder.recordOperation("pass_headers", "", "", "", headerNames)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		case "sync_fields":
 			result, err = syncFieldsBetweenTargets(result, context, op.From, op.To)
 			if err == nil {
+				auditRecorder.recordOperation("sync_fields", "", op.From, op.To, nil)
 				contextJSON, err = marshalContextJSON(context)
 			}
 		default:
