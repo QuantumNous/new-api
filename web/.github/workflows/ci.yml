@@ -59,4 +59,5 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           source: web/dist/*
           target: /opt/www/meeyo
+          strip_components: 2
           overwrite: true
