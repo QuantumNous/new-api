@@ -3842,6 +3842,12 @@
     "请输入周期额度上限": "Please enter the period quota limit",
     "未启用周期额度时将忽略该值": "This value is ignored when period quota is disabled",
     "周期额度上限必须大于 0": "Period quota limit must be greater than 0",
+    "额度时间范围": "Quota time range",
+    "请选择额度时间范围": "Select a quota time range",
+    "额度时间范围内上限": "Quota cap within the time range",
+    "请输入额度时间范围内上限": "Please enter the quota cap within the time range",
+    "未启用额度时间范围时将忽略该值": "This value is ignored when the quota time range is disabled",
+    "额度时间范围内上限必须大于 0": "The quota cap within the time range must be greater than 0",
     "当前周期已用额度": "Used in current period",
     "下次重置时间": "Next reset time",
     "未启用": "Disabled"

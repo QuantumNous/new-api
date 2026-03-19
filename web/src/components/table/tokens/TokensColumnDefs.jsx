@@ -343,7 +343,7 @@ const renderPeriodQuota = (record, t) => {
         {t('当前周期已用额度')}: {renderQuota(used)}
       </Typography.Paragraph>
       <Typography.Paragraph>
-        {t('周期额度上限')}: {renderQuota(limit)}
+        {t('额度时间范围内上限')}: {renderQuota(limit)}
       </Typography.Paragraph>
     </div>
   );
@@ -535,7 +535,7 @@ export const getTokensColumns = ({
       render: (text, record) => renderGroupColumn(text, record, t),
     },
     {
-      title: t('周期额度'),
+      title: t('额度时间范围'),
       key: 'period_quota',
       render: (text, record) => renderPeriodQuota(record, t),
     },

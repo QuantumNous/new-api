@@ -536,8 +536,8 @@ const EditTokenModal = (props) => {
                   <Col span={12}>
                     <Form.Select
                       field='quota_period'
-                      label={t('周期额度')}
-                      placeholder={t('请选择周期额度')}
+                      label={t('额度时间范围')}
+                      placeholder={t('请选择额度时间范围')}
                       optionList={[
                         { label: t('未启用'), value: '' },
                         { label: t('每日额度'), value: 'daily' },
@@ -554,21 +554,21 @@ const EditTokenModal = (props) => {
                   <Col span={12}>
                     <Form.AutoComplete
                       field='quota_limit'
-                      label={t('周期额度上限')}
-                      placeholder={t('请输入周期额度上限')}
+                      label={t('额度时间范围内上限')}
+                      placeholder={t('请输入额度时间范围内上限')}
                       type='number'
                       disabled={!values.quota_period}
                       extraText={
                         values.quota_period
                           ? renderQuotaWithPrompt(values.quota_limit)
-                          : t('未启用周期额度时将忽略该值')
+                          : t('未启用额度时间范围时将忽略该值')
                       }
                       rules={
                         values.quota_period
                           ? [
                               {
                                 required: true,
-                                message: t('请输入周期额度上限'),
+                                message: t('请输入额度时间范围内上限'),
                               },
                               {
                                 validator: (rule, value) => {
@@ -579,7 +579,7 @@ const EditTokenModal = (props) => {
                                     return Promise.resolve();
                                   }
                                   return Promise.reject(
-                                    t('周期额度上限必须大于 0'),
+                                    t('额度时间范围内上限必须大于 0'),
                                   );
                                 },
                               },
