@@ -43,7 +43,7 @@ func setupLogControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.User{}, &model.Log{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Log{}, &model.Option{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 
@@ -67,6 +67,7 @@ func seedExportUser(t *testing.T, db *gorm.DB, id int, username string, accessTo
 		Role:     common.RoleCommonUser,
 		Status:   common.UserStatusEnabled,
 		Group:    "team-a",
+		AffCode:  fmt.Sprintf("aff-%d", id),
 	}
 	user.SetAccessToken(accessToken)
 	require.NoError(t, db.Create(user).Error)
