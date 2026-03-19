@@ -31,8 +31,7 @@ import { useTranslation } from 'react-i18next';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const GEMINI_SETTING_EXAMPLE = {
-  default: 'OFF',
-  HARM_CATEGORY_CIVIC_INTEGRITY: 'BLOCK_NONE',
+  default: 'OFF'
 };
 
 const GEMINI_VERSION_EXAMPLE = {
