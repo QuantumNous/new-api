@@ -27,7 +27,6 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
-import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
@@ -74,10 +73,7 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
-  const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
-  const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
-  const displayServerLink = 'https://api.meeyo.org';
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
@@ -108,13 +104,6 @@ const Home = () => {
     setHomePageContentLoaded(true);
   };
 
-  const handleCopyBaseURL = async () => {
-    const ok = await copy(displayServerLink);
-    if (ok) {
-      showSuccess(t('已复制到剪切板'));
-    }
-  };
-
   useEffect(() => {
     const checkNoticeAndShow = () => {
       const lastCloseDate = localStorage.getItem('notice_close_date');
@@ -130,13 +119,6 @@ const Home = () => {
   useEffect(() => {
     displayHomePageContent().then();
   }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setEndpointIndex((prev) => (prev + 1) % endpointItems.length);
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [endpointItems.length]);
 
   return (
     <div className='w-full overflow-x-hidden'>
@@ -167,42 +149,6 @@ const Home = () => {
                       <span className='shine-text'>{t('大模型接口网关')}</span>
                     </>
                   </h1>
-                  <p className='text-base md:text-lg lg:text-xl text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
-                    {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
-                  </p>
-                  {/* BASE URL 与端点选择 */}
-                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-2xl'>
-                    <Input
-                      readonly
-                      value={displayServerLink}
-                      className='flex-1 !rounded-full home-url-input'
-                      size={isMobile ? 'default' : 'large'}
-                      suffix={
-                        <div className='flex items-center gap-2'>
-                          <div className='home-endpoint-wheel'>
-                            <ScrollList
-                              bodyHeight={32}
-                              style={{ border: 'unset', boxShadow: 'unset' }}
-                            >
-                              <ScrollItem
-                                mode='wheel'
-                                cycled={true}
-                                list={endpointItems}
-                                selectedIndex={endpointIndex}
-                                onSelect={({ index }) => setEndpointIndex(index)}
-                              />
-                            </ScrollList>
-                          </div>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
-                      }
-                    />
-                  </div>
                 </div>
 
                 {/* 操作按钮 */}
