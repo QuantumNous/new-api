@@ -4,11 +4,11 @@ APP_VERSION = $(shell cat VERSION 2>/dev/null || echo dev)
 GO_CACHE_DIR ?= /tmp/new-api-go-build
 GO_MOD_CACHE_DIR ?= /tmp/new-api-go-mod
 
-.PHONY: all build-frontend start-backend verify verify-backend-test verify-backend-build verify-frontend-build verify-browser-runtime test-install test-api test-e2e
+.PHONY: all build-frontend start-backend verify verify-backend-test verify-backend-build verify-frontend-build verify-browser-runtime test-install test-api test-e2e upgrade-verify
 
 all: build-frontend start-backend
 
-verify: verify-frontend-build verify-backend-test verify-backend-build test-api test-e2e
+verify: verify-frontend-build verify-backend-test verify-backend-build upgrade-verify test-api test-e2e
 	@echo "==> [verify] completed"
 
 verify-backend-test:
@@ -20,6 +20,11 @@ verify-backend-build:
 	@echo "==> [backend:build] go build ./..."
 	@mkdir -p $(GO_CACHE_DIR) $(GO_MOD_CACHE_DIR)
 	@cd $(BACKEND_DIR) && GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build ./...
+
+upgrade-verify:
+	@echo "==> [upgrade:verify] go test -tags=upgradeverify ./model -run '^TestUpgradeCompatibility'"
+	@mkdir -p $(GO_CACHE_DIR) $(GO_MOD_CACHE_DIR)
+	@cd $(BACKEND_DIR) && GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go test -tags=upgradeverify ./model -run '^TestUpgradeCompatibility'
 
 verify-frontend-build:
 	@echo "==> [frontend:install] bun install --frozen-lockfile"
