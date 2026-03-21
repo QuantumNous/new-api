@@ -298,8 +298,8 @@ export const useDashboardCharts = (
           return {
             Time: time,
             Model: model,
-            rawQuota: displayMode === 'TOKENS' ? (aggregated?.tokenUsed || 0) : (aggregated?.quota || 0),
-            rawTokenUsed: displayMode === 'TOKENS' ? (aggregated?.tokenUsed || 0) : 0,
+            rawQuota: aggregated?.quota || 0,
+            rawTokenUsed: aggregated?.tokenUsed || 0,
             Usage: displayValue,
           };
         });
@@ -339,7 +339,7 @@ export const useDashboardCharts = (
             array.sort((a, b) => b.value - a.value);
             let sum = 0;
             for (let i = 0; i < array.length; i++) {
-              if (array[i].key == '其他') {
+              if (array[i].key === '其他') {
                 continue;
               }
               let value = parseFloat(array[i].value);
@@ -471,7 +471,7 @@ export const useDashboardCharts = (
             array.sort((a, b) => b.value - a.value);
             let sum = 0;
             for (let i = 0; i < array.length; i++) {
-              if (array[i].key == '其他') {
+              if (array[i].key === '其他') {
                 continue;
               }
               let value = parseFloat(array[i].value);

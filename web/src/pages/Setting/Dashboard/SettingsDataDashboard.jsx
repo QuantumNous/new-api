@@ -97,11 +97,11 @@ export default function DataDashboard(props) {
     refForm.current.setValues(currentInputs);
     localStorage.setItem(
       'data_export_default_time',
-      String(inputs.DataExportDefaultTime),
+      String(currentInputs.DataExportDefaultTime),
     );
     localStorage.setItem(
       'data_export_default_display_mode',
-      String(inputs.DataExportDefaultDisplayMode || 'QUOTA'),
+      String(currentInputs.DataExportDefaultDisplayMode || 'QUOTA'),
     );
   }, [props.options]);
 
