@@ -173,3 +173,28 @@ Baseline commands:
 - E2E tests are exercised by `make test-e2e`
 
 When adding or changing behavior, update the relevant baseline cases in these three layers. Do not treat API tests or E2E tests as optional follow-up work.
+
+### Rule 9: Main Branch Updates — Merge Via Pull Request Only
+
+All updates intended for `main` MUST be integrated through a Pull Request (or equivalent platform merge flow).
+
+- Work on a feature branch.
+- Push the branch to the remote.
+- Open a Pull Request for review and CI.
+- Merge into `main` using the repository hosting platform's merge button or approved merge flow.
+
+Do NOT update `main` by performing a local `git merge` / `git rebase` onto `main` and then `git push`.
+
+Direct local merge-and-push workflows to `main` are forbidden, even if the change is small or already reviewed.
+
+### Rule 10: Response Style — Do Not Append Unrequested Next-Step Suggestions
+
+When replying to the user, do NOT append unsolicited closing suggestions such as:
+
+- "If you want, I can do the next step..."
+- "Next I can help you..."
+- "I can also add/fix/document/test ..."
+
+Unless the user explicitly asks for options, planning, or follow-up work, responses should stop after answering the current request.
+
+Do not add speculative TODOs, optional extra deliverables, or self-proposed follow-up tasks at the end of a reply.

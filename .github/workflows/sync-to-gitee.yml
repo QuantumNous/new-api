@@ -21,7 +21,7 @@ jobs:
     runs-on: sync
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -88,4 +88,3 @@ jobs:
         run: |
           echo "✅ Successfully synced release ${{ github.event.inputs.tag_name }} to Gitee!"
           echo "🔗 Gitee Release URL: https://gitee.com/${{ env.GITEE_OWNER }}/${{ env.GITEE_REPO }}/releases/tag/${{ github.event.inputs.tag_name }}"
-
