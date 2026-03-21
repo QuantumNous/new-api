@@ -812,6 +812,7 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
+	Type    string          `json:"type,omitempty"`
 	Model   string          `json:"model"`
 	Input   json.RawMessage `json:"input,omitempty"`
 	Include json.RawMessage `json:"include,omitempty"`

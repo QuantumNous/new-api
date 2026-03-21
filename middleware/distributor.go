@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type ModelRequest struct {
@@ -177,6 +178,15 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
+	if c.Request.Method == http.MethodGet &&
+		websocket.IsWebSocketUpgrade(c.Request) &&
+		strings.HasPrefix(c.Request.URL.Path, "/v1/responses") {
+		modelRequest.Model = c.Query("model")
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
+			modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+		}
+		return &modelRequest, false, nil
+	}
 	if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||

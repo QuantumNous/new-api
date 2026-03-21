@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -69,13 +72,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	requestId := c.GetString(common.RequestIdKey)
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	responsesWs := relayFormat == types.RelayFormatOpenAIResponses && websocket.IsWebSocketUpgrade(c.Request)
 
 	var (
 		newAPIError *types.NewAPIError
+		request     dto.Request
 		ws          *websocket.Conn
 	)
 
-	if relayFormat == types.RelayFormatOpenAIRealtime {
+	if relayFormat == types.RelayFormatOpenAIRealtime || responsesWs {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -83,6 +88,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			return
 		}
 		defer ws.Close()
+
+		if responsesWs {
+			request, err = readFirstResponsesWSRequest(ws)
+			if err != nil {
+				helper.WssError(c, ws, types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()).ToOpenAIError())
+				return
+			}
+			if responsesReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
+				c.Set("first_wss_request", responsesReq)
+				newAPIError = setupResponsesWSChannel(c, responsesReq.Model)
+				if newAPIError != nil {
+					helper.WssError(c, ws, newAPIError.ToOpenAIError())
+					return
+				}
+			}
+		}
 	}
 
 	defer func() {
@@ -92,6 +113,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+			case types.RelayFormatOpenAIResponses:
+				if responsesWs {
+					helper.WssError(c, ws, newAPIError.ToOpenAIError())
+					return
+				}
+				c.JSON(newAPIError.StatusCode, gin.H{
+					"error": newAPIError.ToOpenAIError(),
+				})
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
@@ -105,21 +134,27 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}()
 
-	request, err := helper.GetAndValidateRequest(c, relayFormat)
-	if err != nil {
-		// Map "request body too large" to 413 so clients can handle it correctly
-		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
-			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
-		} else {
-			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
+	if request == nil {
+		var err error
+		request, err = helper.GetAndValidateRequest(c, relayFormat)
+		if err != nil {
+			// Map "request body too large" to 413 so clients can handle it correctly
+			if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
+				newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+			} else {
+				newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
+			}
+			return
 		}
-		return
 	}
 
 	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
+	}
+	if responsesWs {
+		relayInfo.ClientWs = ws
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
@@ -211,6 +246,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
+		case types.RelayFormatOpenAIResponses:
+			if responsesWs {
+				newAPIError = relay.WssResponsesHelper(c, relayInfo)
+				break
+			}
+			newAPIError = relayHandler(c, relayInfo)
 		case types.RelayFormatClaude:
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
@@ -239,6 +280,92 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
 	}
+}
+
+func readFirstResponsesWSRequest(ws *websocket.Conn) (dto.Request, error) {
+	if ws == nil {
+		return nil, errors.New("websocket connection is nil")
+	}
+	_, payload, err := ws.ReadMessage()
+	if err != nil {
+		return nil, fmt.Errorf("read first websocket message failed: %w", err)
+	}
+	request := &dto.OpenAIResponsesRequest{}
+	if err := json.Unmarshal(payload, request); err != nil {
+		return nil, fmt.Errorf("parse first websocket message failed: %w", err)
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if request.Input == nil {
+		return nil, errors.New("input is required")
+	}
+	return request, nil
+}
+
+func setupResponsesWSChannel(c *gin.Context, modelName string) *types.NewAPIError {
+	if modelName == "" {
+		return types.NewError(errors.New("model is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if common.GetContextKeyInt(c, constant.ContextKeyChannelId) != 0 &&
+		common.GetContextKeyString(c, constant.ContextKeyOriginalModel) != "" {
+		return nil
+	}
+
+	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
+	if modelLimitEnable {
+		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+		if !ok {
+			return types.NewErrorWithStatusCode(errors.New("token has no model access"), types.ErrorCodeInvalidRequest, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		tokenModelLimit, ok := s.(map[string]bool)
+		if !ok {
+			tokenModelLimit = map[string]bool{}
+		}
+		matchName := ratio_setting.FormatMatchingModelName(modelName)
+		if _, ok := tokenModelLimit[matchName]; !ok {
+			return types.NewErrorWithStatusCode(fmt.Errorf("model %s is forbidden for this token", modelName), types.ErrorCodeInvalidRequest, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+	}
+
+	var selectedChannel *model.Channel
+	if channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId); ok {
+		id, err := strconv.Atoi(channelId.(string))
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		channel, err := model.GetChannelById(id, true)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			return types.NewErrorWithStatusCode(errors.New("channel is disabled"), types.ErrorCodeGetChannelFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		selectedChannel = channel
+	} else {
+		usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if usingGroup == "" {
+			usingGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		}
+		channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+			Ctx:        c,
+			ModelName:  modelName,
+			TokenGroup: usingGroup,
+			Retry:      common.GetPointer(0),
+		})
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
+		if channel == nil {
+			return types.NewErrorWithStatusCode(fmt.Errorf("no available channel for model %s", modelName), types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
+		if usingGroup == "auto" && selectGroup != "" {
+			common.SetContextKey(c, constant.ContextKeyAutoGroup, selectGroup)
+		}
+		selectedChannel = channel
+	}
+
+	return middleware.SetupContextForSelectedChannel(c, selectedChannel, modelName)
 }
 
 var upgrader = websocket.Upgrader{

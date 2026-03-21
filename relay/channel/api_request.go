@@ -356,6 +356,11 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
+	if strings.HasPrefix(fullRequestURL, "https://") {
+		fullRequestURL = "wss://" + strings.TrimPrefix(fullRequestURL, "https://")
+	} else if strings.HasPrefix(fullRequestURL, "http://") {
+		fullRequestURL = "ws://" + strings.TrimPrefix(fullRequestURL, "http://")
+	}
 	targetHeader := http.Header{}
 	err = a.SetupRequestHeader(c, &targetHeader, info)
 	if err != nil {
