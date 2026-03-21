@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   Divider,
+  Modal,
   Select,
   Skeleton,
   Space,
@@ -82,11 +83,14 @@ const SubscriptionPlansCard = ({
   activeSubscriptions = [],
   allSubscriptions = [],
   reloadSubscriptionSelf,
+  reloadUserQuota,
   withCard = true,
 }) => {
   const [open, setOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemCode, setRedeemCode] = useState('');
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -95,6 +99,8 @@ const SubscriptionPlansCard = ({
   const openBuy = (p) => {
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
+    setRedeemCode('');
+    setRedeeming(false);
     setOpen(true);
   };
 
@@ -102,6 +108,8 @@ const SubscriptionPlansCard = ({
     setOpen(false);
     setSelectedPlan(null);
     setPaying(false);
+    setRedeeming(false);
+    setRedeemCode('');
   };
 
   const handleRefresh = async () => {
@@ -195,6 +203,58 @@ const SubscriptionPlansCard = ({
       showError(t('支付请求失败'));
     } finally {
       setPaying(false);
+    }
+  };
+
+  const redeemSubscription = async () => {
+    const code = String(redeemCode || '').trim();
+    if (!code) {
+      showError(t('请输入兑换码！'));
+      return;
+    }
+    setRedeeming(true);
+    try {
+      const res = await API.post('/api/user/topup', {
+        key: code,
+      });
+      const { success, message, data, subscription } = res.data || {};
+      if (!success) {
+        showError(message || t('兑换失败'));
+        return;
+      }
+      const quotaGranted = Number(data || 0);
+      const planTitle =
+        subscription?.subscription_plan_title ||
+        selectedPlan?.plan?.title ||
+        t('订阅套餐');
+      const refreshTasks = [];
+      if (reloadSubscriptionSelf) {
+        refreshTasks.push(reloadSubscriptionSelf());
+      }
+      if (reloadUserQuota) {
+        refreshTasks.push(reloadUserQuota());
+      }
+      if (refreshTasks.length > 0) {
+        await Promise.all(refreshTasks);
+      }
+      closeBuy();
+      showSuccess(t('兑换成功！'));
+      Modal.success({
+        title: t('兑换成功！'),
+        centered: true,
+        content: (
+          <div>
+            {subscription && <div>{t('成功兑换订阅：') + planTitle}</div>}
+            {quotaGranted > 0 && (
+              <div>{t('成功兑换额度：') + renderQuota(quotaGranted)}</div>
+            )}
+          </div>
+        ),
+      });
+    } catch (e) {
+      showError(t('请求失败'));
+    } finally {
+      setRedeeming(false);
     }
   };
 
@@ -607,17 +667,17 @@ const SubscriptionPlansCard = ({
                           const tip = reached
                             ? t('已达到购买上限') + ` (${count}/${limit})`
                             : '';
+                          const buttonText = reached
+                            ? t('已达上限，仅可兑换')
+                            : t('购买/兑换');
                           const buttonEl = (
                             <Button
                               theme='outline'
                               type='primary'
                               block
-                              disabled={reached}
-                              onClick={() => {
-                                if (!reached) openBuy(p);
-                              }}
+                              onClick={() => openBuy(p)}
                             >
-                              {reached ? t('已达上限') : t('立即订阅')}
+                              {buttonText}
                             </Button>
                           );
                           return reached ? (
@@ -676,6 +736,10 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        redeemCode={redeemCode}
+        onChangeRedeemCode={setRedeemCode}
+        redeeming={redeeming}
+        onRedeem={redeemSubscription}
       />
     </>
   );

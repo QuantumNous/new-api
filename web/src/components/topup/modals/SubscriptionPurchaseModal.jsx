@@ -27,10 +27,11 @@ import {
   Select,
   Divider,
   Tooltip,
+  Input,
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
-import { IconCreditCard } from '@douyinfe/semi-icons';
+import { IconCreditCard, IconGift } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
 import {
@@ -56,6 +57,10 @@ const SubscriptionPurchaseModal = ({
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  redeemCode,
+  onChangeRedeemCode,
+  redeeming = false,
+  onRedeem,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -80,7 +85,7 @@ const SubscriptionPurchaseModal = ({
       title={
         <div className='flex items-center'>
           <Crown className='mr-2' size={18} />
-          {t('购买订阅套餐')}
+          {t('购买或兑换订阅套餐')}
         </div>
       }
       visible={visible}
@@ -182,7 +187,7 @@ const SubscriptionPurchaseModal = ({
           {hasAnyPayment ? (
             <div className='space-y-3'>
               <Text size='small' type='tertiary'>
-                {t('选择支付方式')}：
+                {t('在线支付')}：
               </Text>
 
               {/* Stripe / Creem */}
@@ -245,11 +250,42 @@ const SubscriptionPurchaseModal = ({
           ) : (
             <Banner
               type='info'
-              description={t('管理员未开启在线支付功能，请联系管理员配置。')}
+              description={t(
+                '管理员未开启在线支付功能，但你仍可使用兑换码直接兑换订阅。',
+              )}
               className='!rounded-xl'
               closeIcon={null}
             />
           )}
+
+          <div className='space-y-3'>
+            <Text size='small' type='tertiary'>
+              {t('兑换码兑换')}：
+            </Text>
+            <div className='flex gap-2'>
+              <Input
+                value={redeemCode}
+                onChange={onChangeRedeemCode}
+                style={{ flex: 1 }}
+                placeholder={t('输入兑换码后按兑换码绑定的套餐进行兑换')}
+                prefix={<IconGift />}
+                disabled={redeeming}
+                showClear
+              />
+              <Button
+                theme='solid'
+                type='primary'
+                onClick={onRedeem}
+                loading={redeeming}
+                disabled={!String(redeemCode || '').trim()}
+              >
+                {t('兑换')}
+              </Button>
+            </div>
+            <Text size='small' type='tertiary'>
+              {t('兑换结果以兑换码实际绑定的套餐为准')}
+            </Text>
+          </div>
         </div>
       ) : null}
     </Modal>
