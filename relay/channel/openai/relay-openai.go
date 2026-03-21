@@ -627,6 +627,19 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 			}
 		}
+	default:
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			if usage.PromptCacheHitTokens > 0 {
+				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+			} else if cachedTokens, ok := extractCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			}
+		}
+		if usage.PromptTokensDetails.CachedCreationTokens == 0 {
+			if cacheCreationTokens, ok := extractCacheCreationTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedCreationTokens = cacheCreationTokens
+			}
+		}
 	}
 }
 
@@ -657,6 +670,29 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 	}
 	if payload.Usage.PromptCacheHitTokens != nil {
 		return *payload.Usage.PromptCacheHitTokens, true
+	}
+	return 0, false
+}
+
+func extractCacheCreationTokensFromBody(body []byte) (int, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+
+	var payload struct {
+		Usage struct {
+			PromptTokensDetails struct {
+				CacheCreationInputTokens *int `json:"cache_creation_input_tokens"`
+			} `json:"prompt_tokens_details"`
+		} `json:"usage"`
+	}
+
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return 0, false
+	}
+
+	if payload.Usage.PromptTokensDetails.CacheCreationInputTokens != nil {
+		return *payload.Usage.PromptTokensDetails.CacheCreationInputTokens, true
 	}
 	return 0, false
 }
