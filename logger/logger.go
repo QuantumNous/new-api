@@ -34,6 +34,10 @@ func SetupLogger() {
 	defer func() {
 		setupLogWorking = false
 	}()
+	if os.Getenv("DISABLE_LOG") == "true" {
+		gin.DefaultWriter = io.Discard
+		return
+	}
 	if *common.LogDir != "" {
 		ok := setupLogLock.TryLock()
 		if !ok {
