@@ -11,6 +11,9 @@
 - 已落地统一入口 `make verify`
 - 已覆盖单元测试、API 测试、E2E 测试、升级兼容性测试
 - 已有 `.github/workflows/verify.yml` 在 `pull_request` 与普通 `push` 自动执行仓库级验证
+- 已打通 tag 驱动的 Docker 镜像发布链路，支持推送多架构镜像到已配置的 Docker Hub 仓库
+- Docker 发布 workflow 已改为显式校验 `DOCKERHUB_REPOSITORY`、`DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`
+- fork 当前版本基线已重置为 `v1.0.0`，后续版本可独立迭代
 - 当前主线优先级可切换到第 2 项“升级流水线”
 
 ### 本地验证能力
@@ -31,6 +34,12 @@
 - 建立 CI 流程，自动执行单元测试等验证步骤
 - 建立版本发布流程
 - 自动更新并发布 Docker 镜像
+
+当前补充说明：
+
+- 正式镜像发布采用 tag 驱动
+- 预发布测试 tag 可验证镜像推送链路且不会覆盖 `latest`
+- 镜像仓库不再写死在 workflow 中，统一由 GitHub Actions variable / secret 提供
 
 目标：
 

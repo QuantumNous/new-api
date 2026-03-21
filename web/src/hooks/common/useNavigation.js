@@ -28,6 +28,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       pricing: true,
       docs: true,
       about: true,
+      contact: true,
     };
 
     // 使用传入的配置或默认配置
@@ -63,6 +64,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('关于'),
         itemKey: 'about',
         to: '/about',
+      },
+      {
+        text: t('联系'),
+        itemKey: 'contact',
+        to: '/contact',
       },
     ];
 

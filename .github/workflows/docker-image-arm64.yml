@@ -32,11 +32,21 @@ jobs:
       contents: read
 
     steps:
-      - name: Resolve Docker Hub repository
+      - name: Validate Docker Hub configuration
         run: |
           IMAGE_REPOSITORY="${{ vars.DOCKERHUB_REPOSITORY }}"
           if [ -z "$IMAGE_REPOSITORY" ]; then
-            IMAGE_REPOSITORY="future9510/llmgate"
+            echo "::error title=Missing GitHub variable::Please configure repository variable DOCKERHUB_REPOSITORY."
+            echo "::error title=Required secrets::Please configure repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN."
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "::error title=Missing GitHub secret::Please configure repository secret DOCKERHUB_USERNAME."
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error title=Missing GitHub secret::Please configure repository secret DOCKERHUB_TOKEN."
+            exit 1
           fi
           echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY" >> $GITHUB_ENV
 
@@ -118,11 +128,21 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Resolve Docker Hub repository
+      - name: Validate Docker Hub configuration
         run: |
           IMAGE_REPOSITORY="${{ vars.DOCKERHUB_REPOSITORY }}"
           if [ -z "$IMAGE_REPOSITORY" ]; then
-            IMAGE_REPOSITORY="future9510/llmgate"
+            echo "::error title=Missing GitHub variable::Please configure repository variable DOCKERHUB_REPOSITORY."
+            echo "::error title=Required secrets::Please configure repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN."
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "::error title=Missing GitHub secret::Please configure repository secret DOCKERHUB_USERNAME."
+            exit 1
+          fi
+          if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "::error title=Missing GitHub secret::Please configure repository secret DOCKERHUB_TOKEN."
+            exit 1
           fi
           echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY" >> $GITHUB_ENV
 

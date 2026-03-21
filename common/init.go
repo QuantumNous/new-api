@@ -35,6 +35,9 @@ func InitEnv() {
 	if envVersion != "" {
 		Version = envVersion
 	}
+	DockerImageRepository = GetEnvOrDefaultString("DOCKER_IMAGE_REPOSITORY", DockerImageRepository)
+	DockerImageTag = GetEnvOrDefaultString("DOCKER_IMAGE_TAG", DockerImageTag)
+	DockerHubAPIBase = GetEnvOrDefaultString("DOCKERHUB_API_BASE", DockerHubAPIBase)
 
 	if *PrintVersion {
 		fmt.Println(Version)

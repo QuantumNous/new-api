@@ -48,7 +48,20 @@ export default function SettingsHeaderNavModules(props) {
     },
     docs: true,
     about: true,
+    contact: true,
   });
+
+  const defaultModules = {
+    home: true,
+    console: true,
+    pricing: {
+      enabled: true,
+      requireAuth: false,
+    },
+    docs: true,
+    about: true,
+    contact: true,
+  };
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -79,16 +92,6 @@ export default function SettingsHeaderNavModules(props) {
 
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
     setHeaderNavModules(defaultModules);
     showSuccess(t('已重置为默认配置'));
   }
@@ -142,19 +145,15 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
-      } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
+        setHeaderNavModules({
+          ...defaultModules,
+          ...modules,
           pricing: {
-            enabled: true,
-            requireAuth: false,
+            ...defaultModules.pricing,
+            ...(modules.pricing || {}),
           },
-          docs: true,
-          about: true,
-        };
+        });
+      } catch (error) {
         setHeaderNavModules(defaultModules);
       }
     }
@@ -187,6 +186,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'about',
       title: t('关于'),
       description: t('关于系统的详细信息'),
+    },
+    {
+      key: 'contact',
+      title: t('联系'),
+      description: t('联系表单和反馈提交入口'),
     },
   ];
 

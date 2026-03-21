@@ -71,9 +71,7 @@ const FooterBar = () => {
                     {t('关于项目')}
                   </a>
                   <a
-                    href='https://docs.newapi.pro/support/community-interaction/'
-                    target='_blank'
-                    rel='noopener noreferrer'
+                    href='/contact'
                     className='!text-semi-color-text-1'
                   >
                     {t('联系我们')}

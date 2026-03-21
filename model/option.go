@@ -68,6 +68,11 @@ func InitOptionMap() {
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
+	common.OptionMap["FeedbackLarkWebhookEnabled"] = strconv.FormatBool(common.FeedbackLarkWebhookEnabled)
+	common.OptionMap["FeedbackLarkWebhookURL"] = common.FeedbackLarkWebhookURL
+	common.OptionMap["FeedbackLarkWebhookSecret"] = common.FeedbackLarkWebhookSecret
+	common.OptionMap["FeedbackLarkWebhookMentionAllEnabled"] = strconv.FormatBool(common.FeedbackLarkWebhookMentionAllEnabled)
+	common.OptionMap["FeedbackLarkWebhookMentionOpenIDs"] = common.FeedbackLarkWebhookMentionOpenIDs
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
@@ -314,6 +319,10 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "FeedbackLarkWebhookEnabled":
+			common.FeedbackLarkWebhookEnabled = boolValue
+		case "FeedbackLarkWebhookMentionAllEnabled":
+			common.FeedbackLarkWebhookMentionAllEnabled = boolValue
 		}
 	}
 	switch key {
@@ -422,6 +431,12 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SystemName = value
 	case "Logo":
 		common.Logo = value
+	case "FeedbackLarkWebhookURL":
+		common.FeedbackLarkWebhookURL = value
+	case "FeedbackLarkWebhookSecret":
+		common.FeedbackLarkWebhookSecret = value
+	case "FeedbackLarkWebhookMentionOpenIDs":
+		common.FeedbackLarkWebhookMentionOpenIDs = value
 	case "WeChatServerAddress":
 		common.WeChatServerAddress = value
 	case "WeChatServerToken":

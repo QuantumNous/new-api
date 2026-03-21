@@ -29,7 +29,6 @@ import {
   Card,
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
-import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
@@ -48,13 +47,22 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    FeedbackLarkWebhookEnabled: false,
+    FeedbackLarkWebhookURL: '',
+    FeedbackLarkWebhookSecret: '',
+    FeedbackLarkWebhookMentionAllEnabled: false,
+    FeedbackLarkWebhookMentionOpenIDs: '',
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const logoFileInputRef = useRef(null);
+  const [logoFile, setLogoFile] = useState(null);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
-    content: '',
+    repository: '',
+    last_updated: '',
+    details_url: '',
   });
 
   const updateOption = async (key, value) => {
@@ -70,6 +78,7 @@ const OtherSetting = () => {
       showError(message);
     }
     setLoading(false);
+    return success;
   };
 
   const [loadingInput, setLoadingInput] = useState({
@@ -82,6 +91,7 @@ const OtherSetting = () => {
     About: false,
     Footer: false,
     CheckUpdate: false,
+    FeedbackLarkWebhook: false,
   });
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
@@ -169,15 +179,54 @@ const OtherSetting = () => {
     }
   };
 
+  const handleLogoFileChange = (event) => {
+    const nextFile = event.target.files?.[0] || null;
+    setLogoFile(nextFile);
+  };
+
+  const openLogoPicker = () => {
+    logoFileInputRef.current?.click();
+  };
+
   // 个性化设置 - Logo
   const submitLogo = async () => {
     try {
+      if (!logoFile) {
+        showError(t('请先选择一张 Logo 图片'));
+        return;
+      }
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
-      await updateOption('Logo', inputs.Logo);
-      showSuccess('Logo 已更新');
+      const formData = new FormData();
+      formData.append('file', logoFile);
+
+      const uploadRes = await API.post('/api/upload/logo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const {
+        success: uploadSuccess,
+        message: uploadMessage,
+        data,
+      } = uploadRes.data;
+      if (!uploadSuccess) {
+        showError(uploadMessage);
+        return;
+      }
+
+      const logoUrl = data?.url || '';
+      const updated = await updateOption('Logo', logoUrl);
+      if (!updated) {
+        return;
+      }
+      setLogoFile(null);
+      if (logoFileInputRef.current) {
+        logoFileInputRef.current.value = '';
+      }
+      showSuccess(t('Logo 已更新'));
     } catch (error) {
       console.error('Logo 更新失败', error);
-      showError('Logo 更新失败');
+      showError(t('Logo 更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
@@ -228,46 +277,106 @@ const OtherSetting = () => {
     }
   };
 
+  const submitFeedbackLarkWebhook = async () => {
+    const webhookURL = inputs.FeedbackLarkWebhookURL?.trim() || '';
+    const webhookSecret = inputs.FeedbackLarkWebhookSecret?.trim() || '';
+    const webhookMentionOpenIDs =
+      inputs.FeedbackLarkWebhookMentionOpenIDs?.trim() || '';
+
+    if (inputs.FeedbackLarkWebhookEnabled && webhookURL === '') {
+      showError(t('开启反馈 Lark Webhook 前请先填写 Webhook 地址'));
+      return;
+    }
+
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      FeedbackLarkWebhook: true,
+    }));
+    try {
+      const requests = [
+        API.put('/api/option/', {
+          key: 'FeedbackLarkWebhookURL',
+          value: webhookURL,
+        }),
+        API.put('/api/option/', {
+          key: 'FeedbackLarkWebhookEnabled',
+          value: inputs.FeedbackLarkWebhookEnabled,
+        }),
+        API.put('/api/option/', {
+          key: 'FeedbackLarkWebhookMentionAllEnabled',
+          value: inputs.FeedbackLarkWebhookMentionAllEnabled,
+        }),
+        API.put('/api/option/', {
+          key: 'FeedbackLarkWebhookMentionOpenIDs',
+          value: webhookMentionOpenIDs,
+        }),
+      ];
+
+      if (webhookSecret !== '') {
+        requests.push(
+          API.put('/api/option/', {
+            key: 'FeedbackLarkWebhookSecret',
+            value: webhookSecret,
+          }),
+        );
+      }
+
+      const responses = await Promise.all(requests);
+      const failed = responses.find((response) => !response.data.success);
+      if (failed) {
+        showError(failed.data.message);
+        return;
+      }
+
+      setInputs((prev) => ({
+        ...prev,
+        FeedbackLarkWebhookURL: webhookURL,
+        FeedbackLarkWebhookSecret: '',
+        FeedbackLarkWebhookMentionOpenIDs: webhookMentionOpenIDs,
+      }));
+      formAPIPersonalization.current?.setValue(
+        'FeedbackLarkWebhookSecret',
+        '',
+      );
+      showSuccess(t('反馈 Lark Webhook 已更新'));
+    } catch (error) {
+      showError(t('反馈 Lark Webhook 更新失败'));
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        FeedbackLarkWebhook: false,
+      }));
+    }
+  };
+
   const checkUpdate = async () => {
     try {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
         CheckUpdate: true,
       }));
-      // Use a CORS proxy to avoid direct cross-origin requests to GitHub API
-      // Option 1: Use a public CORS proxy service
-      // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      // const res = await API.get(
-      //   `${proxyUrl}https://api.github.com/repos/Calcium-Ion/new-api/releases/latest`,
-      // );
-
-      // Option 2: Use the JSON proxy approach which often works better with GitHub API
-      const res = await fetch(
-        'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            // Adding User-Agent which is often required by GitHub API
-            'User-Agent': 'new-api-update-checker',
-          },
-        },
-      ).then((response) => response.json());
-
-      // Option 3: Use a local proxy endpoint
-      // Create a cached version of the response to avoid frequent GitHub API calls
-      // const res = await API.get('/api/status/github-latest-release');
-
-      const { tag_name, body } = res;
-      if (tag_name === statusState?.status?.version) {
-        showSuccess(`已是最新版本：${tag_name}`);
-      } else {
-        setUpdateData({
-          tag_name: tag_name,
-          content: marked.parse(body),
-        });
-        setShowUpdateModal(true);
+      const response = await API.get('/api/status/docker-version');
+      const { success, message, data } = response.data;
+      if (!success) {
+        showError(message);
+        return;
       }
+
+      const { latest_tag, repository, last_updated, details_url } = data;
+      const currentVersion =
+        statusState?.status?.docker_image_tag || statusState?.status?.version;
+      if (latest_tag === currentVersion) {
+        showSuccess(`已是最新版本：${latest_tag}`);
+        return;
+      }
+
+      setUpdateData({
+        tag_name: latest_tag,
+        repository,
+        last_updated: last_updated || '',
+        details_url: details_url || '',
+      });
+      setShowUpdateModal(true);
     } catch (error) {
       console.error('Failed to check for updates:', error);
       showError('检查更新失败，请稍后再试');
@@ -300,17 +409,27 @@ const OtherSetting = () => {
     getOptions();
   }, []);
 
-  // Function to open GitHub release page
-  const openGitHubRelease = () => {
-    window.open(
-      `https://github.com/Calcium-Ion/new-api/releases/tag/${updateData.tag_name}`,
-      '_blank',
-    );
+  const openDockerTagDetails = () => {
+    if (!updateData.details_url) {
+      return;
+    }
+    window.open(updateData.details_url, '_blank');
   };
 
   const getStartTimeString = () => {
     const timestamp = statusState?.status?.start_time;
     return statusState.status ? timestamp2string(timestamp) : '';
+  };
+
+  const getLastUpdatedString = () => {
+    if (!updateData.last_updated) {
+      return '-';
+    }
+    const date = new Date(updateData.last_updated);
+    if (Number.isNaN(date.getTime())) {
+      return updateData.last_updated;
+    }
+    return date.toISOString().replace('T', ' ').slice(0, 19);
   };
 
   return (
@@ -333,7 +452,9 @@ const OtherSetting = () => {
                   <Space>
                     <Text>
                       {t('当前版本')}：
-                      {statusState?.status?.version || t('未知')}
+                      {statusState?.status?.docker_image_tag ||
+                        statusState?.status?.version ||
+                        t('未知')}
                     </Text>
                     <Button
                       type='primary'
@@ -436,14 +557,42 @@ const OtherSetting = () => {
                 {t('设置系统名称')}
               </Button>
               <Form.Input
-                label={t('Logo 图片地址')}
-                placeholder={t('在此输入 Logo 图片地址')}
+                label={t('当前 Logo 地址')}
+                placeholder={t('上传后会自动生成 Logo 地址')}
                 field={'Logo'}
                 onChange={handleInputChange}
+                disabled
               />
-              <Button onClick={submitLogo} loading={loadingInput['Logo']}>
-                {t('设置 Logo')}
-              </Button>
+              <input
+                ref={logoFileInputRef}
+                type='file'
+                accept='.png,.jpg,.jpeg,.webp,.gif'
+                style={{ display: 'none' }}
+                onChange={handleLogoFileChange}
+              />
+              <Space vertical align='start' spacing='medium'>
+                <Space wrap>
+                  <Button onClick={openLogoPicker}>{t('选择 Logo 图片')}</Button>
+                  <Button onClick={submitLogo} loading={loadingInput['Logo']}>
+                    {t('上传并设置 Logo')}
+                  </Button>
+                </Space>
+                <Text type='secondary'>
+                  {logoFile
+                    ? `${t('已选择文件')}：${logoFile.name}`
+                    : t('支持 png、jpg、jpeg、webp、gif，大小不超过 2MB')}
+                </Text>
+                {inputs.Logo ? (
+                  <div className='flex items-center gap-4 rounded-xl border border-semi-color-border px-4 py-3'>
+                    <img
+                      src={inputs.Logo}
+                      alt='logo preview'
+                      className='h-12 w-12 rounded-xl object-contain bg-semi-color-bg-1'
+                    />
+                    <Text>{inputs.Logo}</Text>
+                  </div>
+                ) : null}
+              </Space>
               <Form.TextArea
                 label={t('首页内容')}
                 placeholder={t(
@@ -494,6 +643,63 @@ const OtherSetting = () => {
               <Button onClick={submitFooter} loading={loadingInput['Footer']}>
                 {t('设置页脚')}
               </Button>
+              <Banner
+                fullMode={false}
+                type='info'
+                description={t(
+                  '用户在联系页提交反馈后，可通过 Lark 自定义机器人 Webhook 推送消息卡片到群聊。',
+                )}
+                closeIcon={null}
+                style={{ marginTop: 15 }}
+              />
+              <Form.Switch
+                field='FeedbackLarkWebhookEnabled'
+                label={t('启用反馈 Lark Webhook')}
+                onChange={(value) =>
+                  setInputs((prev) => ({
+                    ...prev,
+                    FeedbackLarkWebhookEnabled: value,
+                  }))
+                }
+              />
+              <Form.Input
+                field='FeedbackLarkWebhookURL'
+                label={t('反馈 Lark Webhook 地址')}
+                placeholder={t(
+                  '例如 https://open.larksuite.com/open-apis/bot/v2/hook/xxxx',
+                )}
+                onChange={handleInputChange}
+              />
+              <Form.Input
+                field='FeedbackLarkWebhookSecret'
+                label={t('反馈 Lark Webhook Secret')}
+                placeholder={t('从 Lark 自定义机器人获取，可留空')}
+                mode='password'
+                onChange={handleInputChange}
+              />
+              <Form.Switch
+                field='FeedbackLarkWebhookMentionAllEnabled'
+                label={t('反馈通知时 @所有人')}
+                onChange={(value) =>
+                  setInputs((prev) => ({
+                    ...prev,
+                    FeedbackLarkWebhookMentionAllEnabled: value,
+                  }))
+                }
+              />
+              <Form.TextArea
+                field='FeedbackLarkWebhookMentionOpenIDs'
+                label={t('反馈通知时 @指定 Lark 成员')}
+                placeholder={t('填写一个或多个 Open ID，支持逗号或换行分隔')}
+                autosize={{ minRows: 3, maxRows: 6 }}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={submitFeedbackLarkWebhook}
+                loading={loadingInput['FeedbackLarkWebhook']}
+              >
+                {t('保存反馈 Lark Webhook')}
+              </Button>
             </Form.Section>
           </Card>
         </Form>
@@ -506,16 +712,32 @@ const OtherSetting = () => {
           <Button
             key='details'
             type='primary'
+            disabled={!updateData.details_url}
             onClick={() => {
               setShowUpdateModal(false);
-              openGitHubRelease();
+              openDockerTagDetails();
             }}
           >
             {t('详情')}
           </Button>,
         ]}
       >
-        <div dangerouslySetInnerHTML={{ __html: updateData.content }}></div>
+        <Space vertical align='start'>
+          <Text>
+            {t('当前版本')}：
+            {statusState?.status?.docker_image_tag || statusState?.status?.version}
+          </Text>
+          <Text>
+            {t('镜像仓库')}：{updateData.repository || '-'}
+          </Text>
+          <Text>
+            {t('镜像版本')}：{updateData.tag_name || '-'}
+          </Text>
+          <Text>
+            {t('最后更新')}：
+            {getLastUpdatedString()}
+          </Text>
+        </Space>
       </Modal>
     </Row>
   );

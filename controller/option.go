@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -179,6 +180,25 @@ func UpdateOption(c *gin.Context) {
 			})
 
 			return
+		}
+	case "FeedbackLarkWebhookEnabled":
+		if option.Value == "true" && strings.TrimSpace(common.FeedbackLarkWebhookURL) == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用反馈 Lark Webhook，请先填写 Webhook 地址！",
+			})
+			return
+		}
+	case "FeedbackLarkWebhookURL":
+		if strings.TrimSpace(option.Value.(string)) != "" {
+			parsed, parseErr := url.ParseRequestURI(option.Value.(string))
+			if parseErr != nil || parsed.Scheme != "https" {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "反馈 Lark Webhook 地址必须为合法的 https 地址",
+				})
+				return
+			}
 		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {

@@ -3263,6 +3263,8 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "入力価格：{{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "補完料金 {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "補完料金：{{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "補完料金：{{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "補完料金：{{symbol}}{{total}} / 1M tokens",
+    "镜像仓库": "イメージリポジトリ",
+    "镜像版本": "イメージタグ"
   }
 }
