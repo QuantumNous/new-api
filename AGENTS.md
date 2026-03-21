@@ -1,5 +1,13 @@
 # AGENTS.md — Project Conventions for new-api
 
+## Agent Docs Source Of Truth
+
+`AGENTS.md` is the canonical source for agent/project instructions in this repository.
+
+- `CLAUDE.md` must mirror `AGENTS.md`
+- Prefer maintaining only `AGENTS.md`
+- If both files are needed, `CLAUDE.md` should be a symlink to `AGENTS.md`
+
 ## Overview
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
@@ -130,3 +138,38 @@ For request structs that are parsed from client JSON and then re-marshaled to up
   - field absent in client JSON => `nil` => omitted on marshal;
   - field explicitly set to zero/false => non-`nil` pointer => must still be sent upstream.
 - Avoid using non-pointer scalars with `omitempty` for optional request parameters, because zero values (`0`, `0.0`, `false`) will be silently dropped during marshal.
+
+### Rule 7: Development Pipeline — `make verify` Is The Baseline Gate
+
+All development work must keep the repository-level verification pipeline passing.
+
+- Primary local gate: `make verify`
+- CI gate: `.github/workflows/verify.yml`
+- `make verify` must include all three layers:
+  - Go unit tests
+  - API tests
+  - E2E tests
+
+Do not introduce a change that only passes one or two layers while leaving the others unaddressed.
+
+### Rule 8: Mandatory Test Coverage — Must Write Three Test Types
+
+For development changes that affect runtime behavior, you must write and maintain all three test types:
+
+- Unit tests
+- API tests
+- E2E tests
+
+Baseline locations:
+
+- Unit tests: Go `*_test.go` files in backend packages
+- API tests: `web/tests/api/`
+- E2E tests: `web/tests/e2e/`
+
+Baseline commands:
+
+- Unit tests are exercised by `go test ./...`
+- API tests are exercised by `make test-api`
+- E2E tests are exercised by `make test-e2e`
+
+When adding or changing behavior, update the relevant baseline cases in these three layers. Do not treat API tests or E2E tests as optional follow-up work.

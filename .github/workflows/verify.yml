@@ -1,0 +1,42 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    tags-ignore:
+      - '*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Playwright system dependencies
+        run: cd web && bunx playwright install --with-deps chromium
+
+      - name: Run repository verification
+        env:
+          CI: "true"
+          BUN_TMPDIR: /tmp/new-api-bun-tmp
+          BUN_INSTALL: /tmp/new-api-bun-install
+          GOCACHE: /tmp/new-api-go-build
+          GOPATH: /tmp/new-api-go
+          PLAYWRIGHT_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: make verify

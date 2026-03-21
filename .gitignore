@@ -9,6 +9,8 @@ build
 *.db-journal
 logs
 web/dist
+web/playwright-report
+web/test-results
 .env
 one-api
 new-api
@@ -21,7 +23,9 @@ tiktoken_cache
 .cache
 web/bun.lock
 plans
+specs/
 .claude
+.codex-tmp/
 
 electron/node_modules
 electron/dist

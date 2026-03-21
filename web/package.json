@@ -49,6 +49,10 @@
     "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
     "eslint:fix": "bunx eslint \"**/*.{js,jsx}\" --fix --cache",
     "preview": "vite preview",
+    "test:install": "bunx playwright install chromium",
+    "test:api": "bunx playwright test --project=api",
+    "test:e2e": "bunx playwright test --project=chromium-e2e",
+    "test:e2e:headed": "bunx playwright test --project=chromium-e2e --headed",
     "i18n:extract": "bunx i18next-cli extract",
     "i18n:status": "bunx i18next-cli status",
     "i18n:sync": "bunx i18next-cli sync",
@@ -73,6 +77,7 @@
     ]
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@douyinfe/vite-plugin-semi": "^2.74.0-alpha.6",
     "@so1ve/prettier-config": "^3.1.0",
     "@vitejs/plugin-react": "^4.2.1",
