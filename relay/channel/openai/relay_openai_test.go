@@ -35,6 +35,18 @@ func TestApplyUsagePostProcessing_DefaultCase_StepFunCachedTokens(t *testing.T) 
 	}
 }
 
+func TestApplyUsagePostProcessing_DefaultCase_PrefersPromptCacheHitTokens(t *testing.T) {
+	body := []byte(`{"usage":{"cached_tokens":100}}`)
+	info := newRelayInfo(0)
+	usage := &dto.Usage{
+		PromptCacheHitTokens: 200,
+	}
+	applyUsagePostProcessing(info, usage, body)
+	if usage.PromptTokensDetails.CachedTokens != 200 {
+		t.Errorf("CachedTokens = %d, want 200 (should prefer PromptCacheHitTokens over body)", usage.PromptTokensDetails.CachedTokens)
+	}
+}
+
 func TestApplyUsagePostProcessing_DefaultCase_CacheCreationTokens(t *testing.T) {
 	body := []byte(`{"usage":{"prompt_tokens_details":{"cache_creation_input_tokens":300}}}`)
 	info := newRelayInfo(0)
