@@ -38,6 +38,13 @@ func (cm *ConfigManager) Get(name string) interface{} {
 	return cm.configs[name]
 }
 
+// Read executes fn while holding the config manager read lock for the named config.
+func (cm *ConfigManager) Read(name string, fn func(config interface{})) {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+	fn(cm.configs[name])
+}
+
 // LoadFromDB 从数据库加载配置
 func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 	cm.mutex.Lock()

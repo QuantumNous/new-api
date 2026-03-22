@@ -44,7 +44,7 @@ type ResponsesBootstrapRecoveryState struct {
 
 // GetResponsesBootstrapRecoveryConfig loads the current bootstrap recovery settings.
 func GetResponsesBootstrapRecoveryConfig() ResponsesBootstrapRecoveryConfig {
-	settings := operation_setting.GetGeneralSetting()
+	settings := operation_setting.GetGeneralSettingSnapshot()
 	cfg := ResponsesBootstrapRecoveryConfig{
 		Enabled:              settings.ResponsesStreamBootstrapRecoveryEnabled,
 		GracePeriod:          defaultResponsesBootstrapGracePeriod,
@@ -76,8 +76,10 @@ func GetResponsesBootstrapRecoveryConfig() ResponsesBootstrapRecoveryConfig {
 
 // IsResponsesBootstrapRecoveryPath reports whether the request path supports bootstrap recovery.
 func IsResponsesBootstrapRecoveryPath(path string) bool {
-	return strings.HasPrefix(path, "/v1/responses") &&
-		!strings.HasPrefix(path, "/v1/responses/compact")
+	if path != "/v1/responses" && !strings.HasPrefix(path, "/v1/responses/") {
+		return false
+	}
+	return !strings.HasPrefix(path, "/v1/responses/compact")
 }
 
 // GetResponsesBootstrapRecoveryState returns the request-scoped bootstrap recovery state.

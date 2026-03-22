@@ -71,6 +71,23 @@ func GetGeneralSetting() *GeneralSetting {
 	return &generalSetting
 }
 
+// GetGeneralSettingSnapshot returns a copy of the current general settings under config-manager locking.
+func GetGeneralSettingSnapshot() GeneralSetting {
+	var snapshot GeneralSetting
+	config.GlobalConfig.Read("general_setting", func(cfg interface{}) {
+		if setting, ok := cfg.(*GeneralSetting); ok && setting != nil {
+			snapshot = *setting
+			if setting.ResponsesStreamBootstrapRetryableStatusCodes != nil {
+				snapshot.ResponsesStreamBootstrapRetryableStatusCodes = append(
+					[]int(nil),
+					setting.ResponsesStreamBootstrapRetryableStatusCodes...,
+				)
+			}
+		}
+	})
+	return snapshot
+}
+
 // IsCurrencyDisplay 是否以货币形式展示（美元或人民币）
 func IsCurrencyDisplay() bool {
 	return generalSetting.QuotaDisplayType != QuotaDisplayTypeTokens

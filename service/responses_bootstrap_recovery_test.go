@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,8 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var responsesBootstrapTestSettingsMu sync.Mutex
+
 func withResponsesBootstrapRecoverySetting(t *testing.T) {
 	t.Helper()
+	responsesBootstrapTestSettingsMu.Lock()
 	settings := operation_setting.GetGeneralSetting()
 	oldEnabled := settings.ResponsesStreamBootstrapRecoveryEnabled
 	oldGrace := settings.ResponsesStreamBootstrapGracePeriodSeconds
@@ -34,6 +38,7 @@ func withResponsesBootstrapRecoverySetting(t *testing.T) {
 		settings.ResponsesStreamBootstrapProbeIntervalMilliseconds = oldProbe
 		settings.ResponsesStreamBootstrapPingIntervalSeconds = oldPing
 		settings.ResponsesStreamBootstrapRetryableStatusCodes = oldCodes
+		responsesBootstrapTestSettingsMu.Unlock()
 	})
 }
 
@@ -74,6 +79,16 @@ func TestEnsureResponsesBootstrapRecoveryStateFromRequestIgnoresCompact(t *testi
 	withResponsesBootstrapRecoverySetting(t)
 
 	ctx := newResponsesBootstrapTestContext("/v1/responses/compact", `{"model":"gpt-5"}`)
+	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
+	require.NoError(t, err)
+	require.Nil(t, state)
+}
+
+func TestEnsureResponsesBootstrapRecoveryStateFromRequestIgnoresLookalikePath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withResponsesBootstrapRecoverySetting(t)
+
+	ctx := newResponsesBootstrapTestContext("/v1/responsesX", `{"model":"gpt-5","stream":true}`)
 	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
 	require.NoError(t, err)
 	require.Nil(t, state)
