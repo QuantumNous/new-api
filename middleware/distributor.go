@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -79,6 +80,11 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 					return
 				}
+				bootstrapState, bootstrapErr := service.EnsureResponsesBootstrapRecoveryStateFromRequest(c)
+				if bootstrapErr != nil {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": bootstrapErr.Error()}))
+					return
+				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				// check path is /pg/chat/completions
@@ -128,12 +134,7 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
-					})
+					channel, selectGroup, err = getChannelWithBootstrapGrace(c, modelRequest.Model, usingGroup, bootstrapState)
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
@@ -340,6 +341,43 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func getChannelWithBootstrapGrace(c *gin.Context, modelName string, usingGroup string, state *service.ResponsesBootstrapRecoveryState) (*model.Channel, string, error) {
+	for {
+		channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+			Ctx:        c,
+			ModelName:  modelName,
+			TokenGroup: usingGroup,
+			Retry:      common.GetPointer(0),
+		})
+		if channel != nil || err != nil || state == nil {
+			return channel, selectGroup, err
+		}
+
+		waitDuration, sendPing, ok := service.NextResponsesBootstrapWait(c, time.Now())
+		if !ok {
+			return nil, selectGroup, nil
+		}
+
+		if sendPing {
+			helper.SetEventStreamHeaders(c)
+			service.MarkResponsesBootstrapHeadersSent(c)
+			now := time.Now()
+			if err := helper.PingData(c); err != nil {
+				return nil, selectGroup, err
+			}
+			service.MarkResponsesBootstrapPingSent(c, now)
+		}
+
+		timer := time.NewTimer(waitDuration)
+		select {
+		case <-c.Request.Context().Done():
+			timer.Stop()
+			return nil, selectGroup, c.Request.Context().Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

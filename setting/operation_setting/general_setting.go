@@ -11,9 +11,14 @@ const (
 )
 
 type GeneralSetting struct {
-	DocsLink            string `json:"docs_link"`
-	PingIntervalEnabled bool   `json:"ping_interval_enabled"`
-	PingIntervalSeconds int    `json:"ping_interval_seconds"`
+	DocsLink                                          string `json:"docs_link"`
+	PingIntervalEnabled                               bool   `json:"ping_interval_enabled"`
+	PingIntervalSeconds                               int    `json:"ping_interval_seconds"`
+	ResponsesStreamBootstrapRecoveryEnabled           bool   `json:"responses_stream_bootstrap_recovery_enabled"`
+	ResponsesStreamBootstrapGracePeriodSeconds        int    `json:"responses_stream_bootstrap_grace_period_seconds"`
+	ResponsesStreamBootstrapProbeIntervalMilliseconds int    `json:"responses_stream_bootstrap_probe_interval_milliseconds"`
+	ResponsesStreamBootstrapPingIntervalSeconds       int    `json:"responses_stream_bootstrap_ping_interval_seconds"`
+	ResponsesStreamBootstrapRetryableStatusCodes      []int  `json:"responses_stream_bootstrap_retryable_status_codes"`
 	// 当前站点额度展示类型：USD / CNY / TOKENS
 	QuotaDisplayType string `json:"quota_display_type"`
 	// 自定义货币符号，用于 CUSTOM 展示类型
@@ -24,9 +29,23 @@ type GeneralSetting struct {
 
 // 默认配置
 var generalSetting = GeneralSetting{
-	DocsLink:                   "https://docs.newapi.pro",
-	PingIntervalEnabled:        false,
-	PingIntervalSeconds:        60,
+	DocsLink:                                          "https://docs.newapi.pro",
+	PingIntervalEnabled:                               false,
+	PingIntervalSeconds:                               60,
+	ResponsesStreamBootstrapRecoveryEnabled:           false,
+	ResponsesStreamBootstrapGracePeriodSeconds:        180,
+	ResponsesStreamBootstrapProbeIntervalMilliseconds: 1000,
+	ResponsesStreamBootstrapPingIntervalSeconds:       10,
+	ResponsesStreamBootstrapRetryableStatusCodes: []int{
+		401,
+		403,
+		408,
+		429,
+		500,
+		502,
+		503,
+		504,
+	},
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,

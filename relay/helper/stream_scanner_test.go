@@ -94,6 +94,36 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	assert.False(t, called.Load(), "handler should not be called for empty body")
 }
 
+func TestStreamScannerHandler_ZeroStreamingTimeoutFallsBack(t *testing.T) {
+	t.Parallel()
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 0
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{
+		Body: io.NopCloser(strings.NewReader("data: {\"ok\":true}\n\ndata: [DONE]\n")),
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	var called atomic.Bool
+	require.NotPanics(t, func() {
+		StreamScannerHandler(c, resp, info, func(data string) bool {
+			called.Store(true)
+			return true
+		})
+	})
+	assert.True(t, called.Load())
+}
+
 func TestStreamScannerHandler_1000Chunks(t *testing.T) {
 	t.Parallel()
 
