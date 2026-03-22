@@ -36,6 +36,9 @@ var generalSetting = GeneralSetting{
 	ResponsesStreamBootstrapGracePeriodSeconds:        180,
 	ResponsesStreamBootstrapProbeIntervalMilliseconds: 1000,
 	ResponsesStreamBootstrapPingIntervalSeconds:       10,
+	// ResponsesStreamBootstrapRetryableStatusCodes keeps 401/403 because in
+	// multi-channel delivery these failures can be channel-specific, allowing
+	// fallback to another channel or a refreshed credential before the first payload.
 	ResponsesStreamBootstrapRetryableStatusCodes: []int{
 		401,
 		403,

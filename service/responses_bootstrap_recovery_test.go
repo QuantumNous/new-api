@@ -150,6 +150,30 @@ func TestNextResponsesBootstrapWaitUsesProvidedNow(t *testing.T) {
 	require.Equal(t, time.Second, waitDuration)
 }
 
+func TestResponsesBootstrapRecoveryDeadlineBoundary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withResponsesBootstrapRecoverySetting(t)
+
+	ctx := newResponsesBootstrapTestContext("/v1/responses", `{"model":"gpt-5","stream":true}`)
+	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+
+	state.Deadline = time.Now()
+
+	retryableErr := types.NewOpenAIError(
+		errors.New("retryable"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusUnauthorized,
+	)
+	require.False(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
+
+	waitDuration, sendPing, ok := NextResponsesBootstrapWait(ctx, state.Deadline)
+	require.False(t, ok)
+	require.False(t, sendPing)
+	require.Equal(t, time.Duration(0), waitDuration)
+}
+
 func TestShouldWriteResponsesBootstrapStreamError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	withResponsesBootstrapRecoverySetting(t)

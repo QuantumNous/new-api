@@ -58,9 +58,7 @@ func setupDistributorBootstrapTestDB(t *testing.T) *gorm.DB {
 		common.UsingPostgreSQL = oldUsingPostgreSQL
 		common.RedisEnabled = oldRedisEnabled
 		common.MemoryCacheEnabled = oldMemoryCacheEnabled
-		if oldDB != nil {
-			model.InitChannelCache()
-		}
+		model.InitChannelCache()
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()

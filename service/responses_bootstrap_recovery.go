@@ -143,7 +143,7 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	if !ok || state == nil || !state.Enabled || state.PayloadStarted {
 		return false
 	}
-	if time.Now().After(state.Deadline) {
+	if !time.Now().Before(state.Deadline) {
 		return false
 	}
 	if newAPIError == nil {
@@ -164,7 +164,7 @@ func NextResponsesBootstrapWait(c *gin.Context, now time.Time) (time.Duration, b
 	if !ok || state == nil || !state.Enabled || state.PayloadStarted {
 		return 0, false, false
 	}
-	if now.After(state.Deadline) {
+	if !now.Before(state.Deadline) {
 		return 0, false, false
 	}
 	sendPing := !state.HeadersSent

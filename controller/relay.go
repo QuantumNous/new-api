@@ -165,14 +165,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
-			return
-		}
 	}
 
 	defer func() {
@@ -219,6 +213,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 			c.Request.Body = io.NopCloser(bodyStorage)
 
+			if !priceData.FreeModel && relayInfo.Billing == nil {
+				newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+				if newAPIError != nil {
+					break
+				}
+			}
+
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				newAPIError = relay.WssHelper(c, relayInfo)
@@ -248,6 +249,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !service.CanContinueResponsesBootstrapRecovery(c, newAPIError) {
 			break
 		}
+		releaseBootstrapRecoveryBilling(c, relayInfo)
 		if waitErr := waitForResponsesBootstrapRecoveryProbe(c); waitErr != nil {
 			newAPIError = waitErr
 			break
@@ -262,6 +264,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		retryLogStr := fmt.Sprintf("重试：%s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), "->"), "[]"))
 		logger.LogInfo(c, retryLogStr)
 	}
+}
+
+func releaseBootstrapRecoveryBilling(c *gin.Context, relayInfo *relaycommon.RelayInfo) {
+	if relayInfo == nil || relayInfo.Billing == nil {
+		return
+	}
+	relayInfo.Billing.Refund(c)
+	relayInfo.Billing = nil
+	relayInfo.FinalPreConsumedQuota = 0
+	relayInfo.BillingSource = ""
+	relayInfo.SubscriptionId = 0
+	relayInfo.SubscriptionPreConsumed = 0
+	relayInfo.SubscriptionPostDelta = 0
+	relayInfo.SubscriptionPlanId = 0
+	relayInfo.SubscriptionPlanTitle = ""
+	relayInfo.SubscriptionAmountTotal = 0
+	relayInfo.SubscriptionAmountUsedAfterPreConsume = 0
 }
 
 func waitForResponsesBootstrapRecoveryProbe(c *gin.Context) *types.NewAPIError {
