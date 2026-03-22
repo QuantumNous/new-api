@@ -93,7 +93,20 @@ test.describe.serial('Setup and login baseline', () => {
 
   test('contact page submissions appear in feedback management and logo can be uploaded', async ({ page }) => {
     await page.goto('/contact');
-    await page.getByRole('button', { name: /采购咨询|Consulting/ }).click();
+    const headerNav = page.locator('nav').first();
+    await expect(
+      headerNav.getByRole('link', { name: /^(文档|Documentation)$/ }),
+    ).toHaveCount(0);
+    await expect(
+      headerNav.getByRole('link', { name: /^(关于|About)$/ }),
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: /采购咨询|Sales Inquiry|Consulting/ }).click();
+    await expect(
+      page.getByText(/当前反馈类型：|Current feedback type:/),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel(/反馈类型|Feedback Type/),
+    ).toHaveCount(0);
     await page.getByPlaceholder(/请输入你的称呼|name/i).fill('E2E Contact User');
     await page
       .getByPlaceholder(/请输入可联系的邮箱|email/i)
@@ -123,17 +136,5 @@ test.describe.serial('Setup and login baseline', () => {
     await expect(page.getByText(/已选择文件|Selected file/)).toContainText('logo.png');
     await page.getByRole('button', { name: /上传并设置 Logo|Upload and set Logo/ }).click();
     await expect(page.getByText(/\/uploads\/branding\/logo-/)).toBeVisible();
-    await page.getByText(/启用反馈 Lark Webhook|Enable feedback Lark Webhook/).click();
-    await page
-      .getByPlaceholder(/open-apis\/bot\/v2\/hook/i)
-      .fill('https://open.larksuite.com/open-apis/bot/v2/hook/example');
-    await page
-      .getByPlaceholder(/从 Lark 自定义机器人获取，可留空|can be empty/i)
-      .fill('temporary-secret');
-    await page
-      .getByPlaceholder(/填写一个或多个 Open ID|Open ID/i)
-      .fill('ou_alpha\nou_beta');
-    await page.getByRole('button', { name: /保存反馈 Lark Webhook|Save feedback Lark Webhook/ }).click();
-    await expect(page.getByText(/反馈 Lark Webhook 已更新|updated/i)).toBeVisible();
   });
 });

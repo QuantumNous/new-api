@@ -206,7 +206,7 @@ const ContactPage = () => {
             <Card className='!rounded-2xl h-full'>
               <Space vertical spacing='loose' align='start'>
                 <Title heading={4}>{t('选择反馈类型')}</Title>
-                <Text>{t('先在左侧选择类型，右侧会自动带入对应的反馈类型。')}</Text>
+                <Text>{t('先在左侧选择类型，右侧会显示当前反馈类型提示。')}</Text>
                 <Text>{t('请尽量提供可复现步骤、报错截图链接或你的使用场景。')}</Text>
                 <div className='grid gap-3 w-full'>
                   {categoryOptions.map((option) => (
@@ -276,15 +276,10 @@ const ContactPage = () => {
                     label={t('邮箱')}
                     placeholder={t('请输入可联系的邮箱')}
                   />
-                  <Form.Input
-                    field='categoryDisplay'
-                    label={t('反馈类型')}
-                    value={selectedCategoryMeta.label}
-                    readonly
-                    disabled
-                  />
                   <Text className='text-sm text-semi-color-text-2 !mb-3'>
-                    {t('该类型将随左侧选择自动填写，无需手动修改。')}
+                    {t('当前反馈类型：{{type}}', {
+                      type: selectedCategoryMeta.label,
+                    })}
                   </Text>
                   <Form.TextArea
                     field='content'
