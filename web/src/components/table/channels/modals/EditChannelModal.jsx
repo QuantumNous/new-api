@@ -2984,6 +2984,7 @@ const EditChannelModal = (props) => {
                       {inputs.type !== 3 &&
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
+                        inputs.type !== 26 &&
                         inputs.type !== 36 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
@@ -3036,6 +3037,35 @@ const EditChannelModal = (props) => {
                               handleInputChange('base_url', value)
                             }
                             showClear
+                            disabled={isIonetLocked}
+                          />
+                        </div>
+                      )}
+
+                      {inputs.type === 26 && (
+                        <div>
+                          <Form.Select
+                            field='base_url'
+                            label={t('API地址')}
+                            placeholder={t('请选择API地址')}
+                            onChange={(value) =>
+                              handleInputChange('base_url', value)
+                            }
+                            optionList={[
+                              {
+                                value: 'https://open.bigmodel.cn',
+                                label: 'https://open.bigmodel.cn (标准)',
+                              },
+                              {
+                                value: 'glm-coding-plan',
+                                label: 'GLM Coding Plan (国内)',
+                              },
+                              {
+                                value: 'glm-coding-plan-international',
+                                label: 'GLM Coding Plan (国际)',
+                              },
+                            ]}
+                            defaultValue='https://open.bigmodel.cn'
                             disabled={isIonetLocked}
                           />
                         </div>
