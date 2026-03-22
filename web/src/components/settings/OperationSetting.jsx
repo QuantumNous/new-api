@@ -41,6 +41,12 @@ const OperationSetting = () => {
     /* 通用设置 */
     TopUpLink: '',
     'general_setting.docs_link': '',
+    'general_setting.responses_stream_bootstrap_recovery_enabled': false,
+    'general_setting.responses_stream_bootstrap_grace_period_seconds': 180,
+    'general_setting.responses_stream_bootstrap_probe_interval_milliseconds': 1000,
+    'general_setting.responses_stream_bootstrap_ping_interval_seconds': 10,
+    'general_setting.responses_stream_bootstrap_retryable_status_codes':
+      '[401,403,408,429,500,502,503,504]',
     QuotaPerUnit: 0,
     USDExchangeRate: 0,
     RetryTimes: 0,

@@ -47,6 +47,12 @@ export default function GeneralSettings(props) {
   const [inputs, setInputs] = useState({
     TopUpLink: '',
     'general_setting.docs_link': '',
+    'general_setting.responses_stream_bootstrap_recovery_enabled': false,
+    'general_setting.responses_stream_bootstrap_grace_period_seconds': 180,
+    'general_setting.responses_stream_bootstrap_probe_interval_milliseconds': 1000,
+    'general_setting.responses_stream_bootstrap_ping_interval_seconds': 10,
+    'general_setting.responses_stream_bootstrap_retryable_status_codes':
+      '[401,403,408,429,500,502,503,504]',
     'general_setting.quota_display_type': 'USD',
     'general_setting.custom_currency_symbol': '¤',
     'general_setting.custom_currency_exchange_rate': '',
@@ -398,9 +404,126 @@ export default function GeneralSettings(props) {
                   field={'token_setting.max_user_tokens'}
                   step={1}
                   min={1}
-                  extraText={t('每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能')}
+                  extraText={t(
+                    '每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能',
+                  )}
                   placeholder={'1000'}
                   onChange={handleFieldChange('token_setting.max_user_tokens')}
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24}>
+                <Banner
+                  type='info'
+                  description={t(
+                    'Responses 流启动恢复仅作用于 /v1/responses 的流式请求首包前阶段。它会在短时渠道故障时通过 SSE ping 保持连接，并在恢复后继续返回真实内容；首包发出后不会跨渠道续传。',
+                  )}
+                  bordered
+                  fullMode={false}
+                  closeIcon={null}
+                />
+              </Col>
+            </Row>
+            <Row gutter={16} style={{ marginTop: 16 }}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={
+                    'general_setting.responses_stream_bootstrap_recovery_enabled'
+                  }
+                  label={t('启用 Responses 流启动恢复')}
+                  extraText={t(
+                    '仅在 /v1/responses 流式请求首包前生效，用于短时故障恢复。',
+                  )}
+                  size='default'
+                  onChange={handleFieldChange(
+                    'general_setting.responses_stream_bootstrap_recovery_enabled',
+                  )}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={
+                    'general_setting.responses_stream_bootstrap_grace_period_seconds'
+                  }
+                  label={t('启动恢复等待窗口（秒）')}
+                  min={1}
+                  step={1}
+                  placeholder={'180'}
+                  extraText={t(
+                    '在该时间窗口内持续探测可用渠道，超时后返回真实错误。',
+                  )}
+                  onChange={handleFieldChange(
+                    'general_setting.responses_stream_bootstrap_grace_period_seconds',
+                  )}
+                  disabled={
+                    !inputs[
+                      'general_setting.responses_stream_bootstrap_recovery_enabled'
+                    ]
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={
+                    'general_setting.responses_stream_bootstrap_probe_interval_milliseconds'
+                  }
+                  label={t('渠道探测间隔（毫秒）')}
+                  min={1}
+                  step={50}
+                  placeholder={'1000'}
+                  extraText={t('每次重新探测可用渠道之间的等待时间。')}
+                  onChange={handleFieldChange(
+                    'general_setting.responses_stream_bootstrap_probe_interval_milliseconds',
+                  )}
+                  disabled={
+                    !inputs[
+                      'general_setting.responses_stream_bootstrap_recovery_enabled'
+                    ]
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={
+                    'general_setting.responses_stream_bootstrap_ping_interval_seconds'
+                  }
+                  label={t('SSE 保活间隔（秒）')}
+                  min={1}
+                  step={1}
+                  placeholder={'10'}
+                  extraText={t(
+                    '在等待恢复期间发送 : PING，帮助客户端保持连接。',
+                  )}
+                  onChange={handleFieldChange(
+                    'general_setting.responses_stream_bootstrap_ping_interval_seconds',
+                  )}
+                  disabled={
+                    !inputs[
+                      'general_setting.responses_stream_bootstrap_recovery_enabled'
+                    ]
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={24} md={16} lg={16} xl={16}>
+                <Form.Input
+                  field={
+                    'general_setting.responses_stream_bootstrap_retryable_status_codes'
+                  }
+                  label={t('可触发启动恢复的状态码')}
+                  placeholder={'[401,403,408,429,500,502,503,504]'}
+                  extraText={t(
+                    '填写 JSON 数组，例如 [401,403,429,500,502,503,504]。',
+                  )}
+                  onChange={handleFieldChange(
+                    'general_setting.responses_stream_bootstrap_retryable_status_codes',
+                  )}
+                  disabled={
+                    !inputs[
+                      'general_setting.responses_stream_bootstrap_recovery_enabled'
+                    ]
+                  }
+                  showClear
                 />
               </Col>
             </Row>
