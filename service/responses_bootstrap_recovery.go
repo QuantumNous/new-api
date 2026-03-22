@@ -29,16 +29,17 @@ type ResponsesBootstrapRecoveryConfig struct {
 
 // ResponsesBootstrapRecoveryState tracks a single request's bootstrap recovery window.
 type ResponsesBootstrapRecoveryState struct {
-	Enabled        bool
-	StartedAt      time.Time
-	Deadline       time.Time
-	ProbeInterval  time.Duration
-	PingInterval   time.Duration
-	LastPingAt     time.Time
-	HeadersSent    bool
-	PayloadStarted bool
-	WaitAttempts   int
-	WaitDuration   time.Duration
+	Enabled              bool
+	StartedAt            time.Time
+	Deadline             time.Time
+	ProbeInterval        time.Duration
+	PingInterval         time.Duration
+	RetryableStatusCodes map[int]struct{}
+	LastPingAt           time.Time
+	HeadersSent          bool
+	PayloadStarted       bool
+	WaitAttempts         int
+	WaitDuration         time.Duration
 }
 
 // GetResponsesBootstrapRecoveryConfig loads the current bootstrap recovery settings.
@@ -107,6 +108,12 @@ func EnsureResponsesBootstrapRecoveryState(c *gin.Context, isStream bool) *Respo
 		ProbeInterval: cfg.ProbeInterval,
 		PingInterval:  cfg.PingInterval,
 	}
+	if len(cfg.RetryableStatusCodes) > 0 {
+		state.RetryableStatusCodes = make(map[int]struct{}, len(cfg.RetryableStatusCodes))
+		for code := range cfg.RetryableStatusCodes {
+			state.RetryableStatusCodes[code] = struct{}{}
+		}
+	}
 	common.SetContextKey(c, constant.ContextKeyResponsesBootstrapRecoveryState, state)
 	return state
 }
@@ -169,7 +176,7 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	if newAPIError.StatusCode == 0 {
 		return false
 	}
-	_, ok = GetResponsesBootstrapRecoveryConfig().RetryableStatusCodes[newAPIError.StatusCode]
+	_, ok = state.RetryableStatusCodes[newAPIError.StatusCode]
 	return ok
 }
 

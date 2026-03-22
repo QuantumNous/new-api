@@ -109,6 +109,27 @@ func TestCanContinueResponsesBootstrapRecovery(t *testing.T) {
 	require.False(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
 }
 
+func TestCanContinueResponsesBootstrapRecoveryUsesStateRetryableStatusCodes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withResponsesBootstrapRecoverySetting(t)
+
+	settings := operation_setting.GetGeneralSetting()
+	ctx := newResponsesBootstrapTestContext("/v1/responses", `{"model":"gpt-5","stream":true}`)
+	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	require.Contains(t, state.RetryableStatusCodes, http.StatusUnauthorized)
+
+	settings.ResponsesStreamBootstrapRetryableStatusCodes = []int{http.StatusTooManyRequests}
+
+	retryableErr := types.NewOpenAIError(
+		errors.New("retryable"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusUnauthorized,
+	)
+	require.True(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
+}
+
 func TestNextResponsesBootstrapWaitSchedulesInitialPing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	withResponsesBootstrapRecoverySetting(t)
