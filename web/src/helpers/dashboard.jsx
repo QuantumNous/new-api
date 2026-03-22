@@ -48,17 +48,20 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
-export const getInitialTimestamp = () => {
+export const getInitialTimestamp = (endTimestamp) => {
   const defaultTime = getDefaultTime();
-  const now = new Date().getTime() / 1000;
+  const parsedEndTimestamp = Date.parse(endTimestamp) / 1000;
+  const baseTimestamp = Number.isFinite(parsedEndTimestamp)
+    ? parsedEndTimestamp
+    : new Date().getTime() / 1000;
 
   switch (defaultTime) {
     case 'hour':
-      return timestamp2string(now - 86400);
+      return timestamp2string(baseTimestamp - 86400);
     case 'week':
-      return timestamp2string(now - 86400 * 30);
+      return timestamp2string(baseTimestamp - 86400 * 30);
     default:
-      return timestamp2string(now - 86400 * 7);
+      return timestamp2string(baseTimestamp - 86400 * 7);
   }
 };
 

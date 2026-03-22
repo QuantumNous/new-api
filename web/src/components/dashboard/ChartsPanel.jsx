@@ -55,9 +55,13 @@ const ChartsPanel = ({
     customRangeDraft.end_timestamp,
   ];
   const hasCompleteCustomRange = customRangeValue.every(Boolean);
+  const customRangeStart = Date.parse(customRangeValue[0]);
+  const customRangeEnd = Date.parse(customRangeValue[1]);
   const isCustomRangeOrderValid =
     !hasCompleteCustomRange ||
-    Date.parse(customRangeValue[0]) <= Date.parse(customRangeValue[1]);
+    (Number.isFinite(customRangeStart) &&
+      Number.isFinite(customRangeEnd) &&
+      customRangeStart < customRangeEnd);
 
   return (
     <Card
