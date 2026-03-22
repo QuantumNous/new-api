@@ -1143,7 +1143,9 @@ export function renderQuota(quota, digits = 2) {
   }
   const numericQuota = Number(quota || 0);
   if (!Number.isFinite(numericQuota)) {
-    return quotaDisplayType === 'TOKENS' ? '0' : '$0.00';
+    return quotaDisplayType === 'TOKENS'
+      ? renderNumber(0)
+      : convertUSDToCurrency(0, digits);
   }
   if (quotaDisplayType === 'TOKENS') {
     return renderNumber(numericQuota);
