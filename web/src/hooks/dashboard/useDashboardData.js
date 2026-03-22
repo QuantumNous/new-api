@@ -23,15 +23,20 @@ import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
 import {
   getInitialChartRange,
+  getDashboardQuickRangeConfig,
   parseDashboardTimestamp,
   setStoredChartRange,
 } from '../../helpers/dashboard';
-import { STORAGE_KEYS, TIME_OPTIONS } from '../../constants/dashboard.constants';
+import {
+  STORAGE_KEYS,
+  TIME_OPTIONS,
+} from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
 const END_TIME_BUFFER_SECONDS = 3600;
 
+// useDashboardData manages dashboard filters, chart data, and auxiliary panels.
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -40,19 +45,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // Keep a small buffer so the latest records are not clipped near "now".
   const getCurrentEndTimestamp = useCallback(
-    () => timestamp2string(new Date().getTime() / 1000 + END_TIME_BUFFER_SECONDS),
+    () =>
+      timestamp2string(new Date().getTime() / 1000 + END_TIME_BUFFER_SECONDS),
     [],
   );
-
-  const getQuickRangeConfig = useCallback((preset) => {
-    const configs = {
-      '24h': { seconds: 86400, granularity: 'hour' },
-      '7d': { seconds: 86400 * 7, granularity: 'day' },
-      '30d': { seconds: 86400 * 30, granularity: 'day' },
-      '90d': { seconds: 86400 * 90, granularity: 'week' },
-    };
-    return configs[preset] || null;
-  }, []);
 
   const detectQuickRangePreset = useCallback(
     (startTimestamp, endTimestamp, granularity) => {
@@ -63,8 +59,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const toleranceSeconds = 3600;
       const presets = ['24h', '7d', '30d', '90d'];
       for (const preset of presets) {
-        const config = getQuickRangeConfig(preset);
-        if (!config || config.granularity !== granularity) {
+        const config = getDashboardQuickRangeConfig(preset);
+        if (!config || config.defaultTime !== granularity) {
           continue;
         }
         if (Math.abs(diffSeconds - config.seconds) <= toleranceSeconds) {
@@ -73,7 +69,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       }
       return 'custom';
     },
-    [getQuickRangeConfig],
+    [],
   );
 
   const isValidCustomRange = useCallback((startTimestamp, endTimestamp) => {
@@ -108,10 +104,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     data_export_default_time: '',
   });
 
-  const [dataExportDefaultTime, setDataExportDefaultTime] =
-    useState(initialChartRange.default_time);
-  const [activeRangePreset, setActiveRangePreset] = useState(() =>
-    initialChartRange.preset ||
+  const [dataExportDefaultTime, setDataExportDefaultTime] = useState(
+    initialChartRange.default_time,
+  );
+  const [activeRangePreset, setActiveRangePreset] = useState(
+    () =>
+      initialChartRange.preset ||
       detectQuickRangePreset(
         initialChartRange.start_timestamp,
         initialChartRange.end_timestamp,
@@ -234,9 +232,34 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
 
+  const persistChartRange = useCallback(
+    (
+      nextInputs,
+      nextDefaultTime,
+      preset = detectQuickRangePreset(
+        nextInputs.start_timestamp,
+        nextInputs.end_timestamp,
+        nextDefaultTime,
+      ),
+    ) => {
+      const { start_timestamp, end_timestamp } = nextInputs;
+      if (!isValidCustomRange(start_timestamp, end_timestamp)) {
+        return;
+      }
+
+      setStoredChartRange({
+        start_timestamp,
+        end_timestamp,
+        default_time: nextDefaultTime,
+        preset,
+      });
+    },
+    [detectQuickRangePreset, isValidCustomRange],
+  );
+
   const applyChartRangePreset = useCallback(
     (preset) => {
-      const config = getQuickRangeConfig(preset);
+      const config = getDashboardQuickRangeConfig(preset);
       if (!config) {
         return null;
       }
@@ -248,28 +271,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         end_timestamp: endTimestamp,
       };
       setInputs(nextInputs);
-      setDataExportDefaultTime(config.granularity);
+      setDataExportDefaultTime(config.defaultTime);
       setActiveRangePreset(preset);
       localStorage.setItem(
         STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME,
-        config.granularity,
+        config.defaultTime,
       );
       const nextRange = {
         start_timestamp: nextInputs.start_timestamp,
         end_timestamp: nextInputs.end_timestamp,
-        default_time: config.granularity,
+        default_time: config.defaultTime,
       };
       setCustomRangeDraft(nextRange);
-      setStoredChartRange({
-        ...nextRange,
-        preset,
-      });
+      persistChartRange(nextInputs, config.defaultTime, preset);
       return {
         nextInputs,
-        nextDefaultTime: config.granularity,
+        nextDefaultTime: config.defaultTime,
       };
     },
-    [getCurrentEndTimestamp, getQuickRangeConfig, inputs],
+    [getCurrentEndTimestamp, inputs, persistChartRange],
   );
 
   const activateCustomRange = useCallback(() => {
@@ -324,17 +344,12 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setDataExportDefaultTime(default_time);
     setActiveRangePreset('custom');
     localStorage.setItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME, default_time);
-    setStoredChartRange({
-      start_timestamp,
-      end_timestamp,
-      default_time,
-      preset: 'custom',
-    });
+    persistChartRange(nextInputs, default_time, 'custom');
     return {
       nextInputs,
       nextDefaultTime: default_time,
     };
-  }, [customRangeDraft, inputs, isValidCustomRange, t]);
+  }, [customRangeDraft, inputs, isValidCustomRange, persistChartRange, t]);
 
   const showSearchModal = useCallback(() => {
     setSearchModalVisible(true);
@@ -354,7 +369,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       try {
         let url = '';
         const { start_timestamp, end_timestamp, username } = overrideInputs;
-        let localStartTimestamp = parseDashboardTimestamp(start_timestamp) / 1000;
+        let localStartTimestamp =
+          parseDashboardTimestamp(start_timestamp) / 1000;
         let localEndTimestamp = parseDashboardTimestamp(end_timestamp) / 1000;
         const emptyStateTimestamp = Number.isFinite(localStartTimestamp)
           ? localStartTimestamp
@@ -441,13 +457,40 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
-      const data = await refresh();
+      const { start_timestamp, end_timestamp } = inputs;
+      if (!isValidCustomRange(start_timestamp, end_timestamp)) {
+        showError(t('请求参数无效'));
+        return;
+      }
+
+      const nextPreset = detectQuickRangePreset(
+        start_timestamp,
+        end_timestamp,
+        dataExportDefaultTime,
+      );
+      setActiveRangePreset(nextPreset);
+      setCustomRangeDraft({
+        start_timestamp,
+        end_timestamp,
+        default_time: dataExportDefaultTime,
+      });
+      persistChartRange(inputs, dataExportDefaultTime, nextPreset);
+
+      const data = await refresh(inputs, dataExportDefaultTime);
       if (data && data.length > 0 && updateChartDataCallback) {
         updateChartDataCallback(data);
       }
       setSearchModalVisible(false);
     },
-    [refresh],
+    [
+      dataExportDefaultTime,
+      detectQuickRangePreset,
+      inputs,
+      isValidCustomRange,
+      persistChartRange,
+      refresh,
+      t,
+    ],
   );
 
   // ========== Effects ==========

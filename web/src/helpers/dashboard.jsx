@@ -33,15 +33,18 @@ import {
 import {
   STORAGE_KEYS,
   DEFAULT_TIME_INTERVALS,
+  DASHBOARD_QUICK_RANGE_CONFIGS,
   DEFAULTS,
   ILLUSTRATION_SIZE,
 } from '../constants/dashboard.constants';
 
 // ========== 时间相关工具函数 ==========
+// normalizeDefaultTime normalizes a persisted dashboard granularity value.
 export const normalizeDefaultTime = (timeType) => {
   return DEFAULT_TIME_INTERVALS[timeType] ? timeType : 'hour';
 };
 
+// getDefaultTime returns the normalized dashboard granularity from local storage.
 export const getDefaultTime = () => {
   return normalizeDefaultTime(
     localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME),
@@ -50,6 +53,12 @@ export const getDefaultTime = () => {
 
 const VALID_RANGE_PRESETS = new Set(['24h', '7d', '30d', '90d', 'custom']);
 
+// getDashboardQuickRangeConfig returns the predefined dashboard quick-range config.
+export const getDashboardQuickRangeConfig = (preset) => {
+  return DASHBOARD_QUICK_RANGE_CONFIGS[preset] || null;
+};
+
+// parseDashboardTimestamp parses a dashboard datetime string into a local timestamp.
 export const parseDashboardTimestamp = (timestamp) => {
   if (typeof timestamp !== 'string') {
     return NaN;
@@ -62,15 +71,8 @@ export const parseDashboardTimestamp = (timestamp) => {
     return NaN;
   }
 
-  const [
-    ,
-    yearText,
-    monthText,
-    dayText,
-    hourText,
-    minuteText,
-    secondText,
-  ] = match;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] =
+    match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
@@ -111,6 +113,7 @@ const isValidStoredChartRange = (range) => {
   );
 };
 
+// getStoredChartRange reads and sanitizes the persisted dashboard chart range.
 export const getStoredChartRange = () => {
   const storedRange = localStorage.getItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE);
   if (!storedRange) {
@@ -130,6 +133,7 @@ export const getStoredChartRange = () => {
   return null;
 };
 
+// setStoredChartRange validates and persists the current dashboard chart range.
 export const setStoredChartRange = (range) => {
   if (!isValidStoredChartRange(range)) {
     localStorage.removeItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE);
@@ -142,12 +146,14 @@ export const setStoredChartRange = (range) => {
   );
 };
 
+// getTimeInterval returns the dashboard aggregation interval in minutes or seconds.
 export const getTimeInterval = (timeType, isSeconds = false) => {
   const intervals =
     DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
   return isSeconds ? intervals.seconds : intervals.minutes;
 };
 
+// getInitialTimestamp computes the default chart start time for a given end time.
 export const getInitialTimestamp = (endTimestamp) => {
   const defaultTime = normalizeDefaultTime(getDefaultTime());
   const parsedEndTimestamp = parseDashboardTimestamp(endTimestamp) / 1000;
@@ -165,9 +171,26 @@ export const getInitialTimestamp = (endTimestamp) => {
   }
 };
 
+// getInitialChartRange restores a saved range or rebuilds a fresh default window.
 export const getInitialChartRange = (endTimestamp) => {
   const storedRange = getStoredChartRange();
   if (storedRange) {
+    if (storedRange.preset && storedRange.preset !== 'custom') {
+      const presetConfig = getDashboardQuickRangeConfig(storedRange.preset);
+      const parsedEndTimestamp = parseDashboardTimestamp(endTimestamp) / 1000;
+
+      if (presetConfig && Number.isFinite(parsedEndTimestamp)) {
+        return {
+          start_timestamp: timestamp2string(
+            parsedEndTimestamp - presetConfig.seconds,
+          ),
+          end_timestamp: endTimestamp,
+          default_time: presetConfig.defaultTime,
+          preset: storedRange.preset,
+        };
+      }
+    }
+
     return storedRange;
   }
 
@@ -181,6 +204,7 @@ export const getInitialChartRange = (endTimestamp) => {
 };
 
 // ========== 数据处理工具函数 ==========
+// updateMapValue accumulates a numeric value into a map bucket.
 export const updateMapValue = (map, key, value) => {
   if (!map.has(key)) {
     map.set(key, 0);
@@ -188,6 +212,7 @@ export const updateMapValue = (map, key, value) => {
   map.set(key, map.get(key) + value);
 };
 
+// initializeMaps ensures each provided map has an initialized value for the key.
 export const initializeMaps = (key, ...maps) => {
   maps.forEach((map) => {
     if (!map.has(key)) {
@@ -197,6 +222,7 @@ export const initializeMaps = (key, ...maps) => {
 };
 
 // ========== 图表相关工具函数 ==========
+// updateChartSpec applies new values, subtitle, and colors to a chart spec.
 export const updateChartSpec = (
   setterFunc,
   newData,
@@ -217,6 +243,7 @@ export const updateChartSpec = (
   }));
 };
 
+// getTrendSpec builds the compact trend-chart spec used by dashboard cards.
 export const getTrendSpec = (data, color) => ({
   type: 'line',
   data: [{ id: 'trend', values: data.map((val, idx) => ({ x: idx, y: val })) }],
@@ -254,6 +281,7 @@ export const getTrendSpec = (data, color) => ({
 });
 
 // ========== UI 工具函数 ==========
+// createSectionTitle renders a shared dashboard section title with an icon.
 export const createSectionTitle = (Icon, text) => (
   <div className='flex items-center gap-2'>
     <Icon size={16} />
@@ -261,17 +289,20 @@ export const createSectionTitle = (Icon, text) => (
   </div>
 );
 
+// createFormField renders a shared dashboard form field with common props.
 export const createFormField = (Component, props, FORM_FIELD_PROPS) => (
   <Component {...FORM_FIELD_PROPS} {...props} />
 );
 
 // ========== 操作处理函数 ==========
+// handleCopyUrl copies a URL and reports a translated success message.
 export const handleCopyUrl = async (url, t) => {
   if (await copy(url)) {
     showSuccess(t('复制成功'));
   }
 };
 
+// handleSpeedTest opens an external speed-test page for the provided API URL.
 export const handleSpeedTest = (apiUrl) => {
   const encodedUrl = encodeURIComponent(apiUrl);
   const speedTestUrl = `https://www.tcptest.cn/http/${encodedUrl}`;
@@ -279,13 +310,16 @@ export const handleSpeedTest = (apiUrl) => {
 };
 
 // ========== 状态映射函数 ==========
+// getUptimeStatusColor returns the configured color for an uptime status code.
 export const getUptimeStatusColor = (status, uptimeStatusMap) =>
   uptimeStatusMap[status]?.color || '#8b9aa7';
 
+// getUptimeStatusText returns the translated display text for an uptime status code.
 export const getUptimeStatusText = (status, uptimeStatusMap, t) =>
   uptimeStatusMap[status]?.text || t('未知');
 
 // ========== 监控列表渲染函数 ==========
+// renderMonitorList renders the grouped uptime monitor list for the dashboard.
 export const renderMonitorList = (
   monitors,
   getUptimeStatusColor,
@@ -361,6 +395,7 @@ export const renderMonitorList = (
 };
 
 // ========== 数据处理函数 ==========
+// processRawData aggregates raw quota rows into dashboard summary structures.
 export const processRawData = (
   data,
   dataExportDefaultTime,
@@ -411,6 +446,7 @@ export const processRawData = (
   return result;
 };
 
+// calculateTrendData converts aggregated series into dashboard trend datasets.
 export const calculateTrendData = (
   timePoints,
   timeQuotaMap,
@@ -446,6 +482,7 @@ export const calculateTrendData = (
   };
 };
 
+// aggregateDataByTimeAndModel groups raw rows by time bucket and model name.
 export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
   const aggregatedData = new Map();
 
@@ -478,6 +515,7 @@ export const aggregateDataByTimeAndModel = (data, dataExportDefaultTime) => {
   return aggregatedData;
 };
 
+// generateChartTimePoints ensures enough ordered time buckets exist for chart rendering.
 export const generateChartTimePoints = (
   aggregatedData,
   data,

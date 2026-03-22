@@ -52,6 +52,7 @@ import {
   renderMonitorList,
 } from '../../helpers/dashboard';
 
+// Dashboard composes the dashboard panels, filters, and chart interactions.
 const Dashboard = () => {
   // ========== Context ==========
   const [userState, userDispatch] = useContext(UserContext);

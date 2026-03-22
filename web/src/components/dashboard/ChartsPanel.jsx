@@ -31,6 +31,7 @@ import { VChart } from '@visactor/react-vchart';
 import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
 import { parseDashboardTimestamp } from '../../helpers/dashboard';
 
+// ChartsPanel renders the dashboard charts together with time-range controls.
 const ChartsPanel = ({
   activeChartTab,
   setActiveChartTab,

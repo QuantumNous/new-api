@@ -49,6 +49,13 @@ export const DEFAULT_TIME_INTERVALS = {
   week: { seconds: 604800, minutes: 10080 },
 };
 
+export const DASHBOARD_QUICK_RANGE_CONFIGS = {
+  '24h': { seconds: 86400, defaultTime: 'hour' },
+  '7d': { seconds: 86400 * 7, defaultTime: 'day' },
+  '30d': { seconds: 86400 * 30, defaultTime: 'day' },
+  '90d': { seconds: 86400 * 90, defaultTime: 'week' },
+};
+
 // ========== 默认时间设置 ==========
 export const DEFAULT_TIME_RANGE = {
   HOUR: 'hour',

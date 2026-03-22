@@ -2646,7 +2646,7 @@
     "请求体内存缓存": "Cache mémoire du corps de requête",
     "请求体磁盘缓存": "Cache disque du corps de requête",
     "请求体超过此大小时使用磁盘缓存": "Utiliser le cache disque lorsque le corps de la requête dépasse cette taille",
-    "请求参数无效": "Invalid request parameters",
+    "请求参数无效": "Paramètres de requête invalides",
     "请求发生错误": "Une erreur s'est produite lors de la demande",
     "请求发生错误: ": "Une erreur s'est produite lors de la demande : ",
     "请求后端接口失败：": "Échec de la requête de l'interface backend : ",
