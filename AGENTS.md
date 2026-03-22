@@ -147,3 +147,120 @@ refactor(llm): 提取公共的 token 计数工具函数
 ```
 
 类型对照：`feat` 新功能、`fix` 修复、`docs` 文档、`refactor` 重构、`test` 测试、`chore` 杂项。
+
+## Git 工作流规范
+
+本仓库采用 fork + 双 remote 工作流：
+
+- `origin` → 个人 fork：`git@github.com:prodDonkey/new-api.git`
+- `upstream` → 上游原仓库：`git@github.com:QuantumNous/new-api.git`
+
+### 分支职责
+
+- `main`：只用于跟踪上游主分支，默认跟踪 `upstream/main`
+- `feature/yhl`：个人长期开发分支，默认跟踪 `origin/feature/yhl`
+- `feature/yhl-<任务简述>`：单个任务的临时子分支，从 `feature/yhl` 拉出
+
+原则：
+
+- 不直接在 `main` 上做业务开发
+- 跟踪上游更新时优先使用 `rebase`，避免无意义 merge 提交
+- 每个具体任务都在独立子分支完成，完成后合回 `feature/yhl`
+
+### 日常同步上游
+
+```bash
+git fetch upstream
+git checkout main
+git rebase upstream/main
+git push origin main
+```
+
+### 开发新改动
+
+```bash
+git checkout feature/yhl
+git checkout -b feature/yhl-<任务简述>
+# ... 开发并提交 ...
+```
+
+### 任务完成后合并回个人开发分支
+
+```bash
+git checkout feature/yhl
+git merge --no-ff feature/yhl-<任务简述>
+git push origin feature/yhl
+git branch -d feature/yhl-<任务简述>
+```
+
+### 将上游更新同步到开发分支
+
+```bash
+git fetch upstream
+git checkout main
+git rebase upstream/main
+git push origin main
+
+git checkout feature/yhl
+git rebase main
+git push origin feature/yhl --force-with-lease
+```
+
+### Tracking 要求
+
+- `main` 必须跟踪 `upstream/main`
+- `feature/yhl` 必须跟踪 `origin/feature/yhl`
+
+可通过以下命令检查：
+
+```bash
+git branch -vv
+git remote -v
+```
+
+## Docker Compose 部署规范
+
+本仓库当前使用 [docker-compose.yml](/root/work/liuyao/github/new-api/docker-compose.yml) 基于本地源码构建镜像，不使用远程 `latest` 镜像。
+
+### 部署目标
+
+- `feature/yhl` 用于部署个人开发版本
+- 部署时必须确保当前代码来自本地 `feature/yhl` 分支
+- 部署结果应当对应当前工作区已提交并已同步的代码，而不是远程公共镜像
+
+### 部署前检查
+
+部署前必须先执行以下命令，确认当前代码状态正确：
+
+```bash
+git checkout feature/yhl
+git pull --rebase origin feature/yhl
+git status --short
+git log --oneline -1
+```
+
+要求：
+
+- 当前分支必须是 `feature/yhl`
+- 工作区应尽量保持干净；如果存在未提交改动，必须明确知道这些改动是否要参与本次部署
+- 部署前应清楚当前要部署的 commit 是哪一个
+
+### 部署命令
+
+```bash
+docker compose build --no-cache new-api
+docker compose up -d --force-recreate new-api
+```
+
+### 部署后检查
+
+```bash
+docker compose ps
+docker compose logs -f new-api
+```
+
+### 注意事项
+
+- 不要再使用远程 `calciumion/new-api:latest` 作为开发部署来源
+- 如果本地代码已更新但未重新 `docker compose build`，容器仍可能运行旧镜像
+- 只执行 `docker compose up -d` 不能保证拿到最新本地代码；开发部署必须显式重新构建 `new-api` 服务
