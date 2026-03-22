@@ -41,8 +41,7 @@ const ChartsPanel = ({
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
   hasApiInfoPanel,
-  inputs,
-  dataExportDefaultTime,
+  customRangeDraft,
   timeOptions,
   activeRangePreset,
   quickRangeOptions,
@@ -51,8 +50,14 @@ const ChartsPanel = ({
   handleCustomRangeConfirm,
   t,
 }) => {
-  const customRangeValue = [inputs.start_timestamp, inputs.end_timestamp];
+  const customRangeValue = [
+    customRangeDraft.start_timestamp,
+    customRangeDraft.end_timestamp,
+  ];
   const hasCompleteCustomRange = customRangeValue.every(Boolean);
+  const isCustomRangeOrderValid =
+    !hasCompleteCustomRange ||
+    Date.parse(customRangeValue[0]) <= Date.parse(customRangeValue[1]);
 
   return (
     <Card
@@ -125,7 +130,7 @@ const ChartsPanel = ({
           />
           <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end'>
             <Select
-              value={dataExportDefaultTime}
+              value={customRangeDraft.default_time}
               optionList={timeOptions}
               onChange={(value) =>
                 handleCustomRangeChange(customRangeValue, value)
@@ -137,7 +142,7 @@ const ChartsPanel = ({
             <Button
               type='primary'
               size='small'
-              disabled={!hasCompleteCustomRange}
+              disabled={!hasCompleteCustomRange || !isCustomRangeOrderValid}
               onClick={handleCustomRangeConfirm}
             >
               {t('应用')}

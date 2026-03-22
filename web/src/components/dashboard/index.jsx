@@ -121,7 +121,14 @@ const Dashboard = () => {
   };
 
   const handleCustomRangeConfirm = async () => {
-    const data = await dashboardData.refresh();
+    const rangeState = dashboardData.applyCustomRange();
+    if (!rangeState) {
+      return;
+    }
+    const data = await dashboardData.refresh(
+      rangeState.nextInputs,
+      rangeState.nextDefaultTime,
+    );
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
@@ -211,8 +218,7 @@ const Dashboard = () => {
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
-            inputs={dashboardData.inputs}
-            dataExportDefaultTime={dashboardData.dataExportDefaultTime}
+            customRangeDraft={dashboardData.customRangeDraft}
             timeOptions={dashboardData.timeOptions}
             activeRangePreset={dashboardData.activeRangePreset}
             quickRangeOptions={dashboardData.quickRangeOptions}

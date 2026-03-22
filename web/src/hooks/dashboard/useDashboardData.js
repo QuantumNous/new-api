@@ -93,6 +93,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       getDefaultTime(),
     ),
   );
+  const [customRangeDraft, setCustomRangeDraft] = useState(() => ({
+    start_timestamp: getInitialTimestamp(),
+    end_timestamp: getCurrentEndTimestamp(),
+    default_time: getDefaultTime(),
+  }));
 
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
@@ -209,16 +214,22 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       if (!config) {
         return null;
       }
-      const now = new Date().getTime() / 1000;
+      const endTimestamp = getCurrentEndTimestamp();
+      const endTimestampUnix = Date.parse(endTimestamp) / 1000;
       const nextInputs = {
         ...inputs,
-        start_timestamp: timestamp2string(now - config.seconds),
-        end_timestamp: getCurrentEndTimestamp(),
+        start_timestamp: timestamp2string(endTimestampUnix - config.seconds),
+        end_timestamp: endTimestamp,
       };
       setInputs(nextInputs);
       setDataExportDefaultTime(config.granularity);
       setActiveRangePreset(preset);
       localStorage.setItem('data_export_default_time', config.granularity);
+      setCustomRangeDraft({
+        start_timestamp: nextInputs.start_timestamp,
+        end_timestamp: nextInputs.end_timestamp,
+        default_time: config.granularity,
+      });
       return {
         nextInputs,
         nextDefaultTime: config.granularity,
@@ -228,28 +239,58 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   );
 
   const activateCustomRange = useCallback(() => {
+    setCustomRangeDraft({
+      start_timestamp: inputs.start_timestamp,
+      end_timestamp: inputs.end_timestamp,
+      default_time: dataExportDefaultTime,
+    });
     setActiveRangePreset('custom');
-  }, []);
+  }, [dataExportDefaultTime, inputs.end_timestamp, inputs.start_timestamp]);
 
   const handleCustomRangeChange = useCallback(
-    (rangeValue, nextDefaultTime = dataExportDefaultTime) => {
+    (
+      rangeValue = [
+        customRangeDraft.start_timestamp,
+        customRangeDraft.end_timestamp,
+      ],
+      nextDefaultTime = customRangeDraft.default_time,
+    ) => {
       const normalizedRange = Array.isArray(rangeValue) ? rangeValue : [];
       const [startTimestamp = '', endTimestamp = ''] = normalizedRange;
 
       setActiveRangePreset('custom');
-      setInputs((currentInputs) => ({
-        ...currentInputs,
+      setCustomRangeDraft({
         start_timestamp: startTimestamp,
         end_timestamp: endTimestamp,
-      }));
-
-      if (nextDefaultTime !== dataExportDefaultTime) {
-        setDataExportDefaultTime(nextDefaultTime);
-        localStorage.setItem('data_export_default_time', nextDefaultTime);
-      }
+        default_time: nextDefaultTime,
+      });
     },
-    [dataExportDefaultTime],
+    [
+      customRangeDraft.default_time,
+      customRangeDraft.end_timestamp,
+      customRangeDraft.start_timestamp,
+    ],
   );
+
+  const applyCustomRange = useCallback(() => {
+    const { start_timestamp, end_timestamp, default_time } = customRangeDraft;
+    if (!start_timestamp || !end_timestamp) {
+      return null;
+    }
+    const nextInputs = {
+      ...inputs,
+      start_timestamp,
+      end_timestamp,
+    };
+    setInputs(nextInputs);
+    setDataExportDefaultTime(default_time);
+    setActiveRangePreset('custom');
+    localStorage.setItem('data_export_default_time', default_time);
+    return {
+      nextInputs,
+      nextDefaultTime: default_time,
+    };
+  }, [customRangeDraft, inputs]);
 
   const showSearchModal = useCallback(() => {
     setSearchModalVisible(true);
@@ -382,6 +423,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     dataExportDefaultTime,
     activeRangePreset,
     quickRangeOptions,
+    customRangeDraft,
 
     // 数据状态
     quotaData,
@@ -429,6 +471,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     applyChartRangePreset,
     activateCustomRange,
     handleCustomRangeChange,
+    applyCustomRange,
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
