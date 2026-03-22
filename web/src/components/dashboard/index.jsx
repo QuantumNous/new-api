@@ -111,7 +111,7 @@ const Dashboard = () => {
     if (!rangeState) {
       return;
     }
-    const data = await dashboardData.refresh(
+    const data = await dashboardData.loadQuotaData(
       rangeState.nextInputs,
       rangeState.nextDefaultTime,
     );
@@ -125,7 +125,7 @@ const Dashboard = () => {
     if (!rangeState) {
       return;
     }
-    const data = await dashboardData.refresh(
+    const data = await dashboardData.loadQuotaData(
       rangeState.nextInputs,
       rangeState.nextDefaultTime,
     );

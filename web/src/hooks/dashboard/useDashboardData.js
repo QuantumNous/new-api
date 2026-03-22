@@ -129,7 +129,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
 
   // ========== 常量 ==========
-  const now = new Date();
   const isAdminUser = isAdmin();
 
   // ========== Panel enable flags ==========
@@ -312,6 +311,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         const { start_timestamp, end_timestamp, username } = overrideInputs;
         let localStartTimestamp = Date.parse(start_timestamp) / 1000;
         let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+        const emptyStateTimestamp = Number.isFinite(localStartTimestamp)
+          ? localStartTimestamp
+          : 0;
 
         if (isAdminUser) {
           url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${overrideDefaultTime}`;
@@ -328,7 +330,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
               count: 0,
               model_name: '无数据',
               quota: 0,
-              created_at: now.getTime() / 1000,
+              created_at: emptyStateTimestamp,
             });
           }
           data.sort((a, b) => a.created_at - b.created_at);
@@ -341,7 +343,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         setLoading(false);
       }
     },
-    [dataExportDefaultTime, inputs, isAdminUser, now],
+    [dataExportDefaultTime, inputs, isAdminUser],
   );
 
   const loadUptimeData = useCallback(async () => {
