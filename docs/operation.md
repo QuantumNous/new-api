@@ -1,6 +1,6 @@
 # 运维操作手册
 
-本文档定义阶段 2.1 的正式升级方案：服务器通过 SSH 手动执行升级，且升级来源固定为 Docker 镜像，不再并行维护 git tag 包、release artifact 等其他来源。
+本文档定义阶段 2.1 的正式升级方案：服务器通过 SSH 手动执行升级，且生产升级链路固定使用 Docker 镜像。仓库仍可保留 git tag、GitHub Release 等发布产物，但运维升级入口以 Docker 镜像为准。
 
 ## 1. 目标与范围
 
@@ -83,7 +83,7 @@ bash scripts/release/docker-image-upgrade.sh rollback [--tag <image-tag>]
 MIN_FREE_MB=2048 \
 STATUS_URL=http://127.0.0.1:3000/api/status \
 ENV_FILE=.env \
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.8.3
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
 ```
 
 ## 5. 升级前检查
@@ -126,7 +126,7 @@ bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.8.3
 ```bash
 cd /opt/new-api
 bash scripts/release/docker-image-upgrade.sh status
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.8.3
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
 ```
 
 升级脚本执行顺序如下：
@@ -189,7 +189,7 @@ bash scripts/release/docker-image-upgrade.sh rollback
 
 ```bash
 cd /opt/new-api
-bash scripts/release/docker-image-upgrade.sh rollback --tag v1.8.2
+bash scripts/release/docker-image-upgrade.sh rollback --tag v1.0.0
 ```
 
 ### 8.4 回滚边界
@@ -209,7 +209,7 @@ cd /opt/new-api
 
 bash scripts/release/docker-image-upgrade.sh status
 
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.8.3
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
 
 curl -fsS http://127.0.0.1:3000/api/status
 docker compose ps
