@@ -69,53 +69,61 @@ const ChartsPanel = ({
       {...CARD_PROPS}
       className={`!rounded-2xl ${hasApiInfoPanel ? 'lg:col-span-3' : ''}`}
       title={
-        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between w-full gap-3'>
-          <div className={FLEX_CENTER_GAP2}>
+        <div className='flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+          <div className={`${FLEX_CENTER_GAP2} shrink-0`}>
             <PieChart size={16} />
             {t('模型数据分析')}
           </div>
-          <Tabs
-            type='slash'
-            activeKey={activeChartTab}
-            onChange={setActiveChartTab}
-          >
-            <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
-            <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
-            <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
-            <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
-          </Tabs>
+          <div className='min-w-0 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+            <div className='min-w-max'>
+              <Tabs
+                type='slash'
+                activeKey={activeChartTab}
+                onChange={setActiveChartTab}
+              >
+                <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
+                <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
+                <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
+                <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
+              </Tabs>
+            </div>
+          </div>
         </div>
       }
       bodyStyle={{ padding: 0 }}
     >
       <div className='flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3'>
-        <div className='flex flex-wrap items-center gap-2'>
-          <span className='text-xs font-medium text-gray-500'>
-            {t('时间范围')}
-          </span>
-          {quickRangeOptions.map((option) => {
-            const isActive = activeRangePreset === option.value;
-            return (
-              <Button
-                key={option.value}
-                size='small'
-                type={isActive ? 'primary' : 'tertiary'}
-                theme={isActive ? 'solid' : 'borderless'}
-                onClick={() => handleRangePresetChange(option.value)}
-              >
-                {option.label}
-              </Button>
-            );
-          })}
+        <div className='min-w-0 flex-1 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+          <div className='flex min-w-max items-center gap-2'>
+            <span className='shrink-0 text-xs font-medium text-gray-500'>
+              {t('时间范围')}
+            </span>
+            {quickRangeOptions.map((option) => {
+              const isActive = activeRangePreset === option.value;
+              return (
+                <Button
+                  key={option.value}
+                  size='small'
+                  type={isActive ? 'primary' : 'tertiary'}
+                  theme={isActive ? 'solid' : 'borderless'}
+                  className='shrink-0 whitespace-nowrap'
+                  onClick={() => handleRangePresetChange(option.value)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+            <Button
+              size='small'
+              type={activeRangePreset === 'custom' ? 'primary' : 'tertiary'}
+              theme={activeRangePreset === 'custom' ? 'solid' : 'light'}
+              className='shrink-0 whitespace-nowrap'
+              onClick={() => handleRangePresetChange('custom')}
+            >
+              {t('自定义范围')}
+            </Button>
+          </div>
         </div>
-        <Button
-          size='small'
-          type={activeRangePreset === 'custom' ? 'primary' : 'tertiary'}
-          theme={activeRangePreset === 'custom' ? 'solid' : 'light'}
-          onClick={() => handleRangePresetChange('custom')}
-        >
-          {t('自定义范围')}
-        </Button>
       </div>
       {activeRangePreset === 'custom' && (
         <div className='flex flex-col gap-3 border-b border-gray-100 bg-gray-50/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between'>
@@ -131,9 +139,9 @@ const ChartsPanel = ({
             placeholder={[t('开始时间'), t('结束时间')]}
             showClear
             size='small'
-            className='w-full lg:max-w-[420px]'
+            className='min-w-0 w-full lg:max-w-[420px]'
           />
-          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end'>
+          <div className='flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end lg:w-auto'>
             <Select
               value={customRangeDraft.default_time}
               optionList={timeOptions}
@@ -147,6 +155,7 @@ const ChartsPanel = ({
             <Button
               type='primary'
               size='small'
+              className='w-full sm:w-auto'
               disabled={!hasCompleteCustomRange || !isCustomRangeOrderValid}
               onClick={handleCustomRangeConfirm}
             >

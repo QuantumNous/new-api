@@ -1138,10 +1138,17 @@ export function renderQuota(quota, digits = 2) {
   let quotaPerUnit = localStorage.getItem('quota_per_unit');
   const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
   quotaPerUnit = parseFloat(quotaPerUnit);
-  if (quotaDisplayType === 'TOKENS') {
-    return renderNumber(quota);
+  if (!Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
+    quotaPerUnit = 1;
   }
-  const resultUSD = quota / quotaPerUnit;
+  const numericQuota = Number(quota || 0);
+  if (!Number.isFinite(numericQuota)) {
+    return quotaDisplayType === 'TOKENS' ? '0' : '$0.00';
+  }
+  if (quotaDisplayType === 'TOKENS') {
+    return renderNumber(numericQuota);
+  }
+  const resultUSD = numericQuota / quotaPerUnit;
   let symbol = '$';
   let value = resultUSD;
   if (quotaDisplayType === 'CNY') {
@@ -1170,7 +1177,7 @@ export function renderQuota(quota, digits = 2) {
     symbol = symbolCustom;
   }
   const fixedResult = value.toFixed(digits);
-  if (parseFloat(fixedResult) === 0 && quota > 0 && value > 0) {
+  if (parseFloat(fixedResult) === 0 && numericQuota > 0 && value > 0) {
     const minValue = Math.pow(10, -digits);
     return symbol + minValue.toFixed(digits);
   }
