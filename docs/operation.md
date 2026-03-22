@@ -83,7 +83,7 @@ bash scripts/release/docker-image-upgrade.sh rollback [--tag <image-tag>]
 MIN_FREE_MB=2048 \
 STATUS_URL=http://127.0.0.1:3000/api/status \
 ENV_FILE=.env \
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.2
 ```
 
 ## 5. 升级前检查
@@ -126,7 +126,7 @@ bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
 ```bash
 cd /opt/new-api
 bash scripts/release/docker-image-upgrade.sh status
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.2
 ```
 
 升级脚本执行顺序如下：
@@ -189,7 +189,7 @@ bash scripts/release/docker-image-upgrade.sh rollback
 
 ```bash
 cd /opt/new-api
-bash scripts/release/docker-image-upgrade.sh rollback --tag v1.0.0
+bash scripts/release/docker-image-upgrade.sh rollback --tag v1.0.1
 ```
 
 ### 8.4 回滚边界
@@ -209,7 +209,7 @@ cd /opt/new-api
 
 bash scripts/release/docker-image-upgrade.sh status
 
-bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.1
+bash scripts/release/docker-image-upgrade.sh upgrade --tag v1.0.2
 
 curl -fsS http://127.0.0.1:3000/api/status
 docker compose ps

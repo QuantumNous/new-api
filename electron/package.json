@@ -1,6 +1,6 @@
 {
   "name": "new-api-electron",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "New API - AI Model Gateway Desktop Application",
   "main": "main.js",
   "scripts": {
