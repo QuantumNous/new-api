@@ -24,7 +24,7 @@ import {
 } from '@tanstack/react-router'
 import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
@@ -50,6 +50,7 @@ function OAuthCallback() {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
   })
+  const exchangeStartedRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -58,6 +59,8 @@ function OAuthCallback() {
   }, [])
 
   useEffect(() => {
+    if (exchangeStartedRef.current) return
+    exchangeStartedRef.current = true
     ;(async () => {
       const safeNavigate = (target: string) => {
         navigate({ to: target as never, replace: true })
@@ -171,7 +174,20 @@ function OAuthCallback() {
         const res = await api.get(`/api/oauth/${provider}`, config)
         if (res?.data?.success) {
           const { message } = res.data
-          const loginUser = (res.data?.data ?? null) as AuthUser | null
+          const responseData = (res.data?.data ?? null) as
+            | (AuthUser & { redirect_url?: string; action?: string })
+            | null
+          // External frontends may receive a signed redirect URL with the
+          // access token; honor it before any local navigation.
+          if (
+            responseData &&
+            typeof responseData.redirect_url === 'string' &&
+            responseData.redirect_url.length > 0
+          ) {
+            window.location.replace(responseData.redirect_url)
+            return
+          }
+          const loginUser = responseData as AuthUser | null
           // Check if this is a bind operation
           if (message === 'bind') {
             toast.success(i18next.t('Binding successful!'))
