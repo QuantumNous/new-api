@@ -101,6 +101,16 @@ func InitEnv() {
 	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))
 	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false))
 
+	// Parse OAuth allowed redirect origins (comma-separated)
+	if origins := os.Getenv("OAUTH_ALLOWED_REDIRECT_ORIGINS"); origins != "" {
+		for _, origin := range strings.Split(origins, ",") {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				OAuthAllowedRedirectOrigins = append(OAuthAllowedRedirectOrigins, origin)
+			}
+		}
+	}
+
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
 	RequestInterval = time.Duration(requestInterval) * time.Second

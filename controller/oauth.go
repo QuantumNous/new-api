@@ -20,13 +20,15 @@ import (
 const oauthAuthFlowTTL = 10 * time.Minute
 
 type oauthStateRequest struct {
-	Provider string `json:"provider"`
-	Intent   string `json:"intent"`
-	Aff      string `json:"aff,omitempty"`
+	Provider    string `json:"provider"`
+	Intent      string `json:"intent"`
+	Aff         string `json:"aff,omitempty"`
+	RedirectURI string `json:"redirect_uri,omitempty"`
 }
 
 type oauthFlowPayload struct {
 	AffiliateCode string `json:"affiliate_code,omitempty"`
+	RedirectURI   string `json:"redirect_uri,omitempty"`
 }
 
 // providerParams returns map with Provider key for i18n templates
@@ -34,7 +36,9 @@ func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
 }
 
-// GenerateOAuthCode generates a state code for OAuth CSRF protection
+// GenerateOAuthCode generates a state code for OAuth CSRF protection.
+// When redirect_uri is provided (external frontend flow), the state is stored in Redis
+// so it doesn't depend on the session (which won't survive cross-domain redirects).
 func GenerateOAuthCode(c *gin.Context) {
 	var request oauthStateRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
@@ -44,11 +48,18 @@ func GenerateOAuthCode(c *gin.Context) {
 	request.Provider = strings.TrimSpace(request.Provider)
 	request.Intent = strings.TrimSpace(request.Intent)
 	request.Aff = strings.TrimSpace(request.Aff)
+	request.RedirectURI = strings.TrimSpace(request.RedirectURI)
 	if oauth.GetProvider(request.Provider) == nil ||
 		(request.Intent != model.AuthFlowIntentLogin && request.Intent != model.AuthFlowIntentBind) ||
 		len(request.Aff) > 32 ||
 		(request.Intent == model.AuthFlowIntentBind && request.Aff != "") {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	// External-frontend flow: the redirect_uri must be an allowed origin so the
+	// exchange code is only ever bounced back to a trusted host.
+	if request.RedirectURI != "" && !common.IsAllowedRedirectURI(request.RedirectURI) {
+		common.ApiErrorI18n(c, i18n.MsgOAuthRedirectURINotAllowed)
 		return
 	}
 	userID := 0
@@ -62,7 +73,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		userID = identity.UserID
 		sessionID = identity.SessionID
 	}
-	payload, err := common.Marshal(oauthFlowPayload{AffiliateCode: request.Aff})
+	payload, err := common.Marshal(oauthFlowPayload{AffiliateCode: request.Aff, RedirectURI: request.RedirectURI})
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -117,6 +128,15 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
+	// redirectURI is set for the external-frontend flow: the callback bounces
+	// back to a trusted origin carrying a one-time exchange code.
+	var pendingPayload oauthFlowPayload
+	if err := common.UnmarshalJsonStr(pendingFlow.Payload, &pendingPayload); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	redirectURI := pendingPayload.RedirectURI
+
 	consumeMatch := model.AuthFlowMatch{
 		Purpose:  model.AuthFlowPurposeOAuth,
 		Provider: providerName,
@@ -156,6 +176,9 @@ func HandleOAuth(c *gin.Context) {
 		if errorDescription == "" {
 			errorDescription = errorCode
 		}
+		if setupOAuthErrorRedirect(c, redirectURI, errorDescription) {
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": errorDescription,
@@ -163,7 +186,7 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 	if pendingFlow.Intent == model.AuthFlowIntentBind {
-		handleOAuthBind(c, provider, pendingFlow, state)
+		handleOAuthBind(c, provider, pendingFlow, state, redirectURI)
 		return
 	}
 
@@ -212,18 +235,23 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 8. Check user status
+	// 9. Check user status
 	if user.Status != common.UserStatusEnabled {
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
 
-	// 9. Setup login
+	// 10. External redirect or same-origin login
+	if redirectURI != "" {
+		setupLoginAndRedirect(user, c, redirectURI)
+		return
+	}
 	setupLogin(user, c)
 }
 
-// handleOAuthBind handles binding OAuth account to existing user
-func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model.AuthFlow, flowToken string) {
+// handleOAuthBind handles binding OAuth account to existing user.
+// When redirectURI is non-empty, it redirects back to the external frontend.
+func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model.AuthFlow, flowToken, redirectURI string) {
 	// Exchange code for token
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
@@ -241,12 +269,20 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 
 	// Check if this OAuth account is already bound (check both new ID and legacy ID)
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
+		alreadyBound := i18n.T(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+		if setupOAuthErrorRedirect(c, redirectURI, alreadyBound) {
+			return
+		}
 		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 		return
 	}
 	// Also check legacy ID to prevent duplicate bindings during migration period
 	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && legacyID != "" {
 		if provider.IsUserIDTaken(legacyID) {
+			alreadyBound := i18n.T(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+			if setupOAuthErrorRedirect(c, redirectURI, alreadyBound) {
+				return
+			}
 			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
 			return
 		}
@@ -263,9 +299,8 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 		return
 	}
 
-	user := model.User{Id: pendingFlow.UserId}
-	err = user.FillUserById()
-	if err != nil {
+	user := &model.User{Id: pendingFlow.UserId}
+	if err = user.FillUserById(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -280,12 +315,18 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 		}
 	} else {
 		// Built-in provider: update user record directly
-		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
+		provider.SetProviderUserID(user, oauthUser.ProviderUserID)
 		err = user.Update(false)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
+	}
+
+	// Cross-domain bind: redirect back with exchange code
+	if redirectURI != "" {
+		setupBindAndRedirect(user, c, redirectURI)
+		return
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
