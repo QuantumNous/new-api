@@ -26,14 +26,17 @@ import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
+const END_TIME_BUFFER_SECONDS = 3600;
+
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
 
+  // Keep a small buffer so the latest records are not clipped near "now".
   const getCurrentEndTimestamp = useCallback(
-    () => timestamp2string(new Date().getTime() / 1000 + 3600),
+    () => timestamp2string(new Date().getTime() / 1000 + END_TIME_BUFFER_SECONDS),
     [],
   );
 
