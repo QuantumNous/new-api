@@ -39,6 +39,7 @@ services:
 #      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID)
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID)
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
+#      - OAUTH_ALLOWED_REDIRECT_ORIGINS=https://example.com  # Comma-separated list of allowed origins for OAuth redirect_uri (允许的 OAuth 重定向来源，逗号分隔)
 
     depends_on:
       - redis
