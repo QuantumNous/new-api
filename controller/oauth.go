@@ -19,11 +19,73 @@ func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
 }
 
-// GenerateOAuthCode generates a state code for OAuth CSRF protection
+// GenerateOAuthCode generates a state code for OAuth CSRF protection.
+// When redirect_uri is provided (external frontend flow), the state is stored in Redis
+// so it doesn't depend on the session (which won't survive cross-domain redirects).
 func GenerateOAuthCode(c *gin.Context) {
+	redirectURI := c.Query("redirect_uri")
+	affCode := c.Query("aff")
+
+	if redirectURI != "" {
+		// External redirect flow: store state in Redis
+		if !common.IsAllowedRedirectURI(redirectURI) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgOAuthRedirectURINotAllowed),
+			})
+			return
+		}
+		stateData := &common.OAuthStateData{
+			RedirectURI: redirectURI,
+			Aff:         affCode,
+		}
+		// Bind flow: identify the logged-in user to bind to
+		action := c.Query("action")
+		if action == "bind" {
+			var userID int
+			// Try Authorization header (access token)
+			if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+				if user, err := model.ValidateAccessToken(authHeader); err == nil && user != nil {
+					userID = user.Id
+				}
+			}
+			// Fall back to New-Api-User header (set by frontend proxy from session cookie)
+			if userID == 0 {
+				if idStr := c.GetHeader("New-Api-User"); idStr != "" {
+					if id, err := strconv.Atoi(idStr); err == nil && id > 0 {
+						user := &model.User{Id: id}
+						if user.FillUserById() == nil && user.Status == common.UserStatusEnabled {
+							userID = id
+						}
+					}
+				}
+			}
+			if userID == 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "authentication required for bind",
+				})
+				return
+			}
+			stateData.UserID = userID
+			stateData.Action = "bind"
+		}
+		state, err := common.CreateOAuthState(stateData)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    state,
+		})
+		return
+	}
+
+	// Same-origin flow: use session-based state
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
-	affCode := c.Query("aff")
 	if affCode != "" {
 		session.Set("aff", affCode)
 	}
@@ -53,10 +115,15 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	session := sessions.Default(c)
-
-	// 1. Validate state (CSRF protection)
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+
+	// 1. Validate state: try Redis-backed state first, then session-based
+	var redirectURI, affCode string
+	stateResult := common.RedeemOAuthState(state)
+	if stateResult != nil {
+		redirectURI = stateResult.RedirectURI
+		affCode = stateResult.Aff
+	} else if savedState, ok := session.Get("oauth_state").(string); !ok || state == "" || state != savedState {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
@@ -64,11 +131,24 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 2. Check if user is already logged in (bind flow)
-	username := session.Get("username")
-	if username != nil {
-		handleOAuthBind(c, provider)
+	// 2. Check for bind flow
+	if stateResult != nil && stateResult.Action == "bind" && stateResult.UserID > 0 {
+		// Cross-domain bind: load user from Redis state
+		user := &model.User{Id: stateResult.UserID}
+		if err := user.FillUserById(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		handleOAuthBind(c, provider, user, redirectURI)
 		return
+	}
+	if redirectURI == "" {
+		// Same-origin bind: check session for logged-in user
+		username := session.Get("username")
+		if username != nil {
+			handleOAuthBind(c, provider, nil, "")
+			return
+		}
 	}
 
 	// 3. Check if provider is enabled
@@ -103,7 +183,13 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 7. Find or create user
+	// 7. Handle affiliate code from signed state
+	if affCode != "" {
+		session.Set("aff", affCode)
+		_ = session.Save()
+	}
+
+	// 8. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
 		switch err.(type) {
@@ -117,18 +203,24 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 8. Check user status
+	// 9. Check user status
 	if user.Status != common.UserStatusEnabled {
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
 		return
 	}
 
-	// 9. Setup login
+	// 10. External redirect or same-origin login
+	if redirectURI != "" {
+		setupLoginAndRedirect(user, c, redirectURI)
+		return
+	}
 	setupLogin(user, c)
 }
 
-// handleOAuthBind handles binding OAuth account to existing user
-func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
+// handleOAuthBind handles binding OAuth account to existing user.
+// When user is nil, it falls back to loading from session (same-origin flow).
+// When redirectURI is non-empty, it redirects back to the external frontend.
+func handleOAuthBind(c *gin.Context, provider oauth.Provider, user *model.User, redirectURI string) {
 	if !provider.IsEnabled() {
 		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
@@ -162,14 +254,15 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 		}
 	}
 
-	// Get current user from session
-	session := sessions.Default(c)
-	id := session.Get("id")
-	user := model.User{Id: id.(int)}
-	err = user.FillUserById()
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	// Load user from session if not provided (same-origin flow)
+	if user == nil {
+		session := sessions.Default(c)
+		id := session.Get("id")
+		user = &model.User{Id: id.(int)}
+		if err = user.FillUserById(); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	// Handle binding based on provider type
@@ -182,12 +275,18 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 		}
 	} else {
 		// Built-in provider: update user record directly
-		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
+		provider.SetProviderUserID(user, oauthUser.ProviderUserID)
 		err = user.Update(false)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
+	}
+
+	// Cross-domain bind: redirect back with exchange code
+	if redirectURI != "" {
+		setupBindAndRedirect(user, c, redirectURI)
+		return
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
