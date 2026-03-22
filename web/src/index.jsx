@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import '@douyinfe/semi-ui/lib/es/_base/base.css';
 import { UserProvider } from './context/User';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusProvider } from './context/Status';
