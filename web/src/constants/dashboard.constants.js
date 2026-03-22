@@ -137,6 +137,7 @@ export const UPTIME_STATUS_MAP = {
 // ========== 本地存储键名 ==========
 export const STORAGE_KEYS = {
   DATA_EXPORT_DEFAULT_TIME: 'data_export_default_time',
+  DASHBOARD_CHART_RANGE: 'dashboard_chart_range',
   MJ_NOTIFY_ENABLED: 'mj_notify_enabled',
 };
 

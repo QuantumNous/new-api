@@ -42,6 +42,49 @@ export const getDefaultTime = () => {
   return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
 };
 
+const VALID_RANGE_PRESETS = new Set(['24h', '7d', '30d', '90d', 'custom']);
+
+const isValidStoredChartRange = (range) => {
+  if (!range || typeof range !== 'object') {
+    return false;
+  }
+
+  const { start_timestamp, end_timestamp, default_time, preset } = range;
+  const startTime = Date.parse(start_timestamp);
+  const endTime = Date.parse(end_timestamp);
+
+  return (
+    Number.isFinite(startTime) &&
+    Number.isFinite(endTime) &&
+    startTime < endTime &&
+    Boolean(DEFAULT_TIME_INTERVALS[default_time]) &&
+    (!preset || VALID_RANGE_PRESETS.has(preset))
+  );
+};
+
+export const getStoredChartRange = () => {
+  const storedRange = localStorage.getItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE);
+  if (!storedRange) {
+    return null;
+  }
+
+  try {
+    const parsedRange = JSON.parse(storedRange);
+    if (isValidStoredChartRange(parsedRange)) {
+      return parsedRange;
+    }
+  } catch (error) {
+    // Ignore invalid persisted values and reset them below.
+  }
+
+  localStorage.removeItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE);
+  return null;
+};
+
+export const setStoredChartRange = (range) => {
+  localStorage.setItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE, JSON.stringify(range));
+};
+
 export const getTimeInterval = (timeType, isSeconds = false) => {
   const intervals =
     DEFAULT_TIME_INTERVALS[timeType] || DEFAULT_TIME_INTERVALS.hour;
@@ -63,6 +106,21 @@ export const getInitialTimestamp = (endTimestamp) => {
     default:
       return timestamp2string(baseTimestamp - 86400 * 7);
   }
+};
+
+export const getInitialChartRange = (endTimestamp) => {
+  const storedRange = getStoredChartRange();
+  if (storedRange) {
+    return storedRange;
+  }
+
+  const defaultTime = getDefaultTime();
+  return {
+    start_timestamp: getInitialTimestamp(endTimestamp),
+    end_timestamp: endTimestamp,
+    default_time: defaultTime,
+    preset: null,
+  };
 };
 
 // ========== 数据处理工具函数 ==========

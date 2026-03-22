@@ -21,8 +21,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
-import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
-import { TIME_OPTIONS } from '../../constants/dashboard.constants';
+import {
+  getInitialChartRange,
+  setStoredChartRange,
+} from '../../helpers/dashboard';
+import { STORAGE_KEYS, TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
@@ -73,18 +76,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const isValidCustomRange = useCallback((startTimestamp, endTimestamp) => {
     const startTime = Date.parse(startTimestamp);
     const endTime = Date.parse(endTimestamp);
-    return Number.isFinite(startTime) && Number.isFinite(endTime) && startTime < endTime;
+    return (
+      Number.isFinite(startTime) &&
+      Number.isFinite(endTime) &&
+      startTime < endTime
+    );
   }, []);
 
   const initialChartRange = useMemo(() => {
-    const defaultTime = getDefaultTime();
     const endTimestamp = getCurrentEndTimestamp();
-
-    return {
-      start_timestamp: getInitialTimestamp(endTimestamp),
-      end_timestamp: endTimestamp,
-      default_time: defaultTime,
-    };
+    return getInitialChartRange(endTimestamp);
   }, [getCurrentEndTimestamp]);
 
   // ========== 基础状态 ==========
@@ -107,13 +108,18 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [dataExportDefaultTime, setDataExportDefaultTime] =
     useState(initialChartRange.default_time);
   const [activeRangePreset, setActiveRangePreset] = useState(() =>
-    detectQuickRangePreset(
-      initialChartRange.start_timestamp,
-      initialChartRange.end_timestamp,
-      initialChartRange.default_time,
-    ),
+    initialChartRange.preset ||
+      detectQuickRangePreset(
+        initialChartRange.start_timestamp,
+        initialChartRange.end_timestamp,
+        initialChartRange.default_time,
+      ),
   );
-  const [customRangeDraft, setCustomRangeDraft] = useState(() => initialChartRange);
+  const [customRangeDraft, setCustomRangeDraft] = useState(() => ({
+    start_timestamp: initialChartRange.start_timestamp,
+    end_timestamp: initialChartRange.end_timestamp,
+    default_time: initialChartRange.default_time,
+  }));
 
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
@@ -213,7 +219,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const handleInputChange = useCallback((value, name) => {
     if (name === 'data_export_default_time') {
       setDataExportDefaultTime(value);
-      localStorage.setItem('data_export_default_time', value);
+      localStorage.setItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME, value);
       setActiveRangePreset('custom');
       return;
     }
@@ -239,11 +245,19 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       setInputs(nextInputs);
       setDataExportDefaultTime(config.granularity);
       setActiveRangePreset(preset);
-      localStorage.setItem('data_export_default_time', config.granularity);
-      setCustomRangeDraft({
+      localStorage.setItem(
+        STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME,
+        config.granularity,
+      );
+      const nextRange = {
         start_timestamp: nextInputs.start_timestamp,
         end_timestamp: nextInputs.end_timestamp,
         default_time: config.granularity,
+      };
+      setCustomRangeDraft(nextRange);
+      setStoredChartRange({
+        ...nextRange,
+        preset,
       });
       return {
         nextInputs,
@@ -304,7 +318,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setInputs(nextInputs);
     setDataExportDefaultTime(default_time);
     setActiveRangePreset('custom');
-    localStorage.setItem('data_export_default_time', default_time);
+    localStorage.setItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME, default_time);
+    setStoredChartRange({
+      start_timestamp,
+      end_timestamp,
+      default_time,
+      preset: 'custom',
+    });
     return {
       nextInputs,
       nextDefaultTime: default_time,
@@ -341,30 +361,35 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${overrideDefaultTime}`;
         }
 
-        const res = await API.get(url);
-        const { success, message, data } = res.data;
-        if (success) {
-          const nextData = Array.isArray(data) ? [...data] : [];
-          if (nextData.length === 0) {
-            nextData.push({
-              count: 0,
-              model_name: '无数据',
-              quota: 0,
-              created_at: emptyStateTimestamp,
-            });
+        try {
+          const res = await API.get(url);
+          const { success, message, data } = res.data;
+          if (success) {
+            const nextData = Array.isArray(data) ? [...data] : [];
+            if (nextData.length === 0) {
+              nextData.push({
+                count: 0,
+                model_name: t('暂无数据'),
+                quota: 0,
+                created_at: emptyStateTimestamp,
+              });
+            }
+            nextData.sort((a, b) => a.created_at - b.created_at);
+            setQuotaData(nextData);
+            return nextData;
+          } else {
+            showError(message);
+            return [];
           }
-          nextData.sort((a, b) => a.created_at - b.created_at);
-          setQuotaData(nextData);
-          return nextData;
-        } else {
-          showError(message);
+        } catch (error) {
+          showError(error?.message || t('请求发生错误'));
           return [];
         }
       } finally {
         setLoading(false);
       }
     },
-    [dataExportDefaultTime, inputs, isAdminUser],
+    [dataExportDefaultTime, inputs, isAdminUser, t],
   );
 
   const loadUptimeData = useCallback(async () => {
