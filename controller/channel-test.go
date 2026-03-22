@@ -785,6 +785,10 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
+func shouldUseStreamForAutoChannelTest(channel *model.Channel) bool {
+	return channel != nil && channel.Type == constant.ChannelTypeCodex
+}
+
 func testAllChannels(notify bool) error {
 
 	testAllChannelsLock.Lock()
@@ -816,7 +820,7 @@ func testAllChannels(notify bool) error {
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 			tik := time.Now()
-			result := testChannel(channel, "", "", false)
+			result := testChannel(channel, "", "", shouldUseStreamForAutoChannelTest(channel))
 			tok := time.Now()
 			milliseconds := tok.Sub(tik).Milliseconds()
 

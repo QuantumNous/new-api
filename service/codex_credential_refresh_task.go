@@ -65,7 +65,11 @@ func runCodexCredentialAutoRefreshOnce() {
 		var channels []*model.Channel
 		err := model.DB.
 			Select("id", "name", "key", "status", "channel_info").
-			Where("type = ? AND status = 1", constant.ChannelTypeCodex).
+			Where(
+				"type = ? AND status IN ?",
+				constant.ChannelTypeCodex,
+				[]int{common.ChannelStatusEnabled, common.ChannelStatusAutoDisabled},
+			).
 			Order("id asc").
 			Limit(codexCredentialRefreshBatchSize).
 			Offset(offset).
