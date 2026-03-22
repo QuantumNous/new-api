@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>61kj - GPT 使用文档</title>
+    <meta
+      name="description"
+      content="61kj 使用文档 - GPT API 中转服务，兼容 OpenAI 格式"
+    />
+    <link rel="icon" href="./images/61kj-logo.jpg" />
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css" />
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/prismjs@1/themes/prism-tomorrow.min.css" />
+    <link rel="stylesheet" href="./assets/custom.css" />
+  </head>
+  <body>
+    <header class="doc-header">
+      <div class="doc-header-left">
+        <button class="doc-menu-toggle" type="button" aria-label="菜单">☰</button>
+        <a class="doc-logo-link" href="#/">
+          <img src="./images/61kj-logo.jpg" alt="61kj" class="doc-logo-image" />
+          <span>61kj</span>
+        </a>
+      </div>
+      <div class="doc-header-right">
+        <button class="doc-theme-toggle" type="button" aria-label="切换主题">
+          <span class="doc-theme-icon">🌙</span>
+        </button>
+      </div>
+    </header>
+    <div class="doc-sidebar-overlay"></div>
+    <div id="app"></div>
+    <script>
+      const savedTheme = localStorage.getItem('61kj-docs-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+
+      window.$docsify = {
+        name: '<span class="site-brand"><img src="./images/61kj-logo.jpg" alt="61kj" />61kj</span>',
+        repo: '',
+        homepage: 'README.md',
+        loadSidebar: true,
+        subMaxLevel: 2,
+        maxLevel: 3,
+        auto2top: true,
+        relativePath: true,
+        search: {
+          placeholder: '搜索文档...',
+          noData: '没有找到结果',
+          depth: 4,
+          hideOtherSidebarContent: false
+        },
+        copyCode: {
+          buttonText: '复制',
+          errorText: '复制失败',
+          successText: '已复制'
+        },
+        pagination: {
+          previousText: '上一页',
+          nextText: '下一页',
+          crossChapter: true,
+          crossChapterText: true
+        }
+      };
+    </script>
+    <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-javascript.min.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-toml.min.js"></script>
+    <script>
+      (function () {
+        const root = document.documentElement;
+        const overlay = document.querySelector('.doc-sidebar-overlay');
+        const menuBtn = document.querySelector('.doc-menu-toggle');
+        const themeBtn = document.querySelector('.doc-theme-toggle');
+        const themeIcon = document.querySelector('.doc-theme-icon');
+
+        function syncThemeIcon() {
+          themeIcon.textContent =
+            root.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+        }
+
+        function closeSidebar() {
+          document.body.classList.remove('close');
+          overlay.classList.remove('active');
+        }
+
+        function toggleSidebar() {
+          const willOpen = document.body.classList.contains('close');
+          document.body.classList.toggle('close');
+          overlay.classList.toggle('active', willOpen);
+        }
+
+        function toggleTheme() {
+          const next =
+            root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          if (next === 'dark') {
+            root.setAttribute('data-theme', 'dark');
+          } else {
+            root.removeAttribute('data-theme');
+          }
+          localStorage.setItem('61kj-docs-theme', next);
+          syncThemeIcon();
+        }
+
+        menuBtn.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', closeSidebar);
+        themeBtn.addEventListener('click', toggleTheme);
+        window.addEventListener('hashchange', closeSidebar);
+        syncThemeIcon();
+
+        window.$docsify.plugins = [].concat(window.$docsify.plugins || [], function (hook) {
+          hook.doneEach(function () {
+            document.querySelectorAll('.sidebar a').forEach(function (link) {
+              link.addEventListener('click', function () {
+                if (window.innerWidth <= 768) closeSidebar();
+              });
+            });
+            syncThemeIcon();
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
