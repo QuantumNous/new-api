@@ -174,6 +174,20 @@ Baseline commands:
 
 When adding or changing behavior, update the relevant baseline cases in these three layers. Do not treat API tests or E2E tests as optional follow-up work.
 
+### Rule 8.1: Local Reproduction And Verification Are Mandatory — Do Not Skip Due To Sandbox Limits
+
+Before handing off a development change, agents MUST reproduce the affected behavior locally and MUST run the relevant local verification commands, with `make verify` as the default end-to-end gate unless the user explicitly narrows scope.
+
+- Required default flow for runtime changes:
+  - reproduce the bug or behavior locally first;
+  - implement the fix;
+  - rerun the smallest focused checks while iterating;
+  - finish by running `make verify`.
+- If a command is blocked by sandbox filesystem or network restrictions, agents MUST immediately request escalation and rerun it.
+- Sandbox restrictions are not a valid reason to skip local reproduction, skip tests, or rely on CI alone.
+- If a command still cannot be completed after escalation, the agent must clearly state the exact blocker, the command attempted, and why it remains unresolved.
+- CI may confirm results, but it must not replace local reproduction and local verification.
+
 ### Rule 9: Main Branch Updates — Merge Via Pull Request Only
 
 All updates intended for `main` MUST be integrated through a Pull Request (or equivalent platform merge flow).

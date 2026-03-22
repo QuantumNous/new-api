@@ -218,7 +218,7 @@ test.describe.serial('API baseline', () => {
       expect(requests[0].body.msg_type).toBe('interactive');
       expect(requests[0].body.timestamp).toBeTruthy();
       expect(requests[0].body.sign).toBeTruthy();
-      expect(requests[0].body.card.header.title.content).toContain('Feedback');
+      expect(requests[0].body.card.header.title.content).toContain('反馈');
       expect(requests[0].body.card.elements[0].text.content).toContain(
         'lark-feedback@example.com',
       );

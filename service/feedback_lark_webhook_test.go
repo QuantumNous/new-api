@@ -105,7 +105,7 @@ func TestNotifyFeedbackLarkWebhookSendsInteractiveCard(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected title object, got %T", header["title"])
 	}
-	if title["content"] != "Feedback 新提交通知" {
+	if title["content"] != "反馈新提交通知" {
 		t.Fatalf("unexpected card title: %v", title["content"])
 	}
 
@@ -124,6 +124,9 @@ func TestNotifyFeedbackLarkWebhookSendsInteractiveCard(t *testing.T) {
 	content, _ := textBlock["content"].(string)
 	if !strings.Contains(content, "alice@example.com") {
 		t.Fatalf("expected feedback email in payload, got %s", content)
+	}
+	if !strings.Contains(content, "问题反馈") {
+		t.Fatalf("expected localized feedback category in payload, got %s", content)
 	}
 	if !strings.Contains(content, "<at id=all></at>") {
 		t.Fatalf("expected mention all in payload, got %s", content)
