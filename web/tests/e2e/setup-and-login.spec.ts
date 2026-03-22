@@ -105,6 +105,8 @@ test.describe.serial('Setup and login baseline', () => {
     await expect(page.getByText(/反馈已提交|submitted/i)).toBeVisible();
 
     await loginAsRoot(page);
+    await page.goto('/contact');
+    await expect(page.getByPlaceholder(/请输入你的称呼|name/i)).toHaveValue(adminUsername);
 
     await page.goto('/console/feedback');
     await expect(page.getByText('E2E Contact User')).toBeVisible();
@@ -133,12 +135,5 @@ test.describe.serial('Setup and login baseline', () => {
       .fill('ou_alpha\nou_beta');
     await page.getByRole('button', { name: /保存反馈 Lark Webhook|Save feedback Lark Webhook/ }).click();
     await expect(page.getByText(/反馈 Lark Webhook 已更新|updated/i)).toBeVisible();
-  });
-
-  test('contact page prefills the username for logged-in users', async ({ page }) => {
-    await loginAsRoot(page);
-
-    await page.goto('/contact');
-    await expect(page.getByPlaceholder(/请输入你的称呼|name/i)).toHaveValue(adminUsername);
   });
 });
