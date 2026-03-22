@@ -173,6 +173,26 @@ type RelayInfo struct {
 	*TaskRelayInfo
 }
 
+// ResetBillingMetadata refunds the active billing session and clears cached billing fields.
+func (info *RelayInfo) ResetBillingMetadata(c *gin.Context) {
+	if info == nil {
+		return
+	}
+	if info.Billing != nil {
+		info.Billing.Refund(c)
+	}
+	info.Billing = nil
+	info.FinalPreConsumedQuota = 0
+	info.BillingSource = ""
+	info.SubscriptionId = 0
+	info.SubscriptionPreConsumed = 0
+	info.SubscriptionPostDelta = 0
+	info.SubscriptionPlanId = 0
+	info.SubscriptionPlanTitle = ""
+	info.SubscriptionAmountTotal = 0
+	info.SubscriptionAmountUsedAfterPreConsume = 0
+}
+
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)

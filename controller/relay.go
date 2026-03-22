@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -64,6 +65,7 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+// Relay handles OpenAI-compatible relay requests and applies channel retry logic.
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -239,7 +241,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
 			relayInfo.LastError = newAPIError
 
-			processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			channelError := *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
+			if shouldSuppressBootstrapRecoveryAutoBan(c, newAPIError) {
+				channelError.AutoBan = false
+			}
+			processChannelError(c, channelError, newAPIError)
 
 			if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 				break
@@ -250,7 +256,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		releaseBootstrapRecoveryBilling(c, relayInfo)
-		if waitErr := waitForResponsesBootstrapRecoveryProbe(c); waitErr != nil {
+		waitErr, canceled := waitForResponsesBootstrapRecoveryProbe(c)
+		if canceled {
+			return
+		}
+		if waitErr != nil {
 			newAPIError = waitErr
 			break
 		}
@@ -270,30 +280,20 @@ func releaseBootstrapRecoveryBilling(c *gin.Context, relayInfo *relaycommon.Rela
 	if relayInfo == nil || relayInfo.Billing == nil {
 		return
 	}
-	relayInfo.Billing.Refund(c)
-	relayInfo.Billing = nil
-	relayInfo.FinalPreConsumedQuota = 0
-	relayInfo.BillingSource = ""
-	relayInfo.SubscriptionId = 0
-	relayInfo.SubscriptionPreConsumed = 0
-	relayInfo.SubscriptionPostDelta = 0
-	relayInfo.SubscriptionPlanId = 0
-	relayInfo.SubscriptionPlanTitle = ""
-	relayInfo.SubscriptionAmountTotal = 0
-	relayInfo.SubscriptionAmountUsedAfterPreConsume = 0
+	relayInfo.ResetBillingMetadata(c)
 }
 
-func waitForResponsesBootstrapRecoveryProbe(c *gin.Context) *types.NewAPIError {
+func waitForResponsesBootstrapRecoveryProbe(c *gin.Context) (*types.NewAPIError, bool) {
 	waitDuration, sendPing, ok := service.NextResponsesBootstrapWait(c, time.Now())
 	if !ok {
-		return nil
+		return nil, false
 	}
 	if sendPing {
 		helper.SetEventStreamHeaders(c)
 		service.MarkResponsesBootstrapHeadersSent(c)
 		now := time.Now()
 		if err := helper.PingData(c); err != nil {
-			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry()), false
 		}
 		service.MarkResponsesBootstrapPingSent(c, now)
 	}
@@ -301,10 +301,23 @@ func waitForResponsesBootstrapRecoveryProbe(c *gin.Context) *types.NewAPIError {
 	defer timer.Stop()
 	select {
 	case <-c.Request.Context().Done():
-		return types.NewOpenAIError(c.Request.Context().Err(), types.ErrorCodeDoRequestFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		if errors.Is(c.Request.Context().Err(), context.Canceled) {
+			return nil, true
+		}
+		return types.NewOpenAIError(c.Request.Context().Err(), types.ErrorCodeDoRequestFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry()), false
 	case <-timer.C:
-		return nil
+		return nil, false
 	}
+}
+
+func shouldSuppressBootstrapRecoveryAutoBan(c *gin.Context, newAPIError *types.NewAPIError) bool {
+	if newAPIError == nil {
+		return false
+	}
+	if newAPIError.StatusCode != http.StatusUnauthorized && newAPIError.StatusCode != http.StatusForbidden {
+		return false
+	}
+	return service.CanContinueResponsesBootstrapRecovery(c, newAPIError)
 }
 
 var upgrader = websocket.Upgrader{
@@ -460,6 +473,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 
 }
 
+// RelayMidjourney handles Midjourney proxy relay requests.
 func RelayMidjourney(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatMjProxy, nil, nil)
 
@@ -503,6 +517,7 @@ func RelayMidjourney(c *gin.Context) {
 	}
 }
 
+// RelayNotImplemented responds with a standardized "not implemented" error.
 func RelayNotImplemented(c *gin.Context) {
 	err := types.OpenAIError{
 		Message: "API not implemented",
@@ -515,6 +530,7 @@ func RelayNotImplemented(c *gin.Context) {
 	})
 }
 
+// RelayNotFound responds with a standardized invalid URL error.
 func RelayNotFound(c *gin.Context) {
 	err := types.OpenAIError{
 		Message: fmt.Sprintf("Invalid URL (%s %s)", c.Request.Method, c.Request.URL.Path),
@@ -527,6 +543,7 @@ func RelayNotFound(c *gin.Context) {
 	})
 }
 
+// RelayTaskFetch handles task-query relay requests.
 func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
@@ -542,6 +559,7 @@ func RelayTaskFetch(c *gin.Context) {
 	}
 }
 
+// RelayTask handles task submission and follow-up relay requests.
 func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {

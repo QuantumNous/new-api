@@ -27,6 +27,21 @@ type GeneralSetting struct {
 	CustomCurrencyExchangeRate float64 `json:"custom_currency_exchange_rate"`
 }
 
+// DefaultResponsesBootstrapRetryableStatusCodes returns a copy of the default
+// retryable status-code allowlist for responses bootstrap recovery.
+func DefaultResponsesBootstrapRetryableStatusCodes() []int {
+	return []int{
+		401,
+		403,
+		408,
+		429,
+		500,
+		502,
+		503,
+		504,
+	}
+}
+
 // 默认配置
 var generalSetting = GeneralSetting{
 	DocsLink:                                          "https://docs.newapi.pro",
@@ -39,16 +54,7 @@ var generalSetting = GeneralSetting{
 	// ResponsesStreamBootstrapRetryableStatusCodes keeps 401/403 because in
 	// multi-channel delivery these failures can be channel-specific, allowing
 	// fallback to another channel or a refreshed credential before the first payload.
-	ResponsesStreamBootstrapRetryableStatusCodes: []int{
-		401,
-		403,
-		408,
-		429,
-		500,
-		502,
-		503,
-		504,
-	},
+	ResponsesStreamBootstrapRetryableStatusCodes: DefaultResponsesBootstrapRetryableStatusCodes(),
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,
@@ -59,6 +65,7 @@ func init() {
 	config.GlobalConfig.Register("general_setting", &generalSetting)
 }
 
+// GetGeneralSetting returns the mutable singleton general settings object.
 func GetGeneralSetting() *GeneralSetting {
 	return &generalSetting
 }

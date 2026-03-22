@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// FlushWriter flushes the current HTTP response writer when streaming data.
 func FlushWriter(c *gin.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -39,6 +40,7 @@ func FlushWriter(c *gin.Context) (err error) {
 	return nil
 }
 
+// SetEventStreamHeaders writes SSE headers once for the current response.
 func SetEventStreamHeaders(c *gin.Context) {
 	// 检查是否已经设置过头部
 	if _, exists := c.Get("event_stream_headers_set"); exists {
@@ -55,6 +57,7 @@ func SetEventStreamHeaders(c *gin.Context) {
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 }
 
+// ClaudeData writes a Claude SSE event with a JSON payload.
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	jsonData, err := common.Marshal(resp)
 	if err != nil {
@@ -68,6 +71,7 @@ func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	return nil
 }
 
+// ClaudeChunkData writes a Claude SSE event with a raw data payload.
 func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 	service.MarkResponsesBootstrapPayloadStarted(c)
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
@@ -75,6 +79,7 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 	_ = FlushWriter(c)
 }
 
+// ResponseChunkData writes a responses-stream SSE event with a raw payload.
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) {
 	service.MarkResponsesBootstrapPayloadStarted(c)
 	c.Render(-1, common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)})
@@ -82,6 +87,7 @@ func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data st
 	_ = FlushWriter(c)
 }
 
+// StringData writes a standard OpenAI-style SSE data event.
 func StringData(c *gin.Context, str string) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
@@ -96,6 +102,7 @@ func StringData(c *gin.Context, str string) error {
 	return FlushWriter(c)
 }
 
+// PingData writes an SSE keepalive ping frame.
 func PingData(c *gin.Context) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
@@ -111,6 +118,7 @@ func PingData(c *gin.Context) error {
 	return FlushWriter(c)
 }
 
+// ObjectData marshals an object and writes it as an SSE data event.
 func ObjectData(c *gin.Context, object interface{}) error {
 	if object == nil {
 		return errors.New("object is nil")
@@ -122,6 +130,7 @@ func ObjectData(c *gin.Context, object interface{}) error {
 	return StringData(c, string(jsonData))
 }
 
+// OpenAIErrorEvent writes an SSE error event carrying an OpenAI-compatible error body.
 func OpenAIErrorEvent(c *gin.Context, openAIError types.OpenAIError) error {
 	service.MarkResponsesBootstrapPayloadStarted(c)
 	payload := map[string]any{
@@ -137,10 +146,12 @@ func OpenAIErrorEvent(c *gin.Context, openAIError types.OpenAIError) error {
 	return FlushWriter(c)
 }
 
+// Done writes the terminal [DONE] SSE marker.
 func Done(c *gin.Context) {
 	_ = StringData(c, "[DONE]")
 }
 
+// WssString writes a string message to the websocket client.
 func WssString(c *gin.Context, ws *websocket.Conn, str string) error {
 	if ws == nil {
 		logger.LogError(c, "websocket connection is nil")
@@ -150,6 +161,7 @@ func WssString(c *gin.Context, ws *websocket.Conn, str string) error {
 	return ws.WriteMessage(1, []byte(str))
 }
 
+// WssObject marshals an object and writes it to the websocket client.
 func WssObject(c *gin.Context, ws *websocket.Conn, object interface{}) error {
 	jsonData, err := common.Marshal(object)
 	if err != nil {
@@ -163,6 +175,7 @@ func WssObject(c *gin.Context, ws *websocket.Conn, object interface{}) error {
 	return ws.WriteMessage(1, jsonData)
 }
 
+// WssError sends an OpenAI-compatible realtime error event over websocket.
 func WssError(c *gin.Context, ws *websocket.Conn, openaiError types.OpenAIError) {
 	if ws == nil {
 		return
@@ -175,16 +188,19 @@ func WssError(c *gin.Context, ws *websocket.Conn, openaiError types.OpenAIError)
 	_ = WssObject(c, ws, errorObj)
 }
 
+// GetResponseID returns the synthetic chat-completions response identifier for the request.
 func GetResponseID(c *gin.Context) string {
 	logID := c.GetString(common.RequestIdKey)
 	return fmt.Sprintf("chatcmpl-%s", logID)
 }
 
+// GetLocalRealtimeID returns the synthetic realtime event identifier for the request.
 func GetLocalRealtimeID(c *gin.Context) string {
 	logID := c.GetString(common.RequestIdKey)
 	return fmt.Sprintf("evt_%s", logID)
 }
 
+// GenerateStartEmptyResponse builds the initial empty assistant delta for chat streaming.
 func GenerateStartEmptyResponse(id string, createAt int64, model string, systemFingerprint *string) *dto.ChatCompletionsStreamResponse {
 	return &dto.ChatCompletionsStreamResponse{
 		Id:                id,
@@ -203,6 +219,7 @@ func GenerateStartEmptyResponse(id string, createAt int64, model string, systemF
 	}
 }
 
+// GenerateStopResponse builds the final stop chunk for chat streaming.
 func GenerateStopResponse(id string, createAt int64, model string, finishReason string) *dto.ChatCompletionsStreamResponse {
 	return &dto.ChatCompletionsStreamResponse{
 		Id:                id,
@@ -218,6 +235,7 @@ func GenerateStopResponse(id string, createAt int64, model string, finishReason 
 	}
 }
 
+// GenerateFinalUsageResponse builds the terminal usage chunk for chat streaming.
 func GenerateFinalUsageResponse(id string, createAt int64, model string, usage dto.Usage) *dto.ChatCompletionsStreamResponse {
 	return &dto.ChatCompletionsStreamResponse{
 		Id:                id,

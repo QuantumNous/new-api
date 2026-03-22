@@ -18,6 +18,7 @@ const (
 	defaultResponsesBootstrapPingPeriod  = 10 * time.Second
 )
 
+// ResponsesBootstrapRecoveryConfig contains the active bootstrap recovery settings.
 type ResponsesBootstrapRecoveryConfig struct {
 	Enabled              bool
 	GracePeriod          time.Duration
@@ -26,6 +27,7 @@ type ResponsesBootstrapRecoveryConfig struct {
 	RetryableStatusCodes map[int]struct{}
 }
 
+// ResponsesBootstrapRecoveryState tracks a single request's bootstrap recovery window.
 type ResponsesBootstrapRecoveryState struct {
 	Enabled        bool
 	StartedAt      time.Time
@@ -39,6 +41,7 @@ type ResponsesBootstrapRecoveryState struct {
 	WaitDuration   time.Duration
 }
 
+// GetResponsesBootstrapRecoveryConfig loads the current bootstrap recovery settings.
 func GetResponsesBootstrapRecoveryConfig() ResponsesBootstrapRecoveryConfig {
 	settings := operation_setting.GetGeneralSetting()
 	cfg := ResponsesBootstrapRecoveryConfig{
@@ -63,18 +66,20 @@ func GetResponsesBootstrapRecoveryConfig() ResponsesBootstrapRecoveryConfig {
 		}
 	}
 	if len(cfg.RetryableStatusCodes) == 0 {
-		for _, code := range []int{401, 403, 408, 429, 500, 502, 503, 504} {
+		for _, code := range operation_setting.DefaultResponsesBootstrapRetryableStatusCodes() {
 			cfg.RetryableStatusCodes[code] = struct{}{}
 		}
 	}
 	return cfg
 }
 
+// IsResponsesBootstrapRecoveryPath reports whether the request path supports bootstrap recovery.
 func IsResponsesBootstrapRecoveryPath(path string) bool {
 	return strings.HasPrefix(path, "/v1/responses") &&
 		!strings.HasPrefix(path, "/v1/responses/compact")
 }
 
+// GetResponsesBootstrapRecoveryState returns the request-scoped bootstrap recovery state.
 func GetResponsesBootstrapRecoveryState(c *gin.Context) (*ResponsesBootstrapRecoveryState, bool) {
 	if c == nil {
 		return nil, false
@@ -82,6 +87,7 @@ func GetResponsesBootstrapRecoveryState(c *gin.Context) (*ResponsesBootstrapReco
 	return common.GetContextKeyType[*ResponsesBootstrapRecoveryState](c, constant.ContextKeyResponsesBootstrapRecoveryState)
 }
 
+// EnsureResponsesBootstrapRecoveryState creates request-scoped recovery state for eligible streams.
 func EnsureResponsesBootstrapRecoveryState(c *gin.Context, isStream bool) *ResponsesBootstrapRecoveryState {
 	if state, ok := GetResponsesBootstrapRecoveryState(c); ok {
 		return state
@@ -105,6 +111,7 @@ func EnsureResponsesBootstrapRecoveryState(c *gin.Context, isStream bool) *Respo
 	return state
 }
 
+// EnsureResponsesBootstrapRecoveryStateFromRequest loads stream intent from the request body before creating state.
 func EnsureResponsesBootstrapRecoveryStateFromRequest(c *gin.Context) (*ResponsesBootstrapRecoveryState, error) {
 	if state, ok := GetResponsesBootstrapRecoveryState(c); ok {
 		return state, nil
@@ -119,12 +126,14 @@ func EnsureResponsesBootstrapRecoveryStateFromRequest(c *gin.Context) (*Response
 	return EnsureResponsesBootstrapRecoveryState(c, req.IsStream(c)), nil
 }
 
+// MarkResponsesBootstrapHeadersSent records that the SSE response headers have been emitted.
 func MarkResponsesBootstrapHeadersSent(c *gin.Context) {
 	if state, ok := GetResponsesBootstrapRecoveryState(c); ok && state != nil {
 		state.HeadersSent = true
 	}
 }
 
+// MarkResponsesBootstrapPingSent records the most recent bootstrap keepalive ping.
 func MarkResponsesBootstrapPingSent(c *gin.Context, now time.Time) {
 	if state, ok := GetResponsesBootstrapRecoveryState(c); ok && state != nil {
 		state.HeadersSent = true
@@ -132,12 +141,14 @@ func MarkResponsesBootstrapPingSent(c *gin.Context, now time.Time) {
 	}
 }
 
+// MarkResponsesBootstrapPayloadStarted marks the request as having started real payload delivery.
 func MarkResponsesBootstrapPayloadStarted(c *gin.Context) {
 	if state, ok := GetResponsesBootstrapRecoveryState(c); ok && state != nil {
 		state.PayloadStarted = true
 	}
 }
 
+// CanContinueResponsesBootstrapRecovery reports whether the request may remain in bootstrap recovery.
 func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.NewAPIError) bool {
 	state, ok := GetResponsesBootstrapRecoveryState(c)
 	if !ok || state == nil || !state.Enabled || state.PayloadStarted {
@@ -159,6 +170,7 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	return ok
 }
 
+// NextResponsesBootstrapWait returns the next wait duration and whether a keepalive ping should be sent.
 func NextResponsesBootstrapWait(c *gin.Context, now time.Time) (time.Duration, bool, bool) {
 	state, ok := GetResponsesBootstrapRecoveryState(c)
 	if !ok || state == nil || !state.Enabled || state.PayloadStarted {
@@ -187,6 +199,7 @@ func NextResponsesBootstrapWait(c *gin.Context, now time.Time) (time.Duration, b
 	return waitDuration, sendPing, true
 }
 
+// ShouldWriteResponsesBootstrapStreamError reports whether an SSE error event should be emitted.
 func ShouldWriteResponsesBootstrapStreamError(c *gin.Context) bool {
 	state, ok := GetResponsesBootstrapRecoveryState(c)
 	return ok && state != nil && state.Enabled && state.HeadersSent && !state.PayloadStarted
