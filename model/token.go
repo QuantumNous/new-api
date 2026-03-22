@@ -26,6 +26,11 @@ type Token struct {
 	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
+	QuotaPeriod        string         `json:"quota_period" gorm:"type:varchar(16);default:''"`
+	QuotaLimit         int            `json:"quota_limit" gorm:"default:0"`
+	QuotaUsedInPeriod  int            `json:"quota_used_in_period" gorm:"default:0"`
+	QuotaLastResetTime int64          `json:"quota_last_reset_time" gorm:"bigint;default:0"`
+	QuotaNextResetTime int64          `json:"quota_next_reset_time" gorm:"bigint;default:0"`
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
@@ -125,6 +130,7 @@ func sanitizeLikePattern(input string) (string, error) {
 const searchHardLimit = 100
 
 func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+	initCol()
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -224,6 +230,12 @@ func ValidateUserToken(key string) (token *Token, err error) {
 			keySuffix := key[len(key)-3:]
 			return token, fmt.Errorf("[sk-%s***%s] 该令牌额度已用尽 !token.UnlimitedQuota && token.RemainQuota = %d", keyPrefix, keySuffix, token.RemainQuota)
 		}
+		if err := token.RefreshPeriodQuotaWindowIfNeeded(); err != nil {
+			return token, err
+		}
+		if token.IsPeriodQuotaEnabled() && token.QuotaUsedInPeriod >= token.QuotaLimit {
+			return token, token.PeriodQuotaExceededError()
+		}
 		return token, nil
 	}
 	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
@@ -262,6 +274,7 @@ func GetTokenById(id int) (*Token, error) {
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
+	initCol()
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) && token != nil {
@@ -295,6 +308,9 @@ func (token *Token) Insert() error {
 func (token *Token) Update() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
+			if err := cacheDeleteToken(token.Key); err != nil {
+				common.SysLog("failed to invalidate token cache: " + err.Error())
+			}
 			gopool.Go(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
@@ -304,13 +320,18 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "quota_period", "quota_limit",
+		"quota_used_in_period", "quota_last_reset_time", "quota_next_reset_time",
+		"group", "cross_group_retry").Updates(token).Error
 	return err
 }
 
 func (token *Token) SelectUpdate() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
+			if err := cacheDeleteToken(token.Key); err != nil {
+				common.SysLog("failed to invalidate token cache: " + err.Error())
+			}
 			gopool.Go(func() {
 				err := cacheSetToken(*token)
 				if err != nil {
@@ -385,6 +406,15 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
+	if tokenId > 0 {
+		token, lookupErr := GetTokenById(tokenId)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if token.IsPeriodQuotaEnabled() {
+			return adjustTokenQuotaWithPeriod(tokenId, key, -quota)
+		}
+	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			err := cacheIncrTokenQuota(key, int64(quota))
@@ -414,6 +444,15 @@ func increaseTokenQuota(id int, quota int) (err error) {
 func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if id > 0 {
+		token, lookupErr := GetTokenById(id)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if token.IsPeriodQuotaEnabled() {
+			return adjustTokenQuotaWithPeriod(id, key, quota)
+		}
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {

@@ -203,6 +203,16 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 		return false
 	}
 
+	if s.relayInfo.TokenId > 0 {
+		token, err := model.GetTokenById(s.relayInfo.TokenId)
+		if err != nil {
+			return false
+		}
+		if token.IsPeriodQuotaEnabled() {
+			return false
+		}
+	}
+
 	// 检查令牌是否充足
 	tokenTrusted := s.relayInfo.TokenUnlimited
 	if !tokenTrusted {

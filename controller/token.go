@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -175,6 +176,10 @@ func AddToken(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
 	}
+	if err := model.ValidateTokenQuotaPeriodConfig(token.QuotaPeriod, token.QuotaLimit); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
@@ -222,6 +227,10 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
+	if err := cleanToken.ApplyPeriodQuotaConfig(token.QuotaPeriod, token.QuotaLimit, true, time.Now()); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	err = cleanToken.Insert()
 	if err != nil {
 		common.ApiError(c, err)
@@ -260,6 +269,10 @@ func UpdateToken(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
 	}
+	if err := model.ValidateTokenQuotaPeriodConfig(token.QuotaPeriod, token.QuotaLimit); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
@@ -290,6 +303,8 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Status = token.Status
 	} else {
 		// If you add more fields, please also update token.Update()
+		resetWindow := model.NormalizeTokenQuotaPeriod(cleanToken.QuotaPeriod) != model.NormalizeTokenQuotaPeriod(token.QuotaPeriod) ||
+			cleanToken.QuotaLimit != token.QuotaLimit
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
@@ -299,6 +314,10 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		if err := cleanToken.ApplyPeriodQuotaConfig(token.QuotaPeriod, token.QuotaLimit, resetWindow, time.Now()); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	err = cleanToken.Update()
 	if err != nil {
