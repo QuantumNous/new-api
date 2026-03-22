@@ -61,8 +61,18 @@ const CardTable = ({
     const finalTableProps = hidePagination
       ? { ...tableProps, pagination: false }
       : tableProps;
-
-    return (
+    const horizontalScrollWidth = finalTableProps?.scroll?.x;
+    const hasHorizontalScroll = Boolean(horizontalScrollWidth);
+    const desktopScrollInnerStyle = hasHorizontalScroll
+      ? {
+          minWidth: '100%',
+          width:
+            horizontalScrollWidth === 'max-content'
+              ? 'max-content'
+              : horizontalScrollWidth,
+        }
+      : undefined;
+    const tableNode = (
       <Table
         columns={columns}
         dataSource={dataSource}
@@ -70,6 +80,21 @@ const CardTable = ({
         rowKey={rowKey}
         {...finalTableProps}
       />
+    );
+
+    if (!hasHorizontalScroll) {
+      return tableNode;
+    }
+
+    return (
+      <div className='card-table-desktop-scroll'>
+        <div
+          className='card-table-desktop-scroll-inner'
+          style={desktopScrollInnerStyle}
+        >
+          {tableNode}
+        </div>
+      </div>
     );
   }
 
