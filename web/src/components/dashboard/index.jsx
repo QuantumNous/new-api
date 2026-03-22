@@ -102,6 +102,31 @@ const Dashboard = () => {
     }
   };
 
+  const handleRangePresetChange = async (preset) => {
+    if (preset === 'custom') {
+      dashboardData.activateCustomRange();
+      return;
+    }
+    const rangeState = dashboardData.applyChartRangePreset(preset);
+    if (!rangeState) {
+      return;
+    }
+    const data = await dashboardData.refresh(
+      rangeState.nextInputs,
+      rangeState.nextDefaultTime,
+    );
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
+  };
+
+  const handleCustomRangeConfirm = async () => {
+    const data = await dashboardData.refresh();
+    if (data && data.length > 0) {
+      dashboardCharts.updateChartData(data);
+    }
+  };
+
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
   };
@@ -186,6 +211,14 @@ const Dashboard = () => {
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
+            inputs={dashboardData.inputs}
+            dataExportDefaultTime={dashboardData.dataExportDefaultTime}
+            timeOptions={dashboardData.timeOptions}
+            activeRangePreset={dashboardData.activeRangePreset}
+            quickRangeOptions={dashboardData.quickRangeOptions}
+            handleRangePresetChange={handleRangePresetChange}
+            handleCustomRangeChange={dashboardData.handleCustomRangeChange}
+            handleCustomRangeConfirm={handleCustomRangeConfirm}
             t={dashboardData.t}
           />
 

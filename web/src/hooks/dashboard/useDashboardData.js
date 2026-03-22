@@ -32,6 +32,41 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const isMobile = useIsMobile();
   const initialized = useRef(false);
 
+  const getCurrentEndTimestamp = useCallback(
+    () => timestamp2string(new Date().getTime() / 1000 + 3600),
+    [],
+  );
+
+  const getQuickRangeConfig = useCallback((preset) => {
+    const configs = {
+      '24h': { seconds: 86400, granularity: 'hour' },
+      '7d': { seconds: 86400 * 7, granularity: 'day' },
+      '30d': { seconds: 86400 * 30, granularity: 'day' },
+      '90d': { seconds: 86400 * 90, granularity: 'week' },
+    };
+    return configs[preset] || null;
+  }, []);
+
+  const detectQuickRangePreset = useCallback(
+    (startTimestamp, endTimestamp, granularity) => {
+      const diffSeconds =
+        (Date.parse(endTimestamp) - Date.parse(startTimestamp)) / 1000;
+      const toleranceSeconds = 3600;
+      const presets = ['24h', '7d', '30d', '90d'];
+      for (const preset of presets) {
+        const config = getQuickRangeConfig(preset);
+        if (!config || config.granularity !== granularity) {
+          continue;
+        }
+        if (Math.abs(diffSeconds - config.seconds) <= toleranceSeconds) {
+          return preset;
+        }
+      }
+      return 'custom';
+    },
+    [getQuickRangeConfig],
+  );
+
   // ========== 基础状态 ==========
   const [loading, setLoading] = useState(false);
   const [greetingVisible, setGreetingVisible] = useState(false);
@@ -44,13 +79,20 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     token_name: '',
     model_name: '',
     start_timestamp: getInitialTimestamp(),
-    end_timestamp: timestamp2string(new Date().getTime() / 1000 + 3600),
+    end_timestamp: getCurrentEndTimestamp(),
     channel: '',
     data_export_default_time: '',
   });
 
   const [dataExportDefaultTime, setDataExportDefaultTime] =
     useState(getDefaultTime());
+  const [activeRangePreset, setActiveRangePreset] = useState(() =>
+    detectQuickRangePreset(
+      getInitialTimestamp(),
+      getCurrentEndTimestamp(),
+      getDefaultTime(),
+    ),
+  );
 
   // ========== 数据状态 ==========
   const [quotaData, setQuotaData] = useState([]);
@@ -105,6 +147,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     [t],
   );
 
+  const quickRangeOptions = useMemo(
+    () => [
+      { label: t('最近24小时'), value: '24h' },
+      { label: t('最近7天'), value: '7d' },
+      { label: t('最近30天'), value: '30d' },
+      { label: t('最近90天'), value: '90d' },
+    ],
+    [t],
+  );
+
   const performanceMetrics = useMemo(() => {
     const { start_timestamp, end_timestamp } = inputs;
     const timeDiff =
@@ -142,10 +194,62 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     if (name === 'data_export_default_time') {
       setDataExportDefaultTime(value);
       localStorage.setItem('data_export_default_time', value);
+      setActiveRangePreset('custom');
       return;
+    }
+    if (name === 'start_timestamp' || name === 'end_timestamp') {
+      setActiveRangePreset('custom');
     }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
+
+  const applyChartRangePreset = useCallback(
+    (preset) => {
+      const config = getQuickRangeConfig(preset);
+      if (!config) {
+        return null;
+      }
+      const now = new Date().getTime() / 1000;
+      const nextInputs = {
+        ...inputs,
+        start_timestamp: timestamp2string(now - config.seconds),
+        end_timestamp: getCurrentEndTimestamp(),
+      };
+      setInputs(nextInputs);
+      setDataExportDefaultTime(config.granularity);
+      setActiveRangePreset(preset);
+      localStorage.setItem('data_export_default_time', config.granularity);
+      return {
+        nextInputs,
+        nextDefaultTime: config.granularity,
+      };
+    },
+    [getCurrentEndTimestamp, getQuickRangeConfig, inputs],
+  );
+
+  const activateCustomRange = useCallback(() => {
+    setActiveRangePreset('custom');
+  }, []);
+
+  const handleCustomRangeChange = useCallback(
+    (rangeValue, nextDefaultTime = dataExportDefaultTime) => {
+      const normalizedRange = Array.isArray(rangeValue) ? rangeValue : [];
+      const [startTimestamp = '', endTimestamp = ''] = normalizedRange;
+
+      setActiveRangePreset('custom');
+      setInputs((currentInputs) => ({
+        ...currentInputs,
+        start_timestamp: startTimestamp,
+        end_timestamp: endTimestamp,
+      }));
+
+      if (nextDefaultTime !== dataExportDefaultTime) {
+        setDataExportDefaultTime(nextDefaultTime);
+        localStorage.setItem('data_export_default_time', nextDefaultTime);
+      }
+    },
+    [dataExportDefaultTime],
+  );
 
   const showSearchModal = useCallback(() => {
     setSearchModalVisible(true);
@@ -156,42 +260,48 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, []);
 
   // ========== API 调用函数 ==========
-  const loadQuotaData = useCallback(async () => {
-    setLoading(true);
-    try {
-      let url = '';
-      const { start_timestamp, end_timestamp, username } = inputs;
-      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+  const loadQuotaData = useCallback(
+    async (
+      overrideInputs = inputs,
+      overrideDefaultTime = dataExportDefaultTime,
+    ) => {
+      setLoading(true);
+      try {
+        let url = '';
+        const { start_timestamp, end_timestamp, username } = overrideInputs;
+        let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+        let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
-
-      const res = await API.get(url);
-      const { success, message, data } = res.data;
-      if (success) {
-        setQuotaData(data);
-        if (data.length === 0) {
-          data.push({
-            count: 0,
-            model_name: '无数据',
-            quota: 0,
-            created_at: now.getTime() / 1000,
-          });
+        if (isAdminUser) {
+          url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${overrideDefaultTime}`;
+        } else {
+          url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${overrideDefaultTime}`;
         }
-        data.sort((a, b) => a.created_at - b.created_at);
-        return data;
-      } else {
-        showError(message);
-        return [];
+
+        const res = await API.get(url);
+        const { success, message, data } = res.data;
+        if (success) {
+          setQuotaData(data);
+          if (data.length === 0) {
+            data.push({
+              count: 0,
+              model_name: '无数据',
+              quota: 0,
+              created_at: now.getTime() / 1000,
+            });
+          }
+          data.sort((a, b) => a.created_at - b.created_at);
+          return data;
+        } else {
+          showError(message);
+          return [];
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+    },
+    [dataExportDefaultTime, inputs, isAdminUser, now],
+  );
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -223,11 +333,17 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [userDispatch]);
 
-  const refresh = useCallback(async () => {
-    const data = await loadQuotaData();
-    await loadUptimeData();
-    return data;
-  }, [loadQuotaData, loadUptimeData]);
+  const refresh = useCallback(
+    async (
+      overrideInputs = inputs,
+      overrideDefaultTime = dataExportDefaultTime,
+    ) => {
+      const data = await loadQuotaData(overrideInputs, overrideDefaultTime);
+      await loadUptimeData();
+      return data;
+    },
+    [dataExportDefaultTime, inputs, loadQuotaData, loadUptimeData],
+  );
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -264,6 +380,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     // 输入状态
     inputs,
     dataExportDefaultTime,
+    activeRangePreset,
+    quickRangeOptions,
 
     // 数据状态
     quotaData,
@@ -308,6 +426,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
     // 函数
     handleInputChange,
+    applyChartRangePreset,
+    activateCustomRange,
+    handleCustomRangeChange,
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
