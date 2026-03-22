@@ -93,12 +93,13 @@ test.describe.serial('Setup and login baseline', () => {
 
   test('contact page submissions appear in feedback management and logo can be uploaded', async ({ page }) => {
     await page.goto('/contact');
+    await page.getByRole('button', { name: /采购咨询|Consulting/ }).click();
     await page.getByPlaceholder(/请输入你的称呼|name/i).fill('E2E Contact User');
     await page
       .getByPlaceholder(/请输入可联系的邮箱|email/i)
       .fill('e2e-feedback@example.com');
     await page
-      .getByPlaceholder(/请描述问题、咨询内容或建议细节|describe/i)
+      .getByPlaceholder(/适用于套餐、计费、部署、私有化或商务合作咨询|deployment|billing/i)
       .fill('Submitting a bug report from the e2e contact page should make it visible to administrators.');
     await page.getByRole('button', { name: /提交反馈|Submit feedback/ }).click();
     await expect(page.getByText(/反馈已提交|submitted/i)).toBeVisible();
@@ -132,5 +133,12 @@ test.describe.serial('Setup and login baseline', () => {
       .fill('ou_alpha\nou_beta');
     await page.getByRole('button', { name: /保存反馈 Lark Webhook|Save feedback Lark Webhook/ }).click();
     await expect(page.getByText(/反馈 Lark Webhook 已更新|updated/i)).toBeVisible();
+  });
+
+  test('contact page prefills the username for logged-in users', async ({ page }) => {
+    await loginAsRoot(page);
+
+    await page.goto('/contact');
+    await expect(page.getByPlaceholder(/请输入你的称呼|name/i)).toHaveValue(adminUsername);
   });
 });

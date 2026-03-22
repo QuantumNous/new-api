@@ -34,6 +34,21 @@ type larkWebhookPayload struct {
 	Card      map[string]interface{} `json:"card"`
 }
 
+func feedbackCategoryLabel(category string) string {
+	switch category {
+	case "bug":
+		return "问题反馈"
+	case "consulting":
+		return "采购咨询"
+	case "feature":
+		return "产品建议"
+	case "other":
+		return "其他反馈"
+	default:
+		return category
+	}
+}
+
 func generateLarkWebhookSign(secret string, timestamp int64) (string, error) {
 	stringToSign := fmt.Sprintf("%d\n%s", timestamp, secret)
 	h := hmac.New(sha256.New, []byte(stringToSign))
@@ -45,10 +60,10 @@ func generateLarkWebhookSign(secret string, timestamp int64) (string, error) {
 
 func buildFeedbackLarkCard(feedback *model.Feedback) map[string]interface{} {
 	submittedAt := time.Unix(feedback.CreatedTime, 0).Format("2006-01-02 15:04:05")
-	content := fmt.Sprintf("%s**Feedback 新提交**\n\n**系统**：%s\n**类型**：%s\n**用户名**：%s\n**邮箱**：%s\n**提交时间**：%s\n\n**内容**：\n%s",
+	content := fmt.Sprintf("%s**反馈中心收到新提交**\n\n**系统**：%s\n**类型**：%s\n**用户名**：%s\n**邮箱**：%s\n**提交时间**：%s\n\n**内容**：\n%s",
 		buildFeedbackLarkMentions(),
 		common.SystemName,
-		feedback.Category,
+		feedbackCategoryLabel(feedback.Category),
 		feedback.Username,
 		feedback.Email,
 		submittedAt,
@@ -59,7 +74,7 @@ func buildFeedbackLarkCard(feedback *model.Feedback) map[string]interface{} {
 		"header": map[string]interface{}{
 			"title": map[string]interface{}{
 				"tag":     "plain_text",
-				"content": "Feedback 新提交通知",
+				"content": "反馈新提交通知",
 			},
 			"template": "orange",
 		},

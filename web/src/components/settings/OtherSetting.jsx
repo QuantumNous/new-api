@@ -294,38 +294,38 @@ const OtherSetting = () => {
     }));
     try {
       const requests = [
-        API.put('/api/option/', {
+        {
           key: 'FeedbackLarkWebhookURL',
           value: webhookURL,
-        }),
-        API.put('/api/option/', {
-          key: 'FeedbackLarkWebhookEnabled',
-          value: inputs.FeedbackLarkWebhookEnabled,
-        }),
-        API.put('/api/option/', {
+        },
+        {
           key: 'FeedbackLarkWebhookMentionAllEnabled',
           value: inputs.FeedbackLarkWebhookMentionAllEnabled,
-        }),
-        API.put('/api/option/', {
+        },
+        {
           key: 'FeedbackLarkWebhookMentionOpenIDs',
           value: webhookMentionOpenIDs,
-        }),
+        },
       ];
 
       if (webhookSecret !== '') {
-        requests.push(
-          API.put('/api/option/', {
-            key: 'FeedbackLarkWebhookSecret',
-            value: webhookSecret,
-          }),
-        );
+        requests.push({
+          key: 'FeedbackLarkWebhookSecret',
+          value: webhookSecret,
+        });
       }
 
-      const responses = await Promise.all(requests);
-      const failed = responses.find((response) => !response.data.success);
-      if (failed) {
-        showError(failed.data.message);
-        return;
+      requests.push({
+        key: 'FeedbackLarkWebhookEnabled',
+        value: inputs.FeedbackLarkWebhookEnabled,
+      });
+
+      for (const request of requests) {
+        const response = await API.put('/api/option/', request);
+        if (!response.data.success) {
+          showError(response.data.message);
+          return;
+        }
       }
 
       setInputs((prev) => ({
@@ -647,7 +647,7 @@ const OtherSetting = () => {
                 fullMode={false}
                 type='info'
                 description={t(
-                  '用户在联系页提交反馈后，可通过 Lark 自定义机器人 Webhook 推送消息卡片到群聊。',
+                  '用户在联系页提交反馈后，可通过 Lark 自定义机器人 Webhook 推送消息卡片到群聊。保存时会先写入 Webhook 地址，再更新启用开关，避免开关因校验顺序未生效。',
                 )}
                 closeIcon={null}
                 style={{ marginTop: 15 }}

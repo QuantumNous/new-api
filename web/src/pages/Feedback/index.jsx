@@ -29,6 +29,10 @@ import CardPro from '../../components/common/ui/CardPro';
 import CardTable from '../../components/common/ui/CardTable';
 import { createCardProPagination } from '../../helpers/utils';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
+import {
+  getFeedbackCategoryLabel,
+  getFeedbackCategoryOptions,
+} from '../../helpers/feedback';
 
 const FeedbackPage = () => {
   const { t } = useTranslation();
@@ -74,7 +78,9 @@ const FeedbackPage = () => {
     {
       title: t('反馈类型'),
       dataIndex: 'category',
-      render: (value) => <Tag color='blue'>{value}</Tag>,
+      render: (value) => (
+        <Tag color='blue'>{getFeedbackCategoryLabel(value, t)}</Tag>
+      ),
     },
     {
       title: t('内容'),
@@ -108,13 +114,12 @@ const FeedbackPage = () => {
             <Form.Select
               field='category'
               placeholder={t('反馈类型')}
-              optionList={[
-                { label: t('全部'), value: '' },
-                { label: 'Bug', value: 'bug' },
-                { label: t('咨询'), value: 'consulting' },
-                { label: t('建议'), value: 'feature' },
-                { label: t('其他'), value: 'other' },
-              ]}
+              optionList={[{ label: t('全部'), value: '' }].concat(
+                getFeedbackCategoryOptions(t).map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                })),
+              )}
             />
             <Button type='primary' theme='light' onClick={() => loadFeedbacks(1, pageSize)}>
               {t('搜索')}
