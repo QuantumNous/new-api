@@ -60,7 +60,7 @@ const Dashboard = () => {
   // ========== 显示模式状态 ==========
   const [displayMode, setDisplayMode] = useState(() => {
     const saved = localStorage.getItem('data_export_default_display_mode');
-    return saved || (localStorage.getItem('quota_display_type') === 'TOKENS' ? 'TOKENS' : 'QUOTA');
+    return saved || 'QUOTA';
   });
 
   const handleDisplayModeChange = useCallback((newMode) => {
@@ -151,6 +151,7 @@ const Dashboard = () => {
   }, []);
 
   // 切换显示模式时重新计算图表
+  // updateChartData 会在 displayMode 变化时自动重新创建，所以这里省略依赖
   useEffect(() => {
     if (dashboardData.quotaData && dashboardData.quotaData.length > 0) {
       dashboardCharts.updateChartData(dashboardData.quotaData);

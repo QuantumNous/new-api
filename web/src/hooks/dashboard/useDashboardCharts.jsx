@@ -36,6 +36,53 @@ import {
   initializeMaps,
 } from '../../helpers/dashboard';
 
+// 创建 tooltip 配置的辅助函数
+const createTooltipConfig = (displayMode, t) => {
+  const renderValue = displayMode === 'TOKENS' ? renderNumber : (v) => renderQuota(v, 4);
+  const valueField = displayMode === 'TOKENS' ? 'rawTokenUsed' : 'rawQuota';
+
+  return {
+    mark: {
+      content: [
+        {
+          key: (datum) => datum['Model'],
+          value: (datum) => renderValue(datum[valueField] || 0),
+        },
+      ],
+    },
+    dimension: {
+      content: [
+        {
+          key: (datum) => datum['Model'],
+          value: (datum) => datum[valueField] || 0,
+        },
+      ],
+      updateContent: (array) => {
+        array.sort((a, b) => b.value - a.value);
+        let sum = 0;
+        for (let i = 0; i < array.length; i++) {
+          if (array[i].key === '其他') {
+            continue;
+          }
+          let value = parseFloat(array[i].value);
+          if (isNaN(value)) {
+            value = 0;
+          }
+          if (array[i].datum && array[i].datum.TimeSum) {
+            sum = array[i].datum.TimeSum;
+          }
+          array[i].value = renderValue(value);
+        }
+        array.unshift({
+          key: t('总计'),
+          value: renderValue(sum),
+        });
+        return array;
+      },
+    },
+  };
+};
+
 export const useDashboardCharts = (
   dataExportDefaultTime,
   setTrendData,
@@ -316,49 +363,7 @@ export const useDashboardCharts = (
       const totalValue = displayMode === 'TOKENS' ? totalTokens : totalQuota;
       const totalDisplay = displayMode === 'TOKENS' ? renderNumber(totalValue) : renderQuota(totalValue, 2);
 
-      // 生成 tooltip 配置
-      const renderValue = displayMode === 'TOKENS' ? renderNumber : (v) => renderQuota(v, 4);
-      const valueField = displayMode === 'TOKENS' ? 'rawTokenUsed' : 'rawQuota';
-      const tooltipConfig = {
-        mark: {
-          content: [
-            {
-              key: (datum) => datum['Model'],
-              value: (datum) => renderValue(datum[valueField] || 0),
-            },
-          ],
-        },
-        dimension: {
-          content: [
-            {
-              key: (datum) => datum['Model'],
-              value: (datum) => datum[valueField] || 0,
-            },
-          ],
-          updateContent: (array) => {
-            array.sort((a, b) => b.value - a.value);
-            let sum = 0;
-            for (let i = 0; i < array.length; i++) {
-              if (array[i].key === '其他') {
-                continue;
-              }
-              let value = parseFloat(array[i].value);
-              if (isNaN(value)) {
-                value = 0;
-              }
-              if (array[i].datum && array[i].datum.TimeSum) {
-                sum = array[i].datum.TimeSum;
-              }
-              array[i].value = renderValue(value);
-            }
-            array.unshift({
-              key: t('总计'),
-              value: renderValue(sum),
-            });
-            return array;
-          },
-        },
-      };
+      const tooltipConfig = createTooltipConfig(displayMode, t);
 
       updateChartSpec(
         setSpecPie,
@@ -447,54 +452,10 @@ export const useDashboardCharts = (
 
   // 根据显示模式更新 spec_line
   useEffect(() => {
-    const renderValue = displayMode === 'TOKENS' ? renderNumber : (v) => renderQuota(v, 4);
-    const valueField = displayMode === 'TOKENS' ? 'rawTokenUsed' : 'rawQuota';
-
     setSpecLine(prev => {
-      const newTooltip = {
-        mark: {
-          content: [
-            {
-              key: (datum) => datum['Model'],
-              value: (datum) => renderValue(datum[valueField] || 0),
-            },
-          ],
-        },
-        dimension: {
-          content: [
-            {
-              key: (datum) => datum['Model'],
-              value: (datum) => datum[valueField] || 0,
-            },
-          ],
-          updateContent: (array) => {
-            array.sort((a, b) => b.value - a.value);
-            let sum = 0;
-            for (let i = 0; i < array.length; i++) {
-              if (array[i].key === '其他') {
-                continue;
-              }
-              let value = parseFloat(array[i].value);
-              if (isNaN(value)) {
-                value = 0;
-              }
-              if (array[i].datum && array[i].datum.TimeSum) {
-                sum = array[i].datum.TimeSum;
-              }
-              array[i].value = renderValue(value);
-            }
-            array.unshift({
-              key: t('总计'),
-              value: renderValue(sum),
-            });
-            return array;
-          },
-        },
-      };
-
       return {
         ...prev,
-        tooltip: newTooltip,
+        tooltip: createTooltipConfig(displayMode, t),
       };
     });
   }, [displayMode, t]);

@@ -464,6 +464,11 @@ func updateOptionMap(key string, value string) (err error) {
 	case "DataExportDefaultDisplayMode":
 		// DataExportDefaultDisplayMode 配置项，用于设置数据看板默认显示模式（金额/TOKENS）
 		// 这个配置存储在数据库中，由前端读取并应用到 localStorage
+		normalized := strings.ToUpper(strings.TrimSpace(value))
+		if normalized != "QUOTA" && normalized != "TOKENS" {
+			normalized = "QUOTA"
+		}
+		common.OptionMap[key] = normalized
 	case "ModelRatio":
 		err = ratio_setting.UpdateModelRatioByJSONString(value)
 	case "GroupRatio":
