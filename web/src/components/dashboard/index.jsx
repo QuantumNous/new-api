@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useCallback, useContext, useEffect } from 'react';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -73,6 +73,17 @@ const Dashboard = () => {
     dashboardData.t,
   );
 
+  const loadChannelTrendChart = useCallback(async () => {
+    const data = await dashboardData.loadChannelQuotaData();
+    if (data && data.length > 0) {
+      dashboardCharts.updateChannelTrendData(data);
+    }
+    return data;
+  }, [
+    dashboardData.loadChannelQuotaData,
+    dashboardCharts.updateChannelTrendData,
+  ]);
+
   // ========== 统计数据 ==========
   const { groupedStatsData } = useDashboardStats(
     userState,
@@ -100,10 +111,23 @@ const Dashboard = () => {
     if (data && data.length > 0) {
       dashboardCharts.updateChartData(data);
     }
+    if (dashboardData.activeChartTab === '5') {
+      await loadChannelTrendChart();
+    }
   };
 
   const handleSearchConfirm = async () => {
     await dashboardData.handleSearchConfirm(dashboardCharts.updateChartData);
+    if (dashboardData.activeChartTab === '5') {
+      await loadChannelTrendChart();
+    }
+  };
+
+  const handleChartTabChange = async (tabKey) => {
+    dashboardData.setActiveChartTab(tabKey);
+    if (tabKey === '5') {
+      await loadChannelTrendChart();
+    }
   };
 
   // ========== 数据准备 ==========
@@ -177,11 +201,12 @@ const Dashboard = () => {
         >
           <ChartsPanel
             activeChartTab={dashboardData.activeChartTab}
-            setActiveChartTab={dashboardData.setActiveChartTab}
+            handleChartTabChange={handleChartTabChange}
             spec_line={dashboardCharts.spec_line}
             spec_model_line={dashboardCharts.spec_model_line}
             spec_pie={dashboardCharts.spec_pie}
             spec_rank_bar={dashboardCharts.spec_rank_bar}
+            spec_channel_rank_trend={dashboardCharts.spec_channel_rank_trend}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}

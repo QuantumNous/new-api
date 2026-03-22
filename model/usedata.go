@@ -21,6 +21,16 @@ type QuotaData struct {
 	Quota     int    `json:"quota" gorm:"default:0"`
 }
 
+// ChannelQuotaData represents dashboard chart data aggregated by channel and hour bucket.
+type ChannelQuotaData struct {
+	ChannelId   int    `json:"channel_id" gorm:"column:channel_id"`
+	ChannelName string `json:"channel_name" gorm:"-"`
+	CreatedAt   int64  `json:"created_at" gorm:"column:created_at"`
+	TokenUsed   int    `json:"token_used" gorm:"column:token_used"`
+	Count       int    `json:"count" gorm:"column:count"`
+	Quota       int    `json:"quota" gorm:"column:quota"`
+}
+
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
@@ -125,4 +135,120 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+// getLogHourBucketExpression normalizes log timestamps into hourly buckets across databases.
+func getLogHourBucketExpression() string {
+	switch DB.Dialector.Name() {
+	case common.DatabaseTypePostgreSQL:
+		return "CAST(FLOOR(created_at / 3600.0) * 3600 AS BIGINT)"
+	default:
+		return "(created_at / 3600) * 3600"
+	}
+}
+
+func attachChannelNames(channelData []*ChannelQuotaData) error {
+	if len(channelData) == 0 {
+		return nil
+	}
+
+	channelIds := make(map[int]struct{})
+	for _, item := range channelData {
+		if item.ChannelId != 0 {
+			channelIds[item.ChannelId] = struct{}{}
+		}
+	}
+
+	if len(channelIds) == 0 {
+		return nil
+	}
+
+	ids := make([]int, 0, len(channelIds))
+	for id := range channelIds {
+		ids = append(ids, id)
+	}
+
+	channelNames := make(map[int]string, len(ids))
+	for _, id := range ids {
+		if common.MemoryCacheEnabled {
+			if channel, err := CacheGetChannel(id); err == nil && channel != nil {
+				channelNames[id] = channel.Name
+			}
+		}
+	}
+
+	if len(channelNames) < len(ids) {
+		type channelRow struct {
+			Id   int    `gorm:"column:id"`
+			Name string `gorm:"column:name"`
+		}
+		rows := make([]channelRow, 0, len(ids))
+		if err := DB.Table("channels").Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			channelNames[row.Id] = row.Name
+		}
+	}
+
+	for _, item := range channelData {
+		if name, ok := channelNames[item.ChannelId]; ok && name != "" {
+			item.ChannelName = name
+			continue
+		}
+		if item.ChannelId == 0 {
+			continue
+		}
+		item.ChannelName = fmt.Sprintf("Channel #%d", item.ChannelId)
+	}
+	return nil
+}
+
+// getChannelQuotaData aggregates usage logs by channel and hour bucket for dashboard charts.
+func getChannelQuotaData(baseQuery *gorm.DB) (channelData []*ChannelQuotaData, err error) {
+	var channelDatas []*ChannelQuotaData
+	bucketExpression := getLogHourBucketExpression()
+	err = baseQuery.
+		Select(
+			fmt.Sprintf(
+				"channel_id, COALESCE(sum(quota), 0) as quota, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) as token_used, count(*) as count, %s as created_at",
+				bucketExpression,
+			),
+		).
+		Group(fmt.Sprintf("channel_id, %s", bucketExpression)).
+		Find(&channelDatas).Error
+	if err != nil {
+		return nil, err
+	}
+	if err = attachChannelNames(channelDatas); err != nil {
+		return nil, err
+	}
+	return channelDatas, nil
+}
+
+// GetChannelQuotaDataByUsername returns dashboard channel aggregates for the selected admin filter.
+func GetChannelQuotaDataByUsername(username string, startTime int64, endTime int64) (channelData []*ChannelQuotaData, err error) {
+	baseQuery := LOG_DB.Table("logs").
+		Where("type = ?", LogTypeConsume).
+		Where("username = ? AND created_at >= ? AND created_at <= ?", username, startTime, endTime)
+	return getChannelQuotaData(baseQuery)
+}
+
+// GetChannelQuotaDataByUserId returns dashboard channel aggregates for a single user.
+func GetChannelQuotaDataByUserId(userId int, startTime int64, endTime int64) (channelData []*ChannelQuotaData, err error) {
+	baseQuery := LOG_DB.Table("logs").
+		Where("type = ?", LogTypeConsume).
+		Where("user_id = ? AND created_at >= ? AND created_at <= ?", userId, startTime, endTime)
+	return getChannelQuotaData(baseQuery)
+}
+
+// GetAllChannelQuotaData returns dashboard channel aggregates across all users or one username.
+func GetAllChannelQuotaData(startTime int64, endTime int64, username string) (channelData []*ChannelQuotaData, err error) {
+	if username != "" {
+		return GetChannelQuotaDataByUsername(username, startTime, endTime)
+	}
+	baseQuery := LOG_DB.Table("logs").
+		Where("type = ?", LogTypeConsume).
+		Where("created_at >= ? AND created_at <= ?", startTime, endTime)
+	return getChannelQuotaData(baseQuery)
 }

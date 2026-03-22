@@ -193,6 +193,40 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [inputs, dataExportDefaultTime, isAdminUser, now]);
 
+  const loadChannelQuotaData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { start_timestamp, end_timestamp, username } = inputs;
+      const localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      const localEndTimestamp = Date.parse(end_timestamp) / 1000;
+      const url = isAdminUser
+        ? `/api/data/channels?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`
+        : `/api/data/self/channels?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
+
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        if (data.length === 0) {
+          data.push({
+            channel_id: 0,
+            channel_name: t('暂无数据'),
+            count: 0,
+            quota: 0,
+            token_used: 0,
+            created_at: now.getTime() / 1000,
+          });
+        }
+        data.sort((a, b) => a.created_at - b.created_at);
+        return data;
+      } else {
+        showError(message);
+        return [];
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [inputs, dataExportDefaultTime, isAdminUser, now, t]);
+
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
     try {
@@ -311,6 +345,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     showSearchModal,
     handleCloseModal,
     loadQuotaData,
+    loadChannelQuotaData,
     loadUptimeData,
     getUserData,
     refresh,

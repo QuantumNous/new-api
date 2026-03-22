@@ -24,11 +24,12 @@ import { VChart } from '@visactor/react-vchart';
 
 const ChartsPanel = ({
   activeChartTab,
-  setActiveChartTab,
+  handleChartTabChange,
   spec_line,
   spec_model_line,
   spec_pie,
   spec_rank_bar,
+  spec_channel_rank_trend,
   CARD_PROPS,
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
@@ -48,12 +49,13 @@ const ChartsPanel = ({
           <Tabs
             type='slash'
             activeKey={activeChartTab}
-            onChange={setActiveChartTab}
+            onChange={handleChartTabChange}
           >
             <TabPane tab={<span>{t('消耗分布')}</span>} itemKey='1' />
             <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
             <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
             <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
+            <TabPane tab={<span>{t('渠道趋势排行')}</span>} itemKey='5' />
           </Tabs>
         </div>
       }
@@ -71,6 +73,9 @@ const ChartsPanel = ({
         )}
         {activeChartTab === '4' && (
           <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '5' && (
+          <VChart spec={spec_channel_rank_trend} option={CHART_CONFIG} />
         )}
       </div>
     </Card>

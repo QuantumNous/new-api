@@ -24,6 +24,7 @@ import {
   renderNumber,
   renderQuota,
   modelToColor,
+  stringToColor,
   getQuotaWithUnit,
 } from '../../helpers';
 import {
@@ -35,6 +36,8 @@ import {
   updateMapValue,
   initializeMaps,
 } from '../../helpers/dashboard';
+
+const CHANNEL_TREND_LIMIT = 10;
 
 export const useDashboardCharts = (
   dataExportDefaultTime,
@@ -259,6 +262,70 @@ export const useDashboardCharts = (
     },
   });
 
+  const [spec_channel_rank_trend, setSpecChannelRankTrend] = useState({
+    type: 'bar',
+    data: [
+      {
+        id: 'channelTrendData',
+        values: [],
+      },
+    ],
+    xField: 'Time',
+    yField: 'Count',
+    seriesField: 'Channel',
+    stack: true,
+    legends: {
+      visible: true,
+      selectMode: 'single',
+    },
+    title: {
+      visible: true,
+      text: t('渠道趋势排行'),
+      subtext: '',
+    },
+    bar: {
+      state: {
+        hover: {
+          stroke: '#000',
+          lineWidth: 1,
+        },
+      },
+    },
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum) => datum['Channel'],
+            value: (datum) => renderNumber(datum['Count']),
+          },
+        ],
+      },
+      dimension: {
+        content: [
+          {
+            key: (datum) => datum['Channel'],
+            value: (datum) => datum['Count'],
+          },
+        ],
+        updateContent: (items) => {
+          const nextItems = [...items].sort((a, b) => b.value - a.value);
+          const total = nextItems.reduce((sum, item) => sum + item.value, 0);
+          nextItems.forEach((item) => {
+            item.value = renderNumber(item.value);
+          });
+          nextItems.unshift({
+            key: t('总计'),
+            value: renderNumber(total),
+          });
+          return nextItems;
+        },
+      },
+    },
+    color: {
+      specified: {},
+    },
+  });
+
   // ========== 数据处理函数 ==========
   const generateModelColors = useCallback((uniqueModels, modelColors) => {
     const newModelColors = {};
@@ -426,6 +493,78 @@ export const useDashboardCharts = (
     ],
   );
 
+  const updateChannelTrendData = useCallback(
+    (data) => {
+      const normalizedData = data.map((item) => ({
+        model_name:
+          item.channel_name ||
+          (item.channel_id > 0 ? `Channel #${item.channel_id}` : t('未知渠道')),
+        created_at: item.created_at,
+        count: item.count || 0,
+        quota: item.quota || 0,
+        token_used: item.token_used || 0,
+      }));
+
+      const aggregatedData = aggregateDataByTimeAndModel(
+        normalizedData,
+        dataExportDefaultTime,
+      );
+      const channelTotals = new Map();
+      for (const [, value] of aggregatedData) {
+        updateMapValue(channelTotals, value.model, value.count);
+      }
+
+      const topChannels = Array.from(channelTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, CHANNEL_TREND_LIMIT)
+        .map(([channel]) => channel);
+      const topChannelSet = new Set(topChannels);
+      const filteredData = normalizedData.filter((item) =>
+        topChannelSet.has(item.model_name),
+      );
+      const filteredAggregatedData = aggregateDataByTimeAndModel(
+        filteredData,
+        dataExportDefaultTime,
+      );
+      const chartTimePoints = generateChartTimePoints(
+        filteredAggregatedData,
+        filteredData.length > 0 ? filteredData : normalizedData,
+        dataExportDefaultTime,
+      );
+
+      const channelTrendData = [];
+      chartTimePoints.forEach((time) => {
+        topChannels.forEach((channel) => {
+          const aggregated = filteredAggregatedData.get(`${time}-${channel}`);
+          channelTrendData.push({
+            Time: time,
+            Channel: channel,
+            Count: aggregated?.count || 0,
+          });
+        });
+      });
+      channelTrendData.sort((a, b) => a.Time.localeCompare(b.Time));
+
+      const channelColors = topChannels.reduce((acc, channel) => {
+        acc[channel] = stringToColor(channel);
+        return acc;
+      }, {});
+      const totalCalls = topChannels.reduce(
+        (sum, channel) => sum + (channelTotals.get(channel) || 0),
+        0,
+      );
+
+      updateChartSpec(
+        setSpecChannelRankTrend,
+        channelTrendData,
+        `${t('总计')}：${renderNumber(totalCalls)}`,
+        channelColors,
+        'channelTrendData',
+      );
+    },
+    [dataExportDefaultTime, t],
+  );
+
   // ========== 初始化图表主题 ==========
   useEffect(() => {
     initVChartSemiTheme({
@@ -439,9 +578,11 @@ export const useDashboardCharts = (
     spec_line,
     spec_model_line,
     spec_rank_bar,
+    spec_channel_rank_trend,
 
     // 函数
     updateChartData,
+    updateChannelTrendData,
     generateModelColors,
   };
 };

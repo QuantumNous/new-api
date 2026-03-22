@@ -1863,6 +1863,7 @@
     "模型请求速率限制": "Model request rate limit",
     "模型调用次数占比": "Model call ratio",
     "模型调用次数排行": "Model call ranking",
+    "渠道趋势排行": "Channel trend ranking",
     "模型选择和映射设置": "Model selection and mapping settings",
     "模型部署": "Model Deployment",
     "模型部署服务未启用": "Model deployment service is not enabled",

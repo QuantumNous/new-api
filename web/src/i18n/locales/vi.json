@@ -1844,6 +1844,7 @@
     "模型请求速率限制": "Giới hạn tốc độ yêu cầu mô hình",
     "模型调用次数占比": "Tỷ lệ số lần gọi mô hình",
     "模型调用次数排行": "Xếp hạng số lần gọi mô hình",
+    "渠道趋势排行": "Xếp hạng xu hướng kênh",
     "模型选择和映射设置": "Cài đặt chọn và ánh xạ mô hình",
     "模型速率限制": "Giới hạn tốc độ mô hình",
     "模型部署": "Model Deployment",

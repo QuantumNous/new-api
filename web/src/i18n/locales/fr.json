@@ -1844,6 +1844,7 @@
     "模型请求速率限制": "Limite de débit de requête de modèle",
     "模型调用次数占比": "Ratio d'appels de modèles",
     "模型调用次数排行": "Classement des appels de modèles",
+    "渠道趋势排行": "Classement des tendances par canal",
     "模型选择和映射设置": "Sélection de modèle et paramètres de mappage",
     "模型部署": "Model Deployment",
     "模型部署服务未启用": "Model deployment service is not enabled",
