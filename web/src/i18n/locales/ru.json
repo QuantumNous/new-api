@@ -3314,6 +3314,8 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "Цена ввода: {{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Цена вывода {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Цена вывода: {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Цена вывода: {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Цена вывода: {{symbol}}{{total}} / 1M tokens",
+    "本周": "На этой неделе",
+    "上周": "На прошлой неделе"
   }
 }

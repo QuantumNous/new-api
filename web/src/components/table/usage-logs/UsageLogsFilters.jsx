@@ -102,6 +102,15 @@ const LogsFilters = ({
             size='small'
           />
 
+          <Form.Input
+            field='request_path'
+            prefix={<IconSearch />}
+            placeholder={t('请求路径')}
+            showClear
+            pure
+            size='small'
+          />
+
           {isAdminUser && (
             <>
               <Form.Input
