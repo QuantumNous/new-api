@@ -10,6 +10,7 @@ const (
 	QuotaDisplayTypeCustom = "CUSTOM"
 )
 
+// GeneralSetting contains globally mutable operation settings exposed in the admin console.
 type GeneralSetting struct {
 	DocsLink                                          string `json:"docs_link"`
 	PingIntervalEnabled                               bool   `json:"ping_interval_enabled"`

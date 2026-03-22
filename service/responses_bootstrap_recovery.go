@@ -166,6 +166,9 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	if types.IsSkipRetryError(newAPIError) {
 		return false
 	}
+	if newAPIError.StatusCode == 0 {
+		return false
+	}
 	_, ok = GetResponsesBootstrapRecoveryConfig().RetryableStatusCodes[newAPIError.StatusCode]
 	return ok
 }

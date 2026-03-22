@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// ThinkingContentInfo tracks streaming state for reasoning/thinking content emission.
 type ThinkingContentInfo struct {
 	IsFirstThinkingContent  bool
 	SendLastThinkingContent bool
@@ -31,6 +32,7 @@ const (
 	LastMessageTypeThinking = "thinking"
 )
 
+// ClaudeConvertInfo stores incremental conversion state for Claude-compatible streaming.
 type ClaudeConvertInfo struct {
 	LastMessagesType string
 	Index            int
@@ -42,21 +44,25 @@ type ClaudeConvertInfo struct {
 	ToolCallMaxIndexOffset int
 }
 
+// RerankerInfo stores rerank request details needed during downstream processing.
 type RerankerInfo struct {
 	Documents       []any
 	ReturnDocuments bool
 }
 
+// BuildInToolInfo records usage counters for a Responses built-in tool.
 type BuildInToolInfo struct {
 	ToolName          string
 	CallCount         int
 	SearchContextSize string
 }
 
+// ResponsesUsageInfo aggregates built-in tool usage collected from Responses requests.
 type ResponsesUsageInfo struct {
 	BuiltInTools map[string]*BuildInToolInfo
 }
 
+// ChannelMeta captures selected channel metadata copied from request context.
 type ChannelMeta struct {
 	ChannelType          int
 	ChannelId            int
@@ -77,11 +83,13 @@ type ChannelMeta struct {
 	SupportStreamOptions bool // 是否支持流式选项
 }
 
+// TokenCountMeta stores token counting metadata derived during relay setup.
 type TokenCountMeta struct {
 	//promptTokens int
 	estimatePromptTokens int
 }
 
+// RelayInfo carries request-scoped relay metadata, billing state, and conversion context.
 type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
@@ -343,6 +351,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeSiliconFlow: true,
 }
 
+// GenRelayInfoWs builds RelayInfo for OpenAI realtime websocket relays.
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	info := genBaseRelayInfo(c, nil)
 	info.RelayFormat = types.RelayFormatOpenAIRealtime
@@ -353,6 +362,7 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	return info
 }
 
+// GenRelayInfoClaude builds RelayInfo for Claude message relays.
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatClaude
@@ -360,10 +370,16 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
 		LastMessagesType: LastMessageTypeNone,
 	}
-	info.IsClaudeBetaQuery = c.Query("beta") == "true"
+	info.IsClaudeBetaQuery = c.Query("beta") == "true" || isClaudeBetaForced(c)
 	return info
 }
 
+func isClaudeBetaForced(c *gin.Context) bool {
+	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)
+	return ok && channelOtherSettings.ClaudeBetaQuery
+}
+
+// GenRelayInfoRerank builds RelayInfo for rerank requests.
 func GenRelayInfoRerank(c *gin.Context, request *dto.RerankRequest) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayMode = relayconstant.RelayModeRerank
@@ -375,18 +391,21 @@ func GenRelayInfoRerank(c *gin.Context, request *dto.RerankRequest) *RelayInfo {
 	return info
 }
 
+// GenRelayInfoOpenAIAudio builds RelayInfo for OpenAI audio endpoints.
 func GenRelayInfoOpenAIAudio(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIAudio
 	return info
 }
 
+// GenRelayInfoEmbedding builds RelayInfo for embedding requests.
 func GenRelayInfoEmbedding(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatEmbedding
 	return info
 }
 
+// GenRelayInfoResponses builds RelayInfo for OpenAI Responses API requests.
 func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayMode = relayconstant.RelayModeResponses
@@ -415,6 +434,7 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	return info
 }
 
+// GenRelayInfoGemini builds RelayInfo for Gemini requests.
 func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatGemini
@@ -423,12 +443,14 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+// GenRelayInfoImage builds RelayInfo for image generation requests.
 func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAIImage
 	return info
 }
 
+// GenRelayInfoOpenAI builds RelayInfo for standard OpenAI-compatible requests.
 func GenRelayInfoOpenAI(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAI
@@ -538,6 +560,7 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 	return headers
 }
 
+// GenRelayInfo selects the correct RelayInfo builder for the resolved relay format.
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
 	var info *RelayInfo
 	var err error
@@ -638,6 +661,7 @@ func (info *RelayInfo) GetFinalRequestRelayFormat() types.RelayFormat {
 	return info.RelayFormat
 }
 
+// GenRelayInfoResponsesCompaction builds RelayInfo for responses compaction requests.
 func GenRelayInfoResponsesCompaction(c *gin.Context, request *dto.OpenAIResponsesCompactionRequest) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	if info.RelayMode == relayconstant.RelayModeUnknown {
@@ -670,6 +694,7 @@ func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }
 
+// TaskRelayInfo stores request-scoped metadata for asynchronous task relays.
 type TaskRelayInfo struct {
 	Action       string
 	OriginTaskID string
@@ -685,6 +710,7 @@ type TaskRelayInfo struct {
 	LockedChannel any
 }
 
+// TaskSubmitReq describes the normalized task submission payload.
 type TaskSubmitReq struct {
 	Prompt         string                 `json:"prompt"`
 	Model          string                 `json:"model,omitempty"`
@@ -752,6 +778,7 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	return nil
 }
 
+// TaskInfo represents the normalized task status payload returned to clients.
 type TaskInfo struct {
 	Code             int    `json:"code"`
 	TaskID           string `json:"task_id"`
@@ -764,6 +791,7 @@ type TaskInfo struct {
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
 }
 
+// FailTaskInfo builds a failed TaskInfo with the provided reason.
 func FailTaskInfo(reason string) *TaskInfo {
 	return &TaskInfo{
 		Status: "FAILURE",
