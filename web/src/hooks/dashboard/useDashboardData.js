@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { API, isAdmin, showError, timestamp2string } from '../../helpers';
 import {
   getInitialChartRange,
+  parseDashboardTimestamp,
   setStoredChartRange,
 } from '../../helpers/dashboard';
 import { STORAGE_KEYS, TIME_OPTIONS } from '../../constants/dashboard.constants';
@@ -56,7 +57,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const detectQuickRangePreset = useCallback(
     (startTimestamp, endTimestamp, granularity) => {
       const diffSeconds =
-        (Date.parse(endTimestamp) - Date.parse(startTimestamp)) / 1000;
+        (parseDashboardTimestamp(endTimestamp) -
+          parseDashboardTimestamp(startTimestamp)) /
+        1000;
       const toleranceSeconds = 3600;
       const presets = ['24h', '7d', '30d', '90d'];
       for (const preset of presets) {
@@ -74,8 +77,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   );
 
   const isValidCustomRange = useCallback((startTimestamp, endTimestamp) => {
-    const startTime = Date.parse(startTimestamp);
-    const endTime = Date.parse(endTimestamp);
+    const startTime = parseDashboardTimestamp(startTimestamp);
+    const endTime = parseDashboardTimestamp(endTimestamp);
     return (
       Number.isFinite(startTime) &&
       Number.isFinite(endTime) &&
@@ -186,7 +189,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const performanceMetrics = useMemo(() => {
     const { start_timestamp, end_timestamp } = inputs;
     const timeDiff =
-      (Date.parse(end_timestamp) - Date.parse(start_timestamp)) / 60000;
+      (parseDashboardTimestamp(end_timestamp) -
+        parseDashboardTimestamp(start_timestamp)) /
+      60000;
     const avgRPM = isNaN(times / timeDiff)
       ? '0'
       : (times / timeDiff).toFixed(3);
@@ -236,7 +241,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         return null;
       }
       const endTimestamp = getCurrentEndTimestamp();
-      const endTimestampUnix = Date.parse(endTimestamp) / 1000;
+      const endTimestampUnix = parseDashboardTimestamp(endTimestamp) / 1000;
       const nextInputs = {
         ...inputs,
         start_timestamp: timestamp2string(endTimestampUnix - config.seconds),
@@ -349,8 +354,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       try {
         let url = '';
         const { start_timestamp, end_timestamp, username } = overrideInputs;
-        let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-        let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+        let localStartTimestamp = parseDashboardTimestamp(start_timestamp) / 1000;
+        let localEndTimestamp = parseDashboardTimestamp(end_timestamp) / 1000;
         const emptyStateTimestamp = Number.isFinite(localStartTimestamp)
           ? localStartTimestamp
           : 0;

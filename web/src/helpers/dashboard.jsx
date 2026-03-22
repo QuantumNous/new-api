@@ -38,11 +38,60 @@ import {
 } from '../constants/dashboard.constants';
 
 // ========== 时间相关工具函数 ==========
+export const normalizeDefaultTime = (timeType) => {
+  return DEFAULT_TIME_INTERVALS[timeType] ? timeType : 'hour';
+};
+
 export const getDefaultTime = () => {
-  return localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME) || 'hour';
+  return normalizeDefaultTime(
+    localStorage.getItem(STORAGE_KEYS.DATA_EXPORT_DEFAULT_TIME),
+  );
 };
 
 const VALID_RANGE_PRESETS = new Set(['24h', '7d', '30d', '90d', 'custom']);
+
+export const parseDashboardTimestamp = (timestamp) => {
+  if (typeof timestamp !== 'string') {
+    return NaN;
+  }
+
+  const match = timestamp.match(
+    /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/,
+  );
+  if (!match) {
+    return NaN;
+  }
+
+  const [
+    ,
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+  ] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const parsedDate = new Date(year, month - 1, day, hour, minute, second);
+
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day ||
+    parsedDate.getHours() !== hour ||
+    parsedDate.getMinutes() !== minute ||
+    parsedDate.getSeconds() !== second
+  ) {
+    return NaN;
+  }
+
+  return parsedDate.getTime();
+};
 
 const isValidStoredChartRange = (range) => {
   if (!range || typeof range !== 'object') {
@@ -50,14 +99,14 @@ const isValidStoredChartRange = (range) => {
   }
 
   const { start_timestamp, end_timestamp, default_time, preset } = range;
-  const startTime = Date.parse(start_timestamp);
-  const endTime = Date.parse(end_timestamp);
+  const startTime = parseDashboardTimestamp(start_timestamp);
+  const endTime = parseDashboardTimestamp(end_timestamp);
 
   return (
     Number.isFinite(startTime) &&
     Number.isFinite(endTime) &&
     startTime < endTime &&
-    Boolean(DEFAULT_TIME_INTERVALS[default_time]) &&
+    default_time === normalizeDefaultTime(default_time) &&
     (!preset || VALID_RANGE_PRESETS.has(preset))
   );
 };
@@ -82,7 +131,15 @@ export const getStoredChartRange = () => {
 };
 
 export const setStoredChartRange = (range) => {
-  localStorage.setItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE, JSON.stringify(range));
+  if (!isValidStoredChartRange(range)) {
+    localStorage.removeItem(STORAGE_KEYS.DASHBOARD_CHART_RANGE);
+    return;
+  }
+
+  localStorage.setItem(
+    STORAGE_KEYS.DASHBOARD_CHART_RANGE,
+    JSON.stringify(range),
+  );
 };
 
 export const getTimeInterval = (timeType, isSeconds = false) => {
@@ -92,8 +149,8 @@ export const getTimeInterval = (timeType, isSeconds = false) => {
 };
 
 export const getInitialTimestamp = (endTimestamp) => {
-  const defaultTime = getDefaultTime();
-  const parsedEndTimestamp = Date.parse(endTimestamp) / 1000;
+  const defaultTime = normalizeDefaultTime(getDefaultTime());
+  const parsedEndTimestamp = parseDashboardTimestamp(endTimestamp) / 1000;
   const baseTimestamp = Number.isFinite(parsedEndTimestamp)
     ? parsedEndTimestamp
     : new Date().getTime() / 1000;
@@ -114,7 +171,7 @@ export const getInitialChartRange = (endTimestamp) => {
     return storedRange;
   }
 
-  const defaultTime = getDefaultTime();
+  const defaultTime = normalizeDefaultTime(getDefaultTime());
   return {
     start_timestamp: getInitialTimestamp(endTimestamp),
     end_timestamp: endTimestamp,

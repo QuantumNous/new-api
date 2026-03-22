@@ -29,6 +29,7 @@ import {
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
+import { parseDashboardTimestamp } from '../../helpers/dashboard';
 
 const ChartsPanel = ({
   activeChartTab,
@@ -55,8 +56,8 @@ const ChartsPanel = ({
     customRangeDraft.end_timestamp,
   ];
   const hasCompleteCustomRange = customRangeValue.every(Boolean);
-  const customRangeStart = Date.parse(customRangeValue[0]);
-  const customRangeEnd = Date.parse(customRangeValue[1]);
+  const customRangeStart = parseDashboardTimestamp(customRangeValue[0]);
+  const customRangeEnd = parseDashboardTimestamp(customRangeValue[1]);
   const isCustomRangeOrderValid =
     !hasCompleteCustomRange ||
     (Number.isFinite(customRangeStart) &&
