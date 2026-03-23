@@ -51,7 +51,10 @@ export const getDefaultTime = () => {
   );
 };
 
-const VALID_RANGE_PRESETS = new Set(['24h', '7d', '30d', '90d', 'custom']);
+const VALID_RANGE_PRESETS = new Set([
+  ...Object.keys(DASHBOARD_QUICK_RANGE_CONFIGS),
+  'custom',
+]);
 
 // getDashboardQuickRangeConfig returns the predefined dashboard quick-range config.
 export const getDashboardQuickRangeConfig = (preset) => {
@@ -109,7 +112,8 @@ const isValidStoredChartRange = (range) => {
     Number.isFinite(endTime) &&
     startTime < endTime &&
     default_time === normalizeDefaultTime(default_time) &&
-    (!preset || VALID_RANGE_PRESETS.has(preset))
+    (preset == null ||
+      (typeof preset === 'string' && VALID_RANGE_PRESETS.has(preset)))
   );
 };
 

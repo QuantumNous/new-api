@@ -28,6 +28,7 @@ import {
   setStoredChartRange,
 } from '../../helpers/dashboard';
 import {
+  DASHBOARD_QUICK_RANGE_CONFIGS,
   STORAGE_KEYS,
   TIME_OPTIONS,
 } from '../../constants/dashboard.constants';
@@ -57,8 +58,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           parseDashboardTimestamp(startTimestamp)) /
         1000;
       const toleranceSeconds = 3600;
-      const presets = ['24h', '7d', '30d', '90d'];
-      for (const preset of presets) {
+      for (const preset of Object.keys(DASHBOARD_QUICK_RANGE_CONFIGS)) {
         const config = getDashboardQuickRangeConfig(preset);
         if (!config || config.defaultTime !== granularity) {
           continue;
