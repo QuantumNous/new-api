@@ -803,9 +803,11 @@ export const useLogsData = () => {
   };
 
   // Refresh function
-  const refresh = async (page = activePage) => {
+  const refresh = async (page = activePage, refreshStats = true) => {
     setActivePage(page);
-    handleEyeClick();
+    if (refreshStats) {
+      handleEyeClick();
+    }
     await loadLogs(page, pageSize);
   };
 

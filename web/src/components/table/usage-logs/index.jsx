@@ -33,7 +33,7 @@ import { createCardProPagination } from '../../../helpers/utils';
 const LogsPage = () => {
   const logsData = useLogsData();
   const isMobile = useIsMobile();
-  const refreshCurrentPage = () => logsData.refresh(logsData.activePage);
+  const refreshCurrentPage = () => logsData.refresh(logsData.activePage, false);
 
   return (
     <>
