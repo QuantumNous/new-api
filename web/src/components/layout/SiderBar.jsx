@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +6,7 @@ import { ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { isAdmin, isRoot, showError } from '../../helpers';
+import { isAdmin, isRoot } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
 import { Nav, Divider, Button } from '@douyinfe/semi-ui';
@@ -43,12 +24,18 @@ const routerMap = {
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
-  pricing: '/pricing',
-  task: '/console/task',
+  pricing: '/console/pricing',
   models: '/console/models',
   deployment: '/console/deployment',
-  playground: '/console/playground',
+  claudeCode: '/console/install/claude-code',
+  codex: '/console/install/codex',
+  tutorial: '/console/tutorial',
   personal: '/console/personal',
+};
+
+const routePrefixes = {
+  claudeCode: '/console/install/claude-code/',
+  codex: '/console/install/codex/',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -63,10 +50,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const showSkeleton = useMinimumLoadingTime(sidebarLoading, 200);
 
   const [selectedKeys, setSelectedKeys] = useState(['home']);
-  const [chatItems, setChatItems] = useState([]);
-  const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
-  const [routerMapState, setRouterMapState] = useState(routerMap);
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -90,20 +74,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/log',
       },
       {
-        text: t('绘图日志'),
-        itemKey: 'midjourney',
-        to: '/midjourney',
-        className:
-          localStorage.getItem('enable_drawing') === 'true'
-            ? ''
-            : 'tableHiddle',
-      },
-      {
-        text: t('任务日志'),
-        itemKey: 'task',
-        to: '/task',
-        className:
-          localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+        text: t('模型价格'),
+        itemKey: 'pricing',
+        to: '/pricing',
       },
     ];
 
@@ -116,11 +89,31 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return filteredItems;
   }, [
     localStorage.getItem('enable_data_export'),
-    localStorage.getItem('enable_drawing'),
-    localStorage.getItem('enable_task'),
     t,
     isModuleVisible,
   ]);
+
+  const tutorialItems = useMemo(() => {
+    const items = [
+      {
+        text: t('Claude Code安装'),
+        itemKey: 'claudeCode',
+        to: '/install/claude-code',
+      },
+      {
+        text: t('Codex安装'),
+        itemKey: 'codex',
+        to: '/install/codex',
+      },
+      {
+        text: t('使用教程'),
+        itemKey: 'tutorial',
+        to: '/tutorial',
+      },
+    ];
+
+    return items.filter((item) => isModuleVisible('tutorials', item.itemKey));
+  }, [t, isModuleVisible]);
 
   const financeItems = useMemo(() => {
     const items = [
@@ -200,99 +193,28 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     return filteredItems;
   }, [isAdmin(), isRoot(), t, isModuleVisible]);
 
-  const chatMenuItems = useMemo(() => {
-    const items = [
-      {
-        text: t('操练场'),
-        itemKey: 'playground',
-        to: '/playground',
-      },
-      {
-        text: t('聊天'),
-        itemKey: 'chat',
-        items: chatItems,
-      },
-    ];
-
-    // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
-      const configVisible = isModuleVisible('chat', item.itemKey);
-      return configVisible;
-    });
-
-    return filteredItems;
-  }, [chatItems, t, isModuleVisible]);
-
-  // 更新路由映射，添加聊天路由
-  const updateRouterMapWithChats = (chats) => {
-    const newRouterMap = { ...routerMap };
-
-    if (Array.isArray(chats) && chats.length > 0) {
-      for (let i = 0; i < chats.length; i++) {
-        newRouterMap['chat' + i] = '/console/chat/' + i;
-      }
-    }
-
-    setRouterMapState(newRouterMap);
-    return newRouterMap;
-  };
-
-  // 加载聊天项
-  useEffect(() => {
-    let chats = localStorage.getItem('chats');
-    if (chats) {
-      try {
-        chats = JSON.parse(chats);
-        if (Array.isArray(chats)) {
-          let chatItems = [];
-          for (let i = 0; i < chats.length; i++) {
-            let shouldSkip = false;
-            let chat = {};
-            for (let key in chats[i]) {
-              let link = chats[i][key];
-              if (typeof link !== 'string') continue; // 确保链接是字符串
-              if (link.startsWith('fluent') || link.startsWith('ccswitch')) {
-                shouldSkip = true;
-                break;
-              }
-              chat.text = key;
-              chat.itemKey = 'chat' + i;
-              chat.to = '/console/chat/' + i;
-            }
-            if (shouldSkip || !chat.text) continue; // 避免推入空项
-            chatItems.push(chat);
-          }
-          setChatItems(chatItems);
-          updateRouterMapWithChats(chats);
-        }
-      } catch (e) {
-        showError('聊天数据解析失败');
-      }
-    }
-  }, []);
-
   // 根据当前路径设置选中的菜单项
   useEffect(() => {
     const currentPath = location.pathname;
-    let matchingKey = Object.keys(routerMapState).find(
-      (key) => routerMapState[key] === currentPath,
+    const matchingKey = Object.keys(routerMap).find(
+      (key) => routerMap[key] === currentPath,
     );
 
-    // 处理聊天路由
-    if (!matchingKey && currentPath.startsWith('/console/chat/')) {
-      const chatIndex = currentPath.split('/').pop();
-      if (!isNaN(chatIndex)) {
-        matchingKey = 'chat' + chatIndex;
-      } else {
-        matchingKey = 'chat';
-      }
-    }
-
-    // 如果找到匹配的键，更新选中的键
     if (matchingKey) {
       setSelectedKeys([matchingKey]);
+      return;
     }
-  }, [location.pathname, routerMapState]);
+
+    const prefixMatchingKey = Object.keys(routePrefixes).find((key) =>
+      currentPath.startsWith(routePrefixes[key]),
+    );
+
+    if (prefixMatchingKey) {
+      setSelectedKeys([prefixMatchingKey]);
+    } else {
+      setSelectedKeys([]);
+    }
+  }, [location.pathname]);
 
   // 监控折叠状态变化以更新 body class
   useEffect(() => {
@@ -305,13 +227,19 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   // 选中高亮颜色（统一）
   const SELECTED_COLOR = 'var(--semi-color-primary)';
+  const isItemSelected = (itemKey) => selectedKeys.includes(itemKey);
+
+  const showConsoleSection = hasSectionVisibleModules('console');
+  const showTutorialsSection = hasSectionVisibleModules('tutorials');
+  const showPersonalSection = hasSectionVisibleModules('personal');
+  const showAdminSection = isAdmin() && hasSectionVisibleModules('admin');
 
   // 渲染自定义菜单项
   const renderNavItem = (item) => {
     // 跳过隐藏的项目
     if (item.className === 'tableHiddle') return null;
 
-    const isSelected = selectedKeys.includes(item.itemKey);
+    const isSelected = isItemSelected(item.itemKey);
     const textColor = isSelected ? SELECTED_COLOR : 'inherit';
 
     return (
@@ -331,59 +259,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             {getLucideIcon(item.itemKey, isSelected)}
           </div>
         }
-        className={item.className}
+        className={[
+          'sidebar-nav-entry',
+          'sidebar-nav-entry--item',
+          item.className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
       />
     );
-  };
-
-  // 渲染子菜单项
-  const renderSubItem = (item) => {
-    if (item.items && item.items.length > 0) {
-      const isSelected = selectedKeys.includes(item.itemKey);
-      const textColor = isSelected ? SELECTED_COLOR : 'inherit';
-
-      return (
-        <Nav.Sub
-          key={item.itemKey}
-          itemKey={item.itemKey}
-          text={
-            <span
-              className='truncate font-medium text-sm'
-              style={{ color: textColor }}
-            >
-              {item.text}
-            </span>
-          }
-          icon={
-            <div className='sidebar-icon-container flex-shrink-0'>
-              {getLucideIcon(item.itemKey, isSelected)}
-            </div>
-          }
-        >
-          {item.items.map((subItem) => {
-            const isSubSelected = selectedKeys.includes(subItem.itemKey);
-            const subTextColor = isSubSelected ? SELECTED_COLOR : 'inherit';
-
-            return (
-              <Nav.Item
-                key={subItem.itemKey}
-                itemKey={subItem.itemKey}
-                text={
-                  <span
-                    className='truncate font-medium text-sm'
-                    style={{ color: subTextColor }}
-                  >
-                    {subItem.text}
-                  </span>
-                }
-              />
-            );
-          })}
-        </Nav.Sub>
-      );
-    } else {
-      return renderNavItem(item);
-    }
   };
 
   return (
@@ -401,7 +285,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         showAdmin={isAdmin()}
       >
         <Nav
-          className='sidebar-nav'
+          className='sidebar-nav app-sidebar-nav'
           defaultIsCollapsed={collapsed}
           isCollapsed={collapsed}
           onCollapseChange={toggleCollapsed}
@@ -410,8 +294,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           hoverStyle='sidebar-nav-item:hover'
           selectedStyle='sidebar-nav-item-selected'
           renderWrapper={({ itemElement, props }) => {
-            const to =
-              routerMapState[props.itemKey] || routerMap[props.itemKey];
+            const to = routerMap[props.itemKey];
 
             // 如果没有路由，直接返回元素
             if (!to) return itemElement;
@@ -427,45 +310,37 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             );
           }}
           onSelect={(key) => {
-            // 如果点击的是已经展开的子菜单的父项，则收起子菜单
-            if (openedKeys.includes(key.itemKey)) {
-              setOpenedKeys(openedKeys.filter((k) => k !== key.itemKey));
-            }
-
             setSelectedKeys([key.itemKey]);
           }}
-          openKeys={openedKeys}
-          onOpenChange={(data) => {
-            setOpenedKeys(data.openKeys);
-          }}
         >
-          {/* 聊天区域 */}
-          {hasSectionVisibleModules('chat') && (
+          {/* 控制台区域 */}
+          {showConsoleSection && (
             <div className='sidebar-section'>
               {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
+                <div className='sidebar-group-label'>{t('控制台')}</div>
               )}
-              {chatMenuItems.map((item) => renderSubItem(item))}
+              {workspaceItems.map((item) => renderNavItem(item))}
             </div>
           )}
 
-          {/* 控制台区域 */}
-          {hasSectionVisibleModules('console') && (
+          {showTutorialsSection && (
             <>
-              <Divider className='sidebar-divider' />
+              {showConsoleSection && <Divider className='sidebar-divider' />}
               <div>
                 {!collapsed && (
-                  <div className='sidebar-group-label'>{t('控制台')}</div>
+                  <div className='sidebar-group-label'>{t('安装&教程')}</div>
                 )}
-                {workspaceItems.map((item) => renderNavItem(item))}
+                {tutorialItems.map((item) => renderNavItem(item))}
               </div>
             </>
           )}
 
           {/* 个人中心区域 */}
-          {hasSectionVisibleModules('personal') && (
+          {showPersonalSection && (
             <>
-              <Divider className='sidebar-divider' />
+              {(showConsoleSection || showTutorialsSection) && (
+                <Divider className='sidebar-divider' />
+              )}
               <div>
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('个人中心')}</div>
@@ -476,9 +351,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           )}
 
           {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
-          {isAdmin() && hasSectionVisibleModules('admin') && (
+          {showAdminSection && (
             <>
-              <Divider className='sidebar-divider' />
+              {(showConsoleSection ||
+                showTutorialsSection ||
+                showPersonalSection) && <Divider className='sidebar-divider' />}
               <div>
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('管理员')}</div>
@@ -503,6 +380,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             theme='outline'
             type='tertiary'
             size='small'
+            className='sidebar-collapse-trigger'
             icon={
               <ChevronLeft
                 size={16}

@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -45,6 +26,7 @@ const CardTable = ({
   loading = false,
   rowKey = 'key',
   hidePagination = false,
+  className = '',
   ...tableProps
 }) => {
   const isMobile = useIsMobile();
@@ -64,6 +46,7 @@ const CardTable = ({
 
     return (
       <Table
+        className={`app-data-table ${className}`.trim()}
         columns={columns}
         dataSource={dataSource}
         loading={loading}
@@ -115,7 +98,7 @@ const CardTable = ({
       );
 
       return (
-        <Card key={key} className='!rounded-2xl shadow-sm'>
+        <Card key={key} className='app-mobile-table-card !rounded-2xl shadow-sm'>
           <Skeleton loading={true} active placeholder={placeholder}></Skeleton>
         </Card>
       );
@@ -139,7 +122,7 @@ const CardTable = ({
       (!tableProps.rowExpandable || tableProps.rowExpandable(record));
 
     return (
-      <Card key={rowKeyVal} className='!rounded-2xl shadow-sm'>
+      <Card key={rowKeyVal} className='app-mobile-table-card !rounded-2xl shadow-sm'>
         {columns.map((col, colIdx) => {
           if (
             tableProps?.visibleColumns &&
@@ -214,7 +197,7 @@ const CardTable = ({
   }
 
   return (
-    <div className='flex flex-col gap-2'>
+    <div className={`app-mobile-table flex flex-col gap-2 ${className}`.trim()}>
       {dataSource.map((record, index) => (
         <MobileRowCard
           key={getRowKey(record, index)}
@@ -237,6 +220,7 @@ CardTable.propTypes = {
   loading: PropTypes.bool,
   rowKey: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
   hidePagination: PropTypes.bool,
+  className: PropTypes.string,
 };
 
 export default CardTable;

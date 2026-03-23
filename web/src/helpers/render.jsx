@@ -1,28 +1,8 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import i18next from 'i18next';
 import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
-import * as LobeIcons from '@lobehub/icons';
 import {
   OpenAI,
   Claude,
@@ -56,9 +36,13 @@ import {
   Jimeng,
   Perplexity,
   Replicate,
-} from '@lobehub/icons';
+  LOBE_ICON_REGISTRY,
+} from './lobeIcons';
 
 import {
+  BadgeDollarSign,
+  BookOpen,
+  Code2,
   LayoutDashboard,
   TerminalSquare,
   MessageSquare,
@@ -89,7 +73,6 @@ import {
   SiGitlab,
   SiGoogle,
   SiKeycloak,
-  SiLinkedin,
   SiNextcloud,
   SiNotion,
   SiOkta,
@@ -101,6 +84,7 @@ import {
   SiWechat,
   SiX,
 } from 'react-icons/si';
+import { FaLinkedinIn } from 'react-icons/fa';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -126,10 +110,18 @@ export function getLucideIcon(key, selected = false) {
       return <Key {...commonProps} color={iconColor} />;
     case 'log':
       return <BarChart3 {...commonProps} color={iconColor} />;
+    case 'pricing':
+      return <BadgeDollarSign {...commonProps} color={iconColor} />;
     case 'midjourney':
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
+    case 'claudeCode':
+      return <TerminalSquare {...commonProps} color={iconColor} />;
+    case 'codex':
+      return <Code2 {...commonProps} color={iconColor} />;
+    case 'tutorial':
+      return <BookOpen {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':
@@ -430,7 +422,7 @@ export function getLobeHubIcon(iconName, size = 14) {
   // 解析组件路径与点号链式属性
   const segments = String(iconName).split('.');
   const baseKey = segments[0];
-  const BaseIcon = LobeIcons[baseKey];
+  const BaseIcon = LOBE_ICON_REGISTRY[baseKey];
 
   let IconComponent = undefined;
   let propStartIndex = 1;
@@ -439,7 +431,7 @@ export function getLobeHubIcon(iconName, size = 14) {
     IconComponent = BaseIcon[segments[1]];
     propStartIndex = 2;
   } else {
-    IconComponent = LobeIcons[baseKey];
+    IconComponent = LOBE_ICON_REGISTRY[baseKey];
     propStartIndex = 1;
   }
 
@@ -504,7 +496,7 @@ const oauthProviderIconMap = {
   google: SiGoogle,
   discord: SiDiscord,
   facebook: SiFacebook,
-  linkedin: SiLinkedin,
+  linkedin: FaLinkedinIn,
   x: SiX,
   twitter: SiX,
   slack: SiSlack,

@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
@@ -26,6 +7,7 @@ import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
+import MarketingHeader from './MarketingHeader';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const {
@@ -35,17 +17,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     collapsed,
     logoLoaded,
     currentLang,
+    location,
     isLoading,
     systemName,
     logo,
     isNewYear,
     isSelfUseMode,
-    docsLink,
     isDemoSiteMode,
     isConsoleRoute,
     theme,
     headerNavModules,
-    pricingRequireAuth,
     logout,
     handleLanguageChange,
     handleThemeToggle,
@@ -62,10 +43,65 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     getUnreadKeys,
   } = useNotifications(statusState);
 
-  const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
+  const { mainNavLinks } = useNavigation(t, headerNavModules);
+  const marketingRoutes = [
+    '/',
+    '/pricing',
+    '/docs',
+    '/about',
+    '/login',
+    '/register',
+    '/reset',
+    '/user/reset',
+  ];
+  const isMarketingRoute = marketingRoutes.includes(location.pathname);
+  const visibleMainNavLinks = isConsoleRoute
+    ? mainNavLinks.filter(
+        (link) =>
+          !['console', 'pricing', 'docs', 'home', 'about'].includes(
+            link.itemKey,
+          ),
+      )
+    : mainNavLinks;
+
+  if (isMarketingRoute) {
+    return (
+      <header className='app-header-shell app-header-shell--marketing text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300'>
+        <NoticeModal
+          visible={noticeVisible}
+          onClose={handleNoticeClose}
+          isMobile={isMobile}
+          defaultTab={unreadCount > 0 ? 'system' : 'inApp'}
+          unreadKeys={getUnreadKeys()}
+        />
+
+        <MarketingHeader
+          mainNavLinks={visibleMainNavLinks}
+          isMobile={isMobile}
+          logo={logo}
+          logoLoaded={logoLoaded}
+          isLoading={isLoading}
+          systemName={systemName}
+          isSelfUseMode={isSelfUseMode}
+          isDemoSiteMode={isDemoSiteMode}
+          unreadCount={unreadCount}
+          onNoticeOpen={handleNoticeOpen}
+          theme={theme}
+          onThemeToggle={handleThemeToggle}
+          currentLang={currentLang}
+          onLanguageChange={handleLanguageChange}
+          userState={userState}
+          logout={logout}
+          navigate={navigate}
+          currentPath={location.pathname}
+          t={t}
+        />
+      </header>
+    );
+  }
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header className='app-header-shell text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -74,8 +110,8 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
+      <div className='app-header-shell__frame'>
+        <div className='app-header-shell__content'>
           <div className='flex items-center'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
@@ -99,13 +135,14 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             />
           </div>
 
-          <Navigation
-            mainNavLinks={mainNavLinks}
-            isMobile={isMobile}
-            isLoading={isLoading}
-            userState={userState}
-            pricingRequireAuth={pricingRequireAuth}
-          />
+          {visibleMainNavLinks.length > 0 && (
+            <Navigation
+              mainNavLinks={visibleMainNavLinks}
+              isMobile={isMobile}
+              isLoading={isLoading}
+              userState={userState}
+            />
+          )}
 
           <ActionButtons
             isNewYear={isNewYear}

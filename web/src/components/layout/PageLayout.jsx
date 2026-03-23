@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import HeaderBar from './headerbar';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
@@ -42,12 +23,13 @@ const { Sider, Content, Header } = Layout;
 
 const PageLayout = () => {
   const [userState, userDispatch] = useContext(UserContext);
-  const [, statusDispatch] = useContext(StatusContext);
+  const [statusState, statusDispatch] = useContext(StatusContext);
   const isMobile = useIsMobile();
   const [collapsed, , setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
+  const marketingBrandName = 'AI Force';
 
   const cardProPages = [
     '/console/channel',
@@ -55,13 +37,25 @@ const PageLayout = () => {
     '/console/redemption',
     '/console/user',
     '/console/token',
+    '/console/pricing',
+    '/console/install/claude-code',
+    '/console/install/codex',
+    '/console/tutorial',
     '/console/midjourney',
     '/console/task',
     '/console/models',
     '/pricing',
+    '/docs',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const cardProPagePrefixes = [
+    '/console/install/claude-code/',
+    '/console/install/codex/',
+  ];
+
+  const shouldHideFooter =
+    cardProPages.includes(location.pathname) ||
+    cardProPagePrefixes.some((prefix) => location.pathname.startsWith(prefix));
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -69,6 +63,17 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isHomeRoute = location.pathname === '/';
+  const isMarketingRoute = [
+    '/',
+    '/pricing',
+    '/docs',
+    '/about',
+    '/login',
+    '/register',
+    '/reset',
+    '/user/reset',
+  ].includes(location.pathname);
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
 
   useEffect(() => {
@@ -76,6 +81,17 @@ const PageLayout = () => {
       setCollapsed(false);
     }
   }, [isMobile, drawerOpen, collapsed, setCollapsed]);
+
+  useEffect(() => {
+    document.body.classList.toggle('route-home', isHomeRoute);
+    document.body.classList.toggle('route-marketing', isMarketingRoute);
+    document.body.classList.toggle('route-console', isConsoleRoute);
+    return () => {
+      document.body.classList.remove('route-home');
+      document.body.classList.remove('route-marketing');
+      document.body.classList.remove('route-console');
+    };
+  }, [isConsoleRoute, isHomeRoute, isMarketingRoute]);
 
   const loadUser = () => {
     let user = localStorage.getItem('user');
@@ -103,10 +119,6 @@ const PageLayout = () => {
   useEffect(() => {
     loadUser();
     loadStatus().catch(console.error);
-    let systemName = getSystemName();
-    if (systemName) {
-      document.title = systemName;
-    }
     let logo = getLogo();
     if (logo) {
       let linkElement = document.querySelector("link[rel~='icon']");
@@ -115,6 +127,14 @@ const PageLayout = () => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const systemName = statusState?.status?.system_name || getSystemName();
+    const resolvedTitle =
+      systemName && systemName !== 'New API' ? systemName : marketingBrandName;
+
+    document.title = resolvedTitle;
+  }, [statusState?.status?.system_name]);
 
   useEffect(() => {
     let preferredLang;
@@ -145,7 +165,7 @@ const PageLayout = () => {
 
   return (
     <Layout
-      className='app-layout'
+      className='app-layout app-layout-shell'
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -169,6 +189,7 @@ const PageLayout = () => {
         />
       </Header>
       <Layout
+        className='app-body-shell'
         style={{
           overflow: isMobile ? 'visible' : 'auto',
           display: 'flex',
@@ -177,11 +198,11 @@ const PageLayout = () => {
       >
         {showSider && (
           <Sider
-            className='app-sider'
+            className='app-sider app-sider-shell'
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
+              top: 'var(--app-header-height)',
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
@@ -196,6 +217,7 @@ const PageLayout = () => {
           </Sider>
         )}
         <Layout
+          className='app-content-shell'
           style={{
             marginLeft: isMobile
               ? '0'
@@ -208,6 +230,7 @@ const PageLayout = () => {
           }}
         >
           <Content
+            className='app-main-content'
             style={{
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',

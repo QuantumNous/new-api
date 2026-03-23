@@ -1,24 +1,11 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
-import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
 import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
@@ -27,7 +14,6 @@ import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
-import { StatusContext } from './context/Status';
 
 import PasswordResetForm from './components/auth/PasswordResetForm';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
@@ -45,6 +31,10 @@ import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import ConsolePricing from './pages/ConsolePricing';
+import ConsoleInstall from './pages/ConsoleInstall';
+import ConsoleTutorial from './pages/ConsoleTutorial';
+import Tutorial from './pages/Tutorial';
 import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
@@ -63,29 +53,6 @@ function DynamicOAuth2Callback() {
 
 function App() {
   const location = useLocation();
-  const [statusState] = useContext(StatusContext);
-
-  // 获取模型广场权限配置
-  const pricingRequireAuth = useMemo(() => {
-    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
-    if (headerNavModulesConfig) {
-      try {
-        const modules = JSON.parse(headerNavModulesConfig);
-
-        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
-        if (typeof modules.pricing === 'boolean') {
-          return false; // 默认不需要登录鉴权
-        }
-
-        // 如果是对象格式，使用requireAuth配置
-        return modules.pricing?.requireAuth === true;
-      } catch (error) {
-        console.error('解析顶栏模块配置失败:', error);
-        return false; // 默认不需要登录
-      }
-    }
-    return false; // 默认不需要登录
-  }, [statusState?.status?.HeaderNavModules]);
 
   return (
     <SetupCheck>
@@ -278,6 +245,54 @@ function App() {
           }
         />
         <Route
+          path='/console/pricing'
+          element={
+            <PrivateRoute>
+              <ConsolePricing />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/install/claude-code'
+          element={
+            <PrivateRoute>
+              <Navigate replace to='/console/install/claude-code/macos-linux' />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/install/codex'
+          element={
+            <PrivateRoute>
+              <Navigate replace to='/console/install/codex/macos-linux' />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/install/claude-code/:platform'
+          element={
+            <PrivateRoute>
+              <ConsoleInstall productId='claude-code' />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/install/codex/:platform'
+          element={
+            <PrivateRoute>
+              <ConsoleInstall productId='codex' />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/tutorial'
+          element={
+            <PrivateRoute>
+              <ConsoleTutorial />
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/console/log'
           element={
             <PrivateRoute>
@@ -318,20 +333,17 @@ function App() {
         <Route
           path='/pricing'
           element={
-            pricingRequireAuth ? (
-              <PrivateRoute>
-                <Suspense
-                  fallback={<Loading></Loading>}
-                  key={location.pathname}
-                >
-                  <Pricing />
-                </Suspense>
-              </PrivateRoute>
-            ) : (
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Pricing />
-              </Suspense>
-            )
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Pricing />
+            </Suspense>
+          }
+        />
+        <Route
+          path='/docs'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Tutorial />
+            </Suspense>
           }
         />
         <Route

@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
@@ -41,68 +22,6 @@ const pickStrokeColor = (percent) => {
   if (p >= 95) return '#ef4444';
   if (p >= 80) return '#f59e0b';
   return '#3b82f6';
-};
-
-const normalizePlanType = (value) => {
-  if (value == null) return '';
-  return String(value).trim().toLowerCase();
-};
-
-const getWindowDurationSeconds = (windowData) => {
-  const value = Number(windowData?.limit_window_seconds);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return value;
-};
-
-const classifyWindowByDuration = (windowData) => {
-  const seconds = getWindowDurationSeconds(windowData);
-  if (seconds == null) return null;
-  return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour';
-};
-
-const resolveRateLimitWindows = (data) => {
-  const rateLimit = data?.rate_limit ?? {};
-  const primary = rateLimit?.primary_window ?? null;
-  const secondary = rateLimit?.secondary_window ?? null;
-  const windows = [primary, secondary].filter(Boolean);
-  const planType = normalizePlanType(data?.plan_type ?? rateLimit?.plan_type);
-
-  let fiveHourWindow = null;
-  let weeklyWindow = null;
-
-  for (const windowData of windows) {
-    const bucket = classifyWindowByDuration(windowData);
-    if (bucket === 'fiveHour' && !fiveHourWindow) {
-      fiveHourWindow = windowData;
-      continue;
-    }
-    if (bucket === 'weekly' && !weeklyWindow) {
-      weeklyWindow = windowData;
-    }
-  }
-
-  if (planType === 'free') {
-    if (!weeklyWindow) {
-      weeklyWindow = primary ?? secondary ?? null;
-    }
-    return { fiveHourWindow: null, weeklyWindow };
-  }
-
-  if (!fiveHourWindow && !weeklyWindow) {
-    return {
-      fiveHourWindow: primary ?? null,
-      weeklyWindow: secondary ?? null,
-    };
-  }
-
-  if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((windowData) => windowData !== weeklyWindow) ?? null;
-  }
-  if (!weeklyWindow) {
-    weeklyWindow = windows.find((windowData) => windowData !== fiveHourWindow) ?? null;
-  }
-
-  return { fiveHourWindow, weeklyWindow };
 };
 
 const formatDurationSeconds = (seconds, t) => {
@@ -130,10 +49,6 @@ const formatUnixSeconds = (unixSeconds) => {
 
 const RateLimitWindowCard = ({ t, title, windowData }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
-  const hasWindowData =
-    !!windowData &&
-    typeof windowData === 'object' &&
-    Object.keys(windowData).length > 0;
   const percent = clampPercent(windowData?.used_percent ?? 0);
   const resetAt = windowData?.reset_at;
   const resetAfterSeconds = windowData?.reset_after_seconds;
@@ -149,30 +64,26 @@ const RateLimitWindowCard = ({ t, title, windowData }) => {
         </Text>
       </div>
 
-      {hasWindowData ? (
-        <div className='mt-2'>
-          <Progress
-            percent={percent}
-            stroke={pickStrokeColor(percent)}
-            showInfo={true}
-          />
-        </div>
-      ) : (
-        <div className='mt-3 text-sm text-semi-color-text-2'>-</div>
-      )}
+      <div className='mt-2'>
+        <Progress
+          percent={percent}
+          stroke={pickStrokeColor(percent)}
+          showInfo={true}
+        />
+      </div>
 
       <div className='mt-1 flex flex-wrap items-center gap-2 text-xs text-semi-color-text-2'>
         <div>
           {tt('已使用：')}
-          {hasWindowData ? `${percent}%` : '-'}
+          {percent}%
         </div>
         <div>
           {tt('距离重置：')}
-          {hasWindowData ? formatDurationSeconds(resetAfterSeconds, tt) : '-'}
+          {formatDurationSeconds(resetAfterSeconds, tt)}
         </div>
         <div>
           {tt('窗口：')}
-          {hasWindowData ? formatDurationSeconds(limitWindowSeconds, tt) : '-'}
+          {formatDurationSeconds(limitWindowSeconds, tt)}
         </div>
       </div>
     </div>
@@ -183,7 +94,9 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
   const tt = typeof t === 'function' ? t : (v) => v;
   const data = payload?.data ?? null;
   const rateLimit = data?.rate_limit ?? {};
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(data);
+
+  const primary = rateLimit?.primary_window ?? null;
+  const secondary = rateLimit?.secondary_window ?? null;
 
   const allowed = !!rateLimit?.allowed;
   const limitReached = !!rateLimit?.limit_reached;
@@ -231,12 +144,12 @@ const CodexUsageView = ({ t, record, payload, onCopy, onRefresh }) => {
         <RateLimitWindowCard
           t={tt}
           title={tt('5小时窗口')}
-          windowData={fiveHourWindow}
+          windowData={primary}
         />
         <RateLimitWindowCard
           t={tt}
           title={tt('每周窗口')}
-          windowData={weeklyWindow}
+          windowData={secondary}
         />
       </div>
 

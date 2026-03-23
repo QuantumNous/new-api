@@ -1,32 +1,15 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useMemo } from 'react';
-import { Empty, Descriptions } from '@douyinfe/semi-ui';
+import { Empty, Descriptions, Spin } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getLogsColumns } from './UsageLogsColumnDefs';
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
 
 const LogsTable = (logsData) => {
+  const isMobile = useIsMobile();
   const {
     logs,
     expandData,
@@ -87,6 +70,14 @@ const LogsTable = (logsData) => {
   const expandRowRender = (record, index) => {
     return <Descriptions data={expandData[record.key]} />;
   };
+
+  if (!isMobile && loading && (!logs || logs.length === 0)) {
+    return (
+      <div className='table-centered-loading-state'>
+        <Spin size='large' />
+      </div>
+    );
+  }
 
   return (
     <CardTable

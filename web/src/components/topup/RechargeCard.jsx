@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Avatar,
@@ -87,9 +68,6 @@ const RechargeCard = ({
   statusLoading,
   topupInfo,
   onOpenHistory,
-  enableWaffoTopUp,
-  waffoTopUp,
-  waffoPayMethods,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -124,16 +102,14 @@ const RechargeCard = ({
       <Card
         className='!rounded-xl w-full'
         cover={
-          <div
-            className='relative h-30'
-            style={{
-              '--palette-primary-darkerChannel': '37 99 235',
-              backgroundImage: `linear-gradient(0deg, rgba(var(--palette-primary-darkerChannel) / 80%), rgba(var(--palette-primary-darkerChannel) / 80%)), url('/cover-4.webp')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-          >
+            <div
+              className='relative h-30'
+              style={{
+                backgroundColor: '#B69973',
+                background:
+                  'linear-gradient(135deg, #9e7f5b 0%, #B69973 58%, #c9b190 100%)',
+              }}
+            >
             <div className='relative z-10 h-full flex flex-col justify-between p-4'>
               <div className='flex justify-between items-center'>
                 <Text strong style={{ color: 'white', fontSize: '16px' }}>
@@ -227,27 +203,28 @@ const RechargeCard = ({
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>
-        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp ? (
+        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
           >
             <div className='space-y-6'>
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
-                      label={t('充值数量')}
-                      disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
+                      label={t('充值金额(单位：美元)')}
+                      disabled={!enableOnlineTopUp && !enableStripeTopUp}
                       placeholder={
-                        t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
+                        t('充值进入，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
                       value={topUpCount}
                       min={minTopUp}
                       max={999999999}
                       step={1}
                       precision={0}
+                      suffix={'$'}
                       onChange={async (value) => {
                         if (value && value >= 1) {
                           setTopUpCount(value);
@@ -291,11 +268,11 @@ const RechargeCard = ({
                       style={{ width: '100%' }}
                     />
                   </Col>
-                  {payMethods && payMethods.filter(m => m.type !== 'waffo').length > 0 && (
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                     <Form.Slot label={t('选择支付方式')}>
+                      {payMethods && payMethods.length > 0 ? (
                         <Space wrap>
-                          {payMethods.filter(m => m.type !== 'waffo').map((payMethod) => {
+                          {payMethods.map((payMethod) => {
                             const minTopupVal = Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
                             const disabled =
@@ -355,13 +332,17 @@ const RechargeCard = ({
                             );
                           })}
                         </Space>
+                      ) : (
+                        <div className='text-gray-500 text-sm p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300'>
+                          {t('暂无可用的支付方式，请联系管理员配置')}
+                        </div>
+                      )}
                     </Form.Slot>
                   </Col>
-                  )}
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp) && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
@@ -481,46 +462,6 @@ const RechargeCard = ({
                   </div>
                 </Form.Slot>
               )}
-
-              {/* Waffo 充值区域 */}
-              {enableWaffoTopUp &&
-                waffoPayMethods &&
-                waffoPayMethods.length > 0 && (
-                  <Form.Slot label={t('Waffo 充值')}>
-                    <Space wrap>
-                      {waffoPayMethods.map((method, index) => (
-                        <Button
-                          key={index}
-                          theme='outline'
-                          type='tertiary'
-                          onClick={() => waffoTopUp(index)}
-                          loading={paymentLoading}
-                          icon={
-                            method.icon ? (
-                              <img
-                                src={method.icon}
-                                alt={method.name}
-                                style={{
-                                  width: 36,
-                                  height: 36,
-                                  objectFit: 'contain',
-                                }}
-                              />
-                            ) : (
-                              <CreditCard
-                                size={18}
-                                color='var(--semi-color-text-2)'
-                              />
-                            )
-                          }
-                          className='!rounded-lg !px-4 !py-2'
-                        >
-                          {method.name}
-                        </Button>
-                      ))}
-                    </Space>
-                  </Form.Slot>
-                )}
 
               {/* Creem 充值区域 */}
               {enableCreemTopUp && creemProducts.length > 0 && (

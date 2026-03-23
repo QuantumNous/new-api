@@ -1,21 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Modal,
@@ -37,13 +19,13 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
+
 const { Text } = Typography;
 
 // 状态映射配置
 const STATUS_CONFIG = {
   success: { type: 'success', key: '成功' },
   pending: { type: 'warning', key: '待支付' },
-  failed: { type: 'danger', key: '失败' },
   expired: { type: 'danger', key: '已过期' },
 };
 
@@ -51,7 +33,6 @@ const STATUS_CONFIG = {
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
   creem: 'Creem',
-  waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',
 };
@@ -63,6 +44,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
+
   const isMobile = useIsMobile();
 
   const loadTopups = async (currentPage, currentPageSize) => {
@@ -82,6 +64,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         Toast.error({ content: message || t('加载失败') });
       }
     } catch (error) {
+      console.error('Load topups error:', error);
       Toast.error({ content: t('加载账单失败') });
     } finally {
       setLoading(false);
@@ -213,21 +196,17 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('操作'),
         key: 'action',
         render: (_, record) => {
-          const actions = [];
-          if (record.status === 'pending') {
-            actions.push(
-              <Button
-                key="complete"
-                size='small'
-                type='primary'
-                theme='outline'
-                onClick={() => confirmAdminComplete(record.trade_no)}
-              >
-                {t('补单')}
-              </Button>
-            );
-          }
-          return actions.length > 0 ? <>{actions}</> : null;
+          if (record.status !== 'pending') return null;
+          return (
+            <Button
+              size='small'
+              type='primary'
+              theme='outline'
+              onClick={() => confirmAdminComplete(record.trade_no)}
+            >
+              {t('补单')}
+            </Button>
+          );
         },
       });
     }

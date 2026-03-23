@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useContext, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -459,16 +440,16 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
+      <div className='playground-page-shell h-full'>
+        <Layout className='playground-layout h-full bg-transparent flex flex-col md:flex-row'>
           {(showSettings || !isMobile) && (
             <Layout.Sider
               className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+              playground-settings-shell bg-transparent border-r-0 flex-shrink-0 overflow-auto
               ${
                 isMobile
                   ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+                  : 'relative z-[1] w-80 h-[calc(100vh-var(--app-header-height)-32px)]'
               }
             `}
               width={isMobile ? '100%' : 320}
@@ -496,8 +477,8 @@ const Playground = () => {
             </Layout.Sider>
           )}
 
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
+          <Layout.Content className='playground-content-shell relative flex-1 overflow-hidden'>
+            <div className='playground-workspace overflow-hidden flex flex-col lg:flex-row'>
               <div className='flex-1 flex flex-col'>
                 <ChatArea
                   chatRef={chatRef}
@@ -534,7 +515,7 @@ const Playground = () => {
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
+              <div className='playground-debug-overlay fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
                 <OptimizedDebugPanel
                   debugData={debugData}
                   activeDebugTab={activeDebugTab}

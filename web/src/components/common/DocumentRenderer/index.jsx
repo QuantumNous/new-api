@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useEffect, useState } from 'react';
 import { API, showError } from '../../../helpers';
 import { Empty, Card, Spin, Typography } from '@douyinfe/semi-ui';
@@ -153,7 +134,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 显示加载状态
   if (loading) {
     return (
-      <div className='flex justify-center items-center min-h-screen'>
+      <div className='public-state-shell flex justify-center items-center min-h-screen'>
         <Spin size='large' />
       </div>
     );
@@ -162,7 +143,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果没有内容，显示空状态
   if (!content || content.trim() === '') {
     return (
-      <div className='flex justify-center items-center min-h-screen bg-gray-50'>
+      <div className='public-state-shell flex justify-center items-center min-h-screen'>
         <Empty
           title={t('管理员未设置' + title + '内容')}
           image={
@@ -180,8 +161,8 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   // 如果是 URL，显示链接卡片
   if (isUrl(content)) {
     return (
-      <div className='flex justify-center items-center min-h-screen bg-gray-50 p-4'>
-        <Card className='max-w-md w-full'>
+      <div className='public-state-shell flex justify-center items-center min-h-screen p-4'>
+        <Card className='public-document-card max-w-md w-full'>
           <div className='text-center'>
             <Title heading={4} className='mb-4'>
               {title}
@@ -195,7 +176,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
               rel='noopener noreferrer'
               title={content.trim()}
               aria-label={`${t('访问' + title)}: ${content.trim()}`}
-              className='inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+              className='auth-page-shell__link inline-block px-6 py-3 rounded-lg transition-colors'
             >
               {t('访问' + title)}
             </a>
@@ -217,9 +198,9 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     }, [content, styles, htmlStyles]);
 
     return (
-      <div className='min-h-screen bg-gray-50'>
+      <div className='public-state-shell min-h-screen'>
         <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-          <div className='bg-white rounded-lg shadow-sm p-8'>
+          <div className='public-document-card'>
             <Title heading={2} className='text-center mb-8'>
               {title}
             </Title>
@@ -235,9 +216,9 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
 
   // 其他内容统一使用 Markdown 渲染器
   return (
-    <div className='min-h-screen bg-gray-50'>
+    <div className='public-state-shell min-h-screen'>
       <div className='max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8'>
-        <div className='bg-white rounded-lg shadow-sm p-8'>
+        <div className='public-document-card'>
           <Title heading={2} className='text-center mb-8'>
             {title}
           </Title>

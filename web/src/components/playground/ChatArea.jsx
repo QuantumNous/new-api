@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import { Card, Chat, Typography, Button } from '@douyinfe/semi-ui';
 import { MessageSquare, Eye, EyeOff } from 'lucide-react';
@@ -48,11 +29,11 @@ const ChatArea = ({
 
   return (
     <Card
-      className='h-full'
+      className='playground-chat-card h-full'
       bordered={false}
       bodyStyle={{
         padding: 0,
-        height: 'calc(100vh - 66px)',
+        height: 'calc(100vh - var(--app-header-height) - 32px)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -62,17 +43,17 @@ const ChatArea = ({
       {styleState.isMobile ? (
         <div className='pt-4'></div>
       ) : (
-        <div className='px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-t-2xl'>
+        <div className='playground-chat-card__header px-6 py-4 rounded-t-2xl'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-3'>
-              <div className='w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center'>
-                <MessageSquare size={20} className='text-white' />
+              <div className='playground-chat-card__icon w-10 h-10 rounded-full backdrop-blur flex items-center justify-center'>
+                <MessageSquare size={20} />
               </div>
               <div>
-                <Typography.Title heading={5} className='!text-white mb-0'>
+                <Typography.Title heading={5} className='playground-chat-card__title !mb-0'>
                   {t('AI 对话')}
                 </Typography.Title>
-                <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
+                <Typography.Text className='playground-chat-card__subtitle text-sm hidden sm:inline'>
                   {inputs.model || t('选择模型开始对话')}
                 </Typography.Text>
               </div>
@@ -84,7 +65,7 @@ const ChatArea = ({
                 theme='borderless'
                 type='primary'
                 size='small'
-                className='!rounded-lg !text-white/80 hover:!text-white hover:!bg-white/10'
+                className='playground-chat-card__toggle !rounded-lg'
               >
                 {showDebugPanel ? t('隐藏调试') : t('显示调试')}
               </Button>
@@ -118,7 +99,7 @@ const ChatArea = ({
           showStopGenerate
           onStopGenerator={onStopGenerator}
           onClear={onClearMessages}
-          className='h-full'
+          className='playground-chat h-full'
           placeholder={t('请输入您的问题...')}
         />
       </div>

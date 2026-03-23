@@ -1,29 +1,8 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useState } from 'react';
-import { Card, Divider, Typography, Button } from '@douyinfe/semi-ui';
+import { Card, Divider, Button } from '@douyinfe/semi-ui';
 import PropTypes from 'prop-types';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { IconEyeOpened, IconEyeClosed } from '@douyinfe/semi-icons';
-
-const { Text } = Typography;
 
 /**
  * CardPro 高级卡片组件
@@ -76,7 +55,7 @@ const CardPro = ({
     if (!hasContent) return null;
 
     return (
-      <div className='flex flex-col w-full'>
+      <div className='card-pro-header flex flex-col w-full'>
         {/* 统计信息区域 - 用于type2 */}
         {type === 'type2' && statsArea && <>{statsArea}</>}
 
@@ -96,7 +75,7 @@ const CardPro = ({
 
         {/* 移动端操作切换按钮 */}
         {isMobile && hasMobileHideableContent && (
-          <>
+          <div className='card-pro-divider-wrap'>
             <div className='w-full mb-2'>
               <Button
                 onClick={toggleMobileActions}
@@ -104,17 +83,18 @@ const CardPro = ({
                 type='tertiary'
                 size='small'
                 theme='outline'
+                className='card-pro-mobile-toggle'
                 block
               >
                 {showMobileActions ? t('隐藏操作项') : t('显示操作项')}
               </Button>
             </div>
-          </>
+          </div>
         )}
 
         {/* 操作按钮和搜索表单的容器 */}
         <div
-          className={`flex flex-col gap-2 ${isMobile && !showMobileActions ? 'hidden' : ''}`}
+          className={`card-pro-toolbar-stack flex flex-col gap-2 ${isMobile && !showMobileActions ? 'hidden' : ''}`}
         >
           {/* 操作按钮区域 - 用于type1和type3 */}
           {(type === 'type1' || type === 'type3') &&
@@ -148,7 +128,7 @@ const CardPro = ({
 
     return (
       <div
-        className={`flex w-full pt-4 border-t ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
+        className={`card-pro-footer flex w-full pt-4 border-t ${isMobile ? 'justify-center' : 'justify-between items-center'}`}
         style={{ borderColor: 'var(--semi-color-border)' }}
       >
         {paginationArea}
@@ -160,7 +140,7 @@ const CardPro = ({
 
   return (
     <Card
-      className={`table-scroll-card !rounded-2xl ${className}`}
+      className={`table-scroll-card card-pro-shell !rounded-2xl ${className}`}
       title={headerContent}
       footer={footerContent}
       shadows={shadows}

@@ -1,27 +1,9 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import { Card, Button, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Server, AlertCircle, WifiOff } from 'lucide-react';
+import ConsolePageShell from '../layout/ConsolePageShell';
 
 const { Title, Text } = Typography;
 
@@ -43,28 +25,21 @@ const DeploymentAccessGuard = ({
 
   if (loading) {
     return (
-      <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
+      <ConsolePageShell>
+        <Card className='deployment-guard-card' loading={true} style={{ minHeight: '400px' }}>
           <div style={{ textAlign: 'center', padding: '50px 0' }}>
             <Text type='secondary'>{t('加载设置中...')}</Text>
           </div>
         </Card>
-      </div>
+      </ConsolePageShell>
     );
   }
 
   if (!isEnabled) {
     return (
-      <div
-        className='mt-[60px] px-4'
-        style={{
-          minHeight: 'calc(100vh - 60px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <ConsolePageShell className='console-page-shell--centered'>
         <div
+          className='deployment-guard-state'
           style={{
             maxWidth: '600px',
             width: '100%',
@@ -276,19 +251,19 @@ const DeploymentAccessGuard = ({
             </Text>
           </Card>
         </div>
-      </div>
+      </ConsolePageShell>
     );
   }
 
   if (connectionLoading || (connectionOk === null && !connectionError)) {
     return (
-      <div className='mt-[60px] px-2'>
-        <Card loading={true} style={{ minHeight: '400px' }}>
+      <ConsolePageShell>
+        <Card className='deployment-guard-card' loading={true} style={{ minHeight: '400px' }}>
           <div style={{ textAlign: 'center', padding: '50px 0' }}>
             <Text type='secondary'>{t('正在检查 io.net 连接...')}</Text>
           </div>
         </Card>
-      </div>
+      </ConsolePageShell>
     );
   }
 
@@ -301,16 +276,9 @@ const DeploymentAccessGuard = ({
     const detail = connectionError?.message || '';
 
     return (
-      <div
-        className='mt-[60px] px-4'
-        style={{
-          minHeight: 'calc(100vh - 60px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <ConsolePageShell className='console-page-shell--centered'>
         <div
+          className='deployment-guard-state'
           style={{
             maxWidth: '600px',
             width: '100%',
@@ -402,7 +370,7 @@ const DeploymentAccessGuard = ({
             </div>
           </Card>
         </div>
-      </div>
+      </ConsolePageShell>
     );
   }
 

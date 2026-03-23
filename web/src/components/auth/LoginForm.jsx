@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserContext } from '../../context/User';
@@ -115,6 +96,16 @@ const LoginForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+  const brandName = systemName === 'New API' ? 'AI Force' : systemName;
+  const optionButtonClassName =
+    'auth-page-shell__option-button w-full h-12 flex items-center justify-center !rounded-full transition-colors';
+  const primaryButtonClassName =
+    'auth-page-shell__primary-button w-full h-12 flex items-center justify-center !rounded-full transition-colors';
+  const formPrimaryButtonClassName =
+    'auth-page-shell__primary-button w-full !rounded-full transition-colors';
+  const tertiaryButtonClassName =
+    'auth-page-shell__tertiary-button w-full !rounded-full';
+  const linkClassName = 'auth-page-shell__link mx-1 font-medium';
 
   let affCode = new URLSearchParams(window.location.search).get('aff');
   if (affCode) {
@@ -506,14 +497,14 @@ const LoginForm = () => {
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
             <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3} className='!text-gray-800'>
-              {systemName}
+            <Title heading={3} className='auth-page-shell__brand-title'>
+              {brandName}
             </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-page-shell__card border-0 !rounded-2xl overflow-hidden'>
             <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+              <Title heading={3} className='auth-page-shell__title'>
                 {t('登 录')}
               </Title>
             </div>
@@ -522,7 +513,7 @@ const LoginForm = () => {
                 {status.wechat_login && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={
                       <Icon svg={<WeChatIcon />} style={{ color: '#07C160' }} />
@@ -537,7 +528,7 @@ const LoginForm = () => {
                 {status.github_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={<IconGithubLogo size='large' />}
                     onClick={handleGitHubClick}
@@ -551,7 +542,7 @@ const LoginForm = () => {
                 {status.discord_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={
                       <SiDiscord
@@ -572,7 +563,7 @@ const LoginForm = () => {
                 {status.oidc_enabled && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={<OIDCIcon style={{ color: '#1877F2' }} />}
                     onClick={handleOIDCClick}
@@ -585,7 +576,7 @@ const LoginForm = () => {
                 {status.linuxdo_oauth && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={
                       <LinuxDoIcon
@@ -608,7 +599,7 @@ const LoginForm = () => {
                     <Button
                       key={provider.slug}
                       theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      className={optionButtonClassName}
                       type='tertiary'
                       icon={getOAuthProviderIcon(provider.icon || '', 20)}
                       onClick={() => handleCustomOAuthClick(provider)}
@@ -632,7 +623,7 @@ const LoginForm = () => {
                 {status.passkey_login && passkeySupported && (
                   <Button
                     theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    className={optionButtonClassName}
                     type='tertiary'
                     icon={<IconKey size='large' />}
                     onClick={handlePasskeyLogin}
@@ -649,7 +640,7 @@ const LoginForm = () => {
                 <Button
                   theme='solid'
                   type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                  className={primaryButtonClassName}
                   icon={<IconMail size='large' />}
                   onClick={handleEmailLoginClick}
                   loading={emailLoginLoading}
@@ -672,7 +663,7 @@ const LoginForm = () => {
                             href='/user-agreement'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-600 hover:text-blue-800 mx-1'
+                            className={linkClassName}
                           >
                             {t('用户协议')}
                           </a>
@@ -685,7 +676,7 @@ const LoginForm = () => {
                             href='/privacy-policy'
                             target='_blank'
                             rel='noopener noreferrer'
-                            className='text-blue-600 hover:text-blue-800 mx-1'
+                            className={linkClassName}
                           >
                             {t('隐私政策')}
                           </a>
@@ -702,7 +693,7 @@ const LoginForm = () => {
                     {t('没有账户？')}{' '}
                     <Link
                       to='/register'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
+                      className='auth-page-shell__link font-medium'
                     >
                       {t('注册')}
                     </Link>
@@ -722,12 +713,14 @@ const LoginForm = () => {
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
             <img src={logo} alt='Logo' className='h-10 rounded-full' />
-            <Title heading={3}>{systemName}</Title>
+            <Title heading={3} className='auth-page-shell__brand-title'>
+              {brandName}
+            </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-page-shell__card border-0 !rounded-2xl overflow-hidden'>
             <div className='flex justify-center pt-6 pb-2'>
-              <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+              <Title heading={3} className='auth-page-shell__title'>
                 {t('登 录')}
               </Title>
             </div>
@@ -736,7 +729,7 @@ const LoginForm = () => {
                 <Button
                   theme='outline'
                   type='tertiary'
-                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                  className={`${optionButtonClassName} mb-4`}
                   icon={<IconKey size='large' />}
                   onClick={handlePasskeyLogin}
                   loading={passkeyLoading}
@@ -778,7 +771,7 @@ const LoginForm = () => {
                               href='/user-agreement'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className={linkClassName}
                             >
                               {t('用户协议')}
                             </a>
@@ -791,7 +784,7 @@ const LoginForm = () => {
                               href='/privacy-policy'
                               target='_blank'
                               rel='noopener noreferrer'
-                              className='text-blue-600 hover:text-blue-800 mx-1'
+                              className={linkClassName}
                             >
                               {t('隐私政策')}
                             </a>
@@ -805,7 +798,7 @@ const LoginForm = () => {
                 <div className='space-y-2 pt-2'>
                   <Button
                     theme='solid'
-                    className='w-full !rounded-full'
+                    className={formPrimaryButtonClassName}
                     type='primary'
                     htmlType='submit'
                     onClick={handleSubmit}
@@ -820,7 +813,7 @@ const LoginForm = () => {
                   <Button
                     theme='borderless'
                     type='tertiary'
-                    className='w-full !rounded-full'
+                    className={tertiaryButtonClassName}
                     onClick={handleResetPasswordClick}
                     loading={resetPasswordLoading}
                   >
@@ -839,7 +832,7 @@ const LoginForm = () => {
                     <Button
                       theme='outline'
                       type='tertiary'
-                      className='w-full !rounded-full'
+                      className={optionButtonClassName}
                       onClick={handleOtherLoginOptionsClick}
                       loading={otherLoginOptionsLoading}
                     >
@@ -855,7 +848,7 @@ const LoginForm = () => {
                     {t('没有账户？')}{' '}
                     <Link
                       to='/register'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
+                      className='auth-page-shell__link font-medium'
                     >
                       {t('注册')}
                     </Link>
@@ -947,7 +940,7 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
+    <div className='auth-page-shell auth-page-shell--marketing relative overflow-hidden flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
       {/* 背景模糊晕染球 */}
       <div
         className='blur-ball blur-ball-indigo'
@@ -957,7 +950,7 @@ const LoginForm = () => {
         className='blur-ball blur-ball-teal'
         style={{ top: '50%', left: '-120px' }}
       />
-      <div className='w-full max-w-sm mt-[60px]'>
+      <div className='auth-page-shell__content w-full max-w-sm'>
         {showEmailLogin ||
         !hasOAuthLoginOptions
           ? renderEmailLoginForm()

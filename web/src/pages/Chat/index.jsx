@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
 import { Spin } from '@douyinfe/semi-ui';
@@ -56,18 +37,13 @@ const ChatPage = () => {
   return !isLoading && iframeSrc ? (
     <iframe
       src={iframeSrc}
-      style={{
-        width: '100%',
-        height: 'calc(100vh - 64px)',
-        border: 'none',
-        marginTop: '64px',
-      }}
+      className='chat-iframe-shell'
       title='Token Frame'
       allow='camera;microphone'
     />
   ) : (
-    <div className='fixed inset-0 w-screen h-screen flex items-center justify-center bg-white/80 z-[1000] mt-[60px]'>
-      <div className='flex flex-col items-center'>
+    <div className='chat-loading-shell fixed inset-0 w-screen h-screen flex items-center justify-center z-[1000]'>
+      <div className='chat-loading-card flex flex-col items-center'>
         <Spin size='large' spinning={true} tip={null} />
         <span
           className='whitespace-nowrap mt-2 text-center'

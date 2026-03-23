@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useEffect, useState } from 'react';
 import {
   API,
@@ -50,6 +31,9 @@ const PasswordResetForm = () => {
 
   const logo = getLogo();
   const systemName = getSystemName();
+  const brandName = systemName === 'New API' ? 'AI Force' : systemName;
+  const formPrimaryButtonClassName =
+    'auth-page-shell__primary-button w-full !rounded-full transition-colors';
 
   useEffect(() => {
     let status = localStorage.getItem('status');
@@ -104,7 +88,7 @@ const PasswordResetForm = () => {
   }
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
+    <div className='auth-page-shell auth-page-shell--marketing relative overflow-hidden flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
       {/* 背景模糊晕染球 */}
       <div
         className='blur-ball blur-ball-indigo'
@@ -114,19 +98,19 @@ const PasswordResetForm = () => {
         className='blur-ball blur-ball-teal'
         style={{ top: '50%', left: '-120px' }}
       />
-      <div className='w-full max-w-sm mt-[60px]'>
+      <div className='auth-page-shell__content w-full max-w-sm'>
         <div className='flex flex-col items-center'>
           <div className='w-full max-w-md'>
-            <div className='flex items-center justify-center mb-6 gap-2'>
+            <div className='auth-page-shell__brand flex items-center justify-center mb-6 gap-2'>
               <img src={logo} alt='Logo' className='h-10 rounded-full' />
-              <Title heading={3} className='!text-gray-800'>
-                {systemName}
+              <Title heading={3} className='auth-page-shell__brand-title'>
+                {brandName}
               </Title>
             </div>
 
-            <Card className='border-0 !rounded-2xl overflow-hidden'>
+            <Card className='auth-page-shell__card border-0 !rounded-2xl overflow-hidden'>
               <div className='flex justify-center pt-6 pb-2'>
-                <Title heading={3} className='text-gray-800 dark:text-gray-200'>
+                <Title heading={3} className='auth-page-shell__title'>
                   {t('密码重置')}
                 </Title>
               </div>
@@ -145,7 +129,7 @@ const PasswordResetForm = () => {
                   <div className='space-y-2 pt-2'>
                     <Button
                       theme='solid'
-                      className='w-full !rounded-full'
+                      className={formPrimaryButtonClassName}
                       type='primary'
                       htmlType='submit'
                       onClick={handleSubmit}
@@ -164,7 +148,7 @@ const PasswordResetForm = () => {
                     {t('想起来了？')}{' '}
                     <Link
                       to='/login'
-                      className='text-blue-600 hover:text-blue-800 font-medium'
+                      className='auth-page-shell__link font-medium'
                     >
                       {t('登录')}
                     </Link>

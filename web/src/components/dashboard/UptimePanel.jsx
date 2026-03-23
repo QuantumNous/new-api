@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import {
   Card,
@@ -49,10 +30,10 @@ const UptimePanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-1'
+      className='console-dashboard-panel !rounded-2xl lg:col-span-1'
       title={
         <div className='flex items-center justify-between w-full gap-2'>
-          <div className='flex items-center gap-2'>
+          <div className='console-dashboard-panel-title flex items-center gap-2'>
             <Gauge size={16} />
             {t('服务可用性')}
           </div>
@@ -63,7 +44,7 @@ const UptimePanel = ({
             size='small'
             theme='borderless'
             type='tertiary'
-            className='text-gray-500 hover:text-blue-500 hover:bg-blue-50 !rounded-full'
+            className='console-dashboard__action console-dashboard__action--ghost'
           />
         </div>
       }
@@ -79,6 +60,7 @@ const UptimePanel = ({
               </ScrollableContainer>
             ) : (
               <Tabs
+                className='console-dashboard-tabs'
                 type='card'
                 collapsible
                 activeKey={activeUptimeTab}
@@ -99,6 +81,11 @@ const UptimePanel = ({
                           }
                           size='small'
                           shape='circle'
+                          className={
+                            activeUptimeTab === group.categoryName
+                              ? 'console-dashboard-chip console-dashboard-chip--accent'
+                              : 'console-dashboard-chip'
+                          }
                         >
                           {group.monitors ? group.monitors.length : 0}
                         </Tag>
@@ -131,7 +118,7 @@ const UptimePanel = ({
 
       {/* 图例 */}
       {uptimeData.length > 0 && (
-        <div className='p-3 bg-gray-50 rounded-b-2xl'>
+        <div className='console-dashboard-legend-footer p-3 rounded-b-2xl'>
           <div className='flex flex-wrap gap-3 text-xs justify-center'>
             {uptimeLegendData.map((legend, index) => (
               <div key={index} className='flex items-center gap-1'>
@@ -139,7 +126,9 @@ const UptimePanel = ({
                   className='w-2 h-2 rounded-full'
                   style={{ backgroundColor: legend.color }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='console-dashboard-legend-label'>
+                  {legend.label}
+                </span>
               </div>
             ))}
           </div>

@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useState, useEffect, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -30,6 +11,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
+import { mergeAdminConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
@@ -39,36 +21,9 @@ export default function SettingsSidebarModulesAdmin(props) {
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 左侧边栏模块管理状态（管理员全局控制）
-  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
-    chat: {
-      enabled: true,
-      playground: true,
-      chat: true,
-    },
-    console: {
-      enabled: true,
-      detail: true,
-      token: true,
-      log: true,
-      midjourney: true,
-      task: true,
-    },
-    personal: {
-      enabled: true,
-      topup: true,
-      personal: true,
-    },
-    admin: {
-      enabled: true,
-      channel: true,
-      models: true,
-      deployment: true,
-      redemption: true,
-      user: true,
-      subscription: true,
-      setting: true,
-    },
-  });
+  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState(() =>
+    mergeAdminConfig(null),
+  );
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
@@ -100,37 +55,7 @@ export default function SettingsSidebarModulesAdmin(props) {
 
   // 重置为默认配置
   function resetSidebarModules() {
-    const defaultModules = {
-      chat: {
-        enabled: true,
-        playground: true,
-        chat: true,
-      },
-      console: {
-        enabled: true,
-        detail: true,
-        token: true,
-        log: true,
-        midjourney: true,
-        task: true,
-      },
-      personal: {
-        enabled: true,
-        topup: true,
-        personal: true,
-      },
-      admin: {
-        enabled: true,
-        channel: true,
-        models: true,
-        deployment: true,
-        redemption: true,
-        user: true,
-        subscription: true,
-        setting: true,
-      },
-    };
-    setSidebarModulesAdmin(defaultModules);
+    setSidebarModulesAdmin(mergeAdminConfig(null));
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -174,32 +99,9 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin(mergeAdminConfig(modules));
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          chat: { enabled: true, playground: true, chat: true },
-          console: {
-            enabled: true,
-            detail: true,
-            token: true,
-            log: true,
-            midjourney: true,
-            task: true,
-          },
-          personal: { enabled: true, topup: true, personal: true },
-          admin: {
-            enabled: true,
-            channel: true,
-            models: true,
-            deployment: true,
-            redemption: true,
-            user: true,
-            subscription: true,
-            setting: true,
-          },
-        };
-        setSidebarModulesAdmin(defaultModules);
+        setSidebarModulesAdmin(mergeAdminConfig(null));
       }
     }
   }, [props.options]);
@@ -222,17 +124,38 @@ export default function SettingsSidebarModulesAdmin(props) {
     {
       key: 'console',
       title: t('控制台区域'),
-      description: t('数据管理和日志查看'),
+      description: t('数据管理和模型价格查看'),
       modules: [
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
         {
-          key: 'midjourney',
-          title: t('绘图日志'),
-          description: t('绘图任务记录'),
+          key: 'pricing',
+          title: t('模型价格'),
+          description: t('模型价格查询'),
         },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
+    },
+    {
+      key: 'tutorials',
+      title: t('安装&教程'),
+      description: t('安装教程和使用文档'),
+      modules: [
+        {
+          key: 'claudeCode',
+          title: t('Claude Code安装'),
+          description: t('Claude Code 安装说明'),
+        },
+        {
+          key: 'codex',
+          title: t('Codex安装'),
+          description: t('Codex 安装说明'),
+        },
+        {
+          key: 'tutorial',
+          title: t('使用教程'),
+          description: t('平台使用教程'),
+        },
       ],
     },
     {

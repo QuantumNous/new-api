@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React, { useRef, useEffect, useState, useContext } from 'react';
 import {
   Button,
@@ -63,36 +44,9 @@ const NotificationSettings = ({
   // 左侧边栏设置相关状态
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [activeTabKey, setActiveTabKey] = useState('notification');
-  const [sidebarModulesUser, setSidebarModulesUser] = useState({
-    chat: {
-      enabled: true,
-      playground: true,
-      chat: true,
-    },
-    console: {
-      enabled: true,
-      detail: true,
-      token: true,
-      log: true,
-      midjourney: true,
-      task: true,
-    },
-    personal: {
-      enabled: true,
-      topup: true,
-      personal: true,
-    },
-    admin: {
-      enabled: true,
-      channel: true,
-      models: true,
-      deployment: true,
-      subscription: true,
-      redemption: true,
-      user: true,
-      setting: true,
-    },
-  });
+  const [sidebarModulesUser, setSidebarModulesUser] = useState(() =>
+    mergeAdminConfig(null),
+  );
   const [adminConfig, setAdminConfig] = useState(null);
 
   // 使用后端权限验证替代前端角色判断
@@ -155,29 +109,7 @@ const NotificationSettings = ({
   };
 
   const resetSidebarModules = () => {
-    const defaultConfig = {
-      chat: { enabled: true, playground: true, chat: true },
-      console: {
-        enabled: true,
-        detail: true,
-        token: true,
-        log: true,
-        midjourney: true,
-        task: true,
-      },
-      personal: { enabled: true, topup: true, personal: true },
-      admin: {
-        enabled: true,
-        channel: true,
-        models: true,
-        deployment: true,
-        subscription: true,
-        redemption: true,
-        user: true,
-        setting: true,
-      },
-    };
-    setSidebarModulesUser(defaultConfig);
+    setSidebarModulesUser(mergeAdminConfig(null));
   };
 
   // 加载左侧边栏配置
@@ -207,7 +139,7 @@ const NotificationSettings = ({
           } else {
             userConf = userRes.data.data.sidebar_modules;
           }
-          setSidebarModulesUser(userConf);
+          setSidebarModulesUser(mergeAdminConfig(userConf));
         }
       } catch (error) {
         console.error('加载边栏配置失败:', error);
@@ -260,17 +192,38 @@ const NotificationSettings = ({
     {
       key: 'console',
       title: t('控制台区域'),
-      description: t('数据管理和日志查看'),
+      description: t('数据管理和模型价格查看'),
       modules: [
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
         {
-          key: 'midjourney',
-          title: t('绘图日志'),
-          description: t('绘图任务记录'),
+          key: 'pricing',
+          title: t('模型价格'),
+          description: t('模型价格查询'),
         },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+      ],
+    },
+    {
+      key: 'tutorials',
+      title: t('安装&教程'),
+      description: t('安装教程和使用文档'),
+      modules: [
+        {
+          key: 'claudeCode',
+          title: t('Claude Code安装'),
+          description: t('Claude Code 安装说明'),
+        },
+        {
+          key: 'codex',
+          title: t('Codex安装'),
+          description: t('Codex 安装说明'),
+        },
+        {
+          key: 'tutorial',
+          title: t('使用教程'),
+          description: t('平台使用教程'),
+        },
       ],
     },
     {

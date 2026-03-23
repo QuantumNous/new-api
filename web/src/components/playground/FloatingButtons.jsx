@@ -1,22 +1,3 @@
-/*
-Copyright (C) 2025 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import { Settings, Eye, EyeOff } from 'lucide-react';
@@ -45,13 +26,12 @@ const FloatingButtons = ({
             height: 36,
             borderRadius: '50%',
             padding: 0,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            background: 'linear-gradient(to right, #8b5cf6, #6366f1)',
+            boxShadow: 'var(--app-shadow-soft)',
           }}
           onClick={onToggleSettings}
           theme='solid'
           type='primary'
-          className='lg:hidden'
+          className='playground-floating-button lg:hidden'
         />
       )}
 
@@ -71,12 +51,9 @@ const FloatingButtons = ({
             height: 36,
             borderRadius: '50%',
             padding: 0,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-            background: showDebugPanel
-              ? 'linear-gradient(to right, #e11d48, #be123c)'
-              : 'linear-gradient(to right, #4f46e5, #6366f1)',
+            boxShadow: 'var(--app-shadow-soft)',
           }}
-          className='lg:hidden'
+          className='playground-floating-button lg:hidden'
         />
       )}
     </>
