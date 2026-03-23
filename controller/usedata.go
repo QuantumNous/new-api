@@ -29,6 +29,13 @@ func parseDashboardRange(c *gin.Context) (int64, int64, bool) {
 		return 0, 0, false
 	}
 
+	if endTimestamp < startTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "时间范围不合法",
+		})
+		return 0, 0, false
+	}
 	return startTimestamp, endTimestamp, true
 }
 
