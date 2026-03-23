@@ -133,6 +133,7 @@ func requestChannelCacheRefreshAsync() {
 	if !common.MemoryCacheEnabled {
 		return
 	}
+	channelCacheRefreshPending.Store(true)
 	if !channelCacheRefreshInFlight.CompareAndSwap(false, true) {
 		return
 	}
@@ -201,7 +202,7 @@ func getRandomSatisfiedChannelFromCache(group string, model string, retry int) (
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority)), true
+		return nil, fmt.Errorf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority), true
 	}
 
 	// smoothing factor and adjustment
