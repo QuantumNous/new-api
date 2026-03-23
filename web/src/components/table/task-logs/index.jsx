@@ -34,6 +34,8 @@ import { createCardProPagination } from '../../../helpers/utils';
 const TaskLogsPage = () => {
   const taskLogsData = useTaskLogsData();
   const isMobile = useIsMobile();
+  const refreshCurrentPage = () =>
+    taskLogsData.refresh(taskLogsData.activePage);
 
   return (
     <>
@@ -53,7 +55,7 @@ const TaskLogsPage = () => {
         audioClips={taskLogsData.audioClips}
       />
       <EditUserModal
-        refresh={taskLogsData.refresh}
+        refresh={refreshCurrentPage}
         visible={taskLogsData.showEditUser}
         handleClose={taskLogsData.closeEditUserPanel}
         editingUser={taskLogsData.editingUser}

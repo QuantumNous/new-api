@@ -33,13 +33,14 @@ import { createCardProPagination } from '../../../helpers/utils';
 const LogsPage = () => {
   const logsData = useLogsData();
   const isMobile = useIsMobile();
+  const refreshCurrentPage = () => logsData.refresh(logsData.activePage);
 
   return (
     <>
       {/* Modals */}
       <ColumnSelectorModal {...logsData} />
       <EditUserModal
-        refresh={logsData.refresh}
+        refresh={refreshCurrentPage}
         visible={logsData.showEditUser}
         handleClose={logsData.closeEditUserPanel}
         editingUser={logsData.editingUser}

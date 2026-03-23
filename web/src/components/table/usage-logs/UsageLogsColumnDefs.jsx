@@ -625,10 +625,10 @@ export const getLogsColumns = ({
         const displayText = String(text || record.user_id || '?');
         const canOpen = Boolean(record.user_id);
         const handleOpen = (event) => {
-          event.stopPropagation();
           if (!canOpen) {
             return;
           }
+          event.stopPropagation();
           openEditUserPanel(record.user_id);
         };
         return (
@@ -637,14 +637,14 @@ export const getLogsColumns = ({
               size='extra-small'
               color={stringToColor(displayText)}
               style={{ cursor: canOpen ? 'pointer' : 'default' }}
-              onClick={handleOpen}
+              onClick={canOpen ? handleOpen : undefined}
             >
               {displayText.slice(0, 1)}
             </Avatar>
             <Typography.Text
               link={canOpen}
               style={{ cursor: canOpen ? 'pointer' : 'default' }}
-              onClick={handleOpen}
+              onClick={canOpen ? handleOpen : undefined}
             >
               {displayText}
             </Typography.Text>

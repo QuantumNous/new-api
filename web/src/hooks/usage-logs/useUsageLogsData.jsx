@@ -803,10 +803,10 @@ export const useLogsData = () => {
   };
 
   // Refresh function
-  const refresh = async () => {
-    setActivePage(1);
+  const refresh = async (page = activePage) => {
+    setActivePage(page);
     handleEyeClick();
-    await loadLogs(1, pageSize);
+    await loadLogs(page, pageSize);
   };
 
   // Copy text function

@@ -258,8 +258,8 @@ export const useTaskLogsData = () => {
   };
 
   // Refresh function
-  const refresh = async () => {
-    await loadLogs(1, pageSize);
+  const refresh = async (page = activePage) => {
+    await loadLogs(page, pageSize);
   };
 
   // Copy text function

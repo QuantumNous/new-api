@@ -100,6 +100,10 @@ const EditUserModal = (props) => {
 
   const handleCancel = () => props.handleClose();
 
+  const resetFormValues = () => {
+    formApiRef.current?.setValues(getInitValues());
+  };
+
   const loadUser = async (currentUserId) => {
     setLoading(true);
     const url = currentUserId ? `/api/user/${currentUserId}` : `/api/user/self`;
@@ -118,6 +122,7 @@ const EditUserModal = (props) => {
     const initialize = async () => {
       setBindingModalVisible(false);
       setLoading(true);
+      resetFormValues();
       try {
         if (currentUserId) {
           await fetchGroups();
@@ -133,10 +138,12 @@ const EditUserModal = (props) => {
           data.password = '';
           formApiRef.current?.setValues({ ...getInitValues(), ...data });
         } else {
+          resetFormValues();
           showError(message);
         }
       } catch (error) {
         if (isCurrent) {
+          resetFormValues();
           showError(error.message);
         }
       } finally {
