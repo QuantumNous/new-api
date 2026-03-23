@@ -17,7 +17,7 @@ function serverCommand(port: number, dbName: string, logDirName: string): string
   return [
     `mkdir -p ${tempRoot} ${logDir}`,
     `cd ${repoRoot}`,
-    `SESSION_SECRET=${sessionSecret} SQLITE_PATH=${sqlitePath} PORT=${port} GIN_MODE=release TLS_INSECURE_SKIP_VERIFY=true GOCACHE=/tmp/new-api-go-build GOMODCACHE=/tmp/new-api-go-mod DOCKER_IMAGE_REPOSITORY=playwright/new-api DOCKER_IMAGE_TAG=v0.11.5 DOCKERHUB_API_BASE=http://127.0.0.1:${dockerHubStubPort} go run main.go --log-dir ${logDir}`,
+    `SESSION_SECRET=${sessionSecret} SQLITE_PATH=${sqlitePath} PORT=${port} GIN_MODE=release TLS_INSECURE_SKIP_VERIFY=true GLOBAL_WEB_RATE_LIMIT_ENABLE=false GOCACHE=/tmp/new-api-go-build GOMODCACHE=/tmp/new-api-go-mod DOCKER_IMAGE_REPOSITORY=playwright/new-api DOCKER_IMAGE_TAG=v0.11.5 DOCKERHUB_API_BASE=http://127.0.0.1:${dockerHubStubPort} go run main.go --log-dir ${logDir}`,
   ].join(' && ');
 }
 

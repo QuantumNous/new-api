@@ -38,6 +38,15 @@ test.describe.serial('API baseline', () => {
     expect(body.data.docker_image_tag).toBe('v0.11.5');
   });
 
+  test('home page content endpoint defaults to empty content', async ({ request }) => {
+    const response = await request.get('/api/home_page_content');
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toBe('');
+  });
+
   test('docker version endpoint reports the latest published docker tag', async ({ request }) => {
     await withDockerHubStub(
       dockerHubStubPort,

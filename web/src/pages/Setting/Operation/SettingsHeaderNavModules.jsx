@@ -48,6 +48,7 @@ export default function SettingsHeaderNavModules(props) {
     },
     docs: true,
     about: true,
+    guide: true,
     contact: true,
   });
 
@@ -60,6 +61,7 @@ export default function SettingsHeaderNavModules(props) {
     },
     docs: true,
     about: true,
+    guide: true,
     contact: true,
   };
 
@@ -188,8 +190,13 @@ export default function SettingsHeaderNavModules(props) {
       description: t('关于系统的详细信息'),
     },
     {
+      key: 'guide',
+      title: t('接入教程'),
+      description: t('不同工具的 API 接入说明'),
+    },
+    {
       key: 'contact',
-      title: t('联系'),
+      title: t('联系客服'),
       description: t('联系表单和反馈提交入口'),
     },
   ];
