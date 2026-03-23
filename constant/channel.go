@@ -206,4 +206,8 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+	"qwen-coding-plan": {
+		ClaudeBaseURL: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+		OpenAIBaseURL: "https://coding.dashscope.aliyuncs.com/v1",
+	},
 }
