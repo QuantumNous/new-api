@@ -196,4 +196,8 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
 ]);
 
+export const RESPONSES_BOOTSTRAP_RECOVERY_CHANNEL_TYPES = new Set([
+  1, 3, 8, 17, 20, 27, 39, 45, 47, 48, 57,
+]);
+
 export const MODEL_TABLE_PAGE_SIZE = 10;

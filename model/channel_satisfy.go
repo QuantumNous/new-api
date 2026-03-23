@@ -57,6 +57,9 @@ func HasResponsesBootstrapRecoveryEnabledChannel(groups []string, modelName stri
 	defer channelSyncLock.RUnlock()
 
 	for _, channel := range channelsIDM {
+		if channel == nil || channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
 		if !channel.GetOtherSettings().ResponsesStreamBootstrapRecoveryEnabled {
 			continue
 		}
@@ -91,10 +94,13 @@ func isChannelEnabledForGroupModelDB(group string, modelName string, channelID i
 
 func hasResponsesBootstrapRecoveryEnabledChannelDB(groups []string, modelName string, normalized string) bool {
 	var channels []*Channel
-	if err := DB.Find(&channels).Error; err != nil {
+	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
 		return false
 	}
 	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
 		if !channel.GetOtherSettings().ResponsesStreamBootstrapRecoveryEnabled {
 			continue
 		}

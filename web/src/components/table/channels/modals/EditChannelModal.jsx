@@ -27,7 +27,11 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  MODEL_FETCHABLE_CHANNEL_TYPES,
+  RESPONSES_BOOTSTRAP_RECOVERY_CHANNEL_TYPES,
+} from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -126,6 +130,9 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
     },
   ],
 };
+
+const supportsResponsesBootstrapRecovery = (channelType) =>
+  RESPONSES_BOOTSTRAP_RECOVERY_CHANNEL_TYPES.has(channelType);
 
 const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 
@@ -281,7 +288,8 @@ const EditChannelModal = (props) => {
     [inputs.upstream_model_update_last_detected_models],
   );
   const upstreamDetectedModelsPreview = useMemo(
-    () => upstreamDetectedModels.slice(0, UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT),
+    () =>
+      upstreamDetectedModels.slice(0, UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT),
     [upstreamDetectedModels],
   );
   const upstreamDetectedModelsOmittedCount =
@@ -314,9 +322,7 @@ const EditChannelModal = (props) => {
       return {
         tagLabel: t('不更改'),
         tagColor: 'grey',
-        preview: t(
-          '此项可选，用于覆盖请求参数。不支持覆盖 stream 参数',
-        ),
+        preview: t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数'),
       };
     }
     if (!verifyJSON(raw)) {
@@ -3298,24 +3304,27 @@ const EditChannelModal = (props) => {
                               showClear
                             />
                           </div>
-                          <div>
-                            <Form.Switch
-                              field='responses_stream_bootstrap_recovery_enabled'
-                              label={t('允许该渠道参与 Responses 启动恢复')}
-                              checkedText={t('开')}
-                              uncheckedText={t('关')}
-                              onChange={(value) =>
-                                handleChannelOtherSettingsChange(
-                                  'responses_stream_bootstrap_recovery_enabled',
-                                  value,
-                                )
-                              }
-                              extraText={t(
-                                '仅在已全局开启后生效。开启后，该渠道可参与 /v1/responses 首包前的恢复等待窗口。',
-                              )}
-                            />
-                          </div>
                         </>
+                      )}
+
+                      {supportsResponsesBootstrapRecovery(inputs.type) && (
+                        <div>
+                          <Form.Switch
+                            field='responses_stream_bootstrap_recovery_enabled'
+                            label={t('允许该渠道参与 Responses 启动恢复')}
+                            checkedText={t('开')}
+                            uncheckedText={t('关')}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'responses_stream_bootstrap_recovery_enabled',
+                                value,
+                              )
+                            }
+                            extraText={t(
+                              '仅在已全局开启后生效。开启后，该渠道可参与 /v1/responses 首包前的恢复等待窗口。',
+                            )}
+                          />
+                        </div>
                       )}
 
                       {inputs.type === 8 && (
