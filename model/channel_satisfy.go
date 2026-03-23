@@ -25,9 +25,11 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 	}
 	normalized := ratio_setting.FormatMatchingModelName(modelName)
 	if normalized != "" && normalized != modelName {
-		return isChannelIDInList(group2model2channels[group][normalized], channelID)
+		if isChannelIDInList(group2model2channels[group][normalized], channelID) {
+			return true
+		}
 	}
-	return false
+	return isChannelEnabledForGroupModelDB(group, modelName, channelID)
 }
 
 func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channelID int) bool {

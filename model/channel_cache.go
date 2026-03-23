@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,6 +17,7 @@ import (
 var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
+var channelCacheRefreshInFlight atomic.Bool
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -30,37 +31,40 @@ func InitChannelCache() {
 	}
 	var abilities []*Ability
 	DB.Find(&abilities)
-	groups := make(map[string]bool)
-	for _, ability := range abilities {
-		groups[ability.Group] = true
-	}
 	newGroup2model2channels := make(map[string]map[string][]int)
-	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]int)
-	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue // skip disabled channels
+	for _, ability := range abilities {
+		if !ability.Enabled {
+			continue
 		}
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
-			}
+		channel, ok := newChannelId2channel[ability.ChannelId]
+		if !ok || channel.Status != common.ChannelStatusEnabled {
+			continue
 		}
+		if _, ok := newGroup2model2channels[ability.Group]; !ok {
+			newGroup2model2channels[ability.Group] = make(map[string][]int)
+		}
+		newGroup2model2channels[ability.Group][ability.Model] = append(
+			newGroup2model2channels[ability.Group][ability.Model],
+			ability.ChannelId,
+		)
 	}
 
-	// sort by priority
+	// dedupe and sort by priority
 	for group, model2channels := range newGroup2model2channels {
 		for model, channels := range model2channels {
-			sort.Slice(channels, func(i, j int) bool {
-				return newChannelId2channel[channels[i]].GetPriority() > newChannelId2channel[channels[j]].GetPriority()
+			seen := make(map[int]struct{}, len(channels))
+			deduped := make([]int, 0, len(channels))
+			for _, channelId := range channels {
+				if _, ok := seen[channelId]; ok {
+					continue
+				}
+				seen[channelId] = struct{}{}
+				deduped = append(deduped, channelId)
+			}
+			sort.Slice(deduped, func(i, j int) bool {
+				return newChannelId2channel[deduped[i]].GetPriority() > newChannelId2channel[deduped[j]].GetPriority()
 			})
-			newGroup2model2channels[group][model] = channels
+			newGroup2model2channels[group][model] = deduped
 		}
 	}
 
@@ -93,15 +97,25 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
-func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
-	// if memory cache is disabled, get channel directly from database
+func requestChannelCacheRefreshAsync() {
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry)
+		return
 	}
+	if !channelCacheRefreshInFlight.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer channelCacheRefreshInFlight.Store(false)
+		defer func() {
+			if r := recover(); r != nil {
+				common.SysLog(fmt.Sprintf("InitChannelCache panic: %v", r))
+			}
+		}()
+		InitChannelCache()
+	}()
+}
 
-	channelSyncLock.RLock()
-	defer channelSyncLock.RUnlock()
-
+func getRandomSatisfiedChannelFromCache(group string, model string, retry int) (*Channel, error, bool) {
 	// First, try to find channels with the exact model name.
 	channels := group2model2channels[group][model]
 
@@ -112,14 +126,14 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	if len(channels) == 0 {
-		return nil, nil
+		return nil, nil, false
 	}
 
 	if len(channels) == 1 {
 		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
+			return channel, nil, true
 		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0]), true
 	}
 
 	uniquePriorities := make(map[int]bool)
@@ -127,7 +141,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId), true
 		}
 	}
 	var sortedUniquePriorities []int
@@ -151,12 +165,12 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId), true
 		}
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority)), true
 	}
 
 	// smoothing factor and adjustment
@@ -183,11 +197,41 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	for _, channel := range targetChannels {
 		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
-			return channel, nil
+			return channel, nil, true
 		}
 	}
-	// return null if no channel is not found
-	return nil, errors.New("channel not found")
+	return nil, errors.New("channel not found"), true
+}
+
+func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
+	// if memory cache is disabled, get channel directly from database
+	if !common.MemoryCacheEnabled {
+		return GetChannel(group, model, retry)
+	}
+
+	channelSyncLock.RLock()
+	channel, cacheErr, cacheHit := getRandomSatisfiedChannelFromCache(group, model, retry)
+	channelSyncLock.RUnlock()
+	if channel != nil || (cacheHit && cacheErr == nil) {
+		return channel, cacheErr
+	}
+
+	fallbackChannel, fallbackErr := GetChannel(group, model, retry)
+	if fallbackErr != nil {
+		if cacheErr != nil {
+			return nil, cacheErr
+		}
+		return nil, fallbackErr
+	}
+	if fallbackChannel != nil && fallbackChannel.Status == common.ChannelStatusEnabled {
+		requestChannelCacheRefreshAsync()
+		return fallbackChannel, nil
+	}
+	if cacheErr != nil {
+		requestChannelCacheRefreshAsync()
+		return nil, cacheErr
+	}
+	return nil, nil
 }
 
 func CacheGetChannel(id int) (*Channel, error) {
@@ -256,10 +300,5 @@ func CacheUpdateChannel(channel *Channel) {
 	if channel == nil {
 		return
 	}
-
-	println("CacheUpdateChannel:", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
-
-	println("before:", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 	channelsIDM[channel.Id] = channel
-	println("after :", channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
 }
