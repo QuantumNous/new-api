@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -58,6 +60,9 @@ func TestEnsureResponsesBootstrapRecoveryStateFromRequest(t *testing.T) {
 	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, state)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		ResponsesStreamBootstrapRecoveryEnabled: true,
+	})
 	require.True(t, state.Enabled)
 	require.False(t, state.PayloadStarted)
 	require.Equal(t, 1*time.Second, state.ProbeInterval)
@@ -102,6 +107,9 @@ func TestCanContinueResponsesBootstrapRecovery(t *testing.T) {
 	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, state)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		ResponsesStreamBootstrapRecoveryEnabled: true,
+	})
 
 	retryableErr := types.NewOpenAIError(
 		errors.New("retryable"),
@@ -124,6 +132,28 @@ func TestCanContinueResponsesBootstrapRecovery(t *testing.T) {
 	require.False(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
 }
 
+func TestCanContinueResponsesBootstrapRecoveryRequiresChannelOptIn(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withResponsesBootstrapRecoverySetting(t)
+
+	ctx := newResponsesBootstrapTestContext("/v1/responses", `{"model":"gpt-5","stream":true}`)
+	state, err := EnsureResponsesBootstrapRecoveryStateFromRequest(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+
+	retryableErr := types.NewOpenAIError(
+		errors.New("retryable"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusUnauthorized,
+	)
+	require.False(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
+
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		ResponsesStreamBootstrapRecoveryEnabled: true,
+	})
+	require.True(t, CanContinueResponsesBootstrapRecovery(ctx, retryableErr))
+}
+
 func TestCanContinueResponsesBootstrapRecoveryUsesStateRetryableStatusCodes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	withResponsesBootstrapRecoverySetting(t)
@@ -134,6 +164,9 @@ func TestCanContinueResponsesBootstrapRecoveryUsesStateRetryableStatusCodes(t *t
 	require.NoError(t, err)
 	require.NotNil(t, state)
 	require.Contains(t, state.RetryableStatusCodes, http.StatusUnauthorized)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		ResponsesStreamBootstrapRecoveryEnabled: true,
+	})
 
 	settings.ResponsesStreamBootstrapRetryableStatusCodes = []int{http.StatusTooManyRequests}
 

@@ -417,7 +417,7 @@ export default function GeneralSettings(props) {
                 <Banner
                   type='info'
                   description={t(
-                    'Responses 流启动恢复仅作用于 /v1/responses 的流式请求首包前阶段。它会在短时渠道故障时通过 SSE ping 保持连接，并在恢复后继续返回真实内容；首包发出后不会跨渠道续传。',
+                    'Responses 流启动恢复仅作用于 /v1/responses 的流式请求首包前阶段。它会在短时渠道故障时通过 SSE ping 保持连接，并在恢复后继续返回真实内容；首包发出后不会跨渠道续传。只有已在渠道设置中启用该功能的渠道才会参与保护窗口。',
                   )}
                   bordered
                   fullMode={false}
@@ -433,7 +433,7 @@ export default function GeneralSettings(props) {
                   }
                   label={t('启用 Responses 流启动恢复')}
                   extraText={t(
-                    '仅在 /v1/responses 流式请求首包前生效，用于短时故障恢复。',
+                    '仅在 /v1/responses 流式请求首包前生效，用于短时故障恢复；还需要在具体渠道上单独启用。',
                   )}
                   size='default'
                   onChange={handleFieldChange(

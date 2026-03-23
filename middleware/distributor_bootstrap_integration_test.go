@@ -98,20 +98,23 @@ func seedDistributorBootstrapChannel(db *gorm.DB, channelID int, modelName strin
 	priority := int64(0)
 	autoBan := 1
 	baseURL := "https://example.com"
+	status := common.ChannelStatusManuallyDisabled
+	settings := `{"responses_stream_bootstrap_recovery_enabled":true}`
 
 	channel := &model.Channel{
-		Id:          channelID,
-		Type:        constant.ChannelTypeOpenAI,
-		Key:         "test-key",
-		Status:      common.ChannelStatusEnabled,
-		Name:        fmt.Sprintf("bootstrap-%d", channelID),
-		Weight:      &weight,
-		BaseURL:     &baseURL,
-		Models:      modelName,
-		Group:       "default",
-		Priority:    &priority,
-		AutoBan:     &autoBan,
-		CreatedTime: time.Now().Unix(),
+		Id:            channelID,
+		Type:          constant.ChannelTypeOpenAI,
+		Key:           "test-key",
+		Status:        status,
+		Name:          fmt.Sprintf("bootstrap-%d", channelID),
+		Weight:        &weight,
+		BaseURL:       &baseURL,
+		Models:        modelName,
+		Group:         "default",
+		Priority:      &priority,
+		AutoBan:       &autoBan,
+		OtherSettings: settings,
+		CreatedTime:   time.Now().Unix(),
 	}
 
 	if err := db.Create(channel).Error; err != nil {
@@ -123,6 +126,18 @@ func seedDistributorBootstrapChannel(db *gorm.DB, channelID int, modelName strin
 	model.InitChannelCache()
 
 	return channel, nil
+}
+
+func enableDistributorBootstrapChannel(db *gorm.DB, channel *model.Channel) error {
+	channel.Status = common.ChannelStatusEnabled
+	if err := db.Save(channel).Error; err != nil {
+		return err
+	}
+	if err := channel.UpdateAbilities(nil); err != nil {
+		return err
+	}
+	model.InitChannelCache()
+	return nil
 }
 
 func newDistributorBootstrapRouter(handler gin.HandlerFunc) *gin.Engine {
@@ -151,10 +166,11 @@ func TestDistributeResponsesBootstrapRecoversBeforeGraceDeadline(t *testing.T) {
 	})
 
 	seedErrCh := make(chan error, 1)
+	channel, err := seedDistributorBootstrapChannel(db, 1001, "gpt-5")
+	require.NoError(t, err)
 	go func() {
 		time.Sleep(120 * time.Millisecond)
-		_, err := seedDistributorBootstrapChannel(db, 1001, "gpt-5")
-		seedErrCh <- err
+		seedErrCh <- enableDistributorBootstrapChannel(db, channel)
 	}()
 
 	recorder := httptest.NewRecorder()
@@ -174,9 +190,49 @@ func TestDistributeResponsesBootstrapRecoversBeforeGraceDeadline(t *testing.T) {
 	require.NotContains(t, recorder.Body.String(), "event: error")
 }
 
-func TestDistributeResponsesBootstrapTimesOutWithStreamError(t *testing.T) {
-	setupDistributorBootstrapTestDB(t)
+func TestDistributeResponsesBootstrapSkipsWaitWhenNoChannelOptIn(t *testing.T) {
+	db := setupDistributorBootstrapTestDB(t)
 	withDistributorBootstrapRecoverySetting(t, 1, 50, 10)
+
+	channel, err := seedDistributorBootstrapChannel(db, 1002, "gpt-5")
+	require.NoError(t, err)
+	channel.OtherSettings = `{"responses_stream_bootstrap_recovery_enabled":false}`
+	require.NoError(t, db.Save(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+	model.InitChannelCache()
+
+	var handlerCalled atomic.Bool
+	router := newDistributorBootstrapRouter(func(c *gin.Context) {
+		handlerCalled.Store(true)
+		require.NoError(t, helper.StringData(c, `{"status":"unexpected"}`))
+	})
+
+	enableErrCh := make(chan error, 1)
+	go func() {
+		time.Sleep(120 * time.Millisecond)
+		enableErrCh <- enableDistributorBootstrapChannel(db, channel)
+	}()
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"gpt-5","stream":true}`))
+	request.Header.Set("Content-Type", gin.MIMEJSON)
+
+	start := time.Now()
+	router.ServeHTTP(recorder, request)
+	elapsed := time.Since(start)
+
+	require.False(t, handlerCalled.Load())
+	require.Less(t, elapsed, 100*time.Millisecond)
+	require.Contains(t, recorder.Body.String(), "error")
+	require.NotContains(t, recorder.Body.String(), ": PING")
+	require.NoError(t, <-enableErrCh)
+}
+
+func TestDistributeResponsesBootstrapTimesOutWithStreamError(t *testing.T) {
+	db := setupDistributorBootstrapTestDB(t)
+	withDistributorBootstrapRecoverySetting(t, 1, 50, 10)
+	_, err := seedDistributorBootstrapChannel(db, 1003, "gpt-5")
+	require.NoError(t, err)
 
 	var handlerCalled atomic.Bool
 	router := newDistributorBootstrapRouter(func(c *gin.Context) {

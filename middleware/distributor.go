@@ -344,6 +344,9 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 }
 
 func getChannelWithBootstrapGrace(c *gin.Context, modelName string, usingGroup string, state *service.ResponsesBootstrapRecoveryState) (*model.Channel, string, error) {
+	if !service.ShouldWaitForResponsesBootstrapRecoverySelection(c, usingGroup, modelName, state) {
+		state = nil
+	}
 	for {
 		channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
 			Ctx:        c,

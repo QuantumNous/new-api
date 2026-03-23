@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -163,6 +164,9 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	if !ok || state == nil || !state.Enabled || state.PayloadStarted {
 		return false
 	}
+	if !IsResponsesBootstrapRecoveryEnabledForSelectedChannel(c) {
+		return false
+	}
 	if !time.Now().Before(state.Deadline) {
 		return false
 	}
@@ -180,6 +184,29 @@ func CanContinueResponsesBootstrapRecovery(c *gin.Context, newAPIError *types.Ne
 	}
 	_, ok = state.RetryableStatusCodes[newAPIError.StatusCode]
 	return ok
+}
+
+func ShouldWaitForResponsesBootstrapRecoverySelection(c *gin.Context, usingGroup string, modelName string, state *ResponsesBootstrapRecoveryState) bool {
+	if c == nil || state == nil || !state.Enabled || modelName == "" {
+		return false
+	}
+	if usingGroup == "" {
+		return false
+	}
+	groups := []string{usingGroup}
+	if usingGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		groups = GetUserAutoGroup(userGroup)
+	}
+	return model.HasResponsesBootstrapRecoveryEnabledChannel(groups, modelName)
+}
+
+func IsResponsesBootstrapRecoveryEnabledForSelectedChannel(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)
+	return ok && channelOtherSettings.ResponsesStreamBootstrapRecoveryEnabled
 }
 
 // NextResponsesBootstrapWait returns the next wait duration and whether a keepalive ping should be sent.

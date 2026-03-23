@@ -209,6 +209,7 @@ const EditChannelModal = (props) => {
     allow_include_obfuscation: false,
     allow_inference_geo: false,
     claude_beta_query: false,
+    responses_stream_bootstrap_recovery_enabled: false,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -891,6 +892,8 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo =
             parsedSettings.allow_inference_geo || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          data.responses_stream_bootstrap_recovery_enabled =
+            parsedSettings.responses_stream_bootstrap_recovery_enabled === true;
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -920,6 +923,7 @@ const EditChannelModal = (props) => {
           data.allow_include_obfuscation = false;
           data.allow_inference_geo = false;
           data.claude_beta_query = false;
+          data.responses_stream_bootstrap_recovery_enabled = false;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -1779,6 +1783,8 @@ const EditChannelModal = (props) => {
         settings.claude_beta_query = localInputs.claude_beta_query === true;
       }
     }
+    settings.responses_stream_bootstrap_recovery_enabled =
+      localInputs.responses_stream_bootstrap_recovery_enabled === true;
 
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
@@ -1824,6 +1830,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_include_obfuscation;
     delete localInputs.allow_inference_geo;
     delete localInputs.claude_beta_query;
+    delete localInputs.responses_stream_bootstrap_recovery_enabled;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -3289,6 +3296,23 @@ const EditChannelModal = (props) => {
                                 )
                               }
                               showClear
+                            />
+                          </div>
+                          <div>
+                            <Form.Switch
+                              field='responses_stream_bootstrap_recovery_enabled'
+                              label={t('允许该渠道参与 Responses 启动恢复')}
+                              checkedText={t('开')}
+                              uncheckedText={t('关')}
+                              onChange={(value) =>
+                                handleChannelOtherSettingsChange(
+                                  'responses_stream_bootstrap_recovery_enabled',
+                                  value,
+                                )
+                              }
+                              extraText={t(
+                                '仅在已全局开启后生效。开启后，该渠道可参与 /v1/responses 首包前的恢复等待窗口。',
+                              )}
                             />
                           </div>
                         </>
