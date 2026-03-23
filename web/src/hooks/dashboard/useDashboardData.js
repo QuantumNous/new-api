@@ -372,6 +372,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         let localStartTimestamp =
           parseDashboardTimestamp(start_timestamp) / 1000;
         let localEndTimestamp = parseDashboardTimestamp(end_timestamp) / 1000;
+        if (
+          !Number.isFinite(localStartTimestamp) ||
+          !Number.isFinite(localEndTimestamp)
+        ) {
+          showError(t('请求参数无效'));
+          return [];
+        }
         const emptyStateTimestamp = Number.isFinite(localStartTimestamp)
           ? localStartTimestamp
           : 0;
