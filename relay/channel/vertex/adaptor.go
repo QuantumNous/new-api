@@ -92,6 +92,10 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	if a.RequestMode == RequestModeGemini {
+		geminiAdaptor := gemini.Adaptor{}
+		return geminiAdaptor.ConvertClaudeRequest(c, info, request)
+	}
 	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
 		c.Set("request_model", v)
 	} else {
