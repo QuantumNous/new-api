@@ -511,6 +511,43 @@ func appendChannelAffinityTemplateAdminInfo(c *gin.Context, meta channelAffinity
 	})
 }
 
+func appendChannelAffinityClearedAdminInfo(c *gin.Context, reason string) {
+	if c == nil {
+		return
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "stale affinity cleared"
+	}
+
+	if anyInfo, ok := c.Get(ginKeyChannelAffinityLogInfo); ok {
+		if info, ok := anyInfo.(map[string]interface{}); ok {
+			info["stale_affinity_cleared"] = true
+			info["stale_affinity_reason"] = reason
+			c.Set(ginKeyChannelAffinityLogInfo, info)
+			return
+		}
+	}
+
+	info := map[string]interface{}{
+		"stale_affinity_cleared": true,
+		"stale_affinity_reason":  reason,
+	}
+	if meta, ok := getChannelAffinityMeta(c); ok {
+		info["reason"] = meta.RuleName
+		info["rule_name"] = meta.RuleName
+		info["using_group"] = meta.UsingGroup
+		info["model"] = meta.ModelName
+		info["request_path"] = meta.RequestPath
+		info["key_source"] = meta.KeySourceType
+		info["key_key"] = meta.KeySourceKey
+		info["key_path"] = meta.KeySourcePath
+		info["key_hint"] = meta.KeyHint
+		info["key_fp"] = meta.KeyFingerprint
+	}
+	c.Set(ginKeyChannelAffinityLogInfo, info)
+}
+
 // ApplyChannelAffinityOverrideTemplate merges per-rule channel override templates onto the selected channel override config.
 func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[string]interface{}) (map[string]interface{}, bool) {
 	if c == nil {
@@ -621,6 +658,23 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 		return false
 	}
 	return meta.SkipRetry
+}
+
+func ClearCurrentChannelAffinity(c *gin.Context, reason string) bool {
+	if c == nil {
+		return false
+	}
+	cacheKey, _, ok := getChannelAffinityContext(c)
+	if !ok || cacheKey == "" {
+		return false
+	}
+	cache := getChannelAffinityCache()
+	if _, err := cache.DeleteMany([]string{cacheKey}); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
+		return false
+	}
+	appendChannelAffinityClearedAdminInfo(c, reason)
+	return true
 }
 
 func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int) {

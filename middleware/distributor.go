@@ -27,6 +27,46 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+func selectPreferredAffinityChannel(
+	c *gin.Context,
+	preferred *model.Channel,
+	modelName string,
+	usingGroup string,
+	getAutoGroups func(string) []string,
+	isChannelEnabledForGroupModel func(string, string, int) bool,
+) (*model.Channel, string) {
+	if preferred == nil {
+		service.ClearCurrentChannelAffinity(c, "preferred affinity channel missing")
+		return nil, ""
+	}
+	if preferred.Status != common.ChannelStatusEnabled {
+		service.ClearCurrentChannelAffinity(c, fmt.Sprintf("preferred affinity channel %d is disabled", preferred.Id))
+		return nil, ""
+	}
+
+	if usingGroup == "auto" {
+		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		autoGroups := getAutoGroups(userGroup)
+		for _, g := range autoGroups {
+			if isChannelEnabledForGroupModel(g, modelName, preferred.Id) {
+				common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+				service.MarkChannelAffinityUsed(c, g, preferred.Id)
+				return preferred, g
+			}
+		}
+		service.ClearCurrentChannelAffinity(c, fmt.Sprintf("preferred affinity channel %d no longer matches auto groups for model %s", preferred.Id, modelName))
+		return nil, ""
+	}
+
+	if isChannelEnabledForGroupModel(usingGroup, modelName, preferred.Id) {
+		service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+		return preferred, usingGroup
+	}
+
+	service.ClearCurrentChannelAffinity(c, fmt.Sprintf("preferred affinity channel %d no longer matches group %s for model %s", preferred.Id, usingGroup, modelName))
+	return nil, ""
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -101,29 +141,17 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
-								return
-							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
-								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
-						}
+					if err != nil {
+						service.ClearCurrentChannelAffinity(c, fmt.Sprintf("preferred affinity channel %d lookup failed: %v", preferredChannelID, err))
+					} else {
+						channel, selectGroup = selectPreferredAffinityChannel(
+							c,
+							preferred,
+							modelRequest.Model,
+							usingGroup,
+							service.GetUserAutoGroup,
+							model.IsChannelEnabledForGroupModel,
+						)
 					}
 				}
 
