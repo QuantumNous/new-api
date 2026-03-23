@@ -22,6 +22,18 @@ import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import FilterAutoComplete from '../../common/ui/FilterAutoComplete';
+
+const parseDateRangeToUnixSeconds = (dateRange, fallbackRange) => {
+  const finalRange =
+    Array.isArray(dateRange) && dateRange.length === 2
+      ? dateRange
+      : fallbackRange;
+  return {
+    start_timestamp: Math.floor(Date.parse(finalRange[0]) / 1000) || 0,
+    end_timestamp: Math.floor(Date.parse(finalRange[1]) / 1000) || 0,
+  };
+};
 
 const TaskLogsFilters = ({
   formInitValues,
@@ -33,6 +45,24 @@ const TaskLogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const suggestionEndpoint = isAdminUser
+    ? '/api/task/suggestions'
+    : '/api/task/self/suggestions';
+
+  const buildSuggestionParams = () => {
+    const values = formApi ? formApi.getValues() : formInitValues;
+    const { start_timestamp, end_timestamp } = parseDateRangeToUnixSeconds(
+      values.dateRange,
+      formInitValues.dateRange,
+    );
+    return {
+      start_timestamp,
+      end_timestamp,
+      task_id: values.task_id || '',
+      channel_id: values.channel_id || '',
+    };
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -65,24 +95,24 @@ const TaskLogsFilters = ({
           </div>
 
           {/* 任务 ID */}
-          <Form.Input
+          <FilterAutoComplete
             field='task_id'
-            prefix={<IconSearch />}
+            endpoint={suggestionEndpoint}
             placeholder={t('任务 ID')}
-            showClear
-            pure
-            size='small'
+            prefix={<IconSearch />}
+            buildParams={buildSuggestionParams}
+            minLength={1}
           />
 
           {/* 渠道 ID - 仅管理员可见 */}
           {isAdminUser && (
-            <Form.Input
+            <FilterAutoComplete
               field='channel_id'
-              prefix={<IconSearch />}
+              endpoint={suggestionEndpoint}
               placeholder={t('渠道 ID')}
-              showClear
-              pure
-              size='small'
+              prefix={<IconSearch />}
+              buildParams={buildSuggestionParams}
+              minLength={1}
             />
           )}
         </div>

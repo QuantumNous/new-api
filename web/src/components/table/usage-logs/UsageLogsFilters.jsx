@@ -22,6 +22,18 @@ import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import FilterAutoComplete from '../../common/ui/FilterAutoComplete';
+
+const parseDateRangeToUnixSeconds = (dateRange, fallbackRange) => {
+  const finalRange =
+    Array.isArray(dateRange) && dateRange.length === 2
+      ? dateRange
+      : fallbackRange;
+  return {
+    start_timestamp: Math.floor(Date.parse(finalRange[0]) / 1000) || 0,
+    end_timestamp: Math.floor(Date.parse(finalRange[1]) / 1000) || 0,
+  };
+};
 
 const LogsFilters = ({
   formInitValues,
@@ -34,6 +46,29 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const suggestionEndpoint = isAdminUser
+    ? '/api/log/suggestions'
+    : '/api/log/self/suggestions';
+
+  const buildSuggestionParams = () => {
+    const values = formApi ? formApi.getValues() : formInitValues;
+    const { start_timestamp, end_timestamp } = parseDateRangeToUnixSeconds(
+      values.dateRange,
+      formInitValues.dateRange,
+    );
+    return {
+      type: values.logType ? parseInt(values.logType, 10) : 0,
+      start_timestamp,
+      end_timestamp,
+      token_name: values.token_name || '',
+      model_name: values.model_name || '',
+      group: values.group || '',
+      request_id: values.request_id || '',
+      channel: values.channel || '',
+      username: values.username || '',
+    };
+  };
+
   return (
     <Form
       initValues={formInitValues}
@@ -66,59 +101,56 @@ const LogsFilters = ({
           </div>
 
           {/* 其他搜索字段 */}
-          <Form.Input
+          <FilterAutoComplete
             field='token_name'
-            prefix={<IconSearch />}
+            endpoint={suggestionEndpoint}
             placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
+            prefix={<IconSearch />}
+            buildParams={buildSuggestionParams}
           />
 
-          <Form.Input
+          <FilterAutoComplete
             field='model_name'
-            prefix={<IconSearch />}
+            endpoint={suggestionEndpoint}
             placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
+            prefix={<IconSearch />}
+            buildParams={buildSuggestionParams}
           />
 
-          <Form.Input
+          <FilterAutoComplete
             field='group'
-            prefix={<IconSearch />}
+            endpoint={suggestionEndpoint}
             placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
+            prefix={<IconSearch />}
+            buildParams={buildSuggestionParams}
           />
 
-          <Form.Input
+          <FilterAutoComplete
             field='request_id'
-            prefix={<IconSearch />}
+            endpoint={suggestionEndpoint}
             placeholder={t('Request ID')}
-            showClear
-            pure
-            size='small'
+            prefix={<IconSearch />}
+            buildParams={buildSuggestionParams}
+            minLength={1}
           />
 
           {isAdminUser && (
             <>
-              <Form.Input
+              <FilterAutoComplete
                 field='channel'
-                prefix={<IconSearch />}
+                endpoint={suggestionEndpoint}
                 placeholder={t('渠道 ID')}
-                showClear
-                pure
-                size='small'
-              />
-              <Form.Input
-                field='username'
                 prefix={<IconSearch />}
+                buildParams={buildSuggestionParams}
+                minLength={1}
+              />
+              <FilterAutoComplete
+                field='username'
+                endpoint={suggestionEndpoint}
                 placeholder={t('用户名称')}
-                showClear
-                pure
-                size='small'
+                prefix={<IconSearch />}
+                buildParams={buildSuggestionParams}
+                minLength={1}
               />
             </>
           )}
