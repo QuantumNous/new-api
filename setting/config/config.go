@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 	"strconv"
@@ -38,11 +39,39 @@ func (cm *ConfigManager) Get(name string) interface{} {
 	return cm.configs[name]
 }
 
-// Read executes fn with the named config after releasing the manager read lock.
+func cloneConfigValue(config interface{}) interface{} {
+	if config == nil {
+		return nil
+	}
+
+	valueType := reflect.TypeOf(config)
+	if valueType.Kind() != reflect.Ptr || valueType.Elem().Kind() != reflect.Struct {
+		return config
+	}
+
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return config
+	}
+
+	target := reflect.New(valueType.Elem()).Interface()
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(target); err != nil {
+		return config
+	}
+
+	return target
+}
+
+// Read executes fn with a snapshot of the named config after releasing the manager read lock.
 func (cm *ConfigManager) Read(name string, fn func(config interface{})) {
 	cm.mutex.RLock()
-	config := cm.configs[name]
+	config := cloneConfigValue(cm.configs[name])
 	cm.mutex.RUnlock()
+	if fn == nil {
+		return
+	}
 	fn(config)
 }
 
