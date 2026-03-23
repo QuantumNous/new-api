@@ -26,6 +26,7 @@ func TestClearCurrentChannelAffinity(t *testing.T) {
 		CacheKey:       cacheKey,
 		TTLSeconds:     60,
 		RuleName:       "codex cli trace",
+		SkipRetry:      true,
 		UsingGroup:     "default",
 		ModelName:      "gpt-5",
 		RequestPath:    "/v1/responses",
@@ -40,6 +41,7 @@ func TestClearCurrentChannelAffinity(t *testing.T) {
 	_, found, err := cache.Get(cacheKey)
 	require.NoError(t, err)
 	require.False(t, found)
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 
 	anyInfo, ok := ctx.Get(ginKeyChannelAffinityLogInfo)
 	require.True(t, ok)

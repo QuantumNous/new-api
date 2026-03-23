@@ -673,6 +673,11 @@ func ClearCurrentChannelAffinity(c *gin.Context, reason string) bool {
 		common.SysError(fmt.Sprintf("channel affinity cache delete failed: key=%s, err=%v", cacheKey, err))
 		return false
 	}
+	c.Set(ginKeyChannelAffinitySkipRetry, false)
+	if meta, ok := getChannelAffinityMeta(c); ok {
+		meta.SkipRetry = false
+		c.Set(ginKeyChannelAffinityMeta, meta)
+	}
 	appendChannelAffinityClearedAdminInfo(c, reason)
 	return true
 }
