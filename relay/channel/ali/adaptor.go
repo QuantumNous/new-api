@@ -79,7 +79,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		switch info.RelayFormat {
 		case types.RelayFormatClaude:
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
-		default:
+		case types.RelayFormatOpenAI:
 			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 		}
 	}
