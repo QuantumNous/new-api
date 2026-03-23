@@ -26,7 +26,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -46,9 +45,6 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
 		return normalized
-	}
-	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
-		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
@@ -125,14 +121,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"
 		}
-
-		// responses compaction models (must use /v1/responses/compact)
-		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
-			requestPath = "/v1/responses/compact"
-		}
-	}
-	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
-		testModel = ratio_setting.WithCompactModelSuffix(testModel)
 	}
 
 	c.Request = &http.Request{
@@ -681,14 +669,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
-		}
-	}
-
-	// Responses compaction models (must use /v1/responses/compact)
-	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
-		return &dto.OpenAIResponsesCompactionRequest{
-			Model: model,
-			Input: testResponsesInput,
 		}
 	}
 

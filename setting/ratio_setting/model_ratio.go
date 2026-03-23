@@ -360,18 +360,6 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 // GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
-
-	if strings.HasSuffix(name, CompactModelSuffix) {
-		price, ok := modelPriceMap.Get(CompactWildcardModelKey)
-		if !ok {
-			if printErr {
-				common.SysError("model price not found: " + name)
-			}
-			return -1, false
-		}
-		return price, true
-	}
-
 	price, ok := modelPriceMap.Get(name)
 	if !ok {
 		if printErr {
@@ -399,12 +387,6 @@ func GetModelRatio(name string) (float64, bool, string) {
 
 	ratio, ok := modelRatioMap.Get(name)
 	if !ok {
-		if strings.HasSuffix(name, CompactModelSuffix) {
-			if wildcardRatio, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
-				return wildcardRatio, true, name
-			}
-			//return 0, true, name
-		}
 		return 37.5, operation_setting.SelfUseModeEnabled, name
 	}
 	return ratio, true, name
