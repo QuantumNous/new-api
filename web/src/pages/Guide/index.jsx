@@ -37,6 +37,7 @@ import {
   IconUser,
 } from '@douyinfe/semi-icons';
 import { StatusContext } from '../../context/Status';
+import { useActualTheme } from '../../context/Theme';
 import { useTranslation } from 'react-i18next';
 
 const { Title, Paragraph, Text } = Typography;
@@ -246,20 +247,35 @@ console.log(response.choices[0].message.content);`,
 const GuidePage = () => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
+  const actualTheme = useActualTheme();
   const host = statusState?.status?.server_address || window.location.origin;
   const normalizedHost = host.replace(/\/$/, '');
   const openAiBaseUrl = `${normalizedHost}/v1`;
+  const isDark = actualTheme === 'dark';
   const tools = useMemo(
     () => toolDefinitions(normalizedHost, openAiBaseUrl),
     [normalizedHost, openAiBaseUrl],
   );
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', padding: '80px 16px 60px' }}>
-      <Title heading={3} style={{ marginBottom: 8 }}>
+    <div
+      style={{
+        maxWidth: 980,
+        margin: '0 auto',
+        padding: '80px 16px 60px',
+        color: 'var(--semi-color-text-0)',
+      }}
+    >
+      <Title
+        heading={3}
+        style={{ marginBottom: 8, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+      >
         {t('接入教程')}
       </Title>
-      <Paragraph type='tertiary' style={{ marginBottom: 16 }}>
+      <Paragraph
+        type='tertiary'
+        style={{ marginBottom: 16, textAlign: 'left', color: 'var(--semi-color-text-1)' }}
+      >
         了解如何在不同工具中接入本站 API。请先在控制台创建令牌，然后按以下教程配置。
       </Paragraph>
 
@@ -277,8 +293,12 @@ const GuidePage = () => {
             bodyStyle={{ padding: 16, textAlign: 'center' }}
             style={{
               borderRadius: 12,
-              border: '1px solid var(--semi-color-primary-light-active)',
-              background: 'var(--semi-color-primary-light-default)',
+              border: isDark
+                ? '1px solid rgba(255,255,255,0.10)'
+                : '1px solid var(--semi-color-primary-light-active)',
+              background: isDark
+                ? 'linear-gradient(180deg, #162131 0%, #111a27 100%)'
+                : 'var(--semi-color-primary-light-default)',
             }}
           >
             <div style={{ color: 'var(--semi-color-primary)', marginBottom: 8 }}>
@@ -304,17 +324,36 @@ const GuidePage = () => {
         ))}
       </div>
 
-      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
-        <Collapse>
+      <Card
+        style={{
+          marginBottom: 24,
+          borderRadius: 12,
+          border: isDark ? '1px solid rgba(255,255,255,0.10)' : undefined,
+          background: isDark ? '#111a27' : 'var(--semi-color-bg-0)',
+        }}
+        bodyStyle={{ textAlign: 'left' }}
+      >
+        <Collapse defaultActiveKey={['prepare']}>
           <Panel header='准备工作' itemKey='prepare'>
-            <Space vertical spacing='loose' style={{ width: '100%' }}>
-              <Paragraph style={{ marginBottom: 0 }}>
+            <Space
+              vertical
+              spacing='loose'
+              align='start'
+              style={{ width: '100%', textAlign: 'left', alignItems: 'flex-start' }}
+            >
+              <Paragraph
+                style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+              >
                 1. 注册账号并登录控制台。
               </Paragraph>
-              <Paragraph style={{ marginBottom: 0 }}>
+              <Paragraph
+                style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+              >
                 2. 在令牌页面创建 API Key。
               </Paragraph>
-              <Paragraph style={{ marginBottom: 0 }}>
+              <Paragraph
+                style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+              >
                 3. 牢记两类地址区别：
                 Claude Code 系列用 <code>{normalizedHost}</code>，
                 OpenAI 兼容工具通常用 <code>{openAiBaseUrl}</code>。
@@ -328,9 +367,12 @@ const GuidePage = () => {
         {tools.map((tool) => (
           <Tabs.TabPane tab={tool.tab} itemKey={tool.key} key={tool.key}>
             <div style={{ padding: '16px 0' }}>
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 20, textAlign: 'left' }}>
                 <Space wrap>
-                  <Title heading={5} style={{ margin: 0 }}>
+                  <Title
+                    heading={5}
+                    style={{ margin: 0, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+                  >
                     {tool.title}
                   </Title>
                   {tool.tags.map((tag) => (
@@ -339,20 +381,47 @@ const GuidePage = () => {
                     </Tag>
                   ))}
                 </Space>
-                <Paragraph type='tertiary' style={{ marginTop: 8 }}>
+                <Paragraph
+                  type='tertiary'
+                  style={{ marginTop: 8, textAlign: 'left', color: 'var(--semi-color-text-1)' }}
+                >
                   {tool.summary}
                 </Paragraph>
               </div>
 
-              <Space vertical spacing='loose' style={{ width: '100%' }}>
+              <Space
+                vertical
+                spacing='loose'
+                align='start'
+                style={{ width: '100%', alignItems: 'stretch' }}
+              >
                 {tool.sections.map((section, index) => (
-                  <Card key={`${tool.key}-${section.title}`} style={{ borderRadius: 12 }}>
-                    <Title heading={6} style={{ marginBottom: 8 }}>
+                  <Card
+                    key={`${tool.key}-${section.title}`}
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: isDark ? '1px solid rgba(255,255,255,0.10)' : undefined,
+                      background: isDark ? '#111a27' : 'var(--semi-color-bg-0)',
+                    }}
+                    bodyStyle={{ textAlign: 'left' }}
+                  >
+                    <Title
+                      heading={6}
+                      style={{
+                        marginBottom: 8,
+                        textAlign: 'left',
+                        color: 'var(--semi-color-text-0)',
+                      }}
+                    >
                       {index + 1}. {section.title}
                     </Title>
                     <pre
                       style={{
-                        background: 'var(--semi-color-fill-0)',
+                        background: isDark ? '#182131' : 'var(--semi-color-fill-0)',
+                        border: isDark
+                          ? '1px solid rgba(255,255,255,0.08)'
+                          : '1px solid var(--semi-color-border)',
                         borderRadius: 8,
                         padding: '16px',
                         overflow: 'auto',
@@ -360,6 +429,8 @@ const GuidePage = () => {
                         lineHeight: 1.6,
                         margin: 0,
                         whiteSpace: 'pre-wrap',
+                        color: 'var(--semi-color-text-0)',
+                        textAlign: 'left',
                       }}
                     >
                       <code>{section.code}</code>
@@ -380,34 +451,80 @@ const GuidePage = () => {
         ))}
       </Tabs>
 
-      <div style={{ marginTop: 32 }}>
-        <Title heading={4} style={{ marginBottom: 16 }}>
+      <div style={{ marginTop: 32, textAlign: 'left' }}>
+        <Title
+          heading={4}
+          style={{ marginBottom: 16, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+        >
           常见问题
         </Title>
-        <Space vertical style={{ width: '100%' }}>
-          <Card style={{ borderRadius: 8 }}>
-            <Title heading={6} style={{ marginBottom: 8 }}>
+        <Space
+          vertical
+          align='start'
+          style={{ width: '100%', textAlign: 'left', alignItems: 'stretch' }}
+        >
+          <Card
+            style={{
+              borderRadius: 8,
+              border: isDark ? '1px solid rgba(255,255,255,0.10)' : undefined,
+              background: isDark ? '#111a27' : 'var(--semi-color-bg-0)',
+            }}
+            bodyStyle={{ textAlign: 'left' }}
+          >
+            <Title
+              heading={6}
+              style={{ marginBottom: 8, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+            >
               Q: API 地址应该填什么？需要加 /v1 吗？
             </Title>
-            <Paragraph type='tertiary' style={{ marginBottom: 0 }}>
+            <Paragraph
+              type='tertiary'
+              style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-1)' }}
+            >
               Claude Code、VS Code、Cursor 这类 Claude Code 体系，通常直接使用
               <code>{normalizedHost}</code>。OpenAI SDK、Cline、ChatBox 这类
               OpenAI 兼容工具，通常使用 <code>{openAiBaseUrl}</code>。
             </Paragraph>
           </Card>
-          <Card style={{ borderRadius: 8 }}>
-            <Title heading={6} style={{ marginBottom: 8 }}>
+          <Card
+            style={{
+              borderRadius: 8,
+              border: isDark ? '1px solid rgba(255,255,255,0.10)' : undefined,
+              background: isDark ? '#111a27' : 'var(--semi-color-bg-0)',
+            }}
+            bodyStyle={{ textAlign: 'left' }}
+          >
+            <Title
+              heading={6}
+              style={{ marginBottom: 8, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+            >
               Q: 其他没列出的工具怎么接？
             </Title>
-            <Paragraph type='tertiary' style={{ marginBottom: 0 }}>
+            <Paragraph
+              type='tertiary'
+              style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-1)' }}
+            >
               只要工具支持自定义 OpenAI Base URL 或 Claude 接口地址，基本都能接。核心就是选对协议，然后填正确的地址和 API Key。
             </Paragraph>
           </Card>
-          <Card style={{ borderRadius: 8 }}>
-            <Title heading={6} style={{ marginBottom: 8 }}>
+          <Card
+            style={{
+              borderRadius: 8,
+              border: isDark ? '1px solid rgba(255,255,255,0.10)' : undefined,
+              background: isDark ? '#111a27' : 'var(--semi-color-bg-0)',
+            }}
+            bodyStyle={{ textAlign: 'left' }}
+          >
+            <Title
+              heading={6}
+              style={{ marginBottom: 8, textAlign: 'left', color: 'var(--semi-color-text-0)' }}
+            >
               Q: 密钥泄露了怎么办？
             </Title>
-            <Paragraph type='tertiary' style={{ marginBottom: 0 }}>
+            <Paragraph
+              type='tertiary'
+              style={{ marginBottom: 0, textAlign: 'left', color: 'var(--semi-color-text-1)' }}
+            >
               立即登录控制台禁用旧令牌并重新创建新令牌，不要把密钥明文提交到代码仓库。
             </Paragraph>
           </Card>

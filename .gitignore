@@ -26,6 +26,7 @@ plans
 specs/
 .claude
 .codex-tmp/
+.tmp/
 
 electron/node_modules
 electron/dist

@@ -79,7 +79,7 @@ test.describe.serial('Setup and login baseline', () => {
       page.getByRole('button', { name: /进入控制台|Console/i }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: /阅读说明书|Documentation/i }),
+      page.getByRole('button', { name: /接入教程|Integration Guide/i }),
     ).toBeVisible();
 
     await page.goto('/guide');

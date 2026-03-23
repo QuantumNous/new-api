@@ -155,6 +155,52 @@ docker run --name new-api -d --restart always \
 
 ---
 
+### Local Dev (Recommended Over SSH)
+
+If you are connected to a remote machine over SSH and want to inspect frontend styling changes, use:
+
+```bash
+make local-up
+```
+
+This command will:
+
+- start `postgres` and `redis` with Docker
+- bind PostgreSQL/Redis to host `127.0.0.1` through `docker-compose.local.yml`
+- start the local backend at `http://127.0.0.1:3000`
+- start the Vite frontend dev server at `http://127.0.0.1:5173`
+- automatically clean everything up after 60 minutes by default
+
+Useful commands:
+
+```bash
+make local-status
+make local-logs
+make local-down
+```
+
+To change the lifetime, pass `LOCAL_TTL_MINUTES`:
+
+```bash
+make local-up LOCAL_TTL_MINUTES=30
+```
+
+Forward the ports from your local machine:
+
+```bash
+ssh -L 5173:127.0.0.1:5173 -L 3000:127.0.0.1:3000 <user>@<host>
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173
+```
+
+Logs are written to `.tmp/local-backend.log` and `.tmp/local-frontend.log`.
+
+---
+
 ## 📚 Documentation
 
 <div align="center">

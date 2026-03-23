@@ -26,9 +26,10 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconCopy, IconFile, IconPlay } from '@douyinfe/semi-icons';
+import { Claude, Gemini, OpenAI } from '@lobehub/icons';
 import { Link } from 'react-router-dom';
 import { marked } from 'marked';
-import { API, copy, showError, showSuccess } from '../../helpers';
+import { API, copy, getSystemName, showError, showSuccess } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import NoticeModal from '../../components/layout/NoticeModal';
 import { StatusContext } from '../../context/Status';
@@ -39,22 +40,26 @@ import { useTranslation } from 'react-i18next';
 const { Text } = Typography;
 
 const modelItems = [
-  'Claude Opus 4.6',
-  'Claude Sonnet 4.6',
-  'GPT-5.4',
-  'GPT-5.3 Codex',
-  'Gemini 3.1 Pro',
-  'Gemini 3 Flash',
-  'GPT-5.1 Codex Max',
-  'Claude Haiku 4.5',
-  'Claude Opus 4.6',
-  'Claude Sonnet 4.6',
-  'GPT-5.4',
-  'GPT-5.3 Codex',
-  'Gemini 3.1 Pro',
-  'Gemini 3 Flash',
-  'GPT-5.1 Codex Max',
-  'Claude Haiku 4.5',
+  {
+    name: 'Claude Opus 系列',
+    icon: Claude,
+  },
+  {
+    name: 'Claude Sonnet / Haiku 系列',
+    icon: Claude,
+  },
+  {
+    name: 'Gemini Pro 系列',
+    icon: Gemini,
+  },
+  {
+    name: 'Gemini Flash 系列',
+    icon: Gemini,
+  },
+  {
+    name: 'GPT / GPT-mini 系列',
+    icon: OpenAI,
+  },
 ];
 
 const compareRows = [
@@ -116,7 +121,7 @@ const Home = () => {
   const [homePageContent, setHomePageContent] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
-  const docsLink = statusState?.status?.docs_link || '';
+  const systemName = getSystemName();
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
   const endpointItems = useMemo(
@@ -190,12 +195,12 @@ const Home = () => {
     return () => clearInterval(timer);
   }, [endpointItems.length]);
 
-  const docsTarget = docsLink || '/about';
-  const docsIsExternal = Boolean(docsLink);
+  const docsTarget = '/guide';
   const pageBackground =
     actualTheme === 'dark'
       ? 'linear-gradient(180deg, #09111a 0%, #0d1722 42%, #101a16 100%)'
       : 'linear-gradient(180deg, #f8efe2 0%, #fffdf8 35%, #edf7f3 100%)';
+  const isDark = actualTheme === 'dark';
 
   return (
     <div className='w-full overflow-x-hidden'>
@@ -213,20 +218,40 @@ const Home = () => {
             <div className='absolute left-[-120px] top-24 h-64 w-64 rounded-full bg-[#ffd39f]/40 blur-3xl' />
             <div className='absolute right-[-60px] top-10 h-72 w-72 rounded-full bg-[#68d5c0]/25 blur-3xl' />
 
-            <section className='relative overflow-hidden rounded-[32px] border border-white/40 bg-white/75 p-6 shadow-[0_24px_80px_rgba(29,35,52,0.12)] backdrop-blur md:p-10 lg:p-12'>
+            <section
+              className={`relative overflow-hidden rounded-[32px] p-6 shadow-[0_24px_80px_rgba(29,35,52,0.12)] backdrop-blur md:p-10 lg:p-12 ${
+                isDark
+                  ? 'border border-white/10 bg-[#111926]/85'
+                  : 'border border-white/40 bg-white/75'
+              }`}
+            >
               <div className='grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start'>
                 <div>
-                  <div className='mb-5 inline-flex rounded-full border border-[#d8c6a4] bg-[#fff6e6] px-4 py-2 text-sm font-semibold text-[#7d4f11]'>
-                    满血官方中转 + 优化线路 + 中文客服工单 + 新加坡技术团队运维
+                  <div
+                    className={`mb-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold ${
+                      isDark
+                        ? 'border border-[#5c4a27] bg-[#2d2417] text-[#f3ca82]'
+                        : 'border border-[#d8c6a4] bg-[#fff6e6] text-[#7d4f11]'
+                    }`}
+                  >
+                    满血官方中转 + 优化线路 + 中文客服工单 + 极客团队运维
                   </div>
-                  <h1 className='max-w-4xl text-4xl font-black leading-tight text-[#161515] md:text-6xl'>
+                  <h1
+                    className={`max-w-4xl text-4xl font-black leading-tight md:text-6xl ${
+                      isDark ? 'text-[#f5f7fb]' : 'text-[#161515]'
+                    }`}
+                  >
                     拿命担保绝不降智，
                     <br />
                     接入即刻降本 95%。
                     <br />
                     发现一次偷换模型，全额退款。
                   </h1>
-                  <p className='mt-6 max-w-3xl text-base leading-7 text-[#5b5347] md:text-xl md:leading-9'>
+                  <p
+                    className={`mt-6 max-w-3xl text-base leading-7 md:text-xl md:leading-9 ${
+                      isDark ? 'text-[#c1cad8]' : 'text-[#5b5347]'
+                    }`}
+                  >
                     AI 御三家一键纳入：Claude · GPT · Gemini 全系满血
                     <br />
                     额度直充，¥9.9 起步 · 免翻墙 · 免信用卡 · 30 秒接入
@@ -244,32 +269,41 @@ const Home = () => {
                         进入控制台
                       </Button>
                     </Link>
-                    {docsIsExternal ? (
+                    <Link to={docsTarget}>
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='!h-auto !rounded-full border border-[#d7d2c6] !bg-white/80 px-7 py-3 !text-base !font-semibold !text-[#1f2328]'
+                        className={`!h-auto !rounded-full px-7 py-3 !text-base !font-semibold ${
+                          isDark
+                            ? 'border !border-white/15 !bg-white/8 !text-white'
+                            : 'border border-[#d7d2c6] !bg-white/80 !text-[#1f2328]'
+                        }`}
                         icon={<IconFile />}
-                        onClick={() => window.open(docsTarget, '_blank')}
                       >
-                        阅读说明书
+                        接入教程
                       </Button>
-                    ) : (
-                      <Link to={docsTarget}>
-                        <Button
-                          size={isMobile ? 'default' : 'large'}
-                          className='!h-auto !rounded-full border border-[#d7d2c6] !bg-white/80 px-7 py-3 !text-base !font-semibold !text-[#1f2328]'
-                          icon={<IconFile />}
-                        >
-                          阅读说明书
-                        </Button>
-                      </Link>
-                    )}
+                    </Link>
                   </div>
 
-                  <div className='mt-8 rounded-[28px] border border-[#ebe3d3] bg-[#fffaf1] p-4 md:p-5'>
-                    <div className='mb-2 flex flex-wrap items-center gap-2 text-sm font-medium text-[#846b44]'>
+                  <div
+                    className={`mt-8 rounded-[28px] p-4 md:p-5 ${
+                      isDark
+                        ? 'border border-white/10 bg-[#182231]'
+                        : 'border border-[#ebe3d3] bg-[#fffaf1]'
+                    }`}
+                  >
+                    <div
+                      className={`mb-2 flex flex-wrap items-center gap-2 text-sm font-medium ${
+                        isDark ? 'text-[#c4b28d]' : 'text-[#846b44]'
+                      }`}
+                    >
                       <span>接入只改一行 Base URL</span>
-                      <span className='rounded-full bg-[#e7f6ef] px-3 py-1 text-[#1d8f6d]'>
+                      <span
+                        className={`rounded-full px-3 py-1 ${
+                          isDark
+                            ? 'bg-[#153428] text-[#79f2cb]'
+                            : 'bg-[#e7f6ef] text-[#1d8f6d]'
+                        }`}
+                      >
                         兼容 OpenAI SDK
                       </span>
                     </div>
@@ -304,29 +338,59 @@ const Home = () => {
                   </div>
                 </div>
 
-                <div className='rounded-[28px] border border-[#ece6db] bg-[#fffdfa] p-4 md:p-5'>
+                <div
+                  className={`rounded-[28px] p-4 md:p-5 ${
+                    isDark
+                      ? 'border border-white/10 bg-[#151f2d]'
+                      : 'border border-[#ece6db] bg-[#fffdfa]'
+                  }`}
+                >
                   <div className='flex items-center justify-between gap-3'>
                     <div>
-                      <div className='text-sm font-semibold uppercase tracking-[0.25em] text-[#8e6a2d]'>
-                        满血模型池
+                      <div
+                        className={`text-sm font-semibold uppercase tracking-[0.25em] ${
+                          isDark ? 'text-[#f0c883]' : 'text-[#8e6a2d]'
+                        }`}
+                      >
+                        满血模型系列
                       </div>
-                      <div className='mt-2 text-xl font-bold text-[#141414]'>
-                        Claude · GPT · Gemini 全系主力阵容
+                      <div
+                        className={`mt-2 text-xl font-bold ${
+                          isDark ? 'text-[#f5f7fb]' : 'text-[#141414]'
+                        }`}
+                      >
+                        Claude · GPT · Gemini 最新系列全覆盖
                       </div>
                     </div>
-                    <div className='rounded-full bg-[#1d8f6d] px-3 py-1 text-sm font-semibold text-white'>
+                    <div className='whitespace-nowrap rounded-full bg-[#1d8f6d] px-3 py-1 text-sm font-semibold text-white'>
                       量大价廉
                     </div>
                   </div>
-                  <div className='mt-5 grid grid-cols-2 gap-3'>
-                    {modelItems.map((item, index) => (
+                  <div className='mt-5 grid gap-3 sm:grid-cols-2'>
+                    {modelItems.map((item, index) => {
+                      const Logo = item.icon;
+                      return (
                       <div
-                        key={`${item}-${index}`}
-                        className='rounded-2xl border border-[#ebe3d3] bg-white px-4 py-3 text-sm font-semibold text-[#2c2c2c] shadow-[0_8px_24px_rgba(46,54,75,0.06)]'
+                        key={`${item.name}-${index}`}
+                        className={`rounded-2xl px-4 py-3 text-sm font-semibold shadow-[0_8px_24px_rgba(46,54,75,0.06)] ${
+                          isDark
+                            ? 'border border-white/10 bg-[#1b2838] text-[#e6edf8]'
+                            : 'border border-[#ebe3d3] bg-white text-[#2c2c2c]'
+                        }`}
                       >
-                        {item}
+                        <div className='flex items-center gap-3'>
+                          <span
+                            className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                              isDark ? 'bg-white/8' : 'bg-[#f7f1e4]'
+                            }`}
+                          >
+                            <Logo size={18} />
+                          </span>
+                          <span>{item.name}</span>
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -336,25 +400,57 @@ const Home = () => {
               {valueCards.map((card) => (
                 <div
                   key={card.title}
-                  className='rounded-[28px] border border-white/50 bg-white/70 p-6 shadow-[0_18px_50px_rgba(29,35,52,0.08)] backdrop-blur'
+                  className={`rounded-[28px] p-6 shadow-[0_18px_50px_rgba(29,35,52,0.08)] backdrop-blur ${
+                    isDark
+                      ? 'border border-white/10 bg-[#131d2b]/85'
+                      : 'border border-white/50 bg-white/70'
+                  }`}
                 >
-                  <h2 className='text-xl font-bold text-[#171717]'>{card.title}</h2>
-                  <p className='mt-3 text-sm leading-7 text-[#61584c] md:text-base'>
+                  <h2
+                    className={`text-xl font-bold ${
+                      isDark ? 'text-[#f5f7fb]' : 'text-[#171717]'
+                    }`}
+                  >
+                    {card.title}
+                  </h2>
+                  <p
+                    className={`mt-3 text-sm leading-7 md:text-base ${
+                      isDark ? 'text-[#bdc7d5]' : 'text-[#61584c]'
+                    }`}
+                  >
                     {card.body}
                   </p>
                 </div>
               ))}
             </section>
 
-            <section className='mt-8 rounded-[32px] border border-[#e9e1d3] bg-[#fff] p-6 shadow-[0_20px_60px_rgba(29,35,52,0.08)] md:p-8'>
+            <section
+              className={`mt-8 rounded-[32px] p-6 shadow-[0_20px_60px_rgba(29,35,52,0.08)] md:p-8 ${
+                isDark
+                  ? 'border border-white/10 bg-[#111a27]'
+                  : 'border border-[#e9e1d3] bg-[#fff]'
+              }`}
+            >
               <div className='max-w-3xl'>
-                <div className='text-sm font-semibold uppercase tracking-[0.28em] text-[#8e6a2d]'>
+                <div
+                  className={`text-sm font-semibold uppercase tracking-[0.28em] ${
+                    isDark ? 'text-[#f0c883]' : 'text-[#8e6a2d]'
+                  }`}
+                >
                   三方对比，一目了然
                 </div>
-                <h2 className='mt-3 text-3xl font-black text-[#181818] md:text-4xl'>
+                <h2
+                  className={`mt-3 text-3xl font-black md:text-4xl ${
+                    isDark ? 'text-[#f5f7fb]' : 'text-[#181818]'
+                  }`}
+                >
                   官方直连 vs 低价逆向 vs 满血 AI 接入
                 </h2>
-                <p className='mt-3 text-base leading-7 text-[#61584c]'>
+                <p
+                  className={`mt-3 text-base leading-7 ${
+                    isDark ? 'text-[#bdc7d5]' : 'text-[#61584c]'
+                  }`}
+                >
                   不比花活，只比模型是否原版、线路是否稳定、接入是否省事、售后是否真能响应。
                 </p>
               </div>
@@ -362,33 +458,81 @@ const Home = () => {
                 <table className='min-w-full border-separate border-spacing-0 overflow-hidden rounded-[24px]'>
                   <thead>
                     <tr>
-                      <th className='bg-[#f8f1e5] px-4 py-4 text-left text-sm font-bold text-[#684b16]'>
+                      <th
+                        className={`px-4 py-4 text-left text-sm font-bold ${
+                          isDark
+                            ? 'bg-[#2c2417] text-[#f0c883]'
+                            : 'bg-[#f8f1e5] text-[#684b16]'
+                        }`}
+                      >
                         对比维度
                       </th>
-                      <th className='bg-[#f5f5f5] px-4 py-4 text-left text-sm font-bold text-[#30343a]'>
+                      <th
+                        className={`px-4 py-4 text-left text-sm font-bold ${
+                          isDark
+                            ? 'bg-[#1a2230] text-[#e6edf8]'
+                            : 'bg-[#f5f5f5] text-[#30343a]'
+                        }`}
+                      >
                         官方直连
                       </th>
-                      <th className='bg-[#fff0f0] px-4 py-4 text-left text-sm font-bold text-[#8a3c3c]'>
+                      <th
+                        className={`px-4 py-4 text-left text-sm font-bold ${
+                          isDark
+                            ? 'bg-[#2b1d22] text-[#f2b5b5]'
+                            : 'bg-[#fff0f0] text-[#8a3c3c]'
+                        }`}
+                      >
                         低价逆向
                       </th>
-                      <th className='bg-[#e8faf4] px-4 py-4 text-left text-sm font-bold text-[#16634b]'>
-                        OpusClaw · 满血 AI 接入
+                      <th
+                        className={`px-4 py-4 text-left text-sm font-bold ${
+                          isDark
+                            ? 'bg-[#142a24] text-[#79f2cb]'
+                            : 'bg-[#e8faf4] text-[#16634b]'
+                        }`}
+                      >
+                        {systemName} · 满血 AI 接入
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {compareRows.map((row, index) => (
                       <tr key={row[0]}>
-                        <td className='border-t border-[#efe7d8] bg-[#fffaf2] px-4 py-4 text-sm font-semibold text-[#473d2f]'>
+                        <td
+                          className={`px-4 py-4 text-sm font-semibold ${
+                            isDark
+                              ? 'border-t border-white/10 bg-[#182131] text-[#d9c8ab]'
+                              : 'border-t border-[#efe7d8] bg-[#fffaf2] text-[#473d2f]'
+                          }`}
+                        >
                           {row[0]}
                         </td>
-                        <td className='border-t border-[#efe7d8] bg-white px-4 py-4 text-sm text-[#3a3f45]'>
+                        <td
+                          className={`px-4 py-4 text-sm ${
+                            isDark
+                              ? 'border-t border-white/10 bg-[#111a27] text-[#d3dbe7]'
+                              : 'border-t border-[#efe7d8] bg-white text-[#3a3f45]'
+                          }`}
+                        >
                           {row[1]}
                         </td>
-                        <td className='border-t border-[#efe7d8] bg-white px-4 py-4 text-sm text-[#7a5151]'>
+                        <td
+                          className={`px-4 py-4 text-sm ${
+                            isDark
+                              ? 'border-t border-white/10 bg-[#111a27] text-[#d9aaaa]'
+                              : 'border-t border-[#efe7d8] bg-white text-[#7a5151]'
+                          }`}
+                        >
                           {row[2]}
                         </td>
-                        <td className='border-t border-[#efe7d8] bg-white px-4 py-4 text-sm font-semibold text-[#16634b]'>
+                        <td
+                          className={`px-4 py-4 text-sm font-semibold ${
+                            isDark
+                              ? 'border-t border-white/10 bg-[#111a27] text-[#79f2cb]'
+                              : 'border-t border-[#efe7d8] bg-white text-[#16634b]'
+                          }`}
+                        >
                           {row[3]}
                         </td>
                       </tr>
@@ -399,26 +543,62 @@ const Home = () => {
             </section>
 
             <section className='mt-8 grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]'>
-              <div className='rounded-[32px] border border-[#eadfcb] bg-[#221d16] p-6 text-white shadow-[0_20px_60px_rgba(23,19,14,0.24)] md:p-8'>
-                <div className='text-sm font-semibold uppercase tracking-[0.28em] text-[#f0c883]'>
+              <div
+                className={`rounded-[32px] p-6 shadow-[0_20px_60px_rgba(23,19,14,0.24)] md:p-8 ${
+                  isDark
+                    ? 'border border-[#eadfcb] bg-[#221d16] text-white'
+                    : 'border border-[#eadfcb] bg-[#fff7ec] text-[#2d251c]'
+                }`}
+              >
+                <div
+                  className={`text-sm font-semibold uppercase tracking-[0.28em] ${
+                    isDark ? 'text-[#f0c883]' : 'text-[#8e6a2d]'
+                  }`}
+                >
                   时间才是最贵的成本
                 </div>
                 <div className='mt-6 grid gap-4'>
-                  <div className='rounded-[24px] border border-white/10 bg-white/5 p-5'>
+                  <div
+                    className={`rounded-[24px] p-5 ${
+                      isDark
+                        ? 'border border-white/10 bg-white/5'
+                        : 'border border-[#eadfcb] bg-white'
+                    }`}
+                  >
                     <div className='flex items-center justify-between gap-4'>
-                      <div className='text-lg font-bold'>用弱模型“省钱”</div>
+                      <div className='text-lg font-bold'>用某便宜国产开源模型</div>
                       <div className='text-2xl font-black text-[#ffcf85]'>3 小时</div>
                     </div>
-                    <p className='mt-3 text-sm leading-7 text-white/75'>
-                      用 Haiku 省了 ¥50 API 费，多花 3 小时反复 debug。
+                    <p
+                      className={`mt-3 text-sm leading-7 ${
+                        isDark ? 'text-white/75' : 'text-[#685d50]'
+                      }`}
+                    >
+                      看起来省了点 API 费，结果多花 3 小时反复 debug。
                     </p>
                   </div>
-                  <div className='rounded-[24px] border border-[#3fd0a8]/30 bg-[#123b31] p-5'>
+                  <div
+                    className={`rounded-[24px] p-5 ${
+                      isDark
+                        ? 'border border-[#3fd0a8]/30 bg-[#123b31]'
+                        : 'border border-[#b9e8d7] bg-[#edf8f3]'
+                    }`}
+                  >
                     <div className='flex items-center justify-between gap-4'>
-                      <div className='text-lg font-bold'>用 Opus 一步到位</div>
+                      <div
+                        className={`text-lg font-bold ${
+                          isDark ? 'text-white' : 'text-[#134c3d]'
+                        }`}
+                      >
+                        用 Opus 一步到位
+                      </div>
                       <div className='text-2xl font-black text-[#79f2cb]'>10 分钟</div>
                     </div>
-                    <p className='mt-3 text-sm leading-7 text-white/80'>
+                    <p
+                      className={`mt-3 text-sm leading-7 ${
+                        isDark ? 'text-white/80' : 'text-[#386556]'
+                      }`}
+                    >
                       多花 ¥50 用 Opus，10 分钟精准搞定。你的时间值多少钱？
                     </p>
                   </div>
@@ -429,15 +609,31 @@ const Home = () => {
                 {capabilityCards.map((card) => (
                   <div
                     key={card.title}
-                    className='rounded-[28px] border border-white/55 bg-white/75 p-6 shadow-[0_18px_50px_rgba(29,35,52,0.08)] backdrop-blur'
+                  className={`rounded-[28px] p-6 shadow-[0_18px_50px_rgba(29,35,52,0.08)] backdrop-blur ${
+                    isDark
+                      ? 'border border-white/10 bg-[#131d2b]/85'
+                      : 'border border-white/55 bg-white/75'
+                  }`}
                   >
-                    <div className='text-sm font-semibold uppercase tracking-[0.22em] text-[#8e6a2d]'>
+                    <div
+                      className={`text-sm font-semibold uppercase tracking-[0.22em] ${
+                        isDark ? 'text-[#f0c883]' : 'text-[#8e6a2d]'
+                      }`}
+                    >
                       {card.eyebrow}
                     </div>
-                    <h2 className='mt-3 text-2xl font-bold text-[#161616]'>
+                    <h2
+                      className={`mt-3 text-2xl font-bold ${
+                        isDark ? 'text-[#f5f7fb]' : 'text-[#161616]'
+                      }`}
+                    >
                       {card.title}
                     </h2>
-                    <p className='mt-3 text-sm leading-7 text-[#62594d] md:text-base'>
+                    <p
+                      className={`mt-3 text-sm leading-7 md:text-base ${
+                        isDark ? 'text-[#bdc7d5]' : 'text-[#62594d]'
+                      }`}
+                    >
                       {card.body}
                     </p>
                   </div>
@@ -454,7 +650,7 @@ const Home = () => {
                   <h2 className='mt-3 text-3xl font-black leading-tight md:text-4xl'>
                     满血官方中转，客服工单快速提交，
                     <br />
-                    新加坡技术团队开发和运维。
+                    极客团队开发和运维。
                   </h2>
                   <p className='mt-4 max-w-3xl text-base leading-8 text-white/85'>
                     面向开发者、团队和高频调用场景，主打官方原版输出、优化线路、量大价廉、中文即时响应。模型不偷换，问题不甩锅，出了问题有人负责到底。

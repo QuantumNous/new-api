@@ -155,6 +155,61 @@ docker run --name new-api -d --restart always \
 
 ---
 
+### 本地联调（SSH 场景推荐）
+
+如果你是通过 SSH 登录远程机器，且需要频繁调整前端样式，推荐使用仓库内置的本地联调命令：
+
+```bash
+make local-up
+```
+
+这个命令会完成以下事情：
+
+- 用 Docker 拉起 `postgres` 和 `redis`
+- 通过 `docker-compose.local.yml` 将 PostgreSQL/Redis 仅绑定到宿主机 `127.0.0.1`
+- 在本机启动后端开发服务 `http://127.0.0.1:3000`
+- 在本机启动前端 Vite 开发服务 `http://127.0.0.1:5173`
+- 默认 60 分钟后自动执行清理，防止忘记关闭
+
+常用命令：
+
+```bash
+# 查看状态
+make local-status
+
+# 查看最近日志
+make local-logs
+
+# 停止本地联调环境
+make local-down
+```
+
+如需调整存活时间，可传 `LOCAL_TTL_MINUTES`，单位为分钟：
+
+```bash
+make local-up LOCAL_TTL_MINUTES=30
+```
+
+如果你是通过 SSH 使用这台机器，请在本地电脑执行端口转发：
+
+```bash
+ssh -L 5173:127.0.0.1:5173 -L 3000:127.0.0.1:3000 <user>@<host>
+```
+
+随后在本地浏览器访问：
+
+```text
+http://127.0.0.1:5173
+```
+
+说明：
+
+- `5173` 是前端开发页面，适合查看样式改动
+- `3000` 是本地后端接口
+- 本地联调日志默认写入 `.tmp/local-backend.log` 和 `.tmp/local-frontend.log`
+
+---
+
 ## 📚 文档
 
 <div align="center">
