@@ -509,7 +509,7 @@ export const getLogsColumns = ({
   t,
   COLUMN_KEYS,
   copyText,
-  showUserInfoFunc,
+  openEditUserPanel,
   openChannelAffinityUsageCacheModal,
   isAdminUser,
   billingDisplayMode = 'price',
@@ -618,24 +618,37 @@ export const getLogsColumns = ({
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
       dataIndex: 'username',
-      render: (text, record, index) => {
-        return isAdminUser ? (
-          <div>
+      render: (text, record) => {
+        if (!isAdminUser) {
+          return <></>;
+        }
+        const displayText = String(text || record.user_id || '?');
+        const canOpen = Boolean(record.user_id);
+        const handleOpen = (event) => {
+          event.stopPropagation();
+          if (!canOpen) {
+            return;
+          }
+          openEditUserPanel(record.user_id);
+        };
+        return (
+          <Space spacing={4}>
             <Avatar
               size='extra-small'
-              color={stringToColor(text)}
-              style={{ marginRight: 4 }}
-              onClick={(event) => {
-                event.stopPropagation();
-                showUserInfoFunc(record.user_id);
-              }}
+              color={stringToColor(displayText)}
+              style={{ cursor: canOpen ? 'pointer' : 'default' }}
+              onClick={handleOpen}
             >
-              {typeof text === 'string' && text.slice(0, 1)}
+              {displayText.slice(0, 1)}
             </Avatar>
-            {text}
-          </div>
-        ) : (
-          <></>
+            <Typography.Text
+              link={canOpen}
+              style={{ cursor: canOpen ? 'pointer' : 'default' }}
+              onClick={handleOpen}
+            >
+              {displayText}
+            </Typography.Text>
+          </Space>
         );
       },
     },

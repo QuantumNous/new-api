@@ -32,6 +32,7 @@ const ColumnSelectorModal = ({
   isAdminUser,
   copyText,
   openContentModal,
+  openEditUserPanel,
   t,
 }) => {
   // Get all columns for display in selector
@@ -41,6 +42,7 @@ const ColumnSelectorModal = ({
     copyText,
     openContentModal,
     isAdminUser,
+    openEditUserPanel,
   });
 
   return (

@@ -66,17 +66,29 @@ const renderRole = (role, t) => {
 /**
  * Render username with remark
  */
-const renderUsername = (text, record) => {
+const renderUsername = (text, record, openEditUserPanel) => {
   const remark = record.remark;
+  const canOpen = Boolean(openEditUserPanel) && record.DeletedAt === null;
+  const usernameNode = canOpen ? (
+    <Typography.Text
+      link
+      style={{ cursor: 'pointer' }}
+      onClick={() => openEditUserPanel(record)}
+    >
+      {text}
+    </Typography.Text>
+  ) : (
+    <span>{text}</span>
+  );
   if (!remark) {
-    return <span>{text}</span>;
+    return usernameNode;
   }
   const maxLen = 10;
   const displayRemark =
     remark.length > maxLen ? remark.slice(0, maxLen) + '…' : remark;
   return (
     <Space spacing={2}>
-      <span>{text}</span>
+      {usernameNode}
       <Tooltip content={remark} position='top' showArrow>
         <Tag color='white' shape='circle' className='!text-xs'>
           <div className='flex items-center gap-1'>
@@ -200,8 +212,7 @@ const renderOperations = (
   text,
   record,
   {
-    setEditingUser,
-    setShowEditUser,
+    openEditUserPanel,
     showPromoteModal,
     showDemoteModal,
     showEnableDisableModal,
@@ -267,10 +278,7 @@ const renderOperations = (
       <Button
         type='tertiary'
         size='small'
-        onClick={() => {
-          setEditingUser(record);
-          setShowEditUser(true);
-        }}
+        onClick={() => openEditUserPanel(record)}
       >
         {t('编辑')}
       </Button>
@@ -300,8 +308,7 @@ const renderOperations = (
  */
 export const getUsersColumns = ({
   t,
-  setEditingUser,
-  setShowEditUser,
+  openEditUserPanel,
   showPromoteModal,
   showDemoteModal,
   showEnableDisableModal,
@@ -318,7 +325,7 @@ export const getUsersColumns = ({
     {
       title: t('用户名'),
       dataIndex: 'username',
-      render: (text, record) => renderUsername(text, record),
+      render: (text, record) => renderUsername(text, record, openEditUserPanel),
     },
     {
       title: t('状态'),
@@ -357,8 +364,7 @@ export const getUsersColumns = ({
       width: 200,
       render: (text, record, index) =>
         renderOperations(text, record, {
-          setEditingUser,
-          setShowEditUser,
+          openEditUserPanel,
           showPromoteModal,
           showDemoteModal,
           showEnableDisableModal,

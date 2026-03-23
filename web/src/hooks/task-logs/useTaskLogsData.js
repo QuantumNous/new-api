@@ -76,9 +76,11 @@ export const useTaskLogsData = () => {
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
   const [audioClips, setAudioClips] = useState([]);
 
-  // User info modal state
-  const [showUserInfo, setShowUserInfoModal] = useState(false);
-  const [userInfoData, setUserInfoData] = useState(null);
+  // Edit user modal state
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editingUser, setEditingUser] = useState({
+    id: undefined,
+  });
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -286,19 +288,23 @@ export const useTaskLogsData = () => {
     setIsAudioModalOpen(true);
   };
 
-  // User info function
-  const showUserInfoFunc = async (userId) => {
+  const openEditUserPanel = (userId) => {
     if (!isAdminUser) {
       return;
     }
-    const res = await API.get(`/api/user/${userId}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      setUserInfoData(data);
-      setShowUserInfoModal(true);
-    } else {
-      showError(message);
+    if (!userId) {
+      showError(t('用户信息缺失'));
+      return;
     }
+    setEditingUser({ id: userId });
+    setShowEditUser(true);
+  };
+
+  const closeEditUserPanel = () => {
+    setShowEditUser(false);
+    setEditingUser({
+      id: undefined,
+    });
   };
 
   // Initialize data
@@ -352,11 +358,11 @@ export const useTaskLogsData = () => {
     compactMode,
     setCompactMode,
 
-    // User info modal
-    showUserInfo,
-    setShowUserInfoModal,
-    userInfoData,
-    showUserInfoFunc,
+    // Edit user modal
+    showEditUser,
+    editingUser,
+    openEditUserPanel,
+    closeEditUserPanel,
 
     // Functions
     loadLogs,

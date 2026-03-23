@@ -100,25 +100,58 @@ const EditUserModal = (props) => {
 
   const handleCancel = () => props.handleClose();
 
-  const loadUser = async () => {
+  const loadUser = async (currentUserId) => {
     setLoading(true);
-    const url = userId ? `/api/user/${userId}` : `/api/user/self`;
+    const url = currentUserId ? `/api/user/${currentUserId}` : `/api/user/self`;
     const res = await API.get(url);
-    const { success, message, data } = res.data;
-    if (success) {
-      data.password = '';
-      formApiRef.current?.setValues({ ...getInitValues(), ...data });
-    } else {
-      showError(message);
-    }
-    setLoading(false);
+    return res.data;
   };
 
   useEffect(() => {
-    loadUser();
-    if (userId) fetchGroups();
-    setBindingModalVisible(false);
-  }, [props.editingUser.id]);
+    if (!props.visible) {
+      return;
+    }
+
+    let isCurrent = true;
+    const currentUserId = props.editingUser.id;
+
+    const initialize = async () => {
+      setBindingModalVisible(false);
+      setLoading(true);
+      try {
+        if (currentUserId) {
+          await fetchGroups();
+        } else {
+          setGroupOptions([]);
+        }
+
+        const { success, message, data } = await loadUser(currentUserId);
+        if (!isCurrent) {
+          return;
+        }
+        if (success) {
+          data.password = '';
+          formApiRef.current?.setValues({ ...getInitValues(), ...data });
+        } else {
+          showError(message);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          showError(error.message);
+        }
+      } finally {
+        if (isCurrent) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initialize();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [props.visible, props.editingUser.id]);
 
   const openBindingModal = () => {
     setBindingModalVisible(true);

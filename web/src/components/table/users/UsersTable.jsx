@@ -102,6 +102,14 @@ const UsersTable = (usersData) => {
     setShowUserSubscriptionsModal(true);
   };
 
+  const openEditUserPanel = (user) => {
+    if (!user || user.DeletedAt !== null) {
+      return;
+    }
+    setEditingUser(user);
+    setShowEditUser(true);
+  };
+
   // Modal confirm handlers
   const handlePromoteConfirm = () => {
     manageUser(modalUser.id, 'promote', modalUser);
@@ -132,8 +140,7 @@ const UsersTable = (usersData) => {
   const columns = useMemo(() => {
     return getUsersColumns({
       t,
-      setEditingUser,
-      setShowEditUser,
+      openEditUserPanel,
       showPromoteModal: showPromoteUserModal,
       showDemoteModal: showDemoteUserModal,
       showEnableDisableModal: showEnableDisableUserModal,
@@ -144,8 +151,7 @@ const UsersTable = (usersData) => {
     });
   }, [
     t,
-    setEditingUser,
-    setShowEditUser,
+    openEditUserPanel,
     showPromoteUserModal,
     showDemoteUserModal,
     showEnableDisableUserModal,

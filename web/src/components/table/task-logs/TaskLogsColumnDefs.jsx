@@ -241,6 +241,7 @@ export const getTaskLogsColumns = ({
   isAdminUser,
   openVideoModal,
   openAudioModal,
+  openEditUserPanel,
 }) => {
   return [
     {
@@ -294,20 +295,34 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
       dataIndex: 'username',
-      render: (userId, record, index) => {
+      render: (userId, record) => {
         if (!isAdminUser) {
           return <></>;
         }
         const displayText = String(record.username || userId || '?');
+        const canOpen = Boolean(record.user_id);
+        const handleOpen = (event) => {
+          event.stopPropagation();
+          if (!canOpen) {
+            return;
+          }
+          openEditUserPanel(record.user_id);
+        };
         return (
           <Space>
             <Avatar
               size='extra-small'
               color={stringToColor(displayText)}
+              style={{ cursor: canOpen ? 'pointer' : 'default' }}
+              onClick={handleOpen}
             >
               {displayText.slice(0, 1)}
             </Avatar>
-            <Typography.Text>
+            <Typography.Text
+              link={canOpen}
+              style={{ cursor: canOpen ? 'pointer' : 'default' }}
+              onClick={handleOpen}
+            >
               {displayText}
             </Typography.Text>
           </Space>
@@ -416,7 +431,8 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_REMIX_GENERATE;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a

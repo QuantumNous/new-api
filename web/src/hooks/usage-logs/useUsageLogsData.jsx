@@ -163,7 +163,9 @@ export const useLogsData = () => {
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -172,9 +174,11 @@ export const useLogsData = () => {
   // Compact mode
   const [compactMode, setCompactMode] = useTableCompactMode('logs');
 
-  // User info modal state
-  const [showUserInfo, setShowUserInfoModal] = useState(false);
-  const [userInfoData, setUserInfoData] = useState(null);
+  // Edit user modal state
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editingUser, setEditingUser] = useState({
+    id: undefined,
+  });
 
   // Channel affinity usage cache stats modal state (admin only)
   const [
@@ -323,19 +327,23 @@ export const useLogsData = () => {
     setLoadingStat(false);
   };
 
-  // User info function
-  const showUserInfoFunc = async (userId) => {
+  const openEditUserPanel = (userId) => {
     if (!isAdminUser) {
       return;
     }
-    const res = await API.get(`/api/user/${userId}`);
-    const { success, message, data } = res.data;
-    if (success) {
-      setUserInfoData(data);
-      setShowUserInfoModal(true);
-    } else {
-      showError(message);
+    if (!userId) {
+      showError(t('用户信息缺失'));
+      return;
     }
+    setEditingUser({ id: userId });
+    setShowEditUser(true);
+  };
+
+  const closeEditUserPanel = () => {
+    setShowEditUser(false);
+    setEditingUser({
+      id: undefined,
+    });
   };
 
   const openChannelAffinityUsageCacheModal = (affinity) => {
@@ -382,7 +390,10 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (
+        isAdminUser &&
+        (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
+      ) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -592,7 +603,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -862,11 +880,11 @@ export const useLogsData = () => {
     compactMode,
     setCompactMode,
 
-    // User info modal
-    showUserInfo,
-    setShowUserInfoModal,
-    userInfoData,
-    showUserInfoFunc,
+    // Edit user modal
+    showEditUser,
+    editingUser,
+    openEditUserPanel,
+    closeEditUserPanel,
 
     // Channel affinity usage cache stats modal
     showChannelAffinityUsageCacheModal,

@@ -23,9 +23,9 @@ import LogsTable from './UsageLogsTable';
 import LogsActions from './UsageLogsActions';
 import LogsFilters from './UsageLogsFilters';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
-import UserInfoModal from './modals/UserInfoModal';
 import ChannelAffinityUsageCacheModal from './modals/ChannelAffinityUsageCacheModal';
 import ParamOverrideModal from './modals/ParamOverrideModal';
+import EditUserModal from '../users/modals/EditUserModal';
 import { useLogsData } from '../../../hooks/usage-logs/useUsageLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
@@ -38,7 +38,12 @@ const LogsPage = () => {
     <>
       {/* Modals */}
       <ColumnSelectorModal {...logsData} />
-      <UserInfoModal {...logsData} />
+      <EditUserModal
+        refresh={logsData.refresh}
+        visible={logsData.showEditUser}
+        handleClose={logsData.closeEditUserPanel}
+        editingUser={logsData.editingUser}
+      />
       <ChannelAffinityUsageCacheModal {...logsData} />
       <ParamOverrideModal {...logsData} />
 
