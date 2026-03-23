@@ -65,6 +65,27 @@ test.describe.serial('Setup and login baseline', () => {
     await page.getByRole('button', { name: continueButtonName }).click();
 
     await expect(page).toHaveURL(/\/console/);
+
+    await page.goto('/');
+    const headerNav = page.locator('nav').first();
+    await expect(
+      headerNav.getByRole('link', { name: /^(联系客服|Contact Support)$/ }),
+    ).toBeVisible();
+    await expect(
+      headerNav.getByRole('link', { name: /^(接入教程|Integration Guide)$/ }),
+    ).toBeVisible();
+    await expect(page.getByText('拿命担保绝不降智，')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /进入控制台|Console/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /阅读说明书|Documentation/i }),
+    ).toBeVisible();
+
+    await page.goto('/guide');
+    await expect(page.getByText(/接入教程|Integration Guide/)).toBeVisible();
+    await expect(page.getByText(/Step 1/)).toBeVisible();
+    await expect(page.getByRole('tab', { name: /API 调用|API/ })).toBeVisible();
   });
 
   test('system settings show docker image version and update info', async ({ page }) => {
@@ -125,6 +146,7 @@ test.describe.serial('Setup and login baseline', () => {
     await expect(page.getByText('E2E Contact User')).toBeVisible();
     await expect(page.getByText('e2e-feedback@example.com')).toBeVisible();
 
+    await page.waitForTimeout(1500);
     await page.goto('/console/setting?tab=other');
     await page
       .locator('input[type="file"]')

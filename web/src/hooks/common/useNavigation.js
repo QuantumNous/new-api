@@ -28,6 +28,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       pricing: true,
       docs: true,
       about: true,
+      guide: true,
       contact: true,
     };
 
@@ -66,7 +67,12 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         to: '/about',
       },
       {
-        text: t('联系'),
+        text: t('接入教程'),
+        itemKey: 'guide',
+        to: '/guide',
+      },
+      {
+        text: t('联系客服'),
         itemKey: 'contact',
         to: '/contact',
       },
