@@ -625,6 +625,7 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 	}
 }
 
+// UpdateChannelStatus updates channel state and its ability visibility atomically.
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
@@ -657,17 +658,29 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			channel.Status = status
 			shouldUpdateAbilities = true
 		}
-		err = channel.SaveWithoutKey()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
-			return false
-		}
 	}
-	if shouldUpdateAbilities {
-		err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update ability status: channel_id=%d, error=%v", channelId, err))
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("key").Save(channel).Error; err != nil {
+			return err
 		}
+		if shouldUpdateAbilities {
+			err := tx.Model(&Ability{}).
+				Where("channel_id = ?", channelId).
+				Select("enabled").
+				Update("enabled", status == common.ChannelStatusEnabled).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if shouldUpdateAbilities {
+			common.SysLog(fmt.Sprintf("failed to update channel or ability status atomically: channel_id=%d, status=%d, error=%v", channelId, status, err))
+		} else {
+			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
+		}
+		return false
 	}
 	if common.MemoryCacheEnabled {
 		InitChannelCache()

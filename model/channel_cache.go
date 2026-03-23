@@ -18,24 +18,35 @@ var group2model2channels map[string]map[string][]int // enabled channel
 var channelsIDM map[int]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
 var channelCacheRefreshInFlight atomic.Bool
+var channelCacheRefreshPending atomic.Bool
 
+// InitChannelCache rebuilds the in-memory channel cache from database state.
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
 	}
+	channelCacheRefreshPending.Store(true)
+	if channelCacheRefreshInFlight.CompareAndSwap(false, true) {
+		runChannelCacheRefreshLoop()
+		return
+	}
+	for channelCacheRefreshInFlight.Load() {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func buildChannelCacheSnapshot() error {
 	newChannelId2channel := make(map[int]*Channel)
 	var channels []*Channel
 	if err := DB.Find(&channels).Error; err != nil {
-		common.SysError("failed to sync channels from database: " + err.Error())
-		return
+		return fmt.Errorf("failed to sync channels from database: %w", err)
 	}
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 	}
 	var abilities []*Ability
 	if err := DB.Find(&abilities).Error; err != nil {
-		common.SysError("failed to sync abilities from database: " + err.Error())
-		return
+		return fmt.Errorf("failed to sync abilities from database: %w", err)
 	}
 	newGroup2model2channels := make(map[string]map[string][]int)
 	for _, ability := range abilities {
@@ -93,8 +104,23 @@ func InitChannelCache() {
 	channelsIDM = newChannelId2channel
 	channelSyncLock.Unlock()
 	common.SysLog("channels synced from database")
+	return nil
 }
 
+func runChannelCacheRefreshLoop() {
+	defer channelCacheRefreshInFlight.Store(false)
+	for {
+		channelCacheRefreshPending.Store(false)
+		if err := buildChannelCacheSnapshot(); err != nil {
+			common.SysError(err.Error())
+		}
+		if !channelCacheRefreshPending.Load() {
+			return
+		}
+	}
+}
+
+// SyncChannelCache periodically refreshes the in-memory channel cache.
 func SyncChannelCache(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
@@ -111,13 +137,12 @@ func requestChannelCacheRefreshAsync() {
 		return
 	}
 	go func() {
-		defer channelCacheRefreshInFlight.Store(false)
 		defer func() {
 			if r := recover(); r != nil {
 				common.SysLog(fmt.Sprintf("InitChannelCache panic: %v", r))
 			}
 		}()
-		InitChannelCache()
+		runChannelCacheRefreshLoop()
 	}()
 }
 
@@ -209,6 +234,7 @@ func getRandomSatisfiedChannelFromCache(group string, model string, retry int) (
 	return nil, errors.New("channel not found"), true
 }
 
+// GetRandomSatisfiedChannel returns a channel for the requested group/model pair.
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
@@ -240,6 +266,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, nil
 }
 
+// CacheGetChannel returns a channel from the in-memory cache when available.
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
@@ -254,6 +281,7 @@ func CacheGetChannel(id int) (*Channel, error) {
 	return c, nil
 }
 
+// CacheGetChannelInfo returns cached channel info when available.
 func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	if !common.MemoryCacheEnabled {
 		channel, err := GetChannelById(id, true)
@@ -272,6 +300,7 @@ func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	return &c.ChannelInfo, nil
 }
 
+// CacheUpdateChannelStatus mutates a cached channel status in place.
 func CacheUpdateChannelStatus(id int, status int) {
 	if !common.MemoryCacheEnabled {
 		return
@@ -297,6 +326,7 @@ func CacheUpdateChannelStatus(id int, status int) {
 	}
 }
 
+// CacheUpdateChannel updates a cached channel entry in place.
 func CacheUpdateChannel(channel *Channel) {
 	if !common.MemoryCacheEnabled {
 		return

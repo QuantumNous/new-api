@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -154,7 +155,11 @@ func TestInitChannelCacheKeepsPreviousSnapshotOnScanError(t *testing.T) {
 	InitChannelCache()
 
 	require.NoError(t, DB.Exec(
-		"INSERT INTO channels (id, type, key, status, name, models, `group`, channel_info, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		fmt.Sprintf(
+			"INSERT INTO channels (id, type, %s, status, name, models, %s, channel_info, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			commonKeyCol,
+			commonGroupCol,
+		),
 		999,
 		1,
 		"broken-key",
@@ -162,7 +167,7 @@ func TestInitChannelCacheKeepsPreviousSnapshotOnScanError(t *testing.T) {
 		"broken-channel",
 		"broken-model",
 		"default",
-		"{",
+		`{"is_multi_key":false,"multi_key_size":0,"multi_key_status_list":{},"multi_key_disabled_reason":{},"multi_key_disabled_time":{},"multi_key_polling_index":0,"multi_key_mode":0}`,
 		"",
 	).Error)
 
