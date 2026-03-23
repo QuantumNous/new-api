@@ -178,12 +178,21 @@ func attachChannelNames(channelData []*ChannelQuotaData) error {
 	}
 
 	if len(channelNames) < len(ids) {
+		missingIDs := make([]int, 0, len(ids)-len(channelNames))
+		for _, id := range ids {
+			if _, ok := channelNames[id]; !ok {
+				missingIDs = append(missingIDs, id)
+			}
+		}
+		if len(missingIDs) == 0 {
+			goto assignChannelNames
+		}
 		type channelRow struct {
 			Id   int    `gorm:"column:id"`
 			Name string `gorm:"column:name"`
 		}
-		rows := make([]channelRow, 0, len(ids))
-		if err := DB.Table("channels").Select("id, name").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		rows := make([]channelRow, 0, len(missingIDs))
+		if err := DB.Table("channels").Select("id, name").Where("id IN ?", missingIDs).Find(&rows).Error; err != nil {
 			return err
 		}
 		for _, row := range rows {
@@ -191,6 +200,7 @@ func attachChannelNames(channelData []*ChannelQuotaData) error {
 		}
 	}
 
+assignChannelNames:
 	for _, item := range channelData {
 		if name, ok := channelNames[item.ChannelId]; ok && name != "" {
 			item.ChannelName = name

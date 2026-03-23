@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGetAllChannelQuotaData validates hourly channel aggregation and user filters.
 func TestGetAllChannelQuotaData(t *testing.T) {
 	truncateTables(t)
 
@@ -109,4 +110,14 @@ func TestGetAllChannelQuotaData(t *testing.T) {
 	require.Equal(t, 1, bobData[0].Count)
 	require.Equal(t, 50, bobData[0].Quota)
 	require.Equal(t, 20, bobData[0].TokenUsed)
+
+	if LOG_DB.Dialector.Name() != common.DatabaseTypeSQLite {
+		allDataNonSQLite, err := GetAllChannelQuotaData(0, 8000, "")
+		require.NoError(t, err)
+		require.Len(t, allDataNonSQLite, 2)
+
+		userDataNonSQLite, err := GetChannelQuotaDataByUserId(1, 0, 8000)
+		require.NoError(t, err)
+		require.Len(t, userDataNonSQLite, 2)
+	}
 }

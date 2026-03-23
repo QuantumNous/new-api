@@ -39,6 +39,7 @@ import {
 
 const CHANNEL_TREND_LIMIT = 10;
 
+// useDashboardCharts builds dashboard chart specs and updates chart datasets.
 export const useDashboardCharts = (
   dataExportDefaultTime,
   setTrendData,
@@ -497,6 +498,10 @@ export const useDashboardCharts = (
     (data) => {
       const normalizedData = data.map((item) => ({
         model_name:
+          item.channel_id > 0
+            ? `channel-${item.channel_id}`
+            : 'channel-unknown',
+        channel_label:
           item.channel_name ||
           (item.channel_id > 0 ? `Channel #${item.channel_id}` : t('未知渠道')),
         created_at: item.created_at,
@@ -510,15 +515,21 @@ export const useDashboardCharts = (
         dataExportDefaultTime,
       );
       const channelTotals = new Map();
+      const channelLabels = new Map();
+      normalizedData.forEach((item) => {
+        if (!channelLabels.has(item.model_name)) {
+          channelLabels.set(item.model_name, item.channel_label);
+        }
+      });
       for (const [, value] of aggregatedData) {
         updateMapValue(channelTotals, value.model, value.count);
       }
 
-      const topChannels = Array.from(channelTotals.entries())
+      const topChannelKeys = Array.from(channelTotals.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, CHANNEL_TREND_LIMIT)
-        .map(([channel]) => channel);
-      const topChannelSet = new Set(topChannels);
+        .map(([channelKey]) => channelKey);
+      const topChannelSet = new Set(topChannelKeys);
       const filteredData = normalizedData.filter((item) =>
         topChannelSet.has(item.model_name),
       );
@@ -534,23 +545,26 @@ export const useDashboardCharts = (
 
       const channelTrendData = [];
       chartTimePoints.forEach((time) => {
-        topChannels.forEach((channel) => {
-          const aggregated = filteredAggregatedData.get(`${time}-${channel}`);
+        topChannelKeys.forEach((channelKey) => {
+          const aggregated = filteredAggregatedData.get(
+            `${time}-${channelKey}`,
+          );
           channelTrendData.push({
             Time: time,
-            Channel: channel,
+            Channel: channelLabels.get(channelKey) || channelKey,
             Count: aggregated?.count || 0,
           });
         });
       });
       channelTrendData.sort((a, b) => a.Time.localeCompare(b.Time));
 
-      const channelColors = topChannels.reduce((acc, channel) => {
-        acc[channel] = stringToColor(channel);
+      const channelColors = topChannelKeys.reduce((acc, channelKey) => {
+        const channelLabel = channelLabels.get(channelKey) || channelKey;
+        acc[channelLabel] = stringToColor(channelKey);
         return acc;
       }, {});
-      const totalCalls = topChannels.reduce(
-        (sum, channel) => sum + (channelTotals.get(channel) || 0),
+      const totalCalls = topChannelKeys.reduce(
+        (sum, channelKey) => sum + (channelTotals.get(channelKey) || 0),
         0,
       );
 
