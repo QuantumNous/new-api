@@ -25,12 +25,18 @@ func InitChannelCache() {
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	var channels []*Channel
-	DB.Find(&channels)
+	if err := DB.Find(&channels).Error; err != nil {
+		common.SysError("failed to sync channels from database: " + err.Error())
+		return
+	}
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	if err := DB.Find(&abilities).Error; err != nil {
+		common.SysError("failed to sync abilities from database: " + err.Error())
+		return
+	}
 	newGroup2model2channels := make(map[string]map[string][]int)
 	for _, ability := range abilities {
 		if !ability.Enabled {

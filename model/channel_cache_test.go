@@ -99,3 +99,87 @@ func TestUpdateChannelStatusRefreshesMemoryCacheAfterEnable(t *testing.T) {
 	defer channelSyncLock.RUnlock()
 	require.True(t, isChannelIDInList(group2model2channels["default"]["gpt-5.4"], channel.Id))
 }
+
+func TestIsChannelEnabledForGroupModelFallsBackToDatabaseOnCacheMiss(t *testing.T) {
+	prepareChannelCacheTest(t)
+
+	prevMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = prevMemoryCacheEnabled
+	})
+
+	channel := &Channel{
+		Id:     103,
+		Name:   "satisfy-fallback-channel",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "other-model",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group:     "default",
+		Model:     "gpt-5.4-mini",
+		ChannelId: channel.Id,
+		Enabled:   true,
+	}).Error)
+
+	require.True(t, IsChannelEnabledForGroupModel("default", "gpt-5.4-mini", channel.Id))
+}
+
+func TestInitChannelCacheKeepsPreviousSnapshotOnScanError(t *testing.T) {
+	prepareChannelCacheTest(t)
+
+	prevMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = prevMemoryCacheEnabled
+	})
+
+	channel := &Channel{
+		Id:     104,
+		Name:   "stable-cache-channel",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "gpt-5.4",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group:     "default",
+		Model:     "gpt-5.4",
+		ChannelId: channel.Id,
+		Enabled:   true,
+	}).Error)
+
+	InitChannelCache()
+
+	require.NoError(t, DB.Exec(
+		"INSERT INTO channels (id, type, key, status, name, models, `group`, channel_info, settings) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		999,
+		1,
+		"broken-key",
+		common.ChannelStatusEnabled,
+		"broken-channel",
+		"broken-model",
+		"default",
+		"{",
+		"",
+	).Error)
+
+	InitChannelCache()
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	require.True(t, isChannelIDInList(group2model2channels["default"]["gpt-5.4"], channel.Id))
+	require.Nil(t, channelsIDM[999])
+}
+
+func TestChannelInfoScanSupportsStringValue(t *testing.T) {
+	var info ChannelInfo
+	err := info.Scan(`{"is_multi_key":false,"multi_key_size":0,"multi_key_status_list":{},"multi_key_disabled_reason":{},"multi_key_disabled_time":{},"multi_key_polling_index":0,"multi_key_mode":"random"}`)
+	require.NoError(t, err)
+	require.False(t, info.IsMultiKey)
+	require.Equal(t, 0, info.MultiKeySize)
+	require.Equal(t, 0, info.MultiKeyPollingIndex)
+	require.Equal(t, "random", string(info.MultiKeyMode))
+}

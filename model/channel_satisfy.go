@@ -14,21 +14,23 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 	}
 
 	channelSyncLock.RLock()
-	defer channelSyncLock.RUnlock()
-
 	if group2model2channels == nil {
-		return false
+		channelSyncLock.RUnlock()
+		return isChannelEnabledForGroupModelDB(group, modelName, channelID)
 	}
 
 	if isChannelIDInList(group2model2channels[group][modelName], channelID) {
+		channelSyncLock.RUnlock()
 		return true
 	}
 	normalized := ratio_setting.FormatMatchingModelName(modelName)
 	if normalized != "" && normalized != modelName {
 		if isChannelIDInList(group2model2channels[group][normalized], channelID) {
+			channelSyncLock.RUnlock()
 			return true
 		}
 	}
+	channelSyncLock.RUnlock()
 	return isChannelEnabledForGroupModelDB(group, modelName, channelID)
 }
 
