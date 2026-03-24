@@ -47,6 +47,8 @@ func buildContainsLikePattern(keyword string) string {
 	return "%" + trimmed + "%"
 }
 
+// scanStringSuggestions is internal-only. Callers must pass validated constant
+// column names from get*SuggestionFieldColumn and a fixed timestamp column.
 func scanStringSuggestions(tx *gorm.DB, column string, timeColumn string, keyword string, limit int) ([]string, error) {
 	pattern := buildContainsLikePattern(keyword)
 	query := tx.Where(column + " <> ''")
@@ -75,15 +77,25 @@ func scanStringSuggestions(tx *gorm.DB, column string, timeColumn string, keywor
 	return result, nil
 }
 
+// scanIntSuggestions is internal-only. Callers must pass validated constant
+// column names from get*SuggestionFieldColumn and a fixed timestamp column.
 func scanIntSuggestions(tx *gorm.DB, column string, timeColumn string, keyword string, limit int) ([]string, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword != "" && !isDigitsOnly(keyword) {
+		return []string{}, nil
+	}
+
 	query := tx.Where(column + " <> 0")
+	if keyword != "" {
+		query = query.Where(intColumnCastExpression(tx, column)+" LIKE ?", keyword+"%")
+	}
 
 	rows := make([]suggestionIntRow, 0, limit)
 	err := query.
 		Select(column + " AS value").
 		Group(column).
 		Order("MAX(" + timeColumn + ") DESC").
-		Limit(limit * 5).
+		Limit(limit).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -91,14 +103,30 @@ func scanIntSuggestions(tx *gorm.DB, column string, timeColumn string, keyword s
 
 	result := make([]string, 0, limit)
 	for _, row := range rows {
-		value := strconv.Itoa(row.Value)
-		if keyword != "" && !strings.HasPrefix(value, strings.TrimSpace(keyword)) {
-			continue
-		}
-		result = append(result, value)
-		if len(result) >= limit {
-			break
-		}
+		result = append(result, strconv.Itoa(row.Value))
 	}
 	return result, nil
+}
+
+func isDigitsOnly(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// intColumnCastExpression is internal-only and expects a validated numeric
+// column name selected from the suggestion field maps.
+func intColumnCastExpression(tx *gorm.DB, column string) string {
+	switch tx.Dialector.Name() {
+	case "mysql":
+		return "CAST(" + column + " AS CHAR)"
+	default:
+		return "CAST(" + column + " AS TEXT)"
+	}
 }

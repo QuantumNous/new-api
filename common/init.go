@@ -124,6 +124,10 @@ func InitEnv() {
 	SearchRateLimitEnable = GetEnvOrDefaultBool("SEARCH_RATE_LIMIT_ENABLE", true)
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
+
+	SuggestionRateLimitEnable = GetEnvOrDefaultBool("SUGGESTION_RATE_LIMIT_ENABLE", true)
+	SuggestionRateLimitNum = GetEnvOrDefault("SUGGESTION_RATE_LIMIT", 60)
+	SuggestionRateLimitDuration = int64(GetEnvOrDefault("SUGGESTION_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
 }
 

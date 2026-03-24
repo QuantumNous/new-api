@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"strconv"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,9 +10,21 @@ import (
 )
 
 func GetAllTaskSuggestions(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, err := parseSuggestionIntQuery(c, "limit")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	startTimestamp, err := parseSuggestionInt64Query(c, "start_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	endTimestamp, err := parseSuggestionInt64Query(c, "end_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 
 	items, err := model.GetAllTaskSuggestions(model.TaskSuggestionParams{
 		Field:          strings.TrimSpace(c.Query("field")),
@@ -31,9 +43,21 @@ func GetAllTaskSuggestions(c *gin.Context) {
 }
 
 func GetUserTaskSuggestions(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, err := parseSuggestionIntQuery(c, "limit")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	startTimestamp, err := parseSuggestionInt64Query(c, "start_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	endTimestamp, err := parseSuggestionInt64Query(c, "end_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 
 	items, err := model.GetUserTaskSuggestions(c.GetInt("id"), model.TaskSuggestionParams{
 		Field:          strings.TrimSpace(c.Query("field")),

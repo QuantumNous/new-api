@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"strconv"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,10 +10,26 @@ import (
 )
 
 func GetAllLogSuggestions(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, err := parseSuggestionIntQuery(c, "limit")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	logType, err := parseSuggestionIntQuery(c, "type")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	startTimestamp, err := parseSuggestionInt64Query(c, "start_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	endTimestamp, err := parseSuggestionInt64Query(c, "end_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 
 	items, err := model.GetAllLogSuggestions(model.LogSuggestionParams{
 		Field:          strings.TrimSpace(c.Query("field")),
@@ -37,10 +53,26 @@ func GetAllLogSuggestions(c *gin.Context) {
 }
 
 func GetUserLogSuggestions(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	logType, _ := strconv.Atoi(c.Query("type"))
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, err := parseSuggestionIntQuery(c, "limit")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	logType, err := parseSuggestionIntQuery(c, "type")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	startTimestamp, err := parseSuggestionInt64Query(c, "start_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	endTimestamp, err := parseSuggestionInt64Query(c, "end_timestamp")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 
 	items, err := model.GetUserLogSuggestions(c.GetInt("id"), model.LogSuggestionParams{
 		Field:          strings.TrimSpace(c.Query("field")),

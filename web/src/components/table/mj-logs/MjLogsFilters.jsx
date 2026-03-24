@@ -24,14 +24,16 @@ import { IconSearch } from '@douyinfe/semi-icons';
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 import FilterAutoComplete from '../../common/ui/FilterAutoComplete';
 
-const parseDateRangeToUnixMilliseconds = (dateRange, fallbackRange) => {
-  const finalRange =
-    Array.isArray(dateRange) && dateRange.length === 2
-      ? dateRange
-      : fallbackRange;
+const parseDateRangeToUnixMilliseconds = (dateRange) => {
+  if (!Array.isArray(dateRange) || dateRange.length !== 2) {
+    return {
+      start_timestamp: 0,
+      end_timestamp: 0,
+    };
+  }
   return {
-    start_timestamp: Date.parse(finalRange[0]) || 0,
-    end_timestamp: Date.parse(finalRange[1]) || 0,
+    start_timestamp: Date.parse(dateRange[0]) || 0,
+    end_timestamp: Date.parse(dateRange[1]) || 0,
   };
 };
 
@@ -53,7 +55,6 @@ const MjLogsFilters = ({
     const values = formApi ? formApi.getValues() : formInitValues;
     const { start_timestamp, end_timestamp } = parseDateRangeToUnixMilliseconds(
       values.dateRange,
-      formInitValues.dateRange,
     );
     return {
       start_timestamp,

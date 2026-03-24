@@ -25,6 +25,14 @@ func setupLogSuggestionControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
+	previousDB := model.DB
+	previousLogDB := model.LOG_DB
+	previousUsingSQLite := common.UsingSQLite
+	previousUsingMySQL := common.UsingMySQL
+	previousUsingPostgreSQL := common.UsingPostgreSQL
+	previousRedisEnabled := common.RedisEnabled
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
+
 	common.UsingSQLite = true
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
@@ -44,6 +52,14 @@ func setupLogSuggestionControllerTestDB(t *testing.T) *gorm.DB {
 	}
 
 	t.Cleanup(func() {
+		model.DB = previousDB
+		model.LOG_DB = previousLogDB
+		common.UsingSQLite = previousUsingSQLite
+		common.UsingMySQL = previousUsingMySQL
+		common.UsingPostgreSQL = previousUsingPostgreSQL
+		common.RedisEnabled = previousRedisEnabled
+		common.MemoryCacheEnabled = previousMemoryCacheEnabled
+
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -216,5 +232,70 @@ func TestGetUserMidjourneySuggestionsScopeToCurrentUser(t *testing.T) {
 	items := decodeSuggestionItems(t, response)
 	if len(items) != 1 || items[0] != "mj_alpha" {
 		t.Fatalf("unexpected self mj suggestions: %#v", items)
+	}
+}
+
+func TestGetAllLogSuggestionsChannelPrefixIncludesOlderMatchingChannels(t *testing.T) {
+	db := setupLogSuggestionControllerTestDB(t)
+
+	for i := 0; i < 40; i++ {
+		if err := db.Create(&model.Log{
+			UserId:    1,
+			Username:  "alice",
+			ChannelId: 300 + i,
+			CreatedAt: int64(1000 + i),
+			Type:      model.LogTypeConsume,
+		}).Error; err != nil {
+			t.Fatalf("failed to seed recent non-matching log: %v", err)
+		}
+	}
+
+	for idx, channelID := range []int{123, 129} {
+		if err := db.Create(&model.Log{
+			UserId:    1,
+			Username:  "alice",
+			ChannelId: channelID,
+			CreatedAt: int64(100 + idx),
+			Type:      model.LogTypeConsume,
+		}).Error; err != nil {
+			t.Fatalf("failed to seed matching channel log: %v", err)
+		}
+	}
+
+	ctx, recorder := newSuggestionContext(t, "/api/log/suggestions?field=channel&keyword=12&limit=2", 0)
+	GetAllLogSuggestions(ctx)
+
+	response := decodeSuggestionResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success, got %s", response.Message)
+	}
+	items := decodeSuggestionItems(t, response)
+	expected := []string{"129", "123"}
+	if len(items) != len(expected) {
+		t.Fatalf("unexpected number of channel suggestions: %#v", items)
+	}
+	for i := range expected {
+		if items[i] != expected[i] {
+			t.Fatalf("unexpected channel suggestions order: %#v", items)
+		}
+	}
+}
+
+func TestGetAllLogSuggestionsRejectsInvalidNumericParams(t *testing.T) {
+	setupLogSuggestionControllerTestDB(t)
+
+	ctx, recorder := newSuggestionContext(t, "/api/log/suggestions?field=channel&keyword=12&limit=bad", 0)
+	GetAllLogSuggestions(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad request, got %d", recorder.Code)
+	}
+
+	response := decodeSuggestionResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected failure for invalid numeric params")
+	}
+	if response.Message != "limit 参数错误" {
+		t.Fatalf("unexpected error message: %s", response.Message)
 	}
 }

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Form, Spin } from '@douyinfe/semi-ui';
-import { API } from '../../../helpers';
+import { API, showError } from '../../../helpers';
 import { useDebouncedCallback } from 'use-debounce';
 
 const DEFAULT_LIMIT = 10;
@@ -39,6 +39,8 @@ const FilterAutoComplete = ({
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
+  const cacheRef = useRef(new Map());
+  const lastRateLimitNoticeAtRef = useRef(0);
 
   const resetOptions = () => {
     requestIdRef.current += 1;
@@ -53,19 +55,29 @@ const FilterAutoComplete = ({
       return;
     }
 
+    const params = {
+      ...(buildParams ? buildParams(keyword) : {}),
+      field,
+      keyword,
+      limit,
+    };
+    const requestKey = JSON.stringify({
+      endpoint,
+      params,
+    });
+    const cachedOptions = cacheRef.current.get(requestKey);
+    if (cachedOptions) {
+      setOptions(cachedOptions);
+      setLoading(false);
+      return;
+    }
+
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
     setLoading(true);
 
     try {
-      const res = await API.get(endpoint, {
-        params: {
-          ...(buildParams ? buildParams(keyword) : {}),
-          field,
-          keyword,
-          limit,
-        },
-      });
+      const res = await API.get(endpoint, { params });
       if (requestIdRef.current !== requestId) {
         return;
       }
@@ -74,17 +86,24 @@ const FilterAutoComplete = ({
         setOptions([]);
         return;
       }
-      setOptions(
-        data
-          .filter((item) => typeof item === 'string' && item !== '')
-          .map((item) => ({
-            value: item,
-            label: item,
-          })),
-      );
-    } catch {
+      const nextOptions = data
+        .filter((item) => typeof item === 'string' && item !== '')
+        .map((item) => ({
+          value: item,
+          label: item,
+        }));
+      cacheRef.current.set(requestKey, nextOptions);
+      setOptions(nextOptions);
+    } catch (error) {
       if (requestIdRef.current === requestId) {
         setOptions([]);
+        if (error?.response?.status === 429) {
+          const now = Date.now();
+          if (now - lastRateLimitNoticeAtRef.current > 5000) {
+            lastRateLimitNoticeAtRef.current = now;
+            showError('联想请求过于频繁，请稍后重试');
+          }
+        }
       }
     } finally {
       if (requestIdRef.current === requestId) {

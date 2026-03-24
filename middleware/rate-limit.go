@@ -203,3 +203,12 @@ func SearchRateLimit() func(c *gin.Context) {
 	}
 	return userRateLimitFactory(common.SearchRateLimitNum, common.SearchRateLimitDuration, "SR")
 }
+
+// SuggestionRateLimit returns a per-user rate limiter for autocomplete suggestion endpoints.
+// Configurable via SUGGESTION_RATE_LIMIT_ENABLE / SUGGESTION_RATE_LIMIT / SUGGESTION_RATE_LIMIT_DURATION.
+func SuggestionRateLimit() func(c *gin.Context) {
+	if !common.SuggestionRateLimitEnable {
+		return defNext
+	}
+	return userRateLimitFactory(common.SuggestionRateLimitNum, common.SuggestionRateLimitDuration, "SG")
+}
