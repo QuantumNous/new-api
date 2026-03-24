@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Banner,
   Button,
@@ -36,7 +36,6 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
-import { StatusContext } from '../../../context/Status';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -44,7 +43,6 @@ const { Text } = Typography;
 const DEFAULT_INPUTS = {
   TopUpLink: '',
   'general_setting.docs_link': '',
-  'general_setting.log_filter_autocomplete_enabled': true,
   'general_setting.quota_display_type': 'USD',
   'general_setting.custom_currency_symbol': '¤',
   'general_setting.custom_currency_exchange_rate': '',
@@ -60,7 +58,6 @@ const DEFAULT_INPUTS = {
 
 export default function GeneralSettings(props) {
   const { t } = useTranslation();
-  const [statusState, statusDispatch] = useContext(StatusContext);
   const [loading, setLoading] = useState(false);
   const [showQuotaWarning, setShowQuotaWarning] = useState(false);
   const [inputs, setInputs] = useState(DEFAULT_INPUTS);
@@ -98,14 +95,6 @@ export default function GeneralSettings(props) {
             return showError(t('部分保存失败，请重试'));
         }
         showSuccess(t('保存成功'));
-        statusDispatch({
-          type: 'set',
-          payload: {
-            ...(statusState?.status || {}),
-            log_filter_autocomplete_enabled:
-              inputs['general_setting.log_filter_autocomplete_enabled'],
-          },
-        });
         props.refresh();
       })
       .catch(() => {
@@ -370,21 +359,6 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('DisplayTokenStatEnabled')}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'general_setting.log_filter_autocomplete_enabled'}
-                  label={t('启用日志筛选联想')}
-                  extraText={t(
-                    '控制使用日志、任务日志、绘图日志筛选输入框的联想提示',
-                  )}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange(
-                    'general_setting.log_filter_autocomplete_enabled',
-                  )}
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>

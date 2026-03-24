@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Col,
@@ -37,15 +37,18 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
 
 export default function SettingsLog(props) {
   const { t } = useTranslation();
+  const [statusState, statusDispatch] = useContext(StatusContext);
   const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
+    'general_setting.log_filter_autocomplete_enabled': true,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
   });
   const refForm = useRef();
@@ -79,6 +82,14 @@ export default function SettingsLog(props) {
             return showError(t('部分保存失败，请重试'));
         }
         showSuccess(t('保存成功'));
+        statusDispatch({
+          type: 'set',
+          payload: {
+            ...(statusState?.status || {}),
+            log_filter_autocomplete_enabled:
+              inputs['general_setting.log_filter_autocomplete_enabled'],
+          },
+        });
         props.refresh();
       })
       .catch(() => {
@@ -212,6 +223,24 @@ export default function SettingsLog(props) {
                     setInputs({
                       ...inputs,
                       LogConsumeEnabled: value,
+                    });
+                  }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'general_setting.log_filter_autocomplete_enabled'}
+                  label={t('启用日志筛选联想')}
+                  extraText={t(
+                    '控制使用日志、任务日志、绘图日志筛选输入框的联想提示',
+                  )}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      'general_setting.log_filter_autocomplete_enabled': value,
                     });
                   }}
                 />
