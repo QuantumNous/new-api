@@ -43,6 +43,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const initialized = useRef(false);
+  const quotaRequestSeq = useRef(0);
 
   // Keep a small buffer so the latest records are not clipped near "now".
   const getCurrentEndTimestamp = useCallback(
@@ -365,6 +366,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       overrideInputs = inputs,
       overrideDefaultTime = dataExportDefaultTime,
     ) => {
+      const requestSeq = ++quotaRequestSeq.current;
       setLoading(true);
       try {
         let url = '';
@@ -391,6 +393,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
         try {
           const res = await API.get(url);
+          if (requestSeq !== quotaRequestSeq.current) {
+            return null;
+          }
           const { success, message, data } = res.data;
           if (success) {
             const nextData = Array.isArray(data) ? [...data] : [];
@@ -410,11 +415,16 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
             return [];
           }
         } catch (error) {
+          if (requestSeq !== quotaRequestSeq.current) {
+            return null;
+          }
           showError(error?.message || t('请求发生错误'));
           return [];
         }
       } finally {
-        setLoading(false);
+        if (requestSeq === quotaRequestSeq.current) {
+          setLoading(false);
+        }
       }
     },
     [dataExportDefaultTime, inputs, isAdminUser, t],
@@ -483,7 +493,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       });
       persistChartRange(inputs, dataExportDefaultTime, nextPreset);
 
-      const data = await refresh(inputs, dataExportDefaultTime);
+      const data = await loadQuotaData(inputs, dataExportDefaultTime);
       if (data && data.length > 0 && updateChartDataCallback) {
         updateChartDataCallback(data);
       }
@@ -494,8 +504,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       detectQuickRangePreset,
       inputs,
       isValidCustomRange,
+      loadQuotaData,
       persistChartRange,
-      refresh,
       t,
     ],
   );
