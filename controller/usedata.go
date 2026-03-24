@@ -10,7 +10,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func parseDashboardRange(c *gin.Context) (int64, int64, bool) {
+const (
+	dashboardSelfRangeMaxSpanSeconds         int64 = 30 * 24 * 60 * 60
+	dashboardAdminChannelRangeMaxSpanSeconds int64 = 90 * 24 * 60 * 60
+)
+
+func writeDashboardRangeError(c *gin.Context, message string) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": message,
+	})
+}
+
+func parseDashboardRange(c *gin.Context, maxSpanSeconds int64, spanErrorMessage string) (int64, int64, bool) {
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -36,12 +48,16 @@ func parseDashboardRange(c *gin.Context) (int64, int64, bool) {
 		})
 		return 0, 0, false
 	}
+	if maxSpanSeconds > 0 && endTimestamp-startTimestamp > maxSpanSeconds {
+		writeDashboardRangeError(c, spanErrorMessage)
+		return 0, 0, false
+	}
 	return startTimestamp, endTimestamp, true
 }
 
 // GetAllQuotaDates returns aggregated dashboard model data for admins.
 func GetAllQuotaDates(c *gin.Context) {
-	startTimestamp, endTimestamp, ok := parseDashboardRange(c)
+	startTimestamp, endTimestamp, ok := parseDashboardRange(c, 0, "")
 	if !ok {
 		return
 	}
@@ -62,16 +78,12 @@ func GetAllQuotaDates(c *gin.Context) {
 // GetUserQuotaDates returns aggregated dashboard model data for the current user.
 func GetUserQuotaDates(c *gin.Context) {
 	userId := c.GetInt("id")
-	startTimestamp, endTimestamp, ok := parseDashboardRange(c)
+	startTimestamp, endTimestamp, ok := parseDashboardRange(
+		c,
+		dashboardSelfRangeMaxSpanSeconds,
+		"时间跨度不能超过 1 个月",
+	)
 	if !ok {
-		return
-	}
-	// 判断时间跨度是否超过 1 个月
-	if endTimestamp-startTimestamp > 2592000 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "时间跨度不能超过 1 个月",
-		})
 		return
 	}
 	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
@@ -89,7 +101,11 @@ func GetUserQuotaDates(c *gin.Context) {
 
 // GetAllChannelQuotaDates returns aggregated dashboard channel data for admins.
 func GetAllChannelQuotaDates(c *gin.Context) {
-	startTimestamp, endTimestamp, ok := parseDashboardRange(c)
+	startTimestamp, endTimestamp, ok := parseDashboardRange(
+		c,
+		dashboardAdminChannelRangeMaxSpanSeconds,
+		"时间跨度不能超过 3 个月",
+	)
 	if !ok {
 		return
 	}
@@ -109,15 +125,12 @@ func GetAllChannelQuotaDates(c *gin.Context) {
 // GetUserChannelQuotaDates returns aggregated dashboard channel data for the current user.
 func GetUserChannelQuotaDates(c *gin.Context) {
 	userId := c.GetInt("id")
-	startTimestamp, endTimestamp, ok := parseDashboardRange(c)
+	startTimestamp, endTimestamp, ok := parseDashboardRange(
+		c,
+		dashboardSelfRangeMaxSpanSeconds,
+		"时间跨度不能超过 1 个月",
+	)
 	if !ok {
-		return
-	}
-	if endTimestamp-startTimestamp > 2592000 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "时间跨度不能超过 1 个月",
-		})
 		return
 	}
 	dates, err := model.GetChannelQuotaDataByUserId(userId, startTimestamp, endTimestamp)
