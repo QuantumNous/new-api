@@ -39,6 +39,7 @@ const FilterAutoComplete = ({
 }) => {
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const autoCompleteRef = useRef(null);
   const requestIdRef = useRef(0);
   const cacheRef = useRef(new Map());
   const lastRateLimitNoticeAtRef = useRef(0);
@@ -126,8 +127,31 @@ const FilterAutoComplete = ({
     }
   }, [enableSuggestions, fetchSuggestions]);
 
+  const handleTabSelect = () => {
+    if (!enableSuggestions || disabled || options.length === 0) {
+      return;
+    }
+
+    const component = autoCompleteRef.current;
+    const focusIndex = component?.state?.focusIndex;
+    const selectedIndex =
+      Number.isInteger(focusIndex) &&
+      focusIndex >= 0 &&
+      focusIndex < options.length
+        ? focusIndex
+        : 0;
+    const selectedOption = options[selectedIndex];
+
+    if (!selectedOption || component?.foundation?.handleSelect == null) {
+      return;
+    }
+
+    component.foundation.handleSelect(selectedOption, selectedIndex);
+  };
+
   return (
     <Form.AutoComplete
+      ref={autoCompleteRef}
       field={field}
       data={enableSuggestions ? options : []}
       prefix={prefix}
@@ -149,6 +173,11 @@ const FilterAutoComplete = ({
       onFocus={(e) => {
         if (enableSuggestions && e?.target?.value) {
           fetchSuggestions(e.target.value);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Tab') {
+          handleTabSelect();
         }
       }}
     />
