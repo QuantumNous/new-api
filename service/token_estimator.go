@@ -3,7 +3,6 @@ package service
 import (
 	"math"
 	"strings"
-	"sync"
 	"unicode"
 )
 
@@ -32,37 +31,44 @@ type multipliers struct {
 	BasePad    int     // 基础起步消耗 (Start/End tokens)
 }
 
-var (
-	multipliersMap = map[Provider]multipliers{
-		Gemini: {
-			Word: 1.15, Number: 2.8, CJK: 0.68, Symbol: 0.38, MathSymbol: 1.05, URLDelim: 1.2, AtSign: 2.5, Emoji: 1.08, Newline: 1.15, Space: 0.2, BasePad: 0,
-		},
-		Claude: {
-			Word: 1.13, Number: 1.63, CJK: 1.21, Symbol: 0.4, MathSymbol: 4.52, URLDelim: 1.26, AtSign: 2.82, Emoji: 2.6, Newline: 0.89, Space: 0.39, BasePad: 0,
-		},
-		OpenAI: {
-			Word: 1.02, Number: 1.55, CJK: 0.85, Symbol: 0.4, MathSymbol: 2.68, URLDelim: 1.0, AtSign: 2.0, Emoji: 2.12, Newline: 0.5, Space: 0.42, BasePad: 0,
-		},
+var multipliersMap = map[Provider]multipliers{
+	Gemini: {
+		Word: 1.15, Number: 2.8, CJK: 0.68, Symbol: 0.38, MathSymbol: 1.05, URLDelim: 1.2, AtSign: 2.5, Emoji: 1.08, Newline: 1.15, Space: 0.2, BasePad: 0,
+	},
+	Claude: {
+		Word: 1.13, Number: 1.63, CJK: 1.21, Symbol: 0.4, MathSymbol: 4.52, URLDelim: 1.26, AtSign: 2.82, Emoji: 2.6, Newline: 0.89, Space: 0.39, BasePad: 0,
+	},
+	OpenAI: {
+		Word: 1.02, Number: 1.55, CJK: 0.85, Symbol: 0.4, MathSymbol: 2.68, URLDelim: 1.0, AtSign: 2.0, Emoji: 2.12, Newline: 0.5, Space: 0.42, BasePad: 0,
+	},
+}
+
+// 预计算的查找表
+var mathSymbolSet = func() map[rune]struct{} {
+	mathSymbols := "∑∫∂√∞≤≥≠≈±×÷∈∉∋∌⊂⊃⊆⊇∪∩∧∨¬∀∃∄∅∆∇∝∟∠∡∢°′″‴⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎²³¹⁴⁵⁶⁷⁸⁹⁰"
+	set := make(map[rune]struct{}, len([]rune(mathSymbols)))
+	for _, r := range mathSymbols {
+		set[r] = struct{}{}
 	}
-	multipliersLock sync.RWMutex
-)
+	return set
+}()
+
+var urlDelimSet = func() map[rune]struct{} {
+	urlDelims := "/:?&=;#%"
+	set := make(map[rune]struct{}, len(urlDelims))
+	for _, r := range urlDelims {
+		set[r] = struct{}{}
+	}
+	return set
+}()
 
 // getMultipliers 根据厂商获取权重配置
 func getMultipliers(p Provider) multipliers {
-	multipliersLock.RLock()
-	defer multipliersLock.RUnlock()
-
-	switch p {
-	case Gemini:
-		return multipliersMap[Gemini]
-	case Claude:
-		return multipliersMap[Claude]
-	case OpenAI:
-		return multipliersMap[OpenAI]
-	default:
-		// 默认兜底 (按 OpenAI 的算)
-		return multipliersMap[OpenAI]
+	if m, ok := multipliersMap[p]; ok {
+		return m
 	}
+	// 默认兜底 (按 OpenAI 的算)
+	return multipliersMap[OpenAI]
 }
 
 // EstimateToken 计算 Token 数量
@@ -176,15 +182,8 @@ func isEmoji(r rune) bool {
 
 // 辅助：判断是否为数学符号
 func isMathSymbol(r rune) bool {
-	// 数学运算符和符号
-	// 基本数学符号：∑ ∫ ∂ √ ∞ ≤ ≥ ≠ ≈ ± × ÷
-	// 上下标数字：² ³ ¹ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁰
-	// 希腊字母等也常用于数学
-	mathSymbols := "∑∫∂√∞≤≥≠≈±×÷∈∉∋∌⊂⊃⊆⊇∪∩∧∨¬∀∃∄∅∆∇∝∟∠∡∢°′″‴⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎²³¹⁴⁵⁶⁷⁸⁹⁰"
-	for _, m := range mathSymbols {
-		if r == m {
-			return true
-		}
+	if _, ok := mathSymbolSet[r]; ok {
+		return true
 	}
 	// Mathematical Operators (U+2200–U+22FF)
 	if r >= 0x2200 && r <= 0x22FF {
@@ -203,14 +202,8 @@ func isMathSymbol(r rune) bool {
 
 // 辅助：判断是否为URL分隔符（tokenizer对这些优化较好）
 func isURLDelim(r rune) bool {
-	// URL中常见的分隔符，tokenizer通常优化处理
-	urlDelims := "/:?&=;#%"
-	for _, d := range urlDelims {
-		if r == d {
-			return true
-		}
-	}
-	return false
+	_, ok := urlDelimSet[r]
+	return ok
 }
 
 func EstimateTokenByModel(model, text string) int {
