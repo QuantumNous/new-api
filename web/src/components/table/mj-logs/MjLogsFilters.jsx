@@ -22,6 +22,7 @@ import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import { StatusContext } from '../../../context/Status';
 import FilterAutoComplete from '../../common/ui/FilterAutoComplete';
 
 const parseDateRangeToUnixMilliseconds = (dateRange) => {
@@ -47,6 +48,9 @@ const MjLogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const [statusState] = React.useContext(StatusContext);
+  const autocompleteEnabled =
+    statusState?.status?.log_filter_autocomplete_enabled ?? true;
   const suggestionEndpoint = isAdminUser
     ? '/api/mj/suggestions'
     : '/api/mj/self/suggestions';
@@ -102,6 +106,7 @@ const MjLogsFilters = ({
             placeholder={t('任务 ID')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
+            enableSuggestions={autocompleteEnabled}
             minLength={1}
           />
 
@@ -113,6 +118,7 @@ const MjLogsFilters = ({
               placeholder={t('渠道 ID')}
               prefix={<IconSearch />}
               buildParams={buildSuggestionParams}
+              enableSuggestions={autocompleteEnabled}
               minLength={1}
             />
           )}

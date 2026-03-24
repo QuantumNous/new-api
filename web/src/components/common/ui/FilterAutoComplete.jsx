@@ -30,6 +30,7 @@ const FilterAutoComplete = ({
   endpoint,
   placeholder,
   buildParams,
+  enableSuggestions = true,
   minLength = 2,
   limit = DEFAULT_LIMIT,
   debounceMs = DEFAULT_DEBOUNCE_MS,
@@ -50,7 +51,7 @@ const FilterAutoComplete = ({
 
   const fetchSuggestions = useDebouncedCallback(async (value) => {
     const keyword = String(value || '').trim();
-    if (disabled || keyword.length < minLength) {
+    if (disabled || !enableSuggestions || keyword.length < minLength) {
       resetOptions();
       return;
     }
@@ -118,10 +119,17 @@ const FilterAutoComplete = ({
     };
   }, [fetchSuggestions]);
 
+  useEffect(() => {
+    if (!enableSuggestions) {
+      fetchSuggestions.cancel();
+      resetOptions();
+    }
+  }, [enableSuggestions, fetchSuggestions]);
+
   return (
     <Form.AutoComplete
       field={field}
-      data={options}
+      data={enableSuggestions ? options : []}
       prefix={prefix}
       placeholder={placeholder}
       showClear
@@ -131,13 +139,15 @@ const FilterAutoComplete = ({
       disabled={disabled}
       suffix={loading ? <Spin size='small' /> : null}
       onChange={(value) => {
-        fetchSuggestions(value);
+        if (enableSuggestions) {
+          fetchSuggestions(value);
+        }
       }}
       onClear={() => {
         resetOptions();
       }}
       onFocus={(e) => {
-        if (e?.target?.value) {
+        if (enableSuggestions && e?.target?.value) {
           fetchSuggestions(e.target.value);
         }
       }}

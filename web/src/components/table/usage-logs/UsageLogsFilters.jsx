@@ -22,6 +22,7 @@ import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
+import { StatusContext } from '../../../context/Status';
 import FilterAutoComplete from '../../common/ui/FilterAutoComplete';
 
 const parseDateRangeToUnixSeconds = (dateRange) => {
@@ -48,6 +49,9 @@ const LogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const [statusState] = React.useContext(StatusContext);
+  const autocompleteEnabled =
+    statusState?.status?.log_filter_autocomplete_enabled ?? true;
   const suggestionEndpoint = isAdminUser
     ? '/api/log/suggestions'
     : '/api/log/self/suggestions';
@@ -108,6 +112,7 @@ const LogsFilters = ({
             placeholder={t('令牌名称')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
+            enableSuggestions={autocompleteEnabled}
           />
 
           <FilterAutoComplete
@@ -116,6 +121,7 @@ const LogsFilters = ({
             placeholder={t('模型名称')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
+            enableSuggestions={autocompleteEnabled}
           />
 
           <FilterAutoComplete
@@ -124,6 +130,7 @@ const LogsFilters = ({
             placeholder={t('分组')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
+            enableSuggestions={autocompleteEnabled}
           />
 
           <FilterAutoComplete
@@ -132,6 +139,7 @@ const LogsFilters = ({
             placeholder={t('Request ID')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
+            enableSuggestions={autocompleteEnabled}
             minLength={1}
           />
 
@@ -143,6 +151,7 @@ const LogsFilters = ({
                 placeholder={t('渠道 ID')}
                 prefix={<IconSearch />}
                 buildParams={buildSuggestionParams}
+                enableSuggestions={autocompleteEnabled}
                 minLength={1}
               />
               <FilterAutoComplete
@@ -151,6 +160,7 @@ const LogsFilters = ({
                 placeholder={t('用户名称')}
                 prefix={<IconSearch />}
                 buildParams={buildSuggestionParams}
+                enableSuggestions={autocompleteEnabled}
                 minLength={1}
               />
             </>
