@@ -563,6 +563,7 @@ const OllamaModelModal = ({
                 onEnterPress={pullModel}
                 disabled={pullLoading}
                 showClear
+                name='components-table-channels-modals-ollamamodelmodal-input-1'
               />
             </Col>
             <Col span={8}>
@@ -663,6 +664,7 @@ const OllamaModelModal = ({
                 onChange={(value) => setSearchValue(value)}
                 style={{ width: 200 }}
                 showClear
+                name='components-table-channels-modals-ollamamodelmodal-input-2'
               />
               <Button
                 size='small'
@@ -727,6 +729,7 @@ const OllamaModelModal = ({
                           onChange={(checked) =>
                             handleToggleModel(model.id, checked)
                           }
+                          name='components-table-channels-modals-ollamamodelmodal-checkbox-1'
                         />
                         <div className='flex-1 min-w-0'>
                           <Text strong className='block truncate'>

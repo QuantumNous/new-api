@@ -257,6 +257,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           value={keyword}
           onChange={handleKeywordChange}
           showClear
+          name='components-topup-modals-topuphistorymodal-input-1'
         />
       </div>
       <Table

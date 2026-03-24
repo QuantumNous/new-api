@@ -178,6 +178,7 @@ const renderTokenKey = (
             </Dropdown>
           </div>
         }
+        name='components-table-tokens-tokenscolumndefs-input-1'
       />
     </div>
   );

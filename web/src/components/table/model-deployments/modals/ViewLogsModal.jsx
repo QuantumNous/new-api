@@ -452,6 +452,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                 onChange={setSearchTerm}
                 style={{ width: 200 }}
                 size='small'
+                name='components-table-model-deployments-modals-viewlogsmodal-input-1'
               />
 
               <Space align='center' className='ml-2'>
@@ -464,8 +465,8 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                   value={streamFilter}
                   onChange={handleStreamChange}
                 >
-                  <Radio value='stdout'>STDOUT</Radio>
-                  <Radio value='stderr'>STDERR</Radio>
+                  <Radio value='stdout' name='components-table-model-deployments-modals-viewlogsmodal-radio-1'>STDOUT</Radio>
+                  <Radio value='stderr' name='components-table-model-deployments-modals-viewlogsmodal-radio-2'>STDERR</Radio>
                 </Radio.Group>
               </Space>
 
@@ -474,6 +475,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                   checked={autoRefresh}
                   onChange={setAutoRefresh}
                   size='small'
+                  id='components-table-model-deployments-modals-viewlogsmodal-switch-1'
                 />
                 <Text size='small'>{t('自动刷新')}</Text>
               </div>
@@ -483,6 +485,7 @@ const ViewLogsModal = ({ visible, onCancel, deployment, t }) => {
                   checked={following}
                   onChange={setFollowing}
                   size='small'
+                  id='components-table-model-deployments-modals-viewlogsmodal-switch-2'
                 />
                 <Text size='small'>{t('跟随日志')}</Text>
               </div>

@@ -261,6 +261,7 @@ const ChannelsActions = ({
                   );
                 }
               }}
+              id='components-table-channels-channelsactions-switch-1'
             />
           </div>
 
@@ -275,6 +276,7 @@ const ChannelsActions = ({
                 localStorage.setItem('enable-batch-delete', v + '');
                 setEnableBatchDelete(v);
               }}
+              id='components-table-channels-channelsactions-switch-2'
             />
           </div>
 
@@ -291,6 +293,7 @@ const ChannelsActions = ({
                 setActivePage(1);
                 loadChannels(1, pageSize, idSort, v);
               }}
+              id='components-table-channels-channelsactions-switch-3'
             />
           </div>
 

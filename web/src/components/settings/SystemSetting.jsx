@@ -875,8 +875,8 @@ const SystemSetting = () => {
                         }}
                         style={{ marginBottom: 8 }}
                       >
-                        <Radio value='whitelist'>{t('白名单')}</Radio>
-                        <Radio value='blacklist'>{t('黑名单')}</Radio>
+                        <Radio value='whitelist' name='components-settings-systemsetting-radio-1'>{t('白名单')}</Radio>
+                        <Radio value='blacklist' name='components-settings-systemsetting-radio-2'>{t('黑名单')}</Radio>
                       </Radio.Group>
                       <TagInput
                         value={domainList}
@@ -923,8 +923,8 @@ const SystemSetting = () => {
                         }}
                         style={{ marginBottom: 8 }}
                       >
-                        <Radio value='whitelist'>{t('白名单')}</Radio>
-                        <Radio value='blacklist'>{t('黑名单')}</Radio>
+                        <Radio value='whitelist' name='components-settings-systemsetting-radio-3'>{t('白名单')}</Radio>
+                        <Radio value='blacklist' name='components-settings-systemsetting-radio-4'>{t('黑名单')}</Radio>
                       </Radio.Group>
                       <TagInput
                         value={ipList}

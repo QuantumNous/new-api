@@ -267,6 +267,7 @@ const ModelSelectModal = ({
                   );
                 }}
                 onClick={(e) => e.stopPropagation()} // 防止点击checkbox时折叠面板
+                name='components-table-channels-modals-modelselectmodal-checkbox-1'
               />
             }
           >
@@ -283,7 +284,7 @@ const ModelSelectModal = ({
             </div>
             <div className='grid grid-cols-2 gap-x-4'>
               {categoryData.models.map((model) => (
-                <Checkbox key={model} value={model} className='my-1'>
+                <Checkbox key={model} value={model} className='my-1' name='components-table-channels-modals-modelselectmodal-checkbox-2'>
                   <span className='flex items-center gap-2'>
                     <span>{model}</span>
                     {redirectOnlySet.has(normalizeModelName(model)) && (
@@ -341,6 +342,7 @@ const ModelSelectModal = ({
         value={keyword}
         onChange={(v) => setKeyword(v)}
         showClear
+        name='components-table-channels-modals-modelselectmodal-input-1'
       />
 
       <Spin spinning={!models || models.length === 0}>
@@ -406,6 +408,7 @@ const ModelSelectModal = ({
                   onChange={(e) => {
                     handleCategorySelectAll(currentModels, e.target.checked);
                   }}
+                  name='components-table-channels-modals-modelselectmodal-checkbox-3'
                 />
               </>
             );

@@ -180,6 +180,7 @@ const UpstreamConflictModal = ({
               checked={headerChecked}
               indeterminate={headerIndeterminate}
               onChange={onHeaderChange}
+              name='components-table-models-modals-upstreamconflictmodal-checkbox-1'
             />
             <Text>{label}</Text>
           </div>
@@ -195,6 +196,7 @@ const UpstreamConflictModal = ({
               onChange={(e) =>
                 toggleField(record.model_name, fieldKey, e?.target?.checked)
               }
+              name='components-table-models-modals-upstreamconflictmodal-checkbox-2'
             >
               <Popover
                 trigger='hover'
@@ -292,6 +294,7 @@ const UpstreamConflictModal = ({
               className='!w-full'
               prefix={<IconSearch />}
               showClear
+              name='components-table-models-modals-upstreamconflictmodal-input-1'
             />
           </div>
           {filteredDataSource.length > 0 ? (

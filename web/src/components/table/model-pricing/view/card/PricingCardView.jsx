@@ -293,6 +293,7 @@ const PricingCardView = ({
                           e.stopPropagation();
                           handleCheckboxChange(model, e.target.checked);
                         }}
+                        name='components-table-model-pricing-view-card-pricingcardview-checkbox-1'
                       />
                     )}
                   </div>

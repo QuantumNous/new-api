@@ -85,6 +85,7 @@ const ConfirmationDialog = ({
           onChange={setConfirmText}
           placeholder={t('再次输入部署名称')}
           autoFocus
+          name='components-table-model-deployments-modals-confirmationdialog-input-1'
         />
         {!isConfirmed && confirmText && (
           <Text type='danger' size='small'>

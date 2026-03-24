@@ -306,6 +306,7 @@ export default function GeneralSettings(props) {
                       suffix={rateSuffix}
                       value={combinedRate}
                       onChange={onCombinedRateChange}
+                      name='pages-setting-operation-settingsgeneral-input-1'
                     />
                     <Text
                       type='tertiary'

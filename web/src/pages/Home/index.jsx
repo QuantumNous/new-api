@@ -207,6 +207,7 @@ const Home = () => {
                           />
                         </div>
                       }
+                      name='pages-home-index-input-1'
                     />
                   </div>
                 </div>

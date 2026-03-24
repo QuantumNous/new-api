@@ -55,6 +55,7 @@ const TransferModal = ({
             value={renderQuota(userState?.user?.aff_quota)}
             disabled
             className='!rounded-lg'
+            name='components-topup-modals-transfermodal-input-1'
           />
         </div>
         <div>
@@ -67,6 +68,7 @@ const TransferModal = ({
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
             className='w-full !rounded-lg'
+            name='components-topup-modals-transfermodal-inputnumber-1'
           />
         </div>
       </div>

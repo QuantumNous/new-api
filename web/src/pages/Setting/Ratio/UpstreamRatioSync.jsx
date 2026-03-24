@@ -485,6 +485,7 @@ export default function UpstreamRatioSync(props) {
               onChange={setSearchKeyword}
               className='w-full sm:w-64'
               showClear
+              name='pages-setting-ratio-upstreamratiosync-input-1'
             />
 
             <Select
@@ -744,6 +745,7 @@ export default function UpstreamRatioSync(props) {
               checked={channelStats.allSelected}
               indeterminate={channelStats.partiallySelected}
               onChange={(e) => handleBulkSelect(e.target.checked)}
+              name='pages-setting-ratio-upstreamratiosync-checkbox-1'
             >
               {upName}
             </Checkbox>
@@ -795,6 +797,7 @@ export default function UpstreamRatioSync(props) {
                       });
                     }
                   }}
+                  name='pages-setting-ratio-upstreamratiosync-checkbox-2'
                 >
                   {String(upstreamVal)}
                 </Checkbox>

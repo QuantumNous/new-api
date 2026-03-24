@@ -93,6 +93,7 @@ const ColumnSelectorModal = ({
             !Object.values(visibleColumns).every((v) => v === true)
           }
           onChange={(e) => handleSelectAll(e.target.checked)}
+          name='components-table-channels-modals-columnselectormodal-checkbox-1'
         >
           {t('全选')}
         </Checkbox>
@@ -114,6 +115,7 @@ const ColumnSelectorModal = ({
                 onChange={(e) =>
                   handleColumnVisibilityChange(column.key, e.target.checked)
                 }
+                name='components-table-channels-modals-columnselectormodal-checkbox-2'
               >
                 {column.title}
               </Checkbox>

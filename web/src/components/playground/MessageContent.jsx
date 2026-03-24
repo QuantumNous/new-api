@@ -229,6 +229,7 @@ const MessageContent = ({
               lineHeight: '1.6',
             }}
             className='!border-blue-200 focus:!border-blue-400 !bg-blue-50/50'
+            name='components-playground-messagecontent-textarea-1'
           />
           <div className='flex items-center gap-2 w-full'>
             <Button

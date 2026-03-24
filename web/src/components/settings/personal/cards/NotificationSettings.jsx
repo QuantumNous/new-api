@@ -428,10 +428,10 @@ const NotificationSettings = ({
                   onChange={(value) => handleFormChange('warningType', value)}
                   rules={[{ required: true, message: t('请选择通知方式') }]}
                 >
-                  <Radio value='email'>{t('邮件通知')}</Radio>
-                  <Radio value='webhook'>{t('Webhook通知')}</Radio>
-                  <Radio value='bark'>{t('Bark通知')}</Radio>
-                  <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  <Radio value='email' name='components-settings-personal-cards-notificationsettings-radio-1'>{t('邮件通知')}</Radio>
+                  <Radio value='webhook' name='components-settings-personal-cards-notificationsettings-radio-2'>{t('Webhook通知')}</Radio>
+                  <Radio value='bark' name='components-settings-personal-cards-notificationsettings-radio-3'>{t('Bark通知')}</Radio>
+                  <Radio value='gotify' name='components-settings-personal-cards-notificationsettings-radio-4'>{t('Gotify通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -863,6 +863,7 @@ const NotificationSettings = ({
                             }
                             onChange={handleSectionChange(section.key)}
                             size='default'
+                            id={`components-settings-personal-cards-notificationsettings-switch-1-${section}`}
                           />
                         </div>
 
@@ -926,6 +927,7 @@ const NotificationSettings = ({
                                           sidebarModulesUser[section.key]
                                             ?.enabled === false
                                         }
+                                        id={`components-settings-personal-cards-notificationsettings-switch-2-${module}`}
                                       />
                                     </div>
                                   </div>

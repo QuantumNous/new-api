@@ -198,6 +198,7 @@ const SelectableButtonGroup = ({
                     checked={isActive}
                     onChange={() => onChange(item.value)}
                     style={{ pointerEvents: 'auto' }}
+                    name='components-common-ui-selectablebuttongroup-checkbox-1'
                   />
                 }
                 style={{ width: '100%', cursor: 'default' }}

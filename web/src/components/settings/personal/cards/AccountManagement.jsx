@@ -613,6 +613,7 @@ const AccountManagement = ({
                               onClick={handleSystemTokenClick}
                               size='large'
                               prefix={<IconKey />}
+                              name='components-settings-personal-cards-accountmanagement-input-1'
                             />
                           </div>
                         )}

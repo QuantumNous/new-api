@@ -663,6 +663,7 @@ const LoginForm = () => {
                   <Checkbox
                     checked={agreedToTerms}
                     onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    name='components-auth-loginform-checkbox-1'
                   >
                     <Text size='small' className='text-gray-600'>
                       {t('我已阅读并同意')}
@@ -750,6 +751,7 @@ const LoginForm = () => {
                   label={t('用户名或邮箱')}
                   placeholder={t('请输入您的用户名或邮箱地址')}
                   name='username'
+                  autoComplete='username'
                   onChange={(value) => handleChange('username', value)}
                   prefix={<IconMail />}
                 />
@@ -760,6 +762,7 @@ const LoginForm = () => {
                   placeholder={t('请输入您的密码')}
                   name='password'
                   mode='password'
+                  autoComplete='current-password'
                   onChange={(value) => handleChange('password', value)}
                   prefix={<IconLock />}
                 />
@@ -769,6 +772,7 @@ const LoginForm = () => {
                     <Checkbox
                       checked={agreedToTerms}
                       onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      name='components-auth-loginform-checkbox-2'
                     >
                       <Text size='small' className='text-gray-600'>
                         {t('我已阅读并同意')}

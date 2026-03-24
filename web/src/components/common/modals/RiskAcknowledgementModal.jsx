@@ -169,6 +169,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
                 onChange={(event) => {
                   handleChecklistChange(index, event.target.checked);
                 }}
+                name='components-common-modals-riskacknowledgementmodal-checkbox-1'
               >
                 {item}
               </Checkbox>
@@ -198,6 +199,7 @@ const RiskAcknowledgementModal = React.memo(function RiskAcknowledgementModal({
               onCut={(event) => event.preventDefault()}
               onPaste={(event) => event.preventDefault()}
               onDrop={(event) => event.preventDefault()}
+              name='components-common-modals-riskacknowledgementmodal-input-1'
             />
             {!typedMatched && typedText ? (
               <Text type='danger' size='small'>

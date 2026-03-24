@@ -345,6 +345,7 @@ const UserBindingManagementModal = ({
             <Checkbox
               checked={showBoundOnly}
               onChange={(e) => setShowBoundOnly(Boolean(e.target.checked))}
+              name='components-table-users-modals-userbindingmanagementmodal-checkbox-1'
             >
               {t('仅显示已绑定')}
             </Checkbox>

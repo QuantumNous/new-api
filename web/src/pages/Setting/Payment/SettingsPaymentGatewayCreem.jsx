@@ -349,6 +349,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               }
               placeholder={t('例如：基础套餐')}
               size='large'
+              name='pages-setting-payment-settingspaymentgatewaycreem-input-1'
             />
           </div>
           <div>
@@ -363,6 +364,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               placeholder={t('例如：prod_6I8rBerHpPxyoiU9WK4kot')}
               size='large'
               disabled={!!editingProduct}
+              name='pages-setting-payment-settingspaymentgatewaycreem-input-2'
             />
           </div>
           <div>
@@ -397,6 +399,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               size='large'
               className='w-full'
               defaultValue={4.49}
+              name='pages-setting-payment-settingspaymentgatewaycreem-inputnumber-1'
             />
           </div>
           <div>
@@ -413,6 +416,7 @@ export default function SettingsPaymentGatewayCreem(props) {
               precision={0}
               size='large'
               className='w-full'
+              name='pages-setting-payment-settingspaymentgatewaycreem-inputnumber-2'
             />
           </div>
         </div>

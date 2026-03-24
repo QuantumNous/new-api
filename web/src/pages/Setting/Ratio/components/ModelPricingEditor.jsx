@@ -76,6 +76,7 @@ const PriceInput = ({
         onChange={onChange}
         suffix={suffix}
         disabled={disabled}
+        name='pages-setting-ratio-components-modelpricingeditor-input-1'
       />
     ) : null}
     {extraText ? (
@@ -264,11 +265,13 @@ export default function ModelPricingEditor({
             onChange={(value) => setSearchText(value)}
             style={{ width: isMobile ? '100%' : 220 }}
             showClear
+            name='pages-setting-ratio-components-modelpricingeditor-input-2'
           />
           {showConflictFilter ? (
             <Checkbox
               checked={conflictOnly}
               onChange={(event) => setConflictOnly(event.target.checked)}
+              name='pages-setting-ratio-components-modelpricingeditor-checkbox-1'
             >
               {t('仅显示矛盾倍率')}
             </Checkbox>
@@ -378,6 +381,7 @@ export default function ModelPricingEditor({
                     type='button'
                     value={selectedModel.billingMode}
                     onChange={(event) => handleBillingModeChange(event.target.value)}
+                    name='pages-setting-ratio-components-modelpricingeditor-radiogroup-1'
                   >
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
@@ -465,6 +469,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('completionPrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-1'
                           />
                         }
                         hidden={
@@ -502,6 +507,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('cachePrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-2'
                           />
                         }
                         hidden={!isOptionalFieldEnabled(selectedModel, 'cachePrice')}
@@ -529,6 +535,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('createCachePrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-3'
                           />
                         }
                         hidden={
@@ -571,6 +578,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('imagePrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-4'
                           />
                         }
                         hidden={!isOptionalFieldEnabled(selectedModel, 'imagePrice')}
@@ -598,6 +606,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('audioInputPrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-5'
                           />
                         }
                         hidden={!isOptionalFieldEnabled(selectedModel, 'audioInputPrice')}
@@ -632,6 +641,7 @@ export default function ModelPricingEditor({
                             onChange={(checked) =>
                               handleOptionalFieldToggle('audioOutputPrice', checked)
                             }
+                            id='pages-setting-ratio-components-modelpricingeditor-switch-6'
                           />
                         }
                         hidden={
@@ -701,6 +711,7 @@ export default function ModelPricingEditor({
             value={newModelName}
             placeholder={t('输入模型名称，例如 gpt-4.1')}
             onChange={(value) => setNewModelName(value)}
+            name='pages-setting-ratio-components-modelpricingeditor-input-3'
           />
         </Modal>
       ) : null}

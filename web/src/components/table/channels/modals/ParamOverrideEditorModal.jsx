@@ -1969,6 +1969,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                   placeholder={JSON.stringify(LEGACY_TEMPLATE, null, 2)}
                   onChange={(nextValue) => setLegacyValue(nextValue)}
                   showClear
+                  name='components-table-channels-modals-paramoverrideeditormodal-textarea-1'
                 />
                 <Text type='tertiary' size='small' className='mt-2 block'>
                   {t('这里直接编辑 JSON 对象。适合简单覆盖参数的场景。')}
@@ -2025,6 +2026,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                           setOperationSearch(nextValue || '')
                         }
                         showClear
+                        name='components-table-channels-modals-paramoverrideeditormodal-input-1'
                       />
 
                       <div
@@ -2255,6 +2257,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         path: nextValue,
                                       })
                                     }
+                                    name='components-table-channels-modals-paramoverrideeditormodal-input-2'
                                   />
                                 </Col>
                               ) : null}
@@ -2281,6 +2284,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 }
                                 maxLength={180}
                                 showClear
+                                name='components-table-channels-modals-paramoverrideeditormodal-input-3'
                               />
                               <Text type='tertiary' size='small' className='mt-1 block'>
                                 {`${String(selectedOperation.description || '').length}/180`}
@@ -2350,6 +2354,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         { message: nextValue },
                                       )
                                     }
+                                    name='components-table-channels-modals-paramoverrideeditormodal-textarea-2'
                                   />
 
                                   {returnErrorDraft.simpleMode ? (
@@ -2384,6 +2389,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                 },
                                               )
                                             }
+                                            name='components-table-channels-modals-paramoverrideeditormodal-input-4'
                                           />
                                         </Col>
                                         <Col xs={24} md={8}>
@@ -2399,6 +2405,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                 { code: nextValue },
                                               )
                                             }
+                                            name='components-table-channels-modals-paramoverrideeditormodal-input-5'
                                           />
                                         </Col>
                                         <Col xs={24} md={8}>
@@ -2414,6 +2421,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                 { type: nextValue },
                                               )
                                             }
+                                            name='components-table-channels-modals-paramoverrideeditormodal-input-6'
                                           />
                                         </Col>
                                       </Row>
@@ -2571,6 +2579,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         { typeText: nextValue },
                                       )
                                     }
+                                    name='components-table-channels-modals-paramoverrideeditormodal-input-7'
                                   />
 
                                   {pruneObjectsDraft.simpleMode ? (
@@ -2723,6 +2732,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                             { path: nextValue },
                                                           )
                                                         }
+                                                        name='components-table-channels-modals-paramoverrideeditormodal-input-8'
                                                       />
                                                     </Col>
                                                     <Col xs={24} md={7}>
@@ -2767,6 +2777,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                             },
                                                           )
                                                         }
+                                                        name='components-table-channels-modals-paramoverrideeditormodal-input-9'
                                                       />
                                                     </Col>
                                                   </Row>
@@ -2870,6 +2881,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         value_text: nextValue,
                                       })
                                     }
+                                    name='components-table-channels-modals-paramoverrideeditormodal-textarea-3'
                                   />
                                 </div>
                               )
@@ -2888,6 +2900,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       keep_origin: nextValue,
                                     })
                                   }
+                                  id='components-table-channels-modals-paramoverrideeditormodal-switch-1'
                                 />
                                 <Text
                                   type='tertiary'
@@ -2940,6 +2953,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                             },
                                           )
                                         }
+                                        name='components-table-channels-modals-paramoverrideeditormodal-input-10'
                                       />
                                     </div>
                                   </Col>
@@ -2978,6 +2992,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                             },
                                           )
                                         }
+                                        name='components-table-channels-modals-paramoverrideeditormodal-input-11'
                                       />
                                     </div>
                                   </Col>
@@ -3030,6 +3045,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           from: nextValue,
                                         })
                                       }
+                                      name='components-table-channels-modals-paramoverrideeditormodal-input-12'
                                     />
                                   </Col>
                                 ) : null}
@@ -3046,6 +3062,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           to: nextValue,
                                         })
                                       }
+                                      name='components-table-channels-modals-paramoverrideeditormodal-input-13'
                                     />
                                   </Col>
                                 ) : null}
@@ -3173,6 +3190,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     { path: nextValue },
                                                   )
                                                 }
+                                                name='components-table-channels-modals-paramoverrideeditormodal-input-14'
                                               />
                                             </Col>
                                             <Col xs={24} md={8}>
@@ -3214,6 +3232,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     { value_text: nextValue },
                                                   )
                                                 }
+                                                name='components-table-channels-modals-paramoverrideeditormodal-input-15'
                                               />
                                             </Col>
                                           </Row>
@@ -3235,6 +3254,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     { invert: nextValue },
                                                   )
                                                 }
+                                                id={`components-table-channels-modals-paramoverrideeditormodal-switch-2-${conditionIndex}`}
                                               />
                                             </div>
                                             <div className='flex items-center gap-2'>
@@ -3256,6 +3276,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     },
                                                   )
                                                 }
+                                                id={`components-table-channels-modals-paramoverrideeditormodal-switch-3-${conditionIndex}`}
                                               />
                                             </div>
                                           </div>
@@ -3314,6 +3335,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
               onChange={(nextValue) => handleJsonChange(nextValue ?? '')}
               placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
               showClear
+              name='components-table-channels-modals-paramoverrideeditormodal-textarea-4'
             />
             <Text type='tertiary' size='small' className='mt-2 block'>
               {t('直接编辑 JSON 文本，保存时会校验格式。')}
@@ -3343,6 +3365,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
             readOnly
             autosize={{ minRows: 16, maxRows: 20 }}
             style={{ marginBottom: 8 }}
+            name='components-table-channels-modals-paramoverrideeditormodal-textarea-5'
           />
         </Space>
       </Modal>
@@ -3394,6 +3417,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 placeholder={t('搜索字段名 / 中文说明')}
                 showClear
                 style={{ flex: 1 }}
+                name='components-table-channels-modals-paramoverrideeditormodal-input-16'
               />
               <Select
                 value={fieldGuideTarget}

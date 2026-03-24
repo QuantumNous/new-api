@@ -135,6 +135,7 @@ const SingleModelSelectModal = ({
         value={keyword}
         onChange={(v) => setKeyword(v)}
         showClear
+        name='components-table-channels-modals-singlemodelselectmodal-input-1'
       />
 
       <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
@@ -177,7 +178,7 @@ const SingleModelSelectModal = ({
                 >
                   <div className='grid grid-cols-2 gap-x-4'>
                     {categoryData.models.map((model) => (
-                      <Radio key={model} value={model} className='my-1'>
+                      <Radio key={model} value={model} className='my-1' name='components-table-channels-modals-singlemodelselectmodal-radio-1'>
                         {model}
                       </Radio>
                     ))}

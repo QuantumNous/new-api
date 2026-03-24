@@ -98,6 +98,7 @@ const ColumnSelectorModal = ({
           checked={allSelected}
           indeterminate={indeterminate}
           onChange={(e) => handleSelectAll(e.target.checked)}
+          name='components-table-model-deployments-modals-columnselectormodal-checkbox-1'
         >
           {t('全选')}
         </Checkbox>
@@ -114,6 +115,7 @@ const ColumnSelectorModal = ({
               onChange={(e) =>
                 handleColumnVisibilityChange(key, e.target.checked)
               }
+              name='components-table-model-deployments-modals-columnselectormodal-checkbox-2'
             >
               {label}
             </Checkbox>

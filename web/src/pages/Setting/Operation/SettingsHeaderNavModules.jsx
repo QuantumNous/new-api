@@ -251,6 +251,7 @@ export default function SettingsHeaderNavModules(props) {
                       }
                       onChange={handleHeaderNavModuleChange(module.key)}
                       size='default'
+                      id={`pages-setting-operation-settingsheadernavmodules-switch-1-${module}`}
                     />
                   </div>
                 </div>
@@ -305,6 +306,7 @@ export default function SettingsHeaderNavModules(props) {
                             }
                             onChange={handlePricingAuthChange}
                             size='default'
+                            id={`pages-setting-operation-settingsheadernavmodules-switch-2-${module}`}
                           />
                         </div>
                       </div>

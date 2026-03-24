@@ -345,6 +345,7 @@ const JSONEditor = ({
           <Switch
             checked={value}
             onChange={(newValue) => updateValue(pairId, newValue)}
+            id='components-common-ui-jsoneditor-switch-1'
           />
           <Text type='tertiary' className='ml-2'>
             {value ? t('true') : t('false')}
@@ -360,6 +361,7 @@ const JSONEditor = ({
           onChange={(newValue) => updateValue(pairId, newValue)}
           style={{ width: '100%' }}
           placeholder={t('输入数字')}
+          name='components-common-ui-jsoneditor-inputnumber-1'
         />
       );
     }
@@ -379,6 +381,7 @@ const JSONEditor = ({
             }
           }}
           placeholder={t('输入JSON对象')}
+          name='components-common-ui-jsoneditor-textarea-1'
         />
       );
     }
@@ -402,6 +405,7 @@ const JSONEditor = ({
           }
           updateValue(pairId, convertedValue);
         }}
+        name='components-common-ui-jsoneditor-input-1'
       />
     );
   };
@@ -452,6 +456,7 @@ const JSONEditor = ({
                     value={pair.key}
                     onChange={(newKey) => updateKey(pair.id, newKey)}
                     status={isDuplicate ? 'warning' : undefined}
+                    name='components-common-ui-jsoneditor-input-2'
                   />
                   {isDuplicate && (
                     <Tooltip
@@ -548,6 +553,7 @@ const JSONEditor = ({
                 handleVisualChange(newPairs);
               }
             }}
+            name='components-common-ui-jsoneditor-input-3'
           />
         </Form.Slot>
 
@@ -565,6 +571,7 @@ const JSONEditor = ({
                         value={pair.key}
                         onChange={(newKey) => updateKey(pair.id, newKey)}
                         status={isDuplicate ? 'warning' : undefined}
+                        name='components-common-ui-jsoneditor-input-4'
                       />
                       {isDuplicate && (
                         <Tooltip content={t('重复的键名')}>
@@ -581,6 +588,7 @@ const JSONEditor = ({
                       placeholder={t('区域')}
                       value={pair.value}
                       onChange={(newValue) => updateValue(pair.id, newValue)}
+                      name='components-common-ui-jsoneditor-input-5'
                     />
                   </Col>
                   <Col span={2}>
@@ -688,6 +696,7 @@ const JSONEditor = ({
               onChange={handleManualChange}
               showClear={showClear}
               rows={Math.max(8, manualText ? manualText.split('\n').length : 8)}
+              name='components-common-ui-jsoneditor-textarea-2'
             />
             {/* 隐藏的Form字段用于验证和数据绑定 */}
             <Form.Input

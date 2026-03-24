@@ -437,7 +437,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
         {/* 启用开关 */}
         <div className='order-1 md:order-2 flex items-center gap-2'>
-          <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
+          <Switch checked={panelEnabled} onChange={handleToggleEnabled}  id='pages-setting-dashboard-settingsannouncements-switch-1'/>
           <Text>{panelEnabled ? t('已启用') : t('已禁用')}</Text>
         </div>
       </div>
@@ -625,6 +625,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
           onChange={(value) =>
             setAnnouncementForm({ ...announcementForm, content: value })
           }
+          name='pages-setting-dashboard-settingsannouncements-textarea-1'
         />
       </Modal>
     </>

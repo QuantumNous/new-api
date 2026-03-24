@@ -427,6 +427,7 @@ const EditUserModal = (props) => {
               }}
               style={{ width: '100%' }}
               showClear
+              name='components-table-users-modals-editusermodal-inputnumber-1'
             />
           </div>
         )}
@@ -452,6 +453,7 @@ const EditUserModal = (props) => {
             style={{ width: '100%' }}
             showClear
             step={500000}
+            name='components-table-users-modals-editusermodal-inputnumber-2'
           />
         </div>
       </Modal>

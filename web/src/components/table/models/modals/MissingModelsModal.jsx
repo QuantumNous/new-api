@@ -156,6 +156,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
                 className='!w-full'
                 prefix={<IconSearch />}
                 showClear
+                name='components-table-models-modals-missingmodelsmodal-input-1'
               />
             </div>
 

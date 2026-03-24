@@ -191,6 +191,7 @@ const SecureVerificationModal = ({
                       </svg>
                     }
                     style={{ width: '100%' }}
+                    name='components-common-modals-secureverificationmodal-input-1'
                   />
                 </div>
 

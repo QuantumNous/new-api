@@ -330,6 +330,7 @@ export default function SettingsSidebarModulesAdmin(props) {
                 checked={sidebarModulesAdmin[section.key]?.enabled}
                 onChange={handleSectionChange(section.key)}
                 size='default'
+                id={`pages-setting-operation-settingssidebarmodulesadmin-switch-1-${section}`}
               />
             </div>
 
@@ -387,6 +388,7 @@ export default function SettingsSidebarModulesAdmin(props) {
                           onChange={handleModuleChange(section.key, module.key)}
                           size='default'
                           disabled={!sidebarModulesAdmin[section.key]?.enabled}
+                          id={`pages-setting-operation-settingssidebarmodulesadmin-switch-2-${module}`}
                         />
                       </div>
                     </div>

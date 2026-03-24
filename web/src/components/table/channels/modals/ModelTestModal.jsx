@@ -299,6 +299,7 @@ const ModelTestModal = ({
                 size='small'
                 disabled={streamToggleDisabled}
                 aria-label={t('流式')}
+                id='components-table-channels-modals-modeltestmodal-switch-1'
               />
             </div>
           </div>
@@ -325,6 +326,7 @@ const ModelTestModal = ({
               className='!w-full sm:!flex-1'
               prefix={<IconSearch />}
               showClear
+              name='components-table-channels-modals-modeltestmodal-input-1'
             />
 
             <div className='flex items-center justify-end gap-2'>

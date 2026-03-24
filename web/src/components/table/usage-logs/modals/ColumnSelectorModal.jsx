@@ -78,6 +78,7 @@ const ColumnSelectorModal = ({
             type='button'
             value={billingDisplayMode}
             onChange={handleBillingDisplayModeChange}
+            name='components-table-usage-logs-modals-columnselectormodal-radiogroup-1'
           >
             <Radio value='price'>
               {isTokensDisplay ? t('价格模式') : t('价格模式（默认）')}
@@ -94,6 +95,7 @@ const ColumnSelectorModal = ({
             !Object.values(visibleColumns).every((v) => v === true)
           }
           onChange={(e) => handleSelectAll(e.target.checked)}
+          name='components-table-usage-logs-modals-columnselectormodal-checkbox-1'
         >
           {t('全选')}
         </Checkbox>
@@ -120,6 +122,7 @@ const ColumnSelectorModal = ({
                 onChange={(e) =>
                   handleColumnVisibilityChange(column.key, e.target.checked)
                 }
+                name='components-table-usage-logs-modals-columnselectormodal-checkbox-2'
               >
                 {column.title}
               </Checkbox>

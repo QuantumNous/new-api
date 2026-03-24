@@ -168,6 +168,7 @@ const ChannelSelectorModal = forwardRef(
               onChange={(val) => updateEndpoint(channelId, val)}
               placeholder='/your/endpoint'
               style={{ width: 160, fontSize: 12 }}
+              name='components-settings-channelselectormodal-input-1'
             />
           )}
         </div>
@@ -276,6 +277,7 @@ const ChannelSelectorModal = forwardRef(
             value={searchText}
             onChange={setSearchText}
             showClear
+            name='components-settings-channelselectormodal-input-2'
           />
 
           <Table

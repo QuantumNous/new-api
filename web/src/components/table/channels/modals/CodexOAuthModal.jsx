@@ -157,6 +157,7 @@ const CodexOAuthModal = ({ visible, onCancel, onSuccess }) => {
           onChange={(value) => setInput(value)}
           placeholder={t('请粘贴完整回调 URL（包含 code 与 state）')}
           showClear
+          name='components-table-channels-modals-codexoauthmodal-input-1'
         />
 
         <Text type='tertiary' size='small'>

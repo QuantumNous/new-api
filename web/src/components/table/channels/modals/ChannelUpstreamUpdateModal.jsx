@@ -255,6 +255,7 @@ const ChannelUpstreamUpdateModal = ({
           value={keyword}
           onChange={(value) => setKeyword(value)}
           showClear
+          name='components-table-channels-modals-channelupstreamupdatemodal-input-1'
         />
 
         <div style={{ maxHeight: 320, overflowY: 'auto', paddingRight: 8 }}>
@@ -282,6 +283,7 @@ const ChannelUpstreamUpdateModal = ({
                     key={`${activeTab}:${model}`}
                     value={model}
                     className='my-1'
+                    name='components-table-channels-modals-channelupstreamupdatemodal-checkbox-1'
                   >
                     {model}
                   </Checkbox>
@@ -303,6 +305,7 @@ const ChannelUpstreamUpdateModal = ({
             indeterminate={isIndeterminate}
             aria-label={t('全选当前列表模型')}
             onChange={(e) => handleToggleAllCurrent(e.target.checked)}
+            name='components-table-channels-modals-channelupstreamupdatemodal-checkbox-2'
           />
         </div>
       </div>

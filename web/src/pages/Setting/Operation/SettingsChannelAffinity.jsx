@@ -1336,6 +1336,7 @@ export default function SettingsChannelAffinity(props) {
                           isGjson ? { path: value } : { key: value },
                         )
                       }
+                      name='pages-setting-operation-settingschannelaffinity-input-1'
                     />
                   );
                 },

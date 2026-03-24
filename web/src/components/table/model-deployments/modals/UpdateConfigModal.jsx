@@ -372,6 +372,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
                         value={envVar.key}
                         onChange={(value) => updateEnvVar(index, 'key', value)}
                         style={{ flex: 1 }}
+                        name='components-table-model-deployments-modals-updateconfigmodal-input-1'
                       />
                       <Text>=</Text>
                       <Input
@@ -381,6 +382,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
                           updateEnvVar(index, 'value', value)
                         }
                         style={{ flex: 2 }}
+                        name='components-table-model-deployments-modals-updateconfigmodal-input-2'
                       />
                       <Button
                         size='small'
@@ -430,6 +432,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
                           updateSecretEnvVar(index, 'key', value)
                         }
                         style={{ flex: 1 }}
+                        name='components-table-model-deployments-modals-updateconfigmodal-input-3'
                       />
                       <Text>=</Text>
                       <Input
@@ -440,6 +443,7 @@ const UpdateConfigModal = ({ visible, onCancel, deployment, onSuccess, t }) => {
                           updateSecretEnvVar(index, 'value', value)
                         }
                         style={{ flex: 2 }}
+                        name='components-table-model-deployments-modals-updateconfigmodal-input-4'
                       />
                       <Button
                         size='small'

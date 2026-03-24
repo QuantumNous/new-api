@@ -190,6 +190,7 @@ const InvitationCard = ({
                 {t('复制')}
               </Button>
             }
+            name='components-topup-invitationcard-input-1'
           />
         </Card>
 

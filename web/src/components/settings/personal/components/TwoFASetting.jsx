@@ -536,6 +536,7 @@ const TwoFASetting = ({ t }) => {
                   size='large'
                   maxLength={6}
                   className='!rounded-lg'
+                  name='components-settings-personal-components-twofasetting-input-1'
                 />
               )}
             </div>
@@ -618,6 +619,7 @@ const TwoFASetting = ({ t }) => {
                   onChange={setVerificationCode}
                   size='large'
                   className='!rounded-lg'
+                  name='components-settings-personal-components-twofasetting-input-2'
                 />
               </div>
 
@@ -626,6 +628,7 @@ const TwoFASetting = ({ t }) => {
                   checked={confirmDisable}
                   onChange={(e) => setConfirmDisable(e.target.checked)}
                   className='text-sm'
+                  name='components-settings-personal-components-twofasetting-checkbox-1'
                 >
                   {t(
                     '我已了解禁用两步验证将永久删除所有相关设置和备用码，此操作不可撤销',
@@ -684,6 +687,7 @@ const TwoFASetting = ({ t }) => {
                     onChange={setVerificationCode}
                     size='large'
                     className='!rounded-lg'
+                    name='components-settings-personal-components-twofasetting-input-3'
                   />
                 </div>
               </div>

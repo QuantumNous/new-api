@@ -149,6 +149,7 @@ export default function CCSwitchModal({
             value={app}
             onChange={(e) => handleAppChange(e.target.value)}
             style={{ width: '100%' }}
+            name='components-table-tokens-modals-ccswitchmodal-radiogroup-1'
           >
             {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
               <Radio key={key} value={key}>
@@ -164,6 +165,7 @@ export default function CCSwitchModal({
             value={name}
             onChange={setName}
             placeholder={currentConfig.defaultName}
+            name='components-table-tokens-modals-ccswitchmodal-input-1'
           />
         </div>
 

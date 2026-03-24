@@ -406,6 +406,7 @@ export default function SettingsChats(props) {
                   }
                 }, 100);
               }}
+              name='pages-setting-chat-settingschats-radiogroup-1'
             >
               <Radio value='visual'>{t('可视化编辑')}</Radio>
               <Radio value='json'>{t('JSON编辑')}</Radio>
@@ -460,6 +461,7 @@ export default function SettingsChats(props) {
                   onChange={(value) => setSearchText(value)}
                   style={{ width: 250 }}
                   showClear
+                  name='pages-setting-chat-settingschats-input-1'
                 />
               </Space>
 

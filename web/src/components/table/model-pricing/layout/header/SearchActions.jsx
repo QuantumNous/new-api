@@ -75,6 +75,7 @@ const SearchActions = memo(
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}
             showClear
+            name='components-table-model-pricing-layout-header-searchactions-input-1'
           />
         </div>
 
@@ -100,6 +101,7 @@ const SearchActions = memo(
                 <Switch
                   checked={showWithRecharge}
                   onChange={setShowWithRecharge}
+                  id='components-table-model-pricing-layout-header-searchactions-switch-1'
                 />
               </div>
             )}
@@ -120,7 +122,7 @@ const SearchActions = memo(
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
               <span className='text-sm text-gray-600'>{t('倍率')}</span>
-              <Switch checked={showRatio} onChange={setShowRatio} />
+              <Switch checked={showRatio} onChange={setShowRatio}  id='components-table-model-pricing-layout-header-searchactions-switch-2'/>
             </div>
 
             {/* 视图模式切换按钮 */}

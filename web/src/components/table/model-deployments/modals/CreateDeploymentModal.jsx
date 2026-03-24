@@ -905,8 +905,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                     setImageMode(value?.target?.value ?? value)
                   }
                 >
-                  <Radio value='builtin'>{t('内置 Ollama 镜像')}</Radio>
-                  <Radio value='custom'>{t('自定义镜像')}</Radio>
+                  <Radio value='builtin' name='components-table-model-deployments-modals-createdeploymentmodal-radio-1'>{t('内置 Ollama 镜像')}</Radio>
+                  <Radio value='custom' name='components-table-model-deployments-modals-createdeploymentmodal-radio-2'>{t('自定义镜像')}</Radio>
                 </RadioGroup>
               </div>
             </div>
@@ -934,6 +934,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   value={autoOllamaKey}
                   size='small'
                   style={{ width: 220 }}
+                  name='components-table-model-deployments-modals-createdeploymentmodal-input-1'
                 />
                 <Button
                   icon={<IconCopy />}
@@ -1207,6 +1208,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               handleArrayFieldChange(index, value, 'entrypoint')
                             }
                             style={{ flex: 1, marginRight: 8 }}
+                            name='components-table-model-deployments-modals-createdeploymentmodal-input-2'
                           />
                           <Button
                             icon={<IconMinus />}
@@ -1240,6 +1242,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                               handleArrayFieldChange(index, value, 'args')
                             }
                             style={{ flex: 1, marginRight: 8 }}
+                            name='components-table-model-deployments-modals-createdeploymentmodal-input-3'
                           />
                           <Button
                             icon={<IconMinus />}
@@ -1281,6 +1284,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                   'env',
                                 )
                               }
+                              name='components-table-model-deployments-modals-createdeploymentmodal-input-4'
                             />
                           </Col>
                           <Col span={10}>
@@ -1295,6 +1299,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                   'env',
                                 )
                               }
+                              name='components-table-model-deployments-modals-createdeploymentmodal-input-5'
                             />
                           </Col>
                           <Col span={4}>
@@ -1338,6 +1343,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                   )
                                 }
                                 disabled={isAutoSecret}
+                                name='components-table-model-deployments-modals-createdeploymentmodal-input-6'
                               />
                             </Col>
                             <Col span={10}>
@@ -1354,6 +1360,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                                   )
                                 }
                                 disabled={isAutoSecret}
+                                name='components-table-model-deployments-modals-createdeploymentmodal-input-7'
                               />
                             </Col>
                             <Col span={4}>
@@ -1401,8 +1408,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   value={priceCurrency}
                   onChange={handleCurrencyChange}
                 >
-                  <Radio value='usdc'>USDC</Radio>
-                  <Radio value='iocoin'>IOCOIN</Radio>
+                  <Radio value='usdc' name='components-table-model-deployments-modals-createdeploymentmodal-radio-3'>USDC</Radio>
+                  <Radio value='iocoin' name='components-table-model-deployments-modals-createdeploymentmodal-radio-4'>IOCOIN</Radio>
                 </RadioGroup>
                 <Tag size='small' color='blue'>
                   {currencyLabel}

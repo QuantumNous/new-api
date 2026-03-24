@@ -47,6 +47,7 @@ const BatchTagModal = ({
         placeholder={t('请输入标签名称')}
         value={batchSetTagValue}
         onChange={(v) => setBatchSetTagValue(v)}
+        name='components-table-channels-modals-batchtagmodal-input-1'
       />
       <div className='mt-4'>
         <Typography.Text type='secondary'>

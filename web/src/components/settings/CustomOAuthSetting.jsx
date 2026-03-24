@@ -654,6 +654,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   checked={!!formValues.enabled}
                   size='large'
                   onChange={(checked) => mergeFormValues({ enabled: !!checked })}
+                  id='components-settings-customoauthsetting-switch-1'
                 />
                 <Tag color={formValues.enabled ? 'green' : 'grey'}>
                   {formValues.enabled ? t('已启用') : t('已禁用')}
