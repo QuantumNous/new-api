@@ -62,6 +62,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		adminInfo["is_multi_key"] = true
 		adminInfo["multi_key_index"] = common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex)
 	}
+	AppendMultiKeyStickyAdminInfo(ctx, adminInfo)
 
 	isLocalCountTokens := common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens)
 	if isLocalCountTokens {

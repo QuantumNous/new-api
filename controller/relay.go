@@ -220,12 +220,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			service.CommitMultiKeyBinding(c)
 			relayInfo.LastError = nil
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
+		service.RecordMultiKeyFailure(
+			c,
+			channel.Id,
+			channel.ChannelInfo.MultiKeyMode,
+			common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
+		)
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
@@ -542,10 +549,17 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			service.CommitMultiKeyBinding(c)
 			break
 		}
 
 		if !taskErr.LocalError {
+			service.RecordMultiKeyFailure(
+				c,
+				channel.Id,
+				channel.ChannelInfo.MultiKeyMode,
+				common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
+			)
 			processChannelError(c,
 				*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey,
 					common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()),
