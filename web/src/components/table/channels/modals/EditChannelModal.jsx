@@ -124,6 +124,8 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
   ],
 };
 
+const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
@@ -413,9 +415,21 @@ const EditChannelModal = (props) => {
   ];
   const formContainerRef = useRef(null);
   const doubaoApiClickCountRef = useRef(0);
+  const initialBaseUrlRef = useRef('');
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
+  const doubaoCodingPlanDeprecationMessage =
+    'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
+  const canKeepDeprecatedDoubaoCodingPlan =
+    initialBaseUrlRef.current === DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL;
+  const doubaoCodingPlanOptionLabel = (
+    <Tooltip content={doubaoCodingPlanDeprecationMessage} position='left'>
+      <span className='inline-flex items-center gap-2'>
+        <span>Doubao Coding Plan</span>
+      </span>
+    </Tooltip>
+  );
 
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
@@ -946,6 +960,7 @@ const EditChannelModal = (props) => {
         data.base_url = 'https://ark.cn-beijing.volces.com';
       }
 
+      initialBaseUrlRef.current = data.base_url || '';
       setInputs(data);
       if (formApiRef.current) {
         formApiRef.current.setValues(data);
@@ -1260,6 +1275,7 @@ const EditChannelModal = (props) => {
     fetchModels().then();
     fetchGroups().then();
     if (!isEdit) {
+      initialBaseUrlRef.current = '';
       setInputs(originInputs);
       if (formApiRef.current) {
         formApiRef.current.setValues(originInputs);
@@ -3062,8 +3078,9 @@ const EditChannelModal = (props) => {
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
                               {
-                                value: 'doubao-coding-plan',
-                                label: 'Doubao Coding Plan',
+                                value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
+                                label: doubaoCodingPlanOptionLabel,
+                                disabled: !canKeepDeprecatedDoubaoCodingPlan,
                               },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
@@ -3294,7 +3311,12 @@ const EditChannelModal = (props) => {
                         <Form.Input
                           field='upstream_model_update_ignored_models'
                           label={t('已忽略模型')}
-                          placeholder={t('例如：gpt-4.1-nano,gpt-4o-mini')}
+                          placeholder={t(
+                            '例如：gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$',
+                          )}
+                          extraText={t(
+                            '支持精确匹配；使用 regex: 开头可按正则匹配。',
+                          )}
                           onChange={(value) =>
                             handleInputChange(
                               'upstream_model_update_ignored_models',
