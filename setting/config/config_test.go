@@ -9,6 +9,10 @@ type cloneConfigValueFixture struct {
 	Values map[string]any `json:"values"`
 }
 
+type cloneConfigValueUnsupportedFixture struct {
+	Fn func()
+}
+
 func TestCloneConfigValueCreatesDetachedSnapshot(t *testing.T) {
 	original := &cloneConfigValueFixture{
 		Values: map[string]any{
@@ -16,7 +20,12 @@ func TestCloneConfigValueCreatesDetachedSnapshot(t *testing.T) {
 		},
 	}
 
-	cloned, ok := cloneConfigValue(original).(*cloneConfigValueFixture)
+	clonedValue, err := cloneConfigValue(original)
+	if err != nil {
+		t.Fatalf("cloneConfigValue should clone supported config: %v", err)
+	}
+
+	cloned, ok := clonedValue.(*cloneConfigValueFixture)
 	if !ok {
 		t.Fatal("cloneConfigValue should return a cloned struct pointer")
 	}
@@ -32,5 +41,17 @@ func TestCloneConfigValueCreatesDetachedSnapshot(t *testing.T) {
 	cloned.Values["answer"] = json.Number("43")
 	if original.Values["answer"] != 42 {
 		t.Fatalf("expected original config to remain unchanged, got %#v", original.Values["answer"])
+	}
+}
+
+func TestCloneConfigValueReturnsErrorForUnsupportedStruct(t *testing.T) {
+	cloned, err := cloneConfigValue(&cloneConfigValueUnsupportedFixture{
+		Fn: func() {},
+	})
+	if err == nil {
+		t.Fatal("cloneConfigValue should fail for unsupported struct fields")
+	}
+	if cloned != nil {
+		t.Fatalf("cloneConfigValue should not return live config on error, got %#v", cloned)
 	}
 }

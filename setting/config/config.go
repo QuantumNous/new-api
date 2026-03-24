@@ -37,35 +37,39 @@ func (cm *ConfigManager) Get(name string) interface{} {
 	return cm.configs[name]
 }
 
-func cloneConfigValue(config interface{}) interface{} {
+func cloneConfigValue(config interface{}) (interface{}, error) {
 	if config == nil {
-		return nil
+		return nil, nil
 	}
 
 	valueType := reflect.TypeOf(config)
 	if valueType.Kind() != reflect.Ptr || valueType.Elem().Kind() != reflect.Struct {
-		return config
+		return config, nil
 	}
 
 	raw, err := common.Marshal(config)
 	if err != nil {
-		return config
+		return nil, err
 	}
 
 	target := reflect.New(valueType.Elem()).Interface()
 	if err := common.UnmarshalWithNumber(raw, target); err != nil {
-		return config
+		return nil, err
 	}
 
-	return target
+	return target, nil
 }
 
 // Read executes fn with a snapshot of the named config after releasing the manager read lock.
 func (cm *ConfigManager) Read(name string, fn func(config interface{})) {
-	cm.mutex.RLock()
-	config := cloneConfigValue(cm.configs[name])
-	cm.mutex.RUnlock()
 	if fn == nil {
+		return
+	}
+	cm.mutex.RLock()
+	config, err := cloneConfigValue(cm.configs[name])
+	cm.mutex.RUnlock()
+	if err != nil {
+		common.SysError("failed to clone config " + name + ": " + err.Error())
 		return
 	}
 	fn(config)

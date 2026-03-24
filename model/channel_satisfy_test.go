@@ -6,13 +6,27 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-func TestHasResponsesBootstrapRecoveryEnabledChannelSkipsDisabledChannels(t *testing.T) {
+func withResponsesBootstrapCacheFixture(t *testing.T, channels map[int]*Channel) {
+	t.Helper()
+
 	originalMemoryCacheEnabled := common.MemoryCacheEnabled
 	originalChannelsIDM := channelsIDM
 
 	common.MemoryCacheEnabled = true
 	channelSyncLock.Lock()
-	channelsIDM = map[int]*Channel{
+	channelsIDM = channels
+	channelSyncLock.Unlock()
+
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		channelSyncLock.Lock()
+		channelsIDM = originalChannelsIDM
+		channelSyncLock.Unlock()
+	})
+}
+
+func TestHasResponsesBootstrapRecoveryEnabledChannelSkipsDisabledChannels(t *testing.T) {
+	withResponsesBootstrapCacheFixture(t, map[int]*Channel{
 		1: {
 			Id:            1,
 			Status:        common.ChannelStatusManuallyDisabled,
@@ -27,14 +41,6 @@ func TestHasResponsesBootstrapRecoveryEnabledChannelSkipsDisabledChannels(t *tes
 			Models:        "gpt-5",
 			OtherSettings: `{"responses_stream_bootstrap_recovery_enabled":false}`,
 		},
-	}
-	channelSyncLock.Unlock()
-
-	t.Cleanup(func() {
-		common.MemoryCacheEnabled = originalMemoryCacheEnabled
-		channelSyncLock.Lock()
-		channelsIDM = originalChannelsIDM
-		channelSyncLock.Unlock()
 	})
 
 	if HasResponsesBootstrapRecoveryEnabledChannel([]string{"default"}, "gpt-5") {
@@ -43,12 +49,7 @@ func TestHasResponsesBootstrapRecoveryEnabledChannelSkipsDisabledChannels(t *tes
 }
 
 func TestHasResponsesBootstrapRecoveryEnabledChannelAcceptsEnabledOptInChannel(t *testing.T) {
-	originalMemoryCacheEnabled := common.MemoryCacheEnabled
-	originalChannelsIDM := channelsIDM
-
-	common.MemoryCacheEnabled = true
-	channelSyncLock.Lock()
-	channelsIDM = map[int]*Channel{
+	withResponsesBootstrapCacheFixture(t, map[int]*Channel{
 		1: {
 			Id:            1,
 			Status:        common.ChannelStatusEnabled,
@@ -56,14 +57,6 @@ func TestHasResponsesBootstrapRecoveryEnabledChannelAcceptsEnabledOptInChannel(t
 			Models:        "gpt-5",
 			OtherSettings: `{"responses_stream_bootstrap_recovery_enabled":true}`,
 		},
-	}
-	channelSyncLock.Unlock()
-
-	t.Cleanup(func() {
-		common.MemoryCacheEnabled = originalMemoryCacheEnabled
-		channelSyncLock.Lock()
-		channelsIDM = originalChannelsIDM
-		channelSyncLock.Unlock()
 	})
 
 	if !HasResponsesBootstrapRecoveryEnabledChannel([]string{"default"}, "gpt-5") {
