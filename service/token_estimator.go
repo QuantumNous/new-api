@@ -121,7 +121,7 @@ func EstimateToken(provider Provider, text string) int {
 			} else if urlDelimSet[r] {
 				count += m.URLDelim
 			} else if r == '\r' || r == '\f' || r == '\v' {
-				count += m.Newline
+				count += m.Space
 			} else {
 				count += m.Symbol
 			}
