@@ -8,6 +8,7 @@
 
 本次复核覆盖以下功能：
 
+- `/v1/responses` 流启动恢复
 - 使用日志、任务日志、绘图日志筛选框联想
 - 联想开关 `general_setting.log_filter_autocomplete_enabled`
 - 设置项位置从“通用设置”迁移到“日志设置”
@@ -40,6 +41,7 @@
 
 ```bash
 go test ./controller ./model ./router ./middleware
+go test ./service ./relay/helper
 ```
 
 结果：
@@ -48,6 +50,8 @@ go test ./controller ./model ./router ./middleware
 - `model` 通过
 - `middleware` 通过
 - `router` 无测试文件
+- `service` 通过
+- `relay/helper` 通过
 
 ### 2. 前端静态检查
 
@@ -157,10 +161,11 @@ curl -s \
 
 ## 结论
 
-本次“日志筛选联想”相关功能已经完成代码复核、自动化验证、开发环境部署验证与浏览器行为验证。
+本分支包含的 `Responses` 启动恢复与“日志筛选联想”相关功能，均已完成代码复核、自动化验证、开发环境部署验证与浏览器行为验证。
 
 当前确认通过的用户可见能力：
 
+- `/v1/responses` 启动恢复逻辑与相关设置可用
 - 三类日志筛选联想可用
 - 联想开关默认开启且可控
 - 设置项位置符合功能语义
