@@ -331,7 +331,7 @@ export const useLogsData = () => {
     if (!isAdminUser) {
       return;
     }
-    if (!userId) {
+    if (userId === null || userId === undefined) {
       showError(t('用户信息缺失'));
       return;
     }
