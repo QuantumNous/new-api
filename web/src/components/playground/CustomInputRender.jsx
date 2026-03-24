@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef, useEffect, useCallback } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
+import useRepeatingDomPatch from '../../hooks/common/useRepeatingDomPatch';
 import { usePlayground } from '../../contexts/PlaygroundContext';
 
 const CustomInputRender = (props) => {
@@ -101,6 +102,31 @@ const CustomInputRender = (props) => {
       container.removeEventListener('paste', handlePaste);
     };
   }, [handlePaste]);
+
+  useRepeatingDomPatch(() => {
+    const patchInputs = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const visibleTextarea = container.querySelector(
+        '.flex-1 textarea:not([aria-hidden="true"])',
+      );
+      if (visibleTextarea) {
+        visibleTextarea.name = 'playground-message-input';
+        visibleTextarea.id = 'playground-message-input';
+        visibleTextarea.setAttribute('data-playground-input', 'true');
+      }
+
+      const hiddenTextarea = container.querySelector(
+        'textarea[aria-hidden="true"]',
+      );
+      if (hiddenTextarea) {
+        hiddenTextarea.name = 'playground-message-shadow';
+      }
+    };
+
+    patchInputs();
+  }, []);
 
   // 清空按钮
   const styledClearNode = clearContextNode

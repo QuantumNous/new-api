@@ -48,6 +48,7 @@ import {
   IconClose,
   IconGift,
 } from '@douyinfe/semi-icons';
+import useRepeatingDomPatch from '../../../../hooks/common/useRepeatingDomPatch';
 
 const { Text, Title } = Typography;
 
@@ -57,6 +58,7 @@ const EditRedemptionModal = (props) => {
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  const containerRef = useRef(null);
 
   const getInitValues = () => ({
     name: '',
@@ -95,6 +97,45 @@ const EditRedemptionModal = (props) => {
       }
     }
   }, [props.editingRedemption.id]);
+
+  useRepeatingDomPatch(() => {
+    if (!props.visiable) {
+      return;
+    }
+
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const dateInput = container.querySelector(
+      '.redemption-expired-time-input input:not([aria-hidden="true"])',
+    );
+    if (dateInput) {
+      dateInput.id = 'expired_time';
+      dateInput.name = 'expired_time';
+      dateInput.setAttribute('autocomplete', 'off');
+      dateInput.setAttribute('aria-label', t('过期时间'));
+    }
+
+    const quotaInput = container.querySelector(
+      '.redemption-quota-field input:not([aria-hidden="true"])',
+    );
+    if (quotaInput) {
+      quotaInput.id = 'quota';
+      quotaInput.name = 'quota';
+      quotaInput.setAttribute('autocomplete', 'off');
+    }
+
+    const countInput = container.querySelector(
+      '.redemption-count-field input:not([aria-hidden="true"])',
+    );
+    if (countInput) {
+      countInput.id = 'count';
+      countInput.name = 'count';
+      countInput.setAttribute('autocomplete', 'off');
+    }
+  }, [props.visiable, t, isEdit]);
 
   const submit = async (values) => {
     let name = values.name;
@@ -215,7 +256,7 @@ const EditRedemptionModal = (props) => {
             onSubmit={submit}
           >
             {({ values }) => (
-              <div className='p-2'>
+              <div className='p-2' ref={containerRef}>
                 <Card className='!rounded-2xl shadow-sm border-0 mb-6'>
                   {/* Header: Basic Info */}
                   <div className='flex items-center mb-2'>
@@ -242,6 +283,7 @@ const EditRedemptionModal = (props) => {
                         field='name'
                         label={t('名称')}
                         placeholder={t('请输入名称')}
+                        autoComplete='off'
                         style={{ width: '100%' }}
                         rules={
                           !isEdit
@@ -251,10 +293,16 @@ const EditRedemptionModal = (props) => {
                         showClear
                       />
                     </Col>
-                    <Col span={24}>
+                    <Col span={24} className='redemption-expired-time-field'>
+                      <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                        {t('过期时间')}
+                      </Text>
                       <Form.DatePicker
                         field='expired_time'
-                        label={t('过期时间')}
+                        noLabel
+                        aria-label={t('过期时间')}
+                        autoComplete='off'
+                        className='redemption-expired-time-input'
                         type='dateTime'
                         placeholder={t('选择过期时间（可选，留空为永久）')}
                         style={{ width: '100%' }}
@@ -288,8 +336,10 @@ const EditRedemptionModal = (props) => {
                     <Col span={12}>
                       <Form.AutoComplete
                         field='quota'
+                        className='redemption-quota-field'
                         label={t('额度')}
                         placeholder={t('请输入额度')}
+                        autoComplete='off'
                         style={{ width: '100%' }}
                         type='number'
                         rules={[
@@ -321,7 +371,9 @@ const EditRedemptionModal = (props) => {
                       <Col span={12}>
                         <Form.InputNumber
                           field='count'
+                          className='redemption-count-field'
                           label={t('生成数量')}
+                          autoComplete='off'
                           min={1}
                           rules={[
                             { required: true, message: t('请输入生成数量') },

@@ -239,6 +239,7 @@ const ChannelsActions = ({
             <Switch
               size='small'
               checked={idSort}
+              aria-label={t('使用ID排序')}
               onChange={(v) => {
                 localStorage.setItem('id-sort', v + '');
                 setIdSort(v);
@@ -272,6 +273,7 @@ const ChannelsActions = ({
             <Switch
               size='small'
               checked={enableBatchDelete}
+              aria-label={t('开启批量操作')}
               onChange={(v) => {
                 localStorage.setItem('enable-batch-delete', v + '');
                 setEnableBatchDelete(v);
@@ -287,6 +289,7 @@ const ChannelsActions = ({
             <Switch
               size='small'
               checked={enableTagMode}
+              aria-label={t('标签聚合模式')}
               onChange={(v) => {
                 localStorage.setItem('enable-tag-mode', v + '');
                 setEnableTagMode(v);
@@ -304,6 +307,7 @@ const ChannelsActions = ({
             <Select
               size='small'
               value={statusFilter}
+              aria-label={t('状态筛选')}
               onChange={(v) => {
                 localStorage.setItem('channel-status-filter', v);
                 setStatusFilter(v);

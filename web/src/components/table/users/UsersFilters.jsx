@@ -62,8 +62,13 @@ const UsersFilters = ({
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='relative w-full md:w-64'>
+          <span id='searchKeyword-label' className='sr-only'>
+            {t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
+          </span>
           <Form.Input
             field='searchKeyword'
+            name='searchKeyword'
+            autoComplete='off'
             prefix={<IconSearch />}
             placeholder={t('支持搜索用户的 ID、用户名、显示名称和邮箱地址')}
             showClear

@@ -72,7 +72,13 @@ const sanitizeHtml = (html) => {
  * @param {string} cacheKey - 本地存储缓存键
  * @param {string} emptyMessage - 空内容时的提示消息
  */
-const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
+const DocumentRenderer = ({
+  apiEndpoint,
+  title,
+  cacheKey,
+  emptyMessage,
+  enabled = true,
+}) => {
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -80,6 +86,14 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
   const [processedHtmlContent, setProcessedHtmlContent] = useState('');
 
   const loadContent = async () => {
+    if (!enabled) {
+      setContent('');
+      setProcessedHtmlContent('');
+      setHtmlStyles('');
+      setLoading(false);
+      return;
+    }
+
     // 先从缓存中获取
     const cachedContent = localStorage.getItem(cacheKey) || '';
     if (cachedContent) {
@@ -124,7 +138,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
 
   useEffect(() => {
     loadContent();
-  }, []);
+  }, [enabled]);
 
   // 处理HTML样式注入
   useEffect(() => {

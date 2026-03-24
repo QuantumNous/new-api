@@ -37,6 +37,7 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import useRepeatingDomPatch from '../../../hooks/common/useRepeatingDomPatch';
 
 const { Text } = Typography;
 
@@ -44,6 +45,7 @@ export default function SettingsLog(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
+  const containerRef = useRef(null);
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
@@ -191,14 +193,47 @@ export default function SettingsLog(props) {
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
+
+  useRepeatingDomPatch(() => {
+    const patchInputs = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const wrapper = container.querySelector('#historyTimestamp');
+      if (
+        wrapper &&
+        wrapper.tagName.toLowerCase() !== 'input' &&
+        wrapper.tagName.toLowerCase() !== 'textarea'
+      ) {
+        wrapper.id = 'historyTimestamp-wrapper';
+      }
+
+      const input = container.querySelector(
+        '.history-timestamp-field input:not([aria-hidden="true"])',
+      );
+      if (input) {
+        input.id = 'historyTimestamp';
+        input.name = 'historyTimestamp';
+      }
+
+      container
+        .querySelectorAll('textarea[aria-hidden="true"]:not([name])')
+        .forEach((element, index) => {
+          element.name = `operation-hidden-textarea-${index + 1}`;
+        });
+    };
+
+    patchInputs();
+  }, [inputs.historyTimestamp, props.options]);
   return (
     <>
       <Spin spinning={loading}>
-        <Form
-          values={inputs}
-          getFormApi={(formAPI) => (refForm.current = formAPI)}
-          style={{ marginBottom: 15 }}
-        >
+        <div ref={containerRef}>
+          <Form
+            values={inputs}
+            getFormApi={(formAPI) => (refForm.current = formAPI)}
+            style={{ marginBottom: 15 }}
+          >
           <Form.Section text={t('日志设置')}>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -221,6 +256,8 @@ export default function SettingsLog(props) {
                   <Form.DatePicker
                     label={t('清除历史日志')}
                     field={'historyTimestamp'}
+                    id='historyTimestamp'
+                    className='history-timestamp-field'
                     type='dateTime'
                     inputReadOnly={true}
                     onChange={(value) => {
@@ -254,7 +291,8 @@ export default function SettingsLog(props) {
               </Button>
             </Row>
           </Form.Section>
-        </Form>
+          </Form>
+        </div>
       </Spin>
     </>
   );

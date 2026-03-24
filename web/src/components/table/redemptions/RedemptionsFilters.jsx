@@ -57,8 +57,13 @@ const RedemptionsFilters = ({
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='relative w-full md:w-64'>
+          <span id='searchKeyword-label' className='sr-only'>
+            {t('关键字(id或者名称)')}
+          </span>
           <Form.Input
             field='searchKeyword'
+            name='searchKeyword'
+            autoComplete='off'
             prefix={<IconSearch />}
             placeholder={t('关键字(id或者名称)')}
             showClear

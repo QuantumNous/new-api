@@ -26,11 +26,11 @@ import {
   Typography,
   Modal,
   Banner,
-  TagInput,
   Spin,
   Card,
   Radio,
   Select,
+  Tag,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -125,6 +125,74 @@ const SystemSetting = () => {
   const [domainList, setDomainList] = useState([]);
   const [ipList, setIpList] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
+  const [domainInputValue, setDomainInputValue] = useState('');
+  const [ipInputValue, setIpInputValue] = useState('');
+  const [allowedPortsInputValue, setAllowedPortsInputValue] = useState('');
+
+  const normalizeTagEntries = (rawValue) => {
+    return [...new Set(
+      String(rawValue || '')
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    )];
+  };
+
+  const updateListField = (fieldKey, nextValues, setter) => {
+    setter(nextValues);
+    setInputs((prev) => ({
+      ...prev,
+      [fieldKey]: nextValues,
+    }));
+  };
+
+  const appendListField = (
+    fieldKey,
+    currentValues,
+    draftValue,
+    setter,
+    clearDraft,
+  ) => {
+    const entries = normalizeTagEntries(draftValue);
+    if (entries.length === 0) {
+      return;
+    }
+    const nextValues = [...new Set([...(currentValues || []), ...entries])];
+    updateListField(fieldKey, nextValues, setter);
+    clearDraft('');
+  };
+
+  const removeListFieldEntry = (fieldKey, currentValues, value, setter) => {
+    const nextValues = (currentValues || []).filter((item) => item !== value);
+    updateListField(fieldKey, nextValues, setter);
+  };
+
+  const renderTagGroup = (values, onRemove) => {
+    if (!Array.isArray(values) || values.length === 0) {
+      return null;
+    }
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        {values.map((value) => (
+          <Tag
+            key={value}
+            closable
+            onClose={() => onRemove(value)}
+            aria-label={`Tag: ${value}`}
+          >
+            {value}
+          </Tag>
+        ))}
+      </div>
+    );
+  };
 
   const getOptions = async () => {
     setLoading(true);
@@ -860,12 +928,12 @@ const SystemSetting = () => {
                           '支持通配符格式，如：example.com, *.api.example.com',
                         )}
                       </Text>
-                      <Radio.Group
+                      <Form.RadioGroup
+                        field='fetch_setting.domain_filter_mode_selector'
+                        noLabel
                         type='button'
                         value={domainFilterMode ? 'whitelist' : 'blacklist'}
-                        onChange={(val) => {
-                          const selected =
-                            val && val.target ? val.target.value : val;
+                        onChange={(selected) => {
                           const isWhitelist = selected === 'whitelist';
                           setDomainFilterMode(isWhitelist);
                           setInputs((prev) => ({
@@ -877,19 +945,48 @@ const SystemSetting = () => {
                       >
                         <Radio value='whitelist' name='components-settings-systemsetting-radio-1'>{t('白名单')}</Radio>
                         <Radio value='blacklist' name='components-settings-systemsetting-radio-2'>{t('黑名单')}</Radio>
-                      </Radio.Group>
-                      <TagInput
-                        value={domainList}
-                        onChange={(value) => {
-                          setDomainList(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.domain_list': value,
-                          }));
-                        }}
+                      </Form.RadioGroup>
+                      {renderTagGroup(domainList, (value) =>
+                        removeListFieldEntry(
+                          'fetch_setting.domain_list',
+                          domainList,
+                          value,
+                          setDomainList,
+                        ),
+                      )}
+                      <Form.Input
+                        field='fetch_setting.domain_list_draft'
+                        noLabel
+                        aria-label={t(domainFilterMode ? '域名白名单输入' : '域名黑名单输入')}
                         placeholder={t('输入域名后回车，如：example.com')}
-                        style={{ width: '100%' }}
+                        value={domainInputValue}
+                        onChange={setDomainInputValue}
+                        onEnterPress={() =>
+                          appendListField(
+                            'fetch_setting.domain_list',
+                            domainList,
+                            domainInputValue,
+                            setDomainList,
+                            setDomainInputValue,
+                          )
+                        }
+                        suffix={
+                          <Button
+                            theme='solid'
+                            type='primary'
+                            onClick={() =>
+                              appendListField(
+                                'fetch_setting.domain_list',
+                                domainList,
+                                domainInputValue,
+                                setDomainList,
+                                setDomainInputValue,
+                              )
+                            }
+                          >
+                            {t('添加')}
+                          </Button>
+                        }
                       />
                     </Col>
                   </Row>
@@ -908,12 +1005,12 @@ const SystemSetting = () => {
                       >
                         {t('支持CIDR格式，如：8.8.8.8, 192.168.1.0/24')}
                       </Text>
-                      <Radio.Group
+                      <Form.RadioGroup
+                        field='fetch_setting.ip_filter_mode_selector'
+                        noLabel
                         type='button'
                         value={ipFilterMode ? 'whitelist' : 'blacklist'}
-                        onChange={(val) => {
-                          const selected =
-                            val && val.target ? val.target.value : val;
+                        onChange={(selected) => {
                           const isWhitelist = selected === 'whitelist';
                           setIpFilterMode(isWhitelist);
                           setInputs((prev) => ({
@@ -925,19 +1022,48 @@ const SystemSetting = () => {
                       >
                         <Radio value='whitelist' name='components-settings-systemsetting-radio-3'>{t('白名单')}</Radio>
                         <Radio value='blacklist' name='components-settings-systemsetting-radio-4'>{t('黑名单')}</Radio>
-                      </Radio.Group>
-                      <TagInput
-                        value={ipList}
-                        onChange={(value) => {
-                          setIpList(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.ip_list': value,
-                          }));
-                        }}
+                      </Form.RadioGroup>
+                      {renderTagGroup(ipList, (value) =>
+                        removeListFieldEntry(
+                          'fetch_setting.ip_list',
+                          ipList,
+                          value,
+                          setIpList,
+                        ),
+                      )}
+                      <Form.Input
+                        field='fetch_setting.ip_list_draft'
+                        noLabel
+                        aria-label={t(ipFilterMode ? 'IP白名单输入' : 'IP黑名单输入')}
                         placeholder={t('输入IP地址后回车，如：8.8.8.8')}
-                        style={{ width: '100%' }}
+                        value={ipInputValue}
+                        onChange={setIpInputValue}
+                        onEnterPress={() =>
+                          appendListField(
+                            'fetch_setting.ip_list',
+                            ipList,
+                            ipInputValue,
+                            setIpList,
+                            setIpInputValue,
+                          )
+                        }
+                        suffix={
+                          <Button
+                            theme='solid'
+                            type='primary'
+                            onClick={() =>
+                              appendListField(
+                                'fetch_setting.ip_list',
+                                ipList,
+                                ipInputValue,
+                                setIpList,
+                                setIpInputValue,
+                              )
+                            }
+                          >
+                            {t('添加')}
+                          </Button>
+                        }
                       />
                     </Col>
                   </Row>
@@ -954,18 +1080,47 @@ const SystemSetting = () => {
                       >
                         {t('支持单个端口和端口范围，如：80, 443, 8000-8999')}
                       </Text>
-                      <TagInput
-                        value={allowedPorts}
-                        onChange={(value) => {
-                          setAllowedPorts(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.allowed_ports': value,
-                          }));
-                        }}
+                      {renderTagGroup(allowedPorts, (value) =>
+                        removeListFieldEntry(
+                          'fetch_setting.allowed_ports',
+                          allowedPorts,
+                          value,
+                          setAllowedPorts,
+                        ),
+                      )}
+                      <Form.Input
+                        field='fetch_setting.allowed_ports_draft'
+                        noLabel
+                        aria-label={t('允许的端口输入')}
                         placeholder={t('输入端口后回车，如：80 或 8000-8999')}
-                        style={{ width: '100%' }}
+                        value={allowedPortsInputValue}
+                        onChange={setAllowedPortsInputValue}
+                        onEnterPress={() =>
+                          appendListField(
+                            'fetch_setting.allowed_ports',
+                            allowedPorts,
+                            allowedPortsInputValue,
+                            setAllowedPorts,
+                            setAllowedPortsInputValue,
+                          )
+                        }
+                        suffix={
+                          <Button
+                            theme='solid'
+                            type='primary'
+                            onClick={() =>
+                              appendListField(
+                                'fetch_setting.allowed_ports',
+                                allowedPorts,
+                                allowedPortsInputValue,
+                                setAllowedPorts,
+                                setAllowedPortsInputValue,
+                              )
+                            }
+                          >
+                            {t('添加')}
+                          </Button>
+                        }
                       />
                       <Text
                         type='secondary'
@@ -1148,9 +1303,12 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
-                        field="['passkey.user_verification']"
-                        label={t('安全验证级别')}
+                      <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                        {t('安全验证级别')}
+                      </Text>
+                      <Select
+                        aria-label={t('安全验证级别')}
+                        value={inputs['passkey.user_verification'] || 'preferred'}
                         placeholder={t('是否要求指纹/面容等生物识别')}
                         optionList={[
                           {
@@ -1160,23 +1318,48 @@ const SystemSetting = () => {
                           { label: t('强制要求'), value: 'required' },
                           { label: t('不建议使用'), value: 'discouraged' },
                         ]}
-                        extraText={t('推荐：用户可以选择是否使用指纹等验证')}
+                        onChange={(value) =>
+                          setInputs((prev) => ({
+                            ...prev,
+                            'passkey.user_verification': value,
+                          }))
+                        }
+                        style={{ width: '100%' }}
                       />
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginTop: 8 }}
+                      >
+                        {t('推荐：用户可以选择是否使用指纹等验证')}
+                      </Text>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
-                        field="['passkey.attachment_preference']"
-                        label={t('设备类型偏好')}
+                      <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                        {t('设备类型偏好')}
+                      </Text>
+                      <Select
+                        aria-label={t('设备类型偏好')}
+                        value={inputs['passkey.attachment_preference'] || ''}
                         placeholder={t('选择支持的认证设备类型')}
                         optionList={[
                           { label: t('不限制'), value: '' },
                           { label: t('本设备内置'), value: 'platform' },
                           { label: t('外接设备'), value: 'cross-platform' },
                         ]}
-                        extraText={t(
-                          '本设备：手机指纹/面容，外接：USB安全密钥',
-                        )}
+                        onChange={(value) =>
+                          setInputs((prev) => ({
+                            ...prev,
+                            'passkey.attachment_preference': value,
+                          }))
+                        }
+                        style={{ width: '100%' }}
                       />
+                      <Text
+                        type='secondary'
+                        style={{ display: 'block', marginTop: 8 }}
+                      >
+                        {t('本设备：手机指纹/面容，外接：USB安全密钥')}
+                      </Text>
                     </Col>
                   </Row>
                   <Row
@@ -1258,13 +1441,17 @@ const SystemSetting = () => {
                       </Form.Checkbox>
                     </Col>
                   </Row>
-                  <TagInput
-                    value={emailDomainWhitelist}
-                    onChange={setEmailDomainWhitelist}
-                    placeholder={t('输入域名后回车')}
-                    style={{ width: '100%', marginTop: 16 }}
-                  />
+                  <div style={{ marginTop: 16 }}>
+                    {renderTagGroup(emailDomainWhitelist, (value) =>
+                      setEmailDomainWhitelist((prev) =>
+                        prev.filter((item) => item !== value),
+                      ),
+                    )}
+                  </div>
                   <Form.Input
+                    field='EmailDomainWhitelistDraft'
+                    noLabel
+                    aria-label={t('输入要添加的邮箱域名')}
                     placeholder={t('输入要添加的邮箱域名')}
                     value={emailToAdd}
                     onChange={(value) => setEmailToAdd(value)}

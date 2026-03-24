@@ -583,6 +583,7 @@ export const getChannelsColumns = ({
               <InputNumber
                 style={{ width: 70 }}
                 name='priority'
+                aria-label={t('渠道优先级')}
                 onBlur={(e) => {
                   manageChannel(record.id, 'priority', record, e.target.value);
                 }}
@@ -599,6 +600,7 @@ export const getChannelsColumns = ({
             <InputNumber
               style={{ width: 70 }}
               name='priority'
+              aria-label={t('子渠道优先级')}
               keepFocus={true}
               onBlur={(e) => {
                 Modal.warning({
@@ -638,6 +640,7 @@ export const getChannelsColumns = ({
               <InputNumber
                 style={{ width: 70 }}
                 name='weight'
+                aria-label={t('渠道权重')}
                 onBlur={(e) => {
                   manageChannel(record.id, 'weight', record, e.target.value);
                 }}
@@ -654,6 +657,7 @@ export const getChannelsColumns = ({
             <InputNumber
               style={{ width: 70 }}
               name='weight'
+              aria-label={t('子渠道权重')}
               keepFocus={true}
               onBlur={(e) => {
                 Modal.warning({

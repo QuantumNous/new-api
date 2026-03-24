@@ -57,8 +57,12 @@ const ModelsFilters = ({
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='relative w-full md:w-56'>
+          <span id='searchKeyword-label' className='sr-only'>
+            {t('搜索模型名称')}
+          </span>
           <Form.Input
             field='searchKeyword'
+            name='searchKeyword'
             prefix={<IconSearch />}
             placeholder={t('搜索模型名称')}
             showClear
@@ -68,8 +72,12 @@ const ModelsFilters = ({
         </div>
 
         <div className='relative w-full md:w-56'>
+          <span id='searchVendor-label' className='sr-only'>
+            {t('搜索供应商')}
+          </span>
           <Form.Input
             field='searchVendor'
+            name='searchVendor'
             prefix={<IconSearch />}
             placeholder={t('搜索供应商')}
             showClear

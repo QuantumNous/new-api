@@ -51,6 +51,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
+import useRepeatingDomPatch from '../../../../hooks/common/useRepeatingDomPatch';
 
 const { Text, Title } = Typography;
 
@@ -60,6 +61,7 @@ const EditTokenModal = (props) => {
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
+  const containerRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const isEdit = props.editingToken.id !== undefined;
@@ -192,6 +194,48 @@ const EditTokenModal = (props) => {
       formApiRef.current?.reset();
     }
   }, [props.visiable, props.editingToken.id]);
+
+  useRepeatingDomPatch(() => {
+    if (!props.visiable) {
+      return;
+    }
+
+    const patchDatePicker = () => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const dateField = container.querySelector(
+        '.token-expired-time-field .semi-datepicker-input',
+      );
+      if (dateField) {
+        dateField.id = 'expired_time-picker';
+        dateField.setAttribute('aria-labelledby', 'expired_time-label');
+      }
+
+      const dateInput = container.querySelector(
+        '.token-expired-time-field input:not([aria-hidden="true"])',
+      );
+      if (dateInput) {
+        dateInput.id = 'expired_time';
+        dateInput.name = 'expired_time';
+        dateInput.setAttribute('autocomplete', 'off');
+        dateInput.setAttribute('aria-label', t('过期时间'));
+      }
+
+      const quotaInput = container.querySelector(
+        'input[aria-labelledby="remain_quota-label"]',
+      );
+      if (quotaInput) {
+        quotaInput.id = 'remain_quota';
+        quotaInput.name = 'remain_quota';
+        quotaInput.setAttribute('autocomplete', 'off');
+      }
+    };
+
+    patchDatePicker();
+  }, [props.visiable, t]);
 
   const generateRandomSuffix = () => {
     const characters =
@@ -334,7 +378,7 @@ const EditTokenModal = (props) => {
           onSubmit={submit}
         >
           {({ values }) => (
-            <div className='p-2'>
+            <div className='p-2' ref={containerRef}>
               {/* 基本信息 */}
               <Card className='!rounded-2xl shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
@@ -354,29 +398,42 @@ const EditTokenModal = (props) => {
                       field='name'
                       label={t('名称')}
                       placeholder={t('请输入名称')}
+                      autoComplete='off'
                       rules={[{ required: true, message: t('请输入名称') }]}
                       showClear
                     />
                   </Col>
                   <Col span={24}>
-                    {groups.length > 0 ? (
-                      <Form.Select
-                        field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
-                        optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        showClear
-                        style={{ width: '100%' }}
-                      />
-                    ) : (
-                      <Form.Select
-                        placeholder={t('管理员未设置用户可选分组')}
-                        disabled
-                        label={t('令牌分组')}
-                        style={{ width: '100%' }}
-                      />
-                    )}
+                    <div className='semi-form-field'>
+                      <div
+                        id='token-group-label'
+                        className='semi-form-field-label semi-form-field-label-left'
+                      >
+                        <div className='semi-form-field-label-text'>
+                          {t('令牌分组')}
+                        </div>
+                      </div>
+                      {groups.length > 0 ? (
+                        <Form.Select
+                          field='group'
+                          noLabel
+                          aria-labelledby='token-group-label'
+                          placeholder={t('令牌分组，默认为用户的分组')}
+                          optionList={groups}
+                          renderOptionItem={renderGroupOption}
+                          showClear
+                          style={{ width: '100%' }}
+                        />
+                      ) : (
+                        <Form.Select
+                          noLabel
+                          aria-labelledby='token-group-label'
+                          placeholder={t('管理员未设置用户可选分组')}
+                          disabled
+                          style={{ width: '100%' }}
+                        />
+                      )}
+                    </div>
                   </Col>
                   <Col
                     span={24}
@@ -394,37 +451,54 @@ const EditTokenModal = (props) => {
                     />
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
-                    <Form.DatePicker
-                      field='expired_time'
-                      label={t('过期时间')}
-                      type='dateTime'
-                      placeholder={t('请选择过期时间')}
-                      rules={[
-                        { required: true, message: t('请选择过期时间') },
-                        {
-                          validator: (rule, value) => {
-                            // 允许 -1 表示永不过期，也允许空值在必填校验时被拦截
-                            if (value === -1 || !value)
+                    <div className='semi-form-field token-expired-time-field'>
+                      <div
+                        id='expired_time-label'
+                        className='semi-form-field-label semi-form-field-label-left semi-form-field-label-required'
+                      >
+                        <div className='semi-form-field-label-text'>
+                          {t('过期时间')}
+                        </div>
+                      </div>
+                      <Form.DatePicker
+                        field='expired_time'
+                        noLabel
+                        aria-labelledby='expired_time-label'
+                        autoComplete='off'
+                        className='token-expired-time-input'
+                        type='dateTime'
+                        placeholder={t('请选择过期时间')}
+                        rules={[
+                          { required: true, message: t('请选择过期时间') },
+                          {
+                            validator: (rule, value) => {
+                              if (value === -1 || !value)
+                                return Promise.resolve();
+                              const time = Date.parse(value);
+                              if (isNaN(time)) {
+                                return Promise.reject(t('过期时间格式错误！'));
+                              }
+                              if (time <= Date.now()) {
+                                return Promise.reject(
+                                  t('过期时间不能早于当前时间！'),
+                                );
+                              }
                               return Promise.resolve();
-                            const time = Date.parse(value);
-                            if (isNaN(time)) {
-                              return Promise.reject(t('过期时间格式错误！'));
-                            }
-                            if (time <= Date.now()) {
-                              return Promise.reject(
-                                t('过期时间不能早于当前时间！'),
-                              );
-                            }
-                            return Promise.resolve();
+                            },
                           },
-                        },
-                      ]}
-                      showClear
-                      style={{ width: '100%' }}
-                    />
+                        ]}
+                        showClear
+                        style={{ width: '100%' }}
+                      />
+                    </div>
                   </Col>
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
-                    <Form.Slot label={t('过期时间快捷设置')}>
+                    <div className='semi-form-field'>
+                      <div className='semi-form-field-label semi-form-field-label-left'>
+                        <div className='semi-form-field-label-text'>
+                          {t('过期时间快捷设置')}
+                        </div>
+                      </div>
                       <Space wrap>
                         <Button
                           theme='light'
@@ -455,13 +529,14 @@ const EditTokenModal = (props) => {
                           {t('一小时')}
                         </Button>
                       </Space>
-                    </Form.Slot>
+                    </div>
                   </Col>
                   {!isEdit && (
                     <Col span={24}>
                       <Form.InputNumber
                         field='tokenCount'
                         label={t('新建数量')}
+                        autoComplete='off'
                         min={1}
                         extraText={t('批量创建时会在名称后自动添加随机后缀')}
                         rules={[
@@ -493,6 +568,7 @@ const EditTokenModal = (props) => {
                       field='remain_quota'
                       label={t('额度')}
                       placeholder={t('请输入额度')}
+                      autoComplete='off'
                       type='number'
                       disabled={values.unlimited_quota}
                       extraText={renderQuotaWithPrompt(values.remain_quota)}
@@ -543,27 +619,39 @@ const EditTokenModal = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
-                    <Form.Select
-                      field='model_limits'
-                      label={t('模型限制列表')}
-                      placeholder={t(
-                        '请选择该令牌支持的模型，留空支持所有模型',
-                      )}
-                      multiple
-                      optionList={models}
-                      extraText={t('非必要，不建议启用模型限制')}
-                      filter={selectFilter}
-                      autoClearSearchValue={false}
-                      searchPosition='dropdown'
-                      showClear
-                      style={{ width: '100%' }}
-                    />
+                    <div className='semi-form-field'>
+                      <div
+                        id='token-model-limits-label'
+                        className='semi-form-field-label semi-form-field-label-left'
+                      >
+                        <div className='semi-form-field-label-text'>
+                          {t('模型限制列表')}
+                        </div>
+                      </div>
+                      <Form.Select
+                        field='model_limits'
+                        noLabel
+                        aria-labelledby='token-model-limits-label'
+                        placeholder={t(
+                          '请选择该令牌支持的模型，留空支持所有模型',
+                        )}
+                        multiple
+                        optionList={models}
+                        extraText={t('非必要，不建议启用模型限制')}
+                        filter={selectFilter}
+                        autoClearSearchValue={false}
+                        searchPosition='dropdown'
+                        showClear
+                        style={{ width: '100%' }}
+                      />
+                    </div>
                   </Col>
                   <Col span={24}>
                     <Form.TextArea
                       field='allow_ips'
                       label={t('IP白名单（支持CIDR表达式）')}
                       placeholder={t('允许的IP，一行一个，不填写则不限制')}
+                      autoComplete='off'
                       autosize
                       rows={1}
                       extraText={t(

@@ -57,8 +57,13 @@ const TokensFilters = ({
     >
       <div className='flex flex-col md:flex-row items-center gap-2 w-full md:w-auto'>
         <div className='relative w-full md:w-56'>
+          <span id='searchKeyword-label' className='sr-only'>
+            {t('搜索关键字')}
+          </span>
           <Form.Input
             field='searchKeyword'
+            name='searchKeyword'
+            autoComplete='off'
             prefix={<IconSearch />}
             placeholder={t('搜索关键字')}
             showClear
@@ -68,8 +73,13 @@ const TokensFilters = ({
         </div>
 
         <div className='relative w-full md:w-56'>
+          <span id='searchToken-label' className='sr-only'>
+            {t('密钥')}
+          </span>
           <Form.Input
             field='searchToken'
+            name='searchToken'
+            autoComplete='off'
             prefix={<IconSearch />}
             placeholder={t('密钥')}
             showClear

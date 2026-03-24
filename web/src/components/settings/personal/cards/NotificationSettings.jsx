@@ -48,6 +48,7 @@ import {
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
+import useRepeatingDomPatch from '../../../../hooks/common/useRepeatingDomPatch';
 
 const NotificationSettings = ({
   t,
@@ -216,6 +217,52 @@ const NotificationSettings = ({
 
     loadSidebarConfigs();
   }, [statusState]);
+
+  useRepeatingDomPatch(() => {
+    const patchInputs = () => {
+      const warningTypeWrapper = document.getElementById('warningType');
+      if (
+        warningTypeWrapper &&
+        warningTypeWrapper.tagName.toLowerCase() !== 'input' &&
+        warningTypeWrapper.tagName.toLowerCase() !== 'select' &&
+        warningTypeWrapper.tagName.toLowerCase() !== 'textarea'
+      ) {
+        warningTypeWrapper.id = 'warningType-wrapper';
+        const firstRadio = warningTypeWrapper.querySelector('input[type="radio"]');
+        if (firstRadio) {
+          firstRadio.id = 'warningType';
+          firstRadio.name = firstRadio.name || 'warningType';
+        }
+      }
+
+      const warningThresholdWrapper = document.getElementById('warningThreshold');
+      if (
+        warningThresholdWrapper &&
+        warningThresholdWrapper.tagName.toLowerCase() !== 'input'
+      ) {
+        warningThresholdWrapper.id = 'warningThreshold-wrapper';
+      }
+      const warningThresholdInput = document.querySelector(
+        '.warning-threshold-field input:not([aria-hidden="true"])',
+      );
+      if (warningThresholdInput) {
+        warningThresholdInput.id = 'warningThreshold';
+        warningThresholdInput.name = 'warningThreshold';
+        warningThresholdInput.setAttribute('autocomplete', 'off');
+      }
+
+      const gotifyPriorityInput = document.querySelector(
+        '.gotify-priority-field input:not([aria-hidden="true"])',
+      );
+      if (gotifyPriorityInput) {
+        gotifyPriorityInput.id = 'gotifyPriority';
+        gotifyPriorityInput.name = 'gotifyPriority';
+        gotifyPriorityInput.setAttribute('autocomplete', 'off');
+      }
+    };
+
+    patchInputs();
+  }, [activeTabKey, notificationSettings]);
 
   // 初始化表单值
   useEffect(() => {
@@ -436,6 +483,9 @@ const NotificationSettings = ({
 
                 <Form.AutoComplete
                   field='warningThreshold'
+                  name='warningThreshold'
+                  autoComplete='off'
+                  className='warning-threshold-field'
                   label={
                     <span>
                       {t('额度预警阈值')}{' '}
@@ -491,6 +541,7 @@ const NotificationSettings = ({
                   <Form.Input
                     field='notificationEmail'
                     label={t('通知邮箱')}
+                    autoComplete='email'
                     placeholder={t('留空则使用账号绑定的邮箱')}
                     onChange={(val) =>
                       handleFormChange('notificationEmail', val)
@@ -509,6 +560,7 @@ const NotificationSettings = ({
                     <Form.Input
                       field='webhookUrl'
                       label={t('Webhook地址')}
+                      autoComplete='url'
                       placeholder={t(
                         '请输入Webhook地址，例如: https://example.com/webhook',
                       )}
@@ -534,6 +586,7 @@ const NotificationSettings = ({
                     <Form.Input
                       field='webhookSecret'
                       label={t('接口凭证')}
+                      autoComplete='off'
                       placeholder={t('请输入密钥')}
                       onChange={(val) => handleFormChange('webhookSecret', val)}
                       prefix={<IconKey />}
@@ -590,6 +643,7 @@ const NotificationSettings = ({
                     <Form.Input
                       field='barkUrl'
                       label={t('Bark推送URL')}
+                      autoComplete='url'
                       placeholder={t(
                         '请输入Bark推送URL，例如: https://api.day.app/yourkey/{{title}}/{{content}}',
                       )}
@@ -650,6 +704,7 @@ const NotificationSettings = ({
                     <Form.Input
                       field='gotifyUrl'
                       label={t('Gotify服务器地址')}
+                      autoComplete='url'
                       placeholder={t(
                         '请输入Gotify服务器地址，例如: https://gotify.example.com',
                       )}
@@ -677,6 +732,7 @@ const NotificationSettings = ({
                     <Form.Input
                       field='gotifyToken'
                       label={t('Gotify应用令牌')}
+                      autoComplete='off'
                       placeholder={t('请输入Gotify应用令牌')}
                       onChange={(val) => handleFormChange('gotifyToken', val)}
                       prefix={<IconKey />}
@@ -696,6 +752,8 @@ const NotificationSettings = ({
                     <Form.AutoComplete
                       field='gotifyPriority'
                       label={t('消息优先级')}
+                      autoComplete='off'
+                      className='gotify-priority-field'
                       placeholder={t('请选择消息优先级')}
                       data={[
                         { value: 0, label: t('0 - 最低') },

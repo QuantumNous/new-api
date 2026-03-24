@@ -48,6 +48,7 @@ import {
 import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
+import useRepeatingDomPatch from '../../hooks/common/useRepeatingDomPatch';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 const { Text } = Typography;
@@ -118,6 +119,22 @@ const RechargeCard = ({
       setActiveTab('topup');
     }
   }, [shouldShowSubscription, activeTab]);
+
+  useRepeatingDomPatch(() => {
+    const topUpCountInput = document.querySelector(
+      '.topup-count-field input:not([aria-hidden="true"])',
+    );
+    if (topUpCountInput) {
+      topUpCountInput.id = 'topUpCount';
+      topUpCountInput.name = 'topUpCount';
+      topUpCountInput.setAttribute('autocomplete', 'off');
+    }
+
+    const redemptionCodeInput = document.getElementById('redemptionCode');
+    if (redemptionCodeInput) {
+      redemptionCodeInput.setAttribute('autocomplete', 'off');
+    }
+  }, [topUpCount, redemptionCode]);
   const topupContent = (
     <Space vertical style={{ width: '100%' }}>
       {/* 统计数据 */}
@@ -238,7 +255,9 @@ const RechargeCard = ({
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
+                      className='topup-count-field'
                       label={t('充值数量')}
+                      autoComplete='off'
                       disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
                       placeholder={
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
@@ -575,9 +594,15 @@ const RechargeCard = ({
           getFormApi={(api) => (redeemFormApiRef.current = api)}
           initValues={{ redemptionCode: redemptionCode }}
         >
+          <span id='redemptionCode-label' className='sr-only'>
+            {t('请输入兑换码')}
+          </span>
           <Form.Input
             field='redemptionCode'
             noLabel={true}
+            name='redemptionCode'
+            aria-labelledby='redemptionCode-label'
+            autoComplete='off'
             placeholder={t('请输入兑换码')}
             value={redemptionCode}
             onChange={(value) => setRedemptionCode(value)}

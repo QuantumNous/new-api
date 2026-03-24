@@ -635,7 +635,12 @@ const JSONEditor = ({
   const hasJsonError = jsonError && jsonError.trim() !== '';
 
   return (
-    <Form.Slot label={label}>
+    <div className='semi-form-field'>
+      <div className='semi-form-field-label semi-form-field-label-left'>
+        <div className='semi-form-field-label-text'>
+          {label}
+        </div>
+      </div>
       <Card
         header={
           <div className='flex justify-between items-center'>
@@ -684,6 +689,7 @@ const JSONEditor = ({
               value={value}
               rules={rules}
               style={{ display: 'none' }}
+              name={field}
               noLabel={true}
               {...props}
             />
@@ -704,6 +710,7 @@ const JSONEditor = ({
               value={value}
               rules={rules}
               style={{ display: 'none' }}
+              name={field}
               noLabel={true}
               {...props}
             />
@@ -720,7 +727,7 @@ const JSONEditor = ({
         )}
         {extraFooter && <div className='mt-1'>{extraFooter}</div>}
       </Card>
-    </Form.Slot>
+    </div>
   );
 };
 

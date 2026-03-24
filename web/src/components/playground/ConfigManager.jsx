@@ -216,6 +216,7 @@ const ConfigManager = ({
         <input
           ref={fileInputRef}
           type='file'
+          name='playground-config-import-mobile'
           accept='.json'
           onChange={handleFileChange}
           style={{ display: 'none' }}
@@ -270,6 +271,7 @@ const ConfigManager = ({
       <input
         ref={fileInputRef}
         type='file'
+        name='playground-config-import'
         accept='.json'
         onChange={handleFileChange}
         style={{ display: 'none' }}

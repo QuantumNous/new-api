@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import DocumentRenderer from '../../components/common/DocumentRenderer';
+import { StatusContext } from '../../context/Status';
 
 const UserAgreement = () => {
   const { t } = useTranslation();
+  const [statusState] = useContext(StatusContext);
 
   return (
     <DocumentRenderer
@@ -30,6 +32,7 @@ const UserAgreement = () => {
       title={t('用户协议')}
       cacheKey='user_agreement'
       emptyMessage={t('加载用户协议内容失败...')}
+      enabled={statusState?.status?.user_agreement_enabled === true}
     />
   );
 };

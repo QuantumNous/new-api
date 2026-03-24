@@ -86,9 +86,13 @@ const ChannelsFilters = ({
           className='flex flex-col md:flex-row items-center gap-2 w-full'
         >
           <div className='relative w-full md:w-64'>
+            <span id='searchKeyword-label' className='sr-only'>
+              {t('渠道ID，名称，密钥，API地址')}
+            </span>
             <Form.Input
               size='small'
               field='searchKeyword'
+              name='searchKeyword'
               prefix={<IconSearch />}
               placeholder={t('渠道ID，名称，密钥，API地址')}
               showClear
@@ -96,9 +100,13 @@ const ChannelsFilters = ({
             />
           </div>
           <div className='w-full md:w-48'>
+            <span id='searchModel-label' className='sr-only'>
+              {t('模型关键字')}
+            </span>
             <Form.Input
               size='small'
               field='searchModel'
+              name='searchModel'
               prefix={<IconSearch />}
               placeholder={t('模型关键字')}
               showClear

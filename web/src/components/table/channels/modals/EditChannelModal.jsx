@@ -2589,21 +2589,33 @@ const EditChannelModal = (props) => {
                       </Banner>
                     )}
 
-                    <Form.Select
-                      field='type'
-                      label={t('类型')}
-                      placeholder={t('请选择渠道类型')}
-                      rules={[{ required: true, message: t('请选择渠道类型') }]}
-                      optionList={channelOptionList}
-                      style={{ width: '100%' }}
-                      filter={selectFilter}
-                      autoClearSearchValue={false}
-                      searchPosition='dropdown'
-                      onSearch={(value) => setChannelSearchValue(value)}
-                      renderOptionItem={renderChannelOption}
-                      onChange={(value) => handleInputChange('type', value)}
-                      disabled={isIonetLocked}
-                    />
+                    <div className='semi-form-field'>
+                      <div
+                        id='type-label'
+                        className='semi-form-field-label semi-form-field-label-left semi-form-field-label-required'
+                      >
+                        <div className='semi-form-field-label-text'>
+                          {t('类型')}
+                        </div>
+                      </div>
+                      <Form.Select
+                        field='type'
+                        noLabel
+                        aria-labelledby='type-label'
+                        aria-label={t('类型')}
+                        placeholder={t('请选择渠道类型')}
+                        rules={[{ required: true, message: t('请选择渠道类型') }]}
+                        optionList={channelOptionList}
+                        style={{ width: '100%' }}
+                        filter={selectFilter}
+                        autoClearSearchValue={false}
+                        searchPosition='dropdown'
+                        onSearch={(value) => setChannelSearchValue(value)}
+                        renderOptionItem={renderChannelOption}
+                        onChange={(value) => handleInputChange('type', value)}
+                        disabled={isIonetLocked}
+                      />
+                    </div>
 
                     {inputs.type === 57 && (
                       <Banner
@@ -3427,9 +3439,20 @@ const EditChannelModal = (props) => {
                   )}
 
                   {/* Model Selection - Part of Core Config */}
-                  <Form.Select
+                  <div className='semi-form-field'>
+                    <div
+                      id='models-label'
+                      className='semi-form-field-label semi-form-field-label-left semi-form-field-label-required'
+                    >
+                      <div className='semi-form-field-label-text'>
+                        {t('模型')}
+                      </div>
+                    </div>
+                    <Form.Select
                       field='models'
-                      label={t('模型')}
+                      noLabel
+                      aria-labelledby='models-label'
+                      aria-label={t('模型')}
                       placeholder={t('请选择该渠道所支持的模型')}
                       rules={[{ required: true, message: t('请选择模型') }]}
                       multiple
@@ -3536,6 +3559,7 @@ const EditChannelModal = (props) => {
                         </Space>
                       }
                     />
+                  </div>
 
                   {/* Custom Model Name - Core Config */}
                   <Form.Input
@@ -3556,20 +3580,32 @@ const EditChannelModal = (props) => {
                   />
 
                   {/* Groups - Core Config */}
-                  <Form.Select
-                    field='groups'
-                    label={t('分组')}
-                    placeholder={t('请选择可以使用该渠道的分组')}
-                    multiple
-                    allowAdditions
-                    additionLabel={t(
-                      '请在系统设置页面编辑分组倍率以添加新的分组：',
-                    )}
-                    optionList={groupOptions}
-                    style={{ width: '100%' }}
-                    position='top'
-                    onChange={(value) => handleInputChange('groups', value)}
-                  />
+                  <div className='semi-form-field'>
+                    <div
+                      id='groups-label'
+                      className='semi-form-field-label semi-form-field-label-left'
+                    >
+                      <div className='semi-form-field-label-text'>
+                        {t('分组')}
+                      </div>
+                    </div>
+                    <Form.Select
+                      field='groups'
+                      noLabel
+                      aria-labelledby='groups-label'
+                      aria-label={t('分组')}
+                      placeholder={t('请选择可以使用该渠道的分组')}
+                      multiple
+                      allowAdditions
+                      additionLabel={t(
+                        '请在系统设置页面编辑分组倍率以添加新的分组：',
+                      )}
+                      optionList={groupOptions}
+                      style={{ width: '100%' }}
+                      position='top'
+                      onChange={(value) => handleInputChange('groups', value)}
+                    />
+                  </div>
 
                   {/* Model Mapping - Core Config */}
                   <JSONEditor
@@ -3676,6 +3712,129 @@ const EditChannelModal = (props) => {
                     <div className='flex items-center gap-1 text-sm' style={{ color: 'var(--semi-color-primary)' }}>
                       <Text size='small' style={{ color: 'var(--semi-color-primary)' }}>
                         {advancedSettingsOpen ? t('收起') : isEdit ? t('向左展开') : t('向右展开')}
+                          label={t('渠道优先级')}
+                          placeholder={t('渠道优先级')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('priority', value)
+                          }
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='weight'
+                          label={t('渠道权重')}
+                          placeholder={t('渠道权重')}
+                          min={0}
+                          onNumberChange={(value) =>
+                            handleInputChange('weight', value)
+                          }
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                    </Row>
+
+                    <Form.Switch
+                      field='auto_ban'
+                      label={t('是否自动禁用')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) => setAutoBan(value)}
+                      extraText={t(
+                        '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
+                      )}
+                      initValue={autoBan}
+                    />
+
+                    <Form.Switch
+                        field='upstream_model_update_auto_sync_enabled'
+                        label={t('是否自动同步上游模型更新')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        disabled={!inputs.upstream_model_update_check_enabled}
+                        onChange={(value) =>
+                            handleChannelOtherSettingsChange(
+                                'upstream_model_update_auto_sync_enabled',
+                                value,
+                            )
+                        }
+                        extraText={t(
+                            '开启后检测到新增模型会自动加入当前渠道模型列表',
+                        )}
+                    />
+
+                    <div className='text-xs text-gray-500 mb-3'>
+                      {t('上次检测到可加入模型')}:&nbsp;
+                      {upstreamDetectedModels.length === 0 ? (
+                          t('暂无')
+                      ) : (
+                          <>
+                            <Tooltip
+                                position='topLeft'
+                                content={
+                                  <div className='max-w-[640px] break-all text-xs leading-5'>
+                                    {upstreamDetectedModels.join(', ')}
+                                  </div>
+                                }
+                            >
+                            <span className='cursor-help break-all'>
+                              {upstreamDetectedModelsPreview.join(', ')}
+                            </span>
+                            </Tooltip>
+                            <span className='ml-1 text-gray-400'>
+                            {upstreamDetectedModelsOmittedCount > 0
+                                ? t('（共 {{total}} 个，省略 {{omit}} 个）', {
+                                  total: upstreamDetectedModels.length,
+                                  omit: upstreamDetectedModelsOmittedCount,
+                                })
+                                : t('（共 {{total}} 个）', {
+                                  total: upstreamDetectedModels.length,
+                                })}
+                          </span>
+                          </>
+                      )}
+                    </div>
+
+                    <div className='mb-4'>
+                      <div className='flex items-center justify-between gap-2 mb-1'>
+                        <Text className='text-sm font-medium'>{t('参数覆盖')}</Text>
+                        <Space wrap>
+                          <Button
+                              size='small'
+                              type='primary'
+                              icon={<IconCode size={14} />}
+                              onClick={() => setParamOverrideEditorVisible(true)}
+                          >
+                            {t('可视化编辑')}
+                          </Button>
+                          <Button
+                              size='small'
+                              onClick={() =>
+                                  applyParamOverrideTemplate('operations', 'fill')
+                              }
+                          >
+                            {t('填充新模板')}
+                          </Button>
+                          <Button
+                              size='small'
+                              onClick={() =>
+                                  applyParamOverrideTemplate('legacy', 'fill')
+                              }
+                          >
+                            {t('填充旧模板')}
+                          </Button>
+                          <Button
+                            size='small'
+                            type='tertiary'
+                            onClick={clearParamOverride}
+                          >
+                            {t('清空')}
+                          </Button>
+                        </Space>
+                      </div>
+                      <Text type='tertiary' size='small'>
+                        {t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数')}
                       </Text>
                       <IconChevronDown
                         size={14}

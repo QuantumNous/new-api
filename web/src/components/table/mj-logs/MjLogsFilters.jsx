@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import useRepeatingDomPatch from '../../../hooks/common/useRepeatingDomPatch';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -33,6 +34,29 @@ const MjLogsFilters = ({
   isAdminUser,
   t,
 }) => {
+  const containerRef = useRef(null);
+
+  useRepeatingDomPatch(() => {
+    const patchInputs = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const [startInput, endInput] = container.querySelectorAll(
+        '.mj-date-range-field input:not([aria-hidden="true"])',
+      );
+      if (startInput) {
+        startInput.name = 'mj-date-range-start';
+        startInput.id = startInput.id || 'mj-date-range-start';
+      }
+      if (endInput) {
+        endInput.name = 'mj-date-range-end';
+        endInput.id = endInput.id || 'mj-date-range-end';
+      }
+    };
+
+    patchInputs();
+  }, []);
+
   return (
     <Form
       initValues={formInitValues}
@@ -44,13 +68,13 @@ const MjLogsFilters = ({
       trigger='change'
       stopValidateWithError={false}
     >
-      <div className='flex flex-col gap-2'>
+      <div className='flex flex-col gap-2' ref={containerRef}>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2'>
           {/* 时间选择器 */}
           <div className='col-span-1 lg:col-span-2'>
             <Form.DatePicker
               field='dateRange'
-              className='w-full'
+              className='w-full mj-date-range-field'
               type='dateTimeRange'
               placeholder={[t('开始时间'), t('结束时间')]}
               showClear
@@ -65,8 +89,12 @@ const MjLogsFilters = ({
           </div>
 
           {/* 任务 ID */}
+          <span id='mj_id-label' className='sr-only'>
+            {t('任务 ID')}
+          </span>
           <Form.Input
             field='mj_id'
+            name='mj_id'
             prefix={<IconSearch />}
             placeholder={t('任务 ID')}
             showClear
@@ -76,14 +104,21 @@ const MjLogsFilters = ({
 
           {/* 渠道 ID - 仅管理员可见 */}
           {isAdminUser && (
-            <Form.Input
-              field='channel_id'
-              prefix={<IconSearch />}
-              placeholder={t('渠道 ID')}
-              showClear
-              pure
-              size='small'
-            />
+            <>
+              <span id='channel_id-label' className='sr-only'>
+                {t('渠道 ID')}
+              </span>
+              <Form.Input
+                field='channel_id'
+                name='channel_id'
+                aria-labelledby='channel_id-label'
+                prefix={<IconSearch />}
+                placeholder={t('渠道 ID')}
+                showClear
+                pure
+                size='small'
+              />
+            </>
           )}
         </div>
 
