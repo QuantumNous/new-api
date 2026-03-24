@@ -1790,8 +1790,12 @@ const EditChannelModal = (props) => {
         settings.claude_beta_query = localInputs.claude_beta_query === true;
       }
     }
-    settings.responses_stream_bootstrap_recovery_enabled =
-      localInputs.responses_stream_bootstrap_recovery_enabled === true;
+    if (supportsResponsesBootstrapRecovery(localInputs.type)) {
+      settings.responses_stream_bootstrap_recovery_enabled =
+        localInputs.responses_stream_bootstrap_recovery_enabled === true;
+    } else {
+      settings.responses_stream_bootstrap_recovery_enabled = false;
+    }
 
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
