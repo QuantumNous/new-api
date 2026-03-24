@@ -180,7 +180,7 @@ func EstimateToken(provider Provider, text string) int {
 	return int(math.Ceil(count)) + m.BasePad
 }
 
-// 辅助：判断是否为 CJK 字符
+// isCJK 判断是否为CJK（中日韩）字符，基本区直接范围判断，扩展区回退到unicode.Han
 func isCJK(r rune) bool {
 	// CJK统一汉字基本区 (最常见，快速路径)
 	if r >= 0x4E00 && r <= 0x9FFF {
@@ -198,7 +198,7 @@ func isCJK(r rune) bool {
 	return unicode.Is(unicode.Han, r)
 }
 
-// 辅助：判断是否为Emoji字符
+// isEmoji 判断是否为Emoji字符，覆盖常见的Emoji Unicode区块
 func isEmoji(r rune) bool {
 	return (r >= 0x1F300 && r <= 0x1F9FF) ||
 		(r >= 0x2600 && r <= 0x26FF) ||
@@ -208,7 +208,7 @@ func isEmoji(r rune) bool {
 		(r >= 0x1FA00 && r <= 0x1FAFF)
 }
 
-// 辅助：判断是否为数学符号
+// isMathSymbol 判断是否为数学符号，优先检查Unicode数学区块，再查散列符号集合
 func isMathSymbol(r rune) bool {
 	// 范围检查优先（覆盖大部分数学符号区块）
 	if r >= 0x2200 && r <= 0x22FF { // Mathematical Operators
@@ -225,6 +225,7 @@ func isMathSymbol(r rune) bool {
 	return ok
 }
 
+// EstimateTokenByModel 根据模型名称自动识别厂商并估算文本的token数量
 func EstimateTokenByModel(model, text string) int {
 	if text == "" {
 		return 0
