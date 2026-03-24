@@ -72,7 +72,7 @@ const EditUserModal = (props) => {
   const formApiRef = useRef(null);
   const requestIdRef = useRef(0);
 
-  const isEdit = Boolean(userId);
+  const isEdit = userId !== null && userId !== undefined;
 
   const getInitValues = () => ({
     username: '',

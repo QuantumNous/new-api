@@ -804,7 +804,7 @@ export const useLogsData = () => {
 
   // Refresh function
   const refresh = async (
-    page = activePage,
+    page = 1,
     { refreshStats = true } = {},
   ) => {
     setActivePage(page);
