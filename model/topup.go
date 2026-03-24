@@ -377,6 +377,60 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	return nil
 }
 
+func RechargeAllScale(tradeNo string) (err error) {
+	if tradeNo == "" {
+		return errors.New("missing trade number")
+	}
+
+	var quotaToAdd int
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingPostgreSQL {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return errors.New("order not found")
+		}
+
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil // idempotent
+		}
+
+		if topUp.Status != common.TopUpStatusPending {
+			return errors.New("order is not in pending status")
+		}
+
+		dAmount := decimal.NewFromInt(topUp.Amount)
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("invalid quota amount")
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+	})
+
+	if err != nil {
+		common.SysError("allscale topup failed: " + err.Error())
+		return errors.New("top-up failed, please try again later")
+	}
+
+	if quotaToAdd > 0 {
+		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("AllScale top-up successful, quota: %v, payment: %.2f USD", logger.FormatQuota(quotaToAdd), topUp.Money))
+	}
+	return nil
+}
+
 func RechargeWaffo(tradeNo string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")

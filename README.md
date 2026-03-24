@@ -191,7 +191,7 @@ docker run --name new-api -d --restart always \
 
 ### 💰 Payment and Billing
 
-- ✅ Online recharge (EPay, Stripe)
+- ✅ Online recharge (EPay, Stripe, AllScale)
 - ✅ Pay-per-use model pricing
 - ✅ Cache billing support (OpenAI, Azure, DeepSeek, Claude, Qwen and all supported models)
 - ✅ Flexible billing policy configuration

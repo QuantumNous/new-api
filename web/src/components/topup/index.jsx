@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   API,
@@ -39,6 +39,18 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+
+const ALLSCALE_PENDING_PAYMENT_KEY = 'allscale_pending_payment';
+const ALLSCALE_MAX_POLL_ATTEMPTS = 120;
+const ALLSCALE_POLL_INTERVAL = 5000;
+const ALLSCALE_STATUS = {
+  FAILED: -1,
+  REJECTED: -2,
+  UNDERPAID: -3,
+  CANCELED: -4,
+  ON_CHAIN: 10,
+  CONFIRMED: 20,
+};
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -76,6 +88,13 @@ const TopUp = () => {
   const [waffoPayMethods, setWaffoPayMethods] = useState([]);
   const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
 
+  // AllScale 相关状态
+  const [enableAllScaleTopUp, setEnableAllScaleTopUp] = useState(false);
+  const [allScaleAmount, setAllScaleAmount] = useState(0);
+
+  // AllScale polling
+  const allScalePollingRef = useRef(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -93,6 +112,7 @@ const TopUp = () => {
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
+  const [historyReloadKey, setHistoryReloadKey] = useState(0);
 
   // 订阅相关
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
@@ -346,6 +366,164 @@ const TopUp = () => {
     }
   };
 
+  // ── AllScale polling helpers ──────────────────────────────────────────────
+
+  const clearAllScalePolling = useCallback(() => {
+    if (allScalePollingRef.current) {
+      clearInterval(allScalePollingRef.current);
+      allScalePollingRef.current = null;
+    }
+  }, []);
+
+  const clearAllScalePendingPayment = () => {
+    localStorage.removeItem(ALLSCALE_PENDING_PAYMENT_KEY);
+  };
+
+  const pollAllScaleStatusOnce = async (intentId, tradeNo) => {
+    const res = await API.get('/api/user/allscale/status', {
+      params: { intent_id: intentId, trade_no: tradeNo },
+    });
+    const { message, data } = res.data;
+    if (message !== 'success') {
+      throw new Error(
+        typeof data === 'string' ? data : message || t('支付请求失败'),
+      );
+    }
+
+    const status = Number(data?.status);
+    const topupStatus = data?.topup_status;
+
+    if (
+      topupStatus === 'success' ||
+      status === ALLSCALE_STATUS.CONFIRMED ||
+      data?.completed
+    ) {
+      return { state: 'success' };
+    }
+
+    if (topupStatus === 'failed' || topupStatus === 'expired' || status < 0) {
+      return {
+        state: 'failed',
+        message:
+          status === ALLSCALE_STATUS.CANCELED
+            ? t('支付已取消')
+            : status === ALLSCALE_STATUS.UNDERPAID
+              ? t('支付金额不足')
+              : status === ALLSCALE_STATUS.REJECTED
+                ? t('支付被拒绝')
+                : t('支付失败'),
+      };
+    }
+
+    return { state: 'pending' };
+  };
+
+  const startAllScalePolling = useCallback((intentId, tradeNo) => {
+    clearAllScalePolling();
+    localStorage.setItem(
+      ALLSCALE_PENDING_PAYMENT_KEY,
+      JSON.stringify({ intentId, tradeNo, startedAt: Date.now() })
+    );
+    let attempts = 0;
+    allScalePollingRef.current = setInterval(async () => {
+      attempts += 1;
+      if (attempts > ALLSCALE_MAX_POLL_ATTEMPTS) {
+        clearAllScalePolling();
+        showInfo(t('支付处理中，请稍后在充值账单中查看结果'));
+        return;
+      }
+      try {
+        const result = await pollAllScaleStatusOnce(intentId, tradeNo);
+        if (result.state === 'success') {
+          clearAllScalePolling();
+          clearAllScalePendingPayment();
+          showSuccess(t('充值成功'));
+          getUserQuota().then();
+          setHistoryReloadKey((k) => k + 1);
+        } else if (result.state === 'failed') {
+          clearAllScalePolling();
+          clearAllScalePendingPayment();
+          showError(result.message || t('支付失败'));
+          setHistoryReloadKey((k) => k + 1);
+        }
+      } catch (error) {
+        if (attempts >= ALLSCALE_MAX_POLL_ATTEMPTS) {
+          clearAllScalePolling();
+          showInfo(t('支付处理中，请稍后在充值账单中查看结果'));
+        }
+      }
+    }, ALLSCALE_POLL_INTERVAL);
+  }, [clearAllScalePolling, t]);
+
+  const resumePendingAllScalePayment = useCallback(() => {
+    const raw = localStorage.getItem(ALLSCALE_PENDING_PAYMENT_KEY);
+    if (!raw) return;
+    try {
+      const pending = JSON.parse(raw);
+      if (!pending?.intentId || !pending?.tradeNo) {
+        clearAllScalePendingPayment();
+        return;
+      }
+      if (pending.startedAt && Date.now() - pending.startedAt > 30 * 60 * 1000) {
+        clearAllScalePendingPayment();
+        return;
+      }
+      startAllScalePolling(pending.intentId, pending.tradeNo);
+    } catch (e) {
+      clearAllScalePendingPayment();
+    }
+  }, [startAllScalePolling]);
+
+  const getAllScaleAmount = async (value) => {
+    if (value === undefined) value = topUpCount;
+    try {
+      const res = await API.post('/api/user/allscale/amount', {
+        amount: parseFloat(value),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success') {
+          setAllScaleAmount(parseFloat(data));
+        }
+      }
+    } catch (e) {
+      // silent fail
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Creates the checkout intent and immediately opens the AllScale checkout page.
+  const allScaleTopUp = async () => {
+    if (topUpCount < 1) {
+      showError(t('充值数量不能小于') + 1);
+      return;
+    }
+    setPaymentLoading(true);
+    try {
+      const res = await API.post('/api/user/allscale/pay', {
+        amount: parseInt(topUpCount),
+      });
+      if (res !== undefined) {
+        const { message, data } = res.data;
+        if (message === 'success' && data?.checkout_url) {
+          window.open(data.checkout_url, '_blank', 'noopener,noreferrer');
+          if (data.intent_id && data.order_id) {
+            startAllScalePolling(data.intent_id, data.order_id);
+          }
+        } else {
+          showError(data || t('支付请求失败'));
+        }
+      } else {
+        showError(res);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   const processCreemCallback = (data) => {
     // 与 Stripe 保持一致的实现方式
     window.open(data.checkout_url, '_blank');
@@ -495,6 +673,8 @@ const TopUp = () => {
           setEnableWaffoTopUp(enableWaffoTopUp);
           setWaffoPayMethods(data.waffo_pay_methods || []);
           setWaffoMinTopUp(data.waffo_min_topup || 1);
+          const enableAllScaleTopUp = data.enable_allscale_topup || false;
+          setEnableAllScaleTopUp(enableAllScaleTopUp);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
@@ -513,6 +693,9 @@ const TopUp = () => {
 
           // 初始化显示实付金额
           getAmount(minTopUpValue);
+          if (enableAllScaleTopUp) {
+            getAllScaleAmount(minTopUpValue);
+          }
         } catch (e) {
           setPayMethods([]);
         }
@@ -569,6 +752,14 @@ const TopUp = () => {
     await copy(affLink);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
+
+  // Resume any pending AllScale payment on mount; clear polling on unmount
+  useEffect(() => {
+    resumePendingAllScalePayment();
+    return () => {
+      clearAllScalePolling();
+    };
+  }, [resumePendingAllScalePayment, clearAllScalePolling]);
 
   // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
@@ -697,6 +888,10 @@ const TopUp = () => {
     const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
     const discountedAmount = preset.value * priceRatio * discount;
     setAmount(discountedAmount);
+
+    if (enableAllScaleTopUp) {
+      getAllScaleAmount(preset.value);
+    }
   };
 
   // 格式化大数字显示
@@ -749,6 +944,7 @@ const TopUp = () => {
         visible={openHistory}
         onCancel={handleHistoryCancel}
         t={t}
+        reloadKey={historyReloadKey}
       />
 
       {/* Creem 充值确认模态框 */}
@@ -791,6 +987,10 @@ const TopUp = () => {
           enableWaffoTopUp={enableWaffoTopUp}
           waffoTopUp={waffoTopUp}
           waffoPayMethods={waffoPayMethods}
+          enableAllScaleTopUp={enableAllScaleTopUp}
+          allScaleTopUp={allScaleTopUp}
+          allScaleAmount={allScaleAmount}
+          getAllScaleAmount={getAllScaleAmount}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}
           selectPresetAmount={selectPresetAmount}

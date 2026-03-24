@@ -90,6 +90,10 @@ const RechargeCard = ({
   enableWaffoTopUp,
   waffoTopUp,
   waffoPayMethods,
+  enableAllScaleTopUp,
+  allScaleTopUp,
+  allScaleAmount = 0,
+  getAllScaleAmount,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -227,19 +231,19 @@ const RechargeCard = ({
           <div className='py-8 flex justify-center'>
             <Spin size='large' />
           </div>
-        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp ? (
+        ) : enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp || enableWaffoTopUp || enableAllScaleTopUp ? (
           <Form
             getFormApi={(api) => (onlineFormApiRef.current = api)}
             initValues={{ topUpCount: topUpCount }}
           >
             <div className='space-y-6'>
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp || enableAllScaleTopUp) && (
                 <Row gutter={12}>
                   <Col xs={24} sm={24} md={24} lg={10} xl={10}>
                     <Form.InputNumber
                       field='topUpCount'
                       label={t('充值数量')}
-                      disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp}
+                      disabled={!enableOnlineTopUp && !enableStripeTopUp && !enableWaffoTopUp && !enableAllScaleTopUp}
                       placeholder={
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
@@ -253,6 +257,9 @@ const RechargeCard = ({
                           setTopUpCount(value);
                           setSelectedPreset(null);
                           await getAmount(value);
+                          if (enableAllScaleTopUp && getAllScaleAmount) {
+                            getAllScaleAmount(value);
+                          }
                         }
                       }}
                       onBlur={(e) => {
@@ -260,6 +267,9 @@ const RechargeCard = ({
                         if (!value || value < 1) {
                           setTopUpCount(1);
                           getAmount(1);
+                          if (enableAllScaleTopUp && getAllScaleAmount) {
+                            getAllScaleAmount(1);
+                          }
                         }
                       }}
                       formatter={(value) => (value ? `${value}` : '')}
@@ -291,11 +301,11 @@ const RechargeCard = ({
                       style={{ width: '100%' }}
                     />
                   </Col>
-                  {payMethods && payMethods.filter(m => m.type !== 'waffo').length > 0 && (
+                  {(payMethods && payMethods.filter(m => m.type !== 'waffo').length > 0 || enableAllScaleTopUp) && (
                   <Col xs={24} sm={24} md={24} lg={14} xl={14}>
                     <Form.Slot label={t('选择支付方式')}>
                         <Space wrap>
-                          {payMethods.filter(m => m.type !== 'waffo').map((payMethod) => {
+                          {payMethods && payMethods.filter(m => m.type !== 'waffo').map((payMethod) => {
                             const minTopupVal = Number(payMethod.min_topup) || 0;
                             const isStripe = payMethod.type === 'stripe';
                             const disabled =
@@ -354,6 +364,19 @@ const RechargeCard = ({
                               </React.Fragment>
                             );
                           })}
+                          {enableAllScaleTopUp && (
+                            <Button
+                              theme='outline'
+                              type='tertiary'
+                              onClick={allScaleTopUp}
+                              loading={paymentLoading}
+                              icon={<Coins size={18} color='#26A17B' />}
+                              className='!rounded-lg !px-4 !py-2'
+                            >
+                              {t('使用 USDT 充值')}
+                              {allScaleAmount > 0 && ` (~${allScaleAmount} USDT)`}
+                            </Button>
+                          )}
                         </Space>
                     </Form.Slot>
                   </Col>
@@ -361,7 +384,7 @@ const RechargeCard = ({
                 </Row>
               )}
 
-              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp) && (
+              {(enableOnlineTopUp || enableStripeTopUp || enableWaffoTopUp || enableAllScaleTopUp) && (
                 <Form.Slot
                   label={
                     <div className='flex items-center gap-2'>
