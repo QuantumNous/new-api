@@ -3,12 +3,31 @@ package controller
 import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
 func GetSubscription(c *gin.Context) {
+	// coin 计费分支
+	if common.GetBillingMode() == common.BillingModeCoin {
+		tokenName := c.GetString("token_name")
+		outUserID := service.ParseOutUserIDFromTokenName(tokenName)
+		bal, _ := service.GetCoinBalance(outUserID)
+		amount := float64(bal) / common.QuotaPerUnit
+		subscription := OpenAISubscriptionResponse{
+			Object:             "billing_subscription",
+			HasPaymentMethod:   true,
+			SoftLimitUSD:       amount,
+			HardLimitUSD:       amount,
+			SystemHardLimitUSD: amount,
+			AccessUntil:        0,
+		}
+		c.JSON(200, subscription)
+		return
+	}
+
 	var remainQuota int
 	var usedQuota int
 	var err error
@@ -40,8 +59,8 @@ func GetSubscription(c *gin.Context) {
 	}
 	quota := remainQuota + usedQuota
 	amount := float64(quota)
-	// OpenAI 兼容接口中的 *_USD 字段含义保持“额度单位”对应值：
-	// 我们将其解释为以“站点展示类型”为准：
+	// OpenAI 兼容接口中的 *_USD 字段含义保持"额度单位"对应值：
+	// 我们将其解释为以"站点展示类型"为准：
 	// - USD: 直接除以 QuotaPerUnit
 	// - CNY: 先转 USD 再乘汇率
 	// - TOKENS: 直接使用 tokens 数量
@@ -69,6 +88,16 @@ func GetSubscription(c *gin.Context) {
 }
 
 func GetUsage(c *gin.Context) {
+	// coin 计费分支（coin 模式下 used quota 不在 new-api 内部记录，返回 0）
+	if common.GetBillingMode() == common.BillingModeCoin {
+		usage := OpenAIUsageResponse{
+			Object:     "list",
+			TotalUsage: 0,
+		}
+		c.JSON(200, usage)
+		return
+	}
+
 	var quota int
 	var err error
 	var token *model.Token

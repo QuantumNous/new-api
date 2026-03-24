@@ -344,6 +344,38 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return nil, types.NewError(fmt.Errorf("relayInfo is nil"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	// coin 计费分支：通过 BILLING_MODE=coin 启用
+	if common.GetBillingMode() == common.BillingModeCoin {
+		tokenName := c.GetString("token_name")
+		outUserID := ParseOutUserIDFromTokenName(tokenName)
+		if outUserID == "" {
+			return nil, types.NewErrorWithStatusCode(
+				fmt.Errorf("无法从 token name 解析 out_user_id: %s", tokenName),
+				types.ErrorCodeInvalidRequest, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+		bal, err := GetCoinBalance(outUserID)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+		}
+		if bal <= 0 || bal-preConsumedQuota < 0 {
+			return nil, types.NewErrorWithStatusCode(
+				fmt.Errorf("insufficient balance: $%.4f available, $%.4f required",
+					float64(bal)/common.QuotaPerUnit,
+					float64(preConsumedQuota)/common.QuotaPerUnit),
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+		session := &BillingSession{
+			relayInfo: relayInfo,
+			funding:   &CoinFundingSource{outUserID: outUserID, taskID: relayInfo.RequestId, title: relayInfo.OriginModelName},
+		}
+		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
+			return nil, apiErr
+		}
+		return session, nil
+	}
+
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 
 	// 钱包路径需要先检查用户额度
