@@ -7,7 +7,9 @@ const adminPassword = 'apitest-password';
 const dockerHubStubPort = 3403;
 const larkWebhookStubPort = 3404;
 
-async function loginAsRoot(request: import('@playwright/test').APIRequestContext) {
+async function loginAsRoot(
+  request: import('@playwright/test').APIRequestContext,
+) {
   const loginResponse = await request.post('/api/user/login', {
     data: {
       username: adminUsername,
@@ -24,7 +26,9 @@ async function loginAsRoot(request: import('@playwright/test').APIRequestContext
 }
 
 test.describe.serial('API baseline', () => {
-  test('status endpoint exposes uninitialized system state', async ({ request }) => {
+  test('status endpoint exposes uninitialized system state', async ({
+    request,
+  }) => {
     const response = await request.get('/api/status');
     expect(response.ok()).toBeTruthy();
 
@@ -38,7 +42,9 @@ test.describe.serial('API baseline', () => {
     expect(body.data.docker_image_tag).toBe('v0.11.5');
   });
 
-  test('home page content endpoint defaults to empty content', async ({ request }) => {
+  test('home page content endpoint defaults to empty content', async ({
+    request,
+  }) => {
     const response = await request.get('/api/home_page_content');
     expect(response.ok()).toBeTruthy();
 
@@ -47,7 +53,9 @@ test.describe.serial('API baseline', () => {
     expect(body.data).toBe('');
   });
 
-  test('docker version endpoint reports the latest published docker tag', async ({ request }) => {
+  test('docker version endpoint reports the latest published docker tag', async ({
+    request,
+  }) => {
     await withDockerHubStub(
       dockerHubStubPort,
       {
@@ -71,7 +79,9 @@ test.describe.serial('API baseline', () => {
     );
   });
 
-  test('setup endpoint reports sqlite before initialization', async ({ request }) => {
+  test('setup endpoint reports sqlite before initialization', async ({
+    request,
+  }) => {
     const response = await request.get('/api/setup');
     expect(response.ok()).toBeTruthy();
 
@@ -99,7 +109,9 @@ test.describe.serial('API baseline', () => {
     expect(body.message).toContain('至少为8个字符');
   });
 
-  test('setup can initialize the system and create an authenticated root session', async ({ request }) => {
+  test('setup can initialize the system and create an authenticated root session', async ({
+    request,
+  }) => {
     const setupResponse = await request.post('/api/setup', {
       data: {
         username: adminUsername,
@@ -124,13 +136,16 @@ test.describe.serial('API baseline', () => {
     expect(setupStatusBody.data.status).toBe(true);
   });
 
-  test('contact feedback can be submitted and reviewed by admin', async ({ request }) => {
+  test('contact feedback can be submitted and reviewed by admin', async ({
+    request,
+  }) => {
     const submitResponse = await request.post('/api/contact/feedback', {
       data: {
         username: 'API Feedback User',
         email: 'feedback@example.com',
         category: 'bug',
-        content: 'A reproducible bug appears after opening the contact page in playwright api tests.',
+        content:
+          'A reproducible bug appears after opening the contact page in playwright api tests.',
       },
     });
     expect(submitResponse.ok()).toBeTruthy();
@@ -140,11 +155,14 @@ test.describe.serial('API baseline', () => {
 
     const rootUserId = await loginAsRoot(request);
 
-    const listResponse = await request.get('/api/user/feedback?p=1&page_size=10', {
-      headers: {
-        'New-API-User': String(rootUserId),
+    const listResponse = await request.get(
+      '/api/user/feedback?p=1&page_size=10',
+      {
+        headers: {
+          'New-API-User': String(rootUserId),
+        },
       },
-    });
+    );
     expect(listResponse.ok()).toBeTruthy();
 
     const listBody = await listResponse.json();
@@ -160,7 +178,9 @@ test.describe.serial('API baseline', () => {
     ).toBe(true);
   });
 
-  test('root can upload a logo image and receive a hosted path', async ({ request }) => {
+  test('root can upload a logo image and receive a hosted path', async ({
+    request,
+  }) => {
     const rootUserId = await loginAsRoot(request);
 
     const uploadResponse = await request.post('/api/upload/logo', {
@@ -182,7 +202,9 @@ test.describe.serial('API baseline', () => {
     expect(uploadBody.data.url).toMatch(/^\/uploads\/branding\/logo-\d+\.png$/);
   });
 
-  test('submitting feedback triggers the configured lark webhook', async ({ request }) => {
+  test('submitting feedback triggers the configured lark webhook', async ({
+    request,
+  }) => {
     await withLarkWebhookStub(larkWebhookStubPort, async (requests) => {
       const rootUserId = await loginAsRoot(request);
       const rootHeaders = {
@@ -216,7 +238,8 @@ test.describe.serial('API baseline', () => {
           username: 'Lark Feedback User',
           email: 'lark-feedback@example.com',
           category: 'consulting',
-          content: 'Please send this feedback to the configured lark webhook for verification.',
+          content:
+            'Please send this feedback to the configured lark webhook for verification.',
         },
       });
       expect(submitResponse.ok()).toBeTruthy();
@@ -231,10 +254,58 @@ test.describe.serial('API baseline', () => {
       expect(requests[0].body.card.elements[0].text.content).toContain(
         'lark-feedback@example.com',
       );
-      expect(requests[0].body.card.elements[0].text.content).toContain('<at id=all></at>');
+      expect(requests[0].body.card.elements[0].text.content).toContain(
+        '<at id=all></at>',
+      );
       expect(requests[0].body.card.elements[0].text.content).toContain(
         '<at id=ou_alpha></at>',
       );
     });
+  });
+
+  test('admin can create a sticky multi-key channel and read back its mode', async ({
+    request,
+  }) => {
+    const rootUserId = await loginAsRoot(request);
+    const headers = {
+      'New-API-User': String(rootUserId),
+    };
+
+    const channelName = `sticky-api-${Date.now()}`;
+    const createResponse = await request.post('/api/channel/', {
+      headers,
+      data: {
+        mode: 'multi_to_single',
+        multi_key_mode: 'sticky',
+        channel: {
+          name: channelName,
+          type: 1,
+          key: 'sk-test-alpha\nsk-test-beta\nsk-test-gamma',
+          models: 'gpt-4o-mini',
+          group: 'default',
+          status: 1,
+          priority: 0,
+          weight: 0,
+        },
+      },
+    });
+    expect(createResponse.ok()).toBeTruthy();
+    const createBody = await createResponse.json();
+    expect(createBody.success).toBe(true);
+
+    const listResponse = await request.get('/api/channel/?p=0&page_size=100', {
+      headers,
+    });
+    expect(listResponse.ok()).toBeTruthy();
+    const listBody = await listResponse.json();
+    expect(listBody.success).toBe(true);
+
+    const createdChannel = listBody.data.items.find(
+      (item: { name: string }) => item.name === channelName,
+    );
+    expect(createdChannel).toBeTruthy();
+    expect(createdChannel.channel_info.is_multi_key).toBe(true);
+    expect(createdChannel.channel_info.multi_key_mode).toBe('sticky');
+    expect(createdChannel.channel_info.multi_key_size).toBe(3);
   });
 });

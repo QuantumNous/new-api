@@ -48,6 +48,7 @@ import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
+  IconUser,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
@@ -67,6 +68,11 @@ const renderType = (type, record = {}, t) => {
       channelInfo?.multi_key_mode === 'random' ? (
         <div className='flex items-center gap-1'>
           <FaRandom className='text-blue-500' />
+          {icon}
+        </div>
+      ) : channelInfo?.multi_key_mode === 'sticky' ? (
+        <div className='flex items-center gap-1'>
+          <IconUser className='text-blue-500' />
           {icon}
         </div>
       ) : (
