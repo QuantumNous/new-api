@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Form, Spin } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 import { API, showError } from '../../../helpers';
 import { useDebouncedCallback } from 'use-debounce';
 
@@ -37,6 +38,7 @@ const FilterAutoComplete = ({
   prefix = null,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const autoCompleteRef = useRef(null);
@@ -103,7 +105,7 @@ const FilterAutoComplete = ({
           const now = Date.now();
           if (now - lastRateLimitNoticeAtRef.current > 5000) {
             lastRateLimitNoticeAtRef.current = now;
-            showError('联想请求过于频繁，请稍后重试');
+            showError(t('联想请求过于频繁，请稍后重试'));
           }
         }
       }
