@@ -215,6 +215,8 @@ const SettingsPanel = ({
               )}
             </div>
             <Switch
+              id='playground-stream-toggle'
+              name='stream'
               checked={inputs.stream}
               onChange={(checked) => onInputChange('stream', checked)}
               checkedText={t('开')}

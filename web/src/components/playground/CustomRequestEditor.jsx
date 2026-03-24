@@ -127,6 +127,8 @@ const CustomRequestEditor = ({
           </Typography.Text>
         </div>
         <Switch
+          id='playground-custom-request-mode'
+          name='custom_request_mode'
           checked={customRequestMode}
           onChange={handleModeToggle}
           checkedText={t('开')}
@@ -185,6 +187,8 @@ const CustomRequestEditor = ({
             </div>
 
             <TextArea
+              id='playground-custom-request-body'
+              name='custom_request_body'
               value={localValue}
               onChange={handleValueChange}
               placeholder='{"model": "gpt-4o", "messages": [...], ...}'

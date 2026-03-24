@@ -68,6 +68,8 @@ const ImageUrlInput = ({
         </div>
         <div className='flex items-center gap-2'>
           <Switch
+            id='playground-image-toggle'
+            name='image_enabled'
             checked={imageEnabled}
             onChange={onImageEnabledChange}
             checkedText={t('启用')}
@@ -114,6 +116,8 @@ const ImageUrlInput = ({
           <div key={index} className='flex items-center gap-2'>
             <div className='flex-1'>
               <Input
+                id={`playground-image-url-${index}`}
+                name={`image_url_${index}`}
                 placeholder={`https://example.com/image${index + 1}.jpg`}
                 value={url}
                 onChange={(value) => handleUpdateImageUrl(index, value)}
