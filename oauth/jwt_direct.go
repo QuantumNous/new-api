@@ -1,17 +1,21 @@
 package oauth
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -96,6 +100,17 @@ func (p *JWTDirectProvider) GetProviderId() int {
 	return p.config.Id
 }
 
+func (p *JWTDirectProvider) ResolveIdentityFromInput(ctx context.Context, rawToken string, ticket string, callbackURL string, state string) (*JWTDirectIdentity, error) {
+	if p.config.GetJWTAcquireMode() == model.CustomJWTAcquireModeTicketExchange {
+		exchangedToken, err := p.exchangeTicketForJWT(ctx, ticket, callbackURL, state)
+		if err != nil {
+			return nil, err
+		}
+		rawToken = exchangedToken
+	}
+	return p.ResolveIdentity(ctx, rawToken)
+}
+
 func (p *JWTDirectProvider) ResolveIdentity(ctx context.Context, rawToken string) (*JWTDirectIdentity, error) {
 	tokenString := normalizeJWTToken(rawToken)
 	if tokenString == "" {
@@ -154,6 +169,125 @@ func (p *JWTDirectProvider) ResolveIdentity(ctx context.Context, rawToken string
 	}, nil
 }
 
+func (p *JWTDirectProvider) exchangeTicketForJWT(ctx context.Context, ticket string, callbackURL string, state string) (string, error) {
+	ticket = strings.TrimSpace(ticket)
+	if ticket == "" {
+		return "", errors.New("missing ticket for jwt exchange")
+	}
+
+	targetURL := strings.TrimSpace(p.config.TicketExchangeURL)
+	if targetURL == "" {
+		return "", errors.New("ticket exchange url is not configured")
+	}
+
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return "", errors.New("ticket exchange url is invalid")
+	}
+
+	params := parseStringMapping(p.config.TicketExchangeExtraParams)
+	headers := parseStringMapping(p.config.TicketExchangeHeaders)
+	ticketField := strings.TrimSpace(p.config.TicketExchangeTicketField)
+	if ticketField == "" {
+		ticketField = "ticket"
+	}
+	params[ticketField] = ticket
+	if serviceField := strings.TrimSpace(p.config.TicketExchangeServiceField); serviceField != "" && strings.TrimSpace(callbackURL) != "" {
+		params[serviceField] = callbackURL
+	}
+
+	placeholderValues := map[string]string{
+		"ticket":        ticket,
+		"callback_url":  callbackURL,
+		"provider_slug": p.config.Slug,
+		"state":         state,
+	}
+	for key, value := range params {
+		params[key] = replaceJWTExchangePlaceholders(value, placeholderValues)
+	}
+	for key, value := range headers {
+		headers[key] = replaceJWTExchangePlaceholders(value, placeholderValues)
+	}
+
+	method := normalizeTicketExchangeMethod(p.config.TicketExchangeMethod)
+	payloadMode := normalizeTicketExchangePayloadMode(p.config.TicketExchangePayloadMode)
+
+	var body io.Reader
+	switch method {
+	case model.CustomTicketExchangeMethodGET:
+		appendExchangeQueryParams(parsedURL, params)
+	case model.CustomTicketExchangeMethodPOST:
+		switch payloadMode {
+		case model.CustomTicketExchangePayloadModeQuery:
+			appendExchangeQueryParams(parsedURL, params)
+		case model.CustomTicketExchangePayloadModeForm:
+			values := url.Values{}
+			for key, value := range params {
+				values.Set(key, value)
+			}
+			body = strings.NewReader(values.Encode())
+			headers["Content-Type"] = "application/x-www-form-urlencoded"
+		case model.CustomTicketExchangePayloadModeJSON:
+			payload, marshalErr := common.Marshal(params)
+			if marshalErr != nil {
+				return "", fmt.Errorf("marshal ticket exchange payload failed: %w", marshalErr)
+			}
+			body = bytes.NewReader(payload)
+			headers["Content-Type"] = "application/json"
+		case model.CustomTicketExchangePayloadModeMultipart:
+			var buffer bytes.Buffer
+			writer := multipart.NewWriter(&buffer)
+			for key, value := range params {
+				if fieldErr := writer.WriteField(key, value); fieldErr != nil {
+					return "", fmt.Errorf("build multipart exchange payload failed: %w", fieldErr)
+				}
+			}
+			if closeErr := writer.Close(); closeErr != nil {
+				return "", fmt.Errorf("close multipart exchange payload failed: %w", closeErr)
+			}
+			body = &buffer
+			headers["Content-Type"] = writer.FormDataContentType()
+		default:
+			return "", errors.New("ticket exchange payload mode is invalid")
+		}
+	default:
+		return "", errors.New("ticket exchange method is invalid")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("ticket exchange failed: %s %s", resp.Status, strings.TrimSpace(string(responseBody)))
+	}
+
+	token := extractExchangedJWT(responseBody, p.config.TicketExchangeTokenField)
+	if token == "" {
+		return "", errors.New("ticket exchange response missing jwt token")
+	}
+	return token, nil
+}
+
 func (p *JWTDirectProvider) parseAndValidateClaims(ctx context.Context, tokenString string) (jwt.MapClaims, error) {
 	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
@@ -200,6 +334,103 @@ func normalizeJWTToken(raw string) string {
 		value = strings.TrimSpace(value[7:])
 	}
 	return value
+}
+
+func appendExchangeQueryParams(targetURL *url.URL, params map[string]string) {
+	query := targetURL.Query()
+	for key, value := range params {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		query.Set(key, value)
+	}
+	targetURL.RawQuery = query.Encode()
+}
+
+func replaceJWTExchangePlaceholders(input string, values map[string]string) string {
+	result := input
+	for key, value := range values {
+		result = strings.ReplaceAll(result, "{"+key+"}", value)
+	}
+	return result
+}
+
+func extractExchangedJWT(body []byte, tokenField string) string {
+	if len(body) == 0 {
+		return ""
+	}
+
+	candidates := []string{}
+	if strings.TrimSpace(tokenField) != "" {
+		candidates = append(candidates, strings.TrimSpace(tokenField))
+	}
+	candidates = append(candidates,
+		"token",
+		"access_token",
+		"data.token",
+		"data.access_token",
+		"result.token",
+		"result.access_token",
+		"data",
+	)
+
+	for _, candidate := range candidates {
+		result := gjson.GetBytes(body, candidate)
+		if result.Exists() {
+			value := normalizeJWTToken(result.String())
+			if looksLikeJWT(value) {
+				return value
+			}
+		}
+	}
+
+	trimmed := normalizeJWTToken(string(bytes.TrimSpace(body)))
+	if looksLikeJWT(trimmed) {
+		return trimmed
+	}
+
+	var payload any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		if str, ok := payload.(string); ok {
+			value := normalizeJWTToken(str)
+			if looksLikeJWT(value) {
+				return value
+			}
+		}
+	}
+
+	return ""
+}
+
+func looksLikeJWT(raw string) bool {
+	parts := strings.Split(strings.TrimSpace(raw), ".")
+	return len(parts) == 3 && parts[0] != "" && parts[1] != "" && parts[2] != ""
+}
+
+func normalizeTicketExchangeMethod(raw string) string {
+	switch strings.ToUpper(strings.TrimSpace(raw)) {
+	case "", model.CustomTicketExchangeMethodGET:
+		return model.CustomTicketExchangeMethodGET
+	case model.CustomTicketExchangeMethodPOST:
+		return model.CustomTicketExchangeMethodPOST
+	default:
+		return ""
+	}
+}
+
+func normalizeTicketExchangePayloadMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", model.CustomTicketExchangePayloadModeQuery:
+		return model.CustomTicketExchangePayloadModeQuery
+	case model.CustomTicketExchangePayloadModeForm:
+		return model.CustomTicketExchangePayloadModeForm
+	case model.CustomTicketExchangePayloadModeJSON:
+		return model.CustomTicketExchangePayloadModeJSON
+	case model.CustomTicketExchangePayloadModeMultipart:
+		return model.CustomTicketExchangePayloadModeMultipart
+	default:
+		return ""
+	}
 }
 
 func parsePEMPublicKey(raw string) (any, error) {

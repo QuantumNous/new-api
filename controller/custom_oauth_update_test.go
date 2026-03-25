@@ -134,3 +134,44 @@ func TestUpdateCustomOAuthProviderRejectsUnsupportedJWTSyncRoleTargets(t *testin
 		t.Fatalf("expected update to fail for unsupported role target, got body %s", recorder.Body.String())
 	}
 }
+
+func TestUpdateCustomOAuthProviderRejectsInvalidTicketExchangeURL(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+
+	provider := &model.CustomOAuthProvider{
+		Name:                  "Acme SSO",
+		Slug:                  "acme-sso",
+		Kind:                  model.CustomOAuthProviderKindJWTDirect,
+		Enabled:               true,
+		AuthorizationEndpoint: "https://issuer.example.com/oauth2/authorize",
+		Issuer:                "https://issuer.example.com",
+		JwksURL:               "https://issuer.example.com/.well-known/jwks.json",
+		UserIdField:           "sub",
+	}
+	if err := model.CreateCustomOAuthProvider(provider); err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"jwt_acquire_mode":    model.CustomJWTAcquireModeTicketExchange,
+		"ticket_exchange_url": "not-a-url",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal update payload: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(provider.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/api/custom-oauth-provider/"+strconv.Itoa(provider.Id), bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	UpdateCustomOAuthProvider(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 response envelope, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "\"success\":false") {
+		t.Fatalf("expected invalid ticket_exchange_url to fail, got body %s", recorder.Body.String())
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -377,6 +378,219 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 		t.Fatalf("expected jwks validation to succeed, got error: %v", err)
 	}
 	if identity.User.ProviderUserID != "external-user-3" {
+		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
+	privateKey := mustGenerateRSAPrivateKey(t)
+	expectedCallbackURL := "https://new-api.example.com/oauth/acme-sso"
+	token := mustSignJWT(t, privateKey, "", jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-ticket-1",
+		"preferred_username": "alice",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST exchange method, got %s", r.Method)
+		}
+		if got := r.Header.Get("X-State"); got != "state-123" {
+			t.Fatalf("expected X-State header to be populated, got %q", got)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse form payload: %v", err)
+		}
+		if got := r.Form.Get("st"); got != "ticket-123" {
+			t.Fatalf("expected exchanged ticket field st=ticket-123, got %q", got)
+		}
+		if got := r.Form.Get("service"); got != expectedCallbackURL {
+			t.Fatalf("expected service field %q, got %q", expectedCallbackURL, got)
+		}
+		if got := r.Form.Get("source"); got != "acme-sso:state-123" {
+			t.Fatalf("expected placeholder expansion result, got %q", got)
+		}
+		payload, err := common.Marshal(map[string]any{
+			"data": map[string]any{
+				"token": token,
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                       "Acme SSO",
+		Slug:                       "acme-sso",
+		Enabled:                    true,
+		Issuer:                     "https://issuer.example.com",
+		Audience:                   "new-api",
+		PublicKey:                  mustEncodeRSAPublicKeyPEM(t, &privateKey.PublicKey),
+		UserIdField:                "sub",
+		UsernameField:              "preferred_username",
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:          exchangeServer.URL,
+		TicketExchangeMethod:       model.CustomTicketExchangeMethodPOST,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeForm,
+		TicketExchangeTicketField:  "st",
+		TicketExchangeServiceField: "service",
+		TicketExchangeExtraParams:  `{"source":"{provider_slug}:{state}"}`,
+		TicketExchangeHeaders:      `{"X-State":"{state}"}`,
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ticket-123",
+		expectedCallbackURL,
+		"state-123",
+	)
+	if err != nil {
+		t.Fatalf("expected ticket exchange identity resolution to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "ext-ticket-1" {
+		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+	if identity.User.Username != "alice" {
+		t.Fatalf("unexpected username: %s", identity.User.Username)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputRejectsMissingTicket(t *testing.T) {
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:              "Acme SSO",
+		Slug:              "acme-sso",
+		Enabled:           true,
+		JWTAcquireMode:    model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL: "https://issuer.example.com/api/exchange",
+	})
+
+	_, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"",
+		"https://new-api.example.com/oauth/acme-sso",
+		"state-123",
+	)
+	if err == nil || !strings.Contains(err.Error(), "missing ticket") {
+		t.Fatalf("expected missing ticket error, got %v", err)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputRejectsExchangeFailure(t *testing.T) {
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "invalid ticket", http.StatusUnauthorized)
+	}))
+	defer exchangeServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:              "Acme SSO",
+		Slug:              "acme-sso",
+		Enabled:           true,
+		JWTAcquireMode:    model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL: exchangeServer.URL,
+	})
+
+	_, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ticket-123",
+		"https://new-api.example.com/oauth/acme-sso",
+		"state-123",
+	)
+	if err == nil || !strings.Contains(err.Error(), "ticket exchange failed") {
+		t.Fatalf("expected exchange failure error, got %v", err)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputRejectsMissingTokenFromExchangeResponse(t *testing.T) {
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"success": true,
+			"data": map[string]any{
+				"user": "alice",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                     "Acme SSO",
+		Slug:                     "acme-sso",
+		Enabled:                  true,
+		JWTAcquireMode:           model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:        exchangeServer.URL,
+		TicketExchangeTokenField: "data.token",
+	})
+
+	_, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ticket-123",
+		"https://new-api.example.com/oauth/acme-sso",
+		"state-123",
+	)
+	if err == nil || !strings.Contains(err.Error(), "missing jwt token") {
+		t.Fatalf("expected missing jwt token error, got %v", err)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
+	privateKey := mustGenerateRSAPrivateKey(t)
+	token := mustSignJWT(t, privateKey, "", jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-ticket-fallback",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"data": map[string]any{
+				"access_token": token,
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:              "Acme SSO",
+		Slug:              "acme-sso",
+		Enabled:           true,
+		Issuer:            "https://issuer.example.com",
+		Audience:          "new-api",
+		PublicKey:         mustEncodeRSAPublicKeyPEM(t, &privateKey.PublicKey),
+		UserIdField:       "sub",
+		JWTAcquireMode:    model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL: exchangeServer.URL,
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ticket-123",
+		"https://new-api.example.com/oauth/acme-sso",
+		"state-123",
+	)
+	if err != nil {
+		t.Fatalf("expected fallback token extraction to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "ext-ticket-fallback" {
 		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
 	}
 }

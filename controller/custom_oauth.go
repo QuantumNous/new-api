@@ -18,41 +18,51 @@ import (
 // CustomOAuthProviderResponse is the response structure for custom OAuth providers
 // It excludes sensitive fields like client_secret
 type CustomOAuthProviderResponse struct {
-	Id                    int    `json:"id"`
-	Name                  string `json:"name"`
-	Slug                  string `json:"slug"`
-	Icon                  string `json:"icon"`
-	Kind                  string `json:"kind"`
-	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id"`
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserInfoEndpoint      string `json:"user_info_endpoint"`
-	Scopes                string `json:"scopes"`
-	Issuer                string `json:"issuer"`
-	Audience              string `json:"audience"`
-	JwksURL               string `json:"jwks_url"`
-	PublicKey             string `json:"public_key"`
-	JWTSource             string `json:"jwt_source"`
-	JWTHeader             string `json:"jwt_header"`
-	UserIdField           string `json:"user_id_field"`
-	UsernameField         string `json:"username_field"`
-	DisplayNameField      string `json:"display_name_field"`
-	EmailField            string `json:"email_field"`
-	GroupField            string `json:"group_field"`
-	RoleField             string `json:"role_field"`
-	GroupMapping          string `json:"group_mapping"`
-	RoleMapping           string `json:"role_mapping"`
-	AutoRegister          bool   `json:"auto_register"`
-	AutoMergeByEmail      bool   `json:"auto_merge_by_email"`
-	SyncGroupOnLogin      bool   `json:"sync_group_on_login"`
-	SyncRoleOnLogin       bool   `json:"sync_role_on_login"`
-	GroupMappingMode      string `json:"group_mapping_mode"`
-	RoleMappingMode       string `json:"role_mapping_mode"`
-	WellKnown             string `json:"well_known"`
-	AuthStyle             int    `json:"auth_style"`
-	AccessPolicy          string `json:"access_policy"`
-	AccessDeniedMessage   string `json:"access_denied_message"`
+	Id                         int    `json:"id"`
+	Name                       string `json:"name"`
+	Slug                       string `json:"slug"`
+	Icon                       string `json:"icon"`
+	Kind                       string `json:"kind"`
+	Enabled                    bool   `json:"enabled"`
+	ClientId                   string `json:"client_id"`
+	AuthorizationEndpoint      string `json:"authorization_endpoint"`
+	TokenEndpoint              string `json:"token_endpoint"`
+	UserInfoEndpoint           string `json:"user_info_endpoint"`
+	Scopes                     string `json:"scopes"`
+	Issuer                     string `json:"issuer"`
+	Audience                   string `json:"audience"`
+	JwksURL                    string `json:"jwks_url"`
+	PublicKey                  string `json:"public_key"`
+	JWTSource                  string `json:"jwt_source"`
+	JWTHeader                  string `json:"jwt_header"`
+	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	AuthorizationServiceField  string `json:"authorization_service_field"`
+	TicketExchangeURL          string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField string `json:"ticket_exchange_service_field"`
+	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params"`
+	TicketExchangeHeaders      string `json:"ticket_exchange_headers"`
+	UserIdField                string `json:"user_id_field"`
+	UsernameField              string `json:"username_field"`
+	DisplayNameField           string `json:"display_name_field"`
+	EmailField                 string `json:"email_field"`
+	GroupField                 string `json:"group_field"`
+	RoleField                  string `json:"role_field"`
+	GroupMapping               string `json:"group_mapping"`
+	RoleMapping                string `json:"role_mapping"`
+	AutoRegister               bool   `json:"auto_register"`
+	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
+	GroupMappingMode           string `json:"group_mapping_mode"`
+	RoleMappingMode            string `json:"role_mapping_mode"`
+	WellKnown                  string `json:"well_known"`
+	AuthStyle                  int    `json:"auth_style"`
+	AccessPolicy               string `json:"access_policy"`
+	AccessDeniedMessage        string `json:"access_denied_message"`
 }
 
 type UserOAuthBindingResponse struct {
@@ -64,42 +74,72 @@ type UserOAuthBindingResponse struct {
 }
 
 func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthProviderResponse {
+	jwtSource := p.JWTSource
+	if strings.TrimSpace(jwtSource) == "" {
+		jwtSource = model.CustomJWTSourceQuery
+	}
+	authorizationServiceField := p.AuthorizationServiceField
+	if strings.TrimSpace(authorizationServiceField) == "" {
+		authorizationServiceField = "service"
+	}
+	ticketExchangeMethod := p.TicketExchangeMethod
+	if strings.TrimSpace(ticketExchangeMethod) == "" {
+		ticketExchangeMethod = model.CustomTicketExchangeMethodGET
+	}
+	ticketExchangePayloadMode := p.TicketExchangePayloadMode
+	if strings.TrimSpace(ticketExchangePayloadMode) == "" {
+		ticketExchangePayloadMode = model.CustomTicketExchangePayloadModeQuery
+	}
+	ticketExchangeTicketField := p.TicketExchangeTicketField
+	if strings.TrimSpace(ticketExchangeTicketField) == "" {
+		ticketExchangeTicketField = "ticket"
+	}
 	return &CustomOAuthProviderResponse{
-		Id:                    p.Id,
-		Name:                  p.Name,
-		Slug:                  p.Slug,
-		Icon:                  p.Icon,
-		Kind:                  p.GetKind(),
-		Enabled:               p.Enabled,
-		ClientId:              p.ClientId,
-		AuthorizationEndpoint: p.AuthorizationEndpoint,
-		TokenEndpoint:         p.TokenEndpoint,
-		UserInfoEndpoint:      p.UserInfoEndpoint,
-		Scopes:                p.Scopes,
-		Issuer:                p.Issuer,
-		Audience:              p.Audience,
-		JwksURL:               p.JwksURL,
-		PublicKey:             p.PublicKey,
-		JWTSource:             p.JWTSource,
-		JWTHeader:             p.JWTHeader,
-		UserIdField:           p.UserIdField,
-		UsernameField:         p.UsernameField,
-		DisplayNameField:      p.DisplayNameField,
-		EmailField:            p.EmailField,
-		GroupField:            p.GroupField,
-		RoleField:             p.RoleField,
-		GroupMapping:          p.GroupMapping,
-		RoleMapping:           p.RoleMapping,
-		AutoRegister:          p.AutoRegister,
-		AutoMergeByEmail:      p.AutoMergeByEmail,
-		SyncGroupOnLogin:      p.SyncGroupOnLogin,
-		SyncRoleOnLogin:       p.SyncRoleOnLogin,
-		GroupMappingMode:      p.GroupMappingMode,
-		RoleMappingMode:       p.RoleMappingMode,
-		WellKnown:             p.WellKnown,
-		AuthStyle:             p.AuthStyle,
-		AccessPolicy:          p.AccessPolicy,
-		AccessDeniedMessage:   p.AccessDeniedMessage,
+		Id:                         p.Id,
+		Name:                       p.Name,
+		Slug:                       p.Slug,
+		Icon:                       p.Icon,
+		Kind:                       p.GetKind(),
+		Enabled:                    p.Enabled,
+		ClientId:                   p.ClientId,
+		AuthorizationEndpoint:      p.AuthorizationEndpoint,
+		TokenEndpoint:              p.TokenEndpoint,
+		UserInfoEndpoint:           p.UserInfoEndpoint,
+		Scopes:                     p.Scopes,
+		Issuer:                     p.Issuer,
+		Audience:                   p.Audience,
+		JwksURL:                    p.JwksURL,
+		PublicKey:                  p.PublicKey,
+		JWTSource:                  jwtSource,
+		JWTHeader:                  p.JWTHeader,
+		JWTAcquireMode:             p.GetJWTAcquireMode(),
+		AuthorizationServiceField:  authorizationServiceField,
+		TicketExchangeURL:          p.TicketExchangeURL,
+		TicketExchangeMethod:       ticketExchangeMethod,
+		TicketExchangePayloadMode:  ticketExchangePayloadMode,
+		TicketExchangeTicketField:  ticketExchangeTicketField,
+		TicketExchangeTokenField:   p.TicketExchangeTokenField,
+		TicketExchangeServiceField: p.TicketExchangeServiceField,
+		TicketExchangeExtraParams:  p.TicketExchangeExtraParams,
+		TicketExchangeHeaders:      p.TicketExchangeHeaders,
+		UserIdField:                p.UserIdField,
+		UsernameField:              p.UsernameField,
+		DisplayNameField:           p.DisplayNameField,
+		EmailField:                 p.EmailField,
+		GroupField:                 p.GroupField,
+		RoleField:                  p.RoleField,
+		GroupMapping:               p.GroupMapping,
+		RoleMapping:                p.RoleMapping,
+		AutoRegister:               p.AutoRegister,
+		AutoMergeByEmail:           p.AutoMergeByEmail,
+		SyncGroupOnLogin:           p.SyncGroupOnLogin,
+		SyncRoleOnLogin:            p.SyncRoleOnLogin,
+		GroupMappingMode:           p.GroupMappingMode,
+		RoleMappingMode:            p.RoleMappingMode,
+		WellKnown:                  p.WellKnown,
+		AuthStyle:                  p.AuthStyle,
+		AccessPolicy:               p.AccessPolicy,
+		AccessDeniedMessage:        p.AccessDeniedMessage,
 	}
 }
 
@@ -147,41 +187,51 @@ func GetCustomOAuthProvider(c *gin.Context) {
 
 // CreateCustomOAuthProviderRequest is the request structure for creating a custom OAuth provider
 type CreateCustomOAuthProviderRequest struct {
-	Name                  string `json:"name" binding:"required"`
-	Slug                  string `json:"slug" binding:"required"`
-	Icon                  string `json:"icon"`
-	Kind                  string `json:"kind"`
-	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id"`
-	ClientSecret          string `json:"client_secret"`
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserInfoEndpoint      string `json:"user_info_endpoint"`
-	Scopes                string `json:"scopes"`
-	Issuer                string `json:"issuer"`
-	Audience              string `json:"audience"`
-	JwksURL               string `json:"jwks_url"`
-	PublicKey             string `json:"public_key"`
-	JWTSource             string `json:"jwt_source"`
-	JWTHeader             string `json:"jwt_header"`
-	UserIdField           string `json:"user_id_field"`
-	UsernameField         string `json:"username_field"`
-	DisplayNameField      string `json:"display_name_field"`
-	EmailField            string `json:"email_field"`
-	GroupField            string `json:"group_field"`
-	RoleField             string `json:"role_field"`
-	GroupMapping          string `json:"group_mapping"`
-	RoleMapping           string `json:"role_mapping"`
-	AutoRegister          bool   `json:"auto_register"`
-	AutoMergeByEmail      bool   `json:"auto_merge_by_email"`
-	SyncGroupOnLogin      bool   `json:"sync_group_on_login"`
-	SyncRoleOnLogin       bool   `json:"sync_role_on_login"`
-	GroupMappingMode      string `json:"group_mapping_mode"`
-	RoleMappingMode       string `json:"role_mapping_mode"`
-	WellKnown             string `json:"well_known"`
-	AuthStyle             int    `json:"auth_style"`
-	AccessPolicy          string `json:"access_policy"`
-	AccessDeniedMessage   string `json:"access_denied_message"`
+	Name                       string `json:"name" binding:"required"`
+	Slug                       string `json:"slug" binding:"required"`
+	Icon                       string `json:"icon"`
+	Kind                       string `json:"kind"`
+	Enabled                    bool   `json:"enabled"`
+	ClientId                   string `json:"client_id"`
+	ClientSecret               string `json:"client_secret"`
+	AuthorizationEndpoint      string `json:"authorization_endpoint"`
+	TokenEndpoint              string `json:"token_endpoint"`
+	UserInfoEndpoint           string `json:"user_info_endpoint"`
+	Scopes                     string `json:"scopes"`
+	Issuer                     string `json:"issuer"`
+	Audience                   string `json:"audience"`
+	JwksURL                    string `json:"jwks_url"`
+	PublicKey                  string `json:"public_key"`
+	JWTSource                  string `json:"jwt_source"`
+	JWTHeader                  string `json:"jwt_header"`
+	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	AuthorizationServiceField  string `json:"authorization_service_field"`
+	TicketExchangeURL          string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField string `json:"ticket_exchange_service_field"`
+	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params"`
+	TicketExchangeHeaders      string `json:"ticket_exchange_headers"`
+	UserIdField                string `json:"user_id_field"`
+	UsernameField              string `json:"username_field"`
+	DisplayNameField           string `json:"display_name_field"`
+	EmailField                 string `json:"email_field"`
+	GroupField                 string `json:"group_field"`
+	RoleField                  string `json:"role_field"`
+	GroupMapping               string `json:"group_mapping"`
+	RoleMapping                string `json:"role_mapping"`
+	AutoRegister               bool   `json:"auto_register"`
+	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
+	GroupMappingMode           string `json:"group_mapping_mode"`
+	RoleMappingMode            string `json:"role_mapping_mode"`
+	WellKnown                  string `json:"well_known"`
+	AuthStyle                  int    `json:"auth_style"`
+	AccessPolicy               string `json:"access_policy"`
+	AccessDeniedMessage        string `json:"access_denied_message"`
 }
 
 type FetchCustomOAuthDiscoveryRequest struct {
@@ -282,41 +332,51 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 	}
 
 	provider := &model.CustomOAuthProvider{
-		Name:                  req.Name,
-		Slug:                  req.Slug,
-		Icon:                  req.Icon,
-		Kind:                  req.Kind,
-		Enabled:               req.Enabled,
-		ClientId:              req.ClientId,
-		ClientSecret:          req.ClientSecret,
-		AuthorizationEndpoint: req.AuthorizationEndpoint,
-		TokenEndpoint:         req.TokenEndpoint,
-		UserInfoEndpoint:      req.UserInfoEndpoint,
-		Scopes:                req.Scopes,
-		Issuer:                req.Issuer,
-		Audience:              req.Audience,
-		JwksURL:               req.JwksURL,
-		PublicKey:             req.PublicKey,
-		JWTSource:             req.JWTSource,
-		JWTHeader:             req.JWTHeader,
-		UserIdField:           req.UserIdField,
-		UsernameField:         req.UsernameField,
-		DisplayNameField:      req.DisplayNameField,
-		EmailField:            req.EmailField,
-		GroupField:            req.GroupField,
-		RoleField:             req.RoleField,
-		GroupMapping:          req.GroupMapping,
-		RoleMapping:           req.RoleMapping,
-		AutoRegister:          req.AutoRegister,
-		AutoMergeByEmail:      req.AutoMergeByEmail,
-		SyncGroupOnLogin:      req.SyncGroupOnLogin,
-		SyncRoleOnLogin:       req.SyncRoleOnLogin,
-		GroupMappingMode:      req.GroupMappingMode,
-		RoleMappingMode:       req.RoleMappingMode,
-		WellKnown:             req.WellKnown,
-		AuthStyle:             req.AuthStyle,
-		AccessPolicy:          req.AccessPolicy,
-		AccessDeniedMessage:   req.AccessDeniedMessage,
+		Name:                       req.Name,
+		Slug:                       req.Slug,
+		Icon:                       req.Icon,
+		Kind:                       req.Kind,
+		Enabled:                    req.Enabled,
+		ClientId:                   req.ClientId,
+		ClientSecret:               req.ClientSecret,
+		AuthorizationEndpoint:      req.AuthorizationEndpoint,
+		TokenEndpoint:              req.TokenEndpoint,
+		UserInfoEndpoint:           req.UserInfoEndpoint,
+		Scopes:                     req.Scopes,
+		Issuer:                     req.Issuer,
+		Audience:                   req.Audience,
+		JwksURL:                    req.JwksURL,
+		PublicKey:                  req.PublicKey,
+		JWTSource:                  req.JWTSource,
+		JWTHeader:                  req.JWTHeader,
+		JWTAcquireMode:             req.JWTAcquireMode,
+		AuthorizationServiceField:  req.AuthorizationServiceField,
+		TicketExchangeURL:          req.TicketExchangeURL,
+		TicketExchangeMethod:       req.TicketExchangeMethod,
+		TicketExchangePayloadMode:  req.TicketExchangePayloadMode,
+		TicketExchangeTicketField:  req.TicketExchangeTicketField,
+		TicketExchangeTokenField:   req.TicketExchangeTokenField,
+		TicketExchangeServiceField: req.TicketExchangeServiceField,
+		TicketExchangeExtraParams:  req.TicketExchangeExtraParams,
+		TicketExchangeHeaders:      req.TicketExchangeHeaders,
+		UserIdField:                req.UserIdField,
+		UsernameField:              req.UsernameField,
+		DisplayNameField:           req.DisplayNameField,
+		EmailField:                 req.EmailField,
+		GroupField:                 req.GroupField,
+		RoleField:                  req.RoleField,
+		GroupMapping:               req.GroupMapping,
+		RoleMapping:                req.RoleMapping,
+		AutoRegister:               req.AutoRegister,
+		AutoMergeByEmail:           req.AutoMergeByEmail,
+		SyncGroupOnLogin:           req.SyncGroupOnLogin,
+		SyncRoleOnLogin:            req.SyncRoleOnLogin,
+		GroupMappingMode:           req.GroupMappingMode,
+		RoleMappingMode:            req.RoleMappingMode,
+		WellKnown:                  req.WellKnown,
+		AuthStyle:                  req.AuthStyle,
+		AccessPolicy:               req.AccessPolicy,
+		AccessDeniedMessage:        req.AccessDeniedMessage,
 	}
 
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
@@ -336,41 +396,51 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 // UpdateCustomOAuthProviderRequest is the request structure for updating a custom OAuth provider
 type UpdateCustomOAuthProviderRequest struct {
-	Name                  *string `json:"name"`
-	Slug                  *string `json:"slug"`
-	Icon                  *string `json:"icon"`    // Optional: if nil, keep existing
-	Enabled               *bool   `json:"enabled"` // Optional: if nil, keep existing
-	Kind                  *string `json:"kind"`
-	ClientId              *string `json:"client_id"`
-	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
-	AuthorizationEndpoint *string `json:"authorization_endpoint"`
-	TokenEndpoint         *string `json:"token_endpoint"`
-	UserInfoEndpoint      *string `json:"user_info_endpoint"`
-	Scopes                *string `json:"scopes"`
-	Issuer                *string `json:"issuer"`
-	Audience              *string `json:"audience"`
-	JwksURL               *string `json:"jwks_url"`
-	PublicKey             *string `json:"public_key"`
-	JWTSource             *string `json:"jwt_source"`
-	JWTHeader             *string `json:"jwt_header"`
-	UserIdField           *string `json:"user_id_field"`
-	UsernameField         *string `json:"username_field"`
-	DisplayNameField      *string `json:"display_name_field"`
-	EmailField            *string `json:"email_field"`
-	GroupField            *string `json:"group_field"`
-	RoleField             *string `json:"role_field"`
-	GroupMapping          *string `json:"group_mapping"`
-	RoleMapping           *string `json:"role_mapping"`
-	AutoRegister          *bool   `json:"auto_register"`
-	AutoMergeByEmail      *bool   `json:"auto_merge_by_email"`
-	SyncGroupOnLogin      *bool   `json:"sync_group_on_login"`
-	SyncRoleOnLogin       *bool   `json:"sync_role_on_login"`
-	GroupMappingMode      *string `json:"group_mapping_mode"`
-	RoleMappingMode       *string `json:"role_mapping_mode"`
-	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
-	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
-	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
-	AccessDeniedMessage   *string `json:"access_denied_message"` // Optional: if nil, keep existing
+	Name                       *string `json:"name"`
+	Slug                       *string `json:"slug"`
+	Icon                       *string `json:"icon"`    // Optional: if nil, keep existing
+	Enabled                    *bool   `json:"enabled"` // Optional: if nil, keep existing
+	Kind                       *string `json:"kind"`
+	ClientId                   *string `json:"client_id"`
+	ClientSecret               string  `json:"client_secret"` // Optional: if empty, keep existing
+	AuthorizationEndpoint      *string `json:"authorization_endpoint"`
+	TokenEndpoint              *string `json:"token_endpoint"`
+	UserInfoEndpoint           *string `json:"user_info_endpoint"`
+	Scopes                     *string `json:"scopes"`
+	Issuer                     *string `json:"issuer"`
+	Audience                   *string `json:"audience"`
+	JwksURL                    *string `json:"jwks_url"`
+	PublicKey                  *string `json:"public_key"`
+	JWTSource                  *string `json:"jwt_source"`
+	JWTHeader                  *string `json:"jwt_header"`
+	JWTAcquireMode             *string `json:"jwt_acquire_mode"`
+	AuthorizationServiceField  *string `json:"authorization_service_field"`
+	TicketExchangeURL          *string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       *string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  *string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  *string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   *string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField *string `json:"ticket_exchange_service_field"`
+	TicketExchangeExtraParams  *string `json:"ticket_exchange_extra_params"`
+	TicketExchangeHeaders      *string `json:"ticket_exchange_headers"`
+	UserIdField                *string `json:"user_id_field"`
+	UsernameField              *string `json:"username_field"`
+	DisplayNameField           *string `json:"display_name_field"`
+	EmailField                 *string `json:"email_field"`
+	GroupField                 *string `json:"group_field"`
+	RoleField                  *string `json:"role_field"`
+	GroupMapping               *string `json:"group_mapping"`
+	RoleMapping                *string `json:"role_mapping"`
+	AutoRegister               *bool   `json:"auto_register"`
+	AutoMergeByEmail           *bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin           *bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            *bool   `json:"sync_role_on_login"`
+	GroupMappingMode           *string `json:"group_mapping_mode"`
+	RoleMappingMode            *string `json:"role_mapping_mode"`
+	WellKnown                  *string `json:"well_known"`            // Optional: if nil, keep existing
+	AuthStyle                  *int    `json:"auth_style"`            // Optional: if nil, keep existing
+	AccessPolicy               *string `json:"access_policy"`         // Optional: if nil, keep existing
+	AccessDeniedMessage        *string `json:"access_denied_message"` // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -461,6 +531,36 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.JWTHeader != nil {
 		provider.JWTHeader = *req.JWTHeader
+	}
+	if req.JWTAcquireMode != nil {
+		provider.JWTAcquireMode = *req.JWTAcquireMode
+	}
+	if req.AuthorizationServiceField != nil {
+		provider.AuthorizationServiceField = *req.AuthorizationServiceField
+	}
+	if req.TicketExchangeURL != nil {
+		provider.TicketExchangeURL = *req.TicketExchangeURL
+	}
+	if req.TicketExchangeMethod != nil {
+		provider.TicketExchangeMethod = *req.TicketExchangeMethod
+	}
+	if req.TicketExchangePayloadMode != nil {
+		provider.TicketExchangePayloadMode = *req.TicketExchangePayloadMode
+	}
+	if req.TicketExchangeTicketField != nil {
+		provider.TicketExchangeTicketField = *req.TicketExchangeTicketField
+	}
+	if req.TicketExchangeTokenField != nil {
+		provider.TicketExchangeTokenField = *req.TicketExchangeTokenField
+	}
+	if req.TicketExchangeServiceField != nil {
+		provider.TicketExchangeServiceField = *req.TicketExchangeServiceField
+	}
+	if req.TicketExchangeExtraParams != nil {
+		provider.TicketExchangeExtraParams = *req.TicketExchangeExtraParams
+	}
+	if req.TicketExchangeHeaders != nil {
+		provider.TicketExchangeHeaders = *req.TicketExchangeHeaders
 	}
 	if req.UserIdField != nil {
 		provider.UserIdField = *req.UserIdField

@@ -40,7 +40,12 @@ import {
   IconDelete,
   IconRefresh,
 } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  getOAuthProviderIcon,
+} from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -167,6 +172,23 @@ const JWT_SOURCE_OPTIONS = [
   { value: 'body', label: 'Body (API only)' },
 ];
 
+const JWT_ACQUIRE_MODE_OPTIONS = [
+  { value: 'direct_token', label: 'Direct JWT callback' },
+  { value: 'ticket_exchange', label: 'Ticket exchange to JWT' },
+];
+
+const TICKET_EXCHANGE_METHOD_OPTIONS = [
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+];
+
+const TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS = [
+  { value: 'query', label: 'Query string' },
+  { value: 'form', label: 'Form URL encoded' },
+  { value: 'json', label: 'JSON body' },
+  { value: 'multipart', label: 'Multipart form-data' },
+];
+
 const JWT_MAPPING_MODE_OPTIONS = [
   { value: 'explicit_only', label: 'Explicit mapping only' },
   { value: 'mapping_first', label: 'Mapping first, then pass through' },
@@ -201,8 +223,10 @@ const ACCESS_POLICY_TEMPLATES = {
 };
 
 const ACCESS_DENIED_TEMPLATES = {
-  level_hint: '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
-  org_hint: '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
+  level_hint:
+    '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
+  org_hint:
+    '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
 };
 
 const CustomOAuthSetting = ({ serverAddress }) => {
@@ -220,6 +244,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const formApiRef = React.useRef(null);
   const currentProviderKind = formValues.kind || 'oauth_code';
   const isJWTDirect = currentProviderKind === 'jwt_direct';
+  const currentJWTAcquireMode = formValues.jwt_acquire_mode || 'direct_token';
+  const isJWTTicketExchange =
+    isJWTDirect && currentJWTAcquireMode === 'ticket_exchange';
 
   const mergeFormValues = (newValues) => {
     setFormValues((prev) => ({ ...prev, ...newValues }));
@@ -237,7 +264,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const normalizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
 
   const inferBaseUrlFromProvider = (provider) => {
-    const endpoint = provider?.authorization_endpoint || provider?.token_endpoint;
+    const endpoint =
+      provider?.authorization_endpoint || provider?.token_endpoint;
     if (!endpoint) return '';
     try {
       const url = new URL(endpoint);
@@ -284,7 +312,16 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       icon: '',
       scopes: 'openid profile email',
       jwt_source: 'query',
+      jwt_acquire_mode: 'direct_token',
       jwt_header: 'Authorization',
+      authorization_service_field: 'service',
+      ticket_exchange_method: 'GET',
+      ticket_exchange_payload_mode: 'query',
+      ticket_exchange_ticket_field: 'ticket',
+      ticket_exchange_token_field: '',
+      ticket_exchange_service_field: '',
+      ticket_exchange_extra_params: '',
+      ticket_exchange_headers: '',
       user_id_field: 'sub',
       username_field: 'preferred_username',
       display_name_field: 'name',
@@ -310,6 +347,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setEditingProvider(provider);
     setFormValues({
       kind: provider.kind || 'oauth_code',
+      jwt_acquire_mode: provider.jwt_acquire_mode || 'direct_token',
+      authorization_service_field:
+        provider.authorization_service_field || 'service',
+      ticket_exchange_method: provider.ticket_exchange_method || 'GET',
+      ticket_exchange_payload_mode:
+        provider.ticket_exchange_payload_mode || 'query',
+      ticket_exchange_ticket_field:
+        provider.ticket_exchange_ticket_field || 'ticket',
+      ticket_exchange_token_field: provider.ticket_exchange_token_field || '',
+      ticket_exchange_service_field:
+        provider.ticket_exchange_service_field || '',
+      ticket_exchange_extra_params: provider.ticket_exchange_extra_params || '',
+      ticket_exchange_headers: provider.ticket_exchange_headers || '',
       sync_group_on_login: !!provider.sync_group_on_login,
       sync_role_on_login: !!provider.sync_role_on_login,
       group_mapping_mode: provider.group_mapping_mode || 'explicit_only',
@@ -359,6 +409,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showError(t('JWT Direct 至少需要配置 JWKS URL 或 Public Key'));
         return;
       }
+      if (
+        (currentValues.jwt_acquire_mode || 'direct_token') ===
+          'ticket_exchange' &&
+        !currentValues.ticket_exchange_url
+      ) {
+        showError(t('Ticket Exchange 模式必须填写 Ticket Exchange URL'));
+        return;
+      }
     }
 
     for (const field of requiredFields) {
@@ -374,12 +432,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         : ['authorization_endpoint', 'issuer', 'jwks_url'];
     for (const field of endpointFields) {
       const value = currentValues[field];
-      if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+      if (
+        value &&
+        !value.startsWith('http://') &&
+        !value.startsWith('https://')
+      ) {
         // Check if user selected a preset but forgot to fill issuer URL
         if (providerKind === 'oauth_code' && selectedPreset && !baseUrl) {
           showError(t('请先填写 Issuer URL，以自动生成完整的端点 URL'));
         } else {
-          showError(t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'));
+          showError(
+            t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'),
+          );
         }
         return;
       }
@@ -389,12 +453,24 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       const payload = { ...currentValues, enabled: !!currentValues.enabled };
       delete payload.preset;
       delete payload.base_url;
+      if (providerKind !== 'jwt_direct') {
+        delete payload.jwt_acquire_mode;
+        delete payload.authorization_service_field;
+        delete payload.ticket_exchange_url;
+        delete payload.ticket_exchange_method;
+        delete payload.ticket_exchange_payload_mode;
+        delete payload.ticket_exchange_ticket_field;
+        delete payload.ticket_exchange_token_field;
+        delete payload.ticket_exchange_service_field;
+        delete payload.ticket_exchange_extra_params;
+        delete payload.ticket_exchange_headers;
+      }
 
       let res;
       if (editingProvider) {
         res = await API.put(
           `/api/custom-oauth-provider/${editingProvider.id}`,
-          payload
+          payload,
         );
       } else {
         res = await API.post('/api/custom-oauth-provider/', payload);
@@ -626,7 +702,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         <Space>
           <Button
             icon={<IconEdit />}
-            size="small"
+            size='small'
             onClick={() => handleEdit(record)}
           >
             {t('编辑')}
@@ -635,7 +711,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             title={t('确定要删除此 OAuth 提供商吗？')}
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button icon={<IconDelete />} size="small" type="danger">
+            <Button icon={<IconDelete />} size='small' type='danger'>
               {t('删除')}
             </Button>
           </Popconfirm>
@@ -652,17 +728,20 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     <Card>
       <Form.Section text={t('自定义 OAuth 提供商')}>
         <Banner
-          type="info"
+          type='info'
           description={
             <>
               {t(
-                '配置自定义外部身份提供商，支持 OAuth Code Flow 和 JWT Direct 两种接入模式'
+                '配置自定义外部身份提供商，支持 OAuth Code Flow 和 JWT Direct 两种接入模式',
               )}
               <br />
               {t('浏览器回调 URL')}: {serverAddress || t('网站地址')}/oauth/
               {'{slug}'}
               <br />
-              {t('说明')}: {t('JWT Direct 当前网页登录支持 query / fragment 回传；body 模式保留给后端接口使用')}
+              {t('说明')}:{' '}
+              {t(
+                'JWT Direct 支持两种浏览器入口：直接回传 JWT，或先回传 ticket 再由后端换取 JWT。body 模式仍只保留给后端接口使用',
+              )}
             </>
           }
           style={{ marginBottom: 20 }}
@@ -670,7 +749,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
         <Button
           icon={<IconPlus />}
-          theme="solid"
+          theme='solid'
           onClick={handleAdd}
           style={{ marginBottom: 16 }}
         >
@@ -681,7 +760,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           columns={columns}
           dataSource={providers}
           loading={loading}
-          rowKey="id"
+          rowKey='id'
           pagination={false}
           empty={t('暂无自定义 OAuth 提供商')}
         />
@@ -708,7 +787,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Switch
                   checked={!!formValues.enabled}
                   size='large'
-                  onChange={(checked) => mergeFormValues({ enabled: !!checked })}
+                  onChange={(checked) =>
+                    mergeFormValues({ enabled: !!checked })
+                  }
+                  id='components-settings-customoauthsetting-switch-1'
                 />
                 <Tag color={formValues.enabled ? 'green' : 'grey'}>
                   {formValues.enabled ? t('已启用') : t('已禁用')}
@@ -731,10 +813,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
               {t('Configuration')}
             </Text>
-            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-              {isJWTDirect
-                ? t('JWT Direct 使用前端回调页接收 JWT，再由后端完成验签、建号、绑定与登录')
-                : t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
+            <Text
+              type='secondary'
+              style={{ display: 'block', marginBottom: 8 }}
+            >
+              {isJWTTicketExchange
+                ? t(
+                    '浏览器回调页先接收 ticket，后端再向票据交换接口换取 JWT，并继续复用现有验签、映射、建号和绑定链路',
+                  )
+                : isJWTDirect
+                  ? t(
+                      'JWT Direct 使用前端回调页接收 JWT，再由后端完成验签、建号、绑定与登录',
+                    )
+                  : t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
             </Text>
             {!isJWTDirect && discoveryInfo && (
               <Banner
@@ -748,22 +839,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     </div>
                     {discoveryAutoFilledLabels ? (
                       <div>
-                        {t('自动填充字段')}:
-                        {' '}
-                        {discoveryAutoFilledLabels}
+                        {t('自动填充字段')}: {discoveryAutoFilledLabels}
                       </div>
                     ) : null}
                     {discoveryInfo.scopesSupported?.length ? (
                       <div>
-                        {t('Discovery scopes')}:
-                        {' '}
+                        {t('Discovery scopes')}:{' '}
                         {discoveryInfo.scopesSupported.join(', ')}
                       </div>
                     ) : null}
                     {discoveryInfo.claimsSupported?.length ? (
                       <div>
-                        {t('Discovery claims')}:
-                        {' '}
+                        {t('Discovery claims')}:{' '}
                         {discoveryInfo.claimsSupported.join(', ')}
                       </div>
                     ) : null}
@@ -775,13 +862,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Select
-                  field="kind"
+                  field='kind'
                   label={t('接入类型')}
                   value={currentProviderKind}
                   optionList={CUSTOM_OAUTH_KIND_OPTIONS}
                   onChange={(value) => {
                     mergeFormValues({
                       kind: value,
+                      jwt_acquire_mode:
+                        value === 'jwt_direct'
+                          ? formValues.jwt_acquire_mode || 'direct_token'
+                          : formValues.jwt_acquire_mode,
                       jwt_source:
                         value === 'jwt_direct'
                           ? formValues.jwt_source || 'query'
@@ -799,67 +890,77 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
             {!isJWTDirect && (
               <Row gutter={16}>
-              <Col span={8}>
-                <Form.Select
-                  field="preset"
-                  label={t('预设模板')}
-                  placeholder={t('选择预设模板（可选）')}
-                  value={selectedPreset}
-                  onChange={handlePresetChange}
-                  optionList={[
-                    { value: '', label: t('自定义') },
-                    ...Object.entries(OAUTH_PRESETS).map(([key, config]) => ({
-                      value: key,
-                      label: config.name,
-                    })),
-                  ]}
-                />
-              </Col>
-              <Col span={10}>
-                <Form.Input
-                  field="base_url"
-                  label={t('发行者 URL（Issuer URL）')}
-                  placeholder={t('例如：https://gitea.example.com')}
-                  value={baseUrl}
-                  onChange={handleBaseUrlChange}
-                  extraText={
-                    selectedPreset
-                      ? t('填写后会自动拼接预设端点')
-                      : t('可选：用于自动生成端点或 Discovery URL')
-                  }
-                />
-              </Col>
-              <Col span={6}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
-                  <Button
-                    icon={<IconRefresh />}
-                    onClick={handleFetchFromDiscovery}
-                    loading={discoveryLoading}
-                    block
+                <Col span={8}>
+                  <Form.Select
+                    field='preset'
+                    label={t('预设模板')}
+                    placeholder={t('选择预设模板（可选）')}
+                    value={selectedPreset}
+                    onChange={handlePresetChange}
+                    optionList={[
+                      { value: '', label: t('自定义') },
+                      ...Object.entries(OAUTH_PRESETS).map(([key, config]) => ({
+                        value: key,
+                        label: config.name,
+                      })),
+                    ]}
+                  />
+                </Col>
+                <Col span={10}>
+                  <Form.Input
+                    field='base_url'
+                    label={t('发行者 URL（Issuer URL）')}
+                    placeholder={t('例如：https://gitea.example.com')}
+                    value={baseUrl}
+                    onChange={handleBaseUrlChange}
+                    extraText={
+                      selectedPreset
+                        ? t('填写后会自动拼接预设端点')
+                        : t('可选：用于自动生成端点或 Discovery URL')
+                    }
+                  />
+                </Col>
+                <Col span={6}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      height: '100%',
+                    }}
                   >
-                    {t('获取 Discovery 配置')}
-                  </Button>
-                </div>
-              </Col>
+                    <Button
+                      icon={<IconRefresh />}
+                      onClick={handleFetchFromDiscovery}
+                      loading={discoveryLoading}
+                      block
+                    >
+                      {t('获取 Discovery 配置')}
+                    </Button>
+                  </div>
+                </Col>
               </Row>
             )}
             {!isJWTDirect && (
               <Row gutter={16}>
-              <Col span={24}>
-                <Form.Input
-                  field="well_known"
-                  label={t('发现文档地址（Discovery URL，可选）')}
-                  placeholder={t('例如：https://example.com/.well-known/openid-configuration')}
-                  extraText={t('可留空；留空时会尝试使用 Issuer URL + /.well-known/openid-configuration')}
-                />
-              </Col>
+                <Col span={24}>
+                  <Form.Input
+                    field='well_known'
+                    label={t('发现文档地址（Discovery URL，可选）')}
+                    placeholder={t(
+                      '例如：https://example.com/.well-known/openid-configuration',
+                    )}
+                    extraText={t(
+                      '可留空；留空时会尝试使用 Issuer URL + /.well-known/openid-configuration',
+                    )}
+                  />
+                </Col>
               </Row>
             )}
 
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="name"
+                  field='name'
                   label={t('显示名称')}
                   placeholder={t('例如：GitHub Enterprise')}
                   rules={[{ required: true, message: t('请输入显示名称') }]}
@@ -867,8 +968,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="slug"
-                  label="Slug"
+                  field='slug'
+                  label='Slug'
                   placeholder={t('例如：github-enterprise')}
                   extraText={t('URL 标识，只能包含小写字母、数字和连字符')}
                   rules={[{ required: true, message: t('请输入 Slug') }]}
@@ -881,7 +982,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Form.Input
                   field='icon'
                   label={t('图标')}
-                  placeholder={t('例如：github / si:google / https://example.com/logo.png / 🐱')}
+                  placeholder={t(
+                    '例如：github / si:google / https://example.com/logo.png / 🐱',
+                  )}
                   extraText={
                     <span>
                       {t(
@@ -914,10 +1017,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="client_id"
-                  label="Client ID"
+                  field='client_id'
+                  label='Client ID'
                   placeholder={
-                    isJWTDirect ? t('可选：JWT 前端跳转使用的 Client ID') : t('OAuth Client ID')
+                    isJWTDirect
+                      ? isJWTTicketExchange
+                        ? t('可选：仅部分 JWT 登录方式需要 Client ID')
+                        : t('可选：JWT 前端跳转使用的 Client ID')
+                      : t('OAuth Client ID')
                   }
                   rules={
                     isJWTDirect
@@ -928,21 +1035,26 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
               {!isJWTDirect && (
                 <Col span={12}>
-                <Form.Input
-                  field="client_secret"
-                  label="Client Secret"
-                  type="password"
-                  placeholder={
-                    editingProvider
-                      ? t('留空则保持原有密钥')
-                      : t('OAuth Client Secret')
-                  }
-                  rules={
-                    editingProvider
-                      ? []
-                      : [{ required: true, message: t('请输入 Client Secret') }]
-                  }
-                />
+                  <Form.Input
+                    field='client_secret'
+                    label='Client Secret'
+                    type='password'
+                    placeholder={
+                      editingProvider
+                        ? t('留空则保持原有密钥')
+                        : t('OAuth Client Secret')
+                    }
+                    rules={
+                      editingProvider
+                        ? []
+                        : [
+                            {
+                              required: true,
+                              message: t('请输入 Client Secret'),
+                            },
+                          ]
+                    }
+                  />
                 </Col>
               )}
             </Row>
@@ -954,10 +1066,16 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={24}>
                 <Form.Input
-                  field="authorization_endpoint"
-                  label={isJWTDirect ? t('登录入口 URL（可选）') : t('Authorization Endpoint')}
+                  field='authorization_endpoint'
+                  label={
+                    isJWTDirect
+                      ? t('登录入口 URL（可选）')
+                      : t('Authorization Endpoint')
+                  }
                   placeholder={
-                    !isJWTDirect && selectedPreset && OAUTH_PRESETS[selectedPreset]
+                    !isJWTDirect &&
+                    selectedPreset &&
+                    OAUTH_PRESETS[selectedPreset]
                       ? t('填写 Issuer URL 后自动生成：') +
                         OAUTH_PRESETS[selectedPreset].authorization_endpoint
                       : isJWTDirect
@@ -966,13 +1084,20 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   }
                   extraText={
                     isJWTDirect
-                      ? t('浏览器登录可选；若为空，则该提供商仅能通过后端 JWT 登录接口使用')
+                      ? t(
+                          '浏览器登录可选；若为空，则该提供商仅能通过后端 JWT 登录接口使用',
+                        )
                       : ''
                   }
                   rules={
                     isJWTDirect
                       ? []
-                      : [{ required: true, message: t('请输入 Authorization Endpoint') }]
+                      : [
+                          {
+                            required: true,
+                            message: t('请输入 Authorization Endpoint'),
+                          },
+                        ]
                   }
                 />
               </Col>
@@ -980,58 +1105,69 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
             {!isJWTDirect && (
               <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input
-                  field="token_endpoint"
-                  label={t('Token Endpoint')}
-                  placeholder={
-                    selectedPreset && OAUTH_PRESETS[selectedPreset]
-                      ? t('自动生成：') + OAUTH_PRESETS[selectedPreset].token_endpoint
-                      : 'https://example.com/oauth/token'
-                  }
-                  rules={[{ required: true, message: t('请输入 Token Endpoint') }]}
-                />
-              </Col>
-              <Col span={12}>
-                <Form.Input
-                  field="user_info_endpoint"
-                  label={t('User Info Endpoint')}
-                  placeholder={
-                    selectedPreset && OAUTH_PRESETS[selectedPreset]
-                      ? t('自动生成：') + OAUTH_PRESETS[selectedPreset].user_info_endpoint
-                      : 'https://example.com/api/user'
-                  }
-                  rules={[
-                    { required: true, message: t('请输入 User Info Endpoint') },
-                  ]}
-                />
-              </Col>
+                <Col span={12}>
+                  <Form.Input
+                    field='token_endpoint'
+                    label={t('Token Endpoint')}
+                    placeholder={
+                      selectedPreset && OAUTH_PRESETS[selectedPreset]
+                        ? t('自动生成：') +
+                          OAUTH_PRESETS[selectedPreset].token_endpoint
+                        : 'https://example.com/oauth/token'
+                    }
+                    rules={[
+                      { required: true, message: t('请输入 Token Endpoint') },
+                    ]}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Form.Input
+                    field='user_info_endpoint'
+                    label={t('User Info Endpoint')}
+                    placeholder={
+                      selectedPreset && OAUTH_PRESETS[selectedPreset]
+                        ? t('自动生成：') +
+                          OAUTH_PRESETS[selectedPreset].user_info_endpoint
+                        : 'https://example.com/api/user'
+                    }
+                    rules={[
+                      {
+                        required: true,
+                        message: t('请输入 User Info Endpoint'),
+                      },
+                    ]}
+                  />
+                </Col>
               </Row>
             )}
 
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="scopes"
+                  field='scopes'
                   label={t('Scopes（可选）')}
-                  placeholder="openid profile email"
+                  placeholder='openid profile email'
                   extraText={
                     !isJWTDirect && discoveryInfo?.scopesSupported?.length
                       ? t('Discovery 建议 scopes：') +
                         discoveryInfo.scopesSupported.join(', ')
                       : isJWTDirect
-                        ? t('JWT Direct 浏览器跳转默认使用 openid profile email')
+                        ? t(
+                            'JWT Direct 浏览器跳转默认使用 openid profile email',
+                          )
                         : t('可手动填写，多个 scope 用空格分隔')
                   }
                 />
               </Col>
-              {isJWTDirect && (
+              {isJWTDirect && !isJWTTicketExchange && (
                 <Col span={12}>
                   <Form.Select
                     field='jwt_source'
                     label={t('JWT 回传位置')}
                     optionList={JWT_SOURCE_OPTIONS}
-                    extraText={t('query / fragment 支持浏览器登录；body 仅供后端接口直连')}
+                    extraText={t(
+                      'query / fragment 支持浏览器登录；body 仅供后端接口直连',
+                    )}
                   />
                 </Col>
               )}
@@ -1041,8 +1177,52 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <>
                 <Row gutter={16}>
                   <Col span={12}>
+                    <Form.Select
+                      field='jwt_acquire_mode'
+                      label={t('JWT 获取模式')}
+                      optionList={JWT_ACQUIRE_MODE_OPTIONS}
+                      onChange={(value) => {
+                        mergeFormValues({
+                          jwt_acquire_mode: value,
+                          authorization_service_field:
+                            formValues.authorization_service_field || 'service',
+                          ticket_exchange_method:
+                            formValues.ticket_exchange_method || 'GET',
+                          ticket_exchange_payload_mode:
+                            formValues.ticket_exchange_payload_mode || 'query',
+                          ticket_exchange_ticket_field:
+                            formValues.ticket_exchange_ticket_field || 'ticket',
+                        });
+                      }}
+                      extraText={
+                        isJWTTicketExchange
+                          ? t(
+                              '当前模式下，浏览器回调接收 ticket，后端再调用票据交换接口换取 JWT',
+                            )
+                          : t(
+                              '当前模式下，浏览器回调页直接接收 JWT 并提交给后端验签',
+                            )
+                      }
+                    />
+                  </Col>
+                  {isJWTTicketExchange && (
+                    <Col span={12}>
+                      <Form.Input
+                        field='authorization_service_field'
+                        label={t('授权入口回调参数名')}
+                        placeholder='service'
+                        extraText={t(
+                          '浏览器跳转到认证入口时，回调地址会写入该参数，默认 service',
+                        )}
+                      />
+                    </Col>
+                  )}
+                </Row>
+
+                <Row gutter={16}>
+                  <Col span={12}>
                     <Form.Input
-                      field="issuer"
+                      field='issuer'
                       label={t('Issuer')}
                       placeholder='https://issuer.example.com'
                       rules={[{ required: true, message: t('请输入 Issuer') }]}
@@ -1050,7 +1230,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   </Col>
                   <Col span={12}>
                     <Form.Input
-                      field="audience"
+                      field='audience'
                       label={t('Audience（可选）')}
                       placeholder='new-api'
                     />
@@ -1060,33 +1240,160 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Input
-                      field="jwks_url"
+                      field='jwks_url'
                       label={t('JWKS URL（可选）')}
                       placeholder='https://issuer.example.com/.well-known/jwks.json'
                     />
                   </Col>
                   <Col span={12}>
                     <Form.Input
-                      field="jwt_header"
+                      field='jwt_header'
                       label={t('JWT Header（预留）')}
                       placeholder='Authorization'
-                      extraText={t('当前阶段主要用于后续 Header/CAS 扩展，浏览器登录暂不读取该字段')}
+                      extraText={t(
+                        '当前阶段主要用于后续 Header/CAS 扩展，浏览器登录暂不读取该字段',
+                      )}
                     />
                   </Col>
                 </Row>
+
+                {isJWTTicketExchange && (
+                  <>
+                    <Text
+                      strong
+                      style={{ display: 'block', margin: '16px 0 8px' }}
+                    >
+                      {t('Ticket 交换配置')}
+                    </Text>
+                    <Text
+                      type='secondary'
+                      style={{ display: 'block', marginBottom: 8 }}
+                    >
+                      {t(
+                        '配置后端如何把浏览器回调得到的 ticket 换成 JWT。支持 query、form、json、multipart 四种请求方式，以及可选额外参数与请求头',
+                      )}
+                    </Text>
+
+                    <Row gutter={16}>
+                      <Col span={24}>
+                        <Form.Input
+                          field='ticket_exchange_url'
+                          label={t('Ticket Exchange URL')}
+                          placeholder='https://example.com/api/auth/exchange'
+                          extraText={t(
+                            '后端将向该地址发起换票请求，要求返回 JWT 或包含 JWT 的 JSON',
+                          )}
+                        />
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col span={8}>
+                        <Form.Select
+                          field='ticket_exchange_method'
+                          label={t('交换请求方法')}
+                          optionList={TICKET_EXCHANGE_METHOD_OPTIONS}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        <Form.Select
+                          field='ticket_exchange_payload_mode'
+                          label={t('交换参数位置')}
+                          optionList={TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS}
+                        />
+                      </Col>
+                      <Col span={8}>
+                        <Form.Input
+                          field='ticket_exchange_ticket_field'
+                          label={t('票据字段名')}
+                          placeholder='ticket'
+                          extraText={t('例如 ticket、st')}
+                        />
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Input
+                          field='ticket_exchange_token_field'
+                          label={t('响应中 JWT 字段路径（可选）')}
+                          placeholder='data.token'
+                          extraText={t(
+                            '支持 gjson 路径；留空时会自动尝试 token、access_token、data.token 等常见字段',
+                          )}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.Input
+                          field='ticket_exchange_service_field'
+                          label={t('交换接口回调地址字段名（可选）')}
+                          placeholder='service'
+                          extraText={t(
+                            '如果交换接口也需要回调地址，可填写字段名，后端会自动注入当前回调 URL',
+                          )}
+                        />
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.TextArea
+                          field='ticket_exchange_extra_params'
+                          value={formValues.ticket_exchange_extra_params || ''}
+                          onChange={(value) =>
+                            mergeFormValues({
+                              ticket_exchange_extra_params: value,
+                            })
+                          }
+                          label={t('额外参数 JSON（可选）')}
+                          rows={4}
+                          placeholder={`{
+  "appId": "new-api",
+  "channel": "web"
+}`}
+                          extraText={t(
+                            '仅支持 JSON 对象。值中可使用占位符：{ticket} {callback_url} {provider_slug} {state}',
+                          )}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.TextArea
+                          field='ticket_exchange_headers'
+                          value={formValues.ticket_exchange_headers || ''}
+                          onChange={(value) =>
+                            mergeFormValues({ ticket_exchange_headers: value })
+                          }
+                          label={t('请求头 JSON（可选）')}
+                          rows={4}
+                          placeholder={`{
+  "X-Provider": "{provider_slug}",
+  "X-State": "{state}"
+}`}
+                          extraText={t(
+                            '仅支持 JSON 对象。值中同样支持占位符：{ticket} {callback_url} {provider_slug} {state}',
+                          )}
+                        />
+                      </Col>
+                    </Row>
+                  </>
+                )}
 
                 <Row gutter={16}>
                   <Col span={24}>
                     <Form.TextArea
                       field='public_key'
                       value={formValues.public_key || ''}
-                      onChange={(value) => mergeFormValues({ public_key: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ public_key: value })
+                      }
                       label={t('Public Key PEM（可选）')}
                       rows={6}
                       placeholder={`-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
 -----END PUBLIC KEY-----`}
-                      extraText={t('JWKS URL 与 Public Key 至少配置一项；都配置时优先使用 Public Key')}
+                      extraText={t(
+                        'JWKS URL 与 Public Key 至少配置一项；都配置时优先使用 Public Key',
+                      )}
                       showClear
                     />
                   </Col>
@@ -1097,16 +1404,21 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
             <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
               {t('字段映射')}
             </Text>
-            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+            <Text
+              type='secondary'
+              style={{ display: 'block', marginBottom: 8 }}
+            >
               {isJWTDirect
                 ? t('配置如何从 JWT claims 中提取用户数据，支持 gjson 路径语法')
-                : t('配置如何从用户信息 API 响应中提取用户数据，支持 JSONPath 语法')}
+                : t(
+                    '配置如何从用户信息 API 响应中提取用户数据，支持 JSONPath 语法',
+                  )}
             </Text>
 
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="user_id_field"
+                  field='user_id_field'
                   label={t('用户 ID 字段（可选）')}
                   placeholder={t('例如：sub、id、data.user.id')}
                   extraText={t('用于唯一标识用户的字段路径')}
@@ -1114,7 +1426,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="username_field"
+                  field='username_field'
                   label={t('用户名字段（可选）')}
                   placeholder={t('例如：preferred_username、login')}
                 />
@@ -1124,14 +1436,14 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="display_name_field"
+                  field='display_name_field'
                   label={t('显示名称字段（可选）')}
                   placeholder={t('例如：name、full_name')}
                 />
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="email_field"
+                  field='email_field'
                   label={t('邮箱字段（可选）')}
                   placeholder={t('例如：email')}
                 />
@@ -1143,20 +1455,25 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                 <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
                   {t('权限映射')}
                 </Text>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                  {t('group 只会命中系统现有分组；role 仅允许同步到 common 或 admin；guest 和 root 会被拒绝')}
+                <Text
+                  type='secondary'
+                  style={{ display: 'block', marginBottom: 8 }}
+                >
+                  {t(
+                    'group 只会命中系统现有分组；role 仅允许同步到 common 或 admin；guest 和 root 会被拒绝',
+                  )}
                 </Text>
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Input
-                      field="group_field"
+                      field='group_field'
                       label={t('分组字段（可选）')}
                       placeholder={t('例如：groups、realm_access.roles')}
                     />
                   </Col>
                   <Col span={12}>
                     <Form.Input
-                      field="role_field"
+                      field='role_field'
                       label={t('角色字段（可选）')}
                       placeholder={t('例如：roles、permissions')}
                     />
@@ -1168,7 +1485,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                       field='group_mapping_mode'
                       label={t('分组映射模式')}
                       optionList={JWT_MAPPING_MODE_OPTIONS}
-                      extraText={t('默认仅允许命中显式映射；切到 mapping first 后才会接受现有分组直通')}
+                      extraText={t(
+                        '默认仅允许命中显式映射；切到 mapping first 后才会接受现有分组直通',
+                      )}
                     />
                   </Col>
                   <Col span={12}>
@@ -1176,7 +1495,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                       field='role_mapping_mode'
                       label={t('角色映射模式')}
                       optionList={JWT_MAPPING_MODE_OPTIONS}
-                      extraText={t('默认仅允许命中显式映射；切到 mapping first 后才会接受 common/admin 直通')}
+                      extraText={t(
+                        '默认仅允许命中显式映射；切到 mapping first 后才会接受 common/admin 直通',
+                      )}
                     />
                   </Col>
                 </Row>
@@ -1185,7 +1506,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                     <Form.TextArea
                       field='group_mapping'
                       value={formValues.group_mapping || ''}
-                      onChange={(value) => mergeFormValues({ group_mapping: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ group_mapping: value })
+                      }
                       label={t('分组映射 JSON（可选）')}
                       rows={4}
                       placeholder={`{
@@ -1198,7 +1521,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                     <Form.TextArea
                       field='role_mapping'
                       value={formValues.role_mapping || ''}
-                      onChange={(value) => mergeFormValues({ role_mapping: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ role_mapping: value })
+                      }
                       label={t('角色映射 JSON（可选）')}
                       rows={4}
                       placeholder={`{
@@ -1253,7 +1578,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                   <Row gutter={16}>
                     <Col span={12}>
                       <Form.Select
-                        field="auth_style"
+                        field='auth_style'
                         label={t('认证方式')}
                         optionList={[
                           { value: 0, label: t('自动检测') },
@@ -1268,15 +1593,22 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                 <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
                   {t('准入策略')}
                 </Text>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                  {t('可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示')}
+                <Text
+                  type='secondary'
+                  style={{ display: 'block', marginBottom: 8 }}
+                >
+                  {t(
+                    '可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示',
+                  )}
                 </Text>
                 <Row gutter={16}>
                   <Col span={24}>
                     <Form.TextArea
                       field='access_policy'
                       value={formValues.access_policy || ''}
-                      onChange={(value) => mergeFormValues({ access_policy: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ access_policy: value })
+                      }
                       label={t('准入策略 JSON（可选）')}
                       rows={6}
                       placeholder={`{
@@ -1288,16 +1620,30 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
 }`}
                       extraText={
                         isJWTDirect
-                          ? t('支持基于 JWT claims 做 and/or 组合准入；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists')
-                          : t('支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists')
+                          ? t(
+                              '支持基于 JWT claims 做 and/or 组合准入；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists',
+                            )
+                          : t(
+                              '支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists',
+                            )
                       }
                       showClear
                     />
                     <Space spacing={8} style={{ marginTop: 8 }}>
-                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('level_active')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() =>
+                          applyAccessPolicyTemplate('level_active')
+                        }
+                      >
                         {t('填充模板：等级+激活')}
                       </Button>
-                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('org_or_role')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyAccessPolicyTemplate('org_or_role')}
+                      >
                         {t('填充模板：组织或角色')}
                       </Button>
                     </Space>
@@ -1308,17 +1654,31 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                     <Form.Input
                       field='access_denied_message'
                       value={formValues.access_denied_message || ''}
-                      onChange={(value) => mergeFormValues({ access_denied_message: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ access_denied_message: value })
+                      }
                       label={t('拒绝提示模板（可选）')}
-                      placeholder={t('例如：需要等级 {{required}}，你当前等级 {{current}}')}
-                      extraText={t('可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}')}
+                      placeholder={t(
+                        '例如：需要等级 {{required}}，你当前等级 {{current}}',
+                      )}
+                      extraText={t(
+                        '可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}',
+                      )}
                       showClear
                     />
                     <Space spacing={8} style={{ marginTop: 8 }}>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('level_hint')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyDeniedTemplate('level_hint')}
+                      >
                         {t('填充模板：等级提示')}
                       </Button>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('org_hint')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyDeniedTemplate('org_hint')}
+                      >
                         {t('填充模板：组织提示')}
                       </Button>
                     </Space>
