@@ -35,17 +35,65 @@ const OAuth2Callback = (props) => {
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
-  
+
   // 防止 React 18 Strict Mode 下重复执行
   const hasExecuted = useRef(false);
 
   // 最大重试次数
   const MAX_RETRIES = 3;
 
+  const getHashParams = () => {
+    const hash = window.location.hash.startsWith('#')
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    return new URLSearchParams(hash);
+  };
+
+  const getStoredCustomProvider = () => {
+    try {
+      const statusStr = localStorage.getItem('status');
+      if (!statusStr) return null;
+      const status = JSON.parse(statusStr);
+      return (status.custom_oauth_providers || []).find(
+        (provider) => provider.slug === props.type,
+      );
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const pickFirstParamValue = (query, hash, keys) => {
+    for (const key of keys) {
+      const queryValue = query.get(key);
+      if (queryValue) return queryValue;
+      const hashValue = hash.get(key);
+      if (hashValue) return hashValue;
+    }
+    return '';
+  };
+
+  const handleCallbackSuccess = (data) => {
+    if (data?.action === 'bind') {
+      showSuccess(t('绑定成功！'));
+      navigate('/console/personal');
+      return;
+    }
+
+    userDispatch({ type: 'login', payload: data });
+    localStorage.setItem('user', JSON.stringify(data));
+    setUserData(data);
+    updateAPI();
+    showSuccess(t('登录成功！'));
+    navigate('/console/token');
+  };
+
   const sendCode = async (code, state, retry = 0) => {
     try {
       const { data: resData } = await API.get(
         `/api/oauth/${props.type}?code=${code}&state=${state}`,
+        {
+          skipErrorHandler: true,
+        },
       );
 
       const { success, message, data } = resData;
@@ -56,17 +104,7 @@ const OAuth2Callback = (props) => {
         return;
       }
 
-      if (data?.action === 'bind') {
-        showSuccess(t('绑定成功！'));
-        navigate('/console/personal');
-      } else {
-        userDispatch({ type: 'login', payload: data });
-        localStorage.setItem('user', JSON.stringify(data));
-        setUserData(data);
-        updateAPI();
-        showSuccess(t('登录成功！'));
-        navigate('/console/token');
-      }
+      handleCallbackSuccess(data);
     } catch (error) {
       // 网络错误等可重试
       if (retry < MAX_RETRIES) {
@@ -81,12 +119,75 @@ const OAuth2Callback = (props) => {
     }
   };
 
+  const submitJWTToken = async (token, state, retry = 0) => {
+    try {
+      const { data: resData } = await API.post(
+        `/api/auth/external/${props.type}/jwt/login`,
+        {
+          state,
+          id_token: token,
+        },
+        {
+          skipErrorHandler: true,
+        },
+      );
+
+      const { success, message, data } = resData;
+      if (!success) {
+        showError(message || t('授权失败'));
+        return;
+      }
+
+      handleCallbackSuccess(data);
+    } catch (error) {
+      if (retry < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
+        return submitJWTToken(token, state, retry + 1);
+      }
+
+      showError(error.message || t('授权失败'));
+      navigate('/console/personal');
+    }
+  };
+
   useEffect(() => {
     // 防止 React 18 Strict Mode 下重复执行
     if (hasExecuted.current) {
       return;
     }
     hasExecuted.current = true;
+
+    const hashParams = getHashParams();
+    const customProvider = getStoredCustomProvider();
+    const providerKind = customProvider?.kind || 'oauth_code';
+    const errorDescription =
+      pickFirstParamValue(searchParams, hashParams, ['error_description']) ||
+      pickFirstParamValue(searchParams, hashParams, ['error']);
+
+    if (errorDescription) {
+      showError(errorDescription);
+      navigate('/console/personal');
+      return;
+    }
+
+    if (providerKind === 'jwt_direct') {
+      const jwtToken = pickFirstParamValue(searchParams, hashParams, [
+        'id_token',
+        'token',
+        'jwt',
+        'access_token',
+      ]);
+      const state = pickFirstParamValue(searchParams, hashParams, ['state']);
+
+      if (!jwtToken) {
+        showError(t('未获取到 JWT 令牌'));
+        navigate('/console/personal');
+        return;
+      }
+
+      submitJWTToken(jwtToken, state);
+      return;
+    }
 
     const code = searchParams.get('code');
     const state = searchParams.get('state');

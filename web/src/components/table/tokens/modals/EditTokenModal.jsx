@@ -102,7 +102,7 @@ const EditTokenModal = (props) => {
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
-      let localModelOptions = data.map((model) => {
+      let localModelOptions = (Array.isArray(data) ? data : []).map((model) => {
         let icon = null;
         for (const [key, category] of Object.entries(categories)) {
           if (key !== 'all' && category.filter({ model_name: model })) {
@@ -130,10 +130,10 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/user/self/groups`);
     const { success, message, data } = res.data;
     if (success) {
-      let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
+      let localGroupOptions = Object.entries(data || {}).map(([group, info]) => ({
+        label: info?.desc || group,
         value: group,
-        ratio: info.ratio,
+        ratio: info?.ratio ?? 1,
       }));
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {

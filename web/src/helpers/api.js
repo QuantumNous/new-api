@@ -49,6 +49,63 @@ function redirectToOAuthUrl(url, options = {}) {
   window.location.assign(targetUrl);
 }
 
+function getCustomProviderKind(provider) {
+  return provider?.kind || 'oauth_code';
+}
+
+function supportsCustomProviderBrowserLogin(provider) {
+  if (provider?.browser_login_supported !== undefined) {
+    return Boolean(provider.browser_login_supported);
+  }
+  const providerKind = getCustomProviderKind(provider);
+  if (providerKind === 'jwt_direct') {
+    return Boolean(
+      provider?.authorization_endpoint &&
+        provider?.client_id &&
+        provider?.jwt_source !== 'body',
+    );
+  }
+  return Boolean(provider?.authorization_endpoint && provider?.client_id);
+}
+
+function ensureAbsoluteOAuthURL(url) {
+  if (typeof url !== 'string' || url.trim() === '') {
+    throw new Error('缺少授权端点 URL');
+  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    throw new Error('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）');
+  }
+  return new URL(url);
+}
+
+function buildCustomJWTAuthorizationUrl(provider, state) {
+  const authUrl = ensureAbsoluteOAuthURL(provider.authorization_endpoint);
+  const jwtSource = provider.jwt_source || 'query';
+
+  if (jwtSource === 'body') {
+    throw new Error('当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment');
+  }
+  if (!provider.client_id) {
+    throw new Error('JWT 登录缺少 Client ID 配置');
+  }
+
+  authUrl.searchParams.set('client_id', provider.client_id);
+  authUrl.searchParams.set(
+    'redirect_uri',
+    `${window.location.origin}/oauth/${provider.slug}`,
+  );
+  authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('nonce', state);
+  authUrl.searchParams.set('response_type', 'id_token');
+  authUrl.searchParams.set(
+    'response_mode',
+    jwtSource === 'fragment' ? 'fragment' : 'query',
+  );
+
+  return authUrl;
+}
+
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -193,7 +250,8 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map((model) => ({
+  const normalizedModels = Array.isArray(data) ? data : [];
+  const modelOptions = normalizedModels.map((model) => ({
     label: model,
     value: model,
   }));
@@ -211,13 +269,20 @@ export const processModelsData = (data, currentModel) => {
 
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
-    value: group,
-    ratio: info.ratio,
-    fullLabel: info.desc,
-  }));
+  const normalizedGroups =
+    data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  let groupOptions = Object.entries(normalizedGroups).map(([group, info]) => {
+    const description = info?.desc || group;
+    return {
+      label:
+        description.length > 20
+          ? description.substring(0, 20) + '...'
+          : description,
+      value: group,
+      ratio: info?.ratio ?? 1,
+      fullLabel: description,
+    };
+  });
 
   if (groupOptions.length === 0) {
     groupOptions = [
@@ -326,39 +391,34 @@ export async function onLinuxDOOAuthClicked(
  * @param {boolean} options.shouldLogout - Whether to logout first
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
+  if (!supportsCustomProviderBrowserLogin(provider)) {
+    showError('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定');
+    return;
+  }
+
   const state = await prepareOAuthState(options);
   if (!state) return;
 
   try {
-    const redirect_uri = `${window.location.origin}/oauth/${provider.slug}`;
+    const providerKind = getCustomProviderKind(provider);
+    const authUrl =
+      providerKind === 'jwt_direct'
+        ? buildCustomJWTAuthorizationUrl(provider, state)
+        : ensureAbsoluteOAuthURL(provider.authorization_endpoint);
 
-    // Check if authorization_endpoint is a full URL or relative path
-    let authUrl;
-    if (
-      provider.authorization_endpoint.startsWith('http://') ||
-      provider.authorization_endpoint.startsWith('https://')
-    ) {
-      authUrl = new URL(provider.authorization_endpoint);
-    } else {
-      // Relative path - this is a configuration error, show error message
-      console.error(
-        'Custom OAuth authorization_endpoint must be a full URL:',
-        provider.authorization_endpoint,
+    if (providerKind !== 'jwt_direct') {
+      authUrl.searchParams.set('client_id', provider.client_id);
+      authUrl.searchParams.set(
+        'redirect_uri',
+        `${window.location.origin}/oauth/${provider.slug}`,
       );
-      showError(
-        'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set(
+        'scope',
+        provider.scopes || 'openid profile email',
       );
-      return;
+      authUrl.searchParams.set('state', state);
     }
-
-    authUrl.searchParams.set('client_id', provider.client_id);
-    authUrl.searchParams.set('redirect_uri', redirect_uri);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set(
-      'scope',
-      provider.scopes || 'openid profile email',
-    );
-    authUrl.searchParams.set('state', state);
 
     redirectToOAuthUrl(authUrl);
   } catch (error) {
