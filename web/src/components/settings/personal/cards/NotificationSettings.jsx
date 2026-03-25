@@ -228,14 +228,17 @@ const NotificationSettings = ({
         warningTypeWrapper.tagName.toLowerCase() !== 'textarea'
       ) {
         warningTypeWrapper.id = 'warningType-wrapper';
-        const firstRadio = warningTypeWrapper.querySelector('input[type="radio"]');
+        const firstRadio = warningTypeWrapper.querySelector(
+          'input[type="radio"]',
+        );
         if (firstRadio) {
           firstRadio.id = 'warningType';
           firstRadio.name = firstRadio.name || 'warningType';
         }
       }
 
-      const warningThresholdWrapper = document.getElementById('warningThreshold');
+      const warningThresholdWrapper =
+        document.getElementById('warningThreshold');
       if (
         warningThresholdWrapper &&
         warningThresholdWrapper.tagName.toLowerCase() !== 'input'
@@ -475,10 +478,10 @@ const NotificationSettings = ({
                   onChange={(value) => handleFormChange('warningType', value)}
                   rules={[{ required: true, message: t('请选择通知方式') }]}
                 >
-                  <Radio value='email' name='components-settings-personal-cards-notificationsettings-radio-1'>{t('邮件通知')}</Radio>
-                  <Radio value='webhook' name='components-settings-personal-cards-notificationsettings-radio-2'>{t('Webhook通知')}</Radio>
-                  <Radio value='bark' name='components-settings-personal-cards-notificationsettings-radio-3'>{t('Bark通知')}</Radio>
-                  <Radio value='gotify' name='components-settings-personal-cards-notificationsettings-radio-4'>{t('Gotify通知')}</Radio>
+                  <Radio value='email'>{t('邮件通知')}</Radio>
+                  <Radio value='webhook'>{t('Webhook通知')}</Radio>
+                  <Radio value='bark'>{t('Bark通知')}</Radio>
+                  <Radio value='gotify'>{t('Gotify通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -528,7 +531,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
