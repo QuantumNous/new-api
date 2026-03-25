@@ -367,11 +367,16 @@ const EditTokenModal = (props) => {
                       <Form.Select
                         field='group'
                         label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
+                        placeholder={t('请选择令牌分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
-                        showClear
                         style={{ width: '100%' }}
+                        rules={[
+                          {
+                            required: true,
+                            message: t('请选择令牌分组'),
+                          },
+                        ]}
                       />
                     ) : (
                       <Form.Select
