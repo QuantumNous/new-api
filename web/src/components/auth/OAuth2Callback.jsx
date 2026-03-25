@@ -119,14 +119,11 @@ const OAuth2Callback = (props) => {
     }
   };
 
-  const submitJWTToken = async (token, state, retry = 0) => {
+  const submitJWTLogin = async (payload, retry = 0) => {
     try {
       const { data: resData } = await API.post(
         `/api/auth/external/${props.type}/jwt/login`,
-        {
-          state,
-          id_token: token,
-        },
+        payload,
         {
           skipErrorHandler: true,
         },
@@ -142,7 +139,7 @@ const OAuth2Callback = (props) => {
     } catch (error) {
       if (retry < MAX_RETRIES) {
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return submitJWTToken(token, state, retry + 1);
+        return submitJWTLogin(payload, retry + 1);
       }
 
       showError(error.message || t('授权失败'));
@@ -171,21 +168,37 @@ const OAuth2Callback = (props) => {
     }
 
     if (providerKind === 'jwt_direct') {
+      const jwtAcquireMode = customProvider?.jwt_acquire_mode || 'direct_token';
+      const state = pickFirstParamValue(searchParams, hashParams, ['state']);
+
+      if (jwtAcquireMode === 'ticket_exchange') {
+        const ticket = pickFirstParamValue(searchParams, hashParams, [
+          'ticket',
+          'st',
+        ]);
+        if (!ticket) {
+          showError(t('未获取到登录票据'));
+          navigate('/console/personal');
+          return;
+        }
+
+        submitJWTLogin({ state, ticket });
+        return;
+      }
+
       const jwtToken = pickFirstParamValue(searchParams, hashParams, [
         'id_token',
         'token',
         'jwt',
         'access_token',
       ]);
-      const state = pickFirstParamValue(searchParams, hashParams, ['state']);
-
       if (!jwtToken) {
         showError(t('未获取到 JWT 令牌'));
         navigate('/console/personal');
         return;
       }
 
-      submitJWTToken(jwtToken, state);
+      submitJWTLogin({ state, id_token: jwtToken });
       return;
     }
 

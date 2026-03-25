@@ -3,12 +3,14 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +20,7 @@ type customOAuthJWTLoginRequest struct {
 	Token   string `json:"token" form:"token"`
 	IDToken string `json:"id_token" form:"id_token"`
 	JWT     string `json:"jwt" form:"jwt"`
+	Ticket  string `json:"ticket" form:"ticket"`
 }
 
 type customOAuthJWTLoginResult struct {
@@ -71,7 +74,15 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		return
 	}
 
-	result, audit, err := completeCustomOAuthJWTLogin(c, providerConfig, provider, session, firstNonEmpty(req.Token, req.IDToken, req.JWT), audit)
+	result, audit, err := completeCustomOAuthJWTLogin(
+		c,
+		providerConfig,
+		provider,
+		session,
+		firstNonEmpty(req.Token, req.IDToken, req.JWT),
+		req.Ticket,
+		audit,
+	)
 	if err != nil {
 		if audit != nil && audit.FailureReason == "" {
 			audit.FailureReason = err.Error()
@@ -125,16 +136,38 @@ func loadCustomJWTDirectProvider(c *gin.Context) (*model.CustomOAuthProvider, *o
 	return providerConfig, oauth.NewJWTDirectProvider(providerConfig)
 }
 
-func completeCustomOAuthJWTLogin(c *gin.Context, providerConfig *model.CustomOAuthProvider, provider *oauth.JWTDirectProvider, session sessions.Session, rawToken string, audit *customOAuthJWTAuditInfo) (*customOAuthJWTLoginResult, *customOAuthJWTAuditInfo, error) {
+func completeCustomOAuthJWTLogin(
+	c *gin.Context,
+	providerConfig *model.CustomOAuthProvider,
+	provider *oauth.JWTDirectProvider,
+	session sessions.Session,
+	rawToken string,
+	ticket string,
+	audit *customOAuthJWTAuditInfo,
+) (*customOAuthJWTLoginResult, *customOAuthJWTAuditInfo, error) {
 	rawToken = strings.TrimSpace(rawToken)
-	if rawToken == "" {
+	ticket = strings.TrimSpace(ticket)
+	if providerConfig.GetJWTAcquireMode() == model.CustomJWTAcquireModeTicketExchange {
+		if ticket == "" {
+			if audit != nil {
+				audit.FailureReason = "missing_exchange_ticket"
+			}
+			return nil, audit, fmt.Errorf("未提供票据")
+		}
+	} else if rawToken == "" {
 		if audit != nil {
 			audit.FailureReason = "missing_jwt_token"
 		}
 		return nil, audit, fmt.Errorf("未提供 JWT 令牌")
 	}
 
-	identity, err := provider.ResolveIdentity(c.Request.Context(), rawToken)
+	identity, err := provider.ResolveIdentityFromInput(
+		c.Request.Context(),
+		rawToken,
+		ticket,
+		buildCustomOAuthJWTCallbackURL(c, providerConfig.Slug, session.Get("oauth_state").(string)),
+		session.Get("oauth_state").(string),
+	)
 	if err != nil {
 		return nil, audit, err
 	}
@@ -202,6 +235,57 @@ func completeCustomOAuthJWTLogin(c *gin.Context, providerConfig *model.CustomOAu
 		audit.EmailMergeTriggered = result.EmailMergeTriggered
 	}
 	return result, audit, nil
+}
+
+func buildCustomOAuthJWTCallbackURL(c *gin.Context, providerSlug string, state string) string {
+	baseURL := strings.TrimSpace(system_setting.ServerAddress)
+	var callbackURL *url.URL
+	if baseURL != "" {
+		parsedBaseURL, err := url.Parse(baseURL)
+		if err == nil && parsedBaseURL != nil && strings.TrimSpace(parsedBaseURL.Host) != "" &&
+			(parsedBaseURL.Scheme == "http" || parsedBaseURL.Scheme == "https") {
+			callbackURL, _ = url.Parse(strings.TrimRight(baseURL, "/") + "/oauth/" + providerSlug)
+		}
+	}
+	if callbackURL == nil {
+		scheme := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
+		if scheme != "" {
+			scheme = strings.TrimSpace(strings.Split(scheme, ",")[0])
+		}
+		if scheme == "" {
+			if c.Request.TLS != nil {
+				scheme = "https"
+			} else {
+				scheme = "http"
+			}
+		}
+
+		host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
+		if host != "" {
+			host = strings.TrimSpace(strings.Split(host, ",")[0])
+		}
+		if host == "" {
+			host = strings.TrimSpace(c.Request.Host)
+		}
+		if host == "" {
+			return ""
+		}
+
+		callbackURL = &url.URL{
+			Scheme: scheme,
+			Host:   host,
+			Path:   "/oauth/" + providerSlug,
+		}
+	}
+	if callbackURL == nil {
+		return ""
+	}
+	if strings.TrimSpace(state) != "" {
+		query := callbackURL.Query()
+		query.Set("state", state)
+		callbackURL.RawQuery = query.Encode()
+	}
+	return callbackURL.String()
 }
 
 func handleCustomOAuthJWTLoginError(c *gin.Context, err error) {

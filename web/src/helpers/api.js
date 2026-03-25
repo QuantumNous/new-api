@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -59,6 +58,9 @@ function supportsCustomProviderBrowserLogin(provider) {
   }
   const providerKind = getCustomProviderKind(provider);
   if (providerKind === 'jwt_direct') {
+    if ((provider?.jwt_acquire_mode || 'direct_token') === 'ticket_exchange') {
+      return Boolean(provider?.authorization_endpoint);
+    }
     return Boolean(
       provider?.authorization_endpoint &&
         provider?.client_id &&
@@ -80,20 +82,34 @@ function ensureAbsoluteOAuthURL(url) {
 
 function buildCustomJWTAuthorizationUrl(provider, state) {
   const authUrl = ensureAbsoluteOAuthURL(provider.authorization_endpoint);
+  const acquireMode = provider.jwt_acquire_mode || 'direct_token';
+  const callbackUrl = new URL(
+    `/oauth/${provider.slug}`,
+    window.location.origin,
+  );
+
+  if (acquireMode === 'ticket_exchange') {
+    callbackUrl.searchParams.set('state', state);
+    authUrl.searchParams.set(
+      provider.authorization_service_field || 'service',
+      callbackUrl.toString(),
+    );
+    return authUrl;
+  }
+
   const jwtSource = provider.jwt_source || 'query';
 
   if (jwtSource === 'body') {
-    throw new Error('当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment');
+    throw new Error(
+      '当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment',
+    );
   }
   if (!provider.client_id) {
     throw new Error('JWT 登录缺少 Client ID 配置');
   }
 
   authUrl.searchParams.set('client_id', provider.client_id);
-  authUrl.searchParams.set(
-    'redirect_uri',
-    `${window.location.origin}/oauth/${provider.slug}`,
-  );
+  authUrl.searchParams.set('redirect_uri', callbackUrl.toString());
   authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
   authUrl.searchParams.set('state', state);
   authUrl.searchParams.set('nonce', state);
@@ -105,7 +121,6 @@ function buildCustomJWTAuthorizationUrl(provider, state) {
 
   return authUrl;
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);

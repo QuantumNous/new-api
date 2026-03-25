@@ -18,6 +18,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -104,37 +105,55 @@ func newCustomOAuthJWTRouter(t *testing.T) *gin.Engine {
 }
 
 type jwtDirectProviderTestOptions struct {
-	AutoRegister     bool
-	AutoMergeByEmail bool
-	SyncGroupOnLogin bool
-	SyncRoleOnLogin  bool
+	AutoRegister               bool
+	AutoMergeByEmail           bool
+	SyncGroupOnLogin           bool
+	SyncRoleOnLogin            bool
+	JWTAcquireMode             string
+	TicketExchangeURL          string
+	TicketExchangeMethod       string
+	TicketExchangePayloadMode  string
+	TicketExchangeTicketField  string
+	TicketExchangeTokenField   string
+	TicketExchangeServiceField string
+	TicketExchangeExtraParams  string
+	TicketExchangeHeaders      string
 }
 
 func createJWTDirectProviderForTest(t *testing.T, privateKey *rsa.PrivateKey, options jwtDirectProviderTestOptions) *model.CustomOAuthProvider {
 	t.Helper()
 	provider := &model.CustomOAuthProvider{
-		Name:                  "Acme SSO",
-		Slug:                  "acme-sso",
-		Kind:                  model.CustomOAuthProviderKindJWTDirect,
-		Enabled:               true,
-		AuthorizationEndpoint: "https://issuer.example.com/oauth2/authorize",
-		ClientId:              "new-api-client",
-		Scopes:                "openid profile email",
-		Issuer:                "https://issuer.example.com",
-		Audience:              "new-api",
-		PublicKey:             mustEncodeControllerRSAPublicKeyPEM(t, &privateKey.PublicKey),
-		UserIdField:           "sub",
-		UsernameField:         "preferred_username",
-		DisplayNameField:      "name",
-		EmailField:            "email",
-		GroupField:            "groups",
-		GroupMapping:          `{"engineering":"vip"}`,
-		RoleField:             "roles",
-		RoleMapping:           `{"platform-admin":"admin"}`,
-		AutoRegister:          options.AutoRegister,
-		AutoMergeByEmail:      options.AutoMergeByEmail,
-		SyncGroupOnLogin:      options.SyncGroupOnLogin,
-		SyncRoleOnLogin:       options.SyncRoleOnLogin,
+		Name:                       "Acme SSO",
+		Slug:                       "acme-sso",
+		Kind:                       model.CustomOAuthProviderKindJWTDirect,
+		Enabled:                    true,
+		AuthorizationEndpoint:      "https://issuer.example.com/oauth2/authorize",
+		ClientId:                   "new-api-client",
+		Scopes:                     "openid profile email",
+		Issuer:                     "https://issuer.example.com",
+		Audience:                   "new-api",
+		PublicKey:                  mustEncodeControllerRSAPublicKeyPEM(t, &privateKey.PublicKey),
+		UserIdField:                "sub",
+		UsernameField:              "preferred_username",
+		DisplayNameField:           "name",
+		EmailField:                 "email",
+		GroupField:                 "groups",
+		GroupMapping:               `{"engineering":"vip"}`,
+		RoleField:                  "roles",
+		RoleMapping:                `{"platform-admin":"admin"}`,
+		AutoRegister:               options.AutoRegister,
+		AutoMergeByEmail:           options.AutoMergeByEmail,
+		SyncGroupOnLogin:           options.SyncGroupOnLogin,
+		SyncRoleOnLogin:            options.SyncRoleOnLogin,
+		JWTAcquireMode:             options.JWTAcquireMode,
+		TicketExchangeURL:          options.TicketExchangeURL,
+		TicketExchangeMethod:       options.TicketExchangeMethod,
+		TicketExchangePayloadMode:  options.TicketExchangePayloadMode,
+		TicketExchangeTicketField:  options.TicketExchangeTicketField,
+		TicketExchangeTokenField:   options.TicketExchangeTokenField,
+		TicketExchangeServiceField: options.TicketExchangeServiceField,
+		TicketExchangeExtraParams:  options.TicketExchangeExtraParams,
+		TicketExchangeHeaders:      options.TicketExchangeHeaders,
 	}
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
 		t.Fatalf("failed to create provider: %v", err)
@@ -701,6 +720,94 @@ func TestHandleCustomOAuthJWTLoginDoesNotBindDisabledMergedUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+
+	var callbackURLSeen string
+	var stateSeen string
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-ticket-login",
+		"preferred_username": "ticket-user",
+		"name":               "Ticket User",
+		"email":              "ticket-user@example.com",
+		"groups":             []string{"engineering"},
+		"roles":              []string{"platform-admin"},
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("failed to parse exchange request: %v", err)
+		}
+		if got := r.Form.Get("st"); got != "ST-123" {
+			t.Fatalf("expected ticket field st=ST-123, got %q", got)
+		}
+		callbackURLSeen = r.Form.Get("service")
+		stateSeen = r.Header.Get("X-State")
+		payload, err := common.Marshal(map[string]any{
+			"data": map[string]any{
+				"token": token,
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:               true,
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:          exchangeServer.URL,
+		TicketExchangeMethod:       http.MethodPost,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeForm,
+		TicketExchangeTicketField:  "st",
+		TicketExchangeTokenField:   "data.token",
+		TicketExchangeServiceField: "service",
+		TicketExchangeHeaders:      `{"X-State":"{state}"}`,
+	})
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = server.URL
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	response := postJWTTicketLoginForTest(t, client, server.URL, state, "ST-123")
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	if callbackURLSeen != server.URL+"/oauth/acme-sso?state="+state {
+		t.Fatalf("expected callback url %q, got %q", server.URL+"/oauth/acme-sso?state="+state, callbackURLSeen)
+	}
+	if stateSeen != state {
+		t.Fatalf("expected state header %q, got %q", state, stateSeen)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Username != "ticket-user" || loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
+		t.Fatalf("unexpected login response: %+v", loginData)
+	}
+}
+
 func newTestHTTPClient(t *testing.T) *http.Client {
 	t.Helper()
 	jar, err := cookiejar.New(nil)
@@ -756,6 +863,33 @@ func postJWTLoginForTest(t *testing.T, client *http.Client, baseURL string, stat
 	var response oauthJWTAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		t.Fatalf("failed to decode login response: %v", err)
+	}
+	return response
+}
+
+func postJWTTicketLoginForTest(t *testing.T, client *http.Client, baseURL string, state string, ticket string) oauthJWTAPIResponse {
+	t.Helper()
+	payload, err := common.Marshal(map[string]any{
+		"state":  state,
+		"ticket": ticket,
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal ticket login payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/auth/external/acme-sso/jwt/login", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("failed to build ticket login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to post ticket login: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response oauthJWTAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode ticket login response: %v", err)
 	}
 	return response
 }

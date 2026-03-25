@@ -136,30 +136,42 @@ func GetStatus(c *gin.Context) {
 	}
 	if len(customProviders) > 0 {
 		type CustomOAuthInfo struct {
-			Id                    int    `json:"id"`
-			Name                  string `json:"name"`
-			Slug                  string `json:"slug"`
-			Icon                  string `json:"icon"`
-			Kind                  string `json:"kind"`
-			ClientId              string `json:"client_id"`
-			AuthorizationEndpoint string `json:"authorization_endpoint"`
-			Scopes                string `json:"scopes"`
-			JWTSource             string `json:"jwt_source"`
-			BrowserLoginSupported bool   `json:"browser_login_supported"`
+			Id                        int    `json:"id"`
+			Name                      string `json:"name"`
+			Slug                      string `json:"slug"`
+			Icon                      string `json:"icon"`
+			Kind                      string `json:"kind"`
+			ClientId                  string `json:"client_id"`
+			AuthorizationEndpoint     string `json:"authorization_endpoint"`
+			Scopes                    string `json:"scopes"`
+			JWTSource                 string `json:"jwt_source"`
+			JWTAcquireMode            string `json:"jwt_acquire_mode"`
+			AuthorizationServiceField string `json:"authorization_service_field"`
+			BrowserLoginSupported     bool   `json:"browser_login_supported"`
 		}
 		providersInfo := make([]CustomOAuthInfo, 0, len(customProviders))
 		for _, config := range customProviders {
+			jwtSource := config.JWTSource
+			if strings.TrimSpace(jwtSource) == "" {
+				jwtSource = model.CustomJWTSourceQuery
+			}
+			authorizationServiceField := config.AuthorizationServiceField
+			if strings.TrimSpace(authorizationServiceField) == "" {
+				authorizationServiceField = "service"
+			}
 			providersInfo = append(providersInfo, CustomOAuthInfo{
-				Id:                    config.Id,
-				Name:                  config.Name,
-				Slug:                  config.Slug,
-				Icon:                  config.Icon,
-				Kind:                  config.GetKind(),
-				ClientId:              config.ClientId,
-				AuthorizationEndpoint: config.AuthorizationEndpoint,
-				Scopes:                config.Scopes,
-				JWTSource:             config.JWTSource,
-				BrowserLoginSupported: config.SupportsBrowserLogin(),
+				Id:                        config.Id,
+				Name:                      config.Name,
+				Slug:                      config.Slug,
+				Icon:                      config.Icon,
+				Kind:                      config.GetKind(),
+				ClientId:                  config.ClientId,
+				AuthorizationEndpoint:     config.AuthorizationEndpoint,
+				Scopes:                    config.Scopes,
+				JWTSource:                 jwtSource,
+				JWTAcquireMode:            config.GetJWTAcquireMode(),
+				AuthorizationServiceField: authorizationServiceField,
+				BrowserLoginSupported:     config.SupportsBrowserLogin(),
 			})
 		}
 		data["custom_oauth_providers"] = providersInfo
