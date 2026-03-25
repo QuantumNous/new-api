@@ -246,7 +246,10 @@ test.describe.serial('Setup and login baseline', () => {
     await expect(page.getByText(channelName)).toBeVisible();
 
     const row = page.locator('tr', { hasText: channelName }).first();
-    await row.getByRole('button', { name: /编辑|Edit/ }).click();
+    await row.getByRole('button', { name: 'tree_triangle_down' }).nth(1).click();
+    await page
+      .getByRole('menuitem', { name: /多密钥管理|Multi-key management/ })
+      .click();
     await expect(
       page.getByText(/用户粘性模式|Sticky user mode|用户粘性/),
     ).toBeVisible();
