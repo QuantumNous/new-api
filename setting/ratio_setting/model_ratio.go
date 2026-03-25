@@ -268,6 +268,10 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-ai/DeepSeek-R1":                 0.8,
 	"deepseek-ai/DeepSeek-V3-0324":            0.8,
 	"deepseek-ai/DeepSeek-V3.1":               0.8,
+	"moonshotai/kimi-k2.5":                    0.3,
+	"zai-org/glm-5":                           0.5,
+	"minimax/minimax-m2.5":                    0.15,
+	"qwen/qwen3-embedding-0.6b":               0.007,
 }
 
 var defaultModelPrice = map[string]float64{
@@ -327,10 +331,13 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":        2,
+	"gpt-4o-gizmo-*":       3,
+	"gpt-4-all":            2,
+	"gpt-image-1":          8,
+	"moonshotai/kimi-k2.5": 5,
+	"zai-org/glm-5":        3.2,
+	"minimax/minimax-m2.5": 4,
 }
 
 // InitRatioSettings initializes all model related settings maps
