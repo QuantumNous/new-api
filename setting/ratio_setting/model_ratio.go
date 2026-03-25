@@ -183,6 +183,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
+	"gemini-3.1-flash-image-preview":            0.25,
+	"gemini-3-pro-image-preview":                1.0,
 	"gemini-robotics-er-1.5-preview":            0.15,
 	"gemini-embedding-001":                      0.075,
 	"text-embedding-004":                        0.001,
@@ -322,9 +324,15 @@ var defaultAudioCompletionRatio = map[string]float64{
 	"tts-1-hd-1106":        0,
 }
 
+var defaultImageCompletionRatio = map[string]float64{
+	"gemini-3.1-flash-image-preview": 20,
+	"gemini-3-pro-image-preview":     10,
+}
+
 var modelPriceMap = types.NewRWMap[string, float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
+var imageCompletionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
 	"gpt-4-gizmo-*":  2,
@@ -338,6 +346,7 @@ func InitRatioSettings() {
 	modelPriceMap.AddAll(defaultModelPrice)
 	modelRatioMap.AddAll(defaultModelRatio)
 	completionRatioMap.AddAll(defaultCompletionRatio)
+	imageCompletionRatioMap.AddAll(defaultImageCompletionRatio)
 	cacheRatioMap.AddAll(defaultCacheRatio)
 	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
 	imageRatioMap.AddAll(defaultImageRatio)
@@ -572,9 +581,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		} else if strings.HasPrefix(name, "gemini-robotics-er-1.5") {
 			return 2.5 / 0.3, false
 		} else if strings.HasPrefix(name, "gemini-3-pro") {
-			if strings.HasPrefix(name, "gemini-3-pro-image") {
-				return 60, false
-			}
+			return 6, false
+		} else if strings.HasPrefix(name, "gemini-3.1-flash") {
 			return 6, false
 		}
 		return 4, false
@@ -695,6 +703,28 @@ func GetModelPriceCopy() map[string]float64 {
 
 func GetCompletionRatioCopy() map[string]float64 {
 	return completionRatioMap.ReadAll()
+}
+
+func ImageCompletionRatio2JSONString() string {
+	return imageCompletionRatioMap.MarshalJSONString()
+}
+
+func UpdateImageCompletionRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(imageCompletionRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetImageCompletionRatio(name string) float64 {
+	name = FormatMatchingModelName(name)
+	if ratio, ok := imageCompletionRatioMap.Get(name); ok {
+		return ratio
+	}
+	return 1
+}
+
+func ContainsImageCompletionRatio(name string) bool {
+	name = FormatMatchingModelName(name)
+	_, ok := imageCompletionRatioMap.Get(name)
+	return ok
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型
