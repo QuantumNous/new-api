@@ -1,0 +1,783 @@
+package controller
+
+import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
+)
+
+type oauthJWTAPIResponse struct {
+	Success bool            `json:"success"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data"`
+}
+
+type oauthJWTLoginResponse struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Role     int    `json:"role"`
+	Group    string `json:"group"`
+}
+
+type oauthJWTBindResponse struct {
+	Action string `json:"action"`
+}
+
+func setupCustomOAuthJWTControllerTestDB(t *testing.T) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	common.UsingSQLite = true
+	common.UsingMySQL = false
+	common.UsingPostgreSQL = false
+	common.RedisEnabled = false
+	common.RegisterEnabled = true
+	common.QuotaForNewUser = 0
+	common.QuotaForInvitee = 0
+	common.QuotaForInviter = 0
+
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open sqlite db: %v", err)
+	}
+	model.DB = db
+	model.LOG_DB = db
+	if err := db.AutoMigrate(&model.User{}, &model.Log{}, &model.CustomOAuthProvider{}, &model.UserOAuthBinding{}); err != nil {
+		t.Fatalf("failed to migrate test tables: %v", err)
+	}
+
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+}
+
+func newCustomOAuthJWTRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	router := gin.New()
+	store := cookie.NewStore([]byte("test-session-secret"))
+	router.Use(sessions.Sessions("session", store))
+	router.GET("/api/oauth/state", GenerateOAuthCode)
+	router.POST("/api/auth/external/:provider/jwt/login", HandleCustomOAuthJWTLogin)
+	router.GET("/test/login-as/:id", func(c *gin.Context) {
+		var user model.User
+		if err := model.DB.First(&user, c.Param("id")).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		session := sessions.Default(c)
+		session.Set("id", user.Id)
+		session.Set("username", user.Username)
+		session.Set("role", user.Role)
+		session.Set("status", user.Status)
+		session.Set("group", user.Group)
+		if err := session.Save(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true})
+	})
+	return router
+}
+
+type jwtDirectProviderTestOptions struct {
+	AutoRegister     bool
+	AutoMergeByEmail bool
+	SyncGroupOnLogin bool
+	SyncRoleOnLogin  bool
+}
+
+func createJWTDirectProviderForTest(t *testing.T, privateKey *rsa.PrivateKey, options jwtDirectProviderTestOptions) *model.CustomOAuthProvider {
+	t.Helper()
+	provider := &model.CustomOAuthProvider{
+		Name:                  "Acme SSO",
+		Slug:                  "acme-sso",
+		Kind:                  model.CustomOAuthProviderKindJWTDirect,
+		Enabled:               true,
+		AuthorizationEndpoint: "https://issuer.example.com/oauth2/authorize",
+		ClientId:              "new-api-client",
+		Scopes:                "openid profile email",
+		Issuer:                "https://issuer.example.com",
+		Audience:              "new-api",
+		PublicKey:             mustEncodeControllerRSAPublicKeyPEM(t, &privateKey.PublicKey),
+		UserIdField:           "sub",
+		UsernameField:         "preferred_username",
+		DisplayNameField:      "name",
+		EmailField:            "email",
+		GroupField:            "groups",
+		GroupMapping:          `{"engineering":"vip"}`,
+		RoleField:             "roles",
+		RoleMapping:           `{"platform-admin":"admin"}`,
+		AutoRegister:          options.AutoRegister,
+		AutoMergeByEmail:      options.AutoMergeByEmail,
+		SyncGroupOnLogin:      options.SyncGroupOnLogin,
+		SyncRoleOnLogin:       options.SyncRoleOnLogin,
+	}
+	if err := model.CreateCustomOAuthProvider(provider); err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+	return provider
+}
+
+func createUserForBindTest(t *testing.T, username string) *model.User {
+	t.Helper()
+	password, err := common.Password2Hash("12345678")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := &model.User{
+		Username:    username,
+		Password:    password,
+		DisplayName: username,
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     username + "-aff",
+	}
+	if err := model.DB.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	return user
+}
+
+func createUserWithEmailForTest(t *testing.T, username string, email string) *model.User {
+	t.Helper()
+	password, err := common.Password2Hash("12345678")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := &model.User{
+		Username:    username,
+		Password:    password,
+		DisplayName: username,
+		Email:       email,
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     username + "-aff",
+	}
+	if err := model.DB.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	return user
+}
+
+func getLatestSystemLogForUser(t *testing.T, userID int) *model.Log {
+	t.Helper()
+	var log model.Log
+	if err := model.LOG_DB.Where("user_id = ? AND type = ?", userID, model.LogTypeSystem).Order("created_at desc").First(&log).Error; err != nil {
+		t.Fatalf("failed to load latest system log for user %d: %v", userID, err)
+	}
+	return &log
+}
+
+func TestHandleCustomOAuthJWTLoginCreatesUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-user-1",
+		"preferred_username": "alice",
+		"name":               "Alice",
+		"email":              "alice@example.com",
+		"groups":             []string{"engineering"},
+		"roles":              []string{"platform-admin"},
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Role != common.RoleAdminUser {
+		t.Fatalf("expected admin role, got %d", loginData.Role)
+	}
+	if loginData.Group != "vip" {
+		t.Fatalf("expected mapped group vip, got %s", loginData.Group)
+	}
+
+	var user model.User
+	if err := model.DB.Where("username = ?", "alice").First(&user).Error; err != nil {
+		t.Fatalf("expected created user alice, got error: %v", err)
+	}
+	if user.Role != common.RoleAdminUser || user.Group != "vip" {
+		t.Fatalf("unexpected persisted user role/group: role=%d group=%s", user.Role, user.Group)
+	}
+	if !model.IsProviderUserIdTaken(provider.Id, "ext-user-1") {
+		t.Fatal("expected oauth binding to be created")
+	}
+	log := getLatestSystemLogForUser(t, user.Id)
+	if !strings.Contains(log.Content, "provider_slug=acme-sso") ||
+		!strings.Contains(log.Content, "provider_kind=jwt_direct") ||
+		!strings.Contains(log.Content, "action=login") ||
+		!strings.Contains(log.Content, "external_id=ext-user-1") ||
+		!strings.Contains(log.Content, "auto_register=true") ||
+		!strings.Contains(log.Content, "email_merge=false") ||
+		!strings.Contains(log.Content, "group_result=vip") ||
+		!strings.Contains(log.Content, "role_result=admin") {
+		t.Fatalf("unexpected enterprise auth audit log: %s", log.Content)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginRejectsWhenAutoRegisterDisabled(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: false,
+	})
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-user-2",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if response.Success {
+		t.Fatal("expected auto-register disabled login to fail")
+	}
+
+	var count int64
+	if err := model.DB.Model(&model.User{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count users: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected no users to be created, got %d", count)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginBindsExistingSessionUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+	user := createUserForBindTest(t, "bind-user")
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(user.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-bind-1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected bind response success, got message: %s", response.Message)
+	}
+
+	var bindData oauthJWTBindResponse
+	if err := common.Unmarshal(response.Data, &bindData); err != nil {
+		t.Fatalf("failed to decode bind response: %v", err)
+	}
+	if bindData.Action != "bind" {
+		t.Fatalf("expected bind action, got %s", bindData.Action)
+	}
+	if !model.IsProviderUserIdTaken(provider.Id, "ext-bind-1") {
+		t.Fatal("expected binding to be created for current user")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginDoesNotSyncAttributesDuringBind(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     true,
+		SyncGroupOnLogin: true,
+		SyncRoleOnLogin:  true,
+	})
+	user := createUserForBindTest(t, "bind-no-sync-user")
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(user.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":    "https://issuer.example.com",
+		"aud":    "new-api",
+		"sub":    "ext-bind-sync-ignored",
+		"groups": []string{"engineering"},
+		"roles":  []string{"platform-admin"},
+		"exp":    time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected bind response success, got message: %s", response.Message)
+	}
+
+	reloadedUser, err := model.GetUserById(user.Id, false)
+	if err != nil {
+		t.Fatalf("failed to reload bound user: %v", err)
+	}
+	if reloadedUser.Role != common.RoleCommonUser || reloadedUser.Group != "default" {
+		t.Fatalf("expected bind flow to keep local attributes unchanged, got role=%d group=%s", reloadedUser.Role, reloadedUser.Group)
+	}
+	if !model.IsProviderUserIdTaken(provider.Id, "ext-bind-sync-ignored") {
+		t.Fatal("expected binding to be created during bind flow")
+	}
+	log := getLatestSystemLogForUser(t, user.Id)
+	if !strings.Contains(log.Content, "action=bind") || !strings.Contains(log.Content, "external_id=ext-bind-sync-ignored") {
+		t.Fatalf("expected bind audit log, got %s", log.Content)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginMergesByEmailWhenEnabled(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     false,
+		AutoMergeByEmail: true,
+	})
+	existingUser := createUserWithEmailForTest(t, "merged-user", "alice@example.com")
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-user-merge",
+		"preferred_username": "alice",
+		"email":              "alice@example.com",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected merge login to succeed, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.ID != existingUser.Id {
+		t.Fatalf("expected merged existing user id %d, got %d", existingUser.Id, loginData.ID)
+	}
+
+	var count int64
+	if err := model.DB.Model(&model.User{}).Count(&count).Error; err != nil {
+		t.Fatalf("failed to count users: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected no new user to be created, got %d users", count)
+	}
+	if !model.IsProviderUserIdTaken(provider.Id, "ext-user-merge") {
+		t.Fatal("expected oauth binding to be created for merged user")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginSyncsExistingBoundUserOnLogin(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     true,
+		SyncGroupOnLogin: true,
+		SyncRoleOnLogin:  true,
+	})
+	user := createUserForBindTest(t, "existing-bound-user")
+	if err := model.CreateUserOAuthBinding(&model.UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     provider.Id,
+		ProviderUserId: "ext-sync-existing",
+	}); err != nil {
+		t.Fatalf("failed to seed oauth binding: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-sync-existing",
+		"preferred_username": "existing-bound-user",
+		"groups":             []string{"engineering"},
+		"roles":              []string{"platform-admin"},
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected existing bound login to succeed, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
+		t.Fatalf("expected synced login response, got role=%d group=%s", loginData.Role, loginData.Group)
+	}
+
+	reloadedUser, err := model.GetUserById(user.Id, false)
+	if err != nil {
+		t.Fatalf("failed to reload synced user: %v", err)
+	}
+	if reloadedUser.Role != common.RoleAdminUser || reloadedUser.Group != "vip" {
+		t.Fatalf("expected synced persisted user, got role=%d group=%s", reloadedUser.Role, reloadedUser.Group)
+	}
+	if !strings.Contains(reloadedUser.GetSetting().SidebarModules, "\"admin\"") {
+		t.Fatalf("expected admin sidebar section to be added after role promotion, got %s", reloadedUser.GetSetting().SidebarModules)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginSyncsMergedUserOnLogin(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     false,
+		AutoMergeByEmail: true,
+		SyncGroupOnLogin: true,
+		SyncRoleOnLogin:  true,
+	})
+	existingUser := createUserWithEmailForTest(t, "merged-sync-user", "merged-sync@example.com")
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-merge-sync",
+		"preferred_username": "merged-sync-user",
+		"email":              "merged-sync@example.com",
+		"groups":             []string{"engineering"},
+		"roles":              []string{"platform-admin"},
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected merged sync login to succeed, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.ID != existingUser.Id || loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
+		t.Fatalf("expected merged sync response for user %d, got id=%d role=%d group=%s", existingUser.Id, loginData.ID, loginData.Role, loginData.Group)
+	}
+
+	reloadedUser, err := model.GetUserById(existingUser.Id, false)
+	if err != nil {
+		t.Fatalf("failed to reload merged synced user: %v", err)
+	}
+	if reloadedUser.Role != common.RoleAdminUser || reloadedUser.Group != "vip" {
+		t.Fatalf("expected merged synced persisted user, got role=%d group=%s", reloadedUser.Role, reloadedUser.Group)
+	}
+	if !model.IsProviderUserIdTaken(provider.Id, "ext-merge-sync") {
+		t.Fatal("expected merged user oauth binding to be created")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginRejectsEmailMergeConflict(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     false,
+		AutoMergeByEmail: true,
+	})
+	createUserWithEmailForTest(t, "merge-user-1", "alice@example.com")
+	createUserWithEmailForTest(t, "merge-user-2", "alice@example.com")
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":   "https://issuer.example.com",
+		"aud":   "new-api",
+		"sub":   "ext-user-merge-conflict",
+		"email": "alice@example.com",
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if response.Success {
+		t.Fatal("expected ambiguous email merge to fail")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginRejectsBindWhenAlreadyBound(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+	boundUser := createUserForBindTest(t, "bound-user")
+	otherUser := createUserForBindTest(t, "other-user")
+	if err := model.CreateUserOAuthBinding(&model.UserOAuthBinding{
+		UserId:         boundUser.Id,
+		ProviderId:     provider.Id,
+		ProviderUserId: "ext-bound-user",
+	}); err != nil {
+		t.Fatalf("failed to seed oauth binding: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(otherUser.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-bound-user",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if response.Success {
+		t.Fatal("expected bind with existing external id to fail")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginDoesNotBindDisabledMergedUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:     false,
+		AutoMergeByEmail: true,
+	})
+	disabledUser := createUserWithEmailForTest(t, "disabled-merge-user", "disabled@example.com")
+	disabledUser.Status = common.UserStatusDisabled
+	if err := model.DB.Model(disabledUser).Update("status", common.UserStatusDisabled).Error; err != nil {
+		t.Fatalf("failed to disable user: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":   "https://issuer.example.com",
+		"aud":   "new-api",
+		"sub":   "ext-disabled-merge",
+		"email": "disabled@example.com",
+		"exp":   time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if response.Success {
+		t.Fatal("expected disabled merged user login to fail")
+	}
+	if model.IsProviderUserIdTaken(provider.Id, "ext-disabled-merge") {
+		t.Fatal("expected disabled merged user not to receive oauth binding")
+	}
+	log := getLatestSystemLogForUser(t, disabledUser.Id)
+	if !strings.Contains(log.Content, "email_merge=true") || !strings.Contains(log.Content, "failure_reason=user_disabled") {
+		t.Fatalf("expected disabled merged audit log, got %s", log.Content)
+	}
+}
+
+func newTestHTTPClient(t *testing.T) *http.Client {
+	t.Helper()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("failed to create cookie jar: %v", err)
+	}
+	return &http.Client{Jar: jar}
+}
+
+func fetchOAuthStateForTest(t *testing.T, client *http.Client, baseURL string) string {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/oauth/state", nil)
+	if err != nil {
+		t.Fatalf("failed to build state request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to fetch oauth state: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response oauthJWTAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode state response: %v", err)
+	}
+	var state string
+	if err := common.Unmarshal(response.Data, &state); err != nil {
+		t.Fatalf("failed to decode state payload: %v", err)
+	}
+	return state
+}
+
+func postJWTLoginForTest(t *testing.T, client *http.Client, baseURL string, state string, token string) oauthJWTAPIResponse {
+	t.Helper()
+	payload, err := common.Marshal(map[string]any{
+		"state":    state,
+		"id_token": token,
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal login payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/auth/external/acme-sso/jwt/login", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("failed to build login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to post jwt login: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response oauthJWTAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	return response
+}
+
+func signJWTForControllerTest(t *testing.T, privateKey *rsa.PrivateKey, claims jwt.MapClaims) string {
+	t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	tokenString, err := token.SignedString(privateKey)
+	if err != nil {
+		t.Fatalf("failed to sign jwt token: %v", err)
+	}
+	return tokenString
+}
+
+func mustEncodeControllerRSAPublicKeyPEM(t *testing.T, publicKey *rsa.PublicKey) string {
+	t.Helper()
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		t.Fatalf("failed to marshal public key: %v", err)
+	}
+	return string(pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyDER,
+	}))
+}
