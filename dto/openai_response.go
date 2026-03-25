@@ -220,10 +220,12 @@ type CompletionsStreamResponse struct {
 }
 
 type Usage struct {
-	PromptTokens         int `json:"prompt_tokens"`
-	CompletionTokens     int `json:"completion_tokens"`
-	TotalTokens          int `json:"total_tokens"`
-	PromptCacheHitTokens int `json:"prompt_cache_hit_tokens,omitempty"`
+	PromptTokens         int    `json:"prompt_tokens"`
+	CompletionTokens     int    `json:"completion_tokens"`
+	TotalTokens          int    `json:"total_tokens"`
+	PromptCacheHitTokens int    `json:"prompt_cache_hit_tokens,omitempty"`
+	UsageSemantic        string `json:"usage_semantic,omitempty"`
+	UsageSource          string `json:"usage_source,omitempty"`
 
 	PromptTokensDetails    InputTokenDetails  `json:"prompt_tokens_details"`
 	CompletionTokenDetails OutputTokenDetails `json:"completion_tokens_details"`
@@ -251,7 +253,7 @@ type OpenAIVideoResponse struct {
 
 type InputTokenDetails struct {
 	CachedTokens         int `json:"cached_tokens"`
-	CachedCreationTokens int `json:"-"`
+	CachedCreationTokens int `json:"cached_creation_tokens,omitempty"`
 	TextTokens           int `json:"text_tokens"`
 	AudioTokens          int `json:"audio_tokens"`
 	ImageTokens          int `json:"image_tokens"`

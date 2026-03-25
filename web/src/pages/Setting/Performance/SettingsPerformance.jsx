@@ -71,7 +71,7 @@ export default function SettingsPerformance(props) {
     'performance_setting.monitor_enabled': false,
     'performance_setting.monitor_cpu_threshold': 90,
     'performance_setting.monitor_memory_threshold': 90,
-    'performance_setting.monitor_disk_threshold': 90,
+    'performance_setting.monitor_disk_threshold': 95,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);

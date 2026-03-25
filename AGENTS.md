@@ -201,7 +201,22 @@ Do NOT update `main` by performing a local `git merge` / `git rebase` onto `main
 
 Direct local merge-and-push workflows to `main` are forbidden, even if the change is small or already reviewed.
 
-### Rule 10: Response Style — Do Not Append Unrequested Next-Step Suggestions
+### Rule 10: Upstream Sync — Protect Fork CI/CD Workflows
+
+When syncing with the upstream repository (`QuantumNous/new-api`), the following CI/CD workflow files MUST be kept as the fork's version and NOT overwritten by upstream:
+
+- `.github/workflows/docker-image-alpha.yml`
+- `.github/workflows/docker-image-arm64.yml`
+- `.github/workflows/release.yml`
+
+**Reason:** Upstream hardcodes Docker image names to `calciumion/new-api` (the upstream author's Docker Hub repository) and removes the `${{ vars.DOCKERHUB_REPOSITORY }}` variable-based configuration that our fork relies on. Accepting upstream's version will cause CI to push images to a repository we don't own, breaking our Docker publishing pipeline.
+
+**During `git merge upstream/main`:** Always resolve conflicts in these three files by keeping `HEAD` (our fork's version):
+```bash
+git checkout HEAD -- .github/workflows/docker-image-alpha.yml .github/workflows/docker-image-arm64.yml .github/workflows/release.yml
+```
+
+### Rule 11: Response Style — Do Not Append Unrequested Next-Step Suggestions
 
 When replying to the user, do NOT append unsolicited closing suggestions such as:
 

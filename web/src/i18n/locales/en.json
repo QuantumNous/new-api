@@ -1510,6 +1510,8 @@
     "收益统计": "Income statistics",
     "收起": "Collapse",
     "收起侧边栏": "Collapse sidebar",
+    "向左展开": "Expand left",
+    "向右展开": "Expand right",
     "收起内容": "Collapse content",
     "放大": "Upscalers",
     "放大编辑": "Expand editor",
@@ -3225,6 +3227,12 @@
     "高级设置": "Advanced Settings",
     "高级选项": "Advanced Options",
     "高级配置": "Advanced Configuration",
+    "核心配置": "Core Configuration",
+    "创建渠道所需的基本信息": "Basic information needed to create a channel",
+    "请求配置": "Request Configuration",
+    "渠道行为": "Channel Behavior",
+    "额外设置": "Extra Settings",
+    "上游模型管理": "Upstream Model Management",
     "黑名单": "Blacklist",
     "默认": "Default",
     "默认 API 版本": "Default API Version",
@@ -3383,6 +3391,8 @@
     "反馈通知时 @所有人": "@everyone in feedback notifications",
     "反馈通知时 @指定 Lark 成员": "@specific Lark members in feedback notifications",
     "填写一个或多个 Open ID，支持逗号或换行分隔": "Enter one or more Open IDs, separated by commas or new lines",
-    "保存反馈 Lark Webhook": "Save Feedback Lark Webhook"
+    "保存反馈 Lark Webhook": "Save Feedback Lark Webhook",
+    "例如：gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$": "Example: gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$",
+    "支持精确匹配；使用 regex: 开头可按正则匹配。": "Supports exact matching. Use a regex: prefix for regex matching."
   }
 }

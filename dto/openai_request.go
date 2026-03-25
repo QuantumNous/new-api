@@ -393,7 +393,7 @@ func (m *MediaContent) GetVideoUrl() *MessageVideoUrl {
 
 type MessageImageUrl struct {
 	Url      string `json:"url"`
-	Detail   string `json:"detail"`
+	Detail   string `json:"detail,omitempty"`
 	MimeType string
 }
 
