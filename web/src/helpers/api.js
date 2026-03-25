@@ -199,10 +199,12 @@ export const processModelsData = (data, currentModel) => {
 };
 
 const HIDDEN_GROUP_PREFIXES = ['UserGroup-'];
+const HIDDEN_GROUP_NAMES = new Set(['default']);
 
 export const isHiddenGroup = (group) =>
   typeof group === 'string' &&
-  HIDDEN_GROUP_PREFIXES.some((prefix) => group.startsWith(prefix));
+  (HIDDEN_GROUP_NAMES.has(group) ||
+    HIDDEN_GROUP_PREFIXES.some((prefix) => group.startsWith(prefix)));
 
 export const filterVisibleGroupsMap = (data = {}) =>
   Object.fromEntries(
