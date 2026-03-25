@@ -3332,6 +3332,17 @@
     "从剪贴板粘贴配置": "Coller la config",
     "剪贴板中未检测到连接信息": "Aucune info de connexion trouvée dans le presse-papiers",
     "连接信息已填入": "Informations de connexion appliquées",
-    "无法读取剪贴板": "Impossible de lire le presse-papiers"
+    "无法读取剪贴板": "Impossible de lire le presse-papiers",
+    "启用 Responses 流启动恢复": "Activer la reprise au demarrage du flux Responses",
+    "仅在 /v1/responses 流式请求首包前生效，用于短时故障恢复。": "Ne s'applique qu'avant le premier bloc des requetes en flux /v1/responses, pour recuperer d'une panne de courte duree.",
+    "启动恢复等待窗口（秒）": "Fenetre de reprise au demarrage (secondes)",
+    "在该时间窗口内持续探测可用渠道，超时后返回真实错误。": "Pendant cette fenetre, les canaux disponibles sont sondes en continu ; apres expiration, l'erreur reelle est renvoyee.",
+    "渠道探测间隔（毫秒）": "Intervalle de sondage des canaux (millisecondes)",
+    "每次重新探测可用渠道之间的等待时间。": "Delai entre deux nouvelles tentatives de detection d'un canal disponible.",
+    "SSE 保活间隔（秒）": "Intervalle de maintien en vie SSE (secondes)",
+    "在等待恢复期间发送 : PING，帮助客户端保持连接。": "Envoie : PING pendant l'attente de reprise afin d'aider le client a conserver la connexion.",
+    "可触发启动恢复的状态码": "Codes d'etat qui declenchent la reprise au demarrage",
+    "填写 JSON 数组，例如 [401,403,429,500,502,503,504]。": "Renseignez un tableau JSON, par exemple [401,403,429,500,502,503,504].",
+    "Responses 流启动恢复仅作用于 /v1/responses 的流式请求首包前阶段。它会在短时渠道故障时通过 SSE ping 保持连接，并在恢复后继续返回真实内容；首包发出后不会跨渠道续传。": "La reprise au demarrage du flux Responses ne s'applique qu'a la phase precedant le premier bloc des requetes en flux /v1/responses. En cas de panne de canal de courte duree, elle maintient la connexion via des ping SSE puis reprend l'envoi du contenu reel apres recuperation ; une fois le premier bloc envoye, aucune continuation inter-canaux n'est effectuee."
   }
 }

@@ -254,6 +254,13 @@ const NotificationSettings = ({
         warningThresholdInput.setAttribute('autocomplete', 'off');
       }
 
+      const gotifyPriorityWrapper = document.getElementById('gotifyPriority');
+      if (
+        gotifyPriorityWrapper &&
+        gotifyPriorityWrapper.tagName.toLowerCase() !== 'input'
+      ) {
+        gotifyPriorityWrapper.id = 'gotifyPriority-wrapper';
+      }
       const gotifyPriorityInput = document.querySelector(
         '.gotify-priority-field input:not([aria-hidden="true"])',
       );
@@ -927,7 +934,7 @@ const NotificationSettings = ({
                             }
                             onChange={handleSectionChange(section.key)}
                             size='default'
-                            id={`components-settings-personal-cards-notificationsettings-switch-1-${section}`}
+                            id={`components-settings-personal-cards-notificationsettings-switch-1-${section.key}`}
                           />
                         </div>
 
@@ -991,7 +998,7 @@ const NotificationSettings = ({
                                           sidebarModulesUser[section.key]
                                             ?.enabled === false
                                         }
-                                        id={`components-settings-personal-cards-notificationsettings-switch-2-${module}`}
+                                        id={`components-settings-personal-cards-notificationsettings-switch-2-${section.key}-${module.key}`}
                                       />
                                     </div>
                                   </div>
