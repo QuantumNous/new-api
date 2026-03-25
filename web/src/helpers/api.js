@@ -198,9 +198,37 @@ export const processModelsData = (data, currentModel) => {
   return { modelOptions, selectedModel };
 };
 
+const HIDDEN_GROUP_PREFIXES = ['UserGroup-'];
+
+export const isHiddenGroup = (group) =>
+  typeof group === 'string' &&
+  HIDDEN_GROUP_PREFIXES.some((prefix) => group.startsWith(prefix));
+
+export const filterVisibleGroupsMap = (data = {}) =>
+  Object.fromEntries(
+    Object.entries(data).filter(([group]) => !isHiddenGroup(group)),
+  );
+
+export const filterVisibleGroupRatioMap = (groupRatio = {}, usableGroup = {}) => {
+  const visibleGroups = new Set(Object.keys(filterVisibleGroupsMap(usableGroup)));
+
+  return Object.fromEntries(
+    Object.entries(groupRatio).filter(([group]) => {
+      if (isHiddenGroup(group)) {
+        return false;
+      }
+      if (visibleGroups.size === 0) {
+        return true;
+      }
+      return visibleGroups.has(group);
+    }),
+  );
+};
+
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
+  const visibleGroups = filterVisibleGroupsMap(data);
+  let groupOptions = Object.entries(visibleGroups).map(([group, info]) => ({
     label:
       info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
     value: group,

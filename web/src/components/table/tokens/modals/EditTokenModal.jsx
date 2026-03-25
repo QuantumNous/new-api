@@ -27,6 +27,7 @@ import {
   renderQuotaWithPrompt,
   getModelCategories,
   selectFilter,
+  processGroupsData,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
@@ -130,11 +131,14 @@ const EditTokenModal = (props) => {
     let res = await API.get(`/api/user/self/groups`);
     const { success, message, data } = res.data;
     if (success) {
-      let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
-        value: group,
-        ratio: info.ratio,
-      }));
+      const localUserGroup = JSON.parse(localStorage.getItem('user') || '{}')
+        ?.group;
+      let localGroupOptions = processGroupsData(data, localUserGroup).map(
+        (group) => ({
+          ...group,
+          label: group.fullLabel || group.label,
+        }),
+      );
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {
           localGroupOptions.sort((a, b) => (a.value === 'auto' ? -1 : 1));

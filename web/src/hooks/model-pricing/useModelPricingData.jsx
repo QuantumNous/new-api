@@ -19,7 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
+import {
+  API,
+  copy,
+  showError,
+  showInfo,
+  showSuccess,
+  filterVisibleGroupRatioMap,
+  filterVisibleGroupsMap,
+} from '../../helpers';
 import { Modal } from '@douyinfe/semi-ui';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -240,8 +248,13 @@ export const useModelPricingData = () => {
       auto_groups,
     } = res.data;
     if (success) {
-      setGroupRatio(group_ratio);
-      setUsableGroup(usable_group);
+      const visibleUsableGroup = filterVisibleGroupsMap(usable_group || {});
+      const visibleGroupRatio = filterVisibleGroupRatioMap(
+        group_ratio || {},
+        visibleUsableGroup,
+      );
+      setGroupRatio(visibleGroupRatio);
+      setUsableGroup(visibleUsableGroup);
       setSelectedGroup('all');
       // 构建供应商 Map 方便查找
       const vendorMap = {};
@@ -253,7 +266,7 @@ export const useModelPricingData = () => {
       setVendorsMap(vendorMap);
       setEndpointMap(supported_endpoint || {});
       setAutoGroups(auto_groups || []);
-      setModelsFormat(data, group_ratio, vendorMap);
+      setModelsFormat(data, visibleGroupRatio, vendorMap);
     } else {
       showError(message);
     }
