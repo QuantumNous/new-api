@@ -24,10 +24,10 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     // 默认配置，如果没有传入配置则显示所有模块
     const defaultModules = {
       home: true,
-      console: true,
+      console: false,
       pricing: true,
-      docs: true,
-      about: true,
+      docs: false,
+      about: false,
     };
 
     // 使用传入的配置或默认配置

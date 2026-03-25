@@ -40,6 +40,8 @@ const UserArea = ({
   t,
 }) => {
   const dropdownRef = useRef(null);
+  return null;
+
   if (isLoading) {
     return (
       <SkeletonWrapper
