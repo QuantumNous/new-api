@@ -84,11 +84,9 @@ export default function SettingsPaymentGatewayAllScale(props) {
     }
     setLoading(true);
     try {
-      const options = [
-        {
-          key: 'AllScaleEnabled',
-          value: inputs.AllScaleEnabled ? 'true' : 'false',
-        },
+      // Save credentials and config first, then enable — so AllScale is never
+      // active in a broken/unconfigured state if a partial write fails.
+      const credentialOptions = [
         {
           key: 'AllScaleBaseURL',
           value: inputs.AllScaleBaseURL || 'https://openapi.allscale.io',
@@ -100,19 +98,27 @@ export default function SettingsPaymentGatewayAllScale(props) {
       ];
 
       if (inputs.AllScaleApiKey.trim()) {
-        options.push({ key: 'AllScaleApiKey', value: inputs.AllScaleApiKey });
+        credentialOptions.push({ key: 'AllScaleApiKey', value: inputs.AllScaleApiKey });
       }
       if (inputs.AllScaleApiSecret.trim()) {
-        options.push({
+        credentialOptions.push({
           key: 'AllScaleApiSecret',
           value: inputs.AllScaleApiSecret,
         });
       }
 
-      const requestQueue = options.map((opt) =>
-        API.put('/api/option/', { key: opt.key, value: opt.value }),
+      const credentialResults = await Promise.all(
+        credentialOptions.map((opt) =>
+          API.put('/api/option/', { key: opt.key, value: opt.value }),
+        ),
       );
-      const results = await Promise.all(requestQueue);
+
+      const enableResult = await API.put('/api/option/', {
+        key: 'AllScaleEnabled',
+        value: inputs.AllScaleEnabled ? 'true' : 'false',
+      });
+
+      const results = [...credentialResults, enableResult];
 
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {

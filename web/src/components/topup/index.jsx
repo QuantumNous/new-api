@@ -425,13 +425,16 @@ const TopUp = () => {
       JSON.stringify({ intentId, tradeNo, startedAt: Date.now() })
     );
     let attempts = 0;
+    let inFlight = false;
     allScalePollingRef.current = setInterval(async () => {
+      if (inFlight) return;
       attempts += 1;
       if (attempts > ALLSCALE_MAX_POLL_ATTEMPTS) {
         clearAllScalePolling();
         showInfo(t('支付处理中，请稍后在充值账单中查看结果'));
         return;
       }
+      inFlight = true;
       try {
         const result = await pollAllScaleStatusOnce(intentId, tradeNo);
         if (result.state === 'success') {
@@ -451,6 +454,8 @@ const TopUp = () => {
           clearAllScalePolling();
           showInfo(t('支付处理中，请稍后在充值账单中查看结果'));
         }
+      } finally {
+        inFlight = false;
       }
     }, ALLSCALE_POLL_INTERVAL);
   }, [clearAllScalePolling, t]);
@@ -495,8 +500,8 @@ const TopUp = () => {
 
   // Creates the checkout intent and immediately opens the AllScale checkout page.
   const allScaleTopUp = async () => {
-    if (topUpCount < 1) {
-      showError(t('充值数量不能小于') + 1);
+    if (topUpCount < minTopUp) {
+      showError(t('充值数量不能小于') + minTopUp);
       return;
     }
     setPaymentLoading(true);

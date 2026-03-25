@@ -399,6 +399,10 @@ func RechargeAllScale(tradeNo string) (err error) {
 			return nil // idempotent
 		}
 
+		if topUp.PaymentMethod != "allscale" {
+			return errors.New("order payment method mismatch")
+		}
+
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("order is not in pending status")
 		}

@@ -5,8 +5,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	encodingjson "encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -71,6 +71,16 @@ func verifyAllScaleWebhook(requestPath, queryString, webhookId, timestamp, nonce
 		log.Printf("AllScale webhook secret not configured")
 		return false
 	}
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		log.Printf("AllScale webhook: invalid timestamp format")
+		return false
+	}
+	now := time.Now().Unix()
+	if now-ts > 300 || ts-now > 60 {
+		log.Printf("AllScale webhook: timestamp outside acceptable window (ts=%d, now=%d)", ts, now)
+		return false
+	}
 	bodyHash := allScaleSha256Hex(body)
 	canonical := []byte(strings.Join([]string{
 		"allscale:webhook:v1",
@@ -101,7 +111,7 @@ func getAllScalePayMoney(amount float64, group string) float64 {
 	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(originalAmount)]; ok && ds > 0 {
 		discount = ds
 	}
-	return amount * 1.0 * topupGroupRatio * discount
+	return amount * topupGroupRatio * discount
 }
 
 // ── DTOs ─────────────────────────────────────────────────────────────────────
@@ -263,7 +273,14 @@ func RequestAllScalePay(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("AllScale: failed to read response body: %v", err)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
+		c.JSON(200, gin.H{"message": "error", "data": "failed to read payment response"})
+		return
+	}
 
 	if resp.StatusCode/100 != 2 {
 		log.Printf("AllScale: API returned HTTP %d: %s", resp.StatusCode, respBody)
@@ -388,8 +405,8 @@ func RequestAllScaleAmount(c *gin.Context) {
 // allScaleStatusAPIResponse is the response wrapper from GET /v1/checkout_intents/{id}/status.
 // The payload is either a plain integer or {"status": int}.
 type allScaleStatusAPIResponse struct {
-	Code    int                     `json:"code"`
-	Payload encodingjson.RawMessage `json:"payload"`
+	Code    int                 `json:"code"`
+	Payload json.RawMessage     `json:"payload"`
 	Error   *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -397,7 +414,7 @@ type allScaleStatusAPIResponse struct {
 
 // parseAllScaleNumericStatus parses the payload from the /status endpoint,
 // which can be either a plain integer or {"status": int}.
-func parseAllScaleNumericStatus(raw encodingjson.RawMessage) (int, error) {
+func parseAllScaleNumericStatus(raw []byte) (int, error) {
 	var status int
 	if err := common.Unmarshal(raw, &status); err == nil {
 		return status, nil
@@ -487,7 +504,12 @@ func GetAllScaleStatus(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("AllScale status: failed to read response body: %v", err)
+		c.JSON(200, gin.H{"message": "error", "data": "failed to read status response"})
+		return
+	}
 
 	var statusResp allScaleStatusAPIResponse
 	if err := common.Unmarshal(respBody, &statusResp); err != nil || statusResp.Code != 0 {
