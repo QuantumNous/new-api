@@ -22,6 +22,7 @@ jobs:
           port: ${{ env.DEPLOY_PORT }}
           script: |
             cd ${{ env.DEPLOY_PATH }}
-            git pull
+            git fetch origin
+            git reset --hard origin/main
             ./start.sh build
             ./start.sh restart
