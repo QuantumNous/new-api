@@ -105,6 +105,10 @@ func LoadCustomProviders() error {
 
 	// Register each custom provider
 	for _, config := range customProviders {
+		if !config.IsOAuthCode() {
+			common.SysLog("Skip non-oauth_code custom provider in OAuth registry: " + config.Name + " (" + config.Slug + ")")
+			continue
+		}
 		provider := NewGenericOAuthProvider(config)
 		RegisterCustom(config.Slug, provider)
 		common.SysLog("Loaded custom OAuth provider: " + config.Name + " (" + config.Slug + ")")
@@ -121,9 +125,14 @@ func ReloadCustomProviders() error {
 
 // RegisterOrUpdateCustomProvider registers or updates a single custom provider
 func RegisterOrUpdateCustomProvider(config *model.CustomOAuthProvider) {
-	provider := NewGenericOAuthProvider(config)
 	mu.Lock()
 	defer mu.Unlock()
+	if !config.IsOAuthCode() {
+		delete(providers, config.Slug)
+		delete(customProviderSlugs, config.Slug)
+		return
+	}
+	provider := NewGenericOAuthProvider(config)
 	providers[config.Slug] = provider
 	customProviderSlugs[config.Slug] = true
 }

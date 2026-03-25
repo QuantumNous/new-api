@@ -30,14 +30,54 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func loadSessionUserIdentity(session sessions.Session) (*model.User, error) {
+	idRaw := session.Get("id")
+	if idRaw == nil {
+		return nil, fmt.Errorf("session is missing user id")
+	}
+	id, ok := idRaw.(int)
+	if !ok || id <= 0 {
+		return nil, fmt.Errorf("session user id is invalid")
+	}
+	return model.GetUserById(id, false)
+}
+
+func syncSessionUserIdentity(session sessions.Session, user *model.User) error {
+	if user == nil {
+		return fmt.Errorf("user is nil")
+	}
+
+	storedUsername, _ := session.Get("username").(string)
+	storedRole, _ := session.Get("role").(int)
+	storedStatus, _ := session.Get("status").(int)
+	storedGroup, _ := session.Get("group").(string)
+
+	if storedUsername == user.Username &&
+		storedRole == user.Role &&
+		storedStatus == user.Status &&
+		storedGroup == user.Group {
+		return nil
+	}
+
+	session.Set("id", user.Id)
+	session.Set("username", user.Username)
+	session.Set("role", user.Role)
+	session.Set("status", user.Status)
+	session.Set("group", user.Group)
+
+	return session.Save()
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
-	username := session.Get("username")
-	role := session.Get("role")
-	id := session.Get("id")
-	status := session.Get("status")
 	useAccessToken := false
-	if username == nil {
+	currentUsername := ""
+	currentRole := 0
+	currentID := 0
+	currentStatus := 0
+	currentGroup := ""
+
+	if session.Get("username") == nil {
 		// Check access token
 		accessToken := c.Request.Header.Get("Authorization")
 		if accessToken == "" {
@@ -59,10 +99,11 @@ func authHelper(c *gin.Context, minRole int) {
 				return
 			}
 			// Token is valid
-			username = user.Username
-			role = user.Role
-			id = user.Id
-			status = user.Status
+			currentUsername = user.Username
+			currentRole = user.Role
+			currentID = user.Id
+			currentStatus = user.Status
+			currentGroup = user.Group
 			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
@@ -72,6 +113,29 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
+	} else {
+		user, err := loadSessionUserIdentity(session)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": "无权进行此操作，会话信息无效",
+			})
+			c.Abort()
+			return
+		}
+		if err := syncSessionUserIdentity(session, user); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无权进行此操作，会话刷新失败",
+			})
+			c.Abort()
+			return
+		}
+		currentUsername = user.Username
+		currentRole = user.Role
+		currentID = user.Id
+		currentStatus = user.Status
+		currentGroup = user.Group
 	}
 	// get header New-Api-User
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
@@ -93,7 +157,7 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 
 	}
-	if id != apiUserId {
+	if currentID != apiUserId {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": "无权进行此操作，New-Api-User 与登录用户不匹配",
@@ -101,7 +165,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if status.(int) == common.UserStatusDisabled {
+	if currentStatus == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户已被封禁",
@@ -109,7 +173,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	if currentRole < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，权限不足",
@@ -117,7 +181,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(currentUsername, currentRole) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，用户信息无效",
@@ -127,11 +191,11 @@ func authHelper(c *gin.Context, minRole int) {
 	}
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
-	c.Set("username", username)
-	c.Set("role", role)
-	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("username", currentUsername)
+	c.Set("role", currentRole)
+	c.Set("id", currentID)
+	c.Set("group", currentGroup)
+	c.Set("user_group", currentGroup)
 	c.Set("use_access_token", useAccessToken)
 
 	c.Next()

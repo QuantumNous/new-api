@@ -22,16 +22,33 @@ type CustomOAuthProviderResponse struct {
 	Name                  string `json:"name"`
 	Slug                  string `json:"slug"`
 	Icon                  string `json:"icon"`
+	Kind                  string `json:"kind"`
 	Enabled               bool   `json:"enabled"`
 	ClientId              string `json:"client_id"`
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	UserInfoEndpoint      string `json:"user_info_endpoint"`
 	Scopes                string `json:"scopes"`
+	Issuer                string `json:"issuer"`
+	Audience              string `json:"audience"`
+	JwksURL               string `json:"jwks_url"`
+	PublicKey             string `json:"public_key"`
+	JWTSource             string `json:"jwt_source"`
+	JWTHeader             string `json:"jwt_header"`
 	UserIdField           string `json:"user_id_field"`
 	UsernameField         string `json:"username_field"`
 	DisplayNameField      string `json:"display_name_field"`
 	EmailField            string `json:"email_field"`
+	GroupField            string `json:"group_field"`
+	RoleField             string `json:"role_field"`
+	GroupMapping          string `json:"group_mapping"`
+	RoleMapping           string `json:"role_mapping"`
+	AutoRegister          bool   `json:"auto_register"`
+	AutoMergeByEmail      bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin      bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin       bool   `json:"sync_role_on_login"`
+	GroupMappingMode      string `json:"group_mapping_mode"`
+	RoleMappingMode       string `json:"role_mapping_mode"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
@@ -52,16 +69,33 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		Name:                  p.Name,
 		Slug:                  p.Slug,
 		Icon:                  p.Icon,
+		Kind:                  p.GetKind(),
 		Enabled:               p.Enabled,
 		ClientId:              p.ClientId,
 		AuthorizationEndpoint: p.AuthorizationEndpoint,
 		TokenEndpoint:         p.TokenEndpoint,
 		UserInfoEndpoint:      p.UserInfoEndpoint,
 		Scopes:                p.Scopes,
+		Issuer:                p.Issuer,
+		Audience:              p.Audience,
+		JwksURL:               p.JwksURL,
+		PublicKey:             p.PublicKey,
+		JWTSource:             p.JWTSource,
+		JWTHeader:             p.JWTHeader,
 		UserIdField:           p.UserIdField,
 		UsernameField:         p.UsernameField,
 		DisplayNameField:      p.DisplayNameField,
 		EmailField:            p.EmailField,
+		GroupField:            p.GroupField,
+		RoleField:             p.RoleField,
+		GroupMapping:          p.GroupMapping,
+		RoleMapping:           p.RoleMapping,
+		AutoRegister:          p.AutoRegister,
+		AutoMergeByEmail:      p.AutoMergeByEmail,
+		SyncGroupOnLogin:      p.SyncGroupOnLogin,
+		SyncRoleOnLogin:       p.SyncRoleOnLogin,
+		GroupMappingMode:      p.GroupMappingMode,
+		RoleMappingMode:       p.RoleMappingMode,
 		WellKnown:             p.WellKnown,
 		AuthStyle:             p.AuthStyle,
 		AccessPolicy:          p.AccessPolicy,
@@ -116,17 +150,34 @@ type CreateCustomOAuthProviderRequest struct {
 	Name                  string `json:"name" binding:"required"`
 	Slug                  string `json:"slug" binding:"required"`
 	Icon                  string `json:"icon"`
+	Kind                  string `json:"kind"`
 	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id" binding:"required"`
-	ClientSecret          string `json:"client_secret" binding:"required"`
-	AuthorizationEndpoint string `json:"authorization_endpoint" binding:"required"`
-	TokenEndpoint         string `json:"token_endpoint" binding:"required"`
-	UserInfoEndpoint      string `json:"user_info_endpoint" binding:"required"`
+	ClientId              string `json:"client_id"`
+	ClientSecret          string `json:"client_secret"`
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
+	UserInfoEndpoint      string `json:"user_info_endpoint"`
 	Scopes                string `json:"scopes"`
+	Issuer                string `json:"issuer"`
+	Audience              string `json:"audience"`
+	JwksURL               string `json:"jwks_url"`
+	PublicKey             string `json:"public_key"`
+	JWTSource             string `json:"jwt_source"`
+	JWTHeader             string `json:"jwt_header"`
 	UserIdField           string `json:"user_id_field"`
 	UsernameField         string `json:"username_field"`
 	DisplayNameField      string `json:"display_name_field"`
 	EmailField            string `json:"email_field"`
+	GroupField            string `json:"group_field"`
+	RoleField             string `json:"role_field"`
+	GroupMapping          string `json:"group_mapping"`
+	RoleMapping           string `json:"role_mapping"`
+	AutoRegister          bool   `json:"auto_register"`
+	AutoMergeByEmail      bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin      bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin       bool   `json:"sync_role_on_login"`
+	GroupMappingMode      string `json:"group_mapping_mode"`
+	RoleMappingMode       string `json:"role_mapping_mode"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
@@ -234,6 +285,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		Name:                  req.Name,
 		Slug:                  req.Slug,
 		Icon:                  req.Icon,
+		Kind:                  req.Kind,
 		Enabled:               req.Enabled,
 		ClientId:              req.ClientId,
 		ClientSecret:          req.ClientSecret,
@@ -241,10 +293,26 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		TokenEndpoint:         req.TokenEndpoint,
 		UserInfoEndpoint:      req.UserInfoEndpoint,
 		Scopes:                req.Scopes,
+		Issuer:                req.Issuer,
+		Audience:              req.Audience,
+		JwksURL:               req.JwksURL,
+		PublicKey:             req.PublicKey,
+		JWTSource:             req.JWTSource,
+		JWTHeader:             req.JWTHeader,
 		UserIdField:           req.UserIdField,
 		UsernameField:         req.UsernameField,
 		DisplayNameField:      req.DisplayNameField,
 		EmailField:            req.EmailField,
+		GroupField:            req.GroupField,
+		RoleField:             req.RoleField,
+		GroupMapping:          req.GroupMapping,
+		RoleMapping:           req.RoleMapping,
+		AutoRegister:          req.AutoRegister,
+		AutoMergeByEmail:      req.AutoMergeByEmail,
+		SyncGroupOnLogin:      req.SyncGroupOnLogin,
+		SyncRoleOnLogin:       req.SyncRoleOnLogin,
+		GroupMappingMode:      req.GroupMappingMode,
+		RoleMappingMode:       req.RoleMappingMode,
 		WellKnown:             req.WellKnown,
 		AuthStyle:             req.AuthStyle,
 		AccessPolicy:          req.AccessPolicy,
@@ -268,20 +336,37 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 // UpdateCustomOAuthProviderRequest is the request structure for updating a custom OAuth provider
 type UpdateCustomOAuthProviderRequest struct {
-	Name                  string  `json:"name"`
-	Slug                  string  `json:"slug"`
+	Name                  *string `json:"name"`
+	Slug                  *string `json:"slug"`
 	Icon                  *string `json:"icon"`    // Optional: if nil, keep existing
 	Enabled               *bool   `json:"enabled"` // Optional: if nil, keep existing
-	ClientId              string  `json:"client_id"`
+	Kind                  *string `json:"kind"`
+	ClientId              *string `json:"client_id"`
 	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
-	AuthorizationEndpoint string  `json:"authorization_endpoint"`
-	TokenEndpoint         string  `json:"token_endpoint"`
-	UserInfoEndpoint      string  `json:"user_info_endpoint"`
-	Scopes                string  `json:"scopes"`
-	UserIdField           string  `json:"user_id_field"`
-	UsernameField         string  `json:"username_field"`
-	DisplayNameField      string  `json:"display_name_field"`
-	EmailField            string  `json:"email_field"`
+	AuthorizationEndpoint *string `json:"authorization_endpoint"`
+	TokenEndpoint         *string `json:"token_endpoint"`
+	UserInfoEndpoint      *string `json:"user_info_endpoint"`
+	Scopes                *string `json:"scopes"`
+	Issuer                *string `json:"issuer"`
+	Audience              *string `json:"audience"`
+	JwksURL               *string `json:"jwks_url"`
+	PublicKey             *string `json:"public_key"`
+	JWTSource             *string `json:"jwt_source"`
+	JWTHeader             *string `json:"jwt_header"`
+	UserIdField           *string `json:"user_id_field"`
+	UsernameField         *string `json:"username_field"`
+	DisplayNameField      *string `json:"display_name_field"`
+	EmailField            *string `json:"email_field"`
+	GroupField            *string `json:"group_field"`
+	RoleField             *string `json:"role_field"`
+	GroupMapping          *string `json:"group_mapping"`
+	RoleMapping           *string `json:"role_mapping"`
+	AutoRegister          *bool   `json:"auto_register"`
+	AutoMergeByEmail      *bool   `json:"auto_merge_by_email"`
+	SyncGroupOnLogin      *bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin       *bool   `json:"sync_role_on_login"`
+	GroupMappingMode      *string `json:"group_mapping_mode"`
+	RoleMappingMode       *string `json:"role_mapping_mode"`
 	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
 	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
 	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
@@ -313,24 +398,24 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	oldSlug := provider.Slug
 
 	// Check if new slug is taken by another provider
-	if req.Slug != "" && req.Slug != provider.Slug {
-		if model.IsSlugTaken(req.Slug, id) {
+	if req.Slug != nil && *req.Slug != provider.Slug {
+		if model.IsSlugTaken(*req.Slug, id) {
 			common.ApiErrorMsg(c, "该 Slug 已被使用")
 			return
 		}
 		// Check if slug conflicts with built-in providers
-		if oauth.IsProviderRegistered(req.Slug) && !oauth.IsCustomProvider(req.Slug) {
+		if oauth.IsProviderRegistered(*req.Slug) && !oauth.IsCustomProvider(*req.Slug) {
 			common.ApiErrorMsg(c, "该 Slug 与内置 OAuth 提供商冲突")
 			return
 		}
 	}
 
 	// Update fields
-	if req.Name != "" {
-		provider.Name = req.Name
+	if req.Name != nil {
+		provider.Name = *req.Name
 	}
-	if req.Slug != "" {
-		provider.Slug = req.Slug
+	if req.Slug != nil {
+		provider.Slug = *req.Slug
 	}
 	if req.Icon != nil {
 		provider.Icon = *req.Icon
@@ -338,35 +423,86 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.Enabled != nil {
 		provider.Enabled = *req.Enabled
 	}
-	if req.ClientId != "" {
-		provider.ClientId = req.ClientId
+	if req.Kind != nil {
+		provider.Kind = *req.Kind
+	}
+	if req.ClientId != nil {
+		provider.ClientId = *req.ClientId
 	}
 	if req.ClientSecret != "" {
 		provider.ClientSecret = req.ClientSecret
 	}
-	if req.AuthorizationEndpoint != "" {
-		provider.AuthorizationEndpoint = req.AuthorizationEndpoint
+	if req.AuthorizationEndpoint != nil {
+		provider.AuthorizationEndpoint = *req.AuthorizationEndpoint
 	}
-	if req.TokenEndpoint != "" {
-		provider.TokenEndpoint = req.TokenEndpoint
+	if req.TokenEndpoint != nil {
+		provider.TokenEndpoint = *req.TokenEndpoint
 	}
-	if req.UserInfoEndpoint != "" {
-		provider.UserInfoEndpoint = req.UserInfoEndpoint
+	if req.UserInfoEndpoint != nil {
+		provider.UserInfoEndpoint = *req.UserInfoEndpoint
 	}
-	if req.Scopes != "" {
-		provider.Scopes = req.Scopes
+	if req.Scopes != nil {
+		provider.Scopes = *req.Scopes
 	}
-	if req.UserIdField != "" {
-		provider.UserIdField = req.UserIdField
+	if req.Issuer != nil {
+		provider.Issuer = *req.Issuer
 	}
-	if req.UsernameField != "" {
-		provider.UsernameField = req.UsernameField
+	if req.Audience != nil {
+		provider.Audience = *req.Audience
 	}
-	if req.DisplayNameField != "" {
-		provider.DisplayNameField = req.DisplayNameField
+	if req.JwksURL != nil {
+		provider.JwksURL = *req.JwksURL
 	}
-	if req.EmailField != "" {
-		provider.EmailField = req.EmailField
+	if req.PublicKey != nil {
+		provider.PublicKey = *req.PublicKey
+	}
+	if req.JWTSource != nil {
+		provider.JWTSource = *req.JWTSource
+	}
+	if req.JWTHeader != nil {
+		provider.JWTHeader = *req.JWTHeader
+	}
+	if req.UserIdField != nil {
+		provider.UserIdField = *req.UserIdField
+	}
+	if req.UsernameField != nil {
+		provider.UsernameField = *req.UsernameField
+	}
+	if req.DisplayNameField != nil {
+		provider.DisplayNameField = *req.DisplayNameField
+	}
+	if req.EmailField != nil {
+		provider.EmailField = *req.EmailField
+	}
+	if req.GroupField != nil {
+		provider.GroupField = *req.GroupField
+	}
+	if req.RoleField != nil {
+		provider.RoleField = *req.RoleField
+	}
+	if req.GroupMapping != nil {
+		provider.GroupMapping = *req.GroupMapping
+	}
+	if req.RoleMapping != nil {
+		provider.RoleMapping = *req.RoleMapping
+	}
+	if req.AutoRegister != nil {
+		provider.AutoRegister = *req.AutoRegister
+	}
+	if req.AutoMergeByEmail != nil {
+		provider.AutoMergeByEmail = *req.AutoMergeByEmail
+	}
+	if req.SyncGroupOnLogin != nil {
+		provider.SyncGroupOnLogin = *req.SyncGroupOnLogin
+	}
+	if req.SyncRoleOnLogin != nil {
+		provider.SyncRoleOnLogin = *req.SyncRoleOnLogin
+	}
+	if req.GroupMappingMode != nil {
+		provider.GroupMappingMode = *req.GroupMappingMode
+	}
+	if req.RoleMappingMode != nil {
+		provider.RoleMappingMode = *req.RoleMappingMode
 	}
 	if req.WellKnown != nil {
 		provider.WellKnown = *req.WellKnown
