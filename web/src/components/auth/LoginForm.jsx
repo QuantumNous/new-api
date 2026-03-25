@@ -132,7 +132,9 @@ const LoginForm = () => {
     }
   }, [statusState?.status]);
   const hasCustomOAuthProviders =
-    (status.custom_oauth_providers || []).length > 0;
+    (status.custom_oauth_providers || []).some(
+      (provider) => provider.browser_login_supported !== false,
+    );
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
       status.discord_oauth ||
@@ -604,21 +606,23 @@ const LoginForm = () => {
                 )}
 
                 {status.custom_oauth_providers &&
-                  status.custom_oauth_providers.map((provider) => (
-                    <Button
-                      key={provider.slug}
-                      theme='outline'
-                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
-                      type='tertiary'
-                      icon={getOAuthProviderIcon(provider.icon || '', 20)}
-                      onClick={() => handleCustomOAuthClick(provider)}
-                      loading={customOAuthLoading[provider.slug]}
-                    >
-                      <span className='ml-3'>
-                        {t('使用 {{name}} 继续', { name: provider.name })}
-                      </span>
-                    </Button>
-                  ))}
+                  status.custom_oauth_providers
+                    .filter((provider) => provider.browser_login_supported !== false)
+                    .map((provider) => (
+                      <Button
+                        key={provider.slug}
+                        theme='outline'
+                        className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                        type='tertiary'
+                        icon={getOAuthProviderIcon(provider.icon || '', 20)}
+                        onClick={() => handleCustomOAuthClick(provider)}
+                        loading={customOAuthLoading[provider.slug]}
+                      >
+                        <span className='ml-3'>
+                          {t('使用 {{name}} 继续', { name: provider.name })}
+                        </span>
+                      </Button>
+                    ))}
 
                 {status.telegram_oauth && (
                   <div className='flex justify-center my-2'>

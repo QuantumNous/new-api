@@ -564,9 +564,12 @@ const AccountManagement = ({
                               type='primary'
                               theme='outline'
                               size='small'
+                              disabled={provider.browser_login_supported === false}
                               onClick={() => handleBindCustomOAuth(provider)}
                             >
-                              {t('绑定')}
+                              {provider.browser_login_supported === false
+                                ? t('仅 API')
+                                : t('绑定')}
                             </Button>
                           )}
                         </div>
