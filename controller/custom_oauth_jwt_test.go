@@ -17,6 +17,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -46,6 +47,17 @@ type oauthJWTBindResponse struct {
 func setupCustomOAuthJWTControllerTestDB(t *testing.T) {
 	t.Helper()
 
+	prevDB := model.DB
+	prevLogDB := model.LOG_DB
+	prevUsingSQLite := common.UsingSQLite
+	prevUsingMySQL := common.UsingMySQL
+	prevUsingPostgreSQL := common.UsingPostgreSQL
+	prevRedisEnabled := common.RedisEnabled
+	prevRegisterEnabled := common.RegisterEnabled
+	prevQuotaForNewUser := common.QuotaForNewUser
+	prevQuotaForInvitee := common.QuotaForInvitee
+	prevQuotaForInviter := common.QuotaForInviter
+
 	gin.SetMode(gin.TestMode)
 	common.UsingSQLite = true
 	common.UsingMySQL = false
@@ -72,6 +84,16 @@ func setupCustomOAuthJWTControllerTestDB(t *testing.T) {
 		if err == nil {
 			_ = sqlDB.Close()
 		}
+		model.DB = prevDB
+		model.LOG_DB = prevLogDB
+		common.UsingSQLite = prevUsingSQLite
+		common.UsingMySQL = prevUsingMySQL
+		common.UsingPostgreSQL = prevUsingPostgreSQL
+		common.RedisEnabled = prevRedisEnabled
+		common.RegisterEnabled = prevRegisterEnabled
+		common.QuotaForNewUser = prevQuotaForNewUser
+		common.QuotaForInvitee = prevQuotaForInvitee
+		common.QuotaForInviter = prevQuotaForInviter
 	})
 }
 
@@ -922,6 +944,52 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 	}
 	if loginData.Username != "ticket-user" || loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
 		t.Fatalf("unexpected login response: %+v", loginData)
+	}
+}
+
+func TestSelectJWTLoginCredential(t *testing.T) {
+	t.Run("claims mode prefers id token", func(t *testing.T) {
+		provider := &model.CustomOAuthProvider{
+			JWTIdentityMode: model.CustomJWTIdentityModeClaims,
+		}
+
+		token := selectJWTLoginCredential(provider, customOAuthJWTLoginRequest{
+			Token:   "access-token",
+			IDToken: "id-token",
+			JWT:     "fallback-jwt",
+		})
+
+		if token != "id-token" {
+			t.Fatalf("expected id token for claims mode, got %q", token)
+		}
+	})
+
+	t.Run("userinfo mode prefers access token", func(t *testing.T) {
+		provider := &model.CustomOAuthProvider{
+			JWTIdentityMode: model.CustomJWTIdentityModeUserInfo,
+		}
+
+		token := selectJWTLoginCredential(provider, customOAuthJWTLoginRequest{
+			Token:   "access-token",
+			IDToken: "id-token",
+			JWT:     "fallback-jwt",
+		})
+
+		if token != "access-token" {
+			t.Fatalf("expected access token for userinfo mode, got %q", token)
+		}
+	})
+}
+
+func TestOAuthAuditFailureReason(t *testing.T) {
+	err := oauth.NewOAuthErrorWithRaw("oauth_test_failed", nil, "token=secret user=alice@example.com")
+	reason := oauthAuditFailureReason(err)
+
+	if reason != "oauth_error:oauth_test_failed" {
+		t.Fatalf("unexpected audit failure reason: %q", reason)
+	}
+	if strings.Contains(reason, "secret") || strings.Contains(reason, "alice@example.com") {
+		t.Fatalf("audit failure reason leaked raw upstream details: %q", reason)
 	}
 }
 

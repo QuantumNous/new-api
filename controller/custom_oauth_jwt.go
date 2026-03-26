@@ -77,13 +77,13 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		provider,
 		session,
 		sessionState,
-		firstNonEmpty(req.Token, req.IDToken, req.JWT),
+		selectJWTLoginCredential(providerConfig, req),
 		req.Ticket,
 		audit,
 	)
 	if err != nil {
 		if audit != nil && audit.FailureReason == "" {
-			audit.FailureReason = err.Error()
+			audit.FailureReason = oauthAuditFailureReason(err)
 		}
 		recordCustomOAuthJWTAudit(audit)
 		handleCustomOAuthJWTLoginError(c, err)
@@ -106,7 +106,7 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 	}
 	if result.BindAfterStatusCheck {
 		if err := bindOAuthIdentityToUser(result.User, provider, result.ProviderUserID); err != nil {
-			audit.FailureReason = err.Error()
+			audit.FailureReason = oauthAuditFailureReason(err)
 			recordCustomOAuthJWTAudit(audit)
 			common.ApiError(c, err)
 			return
@@ -181,7 +181,7 @@ func completeCustomOAuthJWTLogin(
 		currentUser, currentUserErr := getSessionUser(c)
 		if currentUserErr != nil {
 			if audit != nil {
-				audit.FailureReason = currentUserErr.Error()
+				audit.FailureReason = oauthAuditFailureReason(currentUserErr)
 			}
 			return nil, audit, currentUserErr
 		}
@@ -309,6 +309,36 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func selectJWTLoginCredential(providerConfig *model.CustomOAuthProvider, req customOAuthJWTLoginRequest) string {
+	if providerConfig != nil && providerConfig.GetJWTIdentityMode() == model.CustomJWTIdentityModeUserInfo {
+		return firstNonEmpty(req.Token, req.IDToken, req.JWT)
+	}
+	return firstNonEmpty(req.IDToken, req.JWT, req.Token)
+}
+
+func oauthAuditFailureReason(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	switch e := err.(type) {
+	case *oauth.OAuthError:
+		return "oauth_error:" + safeOAuthAuditValue(e.MsgKey)
+	case *oauth.AccessDeniedError:
+		return "access_denied"
+	case *oauth.TrustLevelError:
+		return "trust_level_denied"
+	case *OAuthAlreadyBoundError:
+		return "oauth_already_bound"
+	case *OAuthUserDeletedError:
+		return "oauth_user_deleted"
+	case *OAuthRegistrationDisabledError, *OAuthAutoRegisterDisabledError:
+		return "registration_disabled"
+	default:
+		return "internal_error"
+	}
 }
 
 func newCustomOAuthJWTAuditInfo(providerConfig *model.CustomOAuthProvider) *customOAuthJWTAuditInfo {
