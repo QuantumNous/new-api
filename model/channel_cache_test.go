@@ -167,7 +167,7 @@ func TestInitChannelCacheKeepsPreviousSnapshotOnScanError(t *testing.T) {
 		"broken-channel",
 		"broken-model",
 		"default",
-		`{"is_multi_key":false,"multi_key_size":0,"multi_key_status_list":{},"multi_key_disabled_reason":{},"multi_key_disabled_time":{},"multi_key_polling_index":0,"multi_key_mode":0}`,
+		`{invalid`,
 		"",
 	).Error)
 
