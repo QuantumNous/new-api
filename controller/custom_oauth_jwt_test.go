@@ -711,6 +711,56 @@ func TestHandleCustomOAuthJWTLoginRejectsBindWhenAlreadyBound(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginRejectsBindForDisabledSessionUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+	disabledUser := createUserForBindTest(t, "disabled-bind-user")
+	if err := model.DB.Model(disabledUser).Update("status", common.UserStatusDisabled).Error; err != nil {
+		t.Fatalf("failed to disable user: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(disabledUser.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-disabled-bind-user",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if response.Success {
+		t.Fatal("expected disabled session user bind to fail")
+	}
+	if model.IsProviderUserIdTaken(provider.Id, "ext-disabled-bind-user") {
+		t.Fatal("expected disabled session user not to receive oauth binding")
+	}
+	log := getLatestSystemLogForUser(t, disabledUser.Id)
+	if !strings.Contains(log.Content, "failure_reason=user_disabled") {
+		t.Fatalf("expected disabled bind audit log, got %s", log.Content)
+	}
+}
+
 func TestHandleCustomOAuthJWTLoginDoesNotBindDisabledMergedUser(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)

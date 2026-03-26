@@ -108,7 +108,7 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		if err := bindOAuthIdentityToUser(result.User, provider, result.ProviderUserID); err != nil {
 			audit.FailureReason = oauthAuditFailureReason(err)
 			recordCustomOAuthJWTAudit(audit)
-			common.ApiError(c, err)
+			handleCustomOAuthJWTLoginError(c, err)
 			return
 		}
 	}
@@ -190,19 +190,36 @@ func completeCustomOAuthJWTLogin(
 	}
 
 	if session.Get("username") != nil {
+		if audit != nil {
+			if sessionUserID, ok := session.Get("id").(int); ok {
+				audit.TargetUserID = sessionUserID
+			}
+		}
 		currentUser, currentUserErr := getSessionUser(c)
 		if currentUserErr != nil {
 			if audit != nil {
-				audit.FailureReason = oauthAuditFailureReason(currentUserErr)
+				if strings.TrimSpace(currentUserErr.Error()) == "该用户已被禁用" {
+					audit.FailureReason = "user_disabled"
+				} else {
+					audit.FailureReason = oauthAuditFailureReason(currentUserErr)
+				}
+			}
+			if strings.TrimSpace(currentUserErr.Error()) == "该用户已被禁用" {
+				return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthUserBanned, nil)
 			}
 			return nil, audit, currentUserErr
+		}
+		if currentUser.Status != common.UserStatusEnabled {
+			if audit != nil {
+				audit.FailureReason = "user_disabled"
+			}
+			return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthUserBanned, nil)
 		}
 		if err := bindOAuthIdentityToCurrentUser(c, provider, identity.User); err != nil {
 			return nil, audit, err
 		}
 		if audit != nil {
 			audit.Action = "bind"
-			audit.TargetUserID = currentUser.Id
 		}
 		return &customOAuthJWTLoginResult{Action: "bind"}, audit, nil
 	}
