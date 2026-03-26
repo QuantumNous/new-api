@@ -21,6 +21,7 @@ func prepareChannelCacheTest(t *testing.T) {
 	channelsIDM = nil
 	channelSyncLock.Unlock()
 	channelCacheRefreshInFlight.Store(false)
+	channelCacheRefreshPending.Store(false)
 }
 
 func TestGetRandomSatisfiedChannelFallsBackToDatabaseOnCacheMiss(t *testing.T) {
