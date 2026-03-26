@@ -19,5 +19,5 @@ func GetCoinBalance(outUserID string) (int, error) {
 		}
 		return 0, err
 	}
-	return coinsToQuota(resp.Balance), nil
+	return coinsToQuota(resp.AvailableBalance), nil
 }
