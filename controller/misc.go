@@ -145,6 +145,7 @@ func GetStatus(c *gin.Context) {
 			AuthorizationEndpoint     string `json:"authorization_endpoint"`
 			Scopes                    string `json:"scopes"`
 			JWTSource                 string `json:"jwt_source"`
+			JWTIdentityMode           string `json:"jwt_identity_mode"`
 			JWTAcquireMode            string `json:"jwt_acquire_mode"`
 			AuthorizationServiceField string `json:"authorization_service_field"`
 			BrowserLoginSupported     bool   `json:"browser_login_supported"`
@@ -169,6 +170,7 @@ func GetStatus(c *gin.Context) {
 				AuthorizationEndpoint:     config.AuthorizationEndpoint,
 				Scopes:                    config.Scopes,
 				JWTSource:                 jwtSource,
+				JWTIdentityMode:           config.GetJWTIdentityMode(),
 				JWTAcquireMode:            config.GetJWTAcquireMode(),
 				AuthorizationServiceField: authorizationServiceField,
 				BrowserLoginSupported:     config.SupportsBrowserLogin(),

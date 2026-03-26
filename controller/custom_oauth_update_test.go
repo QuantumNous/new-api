@@ -175,3 +175,95 @@ func TestUpdateCustomOAuthProviderRejectsInvalidTicketExchangeURL(t *testing.T) 
 		t.Fatalf("expected invalid ticket_exchange_url to fail, got body %s", recorder.Body.String())
 	}
 }
+
+func TestUpdateCustomOAuthProviderAllowsJWTUserInfoModeWithoutVerificationKey(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+
+	provider := &model.CustomOAuthProvider{
+		Name:                  "Qdama SSO",
+		Slug:                  "qdama-sso",
+		Kind:                  model.CustomOAuthProviderKindJWTDirect,
+		Enabled:               true,
+		AuthorizationEndpoint: "https://cas.qdama.cn/login",
+		Issuer:                "https://issuer.example.com",
+		JwksURL:               "https://issuer.example.com/.well-known/jwks.json",
+		UserIdField:           "sub",
+	}
+	if err := model.CreateCustomOAuthProvider(provider); err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"jwt_identity_mode":  model.CustomJWTIdentityModeUserInfo,
+		"issuer":             "",
+		"jwks_url":           "",
+		"public_key":         "",
+		"user_info_endpoint": "https://my-api.qdama.cn/v1/api/my/pc/getInfo",
+		"jwt_header":         "x-access-token",
+		"user_id_field":      "info.userCode",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal update payload: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(provider.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/api/custom-oauth-provider/"+strconv.Itoa(provider.Id), bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	UpdateCustomOAuthProvider(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 response, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "\"success\":false") {
+		t.Fatalf("expected userinfo mode update to succeed, got body %s", recorder.Body.String())
+	}
+}
+
+func TestUpdateCustomOAuthProviderRejectsTicketValidateWithUserInfoMode(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+
+	provider := &model.CustomOAuthProvider{
+		Name:                  "CAS SSO",
+		Slug:                  "cas-sso",
+		Kind:                  model.CustomOAuthProviderKindJWTDirect,
+		Enabled:               true,
+		AuthorizationEndpoint: "https://cas.example.com/login",
+		Issuer:                "https://issuer.example.com",
+		JwksURL:               "https://issuer.example.com/.well-known/jwks.json",
+		UserIdField:           "sub",
+	}
+	if err := model.CreateCustomOAuthProvider(provider); err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"jwt_acquire_mode":    model.CustomJWTAcquireModeTicketValidate,
+		"jwt_identity_mode":   model.CustomJWTIdentityModeUserInfo,
+		"ticket_exchange_url": "https://cas.example.com/serviceValidate",
+		"user_info_endpoint":  "https://api.example.com/userinfo",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal update payload: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(provider.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/api/custom-oauth-provider/"+strconv.Itoa(provider.Id), bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	UpdateCustomOAuthProvider(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 response envelope, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "\"success\":false") {
+		t.Fatalf("expected ticket_validate + userinfo update to fail, got body %s", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "ticket_validate mode only support claims") {
+		t.Fatalf("expected ticket_validate userinfo validation message, got body %s", recorder.Body.String())
+	}
+}

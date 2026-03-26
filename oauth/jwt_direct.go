@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -53,6 +54,69 @@ type jwkKey struct {
 	Crv string `json:"crv"`
 	X   string `json:"x"`
 	Y   string `json:"y"`
+}
+
+type casServiceResponseEnvelope struct {
+	XMLName               xml.Name                  `xml:"serviceResponse"`
+	AuthenticationSuccess *casAuthenticationSuccess `xml:"authenticationSuccess"`
+	AuthenticationFailure *casAuthenticationFailure `xml:"authenticationFailure"`
+}
+
+type casAuthenticationSuccess struct {
+	User                string        `xml:"user"`
+	Attributes          casAttributes `xml:"attributes"`
+	ProxyGrantingTicket string        `xml:"proxyGrantingTicket"`
+	Proxies             []string      `xml:"proxies>proxy"`
+}
+
+type casAuthenticationFailure struct {
+	Code    string `xml:"code,attr"`
+	Message string `xml:",chardata"`
+}
+
+type casAttributes map[string]any
+
+func (a *casAttributes) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	values := map[string]any{}
+	for {
+		token, err := d.Token()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return err
+		}
+
+		switch elem := token.(type) {
+		case xml.StartElement:
+			var raw string
+			if err := d.DecodeElement(&raw, &elem); err != nil {
+				return err
+			}
+			name := strings.TrimSpace(elem.Name.Local)
+			value := strings.TrimSpace(raw)
+			if name == "" {
+				continue
+			}
+			if existing, ok := values[name]; ok {
+				switch typed := existing.(type) {
+				case string:
+					values[name] = []string{typed, value}
+				case []string:
+					values[name] = append(typed, value)
+				}
+				continue
+			}
+			values[name] = value
+		case xml.EndElement:
+			if elem.Name == start.Name {
+				*a = casAttributes(values)
+				return nil
+			}
+		}
+	}
+	*a = casAttributes(values)
+	return nil
 }
 
 func NewJWTDirectProvider(config *model.CustomOAuthProvider) *JWTDirectProvider {
@@ -101,12 +165,19 @@ func (p *JWTDirectProvider) GetProviderId() int {
 }
 
 func (p *JWTDirectProvider) ResolveIdentityFromInput(ctx context.Context, rawToken string, ticket string, callbackURL string, state string) (*JWTDirectIdentity, error) {
-	if p.config.GetJWTAcquireMode() == model.CustomJWTAcquireModeTicketExchange {
+	switch p.config.GetJWTAcquireMode() {
+	case model.CustomJWTAcquireModeTicketExchange:
 		exchangedToken, err := p.exchangeTicketForJWT(ctx, ticket, callbackURL, state)
 		if err != nil {
 			return nil, err
 		}
 		rawToken = exchangedToken
+	case model.CustomJWTAcquireModeTicketValidate:
+		claimsJSON, err := p.validateTicketForClaims(ctx, ticket, callbackURL, state)
+		if err != nil {
+			return nil, err
+		}
+		return p.resolveIdentityFromClaimsJSON(claimsJSON)
 	}
 	return p.ResolveIdentity(ctx, rawToken)
 }
@@ -117,13 +188,31 @@ func (p *JWTDirectProvider) ResolveIdentity(ctx context.Context, rawToken string
 		return nil, errors.New("missing jwt token")
 	}
 
-	claims, err := p.parseAndValidateClaims(ctx, tokenString)
-	if err != nil {
-		return nil, err
+	var claimsJSON []byte
+	var err error
+	if p.config.GetJWTIdentityMode() == model.CustomJWTIdentityModeUserInfo {
+		claimsJSON, err = p.fetchUserInfoClaims(ctx, tokenString)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var claims jwt.MapClaims
+		claims, err = p.parseAndValidateClaims(ctx, tokenString)
+		if err != nil {
+			return nil, err
+		}
+		claimsJSON, err = common.Marshal(claims)
+		if err != nil {
+			return nil, fmt.Errorf("marshal jwt claims failed: %w", err)
+		}
 	}
-	claimsJSON, err := common.Marshal(claims)
-	if err != nil {
-		return nil, fmt.Errorf("marshal jwt claims failed: %w", err)
+
+	return p.resolveIdentityFromClaimsJSON(claimsJSON)
+}
+
+func (p *JWTDirectProvider) resolveIdentityFromClaimsJSON(claimsJSON []byte) (*JWTDirectIdentity, error) {
+	if len(bytes.TrimSpace(claimsJSON)) == 0 {
+		return nil, errors.New("identity claims are empty")
 	}
 
 	userID := firstClaimValue(claimsJSON, p.config.UserIdField)
@@ -170,19 +259,44 @@ func (p *JWTDirectProvider) ResolveIdentity(ctx context.Context, rawToken string
 }
 
 func (p *JWTDirectProvider) exchangeTicketForJWT(ctx context.Context, ticket string, callbackURL string, state string) (string, error) {
+	responseBody, err := p.performTicketAcquireRequest(ctx, ticket, callbackURL, state)
+	if err != nil {
+		return "", err
+	}
+
+	token := extractExchangedToken(
+		responseBody,
+		p.config.TicketExchangeTokenField,
+		p.config.GetJWTIdentityMode() == model.CustomJWTIdentityModeUserInfo,
+	)
+	if token == "" {
+		return "", errors.New("ticket exchange response missing jwt token")
+	}
+	return token, nil
+}
+
+func (p *JWTDirectProvider) validateTicketForClaims(ctx context.Context, ticket string, callbackURL string, state string) ([]byte, error) {
+	responseBody, err := p.performTicketAcquireRequest(ctx, ticket, callbackURL, state)
+	if err != nil {
+		return nil, err
+	}
+	return parseTicketValidationClaims(responseBody)
+}
+
+func (p *JWTDirectProvider) performTicketAcquireRequest(ctx context.Context, ticket string, callbackURL string, state string) ([]byte, error) {
 	ticket = strings.TrimSpace(ticket)
 	if ticket == "" {
-		return "", errors.New("missing ticket for jwt exchange")
+		return nil, errors.New("missing ticket")
 	}
 
 	targetURL := strings.TrimSpace(p.config.TicketExchangeURL)
 	if targetURL == "" {
-		return "", errors.New("ticket exchange url is not configured")
+		return nil, errors.New("ticket exchange url is not configured")
 	}
 
 	parsedURL, err := url.Parse(targetURL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-		return "", errors.New("ticket exchange url is invalid")
+		return nil, errors.New("ticket exchange url is invalid")
 	}
 
 	params := parseStringMapping(p.config.TicketExchangeExtraParams)
@@ -230,7 +344,7 @@ func (p *JWTDirectProvider) exchangeTicketForJWT(ctx context.Context, ticket str
 		case model.CustomTicketExchangePayloadModeJSON:
 			payload, marshalErr := common.Marshal(params)
 			if marshalErr != nil {
-				return "", fmt.Errorf("marshal ticket exchange payload failed: %w", marshalErr)
+				return nil, fmt.Errorf("marshal ticket exchange payload failed: %w", marshalErr)
 			}
 			body = bytes.NewReader(payload)
 			headers["Content-Type"] = "application/json"
@@ -239,24 +353,24 @@ func (p *JWTDirectProvider) exchangeTicketForJWT(ctx context.Context, ticket str
 			writer := multipart.NewWriter(&buffer)
 			for key, value := range params {
 				if fieldErr := writer.WriteField(key, value); fieldErr != nil {
-					return "", fmt.Errorf("build multipart exchange payload failed: %w", fieldErr)
+					return nil, fmt.Errorf("build multipart exchange payload failed: %w", fieldErr)
 				}
 			}
 			if closeErr := writer.Close(); closeErr != nil {
-				return "", fmt.Errorf("close multipart exchange payload failed: %w", closeErr)
+				return nil, fmt.Errorf("close multipart exchange payload failed: %w", closeErr)
 			}
 			body = &buffer
 			headers["Content-Type"] = writer.FormDataContentType()
 		default:
-			return "", errors.New("ticket exchange payload mode is invalid")
+			return nil, errors.New("ticket exchange payload mode is invalid")
 		}
 	default:
-		return "", errors.New("ticket exchange method is invalid")
+		return nil, errors.New("ticket exchange method is invalid")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), body)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json, text/plain, */*")
 	for key, value := range headers {
@@ -269,23 +383,60 @@ func (p *JWTDirectProvider) exchangeTicketForJWT(ctx context.Context, ticket str
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("ticket exchange failed: %s %s", resp.Status, strings.TrimSpace(string(responseBody)))
+		return nil, fmt.Errorf("ticket acquire failed: %s %s", resp.Status, strings.TrimSpace(string(responseBody)))
+	}
+	return responseBody, nil
+}
+
+func (p *JWTDirectProvider) fetchUserInfoClaims(ctx context.Context, tokenString string) ([]byte, error) {
+	targetURL := strings.TrimSpace(p.config.UserInfoEndpoint)
+	if targetURL == "" {
+		return nil, errors.New("userinfo endpoint is not configured")
 	}
 
-	token := extractExchangedJWT(responseBody, p.config.TicketExchangeTokenField)
-	if token == "" {
-		return "", errors.New("ticket exchange response missing jwt token")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, err
 	}
-	return token, nil
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+
+	headerName := strings.TrimSpace(p.config.JWTHeader)
+	if headerName == "" {
+		headerName = "Authorization"
+	}
+	headerValue := tokenString
+	if strings.EqualFold(headerName, "Authorization") {
+		headerValue = "Bearer " + tokenString
+	}
+	req.Header.Set(headerName, headerValue)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("userinfo request failed: %s %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, errors.New("userinfo response is empty")
+	}
+	return body, nil
 }
 
 func (p *JWTDirectProvider) parseAndValidateClaims(ctx context.Context, tokenString string) (jwt.MapClaims, error) {
@@ -355,7 +506,7 @@ func replaceJWTExchangePlaceholders(input string, values map[string]string) stri
 	return result
 }
 
-func extractExchangedJWT(body []byte, tokenField string) string {
+func extractExchangedToken(body []byte, tokenField string, allowOpaque bool) string {
 	if len(body) == 0 {
 		return ""
 	}
@@ -378,14 +529,14 @@ func extractExchangedJWT(body []byte, tokenField string) string {
 		result := gjson.GetBytes(body, candidate)
 		if result.Exists() {
 			value := normalizeJWTToken(result.String())
-			if looksLikeJWT(value) {
+			if looksLikeJWT(value) || (allowOpaque && value != "") {
 				return value
 			}
 		}
 	}
 
 	trimmed := normalizeJWTToken(string(bytes.TrimSpace(body)))
-	if looksLikeJWT(trimmed) {
+	if looksLikeJWT(trimmed) || (allowOpaque && trimmed != "") {
 		return trimmed
 	}
 
@@ -393,13 +544,134 @@ func extractExchangedJWT(body []byte, tokenField string) string {
 	if err := json.Unmarshal(body, &payload); err == nil {
 		if str, ok := payload.(string); ok {
 			value := normalizeJWTToken(str)
-			if looksLikeJWT(value) {
+			if looksLikeJWT(value) || (allowOpaque && value != "") {
 				return value
 			}
 		}
 	}
 
 	return ""
+}
+
+func parseTicketValidationClaims(body []byte) ([]byte, error) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil, errors.New("ticket validation response is empty")
+	}
+	if trimmed[0] == '<' {
+		return parseTicketValidationXML(trimmed)
+	}
+	return parseTicketValidationJSON(trimmed)
+}
+
+func parseTicketValidationJSON(body []byte) ([]byte, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse ticket validation json failed: %w", err)
+	}
+	if payload == nil {
+		return nil, errors.New("ticket validation response is empty")
+	}
+
+	serviceResponse := map[string]any{}
+	if raw, ok := payload["serviceResponse"].(map[string]any); ok {
+		serviceResponse = raw
+	} else {
+		if success, ok := payload["authenticationSuccess"]; ok {
+			serviceResponse["authenticationSuccess"] = success
+		}
+		if failure, ok := payload["authenticationFailure"]; ok {
+			serviceResponse["authenticationFailure"] = failure
+		}
+	}
+
+	if failure, ok := serviceResponse["authenticationFailure"]; ok {
+		return nil, formatTicketValidationFailure(failure)
+	}
+	if len(serviceResponse) == 0 {
+		return body, nil
+	}
+
+	normalized := map[string]any{
+		"serviceResponse": serviceResponse,
+	}
+	if success, ok := serviceResponse["authenticationSuccess"]; ok {
+		normalized["authenticationSuccess"] = success
+	}
+	if failure, ok := serviceResponse["authenticationFailure"]; ok {
+		normalized["authenticationFailure"] = failure
+	}
+	claimsJSON, err := common.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("marshal ticket validation claims failed: %w", err)
+	}
+	return claimsJSON, nil
+}
+
+func parseTicketValidationXML(body []byte) ([]byte, error) {
+	var envelope casServiceResponseEnvelope
+	if err := xml.Unmarshal(body, &envelope); err != nil {
+		return nil, fmt.Errorf("parse ticket validation xml failed: %w", err)
+	}
+	if envelope.AuthenticationFailure != nil {
+		return nil, formatTicketValidationFailure(map[string]any{
+			"code":    strings.TrimSpace(envelope.AuthenticationFailure.Code),
+			"message": strings.TrimSpace(envelope.AuthenticationFailure.Message),
+		})
+	}
+	if envelope.AuthenticationSuccess == nil {
+		return nil, errors.New("ticket validation response missing authenticationSuccess")
+	}
+
+	success := map[string]any{
+		"user": strings.TrimSpace(envelope.AuthenticationSuccess.User),
+	}
+	if len(envelope.AuthenticationSuccess.Attributes) > 0 {
+		success["attributes"] = map[string]any(envelope.AuthenticationSuccess.Attributes)
+	}
+	if pgt := strings.TrimSpace(envelope.AuthenticationSuccess.ProxyGrantingTicket); pgt != "" {
+		success["proxyGrantingTicket"] = pgt
+	}
+	if len(envelope.AuthenticationSuccess.Proxies) > 0 {
+		success["proxies"] = envelope.AuthenticationSuccess.Proxies
+	}
+
+	normalized := map[string]any{
+		"serviceResponse": map[string]any{
+			"authenticationSuccess": success,
+		},
+		"authenticationSuccess": success,
+	}
+	claimsJSON, err := common.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("marshal ticket validation claims failed: %w", err)
+	}
+	return claimsJSON, nil
+}
+
+func formatTicketValidationFailure(raw any) error {
+	switch typed := raw.(type) {
+	case map[string]any:
+		code := strings.TrimSpace(fmt.Sprint(typed["code"]))
+		message := strings.TrimSpace(fmt.Sprint(typed["message"]))
+		if message == "" {
+			message = strings.TrimSpace(fmt.Sprint(typed["description"]))
+		}
+		if code != "" && message != "" {
+			return fmt.Errorf("ticket validation failed: %s: %s", code, message)
+		}
+		if code != "" {
+			return fmt.Errorf("ticket validation failed: %s", code)
+		}
+		if message != "" {
+			return fmt.Errorf("ticket validation failed: %s", message)
+		}
+	case string:
+		if message := strings.TrimSpace(typed); message != "" {
+			return fmt.Errorf("ticket validation failed: %s", message)
+		}
+	}
+	return errors.New("ticket validation failed")
 }
 
 func looksLikeJWT(raw string) bool {

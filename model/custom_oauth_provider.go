@@ -29,6 +29,12 @@ const (
 const (
 	CustomJWTAcquireModeDirectToken    = "direct_token"
 	CustomJWTAcquireModeTicketExchange = "ticket_exchange"
+	CustomJWTAcquireModeTicketValidate = "ticket_validate"
+)
+
+const (
+	CustomJWTIdentityModeClaims   = "claims"
+	CustomJWTIdentityModeUserInfo = "userinfo"
 )
 
 const (
@@ -89,14 +95,15 @@ type CustomOAuthProvider struct {
 	JwksURL                    string `json:"jwks_url" gorm:"type:varchar(512)"`                                     // JWKS endpoint URL
 	PublicKey                  string `json:"public_key" gorm:"type:text"`                                           // PEM public key
 	JWTSource                  string `json:"jwt_source" gorm:"type:varchar(32);default:'query'"`                    // query / fragment / body
-	JWTHeader                  string `json:"jwt_header" gorm:"type:varchar(128);default:'Authorization'"`           // reserved for future header mode
-	JWTAcquireMode             string `json:"jwt_acquire_mode" gorm:"type:varchar(32);default:'direct_token'"`       // direct_token / ticket_exchange
+	JWTHeader                  string `json:"jwt_header" gorm:"type:varchar(128);default:'Authorization'"`           // token header for userinfo mode
+	JWTIdentityMode            string `json:"jwt_identity_mode" gorm:"type:varchar(32);default:'claims'"`            // claims / userinfo
+	JWTAcquireMode             string `json:"jwt_acquire_mode" gorm:"type:varchar(32);default:'direct_token'"`       // direct_token / ticket_exchange / ticket_validate
 	AuthorizationServiceField  string `json:"authorization_service_field" gorm:"type:varchar(64);default:'service'"` // browser login callback param for ticket exchange
-	TicketExchangeURL          string `json:"ticket_exchange_url" gorm:"type:varchar(512)"`                          // exchange endpoint URL
+	TicketExchangeURL          string `json:"ticket_exchange_url" gorm:"type:varchar(512)"`                          // ticket processing endpoint URL
 	TicketExchangeMethod       string `json:"ticket_exchange_method" gorm:"type:varchar(16);default:'GET'"`          // GET / POST
 	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode" gorm:"type:varchar(16);default:'query'"`  // query / form / json / multipart
 	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field" gorm:"type:varchar(64);default:'ticket'"` // ticket field name
-	TicketExchangeTokenField   string `json:"ticket_exchange_token_field" gorm:"type:varchar(128)"`                  // response token field path
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field" gorm:"type:varchar(128)"`                  // response token field path (exchange mode)
 	TicketExchangeServiceField string `json:"ticket_exchange_service_field" gorm:"type:varchar(64)"`                 // optional service field name
 	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params" gorm:"type:text"`                         // JSON object for exchange params
 	TicketExchangeHeaders      string `json:"ticket_exchange_headers" gorm:"type:text"`                              // JSON object for exchange headers
@@ -155,6 +162,14 @@ func (p *CustomOAuthProvider) GetJWTAcquireMode() string {
 	return mode
 }
 
+func (p *CustomOAuthProvider) GetJWTIdentityMode() string {
+	mode := normalizeCustomJWTIdentityMode(p.JWTIdentityMode)
+	if mode == "" {
+		return CustomJWTIdentityModeClaims
+	}
+	return mode
+}
+
 func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
 	if !p.Enabled {
 		return false
@@ -163,7 +178,7 @@ func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
 		return strings.TrimSpace(p.AuthorizationEndpoint) != "" && strings.TrimSpace(p.ClientId) != ""
 	}
 	if p.IsJWTDirect() {
-		if p.GetJWTAcquireMode() == CustomJWTAcquireModeTicketExchange {
+		if p.RequiresTicketAcquire() {
 			return strings.TrimSpace(p.AuthorizationEndpoint) != ""
 		}
 		return strings.TrimSpace(p.AuthorizationEndpoint) != "" &&
@@ -171,6 +186,15 @@ func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
 			p.JWTSource != CustomJWTSourceBody
 	}
 	return false
+}
+
+func (p *CustomOAuthProvider) RequiresTicketAcquire() bool {
+	switch p.GetJWTAcquireMode() {
+	case CustomJWTAcquireModeTicketExchange, CustomJWTAcquireModeTicketValidate:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetAllCustomOAuthProviders returns all custom OAuth providers
@@ -286,11 +310,33 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 			return errors.New("user info endpoint is required")
 		}
 	} else {
-		if strings.TrimSpace(provider.Issuer) == "" {
-			return errors.New("issuer is required for jwt_direct providers")
+		acquireMode := normalizeCustomJWTAcquireMode(provider.JWTAcquireMode)
+		if acquireMode == "" {
+			return errors.New("jwt_acquire_mode is invalid")
 		}
-		if strings.TrimSpace(provider.JwksURL) == "" && strings.TrimSpace(provider.PublicKey) == "" {
-			return errors.New("jwks_url or public_key is required for jwt_direct providers")
+		provider.JWTAcquireMode = acquireMode
+		identityMode := normalizeCustomJWTIdentityMode(provider.JWTIdentityMode)
+		if identityMode == "" {
+			return errors.New("jwt_identity_mode is invalid")
+		}
+		provider.JWTIdentityMode = identityMode
+		switch provider.JWTIdentityMode {
+		case CustomJWTIdentityModeClaims:
+			if provider.JWTAcquireMode != CustomJWTAcquireModeTicketValidate {
+				if strings.TrimSpace(provider.Issuer) == "" {
+					return errors.New("issuer is required for jwt_direct providers using claims mode")
+				}
+				if strings.TrimSpace(provider.JwksURL) == "" && strings.TrimSpace(provider.PublicKey) == "" {
+					return errors.New("jwks_url or public_key is required for jwt_direct providers using claims mode")
+				}
+			}
+		case CustomJWTIdentityModeUserInfo:
+			if provider.JWTAcquireMode == CustomJWTAcquireModeTicketValidate {
+				return errors.New("jwt_direct providers using ticket_validate mode only support claims identity mode")
+			}
+			if !isValidAbsoluteHTTPURL(provider.UserInfoEndpoint) {
+				return errors.New("user_info_endpoint is required and must be a valid http/https url for jwt_direct providers using userinfo mode")
+			}
 		}
 	}
 
@@ -321,11 +367,6 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if strings.TrimSpace(provider.JWTHeader) == "" {
 		provider.JWTHeader = "Authorization"
 	}
-	acquireMode := normalizeCustomJWTAcquireMode(provider.JWTAcquireMode)
-	if acquireMode == "" {
-		return errors.New("jwt_acquire_mode is invalid")
-	}
-	provider.JWTAcquireMode = acquireMode
 	if strings.TrimSpace(provider.AuthorizationServiceField) == "" {
 		provider.AuthorizationServiceField = "service"
 	}
@@ -340,9 +381,9 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if strings.TrimSpace(provider.TicketExchangeTicketField) == "" {
 		provider.TicketExchangeTicketField = "ticket"
 	}
-	if provider.JWTAcquireMode == CustomJWTAcquireModeTicketExchange {
+	if provider.RequiresTicketAcquire() {
 		if strings.TrimSpace(provider.TicketExchangeURL) == "" {
-			return errors.New("ticket_exchange_url is required for ticket_exchange mode")
+			return errors.New("ticket_exchange_url is required for ticket-based acquire mode")
 		}
 		if !isValidAbsoluteHTTPURL(provider.TicketExchangeURL) {
 			return errors.New("ticket_exchange_url must be a valid http/https url")
@@ -434,6 +475,19 @@ func normalizeCustomJWTAcquireMode(raw string) string {
 		return CustomJWTAcquireModeDirectToken
 	case CustomJWTAcquireModeTicketExchange:
 		return CustomJWTAcquireModeTicketExchange
+	case CustomJWTAcquireModeTicketValidate:
+		return CustomJWTAcquireModeTicketValidate
+	default:
+		return ""
+	}
+}
+
+func normalizeCustomJWTIdentityMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", CustomJWTIdentityModeClaims:
+		return CustomJWTIdentityModeClaims
+	case CustomJWTIdentityModeUserInfo:
+		return CustomJWTIdentityModeUserInfo
 	default:
 		return ""
 	}

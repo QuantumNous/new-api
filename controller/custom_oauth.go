@@ -35,6 +35,7 @@ type CustomOAuthProviderResponse struct {
 	PublicKey                  string `json:"public_key"`
 	JWTSource                  string `json:"jwt_source"`
 	JWTHeader                  string `json:"jwt_header"`
+	JWTIdentityMode            string `json:"jwt_identity_mode"`
 	JWTAcquireMode             string `json:"jwt_acquire_mode"`
 	AuthorizationServiceField  string `json:"authorization_service_field"`
 	TicketExchangeURL          string `json:"ticket_exchange_url"`
@@ -112,6 +113,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		PublicKey:                  p.PublicKey,
 		JWTSource:                  jwtSource,
 		JWTHeader:                  p.JWTHeader,
+		JWTIdentityMode:            p.GetJWTIdentityMode(),
 		JWTAcquireMode:             p.GetJWTAcquireMode(),
 		AuthorizationServiceField:  authorizationServiceField,
 		TicketExchangeURL:          p.TicketExchangeURL,
@@ -204,6 +206,7 @@ type CreateCustomOAuthProviderRequest struct {
 	PublicKey                  string `json:"public_key"`
 	JWTSource                  string `json:"jwt_source"`
 	JWTHeader                  string `json:"jwt_header"`
+	JWTIdentityMode            string `json:"jwt_identity_mode"`
 	JWTAcquireMode             string `json:"jwt_acquire_mode"`
 	AuthorizationServiceField  string `json:"authorization_service_field"`
 	TicketExchangeURL          string `json:"ticket_exchange_url"`
@@ -349,6 +352,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		PublicKey:                  req.PublicKey,
 		JWTSource:                  req.JWTSource,
 		JWTHeader:                  req.JWTHeader,
+		JWTIdentityMode:            req.JWTIdentityMode,
 		JWTAcquireMode:             req.JWTAcquireMode,
 		AuthorizationServiceField:  req.AuthorizationServiceField,
 		TicketExchangeURL:          req.TicketExchangeURL,
@@ -413,6 +417,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	PublicKey                  *string `json:"public_key"`
 	JWTSource                  *string `json:"jwt_source"`
 	JWTHeader                  *string `json:"jwt_header"`
+	JWTIdentityMode            *string `json:"jwt_identity_mode"`
 	JWTAcquireMode             *string `json:"jwt_acquire_mode"`
 	AuthorizationServiceField  *string `json:"authorization_service_field"`
 	TicketExchangeURL          *string `json:"ticket_exchange_url"`
@@ -531,6 +536,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.JWTHeader != nil {
 		provider.JWTHeader = *req.JWTHeader
+	}
+	if req.JWTIdentityMode != nil {
+		provider.JWTIdentityMode = *req.JWTIdentityMode
 	}
 	if req.JWTAcquireMode != nil {
 		provider.JWTAcquireMode = *req.JWTAcquireMode
