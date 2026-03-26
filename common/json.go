@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+type RawMessage = json.RawMessage
+
 func Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }

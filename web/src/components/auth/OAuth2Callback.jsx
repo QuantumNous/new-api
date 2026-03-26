@@ -83,7 +83,6 @@ const OAuth2Callback = (props) => {
     }
 
     userDispatch({ type: 'login', payload: data });
-    localStorage.setItem('user', JSON.stringify(data));
     setUserData(data);
     updateAPI();
     showSuccess(t('登录成功！'));

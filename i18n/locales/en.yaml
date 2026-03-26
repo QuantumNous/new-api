@@ -235,6 +235,8 @@ oauth.connect_failed: "Unable to connect to {{.Provider}} server, please try aga
 oauth.token_failed: "Failed to get token from {{.Provider}}, please check settings"
 oauth.user_info_empty: "{{.Provider}} returned empty user info, please check settings"
 oauth.trust_level_low: "Linux DO trust level does not meet the minimum required by administrator"
+oauth.ticket_missing: "Missing login ticket"
+oauth.jwt_missing: "Missing JWT token"
 
 # Model layer error messages
 redeem.failed: "Redemption failed, please try again later"
