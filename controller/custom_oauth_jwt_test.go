@@ -1009,6 +1009,105 @@ func TestHandleCustomOAuthJWTLoginWithTicketValidateCreatesUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginReturns200ForInvalidState(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	_ = fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-user-invalid-state",
+		"preferred_username": "invalid-state-user",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	payload, marshalErr := common.Marshal(map[string]any{
+		"state":    "mismatched-state",
+		"id_token": token,
+	})
+	if marshalErr != nil {
+		t.Fatalf("failed to marshal login payload: %v", marshalErr)
+	}
+	req, reqErr := http.NewRequest(http.MethodPost, server.URL+"/api/auth/external/acme-sso/jwt/login", bytes.NewReader(payload))
+	if reqErr != nil {
+		t.Fatalf("failed to build login request: %v", reqErr)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, doErr := client.Do(req)
+	if doErr != nil {
+		t.Fatalf("failed to post jwt login: %v", doErr)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected invalid state response to keep http 200 envelope, got %d", resp.StatusCode)
+	}
+	var response oauthJWTAPIResponse
+	if err := common.DecodeJson(resp.Body, &response); err != nil {
+		t.Fatalf("failed to decode invalid state response: %v", err)
+	}
+	if response.Success {
+		t.Fatalf("expected invalid state response to fail")
+	}
+	if response.Message == "" {
+		t.Fatalf("expected invalid state response to include an error message")
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginReturns200ForUnknownProvider(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	payload, err := common.Marshal(map[string]any{
+		"state":    state,
+		"id_token": "fake-token",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal login payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/auth/external/missing-provider/jwt/login", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("failed to build login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to post jwt login: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected unknown provider response to keep http 200 envelope, got %d", resp.StatusCode)
+	}
+	var response oauthJWTAPIResponse
+	if err := common.DecodeJson(resp.Body, &response); err != nil {
+		t.Fatalf("failed to decode unknown provider response: %v", err)
+	}
+	if response.Success {
+		t.Fatalf("expected unknown provider response to fail")
+	}
+	if response.Message == "" {
+		t.Fatalf("expected unknown provider response to include an error message")
+	}
+}
+
 func newTestHTTPClient(t *testing.T) *http.Client {
 	t.Helper()
 	jar, err := cookiejar.New(nil)
@@ -1031,7 +1130,7 @@ func fetchOAuthStateForTest(t *testing.T, client *http.Client, baseURL string) s
 	defer resp.Body.Close()
 
 	var response oauthJWTAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := common.DecodeJson(resp.Body, &response); err != nil {
 		t.Fatalf("failed to decode state response: %v", err)
 	}
 	var state string
@@ -1062,7 +1161,7 @@ func postJWTLoginForTest(t *testing.T, client *http.Client, baseURL string, stat
 	defer resp.Body.Close()
 
 	var response oauthJWTAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := common.DecodeJson(resp.Body, &response); err != nil {
 		t.Fatalf("failed to decode login response: %v", err)
 	}
 	return response
@@ -1089,7 +1188,7 @@ func postJWTTicketLoginForTest(t *testing.T, client *http.Client, baseURL string
 	defer resp.Body.Close()
 
 	var response oauthJWTAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := common.DecodeJson(resp.Body, &response); err != nil {
 		t.Fatalf("failed to decode ticket login response: %v", err)
 	}
 	return response

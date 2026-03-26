@@ -41,6 +41,10 @@ func TestStatus(c *gin.Context) {
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
+	customProviders, err := model.GetEnabledCustomOAuthProviders()
+	if err != nil {
+		common.SysError("failed to load enabled custom auth providers: " + err.Error())
+	}
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
@@ -130,10 +134,6 @@ func GetStatus(c *gin.Context) {
 	}
 
 	// Add enabled custom auth providers
-	customProviders, err := model.GetEnabledCustomOAuthProviders()
-	if err != nil {
-		common.SysError("failed to load enabled custom auth providers: " + err.Error())
-	}
 	if len(customProviders) > 0 {
 		type CustomOAuthInfo struct {
 			Id                        int    `json:"id"`

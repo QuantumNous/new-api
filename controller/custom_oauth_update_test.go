@@ -267,3 +267,72 @@ func TestUpdateCustomOAuthProviderRejectsTicketValidateWithUserInfoMode(t *testi
 		t.Fatalf("expected ticket_validate userinfo validation message, got body %s", recorder.Body.String())
 	}
 }
+
+func TestUpdateCustomOAuthProviderAllowsClearingClientSecret(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+
+	provider := &model.CustomOAuthProvider{
+		Name:                  "Acme OAuth",
+		Slug:                  "acme-oauth",
+		Kind:                  model.CustomOAuthProviderKindOAuthCode,
+		Enabled:               true,
+		ClientId:              "client-id",
+		ClientSecret:          "secret-to-clear",
+		AuthorizationEndpoint: "https://issuer.example.com/oauth2/authorize",
+		TokenEndpoint:         "https://issuer.example.com/oauth2/token",
+		UserInfoEndpoint:      "https://issuer.example.com/oauth2/userinfo",
+		UserIdField:           "id",
+	}
+	if err := model.CreateCustomOAuthProvider(provider); err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"client_secret": "",
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal update payload: %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(provider.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodPut, "/api/custom-oauth-provider/"+strconv.Itoa(provider.Id), bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	UpdateCustomOAuthProvider(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200 response, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+
+	updatedProvider, err := model.GetCustomOAuthProviderById(provider.Id)
+	if err != nil {
+		t.Fatalf("failed to reload provider: %v", err)
+	}
+	if updatedProvider.ClientSecret != "" {
+		t.Fatalf("expected client_secret to be cleared, got %q", updatedProvider.ClientSecret)
+	}
+}
+
+func TestCustomOAuthProviderResponseOmitsTicketExchangeSecrets(t *testing.T) {
+	response := toCustomOAuthProviderResponse(&model.CustomOAuthProvider{
+		Name:                      "CAS SSO",
+		Slug:                      "cas-sso",
+		Kind:                      model.CustomOAuthProviderKindJWTDirect,
+		TicketExchangeExtraParams: `{"token":"sensitive"}`,
+		TicketExchangeHeaders:     `{"Authorization":"Bearer sensitive"}`,
+	})
+
+	payload, err := common.Marshal(response)
+	if err != nil {
+		t.Fatalf("failed to marshal response: %v", err)
+	}
+
+	if strings.Contains(string(payload), "ticket_exchange_extra_params") {
+		t.Fatalf("expected response payload to omit ticket_exchange_extra_params, got %s", string(payload))
+	}
+	if strings.Contains(string(payload), "ticket_exchange_headers") {
+		t.Fatalf("expected response payload to omit ticket_exchange_headers, got %s", string(payload))
+	}
+}

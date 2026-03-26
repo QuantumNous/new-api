@@ -129,8 +129,11 @@ const RegisterForm = () => {
       return {};
     }
   }, [statusState?.status]);
+  const customOAuthProviders = Array.isArray(status.custom_oauth_providers)
+    ? status.custom_oauth_providers
+    : [];
   const hasCustomOAuthProviders =
-    (status.custom_oauth_providers || []).some(
+    customOAuthProviders.some(
       (provider) => provider.browser_login_supported !== false,
     );
   const hasOAuthRegisterOptions = Boolean(
@@ -496,8 +499,8 @@ const RegisterForm = () => {
                   </Button>
                 )}
 
-                {status.custom_oauth_providers &&
-                  status.custom_oauth_providers
+                {customOAuthProviders.length > 0 &&
+                  customOAuthProviders
                     .filter((provider) => provider.browser_login_supported !== false)
                     .map((provider) => (
                       <Button

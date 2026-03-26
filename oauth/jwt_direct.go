@@ -8,7 +8,6 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -541,7 +540,7 @@ func extractExchangedToken(body []byte, tokenField string, allowOpaque bool) str
 	}
 
 	var payload any
-	if err := json.Unmarshal(body, &payload); err == nil {
+	if err := common.Unmarshal(body, &payload); err == nil {
 		if str, ok := payload.(string); ok {
 			value := normalizeJWTToken(str)
 			if looksLikeJWT(value) || (allowOpaque && value != "") {
@@ -566,7 +565,7 @@ func parseTicketValidationClaims(body []byte) ([]byte, error) {
 
 func parseTicketValidationJSON(body []byte) ([]byte, error) {
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := common.Unmarshal(body, &payload); err != nil {
 		return nil, fmt.Errorf("parse ticket validation json failed: %w", err)
 	}
 	if payload == nil {

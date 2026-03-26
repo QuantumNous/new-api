@@ -124,7 +124,7 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 		if err := syncSessionUserIdentity(session, user); err != nil {
-			c.JSON(http.StatusOK, gin.H{
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": "无权进行此操作，会话刷新失败",
 			})

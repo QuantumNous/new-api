@@ -44,8 +44,6 @@ type CustomOAuthProviderResponse struct {
 	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field"`
 	TicketExchangeTokenField   string `json:"ticket_exchange_token_field"`
 	TicketExchangeServiceField string `json:"ticket_exchange_service_field"`
-	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params"`
-	TicketExchangeHeaders      string `json:"ticket_exchange_headers"`
 	UserIdField                string `json:"user_id_field"`
 	UsernameField              string `json:"username_field"`
 	DisplayNameField           string `json:"display_name_field"`
@@ -122,8 +120,6 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		TicketExchangeTicketField:  ticketExchangeTicketField,
 		TicketExchangeTokenField:   p.TicketExchangeTokenField,
 		TicketExchangeServiceField: p.TicketExchangeServiceField,
-		TicketExchangeExtraParams:  p.TicketExchangeExtraParams,
-		TicketExchangeHeaders:      p.TicketExchangeHeaders,
 		UserIdField:                p.UserIdField,
 		UsernameField:              p.UsernameField,
 		DisplayNameField:           p.DisplayNameField,
@@ -406,7 +402,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	Enabled                    *bool   `json:"enabled"` // Optional: if nil, keep existing
 	Kind                       *string `json:"kind"`
 	ClientId                   *string `json:"client_id"`
-	ClientSecret               string  `json:"client_secret"` // Optional: if empty, keep existing
+	ClientSecret               *string `json:"client_secret"`
 	AuthorizationEndpoint      *string `json:"authorization_endpoint"`
 	TokenEndpoint              *string `json:"token_endpoint"`
 	UserInfoEndpoint           *string `json:"user_info_endpoint"`
@@ -504,8 +500,8 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.ClientId != nil {
 		provider.ClientId = *req.ClientId
 	}
-	if req.ClientSecret != "" {
-		provider.ClientSecret = req.ClientSecret
+	if req.ClientSecret != nil {
+		provider.ClientSecret = *req.ClientSecret
 	}
 	if req.AuthorizationEndpoint != nil {
 		provider.AuthorizationEndpoint = *req.AuthorizationEndpoint
