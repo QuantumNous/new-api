@@ -1,5 +1,0 @@
-    version: "1"
-    rules:
-      - base: main
-        upstream: QuantumNous/new-api:main
-        mergeMethod: merge
