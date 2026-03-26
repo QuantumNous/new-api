@@ -276,12 +276,15 @@ func TestHandleCustomOAuthJWTLoginCreatesUser(t *testing.T) {
 	if !strings.Contains(log.Content, "provider_slug=acme-sso") ||
 		!strings.Contains(log.Content, "provider_kind=jwt_direct") ||
 		!strings.Contains(log.Content, "action=login") ||
-		!strings.Contains(log.Content, "external_id=ext-user-1") ||
+		!strings.Contains(log.Content, "external_id="+redactOAuthAuditID("ext-user-1")) ||
 		!strings.Contains(log.Content, "auto_register=true") ||
 		!strings.Contains(log.Content, "email_merge=false") ||
 		!strings.Contains(log.Content, "group_result=vip") ||
 		!strings.Contains(log.Content, "role_result=admin") {
 		t.Fatalf("unexpected enterprise auth audit log: %s", log.Content)
+	}
+	if strings.Contains(log.Content, "external_id=ext-user-1") {
+		t.Fatalf("expected enterprise auth audit log to redact external id, got %s", log.Content)
 	}
 }
 
@@ -427,8 +430,12 @@ func TestHandleCustomOAuthJWTLoginDoesNotSyncAttributesDuringBind(t *testing.T) 
 		t.Fatal("expected binding to be created during bind flow")
 	}
 	log := getLatestSystemLogForUser(t, user.Id)
-	if !strings.Contains(log.Content, "action=bind") || !strings.Contains(log.Content, "external_id=ext-bind-sync-ignored") {
+	if !strings.Contains(log.Content, "action=bind") ||
+		!strings.Contains(log.Content, "external_id="+redactOAuthAuditID("ext-bind-sync-ignored")) {
 		t.Fatalf("expected bind audit log, got %s", log.Content)
+	}
+	if strings.Contains(log.Content, "external_id=ext-bind-sync-ignored") {
+		t.Fatalf("expected bind audit log to redact external id, got %s", log.Content)
 	}
 }
 

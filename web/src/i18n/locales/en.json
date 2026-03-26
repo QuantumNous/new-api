@@ -3620,6 +3620,8 @@
     "JSON 请求体": "JSON Request Body",
     "Multipart 表单": "Multipart Form",
     "仅显式映射": "Explicit Mapping Only",
-    "映射优先，其次透传": "Mapping First, Then Passthrough"
+    "映射优先，其次透传": "Mapping First, Then Passthrough",
+    "请填写 {{fieldLabel}}": "Please fill in {{fieldLabel}}",
+    "清空已保存的客户端密钥": "Clear saved client secret"
   }
 }

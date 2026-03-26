@@ -172,7 +172,7 @@ func completeCustomOAuthJWTLogin(
 		return nil, audit, err
 	}
 	if audit != nil {
-		audit.ExternalID = identity.User.ProviderUserID
+		audit.ExternalID = redactOAuthAuditID(identity.User.ProviderUserID)
 		audit.GroupResult = safeOAuthAuditValue(identity.Group)
 		audit.RoleResult = oauthRoleLabel(identity.Role)
 	}
@@ -343,4 +343,12 @@ func recordCustomOAuthJWTAudit(audit *customOAuthJWTAuditInfo) {
 	if audit.TargetUserID > 0 {
 		model.RecordLog(audit.TargetUserID, model.LogTypeSystem, content)
 	}
+}
+
+func redactOAuthAuditID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	return "hmac_sha256:" + common.GenerateHMAC(value)
 }

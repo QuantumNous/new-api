@@ -211,6 +211,17 @@ const DISCOVERY_FIELD_LABELS = {
   email_field: '邮箱字段',
 };
 
+const REQUIRED_FIELD_LABELS = {
+  name: '显示名称',
+  slug: 'Slug',
+  client_id: '客户端 ID',
+  client_secret: '客户端密钥',
+  authorization_endpoint: '授权端点',
+  token_endpoint: '令牌端点',
+  user_info_endpoint: '用户信息端点',
+  issuer: '发行者',
+};
+
 const ACCESS_POLICY_TEMPLATES = {
   level_active: `{
   "logic": "and",
@@ -254,6 +265,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryInfo, setDiscoveryInfo] = useState(null);
   const [advancedActiveKeys, setAdvancedActiveKeys] = useState([]);
+  const [clientSecretDirty, setClientSecretDirty] = useState(false);
+  const [clearClientSecret, setClearClientSecret] = useState(false);
   const formApiRef = React.useRef(null);
   const customOAuthKindOptions = CUSTOM_OAUTH_KIND_OPTIONS.map((option) => ({
     ...option,
@@ -355,6 +368,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setModalVisible(false);
     resetDiscoveryState();
     setAdvancedActiveKeys([]);
+    setClientSecretDirty(false);
+    setClearClientSecret(false);
   };
 
   const fetchProviders = async () => {
@@ -413,6 +428,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setBaseUrl('');
     resetDiscoveryState();
     setAdvancedActiveKeys([]);
+    setClientSecretDirty(false);
+    setClearClientSecret(false);
     setModalVisible(true);
   };
 
@@ -446,6 +463,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setBaseUrl(inferBaseUrlFromProvider(provider));
     resetDiscoveryState();
     setAdvancedActiveKeys([]);
+    setClientSecretDirty(false);
+    setClearClientSecret(false);
     setModalVisible(true);
   };
 
@@ -508,7 +527,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
     for (const field of requiredFields) {
       if (!currentValues[field]) {
-        showError(t(`请填写 ${field}`));
+        const fieldLabel = REQUIRED_FIELD_LABELS[field] || field;
+        showError(
+          t('请填写 {{fieldLabel}}', {
+            fieldLabel: t(fieldLabel),
+          }),
+        );
         return;
       }
     }
@@ -547,8 +571,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       const payload = { ...currentValues, enabled: !!currentValues.enabled };
       delete payload.preset;
       delete payload.base_url;
-      if (editingProvider && payload.client_secret === '') {
-        delete payload.client_secret;
+      if (editingProvider) {
+        if (clearClientSecret) {
+          payload.client_secret = '';
+        } else if (!clientSecretDirty || payload.client_secret === '') {
+          delete payload.client_secret;
+        }
       }
       if (editingProvider) {
         const hiddenJWTSecretFields = [
@@ -1164,17 +1192,24 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   }
                 />
               </Col>
-              {!isJWTDirect && (
+              {(!isJWTDirect || editingProvider) && (
                 <Col span={12}>
                   <Form.Input
                     field='client_secret'
                     label={t('客户端密钥')}
                     type='password'
+                    disabled={clearClientSecret}
                     placeholder={
                       editingProvider
                         ? t('留空则保持原有密钥')
                         : t('OAuth 客户端密钥')
                     }
+                    onChange={(value) => {
+                      setClientSecretDirty(true);
+                      if (value) {
+                        setClearClientSecret(false);
+                      }
+                    }}
                     rules={
                       editingProvider
                         ? []
@@ -1186,6 +1221,34 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           ]
                     }
                   />
+                  {editingProvider && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginTop: -12,
+                        marginBottom: 12,
+                      }}
+                    >
+                      <Switch
+                        checked={clearClientSecret}
+                        onChange={(checked) => {
+                          setClearClientSecret(checked);
+                          if (checked) {
+                            setClientSecretDirty(true);
+                            mergeFormValues({ client_secret: '' });
+                            return;
+                          }
+                          setClientSecretDirty(false);
+                          mergeFormValues({ client_secret: '' });
+                        }}
+                      />
+                      <Text type='secondary'>
+                        {t('清空已保存的客户端密钥')}
+                      </Text>
+                    </div>
+                  )}
                 </Col>
               )}
             </Row>
