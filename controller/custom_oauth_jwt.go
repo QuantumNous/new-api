@@ -161,11 +161,23 @@ func completeCustomOAuthJWTLogin(
 		return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthJWTMissing, nil)
 	}
 
+	callbackURL := ""
+	if providerConfig.RequiresTicketAcquire() {
+		validatedCallbackURL, callbackErr := buildCustomOAuthJWTCallbackURL(providerConfig.Slug, state)
+		if callbackErr != nil {
+			if audit != nil {
+				audit.FailureReason = "invalid_callback_url"
+			}
+			return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": providerConfig.Name})
+		}
+		callbackURL = validatedCallbackURL
+	}
+
 	identity, err := provider.ResolveIdentityFromInput(
 		c.Request.Context(),
 		rawToken,
 		ticket,
-		buildCustomOAuthJWTCallbackURL(c, providerConfig.Slug, state),
+		callbackURL,
 		state,
 	)
 	if err != nil {
@@ -237,55 +249,31 @@ func completeCustomOAuthJWTLogin(
 	return result, audit, nil
 }
 
-func buildCustomOAuthJWTCallbackURL(c *gin.Context, providerSlug string, state string) string {
+func buildCustomOAuthJWTCallbackURL(providerSlug string, state string) (string, error) {
 	baseURL := strings.TrimSpace(system_setting.ServerAddress)
-	var callbackURL *url.URL
-	if baseURL != "" {
-		parsedBaseURL, err := url.Parse(baseURL)
-		if err == nil && parsedBaseURL != nil && strings.TrimSpace(parsedBaseURL.Host) != "" &&
-			(parsedBaseURL.Scheme == "http" || parsedBaseURL.Scheme == "https") {
-			callbackURL, _ = url.Parse(strings.TrimRight(baseURL, "/") + "/oauth/" + providerSlug)
-		}
+	if baseURL == "" {
+		return "", fmt.Errorf("server address is empty")
 	}
-	if callbackURL == nil {
-		scheme := strings.TrimSpace(c.GetHeader("X-Forwarded-Proto"))
-		if scheme != "" {
-			scheme = strings.TrimSpace(strings.Split(scheme, ",")[0])
-		}
-		if scheme == "" {
-			if c.Request.TLS != nil {
-				scheme = "https"
-			} else {
-				scheme = "http"
-			}
-		}
+	callbackURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid server address: %w", err)
+	}
+	if callbackURL == nil || strings.TrimSpace(callbackURL.Host) == "" {
+		return "", fmt.Errorf("server address host is empty")
+	}
+	if callbackURL.Scheme != "http" && callbackURL.Scheme != "https" {
+		return "", fmt.Errorf("server address scheme must be http or https")
+	}
 
-		host := strings.TrimSpace(c.GetHeader("X-Forwarded-Host"))
-		if host != "" {
-			host = strings.TrimSpace(strings.Split(host, ",")[0])
-		}
-		if host == "" {
-			host = strings.TrimSpace(c.Request.Host)
-		}
-		if host == "" {
-			return ""
-		}
-
-		callbackURL = &url.URL{
-			Scheme: scheme,
-			Host:   host,
-			Path:   "/oauth/" + providerSlug,
-		}
-	}
-	if callbackURL == nil {
-		return ""
-	}
+	callbackURL.RawQuery = ""
+	callbackURL.Fragment = ""
+	callbackURL.Path = strings.TrimRight(callbackURL.Path, "/") + "/oauth/" + providerSlug
 	if strings.TrimSpace(state) != "" {
 		query := callbackURL.Query()
 		query.Set("state", state)
 		callbackURL.RawQuery = query.Encode()
 	}
-	return callbackURL.String()
+	return callbackURL.String(), nil
 }
 
 func handleCustomOAuthJWTLoginError(c *gin.Context, err error) {

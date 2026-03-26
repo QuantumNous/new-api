@@ -1083,6 +1083,79 @@ func TestHandleCustomOAuthJWTLoginWithTicketValidateCreatesUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginWithTicketExchangeRequiresValidServerAddress(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+
+	exchangeCallCount := 0
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		exchangeCallCount++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer exchangeServer.Close()
+
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:               true,
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:          exchangeServer.URL,
+		TicketExchangeMethod:       http.MethodPost,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeForm,
+		TicketExchangeTicketField:  "ticket",
+		TicketExchangeTokenField:   "data.token",
+		TicketExchangeServiceField: "service",
+	})
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = ""
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	response := postJWTTicketLoginForTest(t, client, server.URL, state, "ST-123")
+
+	if response.Success {
+		t.Fatalf("expected ticket login to fail when server address is empty")
+	}
+	if exchangeCallCount != 0 {
+		t.Fatalf("expected ticket exchange not to be called without valid server address, got %d", exchangeCallCount)
+	}
+	if response.Message == "" {
+		t.Fatalf("expected ticket login failure to include message")
+	}
+}
+
+func TestBuildCustomOAuthJWTCallbackURLRequiresValidServerAddress(t *testing.T) {
+	previousServerAddress := system_setting.ServerAddress
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	system_setting.ServerAddress = "://bad"
+	_, err := buildCustomOAuthJWTCallbackURL("acme-sso", "state-1")
+	if err == nil {
+		t.Fatalf("expected invalid server address to fail callback url build")
+	}
+
+	system_setting.ServerAddress = "https://example.com/base/"
+	callbackURL, err := buildCustomOAuthJWTCallbackURL("acme-sso", "state-2")
+	if err != nil {
+		t.Fatalf("expected valid server address to build callback url, got %v", err)
+	}
+	expected := "https://example.com/base/oauth/acme-sso?state=state-2"
+	if callbackURL != expected {
+		t.Fatalf("expected callback url %q, got %q", expected, callbackURL)
+	}
+}
+
 func TestHandleCustomOAuthJWTLoginReturns200ForInvalidState(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
