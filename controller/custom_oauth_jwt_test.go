@@ -109,6 +109,9 @@ type jwtDirectProviderTestOptions struct {
 	AutoMergeByEmail           bool
 	SyncGroupOnLogin           bool
 	SyncRoleOnLogin            bool
+	JWTIdentityMode            string
+	UserInfoEndpoint           string
+	JWTHeader                  string
 	JWTAcquireMode             string
 	TicketExchangeURL          string
 	TicketExchangeMethod       string
@@ -133,6 +136,9 @@ func createJWTDirectProviderForTest(t *testing.T, privateKey *rsa.PrivateKey, op
 		Issuer:                     "https://issuer.example.com",
 		Audience:                   "new-api",
 		PublicKey:                  mustEncodeControllerRSAPublicKeyPEM(t, &privateKey.PublicKey),
+		JWTIdentityMode:            options.JWTIdentityMode,
+		UserInfoEndpoint:           options.UserInfoEndpoint,
+		JWTHeader:                  options.JWTHeader,
 		UserIdField:                "sub",
 		UsernameField:              "preferred_username",
 		DisplayNameField:           "name",
@@ -720,6 +726,111 @@ func TestHandleCustomOAuthJWTLoginDoesNotBindDisabledMergedUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"data": map[string]any{
+				"access_token": "opaque-access-token",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("x-access-token"); got != "opaque-access-token" {
+			t.Fatalf("expected exchanged token in x-access-token header, got %q", got)
+		}
+		payload, err := common.Marshal(map[string]any{
+			"info": map[string]any{
+				"userCode": "1410833903245320192",
+				"loginid":  "liangmingsen",
+				"userName": "梁明森",
+				"mailbox":  "liangmingsen@qdama.cn",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal userinfo payload: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer userInfoServer.Close()
+
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:               true,
+		JWTIdentityMode:            model.CustomJWTIdentityModeUserInfo,
+		UserInfoEndpoint:           userInfoServer.URL,
+		JWTHeader:                  "x-access-token",
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:          exchangeServer.URL,
+		TicketExchangeMethod:       http.MethodGet,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeQuery,
+		TicketExchangeTicketField:  "ticket",
+		TicketExchangeTokenField:   "data.access_token",
+		TicketExchangeServiceField: "service",
+	})
+
+	// Override field mappings for qdama-like userinfo payload.
+	if err := model.DB.Model(&model.CustomOAuthProvider{}).
+		Where("slug = ?", "acme-sso").
+		Updates(map[string]any{
+			"user_id_field":      "info.userCode",
+			"username_field":     "info.loginid",
+			"display_name_field": "info.userName",
+			"email_field":        "info.mailbox",
+			"group_field":        "",
+			"role_field":         "",
+			"group_mapping":      "",
+			"role_mapping":       "",
+		}).Error; err != nil {
+		t.Fatalf("failed to update provider mappings: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = server.URL
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	response := postJWTTicketLoginForTest(t, client, server.URL, state, "ST-123")
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Username != "liangmingsen" {
+		t.Fatalf("unexpected login username: %s", loginData.Username)
+	}
+
+	var user model.User
+	if err := model.DB.Where("username = ?", "liangmingsen").First(&user).Error; err != nil {
+		t.Fatalf("expected created user liangmingsen, got error: %v", err)
+	}
+	if user.Email != "liangmingsen@qdama.cn" {
+		t.Fatalf("unexpected persisted email: %s", user.Email)
+	}
+}
+
 func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -805,6 +916,96 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 	}
 	if loginData.Username != "ticket-user" || loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
 		t.Fatalf("unexpected login response: %+v", loginData)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginWithTicketValidateCreatesUser(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("ticket"); got != "ST-CAS-123" {
+			t.Fatalf("expected ticket query param ST-CAS-123, got %q", got)
+		}
+		if got := r.URL.Query().Get("service"); !strings.Contains(got, "/oauth/acme-sso?state=") {
+			t.Fatalf("expected service callback url to contain oauth callback, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<cas:serviceResponse xmlns:cas="http://www.yale.edu/tp/cas">
+  <cas:authenticationSuccess>
+    <cas:user>cas-user-1</cas:user>
+    <cas:attributes>
+      <cas:loginid>cas-user</cas:loginid>
+      <cas:userName>CAS User</cas:userName>
+      <cas:mailbox>cas-user@example.com</cas:mailbox>
+      <cas:group>engineering</cas:group>
+      <cas:role>platform-admin</cas:role>
+    </cas:attributes>
+  </cas:authenticationSuccess>
+</cas:serviceResponse>`))
+	}))
+	defer validationServer.Close()
+
+	createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:               true,
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:          validationServer.URL,
+		TicketExchangeMethod:       http.MethodGet,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeQuery,
+		TicketExchangeTicketField:  "ticket",
+		TicketExchangeServiceField: "service",
+	})
+
+	if err := model.DB.Model(&model.CustomOAuthProvider{}).
+		Where("slug = ?", "acme-sso").
+		Updates(map[string]any{
+			"user_id_field":      "authenticationSuccess.user",
+			"username_field":     "authenticationSuccess.attributes.loginid",
+			"display_name_field": "authenticationSuccess.attributes.userName",
+			"email_field":        "authenticationSuccess.attributes.mailbox",
+			"group_field":        "authenticationSuccess.attributes.group",
+			"group_mapping":      `{"engineering":"vip"}`,
+			"role_field":         "authenticationSuccess.attributes.role",
+			"role_mapping":       `{"platform-admin":"admin"}`,
+		}).Error; err != nil {
+		t.Fatalf("failed to update provider mappings for ticket validate: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	previousServerAddress := system_setting.ServerAddress
+	system_setting.ServerAddress = server.URL
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousServerAddress
+	})
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	response := postJWTTicketLoginForTest(t, client, server.URL, state, "ST-CAS-123")
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Username != "cas-user" || loginData.Role != common.RoleAdminUser || loginData.Group != "vip" {
+		t.Fatalf("unexpected login response: %+v", loginData)
+	}
+
+	var user model.User
+	if err := model.DB.Where("username = ?", "cas-user").First(&user).Error; err != nil {
+		t.Fatalf("expected created user cas-user, got error: %v", err)
+	}
+	if user.Email != "cas-user@example.com" {
+		t.Fatalf("unexpected persisted email: %s", user.Email)
 	}
 }
 

@@ -147,7 +147,7 @@ func completeCustomOAuthJWTLogin(
 ) (*customOAuthJWTLoginResult, *customOAuthJWTAuditInfo, error) {
 	rawToken = strings.TrimSpace(rawToken)
 	ticket = strings.TrimSpace(ticket)
-	if providerConfig.GetJWTAcquireMode() == model.CustomJWTAcquireModeTicketExchange {
+	if providerConfig.RequiresTicketAcquire() {
 		if ticket == "" {
 			if audit != nil {
 				audit.FailureReason = "missing_exchange_ticket"

@@ -382,6 +382,167 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	}
 }
 
+func TestJWTDirectResolveIdentityWithUserInfoMode(t *testing.T) {
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("x-access-token"); got != "opaque-token" {
+			t.Fatalf("expected raw token in x-access-token header, got %q", got)
+		}
+		payload, err := common.Marshal(map[string]any{
+			"info": map[string]any{
+				"userCode": "1410833903245320192",
+				"loginid":  "liangmingsen",
+				"userName": "梁明森",
+				"mailbox":  "liangmingsen@qdama.cn",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal userinfo payload: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer userInfoServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:             "Qdama SSO",
+		Slug:             "qdama-sso",
+		Enabled:          true,
+		JWTIdentityMode:  model.CustomJWTIdentityModeUserInfo,
+		UserInfoEndpoint: userInfoServer.URL,
+		JWTHeader:        "x-access-token",
+		UserIdField:      "info.userCode",
+		UsernameField:    "info.loginid",
+		DisplayNameField: "info.userName",
+		EmailField:       "info.mailbox",
+	})
+
+	identity, err := provider.ResolveIdentity(context.Background(), "opaque-token")
+	if err != nil {
+		t.Fatalf("expected userinfo mode identity resolution to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "1410833903245320192" {
+		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+	if identity.User.Username != "liangmingsen" {
+		t.Fatalf("unexpected username: %s", identity.User.Username)
+	}
+	if identity.User.DisplayName != "梁明森" {
+		t.Fatalf("unexpected display name: %s", identity.User.DisplayName)
+	}
+	if identity.User.Email != "liangmingsen@qdama.cn" {
+		t.Fatalf("unexpected email: %s", identity.User.Email)
+	}
+}
+
+func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayloadModes(t *testing.T) {
+	testCases := []struct {
+		name        string
+		method      string
+		payloadMode string
+	}{
+		{name: "get query", method: model.CustomTicketExchangeMethodGET, payloadMode: model.CustomTicketExchangePayloadModeQuery},
+		{name: "post query", method: model.CustomTicketExchangeMethodPOST, payloadMode: model.CustomTicketExchangePayloadModeQuery},
+		{name: "post form", method: model.CustomTicketExchangeMethodPOST, payloadMode: model.CustomTicketExchangePayloadModeForm},
+		{name: "post json", method: model.CustomTicketExchangeMethodPOST, payloadMode: model.CustomTicketExchangePayloadModeJSON},
+		{name: "post multipart", method: model.CustomTicketExchangeMethodPOST, payloadMode: model.CustomTicketExchangePayloadModeMultipart},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			callbackURL := "https://new-api.example.com/oauth/acme-sso?state=state-123"
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != testCase.method {
+					t.Fatalf("expected method %s, got %s", testCase.method, r.Method)
+				}
+				if got := r.Header.Get("X-State"); got != "acme-sso:state-123" {
+					t.Fatalf("expected X-State header, got %q", got)
+				}
+				if got := r.Header.Get("X-Ticket"); got != "ticket-123" {
+					t.Fatalf("expected X-Ticket header, got %q", got)
+				}
+
+				params := map[string]string{}
+				switch {
+				case testCase.method == model.CustomTicketExchangeMethodGET || testCase.payloadMode == model.CustomTicketExchangePayloadModeQuery:
+					for key, values := range r.URL.Query() {
+						if len(values) > 0 {
+							params[key] = values[0]
+						}
+					}
+				case testCase.payloadMode == model.CustomTicketExchangePayloadModeForm:
+					if err := r.ParseForm(); err != nil {
+						t.Fatalf("failed to parse form payload: %v", err)
+					}
+					for key, values := range r.PostForm {
+						if len(values) > 0 {
+							params[key] = values[0]
+						}
+					}
+				case testCase.payloadMode == model.CustomTicketExchangePayloadModeJSON:
+					if err := common.DecodeJson(r.Body, &params); err != nil {
+						t.Fatalf("failed to decode json payload: %v", err)
+					}
+				case testCase.payloadMode == model.CustomTicketExchangePayloadModeMultipart:
+					if err := r.ParseMultipartForm(1 << 20); err != nil {
+						t.Fatalf("failed to parse multipart payload: %v", err)
+					}
+					for key, values := range r.MultipartForm.Value {
+						if len(values) > 0 {
+							params[key] = values[0]
+						}
+					}
+				default:
+					t.Fatalf("unexpected payload mode %s", testCase.payloadMode)
+				}
+
+				if got := params["st"]; got != "ticket-123" {
+					t.Fatalf("expected st=ticket-123, got %q", got)
+				}
+				if got := params["svc"]; got != callbackURL {
+					t.Fatalf("expected svc=%q, got %q", callbackURL, got)
+				}
+				if got := params["source"]; got != "acme-sso:state-123" {
+					t.Fatalf("expected source placeholder expansion, got %q", got)
+				}
+				if got := params["raw_callback"]; got != callbackURL {
+					t.Fatalf("expected raw_callback placeholder expansion, got %q", got)
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"ok":true}`))
+			}))
+			defer server.Close()
+
+			provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+				Name:                       "Acme SSO",
+				Slug:                       "acme-sso",
+				Enabled:                    true,
+				JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+				TicketExchangeURL:          server.URL,
+				TicketExchangeMethod:       testCase.method,
+				TicketExchangePayloadMode:  testCase.payloadMode,
+				TicketExchangeTicketField:  "st",
+				TicketExchangeServiceField: "svc",
+				TicketExchangeExtraParams:  `{"source":"{provider_slug}:{state}","raw_callback":"{callback_url}"}`,
+				TicketExchangeHeaders:      `{"X-State":"{provider_slug}:{state}","X-Ticket":"{ticket}"}`,
+			})
+
+			body, err := provider.performTicketAcquireRequest(
+				context.Background(),
+				"ticket-123",
+				callbackURL,
+				"state-123",
+			)
+			if err != nil {
+				t.Fatalf("expected request to succeed, got error: %v", err)
+			}
+			if strings.TrimSpace(string(body)) != `{"ok":true}` {
+				t.Fatalf("unexpected response body: %s", string(body))
+			}
+		})
+	}
+}
+
 func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
 	expectedCallbackURL := "https://new-api.example.com/oauth/acme-sso"
@@ -462,6 +623,292 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 	}
 }
 
+func TestJWTDirectResolveIdentityFromInputWithTicketValidateXML(t *testing.T) {
+	expectedCallbackURL := "https://new-api.example.com/oauth/acme-sso"
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("ticket"); got != "ST-XML-123" {
+			t.Fatalf("expected ticket query param ST-XML-123, got %q", got)
+		}
+		if got := r.URL.Query().Get("service"); got != expectedCallbackURL {
+			t.Fatalf("expected service query param %q, got %q", expectedCallbackURL, got)
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+<cas:serviceResponse xmlns:cas="http://www.yale.edu/tp/cas">
+  <cas:authenticationSuccess>
+    <cas:user>ext-cas-1</cas:user>
+    <cas:attributes>
+      <cas:loginid>alice</cas:loginid>
+      <cas:userName>Alice</cas:userName>
+      <cas:mailbox>alice@example.com</cas:mailbox>
+      <cas:group>engineering</cas:group>
+      <cas:group>backup</cas:group>
+      <cas:role>platform-admin</cas:role>
+    </cas:attributes>
+  </cas:authenticationSuccess>
+</cas:serviceResponse>`))
+	}))
+	defer validationServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                       "CAS SSO",
+		Slug:                       "cas-sso",
+		Enabled:                    true,
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:          validationServer.URL,
+		TicketExchangeMethod:       model.CustomTicketExchangeMethodGET,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeQuery,
+		TicketExchangeTicketField:  "ticket",
+		TicketExchangeServiceField: "service",
+		UserIdField:                "authenticationSuccess.user",
+		UsernameField:              "authenticationSuccess.attributes.loginid",
+		DisplayNameField:           "authenticationSuccess.attributes.userName",
+		EmailField:                 "authenticationSuccess.attributes.mailbox",
+		GroupField:                 "authenticationSuccess.attributes.group",
+		GroupMapping:               `{"engineering":"vip"}`,
+		RoleField:                  "authenticationSuccess.attributes.role",
+		RoleMapping:                `{"platform-admin":"admin"}`,
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-XML-123",
+		expectedCallbackURL,
+		"state-xml",
+	)
+	if err != nil {
+		t.Fatalf("expected ticket validation xml identity resolution to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "ext-cas-1" {
+		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+	if identity.User.Username != "alice" || identity.User.DisplayName != "Alice" || identity.User.Email != "alice@example.com" {
+		t.Fatalf("unexpected mapped user: %+v", identity.User)
+	}
+	if identity.Group != "vip" {
+		t.Fatalf("expected mapped group vip, got %s", identity.Group)
+	}
+	if identity.Role != common.RoleAdminUser {
+		t.Fatalf("expected mapped admin role, got %d", identity.Role)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputWithTicketValidateJSON(t *testing.T) {
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"serviceResponse": map[string]any{
+				"authenticationSuccess": map[string]any{
+					"user": "ext-cas-json-1",
+					"attributes": map[string]any{
+						"loginid":  "bob",
+						"userName": "Bob",
+						"mailbox":  "bob@example.com",
+					},
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal validation response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer validationServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                      "CAS JSON",
+		Slug:                      "cas-json",
+		Enabled:                   true,
+		JWTAcquireMode:            model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:         validationServer.URL,
+		TicketExchangeMethod:      model.CustomTicketExchangeMethodGET,
+		TicketExchangePayloadMode: model.CustomTicketExchangePayloadModeQuery,
+		UserIdField:               "serviceResponse.authenticationSuccess.user",
+		UsernameField:             "serviceResponse.authenticationSuccess.attributes.loginid",
+		DisplayNameField:          "serviceResponse.authenticationSuccess.attributes.userName",
+		EmailField:                "serviceResponse.authenticationSuccess.attributes.mailbox",
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-JSON-123",
+		"https://new-api.example.com/oauth/cas-json",
+		"state-json",
+	)
+	if err != nil {
+		t.Fatalf("expected ticket validation json identity resolution to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "ext-cas-json-1" || identity.User.Username != "bob" {
+		t.Fatalf("unexpected mapped user: %+v", identity.User)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputWithTicketValidatePOSTJSON(t *testing.T) {
+	expectedCallbackURL := "https://new-api.example.com/oauth/cas-json-post"
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("expected POST method, got %s", r.Method)
+		}
+		if got := r.Header.Get("X-Trace"); got != "cas-json-post:state-json-post" {
+			t.Fatalf("expected X-Trace header, got %q", got)
+		}
+
+		var payload map[string]string
+		if err := common.DecodeJson(r.Body, &payload); err != nil {
+			t.Fatalf("failed to decode validation payload: %v", err)
+		}
+		if got := payload["st"]; got != "ST-JSON-POST-123" {
+			t.Fatalf("expected custom ticket field st, got %q", got)
+		}
+		if got := payload["svc"]; got != expectedCallbackURL {
+			t.Fatalf("expected custom service field svc, got %q", got)
+		}
+		if got := payload["source"]; got != "cas-json-post:state-json-post" {
+			t.Fatalf("expected source placeholder expansion, got %q", got)
+		}
+
+		responseBody, err := common.Marshal(map[string]any{
+			"authenticationSuccess": map[string]any{
+				"user": "ext-cas-json-post-1",
+				"attributes": map[string]any{
+					"loginid":  "dora",
+					"userName": "Dora",
+					"mailbox":  "dora@example.com",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal validation response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(responseBody)
+	}))
+	defer validationServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                       "CAS JSON POST",
+		Slug:                       "cas-json-post",
+		Enabled:                    true,
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:          validationServer.URL,
+		TicketExchangeMethod:       model.CustomTicketExchangeMethodPOST,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeJSON,
+		TicketExchangeTicketField:  "st",
+		TicketExchangeServiceField: "svc",
+		TicketExchangeExtraParams:  `{"source":"{provider_slug}:{state}"}`,
+		TicketExchangeHeaders:      `{"X-Trace":"{provider_slug}:{state}"}`,
+		UserIdField:                "authenticationSuccess.user",
+		UsernameField:              "authenticationSuccess.attributes.loginid",
+		DisplayNameField:           "authenticationSuccess.attributes.userName",
+		EmailField:                 "authenticationSuccess.attributes.mailbox",
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-JSON-POST-123",
+		expectedCallbackURL,
+		"state-json-post",
+	)
+	if err != nil {
+		t.Fatalf("expected ticket validation post json identity resolution to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "ext-cas-json-post-1" || identity.User.Username != "dora" {
+		t.Fatalf("unexpected mapped user: %+v", identity.User)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputWithTicketValidateDirectJSON(t *testing.T) {
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"id":           "custom-validate-1",
+			"username":     "carol",
+			"display_name": "Carol",
+			"email":        "carol@example.com",
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal direct json validation response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer validationServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                      "Custom Validator",
+		Slug:                      "custom-validator",
+		Enabled:                   true,
+		JWTAcquireMode:            model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:         validationServer.URL,
+		TicketExchangeMethod:      model.CustomTicketExchangeMethodGET,
+		TicketExchangePayloadMode: model.CustomTicketExchangePayloadModeQuery,
+		UserIdField:               "id",
+		UsernameField:             "username",
+		DisplayNameField:          "display_name",
+		EmailField:                "email",
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-DIRECT-123",
+		"https://new-api.example.com/oauth/custom-validator",
+		"state-direct",
+	)
+	if err != nil {
+		t.Fatalf("expected direct json ticket validation to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "custom-validate-1" || identity.User.Username != "carol" {
+		t.Fatalf("unexpected mapped user: %+v", identity.User)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputRejectsTicketValidationFailure(t *testing.T) {
+	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"serviceResponse": map[string]any{
+				"authenticationFailure": map[string]any{
+					"code":    "INVALID_TICKET",
+					"message": "ticket expired",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal failure response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer validationServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                      "CAS Failure",
+		Slug:                      "cas-failure",
+		Enabled:                   true,
+		JWTAcquireMode:            model.CustomJWTAcquireModeTicketValidate,
+		TicketExchangeURL:         validationServer.URL,
+		TicketExchangeMethod:      model.CustomTicketExchangeMethodGET,
+		TicketExchangePayloadMode: model.CustomTicketExchangePayloadModeQuery,
+		UserIdField:               "authenticationSuccess.user",
+	})
+
+	_, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-FAIL-123",
+		"https://new-api.example.com/oauth/cas-failure",
+		"state-fail",
+	)
+	if err == nil {
+		t.Fatal("expected ticket validation failure to be rejected")
+	}
+	if !strings.Contains(err.Error(), "ticket validation failed") {
+		t.Fatalf("expected ticket validation failure error, got %v", err)
+	}
+}
+
 func TestJWTDirectResolveIdentityFromInputRejectsMissingTicket(t *testing.T) {
 	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
 		Name:              "Acme SSO",
@@ -504,7 +951,7 @@ func TestJWTDirectResolveIdentityFromInputRejectsExchangeFailure(t *testing.T) {
 		"https://new-api.example.com/oauth/acme-sso",
 		"state-123",
 	)
-	if err == nil || !strings.Contains(err.Error(), "ticket exchange failed") {
+	if err == nil || !strings.Contains(err.Error(), "ticket acquire failed") {
 		t.Fatalf("expected exchange failure error, got %v", err)
 	}
 }
@@ -591,6 +1038,76 @@ func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
 		t.Fatalf("expected fallback token extraction to succeed, got error: %v", err)
 	}
 	if identity.User.ProviderUserID != "ext-ticket-fallback" {
+		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+}
+
+func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *testing.T) {
+	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, err := common.Marshal(map[string]any{
+			"data": map[string]any{
+				"access_token": "opaque-access-token",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal exchange response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer exchangeServer.Close()
+
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("x-access-token"); got != "opaque-access-token" {
+			t.Fatalf("expected exchanged token in x-access-token header, got %q", got)
+		}
+		payload, err := common.Marshal(map[string]any{
+			"info": map[string]any{
+				"userCode": "1410833903245320192",
+				"loginid":  "liangmingsen",
+				"userName": "梁明森",
+				"mailbox":  "liangmingsen@qdama.cn",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal userinfo payload: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(payload)
+	}))
+	defer userInfoServer.Close()
+
+	provider := NewJWTDirectProvider(&model.CustomOAuthProvider{
+		Name:                       "Qdama SSO",
+		Slug:                       "qdama-sso",
+		Enabled:                    true,
+		JWTIdentityMode:            model.CustomJWTIdentityModeUserInfo,
+		UserInfoEndpoint:           userInfoServer.URL,
+		JWTHeader:                  "x-access-token",
+		UserIdField:                "info.userCode",
+		UsernameField:              "info.loginid",
+		DisplayNameField:           "info.userName",
+		EmailField:                 "info.mailbox",
+		JWTAcquireMode:             model.CustomJWTAcquireModeTicketExchange,
+		TicketExchangeURL:          exchangeServer.URL,
+		TicketExchangeMethod:       model.CustomTicketExchangeMethodGET,
+		TicketExchangePayloadMode:  model.CustomTicketExchangePayloadModeQuery,
+		TicketExchangeTicketField:  "ticket",
+		TicketExchangeTokenField:   "data.access_token",
+		TicketExchangeServiceField: "service",
+	})
+
+	identity, err := provider.ResolveIdentityFromInput(
+		context.Background(),
+		"",
+		"ST-123",
+		"https://new-api.example.com/oauth/qdama-sso?state=abc",
+		"abc",
+	)
+	if err != nil {
+		t.Fatalf("expected ticket exchange + userinfo mode to succeed, got error: %v", err)
+	}
+	if identity.User.ProviderUserID != "1410833903245320192" {
 		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
 	}
 }

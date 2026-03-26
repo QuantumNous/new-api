@@ -175,6 +175,12 @@ const JWT_SOURCE_OPTIONS = [
 const JWT_ACQUIRE_MODE_OPTIONS = [
   { value: 'direct_token', label: 'Direct JWT callback' },
   { value: 'ticket_exchange', label: 'Ticket exchange to JWT' },
+  { value: 'ticket_validate', label: 'Ticket validation (CAS serviceValidate)' },
+];
+
+const JWT_IDENTITY_MODE_OPTIONS = [
+  { value: 'claims', label: 'Verify JWT claims locally' },
+  { value: 'userinfo', label: 'Resolve identity via user info endpoint' },
 ];
 
 const TICKET_EXCHANGE_METHOD_OPTIONS = [
@@ -229,6 +235,13 @@ const ACCESS_DENIED_TEMPLATES = {
     '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
 };
 
+const TICKET_VALIDATE_SUGGESTED_FIELDS = {
+  user_id_field: 'authenticationSuccess.user',
+  username_field: 'authenticationSuccess.attributes.loginid',
+  display_name_field: 'authenticationSuccess.attributes.userName',
+  email_field: 'authenticationSuccess.attributes.mailbox',
+};
+
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
   const [providers, setProviders] = useState([]);
@@ -242,11 +255,54 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [discoveryInfo, setDiscoveryInfo] = useState(null);
   const [advancedActiveKeys, setAdvancedActiveKeys] = useState([]);
   const formApiRef = React.useRef(null);
+  const customOAuthKindOptions = CUSTOM_OAUTH_KIND_OPTIONS.map((option) => ({
+    ...option,
+    label: t(option.label),
+  }));
+  const jwtSourceOptions = JWT_SOURCE_OPTIONS.map((option) => ({
+    ...option,
+    label: t(option.label),
+  }));
+  const jwtAcquireModeOptions = JWT_ACQUIRE_MODE_OPTIONS.map((option) => ({
+    ...option,
+    label: t(option.label),
+  }));
+  const jwtIdentityModeOptions = JWT_IDENTITY_MODE_OPTIONS.map((option) => ({
+    ...option,
+    label: t(option.label),
+  }));
+  const ticketExchangeMethodOptions = TICKET_EXCHANGE_METHOD_OPTIONS.map(
+    (option) => ({
+      ...option,
+      label: t(option.label),
+    }),
+  );
+  const ticketExchangePayloadModeOptions =
+    TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS.map((option) => ({
+      ...option,
+      label: t(option.label),
+    }));
+  const jwtMappingModeOptions = JWT_MAPPING_MODE_OPTIONS.map((option) => ({
+    ...option,
+    label: t(option.label),
+  }));
+  const discoveryFieldLabels = Object.fromEntries(
+    Object.entries(DISCOVERY_FIELD_LABELS).map(([field, label]) => [
+      field,
+      t(label),
+    ]),
+  );
   const currentProviderKind = formValues.kind || 'oauth_code';
   const isJWTDirect = currentProviderKind === 'jwt_direct';
+  const currentJWTIdentityMode = formValues.jwt_identity_mode || 'claims';
   const currentJWTAcquireMode = formValues.jwt_acquire_mode || 'direct_token';
   const isJWTTicketExchange =
     isJWTDirect && currentJWTAcquireMode === 'ticket_exchange';
+  const isJWTTicketValidateMode =
+    isJWTDirect && currentJWTAcquireMode === 'ticket_validate';
+  const isJWTTicketBasedMode = isJWTTicketExchange || isJWTTicketValidateMode;
+  const isJWTUserInfoMode =
+    isJWTDirect && currentJWTIdentityMode === 'userinfo';
 
   const mergeFormValues = (newValues) => {
     setFormValues((prev) => ({ ...prev, ...newValues }));
@@ -259,6 +315,22 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const getLatestFormValues = () => {
     const values = formApiRef.current?.getValues?.();
     return values && typeof values === 'object' ? values : formValues;
+  };
+
+  const applyTicketValidateSuggestions = (values = {}) => {
+    const nextValues = {};
+    Object.entries(TICKET_VALIDATE_SUGGESTED_FIELDS).forEach(
+      ([field, suggestedValue]) => {
+        const currentValue = (values[field] ?? formValues[field] ?? '').trim();
+        if (
+          !currentValue ||
+          ['sub', 'preferred_username', 'name', 'email'].includes(currentValue)
+        ) {
+          nextValues[field] = suggestedValue;
+        }
+      },
+    );
+    return nextValues;
   };
 
   const normalizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
@@ -312,6 +384,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       icon: '',
       scopes: 'openid profile email',
       jwt_source: 'query',
+      jwt_identity_mode: 'claims',
       jwt_acquire_mode: 'direct_token',
       jwt_header: 'Authorization',
       authorization_service_field: 'service',
@@ -347,6 +420,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setEditingProvider(provider);
     setFormValues({
       kind: provider.kind || 'oauth_code',
+      jwt_identity_mode: provider.jwt_identity_mode || 'claims',
       jwt_acquire_mode: provider.jwt_acquire_mode || 'direct_token',
       authorization_service_field:
         provider.authorization_service_field || 'service',
@@ -404,17 +478,28 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         requiredFields.push('client_secret');
       }
     } else {
-      requiredFields.push('issuer');
-      if (!currentValues.jwks_url && !currentValues.public_key) {
-        showError(t('JWT Direct 至少需要配置 JWKS URL 或 Public Key'));
+      const acquireMode = currentValues.jwt_acquire_mode || 'direct_token';
+      const identityMode = currentValues.jwt_identity_mode || 'claims';
+      if (acquireMode === 'ticket_validate' && identityMode !== 'claims') {
+        showError(
+          t('Ticket Validation 模式仅支持 claims 身份解析方式'),
+        );
         return;
       }
+      if (identityMode === 'userinfo') {
+        requiredFields.push('user_info_endpoint');
+      } else if (acquireMode !== 'ticket_validate') {
+        requiredFields.push('issuer');
+        if (!currentValues.jwks_url && !currentValues.public_key) {
+          showError(t('JWT Direct 至少需要配置 JWKS URL 或 Public Key'));
+          return;
+        }
+      }
       if (
-        (currentValues.jwt_acquire_mode || 'direct_token') ===
-          'ticket_exchange' &&
+        ['ticket_exchange', 'ticket_validate'].includes(acquireMode) &&
         !currentValues.ticket_exchange_url
       ) {
-        showError(t('Ticket Exchange 模式必须填写 Ticket Exchange URL'));
+        showError(t('票据处理模式必须填写 Ticket Processing URL'));
         return;
       }
     }
@@ -429,7 +514,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     const endpointFields =
       providerKind === 'oauth_code'
         ? ['authorization_endpoint', 'token_endpoint', 'user_info_endpoint']
-        : ['authorization_endpoint', 'issuer', 'jwks_url'];
+        : [
+            'authorization_endpoint',
+            ...(currentValues.jwt_identity_mode === 'userinfo'
+              ? ['user_info_endpoint']
+              : currentValues.jwt_acquire_mode === 'ticket_validate'
+                ? []
+                : ['issuer', 'jwks_url']),
+          ];
     for (const field of endpointFields) {
       const value = currentValues[field];
       if (
@@ -454,6 +546,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       delete payload.preset;
       delete payload.base_url;
       if (providerKind !== 'jwt_direct') {
+        delete payload.jwt_identity_mode;
         delete payload.jwt_acquire_mode;
         delete payload.authorization_service_field;
         delete payload.ticket_exchange_url;
@@ -666,12 +759,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       key: 'kind',
       render: (kind) => (
         <Tag color={kind === 'jwt_direct' ? 'blue' : 'cyan'}>
-          {kind === 'jwt_direct' ? 'JWT Direct' : 'OAuth Code'}
+          {kind === 'jwt_direct' ? t('JWT Direct') : t('OAuth Code')}
         </Tag>
       ),
     },
     {
-      title: 'Slug',
+      title: t('Slug'),
       dataIndex: 'slug',
       key: 'slug',
       render: (slug) => <Tag>{slug}</Tag>,
@@ -721,7 +814,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   ];
 
   const discoveryAutoFilledLabels = (discoveryInfo?.autoFilledFields || [])
-    .map((field) => DISCOVERY_FIELD_LABELS[field] || field)
+    .map((field) => discoveryFieldLabels[field] || field)
     .join(', ');
 
   return (
@@ -740,7 +833,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <br />
               {t('说明')}:{' '}
               {t(
-                'JWT Direct 支持两种浏览器入口：直接回传 JWT，或先回传 ticket 再由后端换取 JWT。body 模式仍只保留给后端接口使用',
+                'JWT Direct 支持 direct_token、ticket_exchange、ticket_validate 三种获取模式，并支持 claims 或 userinfo 两类身份解析方式',
               )}
             </>
           }
@@ -821,11 +914,21 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 ? t(
                     '浏览器回调页先接收 ticket，后端再向票据交换接口换取 JWT，并继续复用现有验签、映射、建号和绑定链路',
                   )
-                : isJWTDirect
+                : isJWTTicketValidateMode
                   ? t(
-                      'JWT Direct 使用前端回调页接收 JWT，再由后端完成验签、建号、绑定与登录',
+                      '浏览器回调页先接收 ticket，后端再向票据校验接口取回身份声明，直接复用现有字段映射、建号和绑定链路',
                     )
-                  : t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
+                : isJWTUserInfoMode
+                  ? t(
+                      'JWT Direct 使用前端回调页接收 token，再由后端调用用户信息接口验证 token 并提取身份',
+                    )
+                  : isJWTDirect
+                    ? t(
+                        'JWT Direct 使用前端回调页接收 JWT，再由后端完成验签、建号、绑定与登录',
+                      )
+                    : t(
+                        '先填写配置，再自动填充 OAuth 端点，能显著减少手工输入',
+                      )}
             </Text>
             {!isJWTDirect && discoveryInfo && (
               <Banner
@@ -865,10 +968,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   field='kind'
                   label={t('接入类型')}
                   value={currentProviderKind}
-                  optionList={CUSTOM_OAUTH_KIND_OPTIONS}
+                  optionList={customOAuthKindOptions}
                   onChange={(value) => {
                     mergeFormValues({
                       kind: value,
+                      jwt_identity_mode:
+                        value === 'jwt_direct'
+                          ? formValues.jwt_identity_mode || 'claims'
+                          : formValues.jwt_identity_mode,
                       jwt_acquire_mode:
                         value === 'jwt_direct'
                           ? formValues.jwt_acquire_mode || 'direct_token'
@@ -1018,7 +1125,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field='client_id'
-                  label='Client ID'
+                  label={t('Client ID')}
                   placeholder={
                     isJWTDirect
                       ? isJWTTicketExchange
@@ -1037,7 +1144,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Col span={12}>
                   <Form.Input
                     field='client_secret'
-                    label='Client Secret'
+                    label={t('Client Secret')}
                     type='password'
                     placeholder={
                       editingProvider
@@ -1159,12 +1266,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   }
                 />
               </Col>
-              {isJWTDirect && !isJWTTicketExchange && (
+              {isJWTDirect && !isJWTTicketBasedMode && (
                 <Col span={12}>
                   <Form.Select
                     field='jwt_source'
                     label={t('JWT 回传位置')}
-                    optionList={JWT_SOURCE_OPTIONS}
+                    optionList={jwtSourceOptions}
                     extraText={t(
                       'query / fragment 支持浏览器登录；body 仅供后端接口直连',
                     )}
@@ -1178,11 +1285,46 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Select
+                      field='jwt_identity_mode'
+                      label={t('身份解析方式')}
+                      optionList={
+                        isJWTTicketValidateMode
+                          ? jwtIdentityModeOptions.filter(
+                              (option) => option.value === 'claims',
+                            )
+                          : jwtIdentityModeOptions
+                      }
+                      onChange={(value) => {
+                        if (
+                          currentJWTAcquireMode === 'ticket_validate' &&
+                          value !== 'claims'
+                        ) {
+                          showError(
+                            t('Ticket Validation 模式仅支持 claims 身份解析方式'),
+                          );
+                          mergeFormValues({ jwt_identity_mode: 'claims' });
+                          return;
+                        }
+                        mergeFormValues({ jwt_identity_mode: value });
+                      }}
+                      extraText={
+                        isJWTUserInfoMode
+                          ? t(
+                              '当前模式下，后端会带 token 调用 User Info Endpoint，以响应 JSON 作为身份字段来源',
+                            )
+                          : t(
+                              '当前模式下，后端会直接验证 JWT 签名并从 claims 中提取身份',
+                            )
+                      }
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Select
                       field='jwt_acquire_mode'
                       label={t('JWT 获取模式')}
-                      optionList={JWT_ACQUIRE_MODE_OPTIONS}
+                      optionList={jwtAcquireModeOptions}
                       onChange={(value) => {
-                        mergeFormValues({
+                        const nextValues = {
                           jwt_acquire_mode: value,
                           authorization_service_field:
                             formValues.authorization_service_field || 'service',
@@ -1192,6 +1334,16 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                             formValues.ticket_exchange_payload_mode || 'query',
                           ticket_exchange_ticket_field:
                             formValues.ticket_exchange_ticket_field || 'ticket',
+                        };
+                        if (value === 'ticket_validate') {
+                          nextValues.jwt_identity_mode = 'claims';
+                          Object.assign(
+                            nextValues,
+                            applyTicketValidateSuggestions(getLatestFormValues()),
+                          );
+                        }
+                        mergeFormValues({
+                          ...nextValues,
                         });
                       }}
                       extraText={
@@ -1199,13 +1351,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           ? t(
                               '当前模式下，浏览器回调接收 ticket，后端再调用票据交换接口换取 JWT',
                             )
+                          : isJWTTicketValidateMode
+                            ? t(
+                                '当前模式下，浏览器回调接收 ticket，后端再调用票据校验接口，并直接从响应中提取身份字段',
+                              )
                           : t(
                               '当前模式下，浏览器回调页直接接收 JWT 并提交给后端验签',
                             )
                       }
                     />
                   </Col>
-                  {isJWTTicketExchange && (
+                  {isJWTTicketBasedMode && (
                     <Col span={12}>
                       <Form.Input
                         field='authorization_service_field'
@@ -1225,7 +1381,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       field='issuer'
                       label={t('Issuer')}
                       placeholder='https://issuer.example.com'
-                      rules={[{ required: true, message: t('请输入 Issuer') }]}
+                      rules={
+                        isJWTUserInfoMode
+                          ? []
+                          : isJWTTicketValidateMode
+                            ? []
+                          : [{ required: true, message: t('请输入 Issuer') }]
+                      }
+                      extraText={
+                        isJWTTicketValidateMode
+                          ? t('ticket_validate 模式下可留空，不参与本地验签')
+                          : ''
+                      }
                     />
                   </Col>
                   <Col span={12}>
@@ -1243,46 +1410,108 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       field='jwks_url'
                       label={t('JWKS URL（可选）')}
                       placeholder='https://issuer.example.com/.well-known/jwks.json'
+                      extraText={
+                        isJWTUserInfoMode
+                          ? t('userinfo 模式下可留空')
+                          : isJWTTicketValidateMode
+                            ? t('ticket_validate 模式下可留空，不参与本地验签')
+                            : ''
+                      }
                     />
                   </Col>
                   <Col span={12}>
                     <Form.Input
                       field='jwt_header'
-                      label={t('JWT Header（预留）')}
-                      placeholder='Authorization'
+                      label={t('Token Header')}
+                      placeholder={
+                        isJWTUserInfoMode ? 'x-access-token' : 'Authorization'
+                      }
                       extraText={t(
-                        '当前阶段主要用于后续 Header/CAS 扩展，浏览器登录暂不读取该字段',
+                        'userinfo 模式会用这个 Header 携带 token 请求用户信息接口；若为 Authorization，将自动添加 Bearer 前缀',
                       )}
                     />
                   </Col>
                 </Row>
 
-                {isJWTTicketExchange && (
+                <Row gutter={16}>
+                  <Col span={24}>
+                    <Form.Input
+                      field='user_info_endpoint'
+                      label={
+                        isJWTUserInfoMode
+                          ? t('User Info Endpoint')
+                          : t('User Info Endpoint（可选）')
+                      }
+                      placeholder='https://example.com/api/userinfo'
+                      extraText={
+                        isJWTUserInfoMode
+                          ? t(
+                              '后端会用配置的 Token Header 调用该接口，并把返回 JSON 作为身份字段来源',
+                            )
+                          : isJWTTicketValidateMode
+                            ? t('ticket_validate 模式下不使用该字段，可留空')
+                          : t(
+                              'claims 模式下通常不需要填写；userinfo 模式下必填',
+                            )
+                      }
+                      rules={
+                        isJWTUserInfoMode
+                          ? [
+                              {
+                                required: true,
+                                message: t('请输入 User Info Endpoint'),
+                              },
+                            ]
+                          : []
+                      }
+                    />
+                  </Col>
+                </Row>
+
+                {isJWTTicketBasedMode && (
                   <>
                     <Text
                       strong
                       style={{ display: 'block', margin: '16px 0 8px' }}
                     >
-                      {t('Ticket 交换配置')}
+                      {t('票据处理配置')}
                     </Text>
                     <Text
                       type='secondary'
                       style={{ display: 'block', marginBottom: 8 }}
                     >
-                      {t(
-                        '配置后端如何把浏览器回调得到的 ticket 换成 JWT。支持 query、form、json、multipart 四种请求方式，以及可选额外参数与请求头',
-                      )}
+                      {isJWTTicketExchange
+                        ? t(
+                            '配置后端如何把浏览器回调得到的 ticket 换成 JWT。支持 query、form、json、multipart 四种请求方式，以及可选额外参数与请求头',
+                          )
+                        : t(
+                            '配置后端如何把浏览器回调得到的 ticket 发送给校验接口。支持标准 CAS serviceValidate / p3/serviceValidate，也支持直接返回身份 JSON 的校验服务',
+                          )}
                     </Text>
 
                     <Row gutter={16}>
                       <Col span={24}>
                         <Form.Input
                           field='ticket_exchange_url'
-                          label={t('Ticket Exchange URL')}
-                          placeholder='https://example.com/api/auth/exchange'
-                          extraText={t(
-                            '后端将向该地址发起换票请求，要求返回 JWT 或包含 JWT 的 JSON',
-                          )}
+                          label={
+                            isJWTTicketValidateMode
+                              ? t('Ticket Validation URL')
+                              : t('Ticket Exchange URL')
+                          }
+                          placeholder={
+                            isJWTTicketValidateMode
+                              ? 'https://cas.example.com/serviceValidate'
+                              : 'https://example.com/api/auth/exchange'
+                          }
+                          extraText={
+                            isJWTTicketValidateMode
+                              ? t(
+                                  '后端将向该地址发起票据校验请求，支持 XML/JSON 响应，并会自动抽取常见 CAS 身份字段',
+                                )
+                              : t(
+                                  '后端将向该地址发起换票请求，要求返回 JWT 或包含 JWT 的 JSON',
+                                )
+                          }
                         />
                       </Col>
                     </Row>
@@ -1292,14 +1521,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         <Form.Select
                           field='ticket_exchange_method'
                           label={t('交换请求方法')}
-                          optionList={TICKET_EXCHANGE_METHOD_OPTIONS}
+                          optionList={ticketExchangeMethodOptions}
                         />
                       </Col>
                       <Col span={8}>
                         <Form.Select
                           field='ticket_exchange_payload_mode'
                           label={t('交换参数位置')}
-                          optionList={TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS}
+                          optionList={ticketExchangePayloadModeOptions}
                         />
                       </Col>
                       <Col span={8}>
@@ -1313,23 +1542,25 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     </Row>
 
                     <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Input
-                          field='ticket_exchange_token_field'
-                          label={t('响应中 JWT 字段路径（可选）')}
-                          placeholder='data.token'
-                          extraText={t(
-                            '支持 gjson 路径；留空时会自动尝试 token、access_token、data.token 等常见字段',
-                          )}
-                        />
-                      </Col>
+                      {isJWTTicketExchange && (
+                        <Col span={12}>
+                          <Form.Input
+                            field='ticket_exchange_token_field'
+                            label={t('响应中 JWT 字段路径（可选）')}
+                            placeholder='data.token'
+                            extraText={t(
+                              '支持 gjson 路径；留空时会自动尝试 token、access_token、data.token 等常见字段',
+                            )}
+                          />
+                        </Col>
+                      )}
                       <Col span={12}>
                         <Form.Input
                           field='ticket_exchange_service_field'
                           label={t('交换接口回调地址字段名（可选）')}
                           placeholder='service'
                           extraText={t(
-                            '如果交换接口也需要回调地址，可填写字段名，后端会自动注入当前回调 URL',
+                            '如果票据处理接口也需要回调地址，可填写字段名，后端会自动注入当前回调 URL',
                           )}
                         />
                       </Col>
@@ -1484,7 +1715,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                     <Form.Select
                       field='group_mapping_mode'
                       label={t('分组映射模式')}
-                      optionList={JWT_MAPPING_MODE_OPTIONS}
+                      optionList={jwtMappingModeOptions}
                       extraText={t(
                         '默认仅允许命中显式映射；切到 mapping first 后才会接受现有分组直通',
                       )}
@@ -1494,7 +1725,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                     <Form.Select
                       field='role_mapping_mode'
                       label={t('角色映射模式')}
-                      optionList={JWT_MAPPING_MODE_OPTIONS}
+                      optionList={jwtMappingModeOptions}
                       extraText={t(
                         '默认仅允许命中显式映射；切到 mapping first 后才会接受 common/admin 直通',
                       )}
