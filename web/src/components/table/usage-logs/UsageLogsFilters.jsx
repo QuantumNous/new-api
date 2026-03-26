@@ -137,7 +137,7 @@ const LogsFilters = ({
           <FilterAutoComplete
             field='request_id'
             endpoint={suggestionEndpoint}
-            placeholder={t('Request ID')}
+            placeholder={t('请求 ID')}
             prefix={<IconSearch />}
             buildParams={buildSuggestionParams}
             enableSuggestions={autocompleteEnabled}

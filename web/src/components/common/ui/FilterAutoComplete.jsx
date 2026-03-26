@@ -71,6 +71,7 @@ const FilterAutoComplete = ({
     });
     const cachedOptions = cacheRef.current.get(requestKey);
     if (cachedOptions) {
+      requestIdRef.current += 1;
       setOptions(cachedOptions);
       setLoading(false);
       return;

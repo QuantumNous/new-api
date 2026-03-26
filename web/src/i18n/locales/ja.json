@@ -187,6 +187,7 @@
     "Prompt tokens": "Prompt tokens",
     "Reasoning Effort": "Reasoning Effort",
     "Request ID": "Request ID",
+    "请求 ID": "リクエスト ID",
     "safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私": "safety_identifierフィールドは、OpenAIが利用ポリシーに違反する可能性のあるアプリユーザーを特定するために使用されます。ユーザーのプライバシーを保護するため、デフォルトでは無効です",
     "Scopes（可选）": "Scopes（オプション）",
     "service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用": "service_tierフィールドはサービス階層の指定に使用されます。パススルーを許可すると実際の課金額が想定を上回る場合があるため、追加料金を避けるためにデフォルトでは無効になっています",
