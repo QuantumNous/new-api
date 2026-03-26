@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -20,9 +19,9 @@ import (
 )
 
 type authMiddlewareAPIResponse struct {
-	Success bool            `json:"success"`
-	Message string          `json:"message"`
-	Data    json.RawMessage `json:"data"`
+	Success bool              `json:"success"`
+	Message string            `json:"message"`
+	Data    common.RawMessage `json:"data"`
 }
 
 type authMiddlewareInfoResponse struct {
@@ -34,6 +33,13 @@ type authMiddlewareInfoResponse struct {
 
 func setupAuthMiddlewareTestDB(t *testing.T) {
 	t.Helper()
+
+	oldDB := model.DB
+	oldLogDB := model.LOG_DB
+	oldUsingSQLite := common.UsingSQLite
+	oldUsingMySQL := common.UsingMySQL
+	oldUsingPostgreSQL := common.UsingPostgreSQL
+	oldRedisEnabled := common.RedisEnabled
 
 	gin.SetMode(gin.TestMode)
 	common.UsingSQLite = true
@@ -57,6 +63,12 @@ func setupAuthMiddlewareTestDB(t *testing.T) {
 		if err == nil {
 			_ = sqlDB.Close()
 		}
+		model.DB = oldDB
+		model.LOG_DB = oldLogDB
+		common.UsingSQLite = oldUsingSQLite
+		common.UsingMySQL = oldUsingMySQL
+		common.UsingPostgreSQL = oldUsingPostgreSQL
+		common.RedisEnabled = oldRedisEnabled
 	})
 }
 

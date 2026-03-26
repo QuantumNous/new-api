@@ -39,7 +39,7 @@ func loadSessionUserIdentity(session sessions.Session) (*model.User, error) {
 	if !ok || id <= 0 {
 		return nil, fmt.Errorf("session user id is invalid")
 	}
-	return model.GetUserById(id, false)
+	return model.GetUserIdentityById(id)
 }
 
 func syncSessionUserIdentity(session sessions.Session, user *model.User) error {

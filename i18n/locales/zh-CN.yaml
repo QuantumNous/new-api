@@ -236,6 +236,8 @@ oauth.connect_failed: "无法连接至 {{.Provider}} 服务器，请稍后重试
 oauth.token_failed: "{{.Provider}} 获取 Token 失败，请检查设置"
 oauth.user_info_empty: "{{.Provider}} 获取用户信息为空，请检查设置"
 oauth.trust_level_low: "Linux DO 信任等级未达到管理员设置的最低信任等级"
+oauth.ticket_missing: "未提供登录票据"
+oauth.jwt_missing: "未提供 JWT 令牌"
 
 # Model layer error messages
 redeem.failed: "兑换失败，请稍后重试"

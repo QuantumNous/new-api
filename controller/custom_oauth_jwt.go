@@ -57,13 +57,14 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 	if err := c.ShouldBind(&req); err != nil {
 		audit.FailureReason = "invalid_request"
 		recordCustomOAuthJWTAudit(audit)
-		common.ApiErrorMsg(c, "无效的请求参数: "+err.Error())
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
 	session := sessions.Default(c)
 	state := strings.TrimSpace(req.State)
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	sessionState, ok := session.Get("oauth_state").(string)
+	if state == "" || !ok || strings.TrimSpace(sessionState) == "" || state != sessionState {
 		audit.FailureReason = "invalid_state"
 		recordCustomOAuthJWTAudit(audit)
 		common.ApiErrorI18n(c, i18n.MsgOAuthStateInvalid)
@@ -75,6 +76,7 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		providerConfig,
 		provider,
 		session,
+		sessionState,
 		firstNonEmpty(req.Token, req.IDToken, req.JWT),
 		req.Ticket,
 		audit,
@@ -138,6 +140,7 @@ func completeCustomOAuthJWTLogin(
 	providerConfig *model.CustomOAuthProvider,
 	provider *oauth.JWTDirectProvider,
 	session sessions.Session,
+	state string,
 	rawToken string,
 	ticket string,
 	audit *customOAuthJWTAuditInfo,
@@ -149,21 +152,21 @@ func completeCustomOAuthJWTLogin(
 			if audit != nil {
 				audit.FailureReason = "missing_exchange_ticket"
 			}
-			return nil, audit, fmt.Errorf("未提供票据")
+			return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthTicketMissing, nil)
 		}
 	} else if rawToken == "" {
 		if audit != nil {
 			audit.FailureReason = "missing_jwt_token"
 		}
-		return nil, audit, fmt.Errorf("未提供 JWT 令牌")
+		return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthJWTMissing, nil)
 	}
 
 	identity, err := provider.ResolveIdentityFromInput(
 		c.Request.Context(),
 		rawToken,
 		ticket,
-		buildCustomOAuthJWTCallbackURL(c, providerConfig.Slug, session.Get("oauth_state").(string)),
-		session.Get("oauth_state").(string),
+		buildCustomOAuthJWTCallbackURL(c, providerConfig.Slug, state),
+		state,
 	)
 	if err != nil {
 		return nil, audit, err

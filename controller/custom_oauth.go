@@ -386,6 +386,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 	// Register the provider in the OAuth registry
 	oauth.RegisterOrUpdateCustomProvider(provider)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -631,6 +632,7 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 		oauth.UnregisterCustomProvider(oldSlug)
 	}
 	oauth.RegisterOrUpdateCustomProvider(provider)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -674,6 +676,7 @@ func DeleteCustomOAuthProvider(c *gin.Context) {
 
 	// Unregister the provider from the OAuth registry
 	oauth.UnregisterCustomProvider(provider.Slug)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

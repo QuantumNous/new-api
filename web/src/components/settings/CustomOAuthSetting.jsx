@@ -162,25 +162,25 @@ const PRESET_RESET_VALUES = {
 };
 
 const CUSTOM_OAUTH_KIND_OPTIONS = [
-  { value: 'oauth_code', label: 'OAuth 2.0 / OIDC Code Flow' },
-  { value: 'jwt_direct', label: 'JWT Direct Login' },
+  { value: 'oauth_code', label: 'OAuth 2.0 / OIDC 授权码模式' },
+  { value: 'jwt_direct', label: 'JWT 直连登录' },
 ];
 
 const JWT_SOURCE_OPTIONS = [
-  { value: 'query', label: 'Query' },
-  { value: 'fragment', label: 'Fragment' },
-  { value: 'body', label: 'Body (API only)' },
+  { value: 'query', label: '查询参数' },
+  { value: 'fragment', label: 'URL 片段' },
+  { value: 'body', label: '请求体（仅 API）' },
 ];
 
 const JWT_ACQUIRE_MODE_OPTIONS = [
-  { value: 'direct_token', label: 'Direct JWT callback' },
-  { value: 'ticket_exchange', label: 'Ticket exchange to JWT' },
-  { value: 'ticket_validate', label: 'Ticket validation (CAS serviceValidate)' },
+  { value: 'direct_token', label: '直接回调 JWT' },
+  { value: 'ticket_exchange', label: '票据换取 JWT' },
+  { value: 'ticket_validate', label: '票据校验（CAS serviceValidate）' },
 ];
 
 const JWT_IDENTITY_MODE_OPTIONS = [
-  { value: 'claims', label: 'Verify JWT claims locally' },
-  { value: 'userinfo', label: 'Resolve identity via user info endpoint' },
+  { value: 'claims', label: '本地验签并解析 JWT Claims' },
+  { value: 'userinfo', label: '通过用户信息端点解析身份' },
 ];
 
 const TICKET_EXCHANGE_METHOD_OPTIONS = [
@@ -189,26 +189,26 @@ const TICKET_EXCHANGE_METHOD_OPTIONS = [
 ];
 
 const TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS = [
-  { value: 'query', label: 'Query string' },
-  { value: 'form', label: 'Form URL encoded' },
-  { value: 'json', label: 'JSON body' },
-  { value: 'multipart', label: 'Multipart form-data' },
+  { value: 'query', label: '查询字符串' },
+  { value: 'form', label: '表单 URL 编码' },
+  { value: 'json', label: 'JSON 请求体' },
+  { value: 'multipart', label: 'Multipart 表单' },
 ];
 
 const JWT_MAPPING_MODE_OPTIONS = [
-  { value: 'explicit_only', label: 'Explicit mapping only' },
-  { value: 'mapping_first', label: 'Mapping first, then pass through' },
+  { value: 'explicit_only', label: '仅显式映射' },
+  { value: 'mapping_first', label: '映射优先，其次透传' },
 ];
 
 const DISCOVERY_FIELD_LABELS = {
-  authorization_endpoint: 'Authorization Endpoint',
-  token_endpoint: 'Token Endpoint',
-  user_info_endpoint: 'User Info Endpoint',
-  scopes: 'Scopes',
-  user_id_field: 'User ID Field',
-  username_field: 'Username Field',
-  display_name_field: 'Display Name Field',
-  email_field: 'Email Field',
+  authorization_endpoint: '授权端点',
+  token_endpoint: '令牌端点',
+  user_info_endpoint: '用户信息端点',
+  scopes: '作用域',
+  user_id_field: '用户 ID 字段',
+  username_field: '用户名字段',
+  display_name_field: '显示名称字段',
+  email_field: '邮箱字段',
 };
 
 const ACCESS_POLICY_TEMPLATES = {
@@ -419,6 +419,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const handleEdit = (provider) => {
     setEditingProvider(provider);
     setFormValues({
+      ...provider,
       kind: provider.kind || 'oauth_code',
       jwt_identity_mode: provider.jwt_identity_mode || 'claims',
       jwt_acquire_mode: provider.jwt_acquire_mode || 'direct_token',
@@ -438,7 +439,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       sync_role_on_login: !!provider.sync_role_on_login,
       group_mapping_mode: provider.group_mapping_mode || 'explicit_only',
       role_mapping_mode: provider.role_mapping_mode || 'explicit_only',
-      ...provider,
     });
     setSelectedPreset(OAUTH_PRESETS[provider.slug] ? provider.slug : '');
     setBaseUrl(inferBaseUrlFromProvider(provider));
@@ -491,7 +491,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       } else if (acquireMode !== 'ticket_validate') {
         requiredFields.push('issuer');
         if (!currentValues.jwks_url && !currentValues.public_key) {
-          showError(t('JWT Direct 至少需要配置 JWKS URL 或 Public Key'));
+          showError(t('JWT 直连至少需要配置 JWKS URL 或公钥'));
           return;
         }
       }
@@ -531,7 +531,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       ) {
         // Check if user selected a preset but forgot to fill issuer URL
         if (providerKind === 'oauth_code' && selectedPreset && !baseUrl) {
-          showError(t('请先填写 Issuer URL，以自动生成完整的端点 URL'));
+          showError(t('请先填写发行者 URL，以自动生成完整的端点 URL'));
         } else {
           showError(
             t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'),
@@ -604,7 +604,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const issuerRules =
     isJWTUserInfoMode || isJWTTicketValidateMode
       ? []
-      : [{ required: true, message: t('请输入 Issuer') }];
+      : [{ required: true, message: t('请输入发行者') }];
 
   const handleFetchFromDiscovery = async () => {
     const cleanBaseUrl = normalizeBaseUrl(baseUrl);
@@ -614,7 +614,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       (cleanBaseUrl ? `${cleanBaseUrl}/.well-known/openid-configuration` : '');
 
     if (!wellKnownUrl) {
-      showError(t('请先填写 Discovery URL 或 Issuer URL'));
+      showError(t('请先填写 Discovery URL 或发行者 URL'));
       return;
     }
 
@@ -781,12 +781,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       key: 'kind',
       render: (kind) => (
         <Tag color={kind === 'jwt_direct' ? 'blue' : 'cyan'}>
-          {kind === 'jwt_direct' ? t('JWT Direct') : t('OAuth Code')}
+          {kind === 'jwt_direct' ? t('JWT 直连') : t('OAuth 授权码')}
         </Tag>
       ),
     },
     {
-      title: t('Slug'),
+      title: t('标识符 (Slug)'),
       dataIndex: 'slug',
       key: 'slug',
       render: (slug) => <Tag>{slug}</Tag>,
@@ -802,7 +802,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       ),
     },
     {
-      title: t('Client ID'),
+      title: t('客户端 ID'),
       dataIndex: 'client_id',
       key: 'client_id',
       render: (id) => {
@@ -926,7 +926,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             getFormApi={(api) => (formApiRef.current = api)}
           >
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
-              {t('Configuration')}
+              {t('配置')}
             </Text>
             <Text
               type='secondary'
@@ -969,13 +969,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     ) : null}
                     {discoveryInfo.scopesSupported?.length ? (
                       <div>
-                        {t('Discovery scopes')}:{' '}
+                        {t('Discovery 建议 scopes')}:{' '}
                         {discoveryInfo.scopesSupported.join(', ')}
                       </div>
                     ) : null}
                     {discoveryInfo.claimsSupported?.length ? (
                       <div>
-                        {t('Discovery claims')}:{' '}
+                        {t('Discovery 建议 claims')}:{' '}
                         {discoveryInfo.claimsSupported.join(', ')}
                       </div>
                     ) : null}
@@ -1147,18 +1147,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field='client_id'
-                  label={t('Client ID')}
+                  label={t('客户端 ID')}
                   placeholder={
                     isJWTDirect
                       ? isJWTTicketExchange
-                        ? t('可选：仅部分 JWT 登录方式需要 Client ID')
-                        : t('可选：JWT 前端跳转使用的 Client ID')
-                      : t('OAuth Client ID')
+                        ? t('可选：仅部分 JWT 登录方式需要客户端 ID')
+                        : t('可选：JWT 前端跳转使用的客户端 ID')
+                      : t('OAuth 客户端 ID')
                   }
                   rules={
                     isJWTDirect
                       ? []
-                      : [{ required: true, message: t('请输入 Client ID') }]
+                      : [{ required: true, message: t('请输入客户端 ID') }]
                   }
                 />
               </Col>
@@ -1166,12 +1166,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Col span={12}>
                   <Form.Input
                     field='client_secret'
-                    label={t('Client Secret')}
+                    label={t('客户端密钥')}
                     type='password'
                     placeholder={
                       editingProvider
                         ? t('留空则保持原有密钥')
-                        : t('OAuth Client Secret')
+                        : t('OAuth 客户端密钥')
                     }
                     rules={
                       editingProvider
@@ -1179,7 +1179,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         : [
                             {
                               required: true,
-                              message: t('请输入 Client Secret'),
+                              message: t('请输入客户端密钥'),
                             },
                           ]
                     }
@@ -1199,13 +1199,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   label={
                     isJWTDirect
                       ? t('登录入口 URL（可选）')
-                      : t('Authorization Endpoint')
+                      : t('授权端点')
                   }
                   placeholder={
                     !isJWTDirect &&
                     selectedPreset &&
                     OAUTH_PRESETS[selectedPreset]
-                      ? t('填写 Issuer URL 后自动生成：') +
+                      ? t('填写发行者 URL 后自动生成：') +
                         OAUTH_PRESETS[selectedPreset].authorization_endpoint
                       : isJWTDirect
                         ? 'https://issuer.example.com/oauth2/authorize'
@@ -1224,7 +1224,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       : [
                           {
                             required: true,
-                            message: t('请输入 Authorization Endpoint'),
+                            message: t('请输入授权端点'),
                           },
                         ]
                   }
@@ -1237,7 +1237,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Col span={12}>
                   <Form.Input
                     field='token_endpoint'
-                    label={t('Token Endpoint')}
+                    label={t('令牌端点')}
                     placeholder={
                       selectedPreset && OAUTH_PRESETS[selectedPreset]
                         ? t('自动生成：') +
@@ -1245,14 +1245,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         : 'https://example.com/oauth/token'
                     }
                     rules={[
-                      { required: true, message: t('请输入 Token Endpoint') },
+                      { required: true, message: t('请输入令牌端点') },
                     ]}
                   />
                 </Col>
                 <Col span={12}>
                   <Form.Input
                     field='user_info_endpoint'
-                    label={t('User Info Endpoint')}
+                    label={t('用户信息端点')}
                     placeholder={
                       selectedPreset && OAUTH_PRESETS[selectedPreset]
                         ? t('自动生成：') +
@@ -1262,7 +1262,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     rules={[
                       {
                         required: true,
-                        message: t('请输入 User Info Endpoint'),
+                        message: t('请输入用户信息端点'),
                       },
                     ]}
                   />
@@ -1401,7 +1401,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   <Col span={12}>
                     <Form.Input
                       field='issuer'
-                      label={t('Issuer')}
+                      label={t('发行者')}
                       placeholder='https://issuer.example.com'
                       rules={issuerRules}
                       extraText={
@@ -1438,7 +1438,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   <Col span={12}>
                     <Form.Input
                       field='jwt_header'
-                      label={t('Token Header')}
+                      label={t('令牌请求头')}
                       placeholder={
                         isJWTUserInfoMode ? 'x-access-token' : 'Authorization'
                       }
@@ -1455,8 +1455,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       field='user_info_endpoint'
                       label={
                         isJWTUserInfoMode
-                          ? t('User Info Endpoint')
-                          : t('User Info Endpoint（可选）')
+                          ? t('用户信息端点')
+                          : t('用户信息端点（可选）')
                       }
                       placeholder='https://example.com/api/userinfo'
                       extraText={
@@ -1475,7 +1475,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           ? [
                               {
                                 required: true,
-                                message: t('请输入 User Info Endpoint'),
+                                message: t('请输入用户信息端点'),
                               },
                             ]
                           : []
@@ -1511,8 +1511,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           field='ticket_exchange_url'
                           label={
                             isJWTTicketValidateMode
-                              ? t('Ticket Validation URL')
-                              : t('Ticket Exchange URL')
+                              ? t('票据校验 URL')
+                              : t('票据交换 URL')
                           }
                           placeholder={
                             isJWTTicketValidateMode
@@ -1633,7 +1633,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       onChange={(value) =>
                         mergeFormValues({ public_key: value })
                       }
-                      label={t('Public Key PEM（可选）')}
+                      label={t('公钥 PEM（可选）')}
                       rows={6}
                       placeholder={`-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest

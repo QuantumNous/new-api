@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -28,9 +27,9 @@ import (
 )
 
 type oauthJWTAPIResponse struct {
-	Success bool            `json:"success"`
-	Message string          `json:"message"`
-	Data    json.RawMessage `json:"data"`
+	Success bool              `json:"success"`
+	Message string            `json:"message"`
+	Data    common.RawMessage `json:"data"`
 }
 
 type oauthJWTLoginResponse struct {
