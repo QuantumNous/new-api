@@ -350,7 +350,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		outUserID := ParseOutUserIDFromTokenName(tokenName)
 		if outUserID == "" {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("无法从 token name 解析 out_user_id: %s", tokenName),
+				fmt.Errorf("cannot parse out_user_id from token name: %s", tokenName),
 				types.ErrorCodeInvalidRequest, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -360,7 +360,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		}
 		if bal <= 0 || bal-preConsumedQuota < 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("insufficient balance: $%.4f available, $%.4f required",
+				fmt.Errorf("insufficient balance for user %s: $%.4f available, $%.4f required",
+					outUserID,
 					float64(bal)/common.QuotaPerUnit,
 					float64(preConsumedQuota)/common.QuotaPerUnit),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
