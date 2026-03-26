@@ -1,0 +1,40 @@
+name: Build Test Image
+
+# 触发条件：当代码 push 或 merge 到 prod 分支时触发
+on:
+  push:
+    branches:
+      - prod
+
+env:
+  REGISTRY: ghcr.io
+  # IMAGE_NAME 会自动获取你的 "用户名/仓库名"，例如 "0xheliuni/new-api"
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push-test:
+    runs-on: ubuntu-latest
+    # 必须的权限：允许 Action 读取代码并向 GHCR 写入镜像包
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          # 这里的 GITHUB_TOKEN 是内置的，你不需要手动去设置 Secret
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Test Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: . # 假设你的 Dockerfile 在项目根目录
+          push: true
+          # 固定将其打上 test 标签
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
