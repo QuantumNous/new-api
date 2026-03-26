@@ -14,6 +14,23 @@ func TestRegisterOrUpdateCustomProviderSkipsJWTDirect(t *testing.T) {
 	})
 
 	RegisterOrUpdateCustomProvider(&model.CustomOAuthProvider{
+		Name:                  "OAuth Code Test",
+		Slug:                  slug,
+		Kind:                  model.CustomOAuthProviderKindOAuthCode,
+		ClientId:              "client-id",
+		AuthorizationEndpoint: "https://issuer.example.com/oauth2/authorize",
+		TokenEndpoint:         "https://issuer.example.com/oauth2/token",
+		UserInfoEndpoint:      "https://issuer.example.com/oauth2/userinfo",
+	})
+
+	if provider := GetProvider(slug); provider == nil {
+		t.Fatalf("expected oauth_code provider %s to be registered before switching kinds", slug)
+	}
+	if !IsCustomProvider(slug) {
+		t.Fatalf("expected oauth_code provider %s to be marked as custom provider before switching kinds", slug)
+	}
+
+	RegisterOrUpdateCustomProvider(&model.CustomOAuthProvider{
 		Name: "JWT Direct Test",
 		Slug: slug,
 		Kind: model.CustomOAuthProviderKindJWTDirect,

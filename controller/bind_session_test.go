@@ -4,7 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"sync/atomic"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -41,7 +41,7 @@ func performBindSessionTestRequest(t *testing.T, serverURL string, path string) 
 	defer response.Body.Close()
 
 	var payload oauthJWTAPIResponse
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	if err := common.DecodeJson(response.Body, &payload); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	return payload
@@ -89,7 +89,9 @@ func TestWeChatBindRequiresLoggedInSession(t *testing.T) {
 		common.WeChatServerToken = oldToken
 	}()
 
+	var upstreamRequests int32
 	wechatServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&upstreamRequests, 1)
 		_, _ = w.Write([]byte(`{"success":true,"message":"","data":"wechat-user-1"}`))
 	}))
 	defer wechatServer.Close()
@@ -109,6 +111,9 @@ func TestWeChatBindRequiresLoggedInSession(t *testing.T) {
 	}
 	if response.Message != "未登录" {
 		t.Fatalf("unexpected error message: %s", response.Message)
+	}
+	if atomic.LoadInt32(&upstreamRequests) != 0 {
+		t.Fatalf("expected unauthenticated wechat bind to avoid upstream requests, got %d", atomic.LoadInt32(&upstreamRequests))
 	}
 }
 

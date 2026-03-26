@@ -24,6 +24,7 @@ import {
   isValidMessage,
 } from './utils';
 import axios from 'axios';
+import i18n from '../i18n/i18n';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
 export let API = axios.create({
@@ -52,13 +53,17 @@ function getCustomProviderKind(provider) {
   return provider?.kind || 'oauth_code';
 }
 
+function isTicketAcquireMode(mode) {
+  return mode === 'ticket_exchange' || mode === 'ticket_validate';
+}
+
 function supportsCustomProviderBrowserLogin(provider) {
   if (provider?.browser_login_supported !== undefined) {
     return Boolean(provider.browser_login_supported);
   }
   const providerKind = getCustomProviderKind(provider);
   if (providerKind === 'jwt_direct') {
-    if ((provider?.jwt_acquire_mode || 'direct_token') === 'ticket_exchange') {
+    if (isTicketAcquireMode(provider?.jwt_acquire_mode || 'direct_token')) {
       return Boolean(provider?.authorization_endpoint);
     }
     return Boolean(
@@ -72,10 +77,10 @@ function supportsCustomProviderBrowserLogin(provider) {
 
 function ensureAbsoluteOAuthURL(url) {
   if (typeof url !== 'string' || url.trim() === '') {
-    throw new Error('缺少授权端点 URL');
+    throw new Error(i18n.t('缺少授权端点 URL'));
   }
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    throw new Error('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）');
+    throw new Error(i18n.t('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'));
   }
   return new URL(url);
 }
@@ -88,7 +93,7 @@ function buildCustomJWTAuthorizationUrl(provider, state) {
     window.location.origin,
   );
 
-  if (acquireMode === 'ticket_exchange') {
+  if (isTicketAcquireMode(acquireMode)) {
     callbackUrl.searchParams.set('state', state);
     authUrl.searchParams.set(
       provider.authorization_service_field || 'service',
@@ -101,11 +106,11 @@ function buildCustomJWTAuthorizationUrl(provider, state) {
 
   if (jwtSource === 'body') {
     throw new Error(
-      '当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment',
+      i18n.t('当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment'),
     );
   }
   if (!provider.client_id) {
-    throw new Error('JWT 登录缺少 Client ID 配置');
+    throw new Error(i18n.t('JWT 登录缺少 Client ID 配置'));
   }
 
   authUrl.searchParams.set('client_id', provider.client_id);
@@ -407,7 +412,7 @@ export async function onLinuxDOOAuthClicked(
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
   if (!supportsCustomProviderBrowserLogin(provider)) {
-    showError('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定');
+    showError(i18n.t('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定'));
     return;
   }
 
@@ -438,7 +443,9 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     redirectToOAuthUrl(authUrl);
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(
+      i18n.t('OAuth 登录失败：') + (error.message || i18n.t('未知错误')),
+    );
   }
 }
 

@@ -141,6 +141,11 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
+	user, err := getSessionUser(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	code := req.Code
 	wechatId, err := getWeChatIdByCode(code)
 	if err != nil {
@@ -155,11 +160,6 @@ func WeChatBind(c *gin.Context) {
 			"success": false,
 			"message": "该微信账号已被绑定",
 		})
-		return
-	}
-	user, err := getSessionUser(c)
-	if err != nil {
-		common.ApiError(c, err)
 		return
 	}
 	user.WeChatId = wechatId

@@ -545,6 +545,23 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       const payload = { ...currentValues, enabled: !!currentValues.enabled };
       delete payload.preset;
       delete payload.base_url;
+      if (editingProvider && payload.client_secret === '') {
+        delete payload.client_secret;
+      }
+      if (editingProvider) {
+        const hiddenJWTSecretFields = [
+          'ticket_exchange_extra_params',
+          'ticket_exchange_headers',
+        ];
+        hiddenJWTSecretFields.forEach((field) => {
+          if (
+            editingProvider[field] === undefined &&
+            payload[field] === ''
+          ) {
+            delete payload[field];
+          }
+        });
+      }
       if (providerKind !== 'jwt_direct') {
         delete payload.jwt_identity_mode;
         delete payload.jwt_acquire_mode;
@@ -583,6 +600,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       );
     }
   };
+
+  const issuerRules =
+    isJWTUserInfoMode || isJWTTicketValidateMode
+      ? []
+      : [{ required: true, message: t('请输入 Issuer') }];
 
   const handleFetchFromDiscovery = async () => {
     const cleanBaseUrl = normalizeBaseUrl(baseUrl);
@@ -1381,13 +1403,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       field='issuer'
                       label={t('Issuer')}
                       placeholder='https://issuer.example.com'
-                      rules={
-                        isJWTUserInfoMode
-                          ? []
-                          : isJWTTicketValidateMode
-                            ? []
-                          : [{ required: true, message: t('请输入 Issuer') }]
-                      }
+                      rules={issuerRules}
                       extraText={
                         isJWTTicketValidateMode
                           ? t('ticket_validate 模式下可留空，不参与本地验签')

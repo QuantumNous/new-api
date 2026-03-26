@@ -54,7 +54,10 @@ const OAuth2Callback = (props) => {
       const statusStr = localStorage.getItem('status');
       if (!statusStr) return null;
       const status = JSON.parse(statusStr);
-      return (status.custom_oauth_providers || []).find(
+      const customProviders = Array.isArray(status.custom_oauth_providers)
+        ? status.custom_oauth_providers
+        : [];
+      return customProviders.find(
         (provider) => provider.slug === props.type,
       );
     } catch (error) {
@@ -171,7 +174,7 @@ const OAuth2Callback = (props) => {
       const jwtAcquireMode = customProvider?.jwt_acquire_mode || 'direct_token';
       const state = pickFirstParamValue(searchParams, hashParams, ['state']);
 
-      if (jwtAcquireMode === 'ticket_exchange') {
+      if (['ticket_exchange', 'ticket_validate'].includes(jwtAcquireMode)) {
         const ticket = pickFirstParamValue(searchParams, hashParams, [
           'ticket',
           'st',

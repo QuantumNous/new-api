@@ -152,7 +152,7 @@ func establishAuthMiddlewareSession(t *testing.T, client *http.Client, baseURL s
 	defer response.Body.Close()
 
 	var payload authMiddlewareAPIResponse
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	if err := common.DecodeJson(response.Body, &payload); err != nil {
 		t.Fatalf("failed to decode session response: %v", err)
 	}
 	if !payload.Success {
@@ -176,7 +176,7 @@ func performAuthMiddlewareRequest(t *testing.T, client *http.Client, method stri
 	defer response.Body.Close()
 
 	var payload authMiddlewareAPIResponse
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+	if err := common.DecodeJson(response.Body, &payload); err != nil {
 		t.Fatalf("failed to decode api response: %v", err)
 	}
 	return payload

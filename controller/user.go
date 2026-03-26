@@ -86,6 +86,10 @@ func Login(c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	_ = setupLoginWithResult(user, c)
+}
+
+func setupLoginWithResult(user *model.User, c *gin.Context) bool {
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
@@ -95,7 +99,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 	err := session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
-		return
+		return false
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
@@ -109,6 +113,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"group":        user.Group,
 		},
 	})
+	return true
 }
 
 func Logout(c *gin.Context) {

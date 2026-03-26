@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -67,10 +66,7 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
 		audit.FailureReason = "invalid_state"
 		recordCustomOAuthJWTAudit(audit)
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthStateInvalid)
 		return
 	}
 
@@ -115,18 +111,19 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		}
 	}
 
+	if !setupLoginWithResult(result.User, c) {
+		audit.FailureReason = "session_save_failed"
+		recordCustomOAuthJWTAudit(audit)
+		return
+	}
 	recordCustomOAuthJWTAudit(audit)
-	setupLogin(result.User, c)
 }
 
 func loadCustomJWTDirectProvider(c *gin.Context) (*model.CustomOAuthProvider, *oauth.JWTDirectProvider) {
 	providerName := c.Param("provider")
 	providerConfig, err := model.GetCustomOAuthProviderBySlug(providerName)
 	if err != nil || providerConfig == nil || !providerConfig.IsJWTDirect() {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgOAuthUnknownProvider),
-		})
+		common.ApiErrorI18n(c, i18n.MsgOAuthUnknownProvider)
 		return nil, nil
 	}
 	if !providerConfig.Enabled {
