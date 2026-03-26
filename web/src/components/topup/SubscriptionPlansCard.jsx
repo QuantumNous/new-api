@@ -44,7 +44,11 @@ const { Text } = Typography;
 // 过滤易支付方式
 function getEpayMethods(payMethods = []) {
   return (payMethods || []).filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
+    (m) =>
+      m?.type &&
+      m.type !== 'stripe' &&
+      m.type !== 'creem' &&
+      m.type !== 'alipay_f2f',
   );
 }
 
@@ -76,6 +80,7 @@ const SubscriptionPlansCard = ({
   payMethods = [],
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
+  enableAlipayF2FPayment = false,
   enableCreemTopUp = false,
   billingPreference,
   onChangeBillingPreference,
@@ -111,6 +116,18 @@ const SubscriptionPlansCard = ({
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const getCurrentReturnTo = () =>
+    `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+  const openPaymentPage = (url) => {
+    const openedWindow = window.open(url, '_blank');
+    if (!openedWindow) {
+      showError(t('浏览器拦截了新标签页，请允许打开支付页面'));
+      return false;
+    }
+    return true;
   };
 
   const payStripe = async () => {
@@ -161,6 +178,33 @@ const SubscriptionPlansCard = ({
             ? res.data.data
             : res.data?.message || t('支付失败');
         showError(errorMsg);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const payAlipayF2F = async () => {
+    if (!selectedPlan?.plan?.id) {
+      showError(t('请选择订阅套餐'));
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/alipay/pay', {
+        plan_id: selectedPlan.plan.id,
+        payment_method: 'alipay_f2f',
+        return_to: getCurrentReturnTo(),
+      });
+      if (res.data?.success) {
+        if (openPaymentPage(res.data.data?.payment_page_url)) {
+          showSuccess(t('已打开支付宝支付页'));
+          closeBuy();
+        }
+      } else {
+        showError(res.data?.message || t('支付失败'));
       }
     } catch (e) {
       showError(t('支付请求失败'));
@@ -664,6 +708,7 @@ const SubscriptionPlansCard = ({
         epayMethods={epayMethods}
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
+        enableAlipayF2FPayment={enableAlipayF2FPayment}
         enableCreemTopUp={enableCreemTopUp}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
@@ -674,6 +719,7 @@ const SubscriptionPlansCard = ({
             : null
         }
         onPayStripe={payStripe}
+        onPayAlipayF2F={payAlipayF2F}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
       />

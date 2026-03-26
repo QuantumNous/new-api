@@ -61,7 +61,9 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const shouldHideFooter =
+    cardProPages.includes(location.pathname) ||
+    location.pathname.startsWith('/payment/alipay');
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&

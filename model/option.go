@@ -80,6 +80,12 @@ func InitOptionMap() {
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
+	common.OptionMap["AlipayF2FEnabled"] = strconv.FormatBool(setting.AlipayF2FEnabled)
+	common.OptionMap["AlipayF2FAppID"] = setting.AlipayF2FAppID
+	common.OptionMap["AlipayF2FPrivateKey"] = setting.AlipayF2FPrivateKey
+	common.OptionMap["AlipayF2FPublicKey"] = setting.AlipayF2FPublicKey
+	common.OptionMap["AlipayF2FSandbox"] = strconv.FormatBool(setting.AlipayF2FSandbox)
+	common.OptionMap["AlipayF2FNotifyUrl"] = setting.AlipayF2FNotifyUrl
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
@@ -356,6 +362,18 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
+	case "AlipayF2FEnabled":
+		setting.AlipayF2FEnabled = value == "true"
+	case "AlipayF2FAppID":
+		setting.AlipayF2FAppID = value
+	case "AlipayF2FPrivateKey":
+		setting.AlipayF2FPrivateKey = value
+	case "AlipayF2FPublicKey":
+		setting.AlipayF2FPublicKey = value
+	case "AlipayF2FSandbox":
+		setting.AlipayF2FSandbox = value == "true"
+	case "AlipayF2FNotifyUrl":
+		setting.AlipayF2FNotifyUrl = value
 	case "StripeWebhookSecret":
 		setting.StripeWebhookSecret = value
 	case "StripePriceId":
