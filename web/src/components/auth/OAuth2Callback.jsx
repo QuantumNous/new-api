@@ -134,6 +134,7 @@ const OAuth2Callback = (props) => {
       const { success, message, data } = resData;
       if (!success) {
         showError(message || t('授权失败'));
+        navigate('/console/personal');
         return;
       }
 
