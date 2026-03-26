@@ -523,6 +523,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showError(t('票据处理模式必须填写 Ticket Processing URL'));
         return;
       }
+      if (
+        ['ticket_exchange', 'ticket_validate'].includes(acquireMode) &&
+        currentValues.ticket_exchange_url &&
+        !currentValues.ticket_exchange_url.startsWith('http://') &&
+        !currentValues.ticket_exchange_url.startsWith('https://')
+      ) {
+        showError(t('票据处理模式必须填写有效的 Ticket Processing URL'));
+        return;
+      }
     }
 
     for (const field of requiredFields) {
@@ -1128,7 +1137,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field='slug'
-                  label='Slug'
+                  label={t('标识符 (Slug)')}
                   placeholder={t('例如：github-enterprise')}
                   extraText={t('URL 标识，只能包含小写字母、数字和连字符')}
                   rules={[{ required: true, message: t('请输入 Slug') }]}
