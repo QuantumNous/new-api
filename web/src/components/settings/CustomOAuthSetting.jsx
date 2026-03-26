@@ -421,6 +421,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setFormValues({
       ...provider,
       kind: provider.kind || 'oauth_code',
+      jwt_source: provider.jwt_source || 'query',
+      jwt_header: provider.jwt_header || 'Authorization',
       jwt_identity_mode: provider.jwt_identity_mode || 'claims',
       jwt_acquire_mode: provider.jwt_acquire_mode || 'direct_token',
       authorization_service_field:
