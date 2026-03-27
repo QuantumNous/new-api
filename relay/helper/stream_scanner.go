@@ -108,7 +108,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	scanner.Split(bufio.ScanLines)
 	SetEventStreamHeaders(c)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(c.Request.Context())
 	defer cancel()
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
@@ -165,9 +165,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					return
 				case <-stopChan:
 					return
-				case <-c.Request.Context().Done():
-					// 监听客户端断开连接
-					return
 				case <-pingTimeout.C:
 					logger.LogError(c, "ping goroutine max duration reached")
 					return
@@ -218,8 +215,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			case <-stopChan:
 				return
 			case <-ctx.Done():
-				return
-			case <-c.Request.Context().Done():
 				return
 			default:
 			}
@@ -276,8 +271,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	case <-stopChan:
 		// 正常结束
 		logger.LogInfo(c, "streaming finished")
-	case <-c.Request.Context().Done():
-		// 客户端断开连接
+	case <-ctx.Done():
+		// 客户端断开连接或 context 被取消
 		logger.LogInfo(c, "client disconnected")
 	}
 }
