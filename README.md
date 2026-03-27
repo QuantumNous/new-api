@@ -203,6 +203,7 @@ docker run --name new-api -d --restart always \
 - 📱 Telegram authorization login
 - 🔑 OIDC unified authentication
 - Enterprise SSO (JWT Direct): direct JWT validation, ticket exchange, UserInfo, and CAS validate flows
+- Enterprise SSO (Trusted Header): reverse-proxy identity header integration for oauth2-proxy, Authentik, Pomerium, and Authelia
 - 🔍 Key quota query usage (with [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 
 ### 🚀 Advanced Features

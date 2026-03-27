@@ -203,6 +203,7 @@ docker run --name new-api -d --restart always \
 - 📱 Telegram 授權登錄
 - 🔑 OIDC 統一認證
 - 企業 SSO（JWT Direct）：支援直接驗證 JWT、票據換 JWT、UserInfo 與 CAS Validate 接入
+- 企業 SSO（Trusted Header）：支援反向代理傳遞身份標頭接入（oauth2-proxy、Authentik、Pomerium、Authelia）
 - 🔍 Key 查詢使用額度（配合 [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool)）
 
 ### 🚀 高級功能

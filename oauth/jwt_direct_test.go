@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,37 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type asyncHandlerErrors struct {
+	errors chan string
+}
+
+func newAsyncHandlerErrors() *asyncHandlerErrors {
+	return &asyncHandlerErrors{errors: make(chan string, 32)}
+}
+
+func (e *asyncHandlerErrors) failRequest(w http.ResponseWriter, statusCode int, format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	e.errors <- message
+	http.Error(w, message, statusCode)
+}
+
+func (e *asyncHandlerErrors) check(t *testing.T) {
+	t.Helper()
+
+	var messages []string
+	for {
+		select {
+		case message := <-e.errors:
+			messages = append(messages, message)
+		default:
+			if len(messages) > 0 {
+				t.Fatalf("%s", strings.Join(messages, "; "))
+			}
+			return
+		}
+	}
+}
 
 func TestJWTDirectResolveIdentityWithPEMMapping(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
@@ -335,6 +367,7 @@ func TestJWTDirectResolveIdentityRejectsGuestRoleTargets(t *testing.T) {
 
 func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
+	handlerErrors := newAsyncHandlerErrors()
 	jwksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"keys": []map[string]any{
@@ -349,7 +382,8 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal jwks payload: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal jwks payload: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -374,6 +408,7 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	})
 
 	identity, err := provider.ResolveIdentity(context.Background(), token)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected jwks validation to succeed, got error: %v", err)
 	}
@@ -383,9 +418,11 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 }
 
 func TestJWTDirectResolveIdentityWithUserInfoMode(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("x-access-token"); got != "opaque-token" {
-			t.Fatalf("expected raw token in x-access-token header, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected raw token in x-access-token header, got %q", got)
+			return
 		}
 		payload, err := common.Marshal(map[string]any{
 			"info": map[string]any{
@@ -396,7 +433,8 @@ func TestJWTDirectResolveIdentityWithUserInfoMode(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal userinfo payload: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal userinfo payload: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -417,6 +455,7 @@ func TestJWTDirectResolveIdentityWithUserInfoMode(t *testing.T) {
 	})
 
 	identity, err := provider.ResolveIdentity(context.Background(), "opaque-token")
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected userinfo mode identity resolution to succeed, got error: %v", err)
 	}
@@ -450,15 +489,19 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			callbackURL := "https://new-api.example.com/oauth/acme-sso?state=state-123"
+			handlerErrors := newAsyncHandlerErrors()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != testCase.method {
-					t.Fatalf("expected method %s, got %s", testCase.method, r.Method)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected method %s, got %s", testCase.method, r.Method)
+					return
 				}
 				if got := r.Header.Get("X-State"); got != "acme-sso:state-123" {
-					t.Fatalf("expected X-State header, got %q", got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected X-State header, got %q", got)
+					return
 				}
 				if got := r.Header.Get("X-Ticket"); got != "ticket-123" {
-					t.Fatalf("expected X-Ticket header, got %q", got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected X-Ticket header, got %q", got)
+					return
 				}
 
 				params := map[string]string{}
@@ -471,7 +514,8 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 					}
 				case testCase.payloadMode == model.CustomTicketExchangePayloadModeForm:
 					if err := r.ParseForm(); err != nil {
-						t.Fatalf("failed to parse form payload: %v", err)
+						handlerErrors.failRequest(w, http.StatusBadRequest, "failed to parse form payload: %v", err)
+						return
 					}
 					for key, values := range r.PostForm {
 						if len(values) > 0 {
@@ -480,11 +524,13 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 					}
 				case testCase.payloadMode == model.CustomTicketExchangePayloadModeJSON:
 					if err := common.DecodeJson(r.Body, &params); err != nil {
-						t.Fatalf("failed to decode json payload: %v", err)
+						handlerErrors.failRequest(w, http.StatusBadRequest, "failed to decode json payload: %v", err)
+						return
 					}
 				case testCase.payloadMode == model.CustomTicketExchangePayloadModeMultipart:
 					if err := r.ParseMultipartForm(1 << 20); err != nil {
-						t.Fatalf("failed to parse multipart payload: %v", err)
+						handlerErrors.failRequest(w, http.StatusBadRequest, "failed to parse multipart payload: %v", err)
+						return
 					}
 					for key, values := range r.MultipartForm.Value {
 						if len(values) > 0 {
@@ -492,20 +538,25 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 						}
 					}
 				default:
-					t.Fatalf("unexpected payload mode %s", testCase.payloadMode)
+					handlerErrors.failRequest(w, http.StatusInternalServerError, "unexpected payload mode %s", testCase.payloadMode)
+					return
 				}
 
 				if got := params["st"]; got != "ticket-123" {
-					t.Fatalf("expected st=ticket-123, got %q", got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected st=ticket-123, got %q", got)
+					return
 				}
 				if got := params["svc"]; got != callbackURL {
-					t.Fatalf("expected svc=%q, got %q", callbackURL, got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected svc=%q, got %q", callbackURL, got)
+					return
 				}
 				if got := params["source"]; got != "acme-sso:state-123" {
-					t.Fatalf("expected source placeholder expansion, got %q", got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected source placeholder expansion, got %q", got)
+					return
 				}
 				if got := params["raw_callback"]; got != callbackURL {
-					t.Fatalf("expected raw_callback placeholder expansion, got %q", got)
+					handlerErrors.failRequest(w, http.StatusBadRequest, "expected raw_callback placeholder expansion, got %q", got)
+					return
 				}
 
 				w.Header().Set("Content-Type", "application/json")
@@ -533,6 +584,7 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 				callbackURL,
 				"state-123",
 			)
+			handlerErrors.check(t)
 			if err != nil {
 				t.Fatalf("expected request to succeed, got error: %v", err)
 			}
@@ -546,6 +598,7 @@ func TestJWTDirectPerformTicketAcquireRequestSupportsConfiguredMethodsAndPayload
 func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
 	expectedCallbackURL := "https://new-api.example.com/oauth/acme-sso"
+	handlerErrors := newAsyncHandlerErrors()
 	token := mustSignJWT(t, privateKey, "", jwt.MapClaims{
 		"iss":                "https://issuer.example.com",
 		"aud":                "new-api",
@@ -556,22 +609,28 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 
 	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			t.Fatalf("expected POST exchange method, got %s", r.Method)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected POST exchange method, got %s", r.Method)
+			return
 		}
 		if got := r.Header.Get("X-State"); got != "state-123" {
-			t.Fatalf("expected X-State header to be populated, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected X-State header to be populated, got %q", got)
+			return
 		}
 		if err := r.ParseForm(); err != nil {
-			t.Fatalf("failed to parse form payload: %v", err)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "failed to parse form payload: %v", err)
+			return
 		}
 		if got := r.Form.Get("st"); got != "ticket-123" {
-			t.Fatalf("expected exchanged ticket field st=ticket-123, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected exchanged ticket field st=ticket-123, got %q", got)
+			return
 		}
 		if got := r.Form.Get("service"); got != expectedCallbackURL {
-			t.Fatalf("expected service field %q, got %q", expectedCallbackURL, got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected service field %q, got %q", expectedCallbackURL, got)
+			return
 		}
 		if got := r.Form.Get("source"); got != "acme-sso:state-123" {
-			t.Fatalf("expected placeholder expansion result, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected placeholder expansion result, got %q", got)
+			return
 		}
 		payload, err := common.Marshal(map[string]any{
 			"data": map[string]any{
@@ -579,7 +638,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal exchange response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -612,6 +672,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 		expectedCallbackURL,
 		"state-123",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected ticket exchange identity resolution to succeed, got error: %v", err)
 	}
@@ -625,12 +686,15 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchange(t *testing.T) {
 
 func TestJWTDirectResolveIdentityFromInputWithTicketValidateXML(t *testing.T) {
 	expectedCallbackURL := "https://new-api.example.com/oauth/acme-sso"
+	handlerErrors := newAsyncHandlerErrors()
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("ticket"); got != "ST-XML-123" {
-			t.Fatalf("expected ticket query param ST-XML-123, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected ticket query param ST-XML-123, got %q", got)
+			return
 		}
 		if got := r.URL.Query().Get("service"); got != expectedCallbackURL {
-			t.Fatalf("expected service query param %q, got %q", expectedCallbackURL, got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected service query param %q, got %q", expectedCallbackURL, got)
+			return
 		}
 		w.Header().Set("Content-Type", "application/xml")
 		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
@@ -677,6 +741,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateXML(t *testing.T) {
 		expectedCallbackURL,
 		"state-xml",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected ticket validation xml identity resolution to succeed, got error: %v", err)
 	}
@@ -695,6 +760,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateXML(t *testing.T) {
 }
 
 func TestJWTDirectResolveIdentityFromInputWithTicketValidateJSON(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"serviceResponse": map[string]any{
@@ -709,7 +775,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateJSON(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal validation response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal validation response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -737,6 +804,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateJSON(t *testing.T) {
 		"https://new-api.example.com/oauth/cas-json",
 		"state-json",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected ticket validation json identity resolution to succeed, got error: %v", err)
 	}
@@ -747,26 +815,33 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateJSON(t *testing.T) {
 
 func TestJWTDirectResolveIdentityFromInputWithTicketValidatePOSTJSON(t *testing.T) {
 	expectedCallbackURL := "https://new-api.example.com/oauth/cas-json-post"
+	handlerErrors := newAsyncHandlerErrors()
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			t.Fatalf("expected POST method, got %s", r.Method)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected POST method, got %s", r.Method)
+			return
 		}
 		if got := r.Header.Get("X-Trace"); got != "cas-json-post:state-json-post" {
-			t.Fatalf("expected X-Trace header, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected X-Trace header, got %q", got)
+			return
 		}
 
 		var payload map[string]string
 		if err := common.DecodeJson(r.Body, &payload); err != nil {
-			t.Fatalf("failed to decode validation payload: %v", err)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "failed to decode validation payload: %v", err)
+			return
 		}
 		if got := payload["st"]; got != "ST-JSON-POST-123" {
-			t.Fatalf("expected custom ticket field st, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected custom ticket field st, got %q", got)
+			return
 		}
 		if got := payload["svc"]; got != expectedCallbackURL {
-			t.Fatalf("expected custom service field svc, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected custom service field svc, got %q", got)
+			return
 		}
 		if got := payload["source"]; got != "cas-json-post:state-json-post" {
-			t.Fatalf("expected source placeholder expansion, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected source placeholder expansion, got %q", got)
+			return
 		}
 
 		responseBody, err := common.Marshal(map[string]any{
@@ -780,7 +855,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidatePOSTJSON(t *testing.
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal validation response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal validation response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(responseBody)
@@ -812,6 +888,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidatePOSTJSON(t *testing.
 		expectedCallbackURL,
 		"state-json-post",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected ticket validation post json identity resolution to succeed, got error: %v", err)
 	}
@@ -821,6 +898,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidatePOSTJSON(t *testing.
 }
 
 func TestJWTDirectResolveIdentityFromInputWithTicketValidateDirectJSON(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"id":           "custom-validate-1",
@@ -829,7 +907,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateDirectJSON(t *testin
 			"email":        "carol@example.com",
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal direct json validation response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal direct json validation response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -857,6 +936,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateDirectJSON(t *testin
 		"https://new-api.example.com/oauth/custom-validator",
 		"state-direct",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected direct json ticket validation to succeed, got error: %v", err)
 	}
@@ -866,6 +946,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketValidateDirectJSON(t *testin
 }
 
 func TestJWTDirectResolveIdentityFromInputRejectsTicketValidationFailure(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"serviceResponse": map[string]any{
@@ -876,7 +957,8 @@ func TestJWTDirectResolveIdentityFromInputRejectsTicketValidationFailure(t *test
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal failure response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal failure response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -901,6 +983,7 @@ func TestJWTDirectResolveIdentityFromInputRejectsTicketValidationFailure(t *test
 		"https://new-api.example.com/oauth/cas-failure",
 		"state-fail",
 	)
+	handlerErrors.check(t)
 	if err == nil {
 		t.Fatal("expected ticket validation failure to be rejected")
 	}
@@ -957,6 +1040,7 @@ func TestJWTDirectResolveIdentityFromInputRejectsExchangeFailure(t *testing.T) {
 }
 
 func TestJWTDirectResolveIdentityFromInputRejectsMissingTokenFromExchangeResponse(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"success": true,
@@ -965,7 +1049,8 @@ func TestJWTDirectResolveIdentityFromInputRejectsMissingTokenFromExchangeRespons
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal exchange response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -988,6 +1073,7 @@ func TestJWTDirectResolveIdentityFromInputRejectsMissingTokenFromExchangeRespons
 		"https://new-api.example.com/oauth/acme-sso",
 		"state-123",
 	)
+	handlerErrors.check(t)
 	if err == nil || !strings.Contains(err.Error(), "missing jwt token") {
 		t.Fatalf("expected missing jwt token error, got %v", err)
 	}
@@ -995,6 +1081,7 @@ func TestJWTDirectResolveIdentityFromInputRejectsMissingTokenFromExchangeRespons
 
 func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
+	handlerErrors := newAsyncHandlerErrors()
 	token := mustSignJWT(t, privateKey, "", jwt.MapClaims{
 		"iss": "https://issuer.example.com",
 		"aud": "new-api",
@@ -1008,7 +1095,8 @@ func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal exchange response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -1034,6 +1122,7 @@ func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
 		"https://new-api.example.com/oauth/acme-sso",
 		"state-123",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected fallback token extraction to succeed, got error: %v", err)
 	}
@@ -1043,6 +1132,7 @@ func TestJWTDirectResolveIdentityFromInputUsesFallbackTokenField(t *testing.T) {
 }
 
 func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *testing.T) {
+	handlerErrors := newAsyncHandlerErrors()
 	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		payload, err := common.Marshal(map[string]any{
 			"data": map[string]any{
@@ -1050,7 +1140,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *t
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal exchange response: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -1059,7 +1150,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *t
 
 	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("x-access-token"); got != "opaque-access-token" {
-			t.Fatalf("expected exchanged token in x-access-token header, got %q", got)
+			handlerErrors.failRequest(w, http.StatusBadRequest, "expected exchanged token in x-access-token header, got %q", got)
+			return
 		}
 		payload, err := common.Marshal(map[string]any{
 			"info": map[string]any{
@@ -1070,7 +1162,8 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *t
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal userinfo payload: %v", err)
+			handlerErrors.failRequest(w, http.StatusInternalServerError, "failed to marshal userinfo payload: %v", err)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -1104,6 +1197,7 @@ func TestJWTDirectResolveIdentityFromInputWithTicketExchangeAndUserInfoMode(t *t
 		"https://new-api.example.com/oauth/qdama-sso?state=abc",
 		"abc",
 	)
+	handlerErrors.check(t)
 	if err != nil {
 		t.Fatalf("expected ticket exchange + userinfo mode to succeed, got error: %v", err)
 	}

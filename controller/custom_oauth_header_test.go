@@ -447,10 +447,19 @@ func TestHandleCustomOAuthHeaderLoginSkipsLimitedProfileAttributeConflicts(t *te
 	}
 
 	var syncLog model.Log
-	if err := model.LOG_DB.Where("user_id = ? AND type = ? AND content LIKE ?", user.Id, model.LogTypeSystem, "外部登录同步用户属性%").Order("created_at desc").First(&syncLog).Error; err != nil {
+	if err := model.LOG_DB.
+		Where("user_id = ? AND type = ?", user.Id, model.LogTypeSystem).
+		Where("content LIKE ?", "%"+provider.Name+"%").
+		Where("content LIKE ?", "%taken-user%").
+		Where("content LIKE ?", "%taken@example.com%").
+		Order("created_at desc").
+		First(&syncLog).Error; err != nil {
 		t.Fatalf("failed to load trusted header sync log: %v", err)
 	}
-	if !strings.Contains(syncLog.Content, "跳过：") || !strings.Contains(syncLog.Content, "username taken-user 已被占用") || !strings.Contains(syncLog.Content, "email taken@example.com 已被其他用户占用") {
+	if !strings.Contains(syncLog.Content, "display_name") ||
+		!strings.Contains(syncLog.Content, "Conflict Name") ||
+		!strings.Contains(syncLog.Content, "taken-user") ||
+		!strings.Contains(syncLog.Content, "taken@example.com") {
 		t.Fatalf("expected conflict sync log to record skipped fields, got %s", syncLog.Content)
 	}
 }

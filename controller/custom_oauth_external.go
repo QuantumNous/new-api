@@ -152,6 +152,9 @@ func finalizeCustomOAuthIdentityLogin(c *gin.Context, provider oauth.Provider, r
 	}
 
 	if !setupLoginWithResult(result.User, c) {
+		if !c.Writer.Written() {
+			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		}
 		audit.FailureReason = "session_save_failed"
 		recordCustomOAuthJWTAudit(audit)
 		return

@@ -44,6 +44,35 @@ type oauthJWTBindResponse struct {
 	Action string `json:"action"`
 }
 
+type asyncHandlerErrorSink struct {
+	ch chan string
+}
+
+func newAsyncHandlerErrorSink(buffer int) *asyncHandlerErrorSink {
+	return &asyncHandlerErrorSink{ch: make(chan string, buffer)}
+}
+
+func (s *asyncHandlerErrorSink) reportf(format string, args ...any) {
+	s.ch <- fmt.Sprintf(format, args...)
+}
+
+func (s *asyncHandlerErrorSink) failIfAny(t *testing.T) {
+	t.Helper()
+
+	var messages []string
+	for {
+		select {
+		case message := <-s.ch:
+			messages = append(messages, message)
+		default:
+			if len(messages) > 0 {
+				t.Fatalf("%s", strings.Join(messages, "\n"))
+			}
+			return
+		}
+	}
+}
+
 func setupCustomOAuthJWTControllerTestDB(t *testing.T) {
 	t.Helper()
 
@@ -876,6 +905,8 @@ func TestHandleCustomOAuthJWTLoginDoesNotBindDisabledMergedUser(t *testing.T) {
 
 func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
+	handlerErrors := newAsyncHandlerErrorSink(4)
+	defer handlerErrors.failIfAny(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("failed to generate private key: %v", err)
@@ -888,7 +919,9 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.reportf("failed to marshal exchange response: %v", err)
+			http.Error(w, "marshal exchange response failed", http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -897,7 +930,9 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t
 
 	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("x-access-token"); got != "opaque-access-token" {
-			t.Fatalf("expected exchanged token in x-access-token header, got %q", got)
+			handlerErrors.reportf("expected exchanged token in x-access-token header, got %q", got)
+			http.Error(w, "missing exchanged token header", http.StatusBadRequest)
+			return
 		}
 		payload, err := common.Marshal(map[string]any{
 			"info": map[string]any{
@@ -908,7 +943,9 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal userinfo payload: %v", err)
+			handlerErrors.reportf("failed to marshal userinfo payload: %v", err)
+			http.Error(w, "marshal userinfo payload failed", http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -981,6 +1018,8 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeAndUserInfoModeCreatesUser(t
 
 func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
+	handlerErrors := newAsyncHandlerErrorSink(4)
+	defer handlerErrors.failIfAny(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("failed to generate private key: %v", err)
@@ -1002,10 +1041,14 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 
 	exchangeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
-			t.Fatalf("failed to parse exchange request: %v", err)
+			handlerErrors.reportf("failed to parse exchange request: %v", err)
+			http.Error(w, "parse exchange request failed", http.StatusBadRequest)
+			return
 		}
 		if got := r.Form.Get("st"); got != "ST-123" {
-			t.Fatalf("expected ticket field st=ST-123, got %q", got)
+			handlerErrors.reportf("expected ticket field st=ST-123, got %q", got)
+			http.Error(w, "unexpected ticket field", http.StatusBadRequest)
+			return
 		}
 		callbackURLSeen = r.Form.Get("service")
 		stateSeen = r.Header.Get("X-State")
@@ -1015,7 +1058,9 @@ func TestHandleCustomOAuthJWTLoginWithTicketExchangeCreatesUser(t *testing.T) {
 			},
 		})
 		if err != nil {
-			t.Fatalf("failed to marshal exchange response: %v", err)
+			handlerErrors.reportf("failed to marshal exchange response: %v", err)
+			http.Error(w, "marshal exchange response failed", http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(payload)
@@ -1115,6 +1160,8 @@ func TestOAuthAuditFailureReason(t *testing.T) {
 
 func TestHandleCustomOAuthJWTLoginWithTicketValidateCreatesUser(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
+	handlerErrors := newAsyncHandlerErrorSink(2)
+	defer handlerErrors.failIfAny(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatalf("failed to generate private key: %v", err)
@@ -1122,10 +1169,14 @@ func TestHandleCustomOAuthJWTLoginWithTicketValidateCreatesUser(t *testing.T) {
 
 	validationServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("ticket"); got != "ST-CAS-123" {
-			t.Fatalf("expected ticket query param ST-CAS-123, got %q", got)
+			handlerErrors.reportf("expected ticket query param ST-CAS-123, got %q", got)
+			http.Error(w, "unexpected ticket query param", http.StatusBadRequest)
+			return
 		}
 		if got := r.URL.Query().Get("service"); !strings.Contains(got, "/oauth/acme-sso?state=") {
-			t.Fatalf("expected service callback url to contain oauth callback, got %q", got)
+			handlerErrors.reportf("expected service callback url to contain oauth callback, got %q", got)
+			http.Error(w, "unexpected service callback url", http.StatusBadRequest)
+			return
 		}
 		w.Header().Set("Content-Type", "application/xml")
 		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
