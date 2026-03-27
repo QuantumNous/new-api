@@ -471,7 +471,7 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 	}
 	uploadURL := relaycommon.GetFullRequestURL(baseURL, "/v1/files", info.ChannelType)
 
-	req, err := http.NewRequest(http.MethodPost, uploadURL, &body)
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, uploadURL, &body)
 	if err != nil {
 		return "", fmt.Errorf("replicate adaptor: create upload request failed: %w", err)
 	}

@@ -295,7 +295,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -326,7 +326,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	if common2.DebugEnabled {
 		println("fullRequestURL:", fullRequestURL)
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -382,7 +382,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 }
 
 func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.CancelFunc {
-	pingerCtx, stopPinger := context.WithCancel(context.Background())
+	pingerCtx, stopPinger := context.WithCancel(c.Request.Context())
 
 	gopool.Go(func() {
 		defer func() {
@@ -432,9 +432,6 @@ func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.Canc
 				}
 			// 收到退出信号
 			case <-pingerCtx.Done():
-				return
-			// request 结束
-			case <-c.Request.Context().Done():
 				return
 			// 超时保护，防止goroutine无限运行
 			case <-pingTimeout.C:
@@ -517,6 +514,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	resp, err := client.Do(req)
 	if err != nil {
+		// 区分客户端主动断开和真正的上游错误
+		// 客户端断开时不记录错误日志、不重试、不影响渠道状态
+		if c.Request.Context().Err() != nil {
+			logger.LogInfo(c, "request cancelled by client: "+err.Error())
+			return nil, types.NewError(err, types.ErrorCodeDoRequestFailed,
+				types.ErrOptionWithSkipRetry(),
+				types.ErrOptionWithHideErrMsg("client disconnected"))
+		}
 		logger.LogError(c, "do request failed: "+err.Error())
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
@@ -534,7 +539,7 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Request.Context(), c.Request.Method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
