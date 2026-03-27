@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 )
 
 // ============================
@@ -241,13 +242,11 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
 	}
 
-	// Add text prompt
-	if req.Prompt != "" {
-		r.Content = append(r.Content, ContentItem{
-			Type: "text",
-			Text: req.Prompt,
-		})
-	}
+	r.Content = lo.Reject(r.Content, func(c ContentItem, _ int) bool { return c.Type == "text" })
+	r.Content = append(r.Content, ContentItem{
+		Type: "text",
+		Text: req.Prompt,
+	})
 
 	return &r, nil
 }
