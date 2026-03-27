@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Card, Tabs, TabPane, Switch, Typography } from '@douyinfe/semi-ui';
 import { PieChart } from 'lucide-react';
 import { VChart } from '@visactor/react-vchart';
 
@@ -29,10 +29,17 @@ const ChartsPanel = ({
   spec_model_line,
   spec_pie,
   spec_rank_bar,
+  spec_token_bar,
+  spec_token_pie,
+  spec_channel_bar,
+  spec_channel_pie,
   CARD_PROPS,
   CHART_CONFIG,
   FLEX_CENTER_GAP2,
   hasApiInfoPanel,
+  isAdminUser,
+  showAllTokens,
+  onToggleAllTokens,
   t,
 }) => {
   return (
@@ -44,6 +51,18 @@ const ChartsPanel = ({
           <div className={FLEX_CENTER_GAP2}>
             <PieChart size={16} />
             {t('模型数据分析')}
+            {isAdminUser && (
+              <div className='ml-4 flex items-center gap-2'>
+                <Switch
+                  checked={showAllTokens}
+                  onChange={onToggleAllTokens}
+                  size='small'
+                />
+                <Typography.Text size='small' type='tertiary'>
+                  {showAllTokens ? t('所有令牌') : t('仅我的令牌')}
+                </Typography.Text>
+              </div>
+            )}
           </div>
           <Tabs
             type='slash'
@@ -54,6 +73,14 @@ const ChartsPanel = ({
             <TabPane tab={<span>{t('消耗趋势')}</span>} itemKey='2' />
             <TabPane tab={<span>{t('调用次数分布')}</span>} itemKey='3' />
             <TabPane tab={<span>{t('调用次数排行')}</span>} itemKey='4' />
+            <TabPane tab={<span>{t('令牌消耗分布')}</span>} itemKey='5' />
+            <TabPane tab={<span>{t('令牌消耗占比')}</span>} itemKey='6' />
+            {isAdminUser && (
+              <TabPane tab={<span>{t('渠道消耗分布')}</span>} itemKey='7' />
+            )}
+            {isAdminUser && (
+              <TabPane tab={<span>{t('渠道消耗占比')}</span>} itemKey='8' />
+            )}
           </Tabs>
         </div>
       }
@@ -71,6 +98,18 @@ const ChartsPanel = ({
         )}
         {activeChartTab === '4' && (
           <VChart spec={spec_rank_bar} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '5' && (
+          <VChart spec={spec_token_bar} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '6' && (
+          <VChart spec={spec_token_pie} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '7' && (
+          <VChart spec={spec_channel_bar} option={CHART_CONFIG} />
+        )}
+        {activeChartTab === '8' && (
+          <VChart spec={spec_channel_pie} option={CHART_CONFIG} />
         )}
       </div>
     </Card>

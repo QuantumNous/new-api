@@ -61,6 +61,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [lineData, setLineData] = useState([]);
   const [modelColors, setModelColors] = useState({});
 
+  // ========== 令牌数据状态 ==========
+  const [tokenStatsData, setTokenStatsData] = useState([]);
+  const [showAllTokens, setShowAllTokens] = useState(false);
+
+  // ========== 渠道数据状态 ==========
+  const [channelStatsData, setChannelStatsData] = useState([]);
+
   // ========== 图表状态 ==========
   const [activeChartTab, setActiveChartTab] = useState('1');
 
@@ -144,6 +151,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       localStorage.setItem('data_export_default_time', value);
       return;
     }
+    if (name === 'show_all_tokens') {
+      setShowAllTokens(value);
+      return;
+    }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }, []);
 
@@ -223,11 +234,56 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [userDispatch]);
 
+  const loadTokenStats = useCallback(async () => {
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+      const url = `/api/data/self/token_stats?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&all=${showAllTokens}`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        setTokenStatsData(data);
+        return data;
+      } else {
+        showError(message);
+        return [];
+      }
+    } catch (err) {
+      return [];
+    }
+  }, [inputs, showAllTokens]);
+
+  const loadChannelStats = useCallback(async () => {
+    if (!isAdminUser) return [];
+    try {
+      const { start_timestamp, end_timestamp } = inputs;
+      let localStartTimestamp = Date.parse(start_timestamp) / 1000;
+      let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+      const url = `/api/data/channel_stats?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
+      const res = await API.get(url);
+      const { success, message, data } = res.data;
+      if (success) {
+        setChannelStatsData(data);
+        return data;
+      } else {
+        showError(message);
+        return [];
+      }
+    } catch (err) {
+      return [];
+    }
+  }, [inputs, isAdminUser]);
+
   const refresh = useCallback(async () => {
+    loadTokenStats();
+    loadChannelStats();
     const data = await loadQuotaData();
     await loadUptimeData();
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadTokenStats, loadChannelStats, loadUptimeData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -279,6 +335,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     setLineData,
     modelColors,
     setModelColors,
+    tokenStatsData,
+    showAllTokens,
+    setShowAllTokens,
+    channelStatsData,
 
     // 图表状态
     activeChartTab,
@@ -312,6 +372,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleCloseModal,
     loadQuotaData,
     loadUptimeData,
+    loadTokenStats,
+    loadChannelStats,
     getUserData,
     refresh,
     handleSearchConfirm,

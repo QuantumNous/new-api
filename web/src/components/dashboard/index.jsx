@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import { getRelativeTime } from '../../helpers';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -87,6 +87,8 @@ const Dashboard = () => {
 
   // ========== 数据处理 ==========
   const initChart = async () => {
+    dashboardData.loadTokenStats();
+    dashboardData.loadChannelStats();
     await dashboardData.loadQuotaData().then((data) => {
       if (data && data.length > 0) {
         dashboardCharts.updateChartData(data);
@@ -125,6 +127,7 @@ const Dashboard = () => {
   );
   const faqData = statusState?.status?.faq || [];
 
+  // ========== Uptime 数据 ==========
   const uptimeLegendData = Object.entries(UPTIME_STATUS_MAP).map(
     ([status, info]) => ({
       status: Number(status),
@@ -134,6 +137,28 @@ const Dashboard = () => {
   );
 
   // ========== Effects ==========
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    dashboardData.loadTokenStats();
+  }, [dashboardData.showAllTokens]);
+
+  useEffect(() => {
+    if (dashboardData.tokenStatsData && dashboardData.tokenStatsData.length > 0) {
+      dashboardCharts.updateTokenChartData(dashboardData.tokenStatsData);
+    }
+  }, [dashboardData.tokenStatsData]);
+
+  useEffect(() => {
+    if (dashboardData.channelStatsData && dashboardData.channelStatsData.length > 0) {
+      dashboardCharts.updateChannelChartData(dashboardData.channelStatsData);
+    }
+  }, [dashboardData.channelStatsData]);
+
   useEffect(() => {
     initChart();
   }, []);
@@ -182,10 +207,17 @@ const Dashboard = () => {
             spec_model_line={dashboardCharts.spec_model_line}
             spec_pie={dashboardCharts.spec_pie}
             spec_rank_bar={dashboardCharts.spec_rank_bar}
+            spec_token_bar={dashboardCharts.spec_token_bar}
+            spec_token_pie={dashboardCharts.spec_token_pie}
+            spec_channel_bar={dashboardCharts.spec_channel_bar}
+            spec_channel_pie={dashboardCharts.spec_channel_pie}
             CARD_PROPS={CARD_PROPS}
             CHART_CONFIG={CHART_CONFIG}
             FLEX_CENTER_GAP2={FLEX_CENTER_GAP2}
             hasApiInfoPanel={dashboardData.hasApiInfoPanel}
+            isAdminUser={dashboardData.isAdminUser}
+            showAllTokens={dashboardData.showAllTokens}
+            onToggleAllTokens={(value) => dashboardData.setShowAllTokens(value)}
             t={dashboardData.t}
           />
 
