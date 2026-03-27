@@ -224,14 +224,6 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		Content: []ContentItem{},
 	}
 
-	// Add text prompt
-	if req.Prompt != "" {
-		r.Content = append(r.Content, ContentItem{
-			Type: "text",
-			Text: req.Prompt,
-		})
-	}
-
 	// Add images if present
 	if req.HasImage() {
 		for _, imgURL := range req.Images {
@@ -247,6 +239,14 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	metadata := req.Metadata
 	if err := taskcommon.UnmarshalMetadata(metadata, &r); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata failed")
+	}
+
+	// Add text prompt
+	if req.Prompt != "" {
+		r.Content = append(r.Content, ContentItem{
+			Type: "text",
+			Text: req.Prompt,
+		})
 	}
 
 	return &r, nil
