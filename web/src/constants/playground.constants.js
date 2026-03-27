@@ -94,6 +94,9 @@ export const DEFAULT_CONFIG = {
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    videoSize: '1280x720',
+    videoSeconds: '10',
+    videoQuality: 'standard',
   },
   parameterEnabled: {
     temperature: true,

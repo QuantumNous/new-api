@@ -46,6 +46,8 @@ type GeneralOpenAIRequest struct {
 	Input               any               `json:"input,omitempty"`
 	Instruction         string            `json:"instruction,omitempty"`
 	Size                string            `json:"size,omitempty"`
+	Seconds             *int              `json:"seconds,omitempty"`
+	Quality             *string           `json:"quality,omitempty"`
 	Functions           json.RawMessage   `json:"functions,omitempty"`
 	FrequencyPenalty    *float64          `json:"frequency_penalty,omitempty"`
 	PresencePenalty     *float64          `json:"presence_penalty,omitempty"`
