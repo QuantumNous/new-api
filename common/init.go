@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -46,21 +47,17 @@ func InitEnv() {
 		os.Exit(0)
 	}
 
-	if os.Getenv("SESSION_SECRET") != "" {
-		ss := os.Getenv("SESSION_SECRET")
-		if ss == "random_string" {
-			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
-			log.Println("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
-			log.Fatal("Please set SESSION_SECRET to a random string.")
-		} else {
-			SessionSecret = ss
-		}
+	sessionSecret, cryptoSecret, err := resolveSecretsFromEnv(
+		os.Getenv("SESSION_SECRET"),
+		os.Getenv("CRYPTO_SECRET"),
+	)
+	if err != nil {
+		log.Println("WARNING: SESSION_SECRET and CRYPTO_SECRET are not configured with stable values.")
+		log.Println("警告：SESSION_SECRET 和 CRYPTO_SECRET 未配置为稳定值。")
+		log.Fatal(err)
 	}
-	if os.Getenv("CRYPTO_SECRET") != "" {
-		CryptoSecret = os.Getenv("CRYPTO_SECRET")
-	} else {
-		CryptoSecret = SessionSecret
-	}
+	SessionSecret = sessionSecret
+	CryptoSecret = cryptoSecret
 	if os.Getenv("SQLITE_PATH") != "" {
 		SQLitePath = os.Getenv("SQLITE_PATH")
 	}
@@ -125,6 +122,31 @@ func InitEnv() {
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
+}
+
+func resolveSecretsFromEnv(sessionSecretEnv string, cryptoSecretEnv string) (string, string, error) {
+	sessionSecretEnv = strings.TrimSpace(sessionSecretEnv)
+	cryptoSecretEnv = strings.TrimSpace(cryptoSecretEnv)
+
+	if sessionSecretEnv == "random_string" {
+		return "", "", errors.New("please set SESSION_SECRET to a random string")
+	}
+	if cryptoSecretEnv == "random_string" {
+		return "", "", errors.New("please set CRYPTO_SECRET to a random string")
+	}
+	if sessionSecretEnv == "" && cryptoSecretEnv == "" {
+		return "", "", errors.New("please set SESSION_SECRET or CRYPTO_SECRET to a stable secret")
+	}
+
+	sessionSecret := sessionSecretEnv
+	if sessionSecret == "" {
+		sessionSecret = cryptoSecretEnv
+	}
+	cryptoSecret := cryptoSecretEnv
+	if cryptoSecret == "" {
+		cryptoSecret = sessionSecret
+	}
+	return sessionSecret, cryptoSecret, nil
 }
 
 func initConstantEnv() {

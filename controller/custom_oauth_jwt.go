@@ -90,35 +90,7 @@ func HandleCustomOAuthJWTLogin(c *gin.Context) {
 		return
 	}
 
-	if result.Action == "bind" {
-		recordCustomOAuthJWTAudit(audit)
-		common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
-			"action": "bind",
-		})
-		return
-	}
-
-	if result.User.Status != common.UserStatusEnabled {
-		audit.FailureReason = "user_disabled"
-		recordCustomOAuthJWTAudit(audit)
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
-		return
-	}
-	if result.BindAfterStatusCheck {
-		if err := bindOAuthIdentityToUser(result.User, provider, result.ProviderUserID); err != nil {
-			audit.FailureReason = oauthAuditFailureReason(err)
-			recordCustomOAuthJWTAudit(audit)
-			handleCustomOAuthJWTLoginError(c, err)
-			return
-		}
-	}
-
-	if !setupLoginWithResult(result.User, c) {
-		audit.FailureReason = "session_save_failed"
-		recordCustomOAuthJWTAudit(audit)
-		return
-	}
-	recordCustomOAuthJWTAudit(audit)
+	finalizeCustomOAuthIdentityLogin(c, provider, result, audit)
 }
 
 func loadCustomJWTDirectProvider(c *gin.Context) (*model.CustomOAuthProvider, *oauth.JWTDirectProvider) {
@@ -183,87 +155,16 @@ func completeCustomOAuthJWTLogin(
 	if err != nil {
 		return nil, audit, err
 	}
-	if audit != nil {
-		audit.ExternalID = redactOAuthAuditID(identity.User.ProviderUserID)
-		audit.GroupResult = safeOAuthAuditValue(identity.Group)
-		audit.RoleResult = oauthRoleLabel(identity.Role)
-	}
-
-	if session.Get("username") != nil {
-		if audit != nil {
-			if sessionUserID, ok := session.Get("id").(int); ok {
-				audit.TargetUserID = sessionUserID
-			}
-		}
-		currentUser, currentUserErr := getSessionUser(c)
-		if currentUserErr != nil {
-			if audit != nil {
-				if strings.TrimSpace(currentUserErr.Error()) == "该用户已被禁用" {
-					audit.FailureReason = "user_disabled"
-				} else {
-					audit.FailureReason = oauthAuditFailureReason(currentUserErr)
-				}
-			}
-			if strings.TrimSpace(currentUserErr.Error()) == "该用户已被禁用" {
-				return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthUserBanned, nil)
-			}
-			return nil, audit, currentUserErr
-		}
-		if currentUser.Status != common.UserStatusEnabled {
-			if audit != nil {
-				audit.FailureReason = "user_disabled"
-			}
-			return nil, audit, oauth.NewOAuthError(i18n.MsgOAuthUserBanned, nil)
-		}
-		if err := bindOAuthIdentityToCurrentUser(c, provider, identity.User); err != nil {
-			return nil, audit, err
-		}
-		if audit != nil {
-			audit.Action = "bind"
-		}
-		return &customOAuthJWTLoginResult{Action: "bind"}, audit, nil
-	}
-
-	resolvedUser, err := findOrCreateOAuthUserWithOptions(c, provider, identity.User, session, oauthFindOrCreateOptions{
-		AllowAutoRegister:     providerConfig.AutoRegister,
-		AllowAutoMergeByEmail: providerConfig.AutoMergeByEmail,
-		InitialRole:           identity.Role,
-		InitialGroup:          identity.Group,
-	})
-	if err != nil {
-		return nil, audit, err
-	}
-
-	if resolvedUser.User.Status == common.UserStatusEnabled {
-		if err := syncOAuthUserLoginAttributes(
-			resolvedUser.User,
-			providerConfig.Name,
-			identity.Group,
-			providerConfig.SyncGroupOnLogin,
-			identity.Role,
-			providerConfig.SyncRoleOnLogin,
-		); err != nil {
-			return nil, audit, err
-		}
-	}
-
-	result := &customOAuthJWTLoginResult{
-		Action:                "login",
-		User:                  resolvedUser.User,
-		BindAfterStatusCheck:  resolvedUser.BindAfterStatusCheck,
-		ProviderUserID:        identity.User.ProviderUserID,
-		AutoRegisterTriggered: resolvedUser.AutoRegisterTriggered,
-		EmailMergeTriggered:   resolvedUser.EmailMergeTriggered,
-		GroupResult:           identity.Group,
-		RoleResult:            identity.Role,
-	}
-	if audit != nil {
-		audit.Action = result.Action
-		audit.TargetUserID = result.User.Id
-		audit.AutoRegisterTriggered = result.AutoRegisterTriggered
-		audit.EmailMergeTriggered = result.EmailMergeTriggered
-	}
-	return result, audit, nil
+	return completeCustomOAuthIdentityLogin(
+		c,
+		providerConfig,
+		provider,
+		session,
+		identity.User,
+		identity.Group,
+		identity.Role,
+		audit,
+	)
 }
 
 func buildCustomOAuthJWTCallbackURL(providerSlug string, state string) (string, error) {
@@ -321,69 +222,4 @@ func selectJWTLoginCredential(providerConfig *model.CustomOAuthProvider, req cus
 		return firstNonEmpty(req.Token, req.IDToken, req.JWT)
 	}
 	return firstNonEmpty(req.IDToken, req.JWT, req.Token)
-}
-
-func oauthAuditFailureReason(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	switch e := err.(type) {
-	case *oauth.OAuthError:
-		return "oauth_error:" + safeOAuthAuditValue(e.MsgKey)
-	case *oauth.AccessDeniedError:
-		return "access_denied"
-	case *oauth.TrustLevelError:
-		return "trust_level_denied"
-	case *OAuthAlreadyBoundError:
-		return "oauth_already_bound"
-	case *OAuthUserDeletedError:
-		return "oauth_user_deleted"
-	case *OAuthRegistrationDisabledError, *OAuthAutoRegisterDisabledError:
-		return "registration_disabled"
-	default:
-		return "internal_error"
-	}
-}
-
-func newCustomOAuthJWTAuditInfo(providerConfig *model.CustomOAuthProvider) *customOAuthJWTAuditInfo {
-	if providerConfig == nil {
-		return &customOAuthJWTAuditInfo{}
-	}
-	return &customOAuthJWTAuditInfo{
-		ProviderSlug: providerConfig.Slug,
-		ProviderKind: providerConfig.GetKind(),
-	}
-}
-
-func recordCustomOAuthJWTAudit(audit *customOAuthJWTAuditInfo) {
-	if audit == nil {
-		return
-	}
-
-	content := fmt.Sprintf(
-		"企业认证审计 provider_slug=%s provider_kind=%s action=%s external_id=%s target_user_id=%d auto_register=%t email_merge=%t group_result=%s role_result=%s failure_reason=%s",
-		safeOAuthAuditValue(audit.ProviderSlug),
-		safeOAuthAuditValue(audit.ProviderKind),
-		safeOAuthAuditValue(audit.Action),
-		safeOAuthAuditValue(audit.ExternalID),
-		audit.TargetUserID,
-		audit.AutoRegisterTriggered,
-		audit.EmailMergeTriggered,
-		safeOAuthAuditValue(audit.GroupResult),
-		safeOAuthAuditValue(audit.RoleResult),
-		safeOAuthAuditValue(audit.FailureReason),
-	)
-	common.SysLog("[EnterpriseAuth] " + content)
-	if audit.TargetUserID > 0 {
-		model.RecordLog(audit.TargetUserID, model.LogTypeSystem, content)
-	}
-}
-
-func redactOAuthAuditID(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	return "hmac_sha256:" + common.GenerateHMAC(value)
 }

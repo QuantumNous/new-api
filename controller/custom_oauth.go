@@ -37,6 +37,13 @@ type CustomOAuthProviderResponse struct {
 	JWTHeader                  string `json:"jwt_header"`
 	JWTIdentityMode            string `json:"jwt_identity_mode"`
 	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           string `json:"external_id_header"`
+	UsernameHeader             string `json:"username_header"`
+	DisplayNameHeader          string `json:"display_name_header"`
+	EmailHeader                string `json:"email_header"`
+	GroupHeader                string `json:"group_header"`
+	RoleHeader                 string `json:"role_header"`
 	AuthorizationServiceField  string `json:"authorization_service_field"`
 	TicketExchangeURL          string `json:"ticket_exchange_url"`
 	TicketExchangeMethod       string `json:"ticket_exchange_method"`
@@ -54,6 +61,9 @@ type CustomOAuthProviderResponse struct {
 	RoleMapping                string `json:"role_mapping"`
 	AutoRegister               bool   `json:"auto_register"`
 	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           bool   `json:"sync_email_on_login"`
 	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
 	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
 	GroupMappingMode           string `json:"group_mapping_mode"`
@@ -73,71 +83,92 @@ type UserOAuthBindingResponse struct {
 }
 
 func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthProviderResponse {
-	jwtSource := p.JWTSource
-	if strings.TrimSpace(jwtSource) == "" {
+	sanitized := *p
+	model.NormalizeCustomOAuthProviderForRead(&sanitized)
+
+	jwtSource := sanitized.JWTSource
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtSource) == "" {
 		jwtSource = model.CustomJWTSourceQuery
 	}
-	authorizationServiceField := p.AuthorizationServiceField
-	if strings.TrimSpace(authorizationServiceField) == "" {
+	jwtIdentityMode := sanitized.JWTIdentityMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtIdentityMode) == "" {
+		jwtIdentityMode = model.CustomJWTIdentityModeClaims
+	}
+	jwtAcquireMode := sanitized.JWTAcquireMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtAcquireMode) == "" {
+		jwtAcquireMode = model.CustomJWTAcquireModeDirectToken
+	}
+	authorizationServiceField := sanitized.AuthorizationServiceField
+	if sanitized.IsJWTDirect() && strings.TrimSpace(authorizationServiceField) == "" {
 		authorizationServiceField = "service"
 	}
-	ticketExchangeMethod := p.TicketExchangeMethod
-	if strings.TrimSpace(ticketExchangeMethod) == "" {
+	ticketExchangeMethod := sanitized.TicketExchangeMethod
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangeMethod) == "" {
 		ticketExchangeMethod = model.CustomTicketExchangeMethodGET
 	}
-	ticketExchangePayloadMode := p.TicketExchangePayloadMode
-	if strings.TrimSpace(ticketExchangePayloadMode) == "" {
+	ticketExchangePayloadMode := sanitized.TicketExchangePayloadMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangePayloadMode) == "" {
 		ticketExchangePayloadMode = model.CustomTicketExchangePayloadModeQuery
 	}
-	ticketExchangeTicketField := p.TicketExchangeTicketField
-	if strings.TrimSpace(ticketExchangeTicketField) == "" {
+	ticketExchangeTicketField := sanitized.TicketExchangeTicketField
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangeTicketField) == "" {
 		ticketExchangeTicketField = "ticket"
 	}
 	return &CustomOAuthProviderResponse{
-		Id:                         p.Id,
-		Name:                       p.Name,
-		Slug:                       p.Slug,
-		Icon:                       p.Icon,
-		Kind:                       p.GetKind(),
-		Enabled:                    p.Enabled,
-		ClientId:                   p.ClientId,
-		AuthorizationEndpoint:      p.AuthorizationEndpoint,
-		TokenEndpoint:              p.TokenEndpoint,
-		UserInfoEndpoint:           p.UserInfoEndpoint,
-		Scopes:                     p.Scopes,
-		Issuer:                     p.Issuer,
-		Audience:                   p.Audience,
-		JwksURL:                    p.JwksURL,
-		PublicKey:                  p.PublicKey,
+		Id:                         sanitized.Id,
+		Name:                       sanitized.Name,
+		Slug:                       sanitized.Slug,
+		Icon:                       sanitized.Icon,
+		Kind:                       sanitized.GetKind(),
+		Enabled:                    sanitized.Enabled,
+		ClientId:                   sanitized.ClientId,
+		AuthorizationEndpoint:      sanitized.AuthorizationEndpoint,
+		TokenEndpoint:              sanitized.TokenEndpoint,
+		UserInfoEndpoint:           sanitized.UserInfoEndpoint,
+		Scopes:                     sanitized.Scopes,
+		Issuer:                     sanitized.Issuer,
+		Audience:                   sanitized.Audience,
+		JwksURL:                    sanitized.JwksURL,
+		PublicKey:                  sanitized.PublicKey,
 		JWTSource:                  jwtSource,
-		JWTHeader:                  p.JWTHeader,
-		JWTIdentityMode:            p.GetJWTIdentityMode(),
-		JWTAcquireMode:             p.GetJWTAcquireMode(),
+		JWTHeader:                  sanitized.JWTHeader,
+		JWTIdentityMode:            jwtIdentityMode,
+		JWTAcquireMode:             jwtAcquireMode,
+		TrustedProxyCIDRs:          sanitized.TrustedProxyCIDRs,
+		ExternalIDHeader:           sanitized.ExternalIDHeader,
+		UsernameHeader:             sanitized.UsernameHeader,
+		DisplayNameHeader:          sanitized.DisplayNameHeader,
+		EmailHeader:                sanitized.EmailHeader,
+		GroupHeader:                sanitized.GroupHeader,
+		RoleHeader:                 sanitized.RoleHeader,
 		AuthorizationServiceField:  authorizationServiceField,
-		TicketExchangeURL:          p.TicketExchangeURL,
+		TicketExchangeURL:          sanitized.TicketExchangeURL,
 		TicketExchangeMethod:       ticketExchangeMethod,
 		TicketExchangePayloadMode:  ticketExchangePayloadMode,
 		TicketExchangeTicketField:  ticketExchangeTicketField,
-		TicketExchangeTokenField:   p.TicketExchangeTokenField,
-		TicketExchangeServiceField: p.TicketExchangeServiceField,
-		UserIdField:                p.UserIdField,
-		UsernameField:              p.UsernameField,
-		DisplayNameField:           p.DisplayNameField,
-		EmailField:                 p.EmailField,
-		GroupField:                 p.GroupField,
-		RoleField:                  p.RoleField,
-		GroupMapping:               p.GroupMapping,
-		RoleMapping:                p.RoleMapping,
-		AutoRegister:               p.AutoRegister,
-		AutoMergeByEmail:           p.AutoMergeByEmail,
-		SyncGroupOnLogin:           p.SyncGroupOnLogin,
-		SyncRoleOnLogin:            p.SyncRoleOnLogin,
-		GroupMappingMode:           p.GroupMappingMode,
-		RoleMappingMode:            p.RoleMappingMode,
-		WellKnown:                  p.WellKnown,
-		AuthStyle:                  p.AuthStyle,
-		AccessPolicy:               p.AccessPolicy,
-		AccessDeniedMessage:        p.AccessDeniedMessage,
+		TicketExchangeTokenField:   sanitized.TicketExchangeTokenField,
+		TicketExchangeServiceField: sanitized.TicketExchangeServiceField,
+		UserIdField:                sanitized.UserIdField,
+		UsernameField:              sanitized.UsernameField,
+		DisplayNameField:           sanitized.DisplayNameField,
+		EmailField:                 sanitized.EmailField,
+		GroupField:                 sanitized.GroupField,
+		RoleField:                  sanitized.RoleField,
+		GroupMapping:               sanitized.GroupMapping,
+		RoleMapping:                sanitized.RoleMapping,
+		AutoRegister:               sanitized.AutoRegister,
+		AutoMergeByEmail:           sanitized.AutoMergeByEmail,
+		SyncUsernameOnLogin:        sanitized.SyncUsernameOnLogin,
+		SyncDisplayNameOnLogin:     sanitized.SyncDisplayNameOnLogin,
+		SyncEmailOnLogin:           sanitized.SyncEmailOnLogin,
+		SyncGroupOnLogin:           sanitized.SyncGroupOnLogin,
+		SyncRoleOnLogin:            sanitized.SyncRoleOnLogin,
+		GroupMappingMode:           sanitized.GroupMappingMode,
+		RoleMappingMode:            sanitized.RoleMappingMode,
+		WellKnown:                  sanitized.WellKnown,
+		AuthStyle:                  sanitized.AuthStyle,
+		AccessPolicy:               sanitized.AccessPolicy,
+		AccessDeniedMessage:        sanitized.AccessDeniedMessage,
 	}
 }
 
@@ -204,6 +235,13 @@ type CreateCustomOAuthProviderRequest struct {
 	JWTHeader                  string `json:"jwt_header"`
 	JWTIdentityMode            string `json:"jwt_identity_mode"`
 	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           string `json:"external_id_header"`
+	UsernameHeader             string `json:"username_header"`
+	DisplayNameHeader          string `json:"display_name_header"`
+	EmailHeader                string `json:"email_header"`
+	GroupHeader                string `json:"group_header"`
+	RoleHeader                 string `json:"role_header"`
 	AuthorizationServiceField  string `json:"authorization_service_field"`
 	TicketExchangeURL          string `json:"ticket_exchange_url"`
 	TicketExchangeMethod       string `json:"ticket_exchange_method"`
@@ -223,6 +261,9 @@ type CreateCustomOAuthProviderRequest struct {
 	RoleMapping                string `json:"role_mapping"`
 	AutoRegister               bool   `json:"auto_register"`
 	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           bool   `json:"sync_email_on_login"`
 	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
 	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
 	GroupMappingMode           string `json:"group_mapping_mode"`
@@ -350,6 +391,13 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		JWTHeader:                  req.JWTHeader,
 		JWTIdentityMode:            req.JWTIdentityMode,
 		JWTAcquireMode:             req.JWTAcquireMode,
+		TrustedProxyCIDRs:          req.TrustedProxyCIDRs,
+		ExternalIDHeader:           req.ExternalIDHeader,
+		UsernameHeader:             req.UsernameHeader,
+		DisplayNameHeader:          req.DisplayNameHeader,
+		EmailHeader:                req.EmailHeader,
+		GroupHeader:                req.GroupHeader,
+		RoleHeader:                 req.RoleHeader,
 		AuthorizationServiceField:  req.AuthorizationServiceField,
 		TicketExchangeURL:          req.TicketExchangeURL,
 		TicketExchangeMethod:       req.TicketExchangeMethod,
@@ -369,6 +417,9 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		RoleMapping:                req.RoleMapping,
 		AutoRegister:               req.AutoRegister,
 		AutoMergeByEmail:           req.AutoMergeByEmail,
+		SyncUsernameOnLogin:        req.SyncUsernameOnLogin,
+		SyncDisplayNameOnLogin:     req.SyncDisplayNameOnLogin,
+		SyncEmailOnLogin:           req.SyncEmailOnLogin,
 		SyncGroupOnLogin:           req.SyncGroupOnLogin,
 		SyncRoleOnLogin:            req.SyncRoleOnLogin,
 		GroupMappingMode:           req.GroupMappingMode,
@@ -416,6 +467,13 @@ type UpdateCustomOAuthProviderRequest struct {
 	JWTHeader                  *string `json:"jwt_header"`
 	JWTIdentityMode            *string `json:"jwt_identity_mode"`
 	JWTAcquireMode             *string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          *string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           *string `json:"external_id_header"`
+	UsernameHeader             *string `json:"username_header"`
+	DisplayNameHeader          *string `json:"display_name_header"`
+	EmailHeader                *string `json:"email_header"`
+	GroupHeader                *string `json:"group_header"`
+	RoleHeader                 *string `json:"role_header"`
 	AuthorizationServiceField  *string `json:"authorization_service_field"`
 	TicketExchangeURL          *string `json:"ticket_exchange_url"`
 	TicketExchangeMethod       *string `json:"ticket_exchange_method"`
@@ -435,6 +493,9 @@ type UpdateCustomOAuthProviderRequest struct {
 	RoleMapping                *string `json:"role_mapping"`
 	AutoRegister               *bool   `json:"auto_register"`
 	AutoMergeByEmail           *bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        *bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     *bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           *bool   `json:"sync_email_on_login"`
 	SyncGroupOnLogin           *bool   `json:"sync_group_on_login"`
 	SyncRoleOnLogin            *bool   `json:"sync_role_on_login"`
 	GroupMappingMode           *string `json:"group_mapping_mode"`
@@ -540,6 +601,27 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.JWTAcquireMode != nil {
 		provider.JWTAcquireMode = *req.JWTAcquireMode
 	}
+	if req.TrustedProxyCIDRs != nil {
+		provider.TrustedProxyCIDRs = *req.TrustedProxyCIDRs
+	}
+	if req.ExternalIDHeader != nil {
+		provider.ExternalIDHeader = *req.ExternalIDHeader
+	}
+	if req.UsernameHeader != nil {
+		provider.UsernameHeader = *req.UsernameHeader
+	}
+	if req.DisplayNameHeader != nil {
+		provider.DisplayNameHeader = *req.DisplayNameHeader
+	}
+	if req.EmailHeader != nil {
+		provider.EmailHeader = *req.EmailHeader
+	}
+	if req.GroupHeader != nil {
+		provider.GroupHeader = *req.GroupHeader
+	}
+	if req.RoleHeader != nil {
+		provider.RoleHeader = *req.RoleHeader
+	}
 	if req.AuthorizationServiceField != nil {
 		provider.AuthorizationServiceField = *req.AuthorizationServiceField
 	}
@@ -596,6 +678,15 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.AutoMergeByEmail != nil {
 		provider.AutoMergeByEmail = *req.AutoMergeByEmail
+	}
+	if req.SyncUsernameOnLogin != nil {
+		provider.SyncUsernameOnLogin = *req.SyncUsernameOnLogin
+	}
+	if req.SyncDisplayNameOnLogin != nil {
+		provider.SyncDisplayNameOnLogin = *req.SyncDisplayNameOnLogin
+	}
+	if req.SyncEmailOnLogin != nil {
+		provider.SyncEmailOnLogin = *req.SyncEmailOnLogin
 	}
 	if req.SyncGroupOnLogin != nil {
 		provider.SyncGroupOnLogin = *req.SyncGroupOnLogin

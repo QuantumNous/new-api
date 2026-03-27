@@ -104,6 +104,7 @@ func newCustomOAuthJWTRouter(t *testing.T) *gin.Engine {
 	router.Use(sessions.Sessions("session", store))
 	router.GET("/api/oauth/state", GenerateOAuthCode)
 	router.POST("/api/auth/external/:provider/jwt/login", HandleCustomOAuthJWTLogin)
+	router.POST("/api/auth/external/:provider/header/login", HandleCustomOAuthHeaderLogin)
 	router.GET("/test/login-as/:id", func(c *gin.Context) {
 		var user model.User
 		if err := model.DB.First(&user, c.Param("id")).Error; err != nil {
@@ -128,6 +129,9 @@ func newCustomOAuthJWTRouter(t *testing.T) *gin.Engine {
 type jwtDirectProviderTestOptions struct {
 	AutoRegister               bool
 	AutoMergeByEmail           bool
+	SyncUsernameOnLogin        bool
+	SyncDisplayNameOnLogin     bool
+	SyncEmailOnLogin           bool
 	SyncGroupOnLogin           bool
 	SyncRoleOnLogin            bool
 	JWTIdentityMode            string
@@ -170,6 +174,9 @@ func createJWTDirectProviderForTest(t *testing.T, privateKey *rsa.PrivateKey, op
 		RoleMapping:                `{"platform-admin":"admin"}`,
 		AutoRegister:               options.AutoRegister,
 		AutoMergeByEmail:           options.AutoMergeByEmail,
+		SyncUsernameOnLogin:        options.SyncUsernameOnLogin,
+		SyncDisplayNameOnLogin:     options.SyncDisplayNameOnLogin,
+		SyncEmailOnLogin:           options.SyncEmailOnLogin,
 		SyncGroupOnLogin:           options.SyncGroupOnLogin,
 		SyncRoleOnLogin:            options.SyncRoleOnLogin,
 		JWTAcquireMode:             options.JWTAcquireMode,
@@ -571,6 +578,69 @@ func TestHandleCustomOAuthJWTLoginSyncsExistingBoundUserOnLogin(t *testing.T) {
 	}
 	if !strings.Contains(reloadedUser.GetSetting().SidebarModules, "\"admin\"") {
 		t.Fatalf("expected admin sidebar section to be added after role promotion, got %s", reloadedUser.GetSetting().SidebarModules)
+	}
+}
+
+func TestHandleCustomOAuthJWTLoginSyncsLimitedProfileAttributesOnLogin(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister:           true,
+		SyncUsernameOnLogin:    true,
+		SyncDisplayNameOnLogin: true,
+		SyncEmailOnLogin:       true,
+	})
+	user := createUserWithEmailForTest(t, "legacy-user", "legacy@example.com")
+	user.DisplayName = "Legacy User"
+	if err := user.Update(false); err != nil {
+		t.Fatalf("failed to seed legacy profile: %v", err)
+	}
+	if err := model.CreateUserOAuthBinding(&model.UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     provider.Id,
+		ProviderUserId: "ext-sync-profile",
+	}); err != nil {
+		t.Fatalf("failed to seed oauth binding: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss":                "https://issuer.example.com",
+		"aud":                "new-api",
+		"sub":                "ext-sync-profile",
+		"preferred_username": "updated-user",
+		"name":               "Updated User",
+		"email":              "updated@example.com",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected profile sync login to succeed, got message: %s", response.Message)
+	}
+
+	var loginData oauthJWTLoginResponse
+	if err := common.Unmarshal(response.Data, &loginData); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	if loginData.Username != "updated-user" {
+		t.Fatalf("expected synced username in response, got %s", loginData.Username)
+	}
+
+	reloadedUser, err := model.GetUserById(user.Id, false)
+	if err != nil {
+		t.Fatalf("failed to reload synced user: %v", err)
+	}
+	if reloadedUser.Username != "updated-user" || reloadedUser.DisplayName != "Updated User" || reloadedUser.Email != "updated@example.com" {
+		t.Fatalf("expected synced profile fields, got username=%s display_name=%s email=%s", reloadedUser.Username, reloadedUser.DisplayName, reloadedUser.Email)
 	}
 }
 

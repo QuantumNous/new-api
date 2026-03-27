@@ -53,6 +53,14 @@ function getCustomProviderKind(provider) {
   return provider?.kind || 'oauth_code';
 }
 
+async function getCurrentUserFromSession() {
+  const res = await API.get('/api/user/self', { skipErrorHandler: true });
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || i18n.t('获取当前登录态失败'));
+  }
+  return res.data.data;
+}
+
 function isTicketAcquireMode(mode) {
   return mode === 'ticket_exchange' || mode === 'ticket_validate';
 }
@@ -62,6 +70,9 @@ function supportsCustomProviderBrowserLogin(provider) {
     return Boolean(provider.browser_login_supported);
   }
   const providerKind = getCustomProviderKind(provider);
+  if (providerKind === 'trusted_header') {
+    return true;
+  }
   if (providerKind === 'jwt_direct') {
     if (isTicketAcquireMode(provider?.jwt_acquire_mode || 'direct_token')) {
       return Boolean(provider?.authorization_endpoint);
@@ -80,7 +91,9 @@ function ensureAbsoluteOAuthURL(url) {
     throw new Error(i18n.t('缺少授权端点 URL'));
   }
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    throw new Error(i18n.t('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'));
+    throw new Error(
+      i18n.t('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'),
+    );
   }
   return new URL(url);
 }
@@ -412,15 +425,45 @@ export async function onLinuxDOOAuthClicked(
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
   if (!supportsCustomProviderBrowserLogin(provider)) {
-    showError(i18n.t('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定'));
-    return;
+    throw new Error(
+      i18n.t('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定'),
+    );
   }
-
-  const state = await prepareOAuthState(options);
-  if (!state) return;
 
   try {
     const providerKind = getCustomProviderKind(provider);
+    if (providerKind === 'trusted_header') {
+      const state = await prepareOAuthState(options);
+      if (!state) return;
+      const res = await API.post(
+        `/api/auth/external/${provider.slug}/header/login`,
+        { state },
+        { skipErrorHandler: true },
+      );
+      if (!res.data.success) {
+        throw new Error(res.data.message || i18n.t('未知错误'));
+      }
+      if (res.data.data?.action === 'bind') {
+        try {
+          const user = await getCurrentUserFromSession();
+          return {
+            action: 'bind',
+            user,
+          };
+        } catch (error) {
+          return {
+            action: 'bind',
+          };
+        }
+      }
+      return {
+        action: 'login',
+        user: res.data.data,
+      };
+    }
+
+    const state = await prepareOAuthState(options);
+    if (!state) return;
     const authUrl =
       providerKind === 'jwt_direct'
         ? buildCustomJWTAuthorizationUrl(provider, state)
@@ -441,10 +484,11 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     }
 
     redirectToOAuthUrl(authUrl);
+    return undefined;
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError(
-      i18n.t('OAuth 登录失败：') + (error.message || i18n.t('未知错误')),
+    throw new Error(
+      error?.response?.data?.message || error?.message || i18n.t('未知错误'),
     );
   }
 }

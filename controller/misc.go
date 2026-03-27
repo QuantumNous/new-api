@@ -66,28 +66,39 @@ func getCustomOAuthStatusPayload() []customOAuthStatusInfo {
 
 	providersInfo := make([]customOAuthStatusInfo, 0, len(customProviders))
 	for _, config := range customProviders {
-		jwtSource := config.JWTSource
-		if strings.TrimSpace(jwtSource) == "" {
+		sanitized := *config
+		model.NormalizeCustomOAuthProviderForRead(&sanitized)
+
+		jwtSource := sanitized.JWTSource
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtSource) == "" {
 			jwtSource = model.CustomJWTSourceQuery
 		}
-		authorizationServiceField := config.AuthorizationServiceField
-		if strings.TrimSpace(authorizationServiceField) == "" {
+		jwtIdentityMode := sanitized.JWTIdentityMode
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtIdentityMode) == "" {
+			jwtIdentityMode = model.CustomJWTIdentityModeClaims
+		}
+		jwtAcquireMode := sanitized.JWTAcquireMode
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtAcquireMode) == "" {
+			jwtAcquireMode = model.CustomJWTAcquireModeDirectToken
+		}
+		authorizationServiceField := sanitized.AuthorizationServiceField
+		if sanitized.IsJWTDirect() && strings.TrimSpace(authorizationServiceField) == "" {
 			authorizationServiceField = "service"
 		}
 		providersInfo = append(providersInfo, customOAuthStatusInfo{
-			Id:                        config.Id,
-			Name:                      config.Name,
-			Slug:                      config.Slug,
-			Icon:                      config.Icon,
-			Kind:                      config.GetKind(),
-			ClientId:                  config.ClientId,
-			AuthorizationEndpoint:     config.AuthorizationEndpoint,
-			Scopes:                    config.Scopes,
+			Id:                        sanitized.Id,
+			Name:                      sanitized.Name,
+			Slug:                      sanitized.Slug,
+			Icon:                      sanitized.Icon,
+			Kind:                      sanitized.GetKind(),
+			ClientId:                  sanitized.ClientId,
+			AuthorizationEndpoint:     sanitized.AuthorizationEndpoint,
+			Scopes:                    sanitized.Scopes,
 			JWTSource:                 jwtSource,
-			JWTIdentityMode:           config.GetJWTIdentityMode(),
-			JWTAcquireMode:            config.GetJWTAcquireMode(),
+			JWTIdentityMode:           jwtIdentityMode,
+			JWTAcquireMode:            jwtAcquireMode,
 			AuthorizationServiceField: authorizationServiceField,
-			BrowserLoginSupported:     config.SupportsBrowserLogin(),
+			BrowserLoginSupported:     sanitized.SupportsBrowserLogin(),
 		})
 	}
 

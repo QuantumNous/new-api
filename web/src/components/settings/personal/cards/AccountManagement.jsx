@@ -112,7 +112,9 @@ const AccountManagement = ({
         showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -126,7 +128,9 @@ const AccountManagement = ({
       onOk: async () => {
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
           if (res.data.success) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
@@ -134,7 +138,9 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }
@@ -143,20 +149,35 @@ const AccountManagement = ({
   };
 
   // Handle bind custom OAuth
-  const handleBindCustomOAuth = (provider) => {
-    onCustomOAuthClicked(provider);
+  const handleBindCustomOAuth = async (provider) => {
+    setCustomOAuthLoading((prev) => ({ ...prev, [provider.id]: true }));
+    try {
+      const result = await onCustomOAuthClicked(provider);
+      if (provider.kind === 'trusted_header' && result?.action === 'bind') {
+        showSuccess(t('绑定成功'));
+        await loadCustomOAuthBindings();
+      }
+    } catch (error) {
+      showError(error?.message || t('操作失败'));
+    } finally {
+      setCustomOAuthLoading((prev) => ({ ...prev, [provider.id]: false }));
+    }
   };
 
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
@@ -554,7 +575,10 @@ const AccountManagement = ({
                               size='small'
                               loading={customOAuthLoading[provider.id]}
                               onClick={() =>
-                                handleUnbindCustomOAuth(provider.id, provider.name)
+                                handleUnbindCustomOAuth(
+                                  provider.id,
+                                  provider.name,
+                                )
                               }
                             >
                               {t('解绑')}
@@ -564,7 +588,11 @@ const AccountManagement = ({
                               type='primary'
                               theme='outline'
                               size='small'
-                              disabled={provider.browser_login_supported === false}
+                              loading={customOAuthLoading[provider.id]}
+                              disabled={
+                                provider.browser_login_supported === false ||
+                                customOAuthLoading[provider.id]
+                              }
                               onClick={() => handleBindCustomOAuth(provider)}
                             >
                               {provider.browser_login_supported === false

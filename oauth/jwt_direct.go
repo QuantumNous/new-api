@@ -879,60 +879,11 @@ func extractClaimCandidates(claimsJSON []byte, path string) []string {
 }
 
 func resolveMappedGroup(claimsJSON []byte, config *model.CustomOAuthProvider) string {
-	candidates := extractClaimCandidates(claimsJSON, config.GroupField)
-	if len(candidates) == 0 {
-		return ""
-	}
-	mapping := parseStringMapping(config.GroupMapping)
-	for _, candidate := range candidates {
-		if mapped, ok := mapping[candidate]; ok {
-			if isExistingGroup(mapped) {
-				return mapped
-			}
-			continue
-		}
-		if isMappingFirstMode(config.GroupMappingMode) && isExistingGroup(candidate) {
-			return candidate
-		}
-	}
-	return ""
+	return resolveMappedGroupCandidates(extractClaimCandidates(claimsJSON, config.GroupField), config)
 }
 
 func resolveMappedRole(claimsJSON []byte, config *model.CustomOAuthProvider) int {
-	candidates := extractClaimCandidates(claimsJSON, config.RoleField)
-	if len(candidates) == 0 {
-		return 0
-	}
-	mapping := parseStringMapping(config.RoleMapping)
-	for _, candidate := range candidates {
-		if mapped, ok := mapping[candidate]; ok {
-			if role := parseRoleValue(mapped); role != 0 {
-				return role
-			}
-			continue
-		}
-		if isMappingFirstMode(config.RoleMappingMode) {
-			if role := parseRoleValue(candidate); role != 0 {
-				return role
-			}
-		}
-	}
-	return 0
-}
-
-func isMappingFirstMode(mode string) bool {
-	return strings.EqualFold(strings.TrimSpace(mode), model.CustomOAuthMappingModeMappingFirst)
-}
-
-func parseRoleValue(raw string) int {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "common", "user", "member", "1":
-		return common.RoleCommonUser
-	case "admin", "administrator", "10":
-		return common.RoleAdminUser
-	default:
-		return 0
-	}
+	return resolveMappedRoleCandidates(extractClaimCandidates(claimsJSON, config.RoleField), config)
 }
 
 func isSyncableRole(role int) bool {

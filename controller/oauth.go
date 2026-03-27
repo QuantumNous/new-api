@@ -457,14 +457,90 @@ func normalizeOAuthInitialRole(role int) int {
 	}
 }
 
-func syncOAuthUserLoginAttributes(user *model.User, providerName string, nextGroup string, syncGroup bool, nextRole int, syncRole bool) error {
+const (
+	oauthSyncDisplayNameMaxLength = 20
+	oauthSyncEmailMaxLength       = 50
+)
+
+type oauthUserSyncOptions struct {
+	ProviderName           string
+	SyncUsernameOnLogin    bool
+	SyncDisplayNameOnLogin bool
+	SyncEmailOnLogin       bool
+	SyncGroupOnLogin       bool
+	SyncRoleOnLogin        bool
+	NextGroup              string
+	NextRole               int
+}
+
+func syncOAuthUserLoginAttributes(user *model.User, oauthUser *oauth.OAuthUser, options oauthUserSyncOptions) error {
 	if user == nil {
 		return fmt.Errorf("user is nil")
 	}
+	if oauthUser == nil {
+		return fmt.Errorf("oauth user is nil")
+	}
 
-	changes := make([]string, 0, 2)
-	if syncGroup {
-		group := strings.TrimSpace(nextGroup)
+	changes := make([]string, 0, 5)
+	skips := make([]string, 0, 3)
+
+	if options.SyncUsernameOnLogin {
+		nextUsername := strings.TrimSpace(oauthUser.Username)
+		switch {
+		case nextUsername == "":
+		case len(nextUsername) > model.UserNameMaxLength:
+			skips = append(skips, fmt.Sprintf("username 超过 %d 个字符", model.UserNameMaxLength))
+		case nextUsername == user.Username:
+		default:
+			available, err := isOAuthSyncFieldAvailable("username", nextUsername, user.Id)
+			if err != nil {
+				return err
+			}
+			if !available {
+				skips = append(skips, fmt.Sprintf("username %s 已被占用", safeOAuthAuditValue(nextUsername)))
+			} else {
+				changes = append(changes, fmt.Sprintf("username %s -> %s", safeOAuthAuditValue(user.Username), safeOAuthAuditValue(nextUsername)))
+				user.Username = nextUsername
+			}
+		}
+	}
+
+	if options.SyncDisplayNameOnLogin {
+		nextDisplayName := strings.TrimSpace(oauthUser.DisplayName)
+		switch {
+		case nextDisplayName == "":
+		case len(nextDisplayName) > oauthSyncDisplayNameMaxLength:
+			skips = append(skips, fmt.Sprintf("display_name 超过 %d 个字符", oauthSyncDisplayNameMaxLength))
+		case nextDisplayName == user.DisplayName:
+		default:
+			changes = append(changes, fmt.Sprintf("display_name %s -> %s", safeOAuthAuditValue(user.DisplayName), safeOAuthAuditValue(nextDisplayName)))
+			user.DisplayName = nextDisplayName
+		}
+	}
+
+	if options.SyncEmailOnLogin {
+		nextEmail := strings.TrimSpace(oauthUser.Email)
+		switch {
+		case nextEmail == "":
+		case len(nextEmail) > oauthSyncEmailMaxLength:
+			skips = append(skips, fmt.Sprintf("email 超过 %d 个字符", oauthSyncEmailMaxLength))
+		case nextEmail == user.Email:
+		default:
+			available, err := isOAuthSyncFieldAvailable("email", nextEmail, user.Id)
+			if err != nil {
+				return err
+			}
+			if !available {
+				skips = append(skips, fmt.Sprintf("email %s 已被其他用户占用", safeOAuthAuditValue(nextEmail)))
+			} else {
+				changes = append(changes, fmt.Sprintf("email %s -> %s", safeOAuthAuditValue(user.Email), safeOAuthAuditValue(nextEmail)))
+				user.Email = nextEmail
+			}
+		}
+	}
+
+	if options.SyncGroupOnLogin {
+		group := strings.TrimSpace(options.NextGroup)
 		if group != "" && group != user.Group {
 			changes = append(changes, fmt.Sprintf("group %s -> %s", safeOAuthAuditValue(user.Group), group))
 			user.Group = group
@@ -472,27 +548,47 @@ func syncOAuthUserLoginAttributes(user *model.User, providerName string, nextGro
 	}
 
 	oldRole := user.Role
-	if syncRole && isOAuthSyncRole(nextRole) && nextRole != user.Role {
-		changes = append(changes, fmt.Sprintf("role %s -> %s", oauthRoleLabel(user.Role), oauthRoleLabel(nextRole)))
-		user.Role = nextRole
+	if options.SyncRoleOnLogin && isOAuthSyncRole(options.NextRole) && options.NextRole != user.Role {
+		changes = append(changes, fmt.Sprintf("role %s -> %s", oauthRoleLabel(user.Role), oauthRoleLabel(options.NextRole)))
+		user.Role = options.NextRole
 	}
 
-	if len(changes) == 0 {
+	if len(changes) == 0 && len(skips) == 0 {
 		return nil
 	}
 
-	if err := ensureOAuthSidebarForRoleChange(user, oldRole, user.Role); err != nil {
-		common.SysLog(fmt.Sprintf("[OAuth] Failed to align sidebar for user %d after role sync: %v", user.Id, err))
+	if len(changes) > 0 {
+		if err := ensureOAuthSidebarForRoleChange(user, oldRole, user.Role); err != nil {
+			common.SysLog(fmt.Sprintf("[OAuth] Failed to align sidebar for user %d after role sync: %v", user.Id, err))
+		}
+		if err := user.Update(false); err != nil {
+			return err
+		}
 	}
 
-	if err := user.Update(false); err != nil {
-		return err
+	logParts := make([]string, 0, 2)
+	if len(changes) > 0 {
+		logParts = append(logParts, "变更："+strings.Join(changes, "，"))
 	}
-
-	content := fmt.Sprintf("外部登录同步用户属性（%s）：%s", providerName, strings.Join(changes, "，"))
+	if len(skips) > 0 {
+		logParts = append(logParts, "跳过："+strings.Join(skips, "，"))
+	}
+	content := fmt.Sprintf("外部登录同步用户属性（%s）：%s", options.ProviderName, strings.Join(logParts, "；"))
 	model.RecordLog(user.Id, model.LogTypeSystem, content)
 	common.SysLog(fmt.Sprintf("[OAuth] %s", content))
 	return nil
+}
+
+func isOAuthSyncFieldAvailable(field string, value string, userID int) (bool, error) {
+	var existing model.User
+	err := model.DB.Unscoped().Where(field+" = ? AND id <> ?", value, userID).First(&existing).Error
+	if err == nil {
+		return false, nil
+	}
+	if err == gorm.ErrRecordNotFound {
+		return true, nil
+	}
+	return false, err
 }
 
 func ensureOAuthSidebarForRoleChange(user *model.User, oldRole int, newRole int) error {

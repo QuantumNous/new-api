@@ -281,6 +281,8 @@ const (
 	MsgOAuthTrustLevelLow   = "oauth.trust_level_low"
 	MsgOAuthTicketMissing   = "oauth.ticket_missing"
 	MsgOAuthJWTMissing      = "oauth.jwt_missing"
+	MsgOAuthTrustedHeaderMissing = "oauth.trusted_header_missing"
+	MsgOAuthTrustedProxyDenied = "oauth.trusted_proxy_denied"
 )
 
 // Model layer error messages (for translation in controller)

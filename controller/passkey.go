@@ -500,7 +500,7 @@ func getSessionUser(c *gin.Context) (*model.User, error) {
 		return nil, err
 	}
 	if user.Status != common.UserStatusEnabled {
-		return nil, errors.New("该用户已被禁用")
+		return nil, errSessionUserDisabled
 	}
 	return user, nil
 }

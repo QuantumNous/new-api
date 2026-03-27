@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	CustomOAuthProviderKindOAuthCode = "oauth_code"
-	CustomOAuthProviderKindJWTDirect = "jwt_direct"
+	CustomOAuthProviderKindOAuthCode     = "oauth_code"
+	CustomOAuthProviderKindJWTDirect     = "jwt_direct"
+	CustomOAuthProviderKindTrustedHeader = "trusted_header"
 )
 
 const (
@@ -98,6 +99,13 @@ type CustomOAuthProvider struct {
 	JWTHeader                  string `json:"jwt_header" gorm:"type:varchar(128);default:'Authorization'"`           // token header for userinfo mode
 	JWTIdentityMode            string `json:"jwt_identity_mode" gorm:"type:varchar(32);default:'claims'"`            // claims / userinfo
 	JWTAcquireMode             string `json:"jwt_acquire_mode" gorm:"type:varchar(32);default:'direct_token'"`       // direct_token / ticket_exchange / ticket_validate
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs" gorm:"type:text"`                                  // JSON array of trusted proxy CIDRs or IPs
+	ExternalIDHeader           string `json:"external_id_header" gorm:"type:varchar(128)"`                           // Header carrying stable external identity
+	UsernameHeader             string `json:"username_header" gorm:"type:varchar(128)"`                              // Optional username header
+	DisplayNameHeader          string `json:"display_name_header" gorm:"type:varchar(128)"`                          // Optional display name header
+	EmailHeader                string `json:"email_header" gorm:"type:varchar(128)"`                                 // Optional email header
+	GroupHeader                string `json:"group_header" gorm:"type:varchar(128)"`                                 // Optional group header
+	RoleHeader                 string `json:"role_header" gorm:"type:varchar(128)"`                                  // Optional role header
 	AuthorizationServiceField  string `json:"authorization_service_field" gorm:"type:varchar(64);default:'service'"` // browser login callback param for ticket exchange
 	TicketExchangeURL          string `json:"ticket_exchange_url" gorm:"type:varchar(512)"`                          // ticket processing endpoint URL
 	TicketExchangeMethod       string `json:"ticket_exchange_method" gorm:"type:varchar(16);default:'GET'"`          // GET / POST
@@ -109,20 +117,23 @@ type CustomOAuthProvider struct {
 	TicketExchangeHeaders      string `json:"ticket_exchange_headers" gorm:"type:text"`                              // JSON object for exchange headers
 
 	// Field mapping configuration (supports JSONPath via gjson)
-	UserIdField      string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                 // User ID field path, e.g., "sub", "id", "data.user.id"
-	UsernameField    string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
-	DisplayNameField string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`           // Display name field path
-	EmailField       string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
-	GroupField       string `json:"group_field" gorm:"type:varchar(128)"`                                 // Group field path
-	RoleField        string `json:"role_field" gorm:"type:varchar(128)"`                                  // Role field path
-	GroupMapping     string `json:"group_mapping" gorm:"type:text"`                                       // JSON object for external->internal group mapping
-	RoleMapping      string `json:"role_mapping" gorm:"type:text"`                                        // JSON object for external->internal role mapping
-	AutoRegister     bool   `json:"auto_register" gorm:"default:false"`                                   // Auto create local user on first login
-	AutoMergeByEmail bool   `json:"auto_merge_by_email" gorm:"default:false"`                             // Merge to existing user by email when no binding exists
-	SyncGroupOnLogin bool   `json:"sync_group_on_login" gorm:"default:false"`                             // Sync group for existing users on external login
-	SyncRoleOnLogin  bool   `json:"sync_role_on_login" gorm:"default:false"`                              // Sync role for existing users on external login
-	GroupMappingMode string `json:"group_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`   // explicit_only / mapping_first
-	RoleMappingMode  string `json:"role_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`    // explicit_only / mapping_first
+	UserIdField            string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                 // User ID field path, e.g., "sub", "id", "data.user.id"
+	UsernameField          string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
+	DisplayNameField       string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`           // Display name field path
+	EmailField             string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
+	GroupField             string `json:"group_field" gorm:"type:varchar(128)"`                                 // Group field path
+	RoleField              string `json:"role_field" gorm:"type:varchar(128)"`                                  // Role field path
+	GroupMapping           string `json:"group_mapping" gorm:"type:text"`                                       // JSON object for external->internal group mapping
+	RoleMapping            string `json:"role_mapping" gorm:"type:text"`                                        // JSON object for external->internal role mapping
+	AutoRegister           bool   `json:"auto_register" gorm:"default:false"`                                   // Auto create local user on first login
+	AutoMergeByEmail       bool   `json:"auto_merge_by_email" gorm:"default:false"`                             // Merge to existing user by email when no binding exists
+	SyncUsernameOnLogin    bool   `json:"sync_username_on_login" gorm:"default:false"`                          // Sync username for existing users on external login
+	SyncDisplayNameOnLogin bool   `json:"sync_display_name_on_login" gorm:"default:false"`                      // Sync display name for existing users on external login
+	SyncEmailOnLogin       bool   `json:"sync_email_on_login" gorm:"default:false"`                             // Sync email for existing users on external login
+	SyncGroupOnLogin       bool   `json:"sync_group_on_login" gorm:"default:false"`                             // Sync group for existing users on external login
+	SyncRoleOnLogin        bool   `json:"sync_role_on_login" gorm:"default:false"`                              // Sync role for existing users on external login
+	GroupMappingMode       string `json:"group_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`   // explicit_only / mapping_first
+	RoleMappingMode        string `json:"role_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`    // explicit_only / mapping_first
 
 	// Advanced options
 	WellKnown           string `json:"well_known" gorm:"type:varchar(512)"`            // OIDC discovery endpoint (optional)
@@ -148,6 +159,10 @@ func (p *CustomOAuthProvider) GetKind() string {
 
 func (p *CustomOAuthProvider) IsJWTDirect() bool {
 	return p.GetKind() == CustomOAuthProviderKindJWTDirect
+}
+
+func (p *CustomOAuthProvider) IsTrustedHeader() bool {
+	return p.GetKind() == CustomOAuthProviderKindTrustedHeader
 }
 
 func (p *CustomOAuthProvider) IsOAuthCode() bool {
@@ -184,6 +199,9 @@ func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
 		return strings.TrimSpace(p.AuthorizationEndpoint) != "" &&
 			strings.TrimSpace(p.ClientId) != "" &&
 			p.JWTSource != CustomJWTSourceBody
+	}
+	if p.IsTrustedHeader() {
+		return strings.TrimSpace(p.ExternalIDHeader) != "" && len(p.GetTrustedProxyCIDRs()) > 0
 	}
 	return false
 }
@@ -236,7 +254,7 @@ func CreateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Create(provider).Error
+	return DB.Select("*").Create(provider).Error
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -292,9 +310,12 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if provider.Kind == "" {
 		provider.Kind = CustomOAuthProviderKindOAuthCode
 	}
-	if provider.Kind != CustomOAuthProviderKindOAuthCode && provider.Kind != CustomOAuthProviderKindJWTDirect {
+	if provider.Kind != CustomOAuthProviderKindOAuthCode &&
+		provider.Kind != CustomOAuthProviderKindJWTDirect &&
+		provider.Kind != CustomOAuthProviderKindTrustedHeader {
 		return errors.New("provider kind is invalid")
 	}
+	normalizeCustomOAuthProviderForKind(provider)
 
 	if provider.IsOAuthCode() {
 		if provider.ClientId == "" {
@@ -309,7 +330,7 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		if provider.UserInfoEndpoint == "" {
 			return errors.New("user info endpoint is required")
 		}
-	} else {
+	} else if provider.IsJWTDirect() {
 		acquireMode := normalizeCustomJWTAcquireMode(provider.JWTAcquireMode)
 		if acquireMode == "" {
 			return errors.New("jwt_acquire_mode is invalid")
@@ -338,64 +359,71 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 				return errors.New("user_info_endpoint is required and must be a valid http/https url for jwt_direct providers using userinfo mode")
 			}
 		}
+	} else {
+		if err := validateTrustedHeaderProvider(provider); err != nil {
+			return err
+		}
 	}
 
-	// Set defaults for field mappings if empty
-	if provider.UserIdField == "" {
-		provider.UserIdField = "sub"
-	}
-	if provider.UsernameField == "" {
-		provider.UsernameField = "preferred_username"
-	}
-	if provider.DisplayNameField == "" {
-		provider.DisplayNameField = "name"
-	}
-	if provider.EmailField == "" {
-		provider.EmailField = "email"
-	}
-	if provider.Scopes == "" {
-		provider.Scopes = "openid profile email"
-	}
-	if provider.JWTSource == "" {
-		provider.JWTSource = CustomJWTSourceQuery
-	}
-	switch provider.JWTSource {
-	case CustomJWTSourceQuery, CustomJWTSourceFragment, CustomJWTSourceBody:
-	default:
-		return errors.New("jwt_source is invalid")
-	}
-	if strings.TrimSpace(provider.JWTHeader) == "" {
-		provider.JWTHeader = "Authorization"
-	}
-	if strings.TrimSpace(provider.AuthorizationServiceField) == "" {
-		provider.AuthorizationServiceField = "service"
-	}
-	provider.TicketExchangeMethod = normalizeTicketExchangeMethod(provider.TicketExchangeMethod)
-	if provider.TicketExchangeMethod == "" {
-		return errors.New("ticket_exchange_method is invalid")
-	}
-	provider.TicketExchangePayloadMode = normalizeTicketExchangePayloadMode(provider.TicketExchangePayloadMode)
-	if provider.TicketExchangePayloadMode == "" {
-		return errors.New("ticket_exchange_payload_mode is invalid")
-	}
-	if strings.TrimSpace(provider.TicketExchangeTicketField) == "" {
-		provider.TicketExchangeTicketField = "ticket"
-	}
-	if provider.RequiresTicketAcquire() {
-		if strings.TrimSpace(provider.TicketExchangeURL) == "" {
-			return errors.New("ticket_exchange_url is required for ticket-based acquire mode")
+	if provider.IsOAuthCode() || provider.IsJWTDirect() {
+		if provider.UserIdField == "" {
+			provider.UserIdField = "sub"
 		}
-		if !isValidAbsoluteHTTPURL(provider.TicketExchangeURL) {
-			return errors.New("ticket_exchange_url must be a valid http/https url")
+		if provider.UsernameField == "" {
+			provider.UsernameField = "preferred_username"
 		}
-		if strings.TrimSpace(provider.TicketExchangeExtraParams) != "" {
-			if err := validateJSONStringObject(provider.TicketExchangeExtraParams); err != nil {
-				return fmt.Errorf("ticket_exchange_extra_params is invalid: %w", err)
+		if provider.DisplayNameField == "" {
+			provider.DisplayNameField = "name"
+		}
+		if provider.EmailField == "" {
+			provider.EmailField = "email"
+		}
+		if provider.Scopes == "" {
+			provider.Scopes = "openid profile email"
+		}
+	}
+	if provider.IsJWTDirect() {
+		if provider.JWTSource == "" {
+			provider.JWTSource = CustomJWTSourceQuery
+		}
+		switch provider.JWTSource {
+		case CustomJWTSourceQuery, CustomJWTSourceFragment, CustomJWTSourceBody:
+		default:
+			return errors.New("jwt_source is invalid")
+		}
+		if strings.TrimSpace(provider.JWTHeader) == "" {
+			provider.JWTHeader = "Authorization"
+		}
+		if strings.TrimSpace(provider.AuthorizationServiceField) == "" {
+			provider.AuthorizationServiceField = "service"
+		}
+		provider.TicketExchangeMethod = normalizeTicketExchangeMethod(provider.TicketExchangeMethod)
+		if provider.TicketExchangeMethod == "" {
+			return errors.New("ticket_exchange_method is invalid")
+		}
+		provider.TicketExchangePayloadMode = normalizeTicketExchangePayloadMode(provider.TicketExchangePayloadMode)
+		if provider.TicketExchangePayloadMode == "" {
+			return errors.New("ticket_exchange_payload_mode is invalid")
+		}
+		if strings.TrimSpace(provider.TicketExchangeTicketField) == "" {
+			provider.TicketExchangeTicketField = "ticket"
+		}
+		if provider.RequiresTicketAcquire() {
+			if strings.TrimSpace(provider.TicketExchangeURL) == "" {
+				return errors.New("ticket_exchange_url is required for ticket-based acquire mode")
 			}
-		}
-		if strings.TrimSpace(provider.TicketExchangeHeaders) != "" {
-			if err := validateJSONStringObject(provider.TicketExchangeHeaders); err != nil {
-				return fmt.Errorf("ticket_exchange_headers is invalid: %w", err)
+			if !isValidAbsoluteHTTPURL(provider.TicketExchangeURL) {
+				return errors.New("ticket_exchange_url must be a valid http/https url")
+			}
+			if strings.TrimSpace(provider.TicketExchangeExtraParams) != "" {
+				if err := validateJSONStringObject(provider.TicketExchangeExtraParams); err != nil {
+					return fmt.Errorf("ticket_exchange_extra_params is invalid: %w", err)
+				}
+			}
+			if strings.TrimSpace(provider.TicketExchangeHeaders) != "" {
+				if err := validateJSONStringObject(provider.TicketExchangeHeaders); err != nil {
+					return fmt.Errorf("ticket_exchange_headers is invalid: %w", err)
+				}
 			}
 		}
 	}

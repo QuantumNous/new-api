@@ -237,6 +237,8 @@ oauth.user_info_empty: "{{.Provider}} returned empty user info, please check set
 oauth.trust_level_low: "Linux DO trust level does not meet the minimum required by administrator"
 oauth.ticket_missing: "Missing login ticket"
 oauth.jwt_missing: "Missing JWT token"
+oauth.trusted_header_missing: "Missing trusted identity header"
+oauth.trusted_proxy_denied: "Trusted proxy verification failed"
 
 # Model layer error messages
 redeem.failed: "Redemption failed, please try again later"

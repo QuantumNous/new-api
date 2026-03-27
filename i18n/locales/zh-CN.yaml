@@ -238,6 +238,8 @@ oauth.user_info_empty: "{{.Provider}} 获取用户信息为空，请检查设置
 oauth.trust_level_low: "Linux DO 信任等级未达到管理员设置的最低信任等级"
 oauth.ticket_missing: "未提供登录票据"
 oauth.jwt_missing: "未提供 JWT 令牌"
+oauth.trusted_header_missing: "未提供可信身份头"
+oauth.trusted_proxy_denied: "可信代理校验失败"
 
 # Model layer error messages
 redeem.failed: "兑换失败，请稍后重试"
