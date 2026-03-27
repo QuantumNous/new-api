@@ -100,6 +100,7 @@ const SystemSetting = () => {
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
     ServerAddress: '',
+    UserInviteEnabled: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
     'fetch_setting.allow_private_ip': '',
@@ -188,6 +189,7 @@ const SystemSetting = () => {
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
+          case 'UserInviteEnabled':
             item.value = toBoolean(item.value);
             break;
           case 'passkey.origins':
@@ -1023,6 +1025,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('允许新用户注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='UserInviteEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('UserInviteEnabled', e)
+                        }
+                      >
+                        {t('允许用户邀请新用户')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='TurnstileCheckEnabled'

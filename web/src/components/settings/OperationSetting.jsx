@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsAudit from '../../pages/Setting/Operation/SettingsAudit';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -81,6 +82,14 @@ const OperationSetting = () => {
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
+
+    /* 安全审计设置 */
+    'audit_setting.mode': 'disabled',
+    'audit_setting.remote_endpoint': '',
+    'audit_setting.remote_timeout': 30,
+    'audit_setting.remote_api_key': '',
+    'audit_setting.max_file_size': 10,
+    'audit_setting.retention_days': 30,
   });
 
   let [loading, setLoading] = useState(false);
@@ -153,6 +162,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 安全审计设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsAudit options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
