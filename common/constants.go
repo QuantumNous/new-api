@@ -138,6 +138,15 @@ const (
 )
 
 const (
+	ClientRequestIdHeader      = "X-XCW-Request-Id"
+	ClientConversationIdHeader = "X-XCW-Conversation-Id"
+	ClientPresetIdHeader       = "X-XCW-Preset-Id"
+	ClientTaskNameHeader       = "X-XCW-Task-Name"
+	ClientCallIdHeader         = "X-XCW-LLM-Call-Id"
+	ClientServiceNameHeader    = "X-XCW-Service-Name"
+)
+
+const (
 	RoleGuestUser  = 0
 	RoleCommonUser = 1
 	RoleAdminUser  = 10

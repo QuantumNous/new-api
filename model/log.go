@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,26 +18,55 @@ import (
 )
 
 type Log struct {
-	Id               int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
-	UserId           int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt        int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
-	Type             int    `json:"type" gorm:"index:idx_created_at_type"`
-	Content          string `json:"content"`
-	Username         string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
-	TokenName        string `json:"token_name" gorm:"index;default:''"`
-	ModelName        string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
-	Quota            int    `json:"quota" gorm:"default:0"`
-	PromptTokens     int    `json:"prompt_tokens" gorm:"default:0"`
-	CompletionTokens int    `json:"completion_tokens" gorm:"default:0"`
-	UseTime          int    `json:"use_time" gorm:"default:0"`
-	IsStream         bool   `json:"is_stream"`
-	ChannelId        int    `json:"channel" gorm:"index"`
-	ChannelName      string `json:"channel_name" gorm:"->"`
-	TokenId          int    `json:"token_id" gorm:"default:0;index"`
-	Group            string `json:"group" gorm:"index"`
-	Ip               string `json:"ip" gorm:"index;default:''"`
-	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
-	Other            string `json:"other"`
+	Id                   int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2;index:idx_logs_type_id,priority:2"`
+	UserId               int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
+	CreatedAt            int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type;index:idx_logs_client_conversation_id_created_at,priority:2;index:idx_logs_client_preset_id_created_at,priority:2;index:idx_logs_client_task_name_created_at,priority:2"`
+	Type                 int    `json:"type" gorm:"index:idx_created_at_type;index:idx_logs_type_id,priority:1"`
+	Content              string `json:"content"`
+	Username             string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
+	TokenName            string `json:"token_name" gorm:"index;default:''"`
+	ModelName            string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	Quota                int    `json:"quota" gorm:"default:0"`
+	PromptTokens         int    `json:"prompt_tokens" gorm:"default:0"`
+	CompletionTokens     int    `json:"completion_tokens" gorm:"default:0"`
+	UseTime              int    `json:"use_time" gorm:"default:0"`
+	IsStream             bool   `json:"is_stream"`
+	ChannelId            int    `json:"channel" gorm:"index"`
+	ChannelName          string `json:"channel_name" gorm:"->"`
+	TokenId              int    `json:"token_id" gorm:"default:0;index"`
+	Group                string `json:"group" gorm:"index"`
+	Ip                   string `json:"ip" gorm:"index;default:''"`
+	RequestId            string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	ClientRequestId      string `json:"client_request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_client_request_id;default:''"`
+	ClientConversationId string `json:"client_conversation_id,omitempty" gorm:"type:varchar(64);index:idx_logs_client_conversation_id_created_at,priority:1;default:''"`
+	ClientPresetId       string `json:"client_preset_id,omitempty" gorm:"type:varchar(128);index:idx_logs_client_preset_id_created_at,priority:1;default:''"`
+	ClientTaskName       string `json:"client_task_name,omitempty" gorm:"type:varchar(64);index:idx_logs_client_task_name_created_at,priority:1;default:''"`
+	ClientCallId         string `json:"client_call_id,omitempty" gorm:"type:varchar(96);index:idx_logs_client_call_id;default:''"`
+	ClientServiceName    string `json:"client_service_name,omitempty" gorm:"type:varchar(64);default:''"`
+	Other                string `json:"other"`
+}
+
+type clientLogFields struct {
+	RequestID      string
+	ConversationID string
+	PresetID       string
+	TaskName       string
+	CallID         string
+	ServiceName    string
+}
+
+func extractClientLogFields(c *gin.Context) clientLogFields {
+	if c == nil || c.Request == nil {
+		return clientLogFields{}
+	}
+	return clientLogFields{
+		RequestID:      strings.TrimSpace(c.Request.Header.Get(common.ClientRequestIdHeader)),
+		ConversationID: strings.TrimSpace(c.Request.Header.Get(common.ClientConversationIdHeader)),
+		PresetID:       strings.TrimSpace(c.Request.Header.Get(common.ClientPresetIdHeader)),
+		TaskName:       strings.TrimSpace(c.Request.Header.Get(common.ClientTaskNameHeader)),
+		CallID:         strings.TrimSpace(c.Request.Header.Get(common.ClientCallIdHeader)),
+		ServiceName:    strings.TrimSpace(c.Request.Header.Get(common.ClientServiceNameHeader)),
+	}
 }
 
 // don't use iota, avoid change log type value
@@ -94,6 +124,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
+	clientFields := extractClientLogFields(c)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -124,8 +155,14 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:            requestId,
+		ClientRequestId:      clientFields.RequestID,
+		ClientConversationId: clientFields.ConversationID,
+		ClientPresetId:       clientFields.PresetID,
+		ClientTaskName:       clientFields.TaskName,
+		ClientCallId:         clientFields.CallID,
+		ClientServiceName:    clientFields.ServiceName,
+		Other:                otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
@@ -155,6 +192,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
+	clientFields := extractClientLogFields(c)
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -185,8 +223,14 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			}
 			return ""
 		}(),
-		RequestId: requestId,
-		Other:     otherStr,
+		RequestId:            requestId,
+		ClientRequestId:      clientFields.RequestID,
+		ClientConversationId: clientFields.ConversationID,
+		ClientPresetId:       clientFields.PresetID,
+		ClientTaskName:       clientFields.TaskName,
+		ClientCallId:         clientFields.CallID,
+		ClientServiceName:    clientFields.ServiceName,
+		Other:                otherStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {

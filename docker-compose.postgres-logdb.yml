@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: new-api
+    restart: unless-stopped
+    command: ["--log-dir", "/app/logs"]
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: Asia/Shanghai
+      NODE_TYPE: master
+      SESSION_SECRET: replace_me_with_a_random_string
+      CRYPTO_SECRET: replace_me_with_a_random_string
+      SQL_DSN: postgres://new_api_app:new_api_app_password@postgres:5432/new_api_main?sslmode=disable
+      LOG_SQL_DSN: postgres://new_api_app:new_api_app_password@postgres:5432/new_api_log?sslmode=disable
+      REDIS_CONN_STRING: redis://redis:6379/0
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    networks:
+      - new-api-network
+
+  postgres:
+    image: postgres:16
+    container_name: new-api-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_root_password
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - new-api-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-redis
+    restart: unless-stopped
+    networks:
+      - new-api-network
+
+volumes:
+  pg_data:
+
+networks:
+  new-api-network:
+    driver: bridge
