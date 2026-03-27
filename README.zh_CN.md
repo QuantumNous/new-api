@@ -202,6 +202,7 @@ docker run --name new-api -d --restart always \
 - 🤖 LinuxDO 授权登录
 - 📱 Telegram 授权登录
 - 🔑 OIDC 统一认证
+- 企业 SSO（JWT Direct）：支持直验 JWT、票据换 JWT、UserInfo 和 CAS Validate 接入
 - 🔍 Key 查询使用额度（配合 [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool)）
 
 ### 🚀 高级功能
