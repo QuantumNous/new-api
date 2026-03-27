@@ -88,6 +88,10 @@ type responseTask struct {
 			WebSearch int `json:"web_search"`
 		} `json:"tool_usage"`
 	} `json:"usage"`
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
 	CreatedAt int64 `json:"created_at"`
 	UpdatedAt int64 `json:"updated_at"`
 }
@@ -284,7 +288,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "failed":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
-		taskResult.Reason = "task failed"
+		taskResult.Reason = resTask.Error.Message
 	default:
 		// Unknown status, treat as processing
 		taskResult.Status = model.TaskStatusInProgress
@@ -312,8 +316,8 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	if dResp.Status == "failed" {
 		openAIVideo.Error = &dto.OpenAIVideoError{
-			Message: "task failed",
-			Code:    "failed",
+			Message: dResp.Error.Message,
+			Code:    dResp.Error.Code,
 		}
 	}
 
