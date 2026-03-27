@@ -214,3 +214,66 @@ For request structs that are parsed from client JSON and then re-marshaled to up
   - field absent in client JSON => `nil` => omitted on marshal;
   - field explicitly set to zero/false => non-`nil` pointer => must still be sent upstream.
 - Avoid using non-pointer scalars with `omitempty` for optional request parameters, because zero values (`0`, `0.0`, `false`) will be silently dropped during marshal.
+
+### Rule 7: Current Homepage Recreation Status (2026-03-27)
+
+This repository is currently doing a high-fidelity recreation of the live UniAPI homepage inside the existing frontend.
+
+**Current target and constraints:**
+- Recreate `https://uniapi.ai/` inside `web/src/pages/Home/index.jsx` as closely as possible.
+- Visible homepage copy/brand can be replaced with `OneDayAI` where appropriate, but protected project identifiers in this repository must still follow Rule 5.
+- Reuse real mirrored assets whenever possible; do not invent placeholder visuals when the source uses images.
+- The homepage must include motion/animation and should not be a static approximation.
+- Do not add fake support/chat behavior. Only use real capabilities exposed by local status/config data.
+
+**Important implementation state already completed:**
+1. The `/` route is isolated from the legacy app shell in `web/src/components/layout/PageLayout.jsx`, so the shared header/footer/sidebar no longer interfere with the homepage.
+2. The homepage implementation lives mainly in `web/src/pages/Home/index.jsx`.
+3. Support/help CTA behavior has been corrected:
+   - Prefer `docs_link` from `/api/status`.
+   - Fallback to `/about` if `docs_link` is unavailable.
+   - Do NOT route support/help UI to `/register`.
+   - Do NOT treat `/console/chat/:id` as generic customer support.
+4. Primary CTA routing is login-aware:
+   - logged-in user => `/console`
+   - guest user => `/register`
+5. Recent lower-half visual tightening has been completed for:
+   - FAQ list and support block rhythm
+   - bottom CTA rocket/text proportion
+   - dark CTA border/glow/background intensity
+   - section-to-section spacing
+6. A JSX parse error introduced during CTA tuning was already fixed.
+7. Pixel-level alignment pass completed (2026-03-27):
+   - FAQ section padding reduced: paddingTop 80→64, paddingBottom 80→48
+   - FAQ list margins tightened: marginTop 64→56, marginBottom 64→48
+   - Support block margins/padding reduced for tighter rhythm
+   - Left-side triangle markers scaled down (20/30 → 16/24) with adjusted positioning
+   - Bottom CTA section spacing tuned: paddingTop 16→32, paddingBottom 96→80
+   - Plus-marker cross sizing reduced (16px → 14px) with subtle opacity decrease
+   - Dashed guide lines pattern refined (4px/8px → 3px/7px)
+   - Rocket illustration scaled down: 348/324 → 280/260
+   - CTA card styling enhanced: rounded corners (24→20), inner glow, box-shadow added
+   - CTA glow repositioned and reduced in size/blur for subtlety
+   - CTA heading/text column maxWidth reduced for better proportion
+   - CTA button heights and padding fine-tuned (height 52→48, padding adjusted)
+   - Button glow layering improved with dual shadow
+
+**Recent validation status:**
+The latest homepage changes passed validation with:
+```bash
+npm --prefix "/Users/jinfeijie/Documents/code/newapi/new-api/web" run build
+npm --prefix "/Users/jinfeijie/Documents/code/newapi/new-api/web" exec eslint -- "src/pages/Home/index.jsx"
+```
+
+**Next-step prompt for Claude:**
+The homepage visual alignment is largely complete. Remaining polish work may include:
+- Responsive testing on various viewport sizes
+- Animation timing refinement if needed
+- Any final color/opacity tweaks based on side-by-side comparison
+
+Execution rules for the next step:
+- Prefer editing only `web/src/pages/Home/index.jsx` unless another file is strictly necessary.
+- Preserve the homepage route isolation in `web/src/components/layout/PageLayout.jsx`.
+- Keep all support/help behavior honest and status-driven.
+- Reuse mirrored assets instead of drawing approximations.
+- After any further visual tweaks, rerun build and eslint validation.

@@ -61,15 +61,16 @@ const PageLayout = () => {
     '/pricing',
   ];
 
-  const shouldHideFooter = cardProPages.includes(location.pathname);
+  const isConsoleRoute = location.pathname.startsWith('/console');
+  const isHomeRoute = location.pathname === '/';
+  const showGlobalHeader = !isHomeRoute;
+  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  const shouldHideFooter = cardProPages.includes(location.pathname) || isHomeRoute;
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
     !location.pathname.startsWith('/console/chat') &&
     location.pathname !== '/console/playground';
-
-  const isConsoleRoute = location.pathname.startsWith('/console');
-  const showSider = isConsoleRoute && (!isMobile || drawerOpen);
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -147,32 +148,37 @@ const PageLayout = () => {
     <Layout
       className='app-layout'
       style={{
+        height: isHomeRoute ? 'auto' : undefined,
+        minHeight: isHomeRoute ? '100vh' : undefined,
         display: 'flex',
         flexDirection: 'column',
-        overflow: isMobile ? 'visible' : 'hidden',
+        overflow: isHomeRoute || isMobile ? 'visible' : 'hidden',
       }}
     >
-      <Header
-        style={{
-          padding: 0,
-          height: 'auto',
-          lineHeight: 'normal',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        <HeaderBar
-          onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
-          drawerOpen={drawerOpen}
-        />
-      </Header>
+      {showGlobalHeader && (
+        <Header
+          style={{
+            padding: 0,
+            height: 'auto',
+            lineHeight: 'normal',
+            position: 'fixed',
+            width: '100%',
+            top: 0,
+            zIndex: 100,
+          }}
+        >
+          <HeaderBar
+            onMobileMenuToggle={() => setDrawerOpen((prev) => !prev)}
+            drawerOpen={drawerOpen}
+          />
+        </Header>
+      )}
       <Layout
         style={{
-          overflow: isMobile ? 'visible' : 'auto',
+          overflow: isHomeRoute || isMobile ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',
+          minHeight: isHomeRoute ? 'auto' : undefined,
         }}
       >
         {showSider && (
@@ -209,8 +215,8 @@ const PageLayout = () => {
         >
           <Content
             style={{
-              flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              flex: isHomeRoute ? '1 1 auto' : '1 0 auto',
+              overflowY: isHomeRoute || isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
