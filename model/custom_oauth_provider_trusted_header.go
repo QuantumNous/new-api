@@ -59,7 +59,11 @@ func parseTrustedProxyCIDRs(raw string) ([]string, error) {
 		if trimmed == "" {
 			continue
 		}
-		if _, err := netip.ParsePrefix(trimmed); err != nil {
+		if prefix, err := netip.ParsePrefix(trimmed); err == nil {
+			if prefix.Bits() == 0 {
+				return nil, fmt.Errorf("CIDR %q is too broad", trimmed)
+			}
+		} else {
 			if _, addrErr := netip.ParseAddr(trimmed); addrErr != nil {
 				return nil, fmt.Errorf("invalid CIDR or IP %q", trimmed)
 			}

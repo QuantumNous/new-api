@@ -58,6 +58,7 @@ func clearOAuthCodeOnlyProviderFields(provider *CustomOAuthProvider) {
 }
 
 func clearTrustedHeaderUnrelatedProviderFields(provider *CustomOAuthProvider) {
+	provider.WellKnown = ""
 	provider.ClientId = ""
 	provider.ClientSecret = ""
 	provider.AuthorizationEndpoint = ""

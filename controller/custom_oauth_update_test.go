@@ -399,6 +399,7 @@ func TestUpdateCustomOAuthProviderSwitchesJWTDirectToTrustedHeaderAndClearsIrrel
 		Slug:                       "acme-sso",
 		Kind:                       model.CustomOAuthProviderKindJWTDirect,
 		Enabled:                    true,
+		WellKnown:                  "https://issuer.example.com/.well-known/openid-configuration",
 		ClientId:                   "new-api-client",
 		ClientSecret:               "secret",
 		AuthorizationEndpoint:      "https://issuer.example.com/oauth2/authorize",
@@ -480,6 +481,9 @@ func TestUpdateCustomOAuthProviderSwitchesJWTDirectToTrustedHeaderAndClearsIrrel
 	}
 	if updatedProvider.ClientId != "" || updatedProvider.ClientSecret != "" || updatedProvider.AuthorizationEndpoint != "" {
 		t.Fatalf("expected browser oauth fields to be cleared, got client_id=%q client_secret=%q authorization_endpoint=%q", updatedProvider.ClientId, updatedProvider.ClientSecret, updatedProvider.AuthorizationEndpoint)
+	}
+	if updatedProvider.WellKnown != "" {
+		t.Fatalf("expected well_known to be cleared, got %q", updatedProvider.WellKnown)
 	}
 	if updatedProvider.Issuer != "" || updatedProvider.JwksURL != "" || updatedProvider.JWTSource != "" || updatedProvider.TicketExchangeURL != "" {
 		t.Fatalf("expected jwt_direct fields to be cleared, got issuer=%q jwks_url=%q jwt_source=%q ticket_exchange_url=%q", updatedProvider.Issuer, updatedProvider.JwksURL, updatedProvider.JWTSource, updatedProvider.TicketExchangeURL)

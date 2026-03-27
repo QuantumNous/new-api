@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -36,28 +35,10 @@ type customOAuthStatusInfo struct {
 	BrowserLoginSupported     bool   `json:"browser_login_supported"`
 }
 
-var (
-	customOAuthStatusCacheMu   sync.RWMutex
-	customOAuthStatusCacheData []customOAuthStatusInfo
-	customOAuthStatusCacheInit bool
-)
-
 func invalidateCustomOAuthStatusCache() {
-	customOAuthStatusCacheMu.Lock()
-	defer customOAuthStatusCacheMu.Unlock()
-	customOAuthStatusCacheData = nil
-	customOAuthStatusCacheInit = false
 }
 
 func getCustomOAuthStatusPayload() []customOAuthStatusInfo {
-	customOAuthStatusCacheMu.RLock()
-	if customOAuthStatusCacheInit {
-		cached := append([]customOAuthStatusInfo(nil), customOAuthStatusCacheData...)
-		customOAuthStatusCacheMu.RUnlock()
-		return cached
-	}
-	customOAuthStatusCacheMu.RUnlock()
-
 	customProviders, err := model.GetEnabledCustomOAuthProviders()
 	if err != nil {
 		common.SysError("failed to load enabled custom auth providers: " + err.Error())
@@ -101,11 +82,6 @@ func getCustomOAuthStatusPayload() []customOAuthStatusInfo {
 			BrowserLoginSupported:     sanitized.SupportsBrowserLogin(),
 		})
 	}
-
-	customOAuthStatusCacheMu.Lock()
-	customOAuthStatusCacheData = append([]customOAuthStatusInfo(nil), providersInfo...)
-	customOAuthStatusCacheInit = true
-	customOAuthStatusCacheMu.Unlock()
 	return providersInfo
 }
 

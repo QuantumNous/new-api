@@ -3628,7 +3628,7 @@
     "本地验签并解析 JWT Claims": "Validate Locally and Parse JWT Claims",
     "通过用户信息端点解析身份": "Resolve Identity via UserInfo Endpoint",
     "查询字符串": "Query String",
-    "表单 URL 编码": "Form URL Encoded",
+    "表单 URL 编码": "Form URL-Encoded",
     "JSON 请求体": "JSON Request Body",
     "Multipart 表单": "Multipart Form",
     "仅显式映射": "Explicit Mapping Only",
@@ -3646,10 +3646,11 @@
     "邮箱 Header（可选）": "Email Header (optional)",
     "请输入外部身份 Header": "Please enter the external identity header",
     "获取当前登录态失败": "Failed to get current session",
-    "当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定": "This identity provider only supports backend API calls and does not support browser login/binding yet",
+    "当前身份提供商当前配置暂不支持浏览器登录/绑定": "This identity provider configuration does not support browser login/binding yet",
     "可信 Header 模式不需要客户端 ID": "Trusted Header mode does not require a client ID",
     "可信代理与身份头": "Trusted Proxies and Identity Headers",
     "可信 Header 模式直接读取代理注入的 Header，不使用 JSON 路径字段映射": "Trusted Header mode reads identity directly from proxy-injected headers and does not use JSON-path field mapping",
-    "可信 Header SSO 仅信任来自指定代理网段的请求，并从代理注入的 Header 中提取身份、映射权限并建立本地会话": "Trusted Header SSO only trusts requests from configured proxy CIDRs and establishes local sessions from proxy-injected identity headers"
+    "可信 Header SSO 仅信任来自指定代理网段的请求，并从代理注入的 Header 中提取身份、映射权限并建立本地会话": "Trusted Header SSO only trusts requests from configured proxy CIDRs, extracts identity from proxy-injected headers, maps permissions, and establishes local sessions",
+    "配置如何从用户信息端点返回的 JSON 中提取用户数据，支持 gjson 路径语法": "Configure how to extract user data from the JSON returned by the userinfo endpoint, using gjson path syntax"
   }
 }

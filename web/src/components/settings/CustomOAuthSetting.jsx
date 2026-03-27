@@ -1883,8 +1883,14 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
               type='secondary'
               style={{ display: 'block', marginBottom: 8 }}
             >
-              {isJWTDirect
-                ? t('配置如何从 JWT claims 中提取用户数据，支持 gjson 路径语法')
+              {isJWTUserInfoMode
+                ? t(
+                    '配置如何从用户信息端点返回的 JSON 中提取用户数据，支持 gjson 路径语法',
+                  )
+                : isJWTDirect
+                  ? t(
+                      '配置如何从 JWT claims 中提取用户数据，支持 gjson 路径语法',
+                    )
                 : isTrustedHeader
                   ? t(
                       '可信 Header 模式直接读取代理注入的 Header，不使用 JSON 路径字段映射',

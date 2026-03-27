@@ -77,6 +77,9 @@ function supportsCustomProviderBrowserLogin(provider) {
     if (isTicketAcquireMode(provider?.jwt_acquire_mode || 'direct_token')) {
       return Boolean(provider?.authorization_endpoint);
     }
+    if ((provider?.jwt_identity_mode || 'claims') === 'userinfo') {
+      return false;
+    }
     return Boolean(
       provider?.authorization_endpoint &&
         provider?.client_id &&
@@ -425,9 +428,7 @@ export async function onLinuxDOOAuthClicked(
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
   if (!supportsCustomProviderBrowserLogin(provider)) {
-    throw new Error(
-      i18n.t('当前身份提供商仅支持后端接口直连，暂不支持浏览器登录/绑定'),
-    );
+    throw new Error(i18n.t('当前身份提供商当前配置暂不支持浏览器登录/绑定'));
   }
 
   try {

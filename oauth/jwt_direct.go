@@ -740,7 +740,7 @@ func fetchJWKSKey(ctx context.Context, jwksURL string, token *jwt.Token) (any, e
 	}
 
 	var doc jwksDocument
-	if err := common.DecodeJson(resp.Body, &doc); err != nil {
+	if err := common.DecodeJson(io.LimitReader(resp.Body, 1<<20), &doc); err != nil {
 		return nil, err
 	}
 	if len(doc.Keys) == 0 {

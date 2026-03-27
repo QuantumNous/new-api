@@ -39,6 +39,17 @@ func loadSessionUserIdentity(session sessions.Session) (*model.User, error) {
 	if !ok || id <= 0 {
 		return nil, fmt.Errorf("session user id is invalid")
 	}
+
+	userCache, err := model.GetUserCache(id)
+	if err == nil && userCache != nil && validUserInfo(userCache.Username, userCache.Role) {
+		return &model.User{
+			Id:       userCache.Id,
+			Username: userCache.Username,
+			Role:     userCache.Role,
+			Status:   userCache.Status,
+			Group:    userCache.Group,
+		}, nil
+	}
 	return model.GetUserIdentityById(id)
 }
 

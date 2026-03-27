@@ -19,6 +19,7 @@ type UserBase struct {
 	Group    string `json:"group"`
 	Email    string `json:"email"`
 	Quota    int    `json:"quota"`
+	Role     int    `json:"role"`
 	Status   int    `json:"status"`
 	Username string `json:"username"`
 	Setting  string `json:"setting"`
@@ -103,6 +104,7 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 		Id:       user.Id,
 		Group:    user.Group,
 		Quota:    user.Quota,
+		Role:     user.Role,
 		Status:   user.Status,
 		Username: user.Username,
 		Setting:  user.Setting,
@@ -121,6 +123,9 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	err := common.RedisHGetObj(getUserCacheKey(userId), &userCache)
 	if err != nil {
 		return nil, err
+	}
+	if userCache.Id <= 0 || userCache.Username == "" || !common.IsValidateRole(userCache.Role) {
+		return nil, fmt.Errorf("user cache is incomplete")
 	}
 	return &userCache, nil
 }
