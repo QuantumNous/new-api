@@ -4131,6 +4131,8 @@
     "剪贴板中未检测到连接信息": "Không tìm thấy thông tin kết nối trong bộ nhớ tạm",
     "连接信息已填入": "Đã áp dụng thông tin kết nối",
     "无法读取剪贴板": "Không thể đọc bộ nhớ tạm",
+    "配置自定义外部身份提供商，支持 OAuth Code Flow、JWT Direct 和可信 Header SSO 三种接入模式": "Cấu hình nhà cung cấp danh tính bên ngoài tùy chỉnh với ba chế độ OAuth Code Flow, JWT Direct và SSO bằng header tin cậy",
+    "浏览器回调 URL 仅用于 OAuth Code Flow 和 JWT Direct；可信 Header SSO 通过代理注入的 Header 完成登录，不使用 /oauth/{slug} 浏览器回调": "URL callback trên trình duyệt chỉ dùng cho OAuth Code Flow và JWT Direct; SSO bằng header tin cậy đăng nhập qua các header do proxy chèn vào và không dùng callback trình duyệt /oauth/{slug}",
     "可信 Header SSO": "SSO bằng header tin cậy",
     "可信 Header": "Header tin cậy",
     "可信代理 CIDR JSON": "JSON CIDR proxy tin cậy",

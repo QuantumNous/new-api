@@ -3564,6 +3564,8 @@
     "剪贴板中未检测到连接信息": "クリップボードに接続情報が見つかりません",
     "连接信息已填入": "接続情報を入力しました",
     "无法读取剪贴板": "クリップボードを読み取れません",
+    "配置自定义外部身份提供商，支持 OAuth Code Flow、JWT Direct 和可信 Header SSO 三种接入模式": "カスタム外部 ID プロバイダーを設定し、OAuth Code Flow、JWT Direct、信頼されたヘッダー SSO の 3 つの接入モードをサポートします",
+    "浏览器回调 URL 仅用于 OAuth Code Flow 和 JWT Direct；可信 Header SSO 通过代理注入的 Header 完成登录，不使用 /oauth/{slug} 浏览器回调": "ブラウザコールバック URL は OAuth Code Flow と JWT Direct でのみ使用されます。信頼されたヘッダー SSO はプロキシが注入した Header でログインし、/oauth/{slug} のブラウザコールバックは使用しません",
     "可信 Header SSO": "信頼されたヘッダー SSO",
     "可信 Header": "信頼されたヘッダー",
     "可信代理 CIDR JSON": "信頼されたプロキシ CIDR JSON",

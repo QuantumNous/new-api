@@ -161,57 +161,6 @@ const PRESET_RESET_VALUES = {
   access_denied_message: '',
 };
 
-const CUSTOM_OAUTH_KIND_OPTIONS = [
-  { value: 'oauth_code', label: 'OAuth 2.0 / OIDC 授权码模式' },
-  { value: 'jwt_direct', label: 'JWT 直连登录' },
-  { value: 'trusted_header', label: '可信 Header SSO' },
-];
-
-const JWT_SOURCE_OPTIONS = [
-  { value: 'query', label: '查询参数' },
-  { value: 'fragment', label: 'URL 片段' },
-  { value: 'body', label: '请求体（仅 API）' },
-];
-
-const JWT_ACQUIRE_MODE_OPTIONS = [
-  { value: 'direct_token', label: '直接回调 JWT' },
-  { value: 'ticket_exchange', label: '票据换取 JWT' },
-  { value: 'ticket_validate', label: '票据校验（CAS serviceValidate）' },
-];
-
-const JWT_IDENTITY_MODE_OPTIONS = [
-  { value: 'claims', label: '本地验签并解析 JWT Claims' },
-  { value: 'userinfo', label: '通过用户信息端点解析身份' },
-];
-
-const TICKET_EXCHANGE_METHOD_OPTIONS = [
-  { value: 'GET', label: 'GET' },
-  { value: 'POST', label: 'POST' },
-];
-
-const TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS = [
-  { value: 'query', label: '查询字符串' },
-  { value: 'form', label: '表单 URL 编码' },
-  { value: 'json', label: 'JSON 请求体' },
-  { value: 'multipart', label: 'Multipart 表单' },
-];
-
-const JWT_MAPPING_MODE_OPTIONS = [
-  { value: 'explicit_only', label: '仅显式映射' },
-  { value: 'mapping_first', label: '映射优先，其次透传' },
-];
-
-const DISCOVERY_FIELD_LABELS = {
-  authorization_endpoint: '授权端点',
-  token_endpoint: '令牌端点',
-  user_info_endpoint: '用户信息端点',
-  scopes: '作用域',
-  user_id_field: '用户 ID 字段',
-  username_field: '用户名字段',
-  display_name_field: '显示名称字段',
-  email_field: '邮箱字段',
-};
-
 const REQUIRED_FIELD_LABELS = {
   name: '显示名称',
   slug: 'Slug',
@@ -272,43 +221,70 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [clearClientSecret, setClearClientSecret] = useState(false);
   const [clientSecretBackup, setClientSecretBackup] = useState('');
   const formApiRef = React.useRef(null);
-  const customOAuthKindOptions = CUSTOM_OAUTH_KIND_OPTIONS.map((option) => ({
-    ...option,
-    label: t(option.label),
-  }));
-  const jwtSourceOptions = JWT_SOURCE_OPTIONS.map((option) => ({
-    ...option,
-    label: t(option.label),
-  }));
-  const jwtAcquireModeOptions = JWT_ACQUIRE_MODE_OPTIONS.map((option) => ({
-    ...option,
-    label: t(option.label),
-  }));
-  const jwtIdentityModeOptions = JWT_IDENTITY_MODE_OPTIONS.map((option) => ({
-    ...option,
-    label: t(option.label),
-  }));
-  const ticketExchangeMethodOptions = TICKET_EXCHANGE_METHOD_OPTIONS.map(
-    (option) => ({
-      ...option,
-      label: t(option.label),
-    }),
-  );
-  const ticketExchangePayloadModeOptions =
-    TICKET_EXCHANGE_PAYLOAD_MODE_OPTIONS.map((option) => ({
-      ...option,
-      label: t(option.label),
-    }));
-  const jwtMappingModeOptions = JWT_MAPPING_MODE_OPTIONS.map((option) => ({
-    ...option,
-    label: t(option.label),
-  }));
-  const discoveryFieldLabels = Object.fromEntries(
-    Object.entries(DISCOVERY_FIELD_LABELS).map(([field, label]) => [
-      field,
-      t(label),
-    ]),
-  );
+  const customOAuthKindOptions = [
+    {
+      value: 'oauth_code',
+      label: t('OAuth 2.0 / OIDC 授权码模式'),
+    },
+    {
+      value: 'jwt_direct',
+      label: t('JWT 直连登录'),
+    },
+    {
+      value: 'trusted_header',
+      label: t('可信 Header SSO'),
+    },
+  ];
+  const jwtSourceOptions = [
+    { value: 'query', label: t('查询参数') },
+    { value: 'fragment', label: t('URL 片段') },
+    { value: 'body', label: t('请求体（仅 API）') },
+  ];
+  const jwtAcquireModeOptions = [
+    { value: 'direct_token', label: t('直接回调 JWT') },
+    { value: 'ticket_exchange', label: t('票据换取 JWT') },
+    {
+      value: 'ticket_validate',
+      label: t('票据校验（CAS serviceValidate）'),
+    },
+  ];
+  const jwtIdentityModeOptions = [
+    {
+      value: 'claims',
+      label: t('本地验签并解析 JWT Claims'),
+    },
+    {
+      value: 'userinfo',
+      label: t('通过用户信息端点解析身份'),
+    },
+  ];
+  const ticketExchangeMethodOptions = [
+    { value: 'GET', label: t('GET') },
+    { value: 'POST', label: t('POST') },
+  ];
+  const ticketExchangePayloadModeOptions = [
+    { value: 'query', label: t('查询字符串') },
+    { value: 'form', label: t('表单 URL 编码') },
+    { value: 'json', label: t('JSON 请求体') },
+    { value: 'multipart', label: t('Multipart 表单') },
+  ];
+  const jwtMappingModeOptions = [
+    { value: 'explicit_only', label: t('仅显式映射') },
+    {
+      value: 'mapping_first',
+      label: t('映射优先，其次透传'),
+    },
+  ];
+  const discoveryFieldLabels = {
+    authorization_endpoint: t('授权端点'),
+    token_endpoint: t('令牌端点'),
+    user_info_endpoint: t('用户信息端点'),
+    scopes: t('作用域'),
+    user_id_field: t('用户 ID 字段'),
+    username_field: t('用户名字段'),
+    display_name_field: t('显示名称字段'),
+    email_field: t('邮箱字段'),
+  };
   const currentProviderKind = formValues.kind || 'oauth_code';
   const isJWTDirect = currentProviderKind === 'jwt_direct';
   const isTrustedHeader = currentProviderKind === 'trusted_header';
@@ -870,7 +846,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const applyDeniedTemplate = (templateKey) => {
     const template = ACCESS_DENIED_TEMPLATES[templateKey];
     if (!template) return;
-    mergeFormValues({ access_denied_message: t(template) });
+    const translatedTemplate =
+      templateKey === 'level_hint'
+        ? t('需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）')
+        : templateKey === 'org_hint'
+          ? t('仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}')
+          : template;
+    mergeFormValues({ access_denied_message: translatedTemplate });
     showSuccess(t('已填充提示模板'));
   };
 
@@ -971,7 +953,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           description={
             <>
               {t(
-                '配置自定义外部身份提供商，支持 OAuth Code Flow 和 JWT Direct 两种接入模式',
+                '配置自定义外部身份提供商，支持 OAuth Code Flow、JWT Direct 和可信 Header SSO 三种接入模式',
               )}
               <br />
               {t('浏览器回调 URL')}: {serverAddress || t('网站地址')}/oauth/
@@ -980,6 +962,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               {t('说明')}:{' '}
               {t(
                 'JWT Direct 支持 direct_token、ticket_exchange、ticket_validate 三种获取模式，并支持 claims 或 userinfo 两类身份解析方式',
+              )}
+              <br />
+              {t(
+                '浏览器回调 URL 仅用于 OAuth Code Flow 和 JWT Direct；可信 Header SSO 通过代理注入的 Header 完成登录，不使用 /oauth/{slug} 浏览器回调',
               )}
             </>
           }
