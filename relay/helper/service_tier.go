@@ -20,6 +20,19 @@ import (
 const serviceTierOtherRatioKey = "service_tier"
 
 func applyChannelServiceTierPricing(c *gin.Context, info *relaycommon.RelayInfo, priceData *types.PriceData) error {
+	return applyChannelServiceTierPricingWithQuotaMode(c, info, priceData, true)
+}
+
+func RefreshChannelSpecificPriceData(c *gin.Context, info *relaycommon.RelayInfo) error {
+	if c == nil || info == nil {
+		return nil
+	}
+	resetChannelServiceTierPricing(&info.PriceData)
+	info.InitChannelMeta(c)
+	return applyChannelServiceTierPricingWithQuotaMode(c, info, &info.PriceData, false)
+}
+
+func applyChannelServiceTierPricingWithQuotaMode(c *gin.Context, info *relaycommon.RelayInfo, priceData *types.PriceData, updatePreConsumedQuota bool) error {
 	if c == nil || info == nil || priceData == nil {
 		return nil
 	}
@@ -43,10 +56,21 @@ func applyChannelServiceTierPricing(c *gin.Context, info *relaycommon.RelayInfo,
 	if ratio != 1 {
 		priceData.AddOtherRatio(serviceTierOtherRatioKey, ratio)
 	}
-	if priceData.QuotaToPreConsume > 0 {
+	if updatePreConsumedQuota && priceData.QuotaToPreConsume > 0 {
 		priceData.QuotaToPreConsume = int(float64(priceData.QuotaToPreConsume) * ratio)
 	}
 	return nil
+}
+
+func resetChannelServiceTierPricing(priceData *types.PriceData) {
+	if priceData == nil {
+		return
+	}
+	priceData.ServiceTier = ""
+	priceData.ServiceTierRatio = 0
+	if priceData.OtherRatios != nil {
+		delete(priceData.OtherRatios, serviceTierOtherRatioKey)
+	}
 }
 
 func resolveChannelServiceTierPricing(c *gin.Context, info *relaycommon.RelayInfo) (string, float64, bool, error) {

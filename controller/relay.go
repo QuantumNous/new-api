@@ -194,6 +194,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = channelErr
 			break
 		}
+		if refreshErr := helper.RefreshChannelSpecificPriceData(c, relayInfo); refreshErr != nil {
+			logger.LogWarn(c, fmt.Sprintf("refresh channel-specific pricing failed: %v", refreshErr))
+		}
 
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)

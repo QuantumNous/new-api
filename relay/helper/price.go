@@ -132,8 +132,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		QuotaToPreConsume:    preConsumedQuota,
 	}
 
-	if err = applyChannelServiceTierPricing(c, info, &priceData); err != nil {
-		logger.LogWarn(c, fmt.Sprintf("resolve service_tier pricing failed: %v", err))
+	if serviceTierErr := applyChannelServiceTierPricing(c, info, &priceData); serviceTierErr != nil {
+		logger.LogWarn(c, fmt.Sprintf("resolve service_tier pricing failed: %v", serviceTierErr))
 	}
 
 	if common.DebugEnabled {

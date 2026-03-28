@@ -193,6 +193,53 @@ func TestResolveChannelServiceTierPricingSkipsChatResponsesCompatibilityMode(t *
 	}
 }
 
+func TestRefreshChannelSpecificPriceDataUsesRetriedChannelSettings(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Model:       "gpt-4o-mini",
+		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
+		ServiceTier: json.RawMessage(`"fast"`),
+	}
+	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"fast"}`
+	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		AllowServiceTier:  true,
+		ServiceTierRatios: map[string]any{"fast": 2},
+	})
+
+	priceData := types.PriceData{
+		QuotaToPreConsume: 100,
+	}
+	if err := applyChannelServiceTierPricing(ctx, info, &priceData); err != nil {
+		t.Fatalf("applyChannelServiceTierPricing returned error: %v", err)
+	}
+	if priceData.ServiceTierRatio != 2 {
+		t.Fatalf("expected initial ratio 2, got %v", priceData.ServiceTierRatio)
+	}
+	if priceData.QuotaToPreConsume != 200 {
+		t.Fatalf("expected pre-consumed quota to be updated to 200, got %d", priceData.QuotaToPreConsume)
+	}
+
+	info.PriceData = priceData
+	common.SetContextKey(ctx, constant.ContextKeyChannelId, 12)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
+		AllowServiceTier:  true,
+		ServiceTierRatios: map[string]any{"fast": 3},
+	})
+
+	if err := RefreshChannelSpecificPriceData(ctx, info); err != nil {
+		t.Fatalf("RefreshChannelSpecificPriceData returned error: %v", err)
+	}
+	if info.PriceData.ServiceTierRatio != 3 {
+		t.Fatalf("expected refreshed ratio 3, got %v", info.PriceData.ServiceTierRatio)
+	}
+	if got := info.PriceData.OtherRatios[serviceTierOtherRatioKey]; got != 3 {
+		t.Fatalf("expected refreshed other ratio 3, got %v", got)
+	}
+	if info.PriceData.QuotaToPreConsume != 200 {
+		t.Fatalf("expected pre-consumed quota to stay 200 after refresh, got %d", info.PriceData.QuotaToPreConsume)
+	}
+}
+
 func newServiceTierTestContext(t *testing.T, body string, request dto.Request, format types.RelayFormat) (*gin.Context, *relaycommon.RelayInfo) {
 	t.Helper()
 
