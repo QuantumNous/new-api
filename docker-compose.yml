@@ -77,23 +77,8 @@ services:
 #    ports:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
-#  mysql:
-#    image: mysql:8.2
-#    container_name: mysql
-#    restart: always
-#    environment:
-#      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-#      MYSQL_DATABASE: new-api
-#    volumes:
-#      - mysql_data:/var/lib/mysql
-#    networks:
-#      - new-api-network
-#    ports:
-#      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
-
 volumes:
   pg_data:
-#  mysql_data:
 
 networks:
   new-api-network:
