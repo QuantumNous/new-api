@@ -130,9 +130,7 @@ export const getTrendSpec = (data, color) => ({
   point: {
     visible: false,
   },
-  background: {
-    fill: 'transparent',
-  },
+  background: 'transparent',
 });
 
 // ========== UI 工具函数 ==========

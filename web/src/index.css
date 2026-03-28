@@ -18,6 +18,40 @@
   --sidebar-width: 180px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+
+  /* ── Apple-inspired Design Tokens ── */
+  /* Multi-layer glass system (like macOS vibrancy) */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-thick: rgba(255, 255, 255, 0.85);
+  --glass-bg-thin: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-border-hover: rgba(0, 0, 0, 0.1);
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
+  --glass-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.06);
+  --glass-blur: 20px;
+  --glass-blur-heavy: 40px;
+
+  /* Radius system */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Transition — Apple's signature spring-like ease */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: 0.2s var(--ease-out-expo);
+  --transition-normal: 0.35s var(--ease-out-expo);
+  --transition-slow: 0.5s var(--ease-out-expo);
+}
+
+html.dark {
+  --glass-bg: rgba(28, 28, 30, 0.72);
+  --glass-bg-thick: rgba(28, 28, 30, 0.88);
+  --glass-bg-thin: rgba(28, 28, 30, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-hover: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.1);
+  --glass-shadow-hover: 0 2px 8px rgba(0, 0, 0, 0.2), 0 8px 32px rgba(0, 0, 0, 0.18);
 }
 
 body.sidebar-collapsed {
@@ -25,10 +59,13 @@ body.sidebar-collapsed {
 }
 
 body {
-  font-family: Lato, 'Helvetica Neue', Arial, Helvetica, 'Microsoft YaHei',
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', Arial, 'Microsoft YaHei', sans-serif;
   color: var(--semi-color-text-0);
   background-color: var(--semi-color-bg-0);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.01em;
 }
 
 .app-layout {
@@ -118,14 +155,17 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  transition: width 0.3s ease;
-  background: var(--semi-color-bg-0);
+  transition: width var(--transition-normal);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-right: 1px solid var(--glass-border);
 }
 
 .sidebar-nav {
   flex: 1;
   width: 100%;
-  background: var(--semi-color-bg-0);
+  background: transparent;
   height: 100%;
   overflow-x: hidden;
   border-right: none;
@@ -205,13 +245,14 @@ code {
   padding: 12px;
   margin-top: auto;
   cursor: pointer;
-  background-color: var(--semi-color-bg-0);
+  background-color: transparent;
   position: sticky;
   bottom: 0;
   z-index: 10;
-  box-shadow: 0 -10px 10px -5px var(--semi-color-bg-0);
-  backdrop-filter: blur(4px);
-  border-top: 1px solid rgba(var(--semi-grey-0), 0.08);
+  box-shadow: 0 -10px 10px -5px var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: 1px solid var(--glass-border);
 }
 
 .sidebar-collapse-button-inner {
@@ -237,17 +278,19 @@ code {
 
 @media (max-width: 767px) {
   .sidebar-container {
-    background: var(--semi-color-bg-1);
-    border-right: 1px solid var(--semi-color-border);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-right: 1px solid var(--glass-border);
   }
 
   .sidebar-nav {
-    background: var(--semi-color-bg-1);
+    background: transparent;
   }
 
   .sidebar-collapse-button {
-    background-color: var(--semi-color-bg-1);
-    box-shadow: 0 -10px 10px -5px var(--semi-color-bg-1);
+    background-color: transparent;
+    box-shadow: 0 -10px 10px -5px var(--glass-bg);
   }
 }
 
@@ -955,7 +998,7 @@ html.dark .with-pastel-balls::before {
   gap: 0.25rem;
 }
 
-/* ==================== 自定义圆角样式 ==================== */
+/* ==================== 自定义圆角样式 (Apple-inspired) ==================== */
 .semi-radio,
 .semi-tagInput,
 .semi-input-textarea-wrapper,
@@ -969,7 +1012,13 @@ html.dark .with-pastel-balls::before {
 .semi-select,
 .semi-button,
 .semi-datepicker-range-input {
-  border-radius: 10px !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+/* Larger radius for prominent containers */
+.semi-modal-content,
+.semi-sidesheet-inner-wrap {
+  border-radius: var(--radius-xl) !important;
 }
 
 @keyframes slideInLeft {
@@ -993,4 +1042,180 @@ html.dark .with-pastel-balls::before {
     transform: translateX(0);
     opacity: 1;
   }
+}
+
+/* ==================== Apple-inspired Glassmorphism 设计系统 ==================== */
+
+/* ── Cards: 精致卡片 ── */
+.semi-card {
+  background: var(--semi-color-bg-1) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+  border-radius: var(--radius-lg) !important;
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-normal),
+              border-color var(--transition-normal);
+}
+
+.semi-card:hover {
+  box-shadow: var(--glass-shadow-hover) !important;
+  border-color: var(--glass-border-hover) !important;
+}
+
+/* ── Modal / Dialog ── */
+.semi-modal-content {
+  background: var(--glass-bg-thick) !important;
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1) !important;
+  border-radius: var(--radius-xl) !important;
+}
+
+html.dark .semi-modal-content {
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ── Dropdown / Popover / Tooltip ── */
+.semi-popover-wrapper-content,
+.semi-select-option-list,
+.semi-dropdown-menu {
+  background: var(--glass-bg-thick) !important;
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.06) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+html.dark .semi-popover-wrapper-content,
+html.dark .semi-select-option-list,
+html.dark .semi-dropdown-menu {
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+/* ── Buttons: 精致的交互反馈 ── */
+.semi-button {
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background var(--transition-fast),
+              opacity var(--transition-fast) !important;
+}
+
+.semi-button:active {
+  transform: scale(0.97);
+}
+
+.semi-button-primary {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(var(--semi-blue-5), 0.18);
+}
+
+.semi-button-primary:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(var(--semi-blue-5), 0.25);
+}
+
+/* ── Input / Select: 柔和的聚焦光晕 ── */
+.semi-input-wrapper {
+  transition: border-color var(--transition-fast),
+              box-shadow var(--transition-fast) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.semi-input-wrapper-focus {
+  box-shadow: 0 0 0 3px rgba(var(--semi-blue-5), 0.12) !important;
+}
+
+.semi-select {
+  transition: border-color var(--transition-fast),
+              box-shadow var(--transition-fast) !important;
+}
+
+.semi-select-focus {
+  box-shadow: 0 0 0 3px rgba(var(--semi-blue-5), 0.12) !important;
+}
+
+/* ── Table: 更通透的行间距 ── */
+.semi-table-row:hover .semi-table-row-cell {
+  background: var(--glass-bg-thin) !important;
+  transition: background var(--transition-fast);
+}
+
+/* ── Tag: 圆润的标签 ── */
+.semi-tag {
+  border-radius: 999px !important;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* ── Avatar: 微妙的光环 ── */
+.semi-avatar {
+  box-shadow: 0 0 0 2px var(--glass-border);
+  transition: box-shadow var(--transition-fast);
+}
+
+/* ── SideSheet: 侧边抽屉毛玻璃 ── */
+.semi-sidesheet-inner-wrap {
+  background: var(--glass-bg-thick) !important;
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+}
+
+/* ── Navigation items: 更柔和的 hover ── */
+.sidebar-nav-item {
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.sidebar-nav-item:hover {
+  background-color: rgba(var(--semi-blue-0), 0.06);
+}
+
+.sidebar-nav-item-selected {
+  background-color: rgba(var(--semi-blue-0), 0.1);
+}
+
+/* ==================== 首页流动渐变背景 ==================== */
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 50% 0%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  75% {
+    background-position: 50% 100%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.hero-gradient-flow {
+  background: linear-gradient(
+    -45deg,
+    rgba(99, 102, 241, 0.12),
+    rgba(6, 182, 212, 0.08),
+    rgba(168, 85, 247, 0.1),
+    rgba(59, 130, 246, 0.08),
+    rgba(139, 92, 246, 0.12),
+    rgba(6, 182, 212, 0.06)
+  );
+  background-size: 300% 300%;
+  animation: gradientFlow 12s ease infinite;
+}
+
+html.dark .hero-gradient-flow {
+  background: linear-gradient(
+    -45deg,
+    rgba(99, 102, 241, 0.15),
+    rgba(6, 182, 212, 0.1),
+    rgba(168, 85, 247, 0.12),
+    rgba(59, 130, 246, 0.1),
+    rgba(139, 92, 246, 0.15),
+    rgba(6, 182, 212, 0.08)
+  );
+  background-size: 300% 300%;
+  animation: gradientFlow 12s ease infinite;
 }

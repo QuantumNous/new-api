@@ -93,8 +93,7 @@ const StatsCards = ({
                       {t('充值')}
                     </Tag>
                   ) : (
-                    (loading ||
-                      (item.trendData && item.trendData.length > 0)) && (
+                    item.trendData && item.trendData.length > 0 && item.trendData.some(v => v !== 0) && (
                       <div className='w-24 h-10'>
                         <VChart
                           spec={getTrendSpec(item.trendData, item.trendColor)}

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <!-- API text -->
+  <text x="64" y="58" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="36" fill="white" letter-spacing="2">API</text>
+  <!-- Connection dots and lines representing API endpoints -->
+  <circle cx="34" cy="82" r="5" fill="rgba(255,255,255,0.9)"/>
+  <circle cx="64" cy="82" r="5" fill="rgba(255,255,255,0.9)"/>
+  <circle cx="94" cy="82" r="5" fill="rgba(255,255,255,0.9)"/>
+  <line x1="39" y1="82" x2="59" y2="82" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="69" y1="82" x2="89" y2="82" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Small top connector lines -->
+  <line x1="34" y1="77" x2="34" y2="70" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="94" y1="77" x2="94" y2="70" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="64" y1="77" x2="64" y2="65" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/>
+</svg>

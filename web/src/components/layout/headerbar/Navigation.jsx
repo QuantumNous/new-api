@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
@@ -28,49 +28,99 @@ const Navigation = ({
   userState,
   pricingRequireAuth,
 }) => {
-  const renderNavLinks = () => {
-    const baseClasses =
-      'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
-    const hoverClasses = 'hover:text-semi-color-primary';
-    const spacingClasses = isMobile ? 'p-1' : 'p-2';
+  const location = useLocation();
+  const navRef = useRef(null);
+  const itemRefs = useRef({});
+  const [indicator, setIndicator] = useState({ left: 0, width: 0, opacity: 0 });
 
-    const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
+  const isActive = (link) => {
+    if (link.isExternal) return false;
+    if (link.to === '/') return location.pathname === '/';
+    return location.pathname.startsWith(link.to);
+  };
+
+  const updateIndicator = useCallback(() => {
+    const activeLink = mainNavLinks.find((l) => isActive(l));
+    if (!activeLink || !navRef.current) {
+      setIndicator((prev) => ({ ...prev, opacity: 0 }));
+      return;
+    }
+    const el = itemRefs.current[activeLink.itemKey];
+    if (!el) return;
+    const navRect = navRef.current.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    setIndicator({
+      left: elRect.left - navRect.left,
+      width: elRect.width,
+      opacity: 1,
+    });
+  }, [location.pathname, mainNavLinks]);
+
+  useEffect(() => {
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
+
+  const renderNavLinks = () => {
+    const spacingClasses = isMobile ? 'px-2 py-1' : 'px-3 py-1.5';
 
     return mainNavLinks.map((link) => {
-      const linkContent = <span>{link.text}</span>;
+      const active = isActive(link);
+      const baseClasses = `relative z-10 flex-shrink-0 flex items-center gap-1 font-semibold rounded-full transition-colors duration-200 ${spacingClasses}`;
+      const colorClasses = active
+        ? 'text-white'
+        : 'text-semi-color-text-1 hover:text-semi-color-text-0';
 
       if (link.isExternal) {
         return (
           <a
             key={link.itemKey}
+            ref={(el) => { itemRefs.current[link.itemKey] = el; }}
             href={link.externalLink}
             target='_blank'
             rel='noopener noreferrer'
-            className={commonLinkClasses}
+            className={`${baseClasses} ${colorClasses}`}
           >
-            {linkContent}
+            <span>{link.text}</span>
           </a>
         );
       }
 
       let targetPath = link.to;
-      if (link.itemKey === 'console' && !userState.user) {
-        targetPath = '/login';
-      }
-      if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user) {
-        targetPath = '/login';
-      }
+      if (link.itemKey === 'console' && !userState.user) targetPath = '/login';
+      if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user) targetPath = '/login';
 
       return (
-        <Link key={link.itemKey} to={targetPath} className={commonLinkClasses}>
-          {linkContent}
+        <Link
+          key={link.itemKey}
+          ref={(el) => { itemRefs.current[link.itemKey] = el; }}
+          to={targetPath}
+          className={`${baseClasses} ${colorClasses}`}
+        >
+          <span>{link.text}</span>
         </Link>
       );
     });
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav
+      ref={navRef}
+      className='relative flex flex-1 items-center gap-0.5 lg:gap-1 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'
+    >
+      {/* Sliding indicator */}
+      <div
+        className='absolute top-1/2 -translate-y-1/2 h-8 rounded-full pointer-events-none'
+        style={{
+          left: indicator.left,
+          width: indicator.width,
+          opacity: indicator.opacity,
+          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+          boxShadow: '0 2px 12px rgba(99, 102, 241, 0.35)',
+          transition: 'left 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease',
+        }}
+      />
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'
@@ -83,6 +133,6 @@ const Navigation = ({
       </SkeletonWrapper>
     </nav>
   );
-};
+}
 
 export default Navigation;
