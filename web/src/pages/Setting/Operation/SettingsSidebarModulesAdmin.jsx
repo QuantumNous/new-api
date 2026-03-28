@@ -37,6 +37,8 @@ import {
 
 const { Text } = Typography;
 
+const getDefaultSidebarModulesAdmin = () => mergeAdminConfig({});
+
 export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function SettingsSidebarModulesAdmin(props) {
 
   // 左侧边栏模块管理状态（管理员全局控制）
   const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState(() =>
-    mergeAdminConfig(DEFAULT_ADMIN_CONFIG),
+    getDefaultSidebarModulesAdmin(),
   );
 
   // 处理区域级别开关变更
@@ -77,7 +79,7 @@ export default function SettingsSidebarModulesAdmin(props) {
 
   // 重置为默认配置
   function resetSidebarModules() {
-    setSidebarModulesAdmin(mergeAdminConfig(DEFAULT_ADMIN_CONFIG));
+    setSidebarModulesAdmin(getDefaultSidebarModulesAdmin());
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -123,7 +125,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
         setSidebarModulesAdmin(mergeAdminConfig(modules));
       } catch (error) {
-        setSidebarModulesAdmin(mergeAdminConfig(DEFAULT_ADMIN_CONFIG));
+        setSidebarModulesAdmin(getDefaultSidebarModulesAdmin());
       }
     }
   }, [props.options]);
