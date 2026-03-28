@@ -10,7 +10,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/service/audit"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -42,6 +41,8 @@ func AuditMiddleware() gin.HandlerFunc {
 			if err == nil {
 				requestBody = bodyBytes
 				c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+				files = extractEmbeddedFiles(bodyBytes)
 			}
 		}
 
@@ -186,46 +187,78 @@ func getRelayFormatFromPath(path string) string {
 	}
 }
 
-func ExtractFilesFromDTORequest(req dto.Request) []audit.AuditFile {
+func extractEmbeddedFiles(bodyBytes []byte) []audit.AuditFile {
 	files := make([]audit.AuditFile, 0)
-	if req == nil {
+
+	var req map[string]interface{}
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		return files
 	}
 
-	switch r := req.(type) {
-	case *dto.GeneralOpenAIRequest:
-		for _, msg := range r.Messages {
-			if msg.Content == nil {
-				continue
-			}
-			if contents, ok := msg.Content.([]dto.MediaContent); ok {
-				for _, content := range contents {
-					if content.Type == dto.ContentTypeImageURL {
-						imageMedia := content.GetImageMedia()
-						if imageMedia != nil {
-							url := imageMedia.Url
-							if strings.HasPrefix(url, "data:") {
-								parts := strings.SplitN(url, ",", 2)
-								if len(parts) == 2 {
-									mimePart := parts[0]
-									data := parts[1]
-									if strings.HasSuffix(mimePart, ";base64") {
-										mimeType := strings.TrimSuffix(mimePart, ";base64")
-										decoded, err := base64.StdEncoding.DecodeString(data)
-										if err == nil {
-											files = append(files, audit.AuditFile{
-												Filename:    "embedded_image",
-												ContentType: mimeType,
-												Size:        int64(len(decoded)),
-												Base64Data:  data,
-											})
-										}
-									}
-								}
-							}
-						}
-					}
+	messages, ok := req["messages"].([]interface{})
+	if !ok {
+		return files
+	}
+
+	for _, msg := range messages {
+		msgMap, ok := msg.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		content, ok := msgMap["content"]
+		if !ok {
+			continue
+		}
+
+		switch c := content.(type) {
+		case string:
+			continue
+		case []interface{}:
+			for _, item := range c {
+				itemMap, ok := item.(map[string]interface{})
+				if !ok {
+					continue
 				}
+
+				itemType, ok := itemMap["type"].(string)
+				if !ok || itemType != "image_url" {
+					continue
+				}
+
+				imageURL, ok := itemMap["image_url"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				url, ok := imageURL["url"].(string)
+				if !ok || !strings.HasPrefix(url, "data:") {
+					continue
+				}
+
+				parts := strings.SplitN(url, ",", 2)
+				if len(parts) != 2 {
+					continue
+				}
+
+				mimePart := parts[0]
+				data := parts[1]
+				if !strings.HasSuffix(mimePart, ";base64") {
+					continue
+				}
+
+				mimeType := strings.TrimSuffix(mimePart, ";base64")
+				decoded, err := base64.StdEncoding.DecodeString(data)
+				if err != nil {
+					continue
+				}
+
+				files = append(files, audit.AuditFile{
+					Filename:    "embedded_image",
+					ContentType: mimeType,
+					Size:        int64(len(decoded)),
+					Base64Data:  data,
+				})
 			}
 		}
 	}
