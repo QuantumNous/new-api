@@ -18,6 +18,7 @@ type ImageRequest struct {
 	Model  string `json:"model"`
 	Prompt string `json:"prompt" binding:"required"`
 	N      int    `json:"n,omitempty"`
+	Image  any    `json:"image,omitempty"`
 	// Size           string          `json:"size,omitempty"`
 	// Quality        string          `json:"quality,omitempty"`
 	ResponseFormat string `json:"response_format,omitempty"`

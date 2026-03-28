@@ -32,6 +32,12 @@ import {
   processIncompleteThinkTags,
 } from '../../helpers';
 
+const GROK_IMAGE_GENERATION_MODELS = new Set([
+  'grok-imagine-1.0',
+  'grok-imagine-1.0-fast',
+]);
+const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+
 export const useApiRequest = (
   setMessage,
   setDebugData,
@@ -40,10 +46,29 @@ export const useApiRequest = (
   saveMessages,
 ) => {
   const { t } = useTranslation();
+
+  const isGrokImagineImageModel = useCallback((model) => {
+    return (
+      GROK_IMAGE_GENERATION_MODELS.has(model) || GROK_IMAGE_EDIT_MODELS.has(model)
+    );
+  }, []);
+
+  const isGrokImagineImageEditModel = useCallback((model) => {
+    return GROK_IMAGE_EDIT_MODELS.has(model);
+  }, []);
+
   const isVideoGenerationPayload = useCallback((payload) => {
     const model = payload?.model;
     return typeof model === 'string' && model.includes('video');
   }, []);
+
+  const isImageGenerationPayload = useCallback(
+    (payload) => {
+      const model = payload?.model;
+      return typeof model === 'string' && isGrokImagineImageModel(model);
+    },
+    [isGrokImagineImageModel],
+  );
 
   const getTextFromMessageContent = useCallback((content) => {
     if (typeof content === 'string') {
@@ -74,6 +99,26 @@ export const useApiRequest = (
     return imageURL?.url || '';
   }, []);
 
+  const normalizeVideoQuality = useCallback((quality) => {
+    if (quality === '720p') {
+      return 'high';
+    }
+    if (quality === '480p') {
+      return 'standard';
+    }
+    return quality;
+  }, []);
+
+  const formatVideoQuality = useCallback((quality) => {
+    if (quality === 'high' || quality === '720p') {
+      return '720p';
+    }
+    if (quality === 'standard' || quality === '480p') {
+      return '480p';
+    }
+    return quality || '';
+  }, []);
+
   const buildVideoRequestPayload = useCallback(
     (payload) => {
       const messages = Array.isArray(payload?.messages) ? payload.messages : [];
@@ -82,21 +127,112 @@ export const useApiRequest = (
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
       const image = getImageFromMessageContent(lastUserMessage?.content);
+      const size = payload?.size || payload?.videoSize;
+      const seconds = payload?.seconds || payload?.videoSeconds;
+      const quality = payload?.quality || payload?.videoQuality;
+      const preset = payload?.preset || payload?.videoPreset;
+      const isGrokImagineVideoModel = payload?.model === 'grok-imagine-1.0-video';
+      const resolutionName =
+        payload?.resolution_name ||
+        (isGrokImagineVideoModel ? formatVideoQuality(quality) : '');
 
-      return {
+      const requestPayload = {
         model: payload.model,
         prompt,
-        seconds: payload.seconds,
-        size: payload.size,
-        quality: payload.quality,
+        seconds,
+        size,
+        quality: normalizeVideoQuality(quality),
+        preset,
         ...(image ? { image } : {}),
       };
+
+      if (isGrokImagineVideoModel && resolutionName) {
+        requestPayload.resolution_name = resolutionName;
+        requestPayload.video_config = {
+          resolution_name: resolutionName,
+          ...(preset ? { preset } : {}),
+        };
+      }
+
+      return requestPayload;
     },
-    [getImageFromMessageContent, getTextFromMessageContent],
+    [
+      formatVideoQuality,
+      getImageFromMessageContent,
+      getTextFromMessageContent,
+      normalizeVideoQuality,
+    ],
   );
+
+  const buildImageRequestPayload = useCallback(
+    (payload) => {
+      const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m?.role === 'user');
+      const prompt = getTextFromMessageContent(lastUserMessage?.content);
+      const image = getImageFromMessageContent(lastUserMessage?.content);
+      const resolvedPrompt =
+        prompt ||
+        (isGrokImagineImageEditModel(payload.model)
+          ? 'Edit the provided media.'
+          : '');
+      const requestPayload = {
+        model: payload.model,
+        group: payload.group,
+        prompt: resolvedPrompt,
+        n: 1,
+        response_format: 'url',
+      };
+
+      if (isGrokImagineImageEditModel(payload.model) && image) {
+        requestPayload.image = { url: image };
+      }
+
+      return requestPayload;
+    },
+    [
+      getImageFromMessageContent,
+      getTextFromMessageContent,
+      isGrokImagineImageEditModel,
+    ],
+  );
+
+  const extractVideoUrl = useCallback((payload) => {
+    if (!payload || typeof payload !== 'object') {
+      return '';
+    }
+
+    const candidates = [
+      payload.url,
+      payload.video_url,
+      payload.result_url,
+      payload.metadata?.url,
+      payload.data?.url,
+      payload.data?.video_url,
+      payload.data?.result_url,
+      payload.data?.metadata?.url,
+    ];
+
+    const matched = candidates.find(
+      (item) => typeof item === 'string' && item.trim() !== '',
+    );
+
+    return matched?.trim() || '';
+  }, []);
 
   const resolveEndpointAndPayload = useCallback(
     (payload) => {
+      if (isImageGenerationPayload(payload)) {
+        const requestPayload = buildImageRequestPayload(payload);
+        return {
+          endpoint: isGrokImagineImageEditModel(payload?.model)
+            ? API_ENDPOINTS.IMAGE_EDITS
+            : API_ENDPOINTS.IMAGE_GENERATIONS,
+          requestPayload,
+          forceNonStream: true,
+        };
+      }
       if (isVideoGenerationPayload(payload)) {
         return {
           endpoint: API_ENDPOINTS.VIDEO_GENERATIONS,
@@ -110,7 +246,13 @@ export const useApiRequest = (
         forceNonStream: false,
       };
     },
-    [buildVideoRequestPayload, isVideoGenerationPayload],
+    [
+      buildImageRequestPayload,
+      buildVideoRequestPayload,
+      isGrokImagineImageEditModel,
+      isImageGenerationPayload,
+      isVideoGenerationPayload,
+    ],
   );
 
   // 处理消息自动关闭逻辑的公共函数
@@ -306,12 +448,23 @@ export const useApiRequest = (
           data.object === 'video' ||
           data.task_id
         ) {
+          const videoUrl = extractVideoUrl(data);
+          const requestedQuality = formatVideoQuality(requestPayload.quality);
+          const upstreamQuality = formatVideoQuality(data.quality);
           const summary = [
             `${t('视频任务已创建')}`,
             `task_id: ${data.task_id || data.id || '-'}`,
             `status: ${data.status || '-'}`,
             `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
             `size: ${data.size || requestPayload.size || '-'}`,
+            `quality: ${requestedQuality || upstreamQuality || '-'}`,
+            ...(upstreamQuality && upstreamQuality !== requestedQuality
+              ? [`upstream_quality: ${upstreamQuality}`]
+              : []),
+            ...(requestPayload.preset ? [`preset: ${requestPayload.preset}`] : []),
+            ...(videoUrl
+              ? [`url: \`${videoUrl}\``, `[Open Video](${videoUrl})`]
+              : []),
           ].join('\n');
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
@@ -324,6 +477,52 @@ export const useApiRequest = (
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: summary,
+                status: MESSAGE_STATUS.COMPLETE,
+                ...autoCollapseState,
+              };
+            }
+            return newMessages;
+          });
+          return;
+        }
+
+        if (
+          endpoint === API_ENDPOINTS.IMAGE_GENERATIONS ||
+          endpoint === API_ENDPOINTS.IMAGE_EDITS ||
+          Array.isArray(data.data)
+        ) {
+          const imageUrls = (Array.isArray(data.data) ? data.data : [])
+            .map((item) => item?.url)
+            .filter((item) => typeof item === 'string' && item.trim() !== '');
+
+          const summaryLines = [
+            endpoint === API_ENDPOINTS.IMAGE_EDITS
+              ? t('图片编辑已完成')
+              : t('图片任务已完成'),
+            `model: ${requestPayload.model || payload?.model || '-'}`,
+            `count: ${imageUrls.length || data.data?.length || 0}`,
+          ];
+
+          imageUrls.forEach((url, index) => {
+            summaryLines.push(`image_${index + 1}: [Open Image ${index + 1}](${url})`);
+            summaryLines.push(`![image_${index + 1}](${url})`);
+          });
+
+          if (imageUrls.length === 0) {
+            summaryLines.push(t('未在响应中解析到图片链接'));
+          }
+
+          setMessage((prevMessage) => {
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+              const autoCollapseState = applyAutoCollapseLogic(
+                lastMessage,
+                true,
+              );
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: summaryLines.join('\n\n'),
                 status: MESSAGE_STATUS.COMPLETE,
                 ...autoCollapseState,
               };
@@ -396,6 +595,8 @@ export const useApiRequest = (
       setActiveDebugTab,
       setMessage,
       t,
+      extractVideoUrl,
+      formatVideoQuality,
       applyAutoCollapseLogic,
     ],
   );

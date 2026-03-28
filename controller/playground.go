@@ -57,6 +57,36 @@ func PlaygroundVideoSubmit(c *gin.Context) {
 	RelayTask(c)
 }
 
+func PlaygroundImageGenerations(c *gin.Context) {
+	var newAPIError *types.NewAPIError
+	defer func() {
+		if newAPIError != nil {
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+	}()
+	if newAPIError = setupPlaygroundTokenContext(c, "playground-image", c.GetString("group")); newAPIError != nil {
+		return
+	}
+	Relay(c, types.RelayFormatOpenAIImage)
+}
+
+func PlaygroundImageEdits(c *gin.Context) {
+	var newAPIError *types.NewAPIError
+	defer func() {
+		if newAPIError != nil {
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+	}()
+	if newAPIError = setupPlaygroundTokenContext(c, "playground-image-edit", c.GetString("group")); newAPIError != nil {
+		return
+	}
+	Relay(c, types.RelayFormatOpenAIImage)
+}
+
 func PlaygroundVideoFetch(c *gin.Context) {
 	var newAPIError *types.NewAPIError
 	defer func() {

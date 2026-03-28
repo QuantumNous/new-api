@@ -13,9 +13,14 @@ var (
 		"dall-e-3",
 		"dall-e-2",
 		"gpt-image-1",
+		"exact:grok-imagine-1.0",
+		"exact:grok-imagine-1.0-fast",
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+	}
+	ImageEditModels = []string{
+		"exact:grok-imagine-1.0-edit",
 	}
 	OpenAITextModels = []string{
 		"gpt-",
@@ -38,6 +43,25 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 func IsImageGenerationModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
 	for _, m := range ImageGenerationModels {
+		if strings.HasPrefix(m, "exact:") && modelName == strings.TrimPrefix(m, "exact:") {
+			return true
+		}
+		if strings.Contains(modelName, m) {
+			return true
+		}
+		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsImageEditModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range ImageEditModels {
+		if strings.HasPrefix(m, "exact:") && modelName == strings.TrimPrefix(m, "exact:") {
+			return true
+		}
 		if strings.Contains(modelName, m) {
 			return true
 		}

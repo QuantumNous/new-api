@@ -21,6 +21,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -44,6 +45,7 @@ type responseTask struct {
 	Object             string `json:"object"`
 	Model              string `json:"model"`
 	Status             string `json:"status"`
+	URL                string `json:"url,omitempty"`
 	Progress           int    `json:"progress"`
 	CreatedAt          int64  `json:"created_at"`
 	CompletedAt        int64  `json:"completed_at,omitempty"`
@@ -66,6 +68,116 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+}
+
+func stringifyBodyValue(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func normalizeGrokVideoQuality(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "720p":
+		return "high"
+	case "480p":
+		return "standard"
+	case "high", "standard":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return strings.TrimSpace(value)
+	}
+}
+
+func resolutionNameFromQuality(value string) string {
+	switch normalizeGrokVideoQuality(value) {
+	case "high":
+		return "720p"
+	case "standard":
+		return "480p"
+	default:
+		return ""
+	}
+}
+
+func qualityFromResolutionName(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "720p":
+		return "high"
+	case "480p":
+		return "standard"
+	default:
+		return ""
+	}
+}
+
+func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel string) {
+	if upstreamModel != "grok-imagine-1.0-video" {
+		return
+	}
+
+	quality := normalizeGrokVideoQuality(stringifyBodyValue(bodyMap["quality"]))
+	resolutionName := stringifyBodyValue(bodyMap["resolution_name"])
+	preset := stringifyBodyValue(bodyMap["preset"])
+
+	if videoConfig, ok := bodyMap["video_config"].(map[string]interface{}); ok {
+		if resolutionName == "" {
+			resolutionName = stringifyBodyValue(videoConfig["resolution_name"])
+		}
+		if preset == "" {
+			preset = stringifyBodyValue(videoConfig["preset"])
+		}
+	}
+
+	if quality == "" {
+		quality = qualityFromResolutionName(resolutionName)
+	}
+	if resolutionName == "" {
+		resolutionName = resolutionNameFromQuality(quality)
+	}
+
+	if quality != "" {
+		bodyMap["quality"] = quality
+	}
+	if resolutionName != "" {
+		bodyMap["resolution_name"] = resolutionName
+	}
+	if preset != "" {
+		bodyMap["preset"] = preset
+	}
+	if resolutionName != "" || preset != "" {
+		videoConfig := map[string]interface{}{}
+		if resolutionName != "" {
+			videoConfig["resolution_name"] = resolutionName
+		}
+		if preset != "" {
+			videoConfig["preset"] = preset
+		}
+		bodyMap["video_config"] = videoConfig
+	}
+}
+
+func extractVideoURL(respBody []byte) string {
+	for _, path := range []string{
+		"url",
+		"video_url",
+		"metadata.url",
+		"data.url",
+		"data.video_url",
+		"output.video_url",
+		"task_result.videos.0.url",
+	} {
+		if url := strings.TrimSpace(gjson.GetBytes(respBody, path).String()); url != "" {
+			return url
+		}
+	}
+	return ""
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -158,6 +270,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			normalizeGrokVideoRequest(bodyMap, info.UpstreamModelName)
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}
@@ -248,6 +361,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
 	}
+	if dResp.URL == "" {
+		dResp.URL = extractVideoURL(responseBody)
+	}
 
 	// 使用公开 task_xxxx ID 返回给客户端
 	dResp.ID = info.PublicTaskID
@@ -292,6 +408,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	if err := common.Unmarshal(respBody, &resTask); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
+	if resTask.URL == "" {
+		resTask.URL = extractVideoURL(respBody)
+	}
 
 	taskResult := relaycommon.TaskInfo{
 		Code: 0,
@@ -304,6 +423,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
 		taskResult.Status = model.TaskStatusSuccess
+		taskResult.Url = resTask.URL
 		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
@@ -326,6 +446,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	var err error
 	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
 		return nil, errors.Wrap(err, "set id failed")
+	}
+	if gjson.GetBytes(data, "task_id").Exists() {
+		if data, err = sjson.SetBytes(data, "task_id", task.TaskID); err != nil {
+			return nil, errors.Wrap(err, "set task_id failed")
+		}
 	}
 	return data, nil
 }

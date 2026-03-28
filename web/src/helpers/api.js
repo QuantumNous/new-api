@@ -115,6 +115,11 @@ export const buildApiPayload = (
   inputs,
   parameterEnabled,
 ) => {
+  const grokImagineImageModels = new Set([
+    'grok-imagine-1.0',
+    'grok-imagine-1.0-fast',
+    'grok-imagine-1.0-edit',
+  ]);
   const processedMessages = messages
     .filter(isValidMessage)
     .map(formatMessageForAPI)
@@ -157,6 +162,11 @@ export const buildApiPayload = (
 
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
+  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  if (isGrokImagineImageModel) {
+    payload.stream = false;
+  }
   if (isVideoModel) {
     payload.stream = false;
     if (inputs.videoSize) {
@@ -166,7 +176,32 @@ export const buildApiPayload = (
       payload.seconds = String(inputs.videoSeconds);
     }
     if (inputs.videoQuality) {
-      payload.quality = inputs.videoQuality;
+      const resolutionName =
+        inputs.videoQuality === 'high'
+          ? '720p'
+          : inputs.videoQuality === 'standard'
+            ? '480p'
+            : inputs.videoQuality;
+      payload.quality =
+        resolutionName === '720p'
+          ? 'high'
+          : resolutionName === '480p'
+            ? 'standard'
+            : resolutionName;
+      if (isGrokImagineVideoModel && resolutionName) {
+        payload.resolution_name = resolutionName;
+      }
+    }
+    if (isGrokImagineVideoModel && inputs.videoPreset) {
+      payload.preset = inputs.videoPreset;
+    }
+    if (isGrokImagineVideoModel && (payload.resolution_name || payload.preset)) {
+      payload.video_config = {
+        ...(payload.resolution_name
+          ? { resolution_name: payload.resolution_name }
+          : {}),
+        ...(payload.preset ? { preset: payload.preset } : {}),
+      };
     }
   }
 
