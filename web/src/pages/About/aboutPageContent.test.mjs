@@ -48,4 +48,21 @@ describe('loadAboutPageContent', () => {
       shouldPersist: false,
     });
   });
+
+  test('falls back to the provided message when the API returns non-string content', async () => {
+    const result = await loadAboutPageContent(
+      async () => ({
+        success: true,
+        message: '',
+        data: ['unsafe'],
+      }),
+      '加载关于内容失败...',
+    );
+
+    expect(result).toEqual({
+      content: '加载关于内容失败...',
+      errorMessage: '加载关于内容失败...',
+      shouldPersist: false,
+    });
+  });
 });

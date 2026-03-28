@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   Button,
   Typography,
@@ -84,6 +90,29 @@ import {
 
 const { Text } = Typography;
 
+const EMBEDDED_HUB_QUICK_LINKS = [
+  {
+    key: 'ai',
+    href: getRouteManagerHubAIFleetHref(),
+  },
+  {
+    key: 'network',
+    href: getRouteManagerHubNetworkPanelHref('mihomo'),
+  },
+  {
+    key: 'dns',
+    href: getRouteManagerHubDNSSecurityHref(),
+  },
+  {
+    key: 'egress',
+    href: getRouteManagerHubEgressHref(),
+  },
+  {
+    key: 'ha',
+    href: getRouteManagerHubHomeAssistantEntitiesHref(),
+  },
+];
+
 const Home = () => {
   const { t, i18n } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -112,28 +141,7 @@ const Home = () => {
     embeddedHubSnapshot,
     t,
   );
-  const embeddedHubQuickLinks = [
-    {
-      key: 'ai',
-      href: getRouteManagerHubAIFleetHref(),
-    },
-    {
-      key: 'network',
-      href: getRouteManagerHubNetworkPanelHref('mihomo'),
-    },
-    {
-      key: 'dns',
-      href: getRouteManagerHubDNSSecurityHref(),
-    },
-    {
-      key: 'egress',
-      href: getRouteManagerHubEgressHref(),
-    },
-    {
-      key: 'ha',
-      href: getRouteManagerHubHomeAssistantEntitiesHref(),
-    },
-  ];
+  const embeddedHubQuickLinks = useMemo(() => EMBEDDED_HUB_QUICK_LINKS, []);
   const handleHomePageIframeLoad = useCallback(
     (event) => {
       postHomePageIframeContext(event.currentTarget, {
@@ -508,6 +516,7 @@ const Home = () => {
               ) : null}
               <iframe
                 src={homePageContent}
+                title={t('首页内容')}
                 className='w-full h-screen border-none'
                 onLoad={handleHomePageIframeLoad}
               />

@@ -176,6 +176,7 @@ const About = () => {
           {isEmbeddableAboutPageURL(about) ? (
             <iframe
               src={about}
+              title={t('关于内容')}
               style={{ width: '100%', height: '100vh', border: 'none' }}
               onLoad={handleAboutIframeLoad}
             />

@@ -19,10 +19,16 @@ export async function loadAboutPageContent(
       };
     }
 
+    if (typeof data !== 'string') {
+      return {
+        content: fallbackContent,
+        errorMessage: message || fallbackContent,
+        shouldPersist: false,
+      };
+    }
+
     const resolvedContent =
-      typeof data === 'string' && !isEmbeddableAboutPageURL(data)
-        ? marked.parse(data)
-        : data;
+      !isEmbeddableAboutPageURL(data) ? marked.parse(data) : data;
 
     return {
       content: resolvedContent,

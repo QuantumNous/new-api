@@ -98,10 +98,16 @@ export async function loadHomePageContent(
       };
     }
 
+    if (typeof data !== 'string') {
+      return {
+        content: fallbackContent,
+        errorMessage: message || fallbackContent,
+        shouldPersist: false,
+      };
+    }
+
     const resolvedContent =
-      typeof data === 'string' && !isEmbeddableHomePageURL(data)
-        ? marked.parse(data)
-        : data;
+      !isEmbeddableHomePageURL(data) ? marked.parse(data) : data;
 
     return {
       content: resolvedContent,

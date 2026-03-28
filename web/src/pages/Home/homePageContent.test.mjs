@@ -148,4 +148,21 @@ describe('loadHomePageContent', () => {
       shouldPersist: false,
     });
   });
+
+  test('falls back to the provided message when the API returns non-string content', async () => {
+    const result = await loadHomePageContent(
+      async () => ({
+        success: true,
+        message: '',
+        data: { unsafe: true },
+      }),
+      '加载首页内容失败...',
+    );
+
+    expect(result).toEqual({
+      content: '加载首页内容失败...',
+      errorMessage: '加载首页内容失败...',
+      shouldPersist: false,
+    });
+  });
 });
