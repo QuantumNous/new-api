@@ -255,7 +255,7 @@ const SettingsPanel = ({
               {isGrokImagineVideoModel && (
                 <div>
                   <Typography.Text strong className='text-sm'>
-                    {t('椋庢牸棰勮')}
+                    {t('风格预设')}
                   </Typography.Text>
                   <Select
                     className='!rounded-lg mt-2'

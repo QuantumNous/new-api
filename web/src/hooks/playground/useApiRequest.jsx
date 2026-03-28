@@ -74,6 +74,26 @@ export const useApiRequest = (
     return imageURL?.url || '';
   }, []);
 
+  const normalizeVideoQuality = useCallback((quality) => {
+    if (quality === '720p') {
+      return 'high';
+    }
+    if (quality === '480p') {
+      return 'standard';
+    }
+    return quality;
+  }, []);
+
+  const formatVideoQuality = useCallback((quality) => {
+    if (quality === 'high' || quality === '720p') {
+      return '720p';
+    }
+    if (quality === 'standard' || quality === '480p') {
+      return '480p';
+    }
+    return quality || '';
+  }, []);
+
   const buildVideoRequestPayload = useCallback(
     (payload) => {
       const messages = Array.isArray(payload?.messages) ? payload.messages : [];
@@ -82,18 +102,22 @@ export const useApiRequest = (
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
       const image = getImageFromMessageContent(lastUserMessage?.content);
+      const size = payload?.size || payload?.videoSize;
+      const seconds = payload?.seconds || payload?.videoSeconds;
+      const quality = payload?.quality || payload?.videoQuality;
+      const preset = payload?.preset || payload?.videoPreset;
 
       return {
         model: payload.model,
         prompt,
-        seconds: payload.seconds,
-        size: payload.size,
-        quality: payload.quality,
-        preset: payload.preset,
+        seconds,
+        size,
+        quality: normalizeVideoQuality(quality),
+        preset,
         ...(image ? { image } : {}),
       };
     },
-    [getImageFromMessageContent, getTextFromMessageContent],
+    [getImageFromMessageContent, getTextFromMessageContent, normalizeVideoQuality],
   );
 
   const extractVideoUrl = useCallback((payload) => {
@@ -331,12 +355,19 @@ export const useApiRequest = (
           data.task_id
         ) {
           const videoUrl = extractVideoUrl(data);
+          const requestedQuality = formatVideoQuality(requestPayload.quality);
+          const upstreamQuality = formatVideoQuality(data.quality);
           const summary = [
             `${t('视频任务已创建')}`,
             `task_id: ${data.task_id || data.id || '-'}`,
             `status: ${data.status || '-'}`,
             `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
             `size: ${data.size || requestPayload.size || '-'}`,
+            `quality: ${requestedQuality || upstreamQuality || '-'}`,
+            ...(upstreamQuality && upstreamQuality !== requestedQuality
+              ? [`upstream_quality: ${upstreamQuality}`]
+              : []),
+            ...(requestPayload.preset ? [`preset: ${requestPayload.preset}`] : []),
             ...(videoUrl
               ? [`url: \`${videoUrl}\``, `[Open Video](${videoUrl})`]
               : []),
@@ -425,6 +456,7 @@ export const useApiRequest = (
       setMessage,
       t,
       extractVideoUrl,
+      formatVideoQuality,
       applyAutoCollapseLogic,
     ],
   );
