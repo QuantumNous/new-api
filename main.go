@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/metrics"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
@@ -167,6 +168,7 @@ func main() {
 	server.Use(middleware.RequestId())
 	server.Use(middleware.PoweredBy())
 	server.Use(middleware.I18n())
+	server.Use(metrics.HTTPMiddleware())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
