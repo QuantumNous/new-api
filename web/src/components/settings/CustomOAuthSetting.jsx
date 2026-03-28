@@ -644,10 +644,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         delete payload.ticket_exchange_service_field;
         delete payload.ticket_exchange_extra_params;
         delete payload.ticket_exchange_headers;
-        delete payload.user_id_field;
-        delete payload.username_field;
-        delete payload.display_name_field;
-        delete payload.email_field;
       }
       if (providerKind !== 'trusted_header') {
         delete payload.trusted_proxy_cidrs;
@@ -657,6 +653,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         delete payload.email_header;
         delete payload.group_header;
         delete payload.role_header;
+      } else {
+        delete payload.user_id_field;
+        delete payload.username_field;
+        delete payload.display_name_field;
+        delete payload.email_field;
       }
       if (!usesMappedRoleGroup) {
         delete payload.group_field;
@@ -865,7 +866,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const applyDeniedTemplate = (templateKey) => {
     const template = ACCESS_DENIED_TEMPLATES[templateKey];
     if (!template) return;
-    mergeFormValues({ access_denied_message: template });
+    mergeFormValues({ access_denied_message: t(template) });
     showSuccess(t('已填充提示模板'));
   };
 
@@ -1887,6 +1888,10 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                 ? t(
                     '配置如何从用户信息端点返回的 JSON 中提取用户数据，支持 gjson 路径语法',
                   )
+                : isJWTTicketValidateMode
+                  ? t(
+                      '配置如何从票据校验响应中提取用户数据，支持 gjson 路径语法，例如 authenticationSuccess.attributes.mailbox',
+                    )
                 : isJWTDirect
                   ? t(
                       '配置如何从 JWT claims 中提取用户数据，支持 gjson 路径语法',
@@ -2025,7 +2030,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
                       rows={4}
                       placeholder={`{
   "platform-admin": "admin",
-  "member": "user"
+  "member": "common"
 }`}
                     />
                   </Col>

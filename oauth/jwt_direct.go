@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,6 +55,15 @@ type jwkKey struct {
 	X   string `json:"x"`
 	Y   string `json:"y"`
 }
+
+type jwksCacheEntry struct {
+	doc       jwksDocument
+	expiresAt time.Time
+}
+
+var jwtDirectJWKSCache sync.Map
+
+const jwtDirectJWKSTTL = 5 * time.Minute
 
 type casServiceResponseEnvelope struct {
 	XMLName               xml.Name                  `xml:"serviceResponse"`
@@ -475,7 +485,7 @@ func (p *JWTDirectProvider) resolveVerificationKey(ctx context.Context, token *j
 	if strings.TrimSpace(p.config.JwksURL) == "" {
 		return nil, errors.New("jwt verification key is not configured")
 	}
-	return fetchJWKSKey(ctx, p.config.JwksURL, token)
+	return fetchCachedJWKSKey(ctx, p.config.JwksURL, token)
 }
 
 func normalizeJWTToken(raw string) string {
@@ -527,6 +537,10 @@ func extractExchangedToken(body []byte, tokenField string, allowOpaque bool) str
 	for _, candidate := range candidates {
 		result := gjson.GetBytes(body, candidate)
 		if result.Exists() {
+			raw := strings.TrimSpace(result.Raw)
+			if strings.HasPrefix(raw, "{") || strings.HasPrefix(raw, "[") {
+				continue
+			}
 			value := normalizeJWTToken(result.String())
 			if looksLikeJWT(value) || (allowOpaque && value != "") {
 				return value
@@ -535,14 +549,26 @@ func extractExchangedToken(body []byte, tokenField string, allowOpaque bool) str
 	}
 
 	trimmed := normalizeJWTToken(string(bytes.TrimSpace(body)))
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		trimmed = ""
+	}
 	if looksLikeJWT(trimmed) || (allowOpaque && trimmed != "") {
 		return trimmed
 	}
 
 	var payload any
 	if err := common.Unmarshal(body, &payload); err == nil {
-		if str, ok := payload.(string); ok {
-			value := normalizeJWTToken(str)
+		var scalar string
+		switch v := payload.(type) {
+		case string:
+			scalar = v
+		case bool:
+			scalar = fmt.Sprintf("%t", v)
+		case float64:
+			scalar = fmt.Sprintf("%v", v)
+		}
+		if scalar != "" {
+			value := normalizeJWTToken(scalar)
 			if looksLikeJWT(value) || (allowOpaque && value != "") {
 				return value
 			}
@@ -721,7 +747,38 @@ func parsePEMPublicKey(raw string) (any, error) {
 	return nil, errors.New("unsupported public key format")
 }
 
-func fetchJWKSKey(ctx context.Context, jwksURL string, token *jwt.Token) (any, error) {
+func fetchCachedJWKSKey(ctx context.Context, jwksURL string, token *jwt.Token) (any, error) {
+	doc, err := fetchCachedJWKSDocument(ctx, jwksURL)
+	if err != nil {
+		return nil, err
+	}
+	selected, err := selectJWK(doc.Keys, token)
+	if err != nil {
+		return nil, err
+	}
+	return jwkToPublicKey(selected)
+}
+
+func fetchCachedJWKSDocument(ctx context.Context, jwksURL string) (*jwksDocument, error) {
+	if cached, ok := jwtDirectJWKSCache.Load(jwksURL); ok {
+		entry := cached.(jwksCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			return &entry.doc, nil
+		}
+	}
+
+	doc, err := fetchJWKSDocument(ctx, jwksURL)
+	if err != nil {
+		return nil, err
+	}
+	jwtDirectJWKSCache.Store(jwksURL, jwksCacheEntry{
+		doc:       *doc,
+		expiresAt: time.Now().Add(jwtDirectJWKSTTL),
+	})
+	return doc, nil
+}
+
+func fetchJWKSDocument(ctx context.Context, jwksURL string) (*jwksDocument, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
 	if err != nil {
 		return nil, err
@@ -746,12 +803,7 @@ func fetchJWKSKey(ctx context.Context, jwksURL string, token *jwt.Token) (any, e
 	if len(doc.Keys) == 0 {
 		return nil, errors.New("jwks document has no keys")
 	}
-
-	selected, err := selectJWK(doc.Keys, token)
-	if err != nil {
-		return nil, err
-	}
-	return jwkToPublicKey(selected)
+	return &doc, nil
 }
 
 func selectJWK(keys []jwkKey, token *jwt.Token) (*jwkKey, error) {

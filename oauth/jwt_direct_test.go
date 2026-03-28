@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -367,8 +368,11 @@ func TestJWTDirectResolveIdentityRejectsGuestRoleTargets(t *testing.T) {
 
 func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	privateKey := mustGenerateRSAPrivateKey(t)
+	jwtDirectJWKSCache = sync.Map{}
+	requestCount := 0
 	handlerErrors := newAsyncHandlerErrors()
 	jwksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
 		payload, err := common.Marshal(map[string]any{
 			"keys": []map[string]any{
 				{
@@ -414,6 +418,26 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	}
 	if identity.User.ProviderUserID != "external-user-3" {
 		t.Fatalf("unexpected provider user id: %s", identity.User.ProviderUserID)
+	}
+
+	cachedIdentity, err := provider.ResolveIdentity(context.Background(), token)
+	handlerErrors.check(t)
+	if err != nil {
+		t.Fatalf("expected cached jwks validation to succeed, got error: %v", err)
+	}
+	if cachedIdentity.User.ProviderUserID != "external-user-3" {
+		t.Fatalf("unexpected cached provider user id: %s", cachedIdentity.User.ProviderUserID)
+	}
+	if requestCount != 1 {
+		t.Fatalf("expected jwks endpoint to be fetched once, got %d", requestCount)
+	}
+}
+
+func TestExtractExchangedTokenSkipsObjectFallbackForOpaqueToken(t *testing.T) {
+	body := []byte(`{"data":{"accessToken":"opaque-token"}}`)
+	token := extractExchangedToken(body, "", true)
+	if token != "" {
+		t.Fatalf("expected object fallback to be ignored, got %q", token)
 	}
 }
 

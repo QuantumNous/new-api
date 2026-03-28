@@ -453,12 +453,11 @@ export async function onCustomOAuthClicked(provider, options = {}) {
           };
         } catch (error) {
           console.error('Failed to refresh trusted header bind session user:', error);
-          return {
-            action: 'bind',
-            userFetchFailed: true,
-            userFetchErrorMessage:
-              error?.response?.data?.message || error?.message || i18n.t('未知错误'),
-          };
+          throw new Error(
+            error?.response?.data?.message ||
+              error?.message ||
+              i18n.t('获取当前登录态失败'),
+          );
         }
       }
       return {

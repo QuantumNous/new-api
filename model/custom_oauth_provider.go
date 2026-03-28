@@ -190,16 +190,16 @@ func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
 		return false
 	}
 	if p.IsOAuthCode() {
-		return strings.TrimSpace(p.AuthorizationEndpoint) != "" && strings.TrimSpace(p.ClientId) != ""
+		return isValidAbsoluteHTTPURL(p.AuthorizationEndpoint) && strings.TrimSpace(p.ClientId) != ""
 	}
 	if p.IsJWTDirect() {
 		if p.GetJWTIdentityMode() == CustomJWTIdentityModeUserInfo && !p.RequiresTicketAcquire() {
 			return false
 		}
 		if p.RequiresTicketAcquire() {
-			return strings.TrimSpace(p.AuthorizationEndpoint) != ""
+			return isValidAbsoluteHTTPURL(p.AuthorizationEndpoint)
 		}
-		return strings.TrimSpace(p.AuthorizationEndpoint) != "" &&
+		return isValidAbsoluteHTTPURL(p.AuthorizationEndpoint) &&
 			strings.TrimSpace(p.ClientId) != "" &&
 			p.JWTSource != CustomJWTSourceBody
 	}

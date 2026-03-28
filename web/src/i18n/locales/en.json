@@ -3651,6 +3651,9 @@
     "可信代理与身份头": "Trusted Proxies and Identity Headers",
     "可信 Header 模式直接读取代理注入的 Header，不使用 JSON 路径字段映射": "Trusted Header mode reads identity directly from proxy-injected headers and does not use JSON-path field mapping",
     "可信 Header SSO 仅信任来自指定代理网段的请求，并从代理注入的 Header 中提取身份、映射权限并建立本地会话": "Trusted Header SSO only trusts requests from configured proxy CIDRs, extracts identity from proxy-injected headers, maps permissions, and establishes local sessions",
-    "配置如何从用户信息端点返回的 JSON 中提取用户数据，支持 gjson 路径语法": "Configure how to extract user data from the JSON returned by the userinfo endpoint, using gjson path syntax"
+    "配置如何从用户信息端点返回的 JSON 中提取用户数据，支持 gjson 路径语法": "Configure how to extract user data from the JSON returned by the userinfo endpoint, using gjson path syntax",
+    "配置如何从票据校验响应中提取用户数据，支持 gjson 路径语法，例如 authenticationSuccess.attributes.mailbox": "Configure how to extract user data from the ticket validation response using gjson path syntax, for example authenticationSuccess.attributes.mailbox",
+    "需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）": "Required level {{required}}, your current level is {{current}} (field: {{field}})",
+    "仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}": "Access is limited to the specified organization or role. Organization={{current.org}}, role={{current.roles}}"
   }
 }
