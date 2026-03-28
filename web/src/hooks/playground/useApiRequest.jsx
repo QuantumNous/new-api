@@ -306,12 +306,40 @@ export const useApiRequest = (
           data.object === 'video' ||
           data.task_id
         ) {
-          const summary = [
-            `${t('视频任务已创建')}`,
-            `task_id: ${data.task_id || data.id || '-'}`,
-            `status: ${data.status || '-'}`,
-            `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
-            `size: ${data.size || requestPayload.size || '-'}`,
+if (
+  endpoint === API_ENDPOINTS.VIDEO_GENERATIONS ||
+  data.object === 'video' ||
+  data.task_id
+) {
+  const taskId = data.task_id || data.id || '';
+  const fallbackVideoURL = taskId
+    ? `${window.location.origin}/v1/videos/${taskId}/content`
+    : '';
+  const videoURL = data.url || data.video_url || fallbackVideoURL;
+  const summary = [
+    `${t('视频任务已创建')}`,
+    `task_id: ${taskId || '-'}`,
+    `status: ${data.status || '-'}`,
+    `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
+    `size: ${data.size || requestPayload.size || '-'}`,
+    ...(videoURL ? [`video_url: ${videoURL}`] : []),
+  ].join('\n');
+  setMessage((prevMessage) => {
+    const newMessages = [...prevMessage];
+    const lastMessage = newMessages[newMessages.length - 1];
+    if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+      const autoCollapseState = applyAutoCollapseLogic(lastMessage, true);
+      newMessages[newMessages.length - 1] = {
+        ...lastMessage,
+        content: summary,
+        status: MESSAGE_STATUS.COMPLETE,
+        ...autoCollapseState,
+      };
+    }
+    return newMessages;
+  });
+  return;
+}
           ].join('\n');
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
