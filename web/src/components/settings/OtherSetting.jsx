@@ -214,7 +214,11 @@ const OtherSetting = () => {
       if (key === 'RouteManagerURL') {
         const nextRouteManagerURL = inputs[key] || '';
         setPersistedRouteManagerURL(nextRouteManagerURL);
-        await checkRouteManagerHubStatusWithFeedback(false, nextRouteManagerURL);
+        await checkRouteManagerHubStatusWithFeedback(
+          false,
+          nextRouteManagerURL,
+          true,
+        );
       }
       showSuccess(
         key === 'RouteManagerURL'
@@ -289,6 +293,7 @@ const OtherSetting = () => {
   const checkRouteManagerHubStatusWithFeedback = async (
     notify = true,
     pendingRouteManagerURL = '',
+    respectExplicitEmptyRouteManagerURL = false,
   ) => {
     try {
       setLoadingInput((loadingInput) => ({
@@ -320,6 +325,7 @@ const OtherSetting = () => {
           routeManagerURL: persistedRouteManagerURL,
           pendingRouteManagerURL,
           fallbackStatus: getSavedStatusSnapshot(),
+          respectExplicitEmptyRouteManagerURL,
         }),
       );
       setHubStatus(fallbackStatus);

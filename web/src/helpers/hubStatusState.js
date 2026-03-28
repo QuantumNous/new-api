@@ -32,6 +32,7 @@ export function buildRouteManagerHubCheckFallbackStatus({
   routeManagerURL = '',
   pendingRouteManagerURL = '',
   fallbackStatus = null,
+  respectExplicitEmptyRouteManagerURL = false,
 } = {}) {
   const normalizedRouteManagerURL =
     typeof routeManagerURL === 'string' ? routeManagerURL.trim() : '';
@@ -39,6 +40,18 @@ export function buildRouteManagerHubCheckFallbackStatus({
     typeof pendingRouteManagerURL === 'string'
       ? pendingRouteManagerURL.trim()
       : '';
+
+  if (
+    respectExplicitEmptyRouteManagerURL &&
+    normalizedRouteManagerURL.length === 0 &&
+    normalizedPendingRouteManagerURL.length === 0
+  ) {
+    return {
+      configured: false,
+      reachable: false,
+      source: 'sync-fallback',
+    };
+  }
 
   return {
     configured:

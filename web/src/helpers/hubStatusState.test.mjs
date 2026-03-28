@@ -139,4 +139,30 @@ describe('buildRouteManagerHubCheckFallbackStatus', () => {
       source: 'sync-fallback',
     });
   });
+
+  test('treats an explicitly cleared Route Manager URL as unconfigured', () => {
+    expect(
+      buildRouteManagerHubCheckFallbackStatus({
+        routeManagerURL: '',
+        pendingRouteManagerURL: '',
+        respectExplicitEmptyRouteManagerURL: true,
+        currentStatus: {
+          hub_status: {
+            configured: true,
+            reachable: true,
+          },
+        },
+        fallbackStatus: {
+          hub_status: {
+            configured: true,
+            reachable: true,
+          },
+        },
+      }),
+    ).toEqual({
+      configured: false,
+      reachable: false,
+      source: 'sync-fallback',
+    });
+  });
 });
