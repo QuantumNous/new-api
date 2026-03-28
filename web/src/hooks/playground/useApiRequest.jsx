@@ -42,11 +42,7 @@ export const useApiRequest = (
   const { t } = useTranslation();
   const isVideoGenerationPayload = useCallback((payload) => {
     const model = payload?.model;
-    return (
-      typeof model === 'string' &&
-      model.includes('video') &&
-      (!!payload?.seconds || !!payload?.size || !!payload?.quality)
-    );
+    return typeof model === 'string' && model.includes('video');
   }, []);
 
   const getTextFromMessageContent = useCallback((content) => {
