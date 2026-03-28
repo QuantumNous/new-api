@@ -52,6 +52,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       log: true,
       midjourney: true,
       task: true,
+      hub: true,
     },
     personal: {
       enabled: true,
@@ -113,6 +114,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         log: true,
         midjourney: true,
         task: true,
+        hub: true,
       },
       personal: {
         enabled: true,
@@ -174,7 +176,41 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin({
+          chat: {
+            enabled: true,
+            playground: true,
+            chat: true,
+            ...(modules.chat || {}),
+          },
+          console: {
+            enabled: true,
+            detail: true,
+            token: true,
+            log: true,
+            midjourney: true,
+            task: true,
+            hub: true,
+            ...(modules.console || {}),
+          },
+          personal: {
+            enabled: true,
+            topup: true,
+            personal: true,
+            ...(modules.personal || {}),
+          },
+          admin: {
+            enabled: true,
+            channel: true,
+            models: true,
+            deployment: true,
+            redemption: true,
+            user: true,
+            subscription: true,
+            setting: true,
+            ...(modules.admin || {}),
+          },
+        });
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -186,6 +222,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             log: true,
             midjourney: true,
             task: true,
+            hub: true,
           },
           personal: { enabled: true, topup: true, personal: true },
           admin: {
@@ -233,6 +270,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           description: t('绘图任务记录'),
         },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+        {
+          key: 'hub',
+          title: t('家域中枢'),
+          description: t('打开家庭管理控制系统'),
+        },
       ],
     },
     {
@@ -382,7 +424,8 @@ export default function SettingsSidebarModulesAdmin(props) {
                       <div style={{ marginLeft: '16px' }}>
                         <Switch
                           checked={
-                            sidebarModulesAdmin[section.key]?.[module.key]
+                            sidebarModulesAdmin[section.key]?.[module.key] !==
+                            false
                           }
                           onChange={handleModuleChange(section.key, module.key)}
                           size='default'

@@ -26,6 +26,42 @@ import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
 import { useMinimumLoadingTime } from '../common/useMinimumLoadingTime';
 
+const createEmptyHubSummary = () => ({
+  onlineNodes: 0,
+  busyNodes: 0,
+  pendingTasks: 0,
+  activeSchedules: 0,
+  criticalAlerts: 0,
+  unacknowledgedAlerts: 0,
+  ai: {
+    modelCount: 0,
+    aiCapableNodes: 0,
+    onlineAINodes: 0,
+  },
+  network: {
+    mihomoConfigured: false,
+    mihomoReachable: false,
+    dnsConfigured: false,
+    dnsReachable: false,
+    dnsProtectionEnabled: false,
+    egressIP: '',
+    egressRegion: '',
+    egressISP: '',
+    egressSource: '',
+  },
+  homeAssistant: {
+    configured: false,
+    reachable: false,
+    entityCount: 0,
+  },
+  primaryNode: {
+    nodeID: '',
+    hostname: '',
+    status: '',
+    ipAddress: '',
+  },
+});
+
 export const useDashboardData = (userState, userDispatch, statusState) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,6 +116,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const [uptimeData, setUptimeData] = useState([]);
   const [uptimeLoading, setUptimeLoading] = useState(false);
   const [activeUptimeTab, setActiveUptimeTab] = useState('');
+  const [hubNodes, setHubNodes] = useState([]);
+  const [hubSchedules, setHubSchedules] = useState([]);
+  const [hubTasks, setHubTasks] = useState([]);
+  const [hubAlerts, setHubAlerts] = useState([]);
+  const [hubSummary, setHubSummary] = useState(() => createEmptyHubSummary());
+  const [hubLoading, setHubLoading] = useState(false);
+  const [hubError, setHubError] = useState('');
 
   // ========== 常量 ==========
   const now = new Date();
@@ -91,6 +134,8 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     statusState?.status?.announcements_enabled ?? true;
   const faqEnabled = statusState?.status?.faq_enabled ?? true;
   const uptimeEnabled = statusState?.status?.uptime_kuma_enabled ?? true;
+  const hubConfigured = statusState?.status?.hub_status?.configured ?? false;
+  const hubReachable = statusState?.status?.hub_status?.reachable ?? false;
 
   const hasApiInfoPanel = apiInfoEnabled;
   const hasInfoPanels = announcementsEnabled || faqEnabled || uptimeEnabled;
@@ -115,9 +160,34 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     const avgTPM = isNaN(consumeTokens / timeDiff)
       ? '0'
       : (consumeTokens / timeDiff).toFixed(3);
+    const totalPromptTokens = quotaData.reduce(
+      (sum, item) => sum + Number(item.prompt_token_used || 0),
+      0,
+    );
+    const totalCachedTokens = quotaData.reduce(
+      (sum, item) => sum + Number(item.cached_token_used || 0),
+      0,
+    );
+    const cacheHitRate =
+      totalPromptTokens > 0
+        ? `${((totalCachedTokens / totalPromptTokens) * 100).toFixed(2)}%`
+        : '0.00%';
 
-    return { avgRPM, avgTPM, timeDiff };
-  }, [times, consumeTokens, inputs.start_timestamp, inputs.end_timestamp]);
+    return {
+      avgRPM,
+      avgTPM,
+      timeDiff,
+      totalPromptTokens,
+      totalCachedTokens,
+      cacheHitRate,
+    };
+  }, [
+    times,
+    consumeTokens,
+    quotaData,
+    inputs.start_timestamp,
+    inputs.end_timestamp,
+  ]);
 
   const getGreeting = useMemo(() => {
     const hours = new Date().getHours();
@@ -213,6 +283,125 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
   }, [activeUptimeTab]);
 
+  const loadHubData = useCallback(async () => {
+    if (!hubConfigured || !hubReachable) {
+      setHubNodes([]);
+      setHubSchedules([]);
+      setHubTasks([]);
+      setHubAlerts([]);
+      setHubSummary(createEmptyHubSummary());
+      setHubError('');
+      return;
+    }
+
+    setHubLoading(true);
+    try {
+      const summaryRes = await API.get('/hub/api/dashboard/summary', {
+        skipErrorHandler: true,
+      });
+
+      if (summaryRes.data?.success) {
+        setHubSummary({
+          onlineNodes: Number(summaryRes.data?.data?.online_nodes || 0),
+          busyNodes: Number(summaryRes.data?.data?.busy_nodes || 0),
+          pendingTasks: Number(summaryRes.data?.data?.pending_tasks || 0),
+          activeSchedules: Number(summaryRes.data?.data?.active_schedules || 0),
+          criticalAlerts: Number(summaryRes.data?.data?.critical_alerts || 0),
+          unacknowledgedAlerts: Number(
+            summaryRes.data?.data?.unacknowledged_alerts || 0,
+          ),
+          ai: {
+            modelCount: Number(summaryRes.data?.data?.ai?.model_count || 0),
+            aiCapableNodes: Number(
+              summaryRes.data?.data?.ai?.ai_capable_nodes || 0,
+            ),
+            onlineAINodes: Number(
+              summaryRes.data?.data?.ai?.online_ai_nodes || 0,
+            ),
+          },
+          network: {
+            mihomoConfigured: Boolean(
+              summaryRes.data?.data?.network?.mihomo_configured,
+            ),
+            mihomoReachable: Boolean(
+              summaryRes.data?.data?.network?.mihomo_reachable,
+            ),
+            dnsConfigured: Boolean(
+              summaryRes.data?.data?.network?.dns_configured,
+            ),
+            dnsReachable: Boolean(
+              summaryRes.data?.data?.network?.dns_reachable,
+            ),
+            dnsProtectionEnabled: Boolean(
+              summaryRes.data?.data?.network?.dns_protection_enabled,
+            ),
+            egressIP: summaryRes.data?.data?.network?.egress_ip || '',
+            egressRegion:
+              summaryRes.data?.data?.network?.egress_region || '',
+            egressISP: summaryRes.data?.data?.network?.egress_isp || '',
+            egressSource:
+              summaryRes.data?.data?.network?.egress_source || '',
+          },
+          homeAssistant: {
+            configured: Boolean(
+              summaryRes.data?.data?.home_assistant?.configured,
+            ),
+            reachable: Boolean(
+              summaryRes.data?.data?.home_assistant?.reachable,
+            ),
+            entityCount: Number(
+              summaryRes.data?.data?.home_assistant?.entity_count || 0,
+            ),
+          },
+          primaryNode: {
+            nodeID: summaryRes.data?.data?.primary_node?.node_id || '',
+            hostname: summaryRes.data?.data?.primary_node?.hostname || '',
+            status: summaryRes.data?.data?.primary_node?.status || '',
+            ipAddress: summaryRes.data?.data?.primary_node?.ip_address || '',
+          },
+        });
+        setHubNodes(
+          Array.isArray(summaryRes.data?.data?.nodes)
+            ? summaryRes.data.data.nodes
+            : [],
+        );
+        setHubSchedules(
+          Array.isArray(summaryRes.data?.data?.schedules)
+            ? summaryRes.data.data.schedules
+            : [],
+        );
+        setHubTasks(
+          Array.isArray(summaryRes.data?.data?.tasks)
+            ? summaryRes.data.data.tasks
+            : [],
+        );
+        setHubAlerts(
+          Array.isArray(summaryRes.data?.data?.alerts)
+            ? summaryRes.data.data.alerts
+            : [],
+        );
+      } else {
+        setHubSummary(createEmptyHubSummary());
+        setHubNodes([]);
+        setHubSchedules([]);
+        setHubTasks([]);
+        setHubAlerts([]);
+      }
+
+      setHubError('');
+    } catch (error) {
+      console.error('加载家域中枢摘要失败', error);
+      setHubSummary(createEmptyHubSummary());
+      setHubNodes([]);
+      setHubSchedules([]);
+      setHubTasks([]);
+      setHubAlerts([]);
+      setHubError(t('家域中枢摘要加载失败，请稍后重试'));
+    } finally {
+      setHubLoading(false);
+    }
+  }, [hubConfigured, hubReachable, t]);
+
   const getUserData = useCallback(async () => {
     let res = await API.get(`/api/user/self`);
     const { success, message, data } = res.data;
@@ -225,9 +414,9 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const refresh = useCallback(async () => {
     const data = await loadQuotaData();
-    await loadUptimeData();
+    await Promise.all([loadUptimeData(), loadHubData()]);
     return data;
-  }, [loadQuotaData, loadUptimeData]);
+  }, [loadQuotaData, loadUptimeData, loadHubData]);
 
   const handleSearchConfirm = useCallback(
     async (updateChartDataCallback) => {
@@ -293,6 +482,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     uptimeLoading,
     activeUptimeTab,
     setActiveUptimeTab,
+    hubNodes,
+    hubSchedules,
+    hubTasks,
+    hubAlerts,
+    hubSummary,
+    hubLoading,
+    hubError,
 
     // 计算值
     timeOptions,
@@ -312,6 +508,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     handleCloseModal,
     loadQuotaData,
     loadUptimeData,
+    loadHubData,
     getUserData,
     refresh,
     handleSearchConfirm,

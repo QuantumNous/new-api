@@ -28,7 +28,21 @@ import {
   Space,
   Card,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import {
+  API,
+  buildRouteManagerHubCheckFallbackStatus,
+  buildStatusSnapshotWithClearedHubStatus,
+  buildStatusSnapshotWithHubStatus,
+  formatRouteManagerHubStatus,
+  getOptionUpdateErrorMessage,
+  getRouteManagerHubStatusBanner,
+  mergeRouteManagerHubStatusBanner,
+  ensureOptionUpdateSucceeded,
+  setStatusData,
+  showError,
+  showSuccess,
+  timestamp2string,
+} from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
@@ -48,7 +62,10 @@ const OtherSetting = () => {
     Footer: '',
     About: '',
     HomePageContent: '',
+    RouteManagerURL: '',
   });
+  const [persistedRouteManagerURL, setPersistedRouteManagerURL] = useState('');
+  const [hubStatus, setHubStatus] = useState(null);
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
@@ -59,17 +76,17 @@ const OtherSetting = () => {
 
   const updateOption = async (key, value) => {
     setLoading(true);
-    const res = await API.put('/api/option/', {
-      key,
-      value,
-    });
-    const { success, message } = res.data;
-    if (success) {
+    try {
+      const res = await API.put('/api/option/', {
+        key,
+        value,
+      });
+
+      ensureOptionUpdateSucceeded(res.data);
       setInputs((inputs) => ({ ...inputs, [key]: value }));
-    } else {
-      showError(message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const [loadingInput, setLoadingInput] = useState({
@@ -79,10 +96,19 @@ const OtherSetting = () => {
     SystemName: false,
     Logo: false,
     HomePageContent: false,
+    RouteManagerURL: false,
+    RouteManagerHubStatus: false,
     About: false,
     Footer: false,
     CheckUpdate: false,
   });
+
+  const reportOptionUpdateError = (error, fallbackMessage) => {
+    const message = getOptionUpdateErrorMessage(error, fallbackMessage);
+    console.error(message, error);
+    showError(message);
+  };
+
   const handleInputChange = async (value, e) => {
     const name = e.target.id;
     setInputs((inputs) => ({ ...inputs, [name]: value }));
@@ -97,8 +123,7 @@ const OtherSetting = () => {
       await updateOption('Notice', inputs.Notice);
       showSuccess(t('公告已更新'));
     } catch (error) {
-      console.error(t('公告更新失败'), error);
-      showError(t('公告更新失败'));
+      reportOptionUpdateError(error, t('公告更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
     }
@@ -116,8 +141,7 @@ const OtherSetting = () => {
       );
       showSuccess(t('用户协议已更新'));
     } catch (error) {
-      console.error(t('用户协议更新失败'), error);
-      showError(t('用户协议更新失败'));
+      reportOptionUpdateError(error, t('用户协议更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -138,8 +162,7 @@ const OtherSetting = () => {
       );
       showSuccess(t('隐私政策已更新'));
     } catch (error) {
-      console.error(t('隐私政策更新失败'), error);
-      showError(t('隐私政策更新失败'));
+      reportOptionUpdateError(error, t('隐私政策更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -159,8 +182,7 @@ const OtherSetting = () => {
       await updateOption('SystemName', inputs.SystemName);
       showSuccess(t('系统名称已更新'));
     } catch (error) {
-      console.error(t('系统名称更新失败'), error);
-      showError(t('系统名称更新失败'));
+      reportOptionUpdateError(error, t('系统名称更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -174,10 +196,9 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
       await updateOption('Logo', inputs.Logo);
-      showSuccess('Logo 已更新');
+      showSuccess(t('Logo 已更新'));
     } catch (error) {
-      console.error('Logo 更新失败', error);
-      showError('Logo 更新失败');
+      reportOptionUpdateError(error, t('Logo 更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
@@ -187,17 +208,30 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
-        HomePageContent: true,
+        [key]: true,
       }));
       await updateOption(key, inputs[key]);
-      showSuccess('首页内容已更新');
+      if (key === 'RouteManagerURL') {
+        const nextRouteManagerURL = inputs[key] || '';
+        setPersistedRouteManagerURL(nextRouteManagerURL);
+        await checkRouteManagerHubStatusWithFeedback(false, nextRouteManagerURL);
+      }
+      showSuccess(
+        key === 'RouteManagerURL'
+          ? t('Route Manager 地址已更新')
+          : t('首页内容已更新'),
+      );
     } catch (error) {
-      console.error('首页内容更新失败', error);
-      showError('首页内容更新失败');
+      reportOptionUpdateError(
+        error,
+        key === 'RouteManagerURL'
+          ? t('Route Manager 地址更新失败')
+          : t('首页内容更新失败'),
+      );
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
-        HomePageContent: false,
+        [key]: false,
       }));
     }
   };
@@ -206,23 +240,113 @@ const OtherSetting = () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: true }));
       await updateOption('About', inputs.About);
-      showSuccess('关于内容已更新');
+      showSuccess(t('关于内容已更新'));
     } catch (error) {
-      console.error('关于内容更新失败', error);
-      showError('关于内容更新失败');
+      reportOptionUpdateError(error, t('关于内容更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: false }));
     }
+  };
+
+  const getSavedStatusSnapshot = () => {
+    const savedStatus = localStorage.getItem('status');
+
+    if (!savedStatus) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(savedStatus);
+    } catch (error) {
+      console.error('解析本地状态缓存失败', error);
+      return null;
+    }
+  };
+
+  const syncGlobalHubStatus = (nextHubStatus, options = {}) => {
+    const { clear = false } = options;
+    const savedStatusSnapshot = getSavedStatusSnapshot();
+
+    const nextStatusSnapshot = clear
+      ? buildStatusSnapshotWithClearedHubStatus(
+          statusState?.status,
+          savedStatusSnapshot,
+        )
+      : buildStatusSnapshotWithHubStatus(
+          statusState?.status,
+          nextHubStatus,
+          savedStatusSnapshot,
+        );
+
+    if (!nextStatusSnapshot) {
+      return;
+    }
+
+    statusDispatch({ type: 'set', payload: nextStatusSnapshot });
+    setStatusData(nextStatusSnapshot);
+  };
+
+  const checkRouteManagerHubStatusWithFeedback = async (
+    notify = true,
+    pendingRouteManagerURL = '',
+  ) => {
+    try {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        RouteManagerHubStatus: true,
+      }));
+      const res = await API.get('/api/hub/status');
+      syncGlobalHubStatus(res.data?.data || null);
+      const nextStatus = formatRouteManagerHubStatus(res.data?.data, t);
+      setHubStatus(nextStatus);
+      if (!notify) {
+        return nextStatus;
+      }
+      if (nextStatus.tone === 'success') {
+        showSuccess(nextStatus.message);
+      } else {
+        showError(nextStatus.message);
+      }
+      return nextStatus;
+    } catch (error) {
+      const fallbackStatus = {
+        tone: 'danger',
+        message: t('Route Manager 状态检查失败'),
+        source: 'manual-check',
+      };
+      syncGlobalHubStatus(
+        buildRouteManagerHubCheckFallbackStatus({
+          currentStatus: statusState?.status,
+          routeManagerURL: persistedRouteManagerURL,
+          pendingRouteManagerURL,
+          fallbackStatus: getSavedStatusSnapshot(),
+        }),
+      );
+      setHubStatus(fallbackStatus);
+      console.error(t('Route Manager 状态检查失败'), error);
+      if (notify) {
+        showError(fallbackStatus.message);
+      }
+      return fallbackStatus;
+    } finally {
+      setLoadingInput((loadingInput) => ({
+        ...loadingInput,
+        RouteManagerHubStatus: false,
+      }));
+    }
+  };
+
+  const checkRouteManagerHubStatus = async () => {
+    return checkRouteManagerHubStatusWithFeedback(true);
   };
   // 个性化设置 - 页脚
   const submitFooter = async () => {
     try {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: true }));
       await updateOption('Footer', inputs.Footer);
-      showSuccess('页脚内容已更新');
+      showSuccess(t('页脚内容已更新'));
     } catch (error) {
-      console.error('页脚内容更新失败', error);
-      showError('页脚内容更新失败');
+      reportOptionUpdateError(error, t('页脚内容更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: false }));
     }
@@ -289,6 +413,7 @@ const OtherSetting = () => {
         }
       });
       setInputs(newInputs);
+      setPersistedRouteManagerURL(newInputs.RouteManagerURL || '');
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
     } else {
@@ -299,6 +424,19 @@ const OtherSetting = () => {
   useEffect(() => {
     getOptions();
   }, []);
+
+  useEffect(() => {
+    const savedStatusSnapshot = getSavedStatusSnapshot();
+
+    const nextHubStatus = getRouteManagerHubStatusBanner(
+      statusState?.status,
+      t,
+      savedStatusSnapshot,
+    );
+    setHubStatus((currentHubStatus) =>
+      mergeRouteManagerHubStatusBanner(currentHubStatus, nextHubStatus),
+    );
+  }, [statusState?.status, t]);
 
   // Function to open GitHub release page
   const openGitHubRelease = () => {
@@ -444,10 +582,36 @@ const OtherSetting = () => {
               <Button onClick={submitLogo} loading={loadingInput['Logo']}>
                 {t('设置 Logo')}
               </Button>
+              <Form.Input
+                label={t('Route Manager 地址')}
+                placeholder='http://route-manager-shadow:19080'
+                field={'RouteManagerURL'}
+                onChange={handleInputChange}
+              />
+              <Button
+                onClick={() => submitOption('RouteManagerURL')}
+                loading={loadingInput['RouteManagerURL']}
+              >
+                {t('设置 Route Manager 地址')}
+              </Button>
+              <Button
+                onClick={checkRouteManagerHubStatus}
+                loading={loadingInput['RouteManagerHubStatus']}
+              >
+                {t('检查 Hub 连通性')}
+              </Button>
+              {hubStatus ? (
+                <Banner
+                  fullMode={false}
+                  type={hubStatus.tone === 'success' ? 'success' : hubStatus.tone === 'warning' ? 'warning' : 'danger'}
+                  description={hubStatus.message}
+                  closeIcon={null}
+                />
+              ) : null}
               <Form.TextArea
                 label={t('首页内容')}
                 placeholder={t(
-                  '在此输入首页内容，支持 Markdown & HTML 代码，设置后首页的状态信息将不再显示。如果输入的是一个链接，则会使用该链接作为 iframe 的 src 属性，这允许你设置任意网页作为首页',
+                  '在此输入首页内容，支持 Markdown & HTML 代码。设置后默认首页状态信息将不再显示；如果输入的是一个链接，则会使用该链接作为 iframe 的 src 属性，这允许你设置任意网页作为首页。同源相对路径如 /hub/ 也可直接嵌入；当嵌入 /hub/ 时，主站仍会在 iframe 上方显示家域中枢摘要。',
                 )}
                 field={'HomePageContent'}
                 onChange={handleInputChange}

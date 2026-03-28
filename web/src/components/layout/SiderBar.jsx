@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
@@ -25,7 +25,14 @@ import { ChevronLeft } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { isAdmin, isRoot, showError } from '../../helpers';
+import {
+  getRouteManagerHubSidebarItems,
+  isAdmin,
+  isRoot,
+  showError,
+  shouldShowRouteManagerHubEntry,
+} from '../../helpers';
+import { StatusContext } from '../../context/Status';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
 import { Nav, Divider, Button } from '@douyinfe/semi-ui';
@@ -53,6 +60,7 @@ const routerMap = {
 
 const SiderBar = ({ onNavigate = () => {} }) => {
   const { t } = useTranslation();
+  const [statusState] = useContext(StatusContext);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
     isModuleVisible,
@@ -67,6 +75,23 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const routeManagerHubVisible = shouldShowRouteManagerHubEntry(
+    statusState?.status?.hub_status,
+  );
+  const routeManagerHubSidebarItems = useMemo(
+    () => getRouteManagerHubSidebarItems(t),
+    [t],
+  );
+  const fullReloadRouteMap = useMemo(
+    () =>
+      routeManagerHubVisible
+        ? routeManagerHubSidebarItems.reduce((result, item) => {
+            result[item.itemKey] = item.to;
+            return result;
+          }, {})
+        : {},
+    [routeManagerHubSidebarItems, routeManagerHubVisible],
+  );
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -105,6 +130,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
       },
+      {
+        text: t('家域中枢'),
+        itemKey: 'hub',
+        items: routeManagerHubSidebarItems,
+        className: routeManagerHubVisible ? '' : 'tableHiddle',
+      },
     ];
 
     // 根据配置过滤项目
@@ -118,6 +149,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     localStorage.getItem('enable_data_export'),
     localStorage.getItem('enable_drawing'),
     localStorage.getItem('enable_task'),
+    routeManagerHubVisible,
+    routeManagerHubSidebarItems,
     t,
     isModuleVisible,
   ]);
@@ -338,6 +371,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   // 渲染子菜单项
   const renderSubItem = (item) => {
+    if (item.className === 'tableHiddle') return null;
+
     if (item.items && item.items.length > 0) {
       const isSelected = selectedKeys.includes(item.itemKey);
       const textColor = isSelected ? SELECTED_COLOR : 'inherit';
@@ -361,6 +396,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           }
         >
           {item.items.map((subItem) => {
+            if (subItem.className === 'tableHiddle') return null;
+
             const isSubSelected = selectedKeys.includes(subItem.itemKey);
             const subTextColor = isSubSelected ? SELECTED_COLOR : 'inherit';
 
@@ -368,6 +405,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               <Nav.Item
                 key={subItem.itemKey}
                 itemKey={subItem.itemKey}
+                className={subItem.className}
                 text={
                   <span
                     className='truncate font-medium text-sm'
@@ -410,6 +448,19 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           hoverStyle='sidebar-nav-item:hover'
           selectedStyle='sidebar-nav-item-selected'
           renderWrapper={({ itemElement, props }) => {
+            const fullReloadHref = fullReloadRouteMap[props.itemKey];
+            if (fullReloadHref) {
+              return (
+                <a
+                  style={{ textDecoration: 'none' }}
+                  href={fullReloadHref}
+                  onClick={onNavigate}
+                >
+                  {itemElement}
+                </a>
+              );
+            }
+
             const to =
               routerMapState[props.itemKey] || routerMap[props.itemKey];
 
@@ -457,7 +508,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
                 {!collapsed && (
                   <div className='sidebar-group-label'>{t('控制台')}</div>
                 )}
-                {workspaceItems.map((item) => renderNavItem(item))}
+                {workspaceItems.map((item) => renderSubItem(item))}
               </div>
             </>
           )}

@@ -17,37 +17,57 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { API, showError } from '../../helpers';
-import { marked } from 'marked';
 import { Empty } from '@douyinfe/semi-ui';
 import {
   IllustrationConstruction,
   IllustrationConstructionDark,
 } from '@douyinfe/semi-illustrations';
 import { useTranslation } from 'react-i18next';
+import { useActualTheme } from '../../context/Theme';
+import { postIframeContext } from '../../helpers/iframeContext';
+import {
+  isEmbeddableAboutPageURL,
+  loadAboutPageContent,
+} from './aboutPageContent';
 
 const About = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [about, setAbout] = useState('');
   const [aboutLoaded, setAboutLoaded] = useState(false);
   const currentYear = new Date().getFullYear();
+  const actualTheme = useActualTheme();
+  const handleAboutIframeLoad = useCallback(
+    (event) => {
+      postIframeContext(event.currentTarget, {
+        themeMode: actualTheme,
+        lang: i18n.language,
+      });
+    },
+    [actualTheme, i18n.language],
+  );
 
   const displayAbout = async () => {
     setAbout(localStorage.getItem('about') || '');
-    const res = await API.get('/api/about');
-    const { success, message, data } = res.data;
-    if (success) {
-      let aboutContent = data;
-      if (!data.startsWith('https://')) {
-        aboutContent = marked.parse(data);
-      }
-      setAbout(aboutContent);
-      localStorage.setItem('about', aboutContent);
+
+    const fallbackContent = t('加载关于内容失败...');
+    const result = await loadAboutPageContent(
+      async () => {
+        const res = await API.get('/api/about');
+        return res.data;
+      },
+      fallbackContent,
+    );
+
+    setAbout(result.content);
+
+    if (result.shouldPersist) {
+      localStorage.setItem('about', result.content);
     } else {
-      showError(message);
-      setAbout(t('加载关于内容失败...'));
+      showError(result.errorMessage);
     }
+
     setAboutLoaded(true);
   };
 
@@ -153,10 +173,11 @@ const About = () => {
         </div>
       ) : (
         <>
-          {about.startsWith('https://') ? (
+          {isEmbeddableAboutPageURL(about) ? (
             <iframe
               src={about}
               style={{ width: '100%', height: '100vh', border: 'none' }}
+              onLoad={handleAboutIframeLoad}
             />
           ) : (
             <div

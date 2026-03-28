@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Button,
   Typography,
@@ -25,12 +25,31 @@ import {
   ScrollList,
   ScrollItem,
 } from '@douyinfe/semi-ui';
-import { API, showError, copy, showSuccess } from '../../helpers';
+import {
+  API,
+  buildRouteManagerHubDashboardSnapshot,
+  buildRouteManagerHubQuickHighlights,
+  formatRouteManagerHubStatus,
+  getRouteManagerHubAIFleetHref,
+  getRouteManagerHubDNSSecurityHref,
+  getRouteManagerHubEgressHref,
+  getRouteManagerHubHref,
+  getRouteManagerHubHomeAssistantEntitiesHref,
+  getRouteManagerHubNetworkPanelHref,
+  showError,
+  copy,
+  showSuccess,
+} from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
-import { marked } from 'marked';
+import {
+  isEmbeddableHomePageURL,
+  isRouteManagerHubHomePageURL,
+  loadHomePageContent,
+  postHomePageIframeContext,
+} from './homePageContent';
 import { useTranslation } from 'react-i18next';
 import {
   IconGithubLogo,
@@ -71,6 +90,10 @@ const Home = () => {
   const actualTheme = useActualTheme();
   const [homePageContentLoaded, setHomePageContentLoaded] = useState(false);
   const [homePageContent, setHomePageContent] = useState('');
+  const [embeddedHubSnapshot, setEmbeddedHubSnapshot] = useState(() =>
+    buildRouteManagerHubDashboardSnapshot(),
+  );
+  const [embeddedHubSummaryError, setEmbeddedHubSummaryError] = useState('');
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
@@ -80,33 +103,67 @@ const Home = () => {
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
+  const hubStatus = statusState?.status?.hub_status || null;
+  const formattedHubStatus = hubStatus
+    ? formatRouteManagerHubStatus(hubStatus, t)
+    : null;
+  const routeManagerHubHref = getRouteManagerHubHref();
+  const embeddedHubHighlights = buildRouteManagerHubQuickHighlights(
+    embeddedHubSnapshot,
+    t,
+  );
+  const embeddedHubQuickLinks = [
+    {
+      key: 'ai',
+      href: getRouteManagerHubAIFleetHref(),
+    },
+    {
+      key: 'network',
+      href: getRouteManagerHubNetworkPanelHref('mihomo'),
+    },
+    {
+      key: 'dns',
+      href: getRouteManagerHubDNSSecurityHref(),
+    },
+    {
+      key: 'egress',
+      href: getRouteManagerHubEgressHref(),
+    },
+    {
+      key: 'ha',
+      href: getRouteManagerHubHomeAssistantEntitiesHref(),
+    },
+  ];
+  const handleHomePageIframeLoad = useCallback(
+    (event) => {
+      postHomePageIframeContext(event.currentTarget, {
+        themeMode: actualTheme,
+        lang: i18n.language,
+      });
+    },
+    [actualTheme, i18n.language],
+  );
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
-    const res = await API.get('/api/home_page_content');
-    const { success, message, data } = res.data;
-    if (success) {
-      let content = data;
-      if (!data.startsWith('https://')) {
-        content = marked.parse(data);
-      }
-      setHomePageContent(content);
-      localStorage.setItem('home_page_content', content);
 
-      // 如果内容是 URL，则发送主题模式
-      if (data.startsWith('https://')) {
-        const iframe = document.querySelector('iframe');
-        if (iframe) {
-          iframe.onload = () => {
-            iframe.contentWindow.postMessage({ themeMode: actualTheme }, '*');
-            iframe.contentWindow.postMessage({ lang: i18n.language }, '*');
-          };
-        }
-      }
+    const fallbackContent = t('加载首页内容失败...');
+    const result = await loadHomePageContent(
+      async () => {
+        const res = await API.get('/api/home_page_content');
+        return res.data;
+      },
+      fallbackContent,
+    );
+
+    setHomePageContent(result.content);
+
+    if (result.shouldPersist) {
+      localStorage.setItem('home_page_content', result.content);
     } else {
-      showError(message);
-      setHomePageContent('加载首页内容失败...');
+      showError(result.errorMessage);
     }
+
     setHomePageContentLoaded(true);
   };
 
@@ -140,6 +197,59 @@ const Home = () => {
   useEffect(() => {
     displayHomePageContent().then();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEmbeddedHubSummary() {
+      if (
+        !isRouteManagerHubHomePageURL(homePageContent) ||
+        !hubStatus?.configured ||
+        !hubStatus?.reachable
+      ) {
+        if (active) {
+          setEmbeddedHubSnapshot(buildRouteManagerHubDashboardSnapshot());
+          setEmbeddedHubSummaryError('');
+        }
+        return;
+      }
+
+      try {
+        const res = await API.get('/hub/api/dashboard/summary', {
+          skipErrorHandler: true,
+        });
+
+        if (!active) {
+          return;
+        }
+
+        if (res.data?.success) {
+          setEmbeddedHubSnapshot(
+            buildRouteManagerHubDashboardSnapshot(res.data?.data || {}),
+          );
+          setEmbeddedHubSummaryError('');
+          return;
+        }
+
+        setEmbeddedHubSnapshot(buildRouteManagerHubDashboardSnapshot());
+        setEmbeddedHubSummaryError(t('家域中枢摘要加载失败，请稍后重试'));
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        console.error('加载首页家域中枢摘要失败', error);
+        setEmbeddedHubSnapshot(buildRouteManagerHubDashboardSnapshot());
+        setEmbeddedHubSummaryError(t('家域中枢摘要加载失败，请稍后重试'));
+      }
+    }
+
+    void loadEmbeddedHubSummary();
+
+    return () => {
+      active = false;
+    };
+  }, [homePageContent, hubStatus?.configured, hubStatus?.reachable, t]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -336,11 +446,72 @@ const Home = () => {
         </div>
       ) : (
         <div className='overflow-x-hidden w-full'>
-          {homePageContent.startsWith('https://') ? (
-            <iframe
-              src={homePageContent}
-              className='w-full h-screen border-none'
-            />
+          {isEmbeddableHomePageURL(homePageContent) ? (
+            <>
+              {isRouteManagerHubHomePageURL(homePageContent) &&
+              formattedHubStatus ? (
+                <div className='border-b border-semi-color-border bg-semi-color-bg-0/90 px-4 py-3 backdrop-blur'>
+                  <div className='mx-auto flex max-w-6xl flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+                    <div className='flex flex-col gap-1'>
+                      <Text strong>{t('家域中枢已接入主站')}</Text>
+                      <Text
+                        type={
+                          formattedHubStatus.tone === 'success'
+                            ? 'success'
+                            : formattedHubStatus.tone === 'warning'
+                              ? 'warning'
+                              : 'danger'
+                        }
+                      >
+                        {formattedHubStatus.message}
+                      </Text>
+                      {embeddedHubSummaryError ? (
+                        <Text type='secondary'>{embeddedHubSummaryError}</Text>
+                      ) : null}
+                    </div>
+                    <Button
+                      theme='solid'
+                      type='primary'
+                      onClick={() =>
+                        window.location.assign(routeManagerHubHref)
+                      }
+                    >
+                      {t('全屏打开家域中枢')}
+                    </Button>
+                  </div>
+                  {embeddedHubHighlights.length > 0 ? (
+                    <div className='mx-auto mt-3 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5'>
+                      {embeddedHubHighlights.map((item) => {
+                        const link =
+                          embeddedHubQuickLinks.find(
+                            (candidate) => candidate.key === item.key,
+                          ) || null;
+
+                        return (
+                          <a
+                            key={item.key}
+                            href={link?.href || routeManagerHubHref}
+                            className='rounded-2xl border border-semi-color-border bg-semi-color-bg-0/90 px-4 py-3 transition-colors hover:border-blue-300 hover:bg-blue-50/80'
+                          >
+                            <div className='text-xs font-medium text-semi-color-text-2'>
+                              {t(item.labelKey)}
+                            </div>
+                            <div className='mt-2 text-sm font-semibold text-semi-color-text-0'>
+                              {item.detail}
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <iframe
+                src={homePageContent}
+                className='w-full h-screen border-none'
+                onLoad={handleHomePageIframeLoad}
+              />
+            </>
           ) : (
             <div
               className='mt-[60px]'

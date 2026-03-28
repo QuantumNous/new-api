@@ -28,6 +28,7 @@ import ChartsPanel from './ChartsPanel';
 import ApiInfoPanel from './ApiInfoPanel';
 import AnnouncementsPanel from './AnnouncementsPanel';
 import FaqPanel from './FaqPanel';
+import RouteManagerHubPanel from './RouteManagerHubPanel';
 import UptimePanel from './UptimePanel';
 import SearchModal from './modals/SearchModal';
 
@@ -51,6 +52,7 @@ import {
   getUptimeStatusText,
   renderMonitorList,
 } from '../../helpers/dashboard';
+import { buildRouteManagerHubAvailabilitySignature } from '../../helpers/hubAvailability';
 
 const Dashboard = () => {
   // ========== Context ==========
@@ -132,11 +134,18 @@ const Dashboard = () => {
       label: dashboardData.t(info.label),
     }),
   );
+  const hubAvailabilitySignature = buildRouteManagerHubAvailabilitySignature(
+    statusState?.status?.hub_status,
+  );
 
   // ========== Effects ==========
   useEffect(() => {
     initChart();
   }, []);
+
+  useEffect(() => {
+    void dashboardData.loadHubData();
+  }, [hubAvailabilitySignature]);
 
   return (
     <div className='h-full'>
@@ -169,6 +178,22 @@ const Dashboard = () => {
         CARD_PROPS={CARD_PROPS}
         CHART_CONFIG={CHART_CONFIG}
       />
+
+      <div className='mb-4'>
+        <RouteManagerHubPanel
+          hubStatus={statusState?.status?.hub_status}
+          hubNodes={dashboardData.hubNodes}
+          hubSchedules={dashboardData.hubSchedules}
+          hubTasks={dashboardData.hubTasks}
+          hubAlerts={dashboardData.hubAlerts}
+          hubSummary={dashboardData.hubSummary}
+          hubLoading={dashboardData.hubLoading}
+          hubError={dashboardData.hubError}
+          loadHubData={dashboardData.loadHubData}
+          CARD_PROPS={CARD_PROPS}
+          t={dashboardData.t}
+        />
+      </div>
 
       {/* API信息和图表面板 */}
       <div className='mb-4'>
