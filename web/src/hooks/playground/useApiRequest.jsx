@@ -336,7 +336,9 @@ export const useApiRequest = (
             `status: ${data.status || '-'}`,
             `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
             `size: ${data.size || requestPayload.size || '-'}`,
-            ...(videoUrl ? [`url: ${videoUrl}`, `[Open Video](${videoUrl})`] : []),
+            ...(videoUrl
+              ? [`url: \`${videoUrl}\``, `[Open Video](${videoUrl})`]
+              : []),
           ].join('\n');
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
