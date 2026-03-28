@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,7 +20,7 @@ func TestResolveChannelServiceTierPricingMatchesOpenAIRequest(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model:       "gpt-4o-mini",
 		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
-		ServiceTier: json.RawMessage(`"FAST"`),
+		ServiceTier: []byte(`"FAST"`),
 	}
 	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"FAST"}`
 	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
@@ -48,7 +47,7 @@ func TestResolveChannelServiceTierPricingMatchesOpenAIRequest(t *testing.T) {
 func TestResolveChannelServiceTierPricingMatchesResponsesRequest(t *testing.T) {
 	req := &dto.OpenAIResponsesRequest{
 		Model:       "gpt-4o-mini",
-		Input:       json.RawMessage(`"hello"`),
+		Input:       []byte(`"hello"`),
 		ServiceTier: "fast",
 	}
 	body := `{"model":"gpt-4o-mini","input":"hello","service_tier":"fast"}`
@@ -74,7 +73,7 @@ func TestResolveChannelServiceTierPricingSkipsFilteredServiceTier(t *testing.T) 
 	req := &dto.GeneralOpenAIRequest{
 		Model:       "gpt-4o-mini",
 		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
-		ServiceTier: json.RawMessage(`"fast"`),
+		ServiceTier: []byte(`"fast"`),
 	}
 	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"fast"}`
 	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
@@ -96,7 +95,7 @@ func TestResolveChannelServiceTierPricingUsesRawBodyWhenPassThroughEnabled(t *te
 	req := &dto.GeneralOpenAIRequest{
 		Model:       "gpt-4o-mini",
 		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
-		ServiceTier: json.RawMessage(`"flex"`),
+		ServiceTier: []byte(`"flex"`),
 	}
 	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"fast"}`
 	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
@@ -175,7 +174,7 @@ func TestResolveChannelServiceTierPricingSkipsChatResponsesCompatibilityMode(t *
 	req := &dto.GeneralOpenAIRequest{
 		Model:       "gpt-4o-mini",
 		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
-		ServiceTier: json.RawMessage(`"fast"`),
+		ServiceTier: []byte(`"fast"`),
 	}
 	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"fast"}`
 	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
@@ -197,7 +196,7 @@ func TestRefreshChannelSpecificPriceDataUsesRetriedChannelSettings(t *testing.T)
 	req := &dto.GeneralOpenAIRequest{
 		Model:       "gpt-4o-mini",
 		Messages:    []dto.Message{{Role: "user", Content: "hello"}},
-		ServiceTier: json.RawMessage(`"fast"`),
+		ServiceTier: []byte(`"fast"`),
 	}
 	body := `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hello"}],"service_tier":"fast"}`
 	ctx, info := newServiceTierTestContext(t, body, req, types.RelayFormatOpenAI)
