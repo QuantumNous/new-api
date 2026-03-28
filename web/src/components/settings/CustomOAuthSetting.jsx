@@ -163,7 +163,7 @@ const PRESET_RESET_VALUES = {
 
 const REQUIRED_FIELD_LABELS = {
   name: '显示名称',
-  slug: 'Slug',
+  slug: '标识符 (Slug)',
   client_id: '客户端 ID',
   client_secret: '客户端密钥',
   authorization_endpoint: '授权端点',
@@ -289,7 +289,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const isJWTDirect = currentProviderKind === 'jwt_direct';
   const isTrustedHeader = currentProviderKind === 'trusted_header';
   const isOAuthCode = currentProviderKind === 'oauth_code';
-  const usesMappedRoleGroup = isJWTDirect || isTrustedHeader;
+  const isOAuthCodeTransition =
+    isOAuthCode &&
+    !!editingProvider &&
+    (editingProvider.kind || 'oauth_code') !== 'oauth_code';
+  const usesMappedRoleGroup = isOAuthCode || isJWTDirect || isTrustedHeader;
   const currentJWTIdentityMode = formValues.jwt_identity_mode || 'claims';
   const currentJWTAcquireMode = formValues.jwt_acquire_mode || 'direct_token';
   const isJWTTicketExchange =
@@ -491,6 +495,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const handleSubmit = async () => {
     const currentValues = getLatestFormValues();
     const providerKind = currentValues.kind || 'oauth_code';
+    const requiresNewOAuthClientSecret =
+      providerKind === 'oauth_code' &&
+      (!editingProvider ||
+        (editingProvider.kind || 'oauth_code') !== 'oauth_code');
 
     const requiredFields = ['name', 'slug'];
     if (providerKind === 'oauth_code') {
@@ -501,7 +509,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         'user_info_endpoint',
       );
 
-      if (!editingProvider) {
+      if (requiresNewOAuthClientSecret) {
         requiredFields.push('client_secret');
       }
     } else if (providerKind === 'jwt_direct') {
@@ -588,7 +596,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       const payload = { ...currentValues, enabled: !!currentValues.enabled };
       delete payload.preset;
       delete payload.base_url;
-      if (editingProvider) {
+      if (requiresNewOAuthClientSecret && !payload.client_secret) {
+        showError(t('请输入客户端密钥'));
+        return;
+      }
+      if (
+        editingProvider &&
+        (editingProvider.kind || 'oauth_code') === 'oauth_code'
+      ) {
         if (clearClientSecret) {
           payload.client_secret = '';
         } else if (!clientSecretDirty || payload.client_secret === '') {
@@ -638,21 +653,6 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         delete payload.username_field;
         delete payload.display_name_field;
         delete payload.email_field;
-      }
-      if (!usesMappedRoleGroup) {
-        delete payload.group_field;
-        delete payload.role_field;
-        delete payload.group_mapping;
-        delete payload.role_mapping;
-        delete payload.group_mapping_mode;
-        delete payload.role_mapping_mode;
-        delete payload.sync_username_on_login;
-        delete payload.sync_display_name_on_login;
-        delete payload.sync_email_on_login;
-        delete payload.sync_group_on_login;
-        delete payload.sync_role_on_login;
-        delete payload.auto_register;
-        delete payload.auto_merge_by_email;
       }
       if (providerKind === 'trusted_header') {
         delete payload.auth_style;
@@ -1106,6 +1106,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   value={currentProviderKind}
                   optionList={customOAuthKindOptions}
                   onChange={(value) => {
+                    const switchingToExistingOAuthCode =
+                      value === 'oauth_code' &&
+                      editingProvider &&
+                      (editingProvider.kind || 'oauth_code') !== 'oauth_code';
                     mergeFormValues({
                       kind: value,
                       jwt_identity_mode:
@@ -1121,10 +1125,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           ? formValues.jwt_source || 'query'
                           : formValues.jwt_source,
                     });
+                    if (switchingToExistingOAuthCode) {
+                      setClearClientSecret(false);
+                      setClientSecretDirty(false);
+                      setClientSecretBackup('');
+                      mergeFormValues({ client_secret: '' });
+                    }
                     if (value !== 'oauth_code') {
                       setSelectedPreset('');
                       setBaseUrl('');
                       resetDiscoveryState();
+                      setClearClientSecret(false);
                     }
                   }}
                 />
@@ -1286,7 +1297,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     type='password'
                     disabled={clearClientSecret}
                     placeholder={
-                      editingProvider
+                      editingProvider && !isOAuthCodeTransition
                         ? t('留空则保持原有密钥')
                         : t('OAuth 客户端密钥')
                     }
@@ -1298,7 +1309,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       }
                     }}
                     rules={
-                      editingProvider
+                      editingProvider && !isOAuthCodeTransition
                         ? []
                         : [
                             {
@@ -1308,7 +1319,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                           ]
                     }
                   />
-                  {editingProvider && (
+                  {editingProvider && !isOAuthCodeTransition && (
                     <div
                       style={{
                         display: 'flex',
