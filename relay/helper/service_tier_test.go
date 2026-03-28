@@ -207,7 +207,8 @@ func TestRefreshChannelSpecificPriceDataUsesRetriedChannelSettings(t *testing.T)
 	})
 
 	priceData := types.PriceData{
-		QuotaToPreConsume: 100,
+		BaseQuotaToPreConsume: 100,
+		QuotaToPreConsume:     100,
 	}
 	if err := applyChannelServiceTierPricing(ctx, info, &priceData); err != nil {
 		t.Fatalf("applyChannelServiceTierPricing returned error: %v", err)
@@ -235,8 +236,8 @@ func TestRefreshChannelSpecificPriceDataUsesRetriedChannelSettings(t *testing.T)
 	if got := info.PriceData.OtherRatios[serviceTierOtherRatioKey]; got != 3 {
 		t.Fatalf("expected refreshed other ratio 3, got %v", got)
 	}
-	if info.PriceData.QuotaToPreConsume != 200 {
-		t.Fatalf("expected pre-consumed quota to stay 200 after refresh, got %d", info.PriceData.QuotaToPreConsume)
+	if info.PriceData.QuotaToPreConsume != 300 {
+		t.Fatalf("expected refreshed pre-consumed quota target 300, got %d", info.PriceData.QuotaToPreConsume)
 	}
 }
 

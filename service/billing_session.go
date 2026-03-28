@@ -27,6 +27,7 @@ type BillingSession struct {
 	funding          FundingSource
 	preConsumedQuota int  // 实际预扣额度（信任用户可能为 0）
 	tokenConsumed    int  // 令牌额度实际扣减量
+	preConsumedTopUp int  // 重试切换渠道时追加的预扣额度
 	fundingSettled   bool // funding.Settle 已成功，资金来源已提交
 	settled          bool // Settle 全部完成（资金 + 令牌）
 	refunded         bool // Refund 已调用
@@ -98,11 +99,17 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	isPlayground := s.relayInfo.IsPlayground
 	tokenConsumed := s.tokenConsumed
 	funding := s.funding
+	preConsumedTopUp := s.preConsumedTopUp
 
 	gopool.Go(func() {
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
 			common.SysLog("error refunding billing source: " + err.Error())
+		}
+		if preConsumedTopUp > 0 {
+			if err := funding.Settle(-preConsumedTopUp); err != nil {
+				common.SysLog("error refunding additional pre-consume funding: " + err.Error())
+			}
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
@@ -138,6 +145,44 @@ func (s *BillingSession) needsRefundLocked() bool {
 // GetPreConsumedQuota 返回实际预扣的额度。
 func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
+}
+
+func (s *BillingSession) EnsurePreConsumedQuota(targetQuota int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.settled || s.refunded || targetQuota <= s.preConsumedQuota {
+		return nil
+	}
+
+	delta := targetQuota - s.preConsumedQuota
+	if delta <= 0 {
+		return nil
+	}
+
+	if err := PreConsumeTokenQuota(s.relayInfo, delta); err != nil {
+		return err
+	}
+	if err := s.funding.Settle(delta); err != nil {
+		if !s.relayInfo.IsPlayground {
+			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta); rollbackErr != nil {
+				common.SysLog(fmt.Sprintf("error rolling back token top-up (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
+					s.relayInfo.UserId, s.relayInfo.TokenId, delta, err.Error(), rollbackErr.Error()))
+			}
+		}
+		return err
+	}
+
+	s.tokenConsumed += delta
+	s.preConsumedQuota = targetQuota
+	s.preConsumedTopUp += delta
+
+	if s.funding.Source() == BillingSourceSubscription {
+		s.relayInfo.SubscriptionPreConsumed += int64(delta)
+		s.relayInfo.SubscriptionAmountUsedAfterPreConsume += int64(delta)
+	}
+	s.relayInfo.FinalPreConsumedQuota = s.preConsumedQuota
+	return nil
 }
 
 // ---------------------------------------------------------------------------

@@ -195,7 +195,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		if refreshErr := helper.RefreshChannelSpecificPriceData(c, relayInfo); refreshErr != nil {
-			logger.LogWarn(c, fmt.Sprintf("refresh channel-specific pricing failed: %v", refreshErr))
+			newAPIError = types.NewError(refreshErr, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+			break
+		}
+		if relayInfo.Billing != nil && !relayInfo.PriceData.FreeModel {
+			if ensureErr := relayInfo.Billing.EnsurePreConsumedQuota(relayInfo.PriceData.QuotaToPreConsume); ensureErr != nil {
+				newAPIError = types.NewError(ensureErr, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+				break
+			}
 		}
 
 		addUsedChannel(c, channel.Id)

@@ -29,7 +29,7 @@ func RefreshChannelSpecificPriceData(c *gin.Context, info *relaycommon.RelayInfo
 	}
 	resetChannelServiceTierPricing(&info.PriceData)
 	info.InitChannelMeta(c)
-	return applyChannelServiceTierPricingWithQuotaMode(c, info, &info.PriceData, false)
+	return applyChannelServiceTierPricingWithQuotaMode(c, info, &info.PriceData, true)
 }
 
 func applyChannelServiceTierPricingWithQuotaMode(c *gin.Context, info *relaycommon.RelayInfo, priceData *types.PriceData, updatePreConsumedQuota bool) error {
@@ -57,7 +57,11 @@ func applyChannelServiceTierPricingWithQuotaMode(c *gin.Context, info *relaycomm
 		priceData.AddOtherRatio(serviceTierOtherRatioKey, ratio)
 	}
 	if updatePreConsumedQuota && priceData.QuotaToPreConsume > 0 {
-		priceData.QuotaToPreConsume = int(float64(priceData.QuotaToPreConsume) * ratio)
+		baseQuota := priceData.BaseQuotaToPreConsume
+		if baseQuota <= 0 {
+			baseQuota = priceData.QuotaToPreConsume
+		}
+		priceData.QuotaToPreConsume = int(float64(baseQuota) * ratio)
 	}
 	return nil
 }
@@ -68,6 +72,9 @@ func resetChannelServiceTierPricing(priceData *types.PriceData) {
 	}
 	priceData.ServiceTier = ""
 	priceData.ServiceTierRatio = 0
+	if priceData.BaseQuotaToPreConsume > 0 {
+		priceData.QuotaToPreConsume = priceData.BaseQuotaToPreConsume
+	}
 	if priceData.OtherRatios != nil {
 		delete(priceData.OtherRatios, serviceTierOtherRatioKey)
 	}
