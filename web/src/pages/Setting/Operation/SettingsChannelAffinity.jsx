@@ -540,6 +540,15 @@ export default function SettingsChannelAffinity(props) {
       render: (v) => <Text>{Number(v || 0) || '-'}</Text>,
     },
     {
+      title: t('失败后不重试'),
+      dataIndex: 'skip_retry_on_failure',
+      render: (value) => (
+        <Tag color={value ? 'orange' : 'grey'} style={{ marginRight: 4 }}>
+          {value ? t('是') : t('否')}
+        </Tag>
+      ),
+    },
+    {
       title: t('覆盖模板'),
       render: (_, record) => {
         if (!record?.param_override_template) {
@@ -1096,6 +1105,18 @@ export default function SettingsChannelAffinity(props) {
             </Col>
           </Row>
 
+          <Row gutter={16} style={{ marginTop: 12 }}>
+            <Col xs={24} sm={12}>
+              <Form.Switch
+                field='skip_retry_on_failure'
+                label={t('失败后不重试')}
+              />
+              <Text type='tertiary' size='small'>
+                {t('开启后，若该规则命中且请求失败，将不会切换渠道重试。')}
+              </Text>
+            </Col>
+          </Row>
+
           <Collapse
             keepDOM
             activeKey={modalAdvancedActiveKey}
@@ -1248,18 +1269,6 @@ export default function SettingsChannelAffinity(props) {
                   />
                   <Text type='tertiary' size='small'>
                     {t('开启后，规则名称会参与 cache key（不同规则隔离）。')}
-                  </Text>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} sm={12}>
-                  <Form.Switch
-                    field='skip_retry_on_failure'
-                    label={t('失败后不重试')}
-                  />
-                  <Text type='tertiary' size='small'>
-                    {t('开启后，若该规则命中且请求失败，将不会切换渠道重试。')}
                   </Text>
                 </Col>
               </Row>
