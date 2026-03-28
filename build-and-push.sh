@@ -43,9 +43,9 @@ echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USERNAME" --password-std
 # 创建并使用 buildx builder（支持多平台构建）
 docker buildx create --use --name multiarch-builder 2>/dev/null || docker buildx use multiarch-builder
 
-# 构建并推送多平台镜像（支持 linux/amd64 和 linux/arm64）
+# 构建并推送多平台镜像（只构建 linux/amd64，适配大多数服务器）
 docker buildx build \
-  --platform linux/amd64,linux/arm64 \
+  --platform linux/amd64 \
   -t "${IMAGE_NAME}:${VERSION}" \
   -t "${IMAGE_NAME}:latest" \
   --push \
