@@ -172,10 +172,15 @@ export const useApiRequest = (
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
       const image = getImageFromMessageContent(lastUserMessage?.content);
+      const resolvedPrompt =
+        prompt ||
+        (isGrokImagineImageEditModel(payload.model)
+          ? 'Edit the provided media.'
+          : '');
       const requestPayload = {
         model: payload.model,
         group: payload.group,
-        prompt,
+        prompt: resolvedPrompt,
         n: 1,
         response_format: 'url',
       };
