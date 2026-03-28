@@ -166,6 +166,9 @@ export const buildApiPayload = (
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   if (isGrokImagineImageModel) {
     payload.stream = false;
+    if (inputs.imageSize) {
+      payload.size = inputs.imageSize;
+    }
   }
   if (isVideoModel) {
     payload.stream = false;

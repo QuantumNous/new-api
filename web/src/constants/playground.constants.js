@@ -97,6 +97,7 @@ export const DEFAULT_CONFIG = {
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    imageSize: '1024x1024',
     videoSize: '1280x720',
     videoSeconds: '10',
     videoQuality: '480p',

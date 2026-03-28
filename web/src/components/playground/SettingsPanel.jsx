@@ -47,9 +47,20 @@ const SettingsPanel = ({
   messages,
 }) => {
   const { t } = useTranslation();
+  const grokImagineImageModels = new Set([
+    'grok-imagine-1.0',
+    'grok-imagine-1.0-fast',
+    'grok-imagine-1.0-edit',
+  ]);
+  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  const imageSizeOptions = [
+    { label: '1024x1024', value: '1024x1024' },
+    { label: '1536x1024', value: '1536x1024' },
+    { label: '1024x1536', value: '1024x1536' },
+  ];
   const videoSizeOptions = [
     { label: '1280x720', value: '1280x720' },
     { label: '720x1280', value: '720x1280' },
@@ -225,6 +236,23 @@ const SettingsPanel = ({
         </div>
 
         {/* 视频参数（仅视频模型显示） */}
+        {isGrokImagineImageModel && (
+          <div className={customRequestMode ? 'opacity-50' : ''}>
+            <div>
+              <Typography.Text strong className='text-sm'>
+                {t('图片尺寸')}
+              </Typography.Text>
+              <Select
+                className='!rounded-lg mt-2'
+                optionList={imageSizeOptions}
+                value={inputs.imageSize || '1024x1024'}
+                onChange={(value) => onInputChange('imageSize', value)}
+                disabled={customRequestMode}
+              />
+            </div>
+          </div>
+        )}
+
         {isVideoModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div className='space-y-4'>

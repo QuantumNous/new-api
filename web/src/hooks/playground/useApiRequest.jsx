@@ -177,12 +177,14 @@ export const useApiRequest = (
         (isGrokImagineImageEditModel(payload.model)
           ? 'Edit the provided media.'
           : '');
+      const size = payload?.size || payload?.imageSize;
       const requestPayload = {
         model: payload.model,
         group: payload.group,
         prompt: resolvedPrompt,
         n: 1,
         response_format: 'url',
+        ...(size ? { size } : {}),
       };
 
       if (isGrokImagineImageEditModel(payload.model) && image) {
@@ -501,6 +503,7 @@ export const useApiRequest = (
               : t('图片任务已完成'),
             `model: ${requestPayload.model || payload?.model || '-'}`,
             `count: ${imageUrls.length || data.data?.length || 0}`,
+            `size: ${requestPayload.size || '-'}`,
           ];
 
           imageUrls.forEach((url, index) => {
