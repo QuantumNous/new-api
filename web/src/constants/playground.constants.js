@@ -99,6 +99,7 @@ export const DEFAULT_CONFIG = {
     imageUrls: [''],
     imageSize: '1024x1024',
     aspectRatio: '',
+    autoImageSize: '1024x1024',
     outputResolution: '2K',
     videoSize: '1280x720',
     videoSeconds: '10',

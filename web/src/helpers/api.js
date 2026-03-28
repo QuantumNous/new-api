@@ -196,8 +196,10 @@ export const buildApiPayload = (
     inputs.model === 'veo31' ||
     inputs.model === 'veo31-ref' ||
     inputs.model === 'veo31-fast';
-  const adobeAspectRatio =
+  const adobeAspectRatioRaw =
     inputs.aspectRatio || (isAdobeVideoModel ? '16:9' : '1:1');
+  const adobeAspectRatio =
+    adobeAspectRatioRaw === 'auto' ? '' : adobeAspectRatioRaw;
   if (isGrokImagineImageModel) {
     payload.stream = false;
     if (inputs.imageSize) {
@@ -205,7 +207,11 @@ export const buildApiPayload = (
     }
   }
   if (isAdobeImageModel) {
-    payload.aspect_ratio = adobeAspectRatio;
+    if (adobeAspectRatio) {
+      payload.aspect_ratio = adobeAspectRatio;
+    } else if (inputs.autoImageSize) {
+      payload.size = inputs.autoImageSize;
+    }
     if (isAdobeImage4KModel) {
       payload.output_resolution = '4K';
     } else if (inputs.outputResolution) {

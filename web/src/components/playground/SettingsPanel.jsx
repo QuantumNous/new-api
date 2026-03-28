@@ -119,11 +119,19 @@ const SettingsPanel = ({
     { label: '720p', value: '720p' },
   ];
   const adobeAspectRatioOptions = [
+    { label: 'Auto', value: 'auto' },
     { label: '1:1', value: '1:1' },
     { label: '16:9', value: '16:9' },
     { label: '9:16', value: '9:16' },
     { label: '4:3', value: '4:3' },
     { label: '3:4', value: '3:4' },
+  ];
+  const adobeAutoImageSizeOptions = [
+    { label: 'Square (1024x1024)', value: '1024x1024' },
+    { label: 'Landscape (1792x1024)', value: '1792x1024' },
+    { label: 'Portrait (1024x1792)', value: '1024x1792' },
+    { label: 'Classic (2048x1536)', value: '2048x1536' },
+    { label: 'Tall (1536x2048)', value: '1536x2048' },
   ];
   const adobeVideoAspectRatioOptions = [
     { label: '16:9', value: '16:9' },
@@ -331,11 +339,25 @@ const SettingsPanel = ({
                 <Select
                   className='!rounded-lg mt-2'
                   optionList={adobeAspectRatioOptions}
-                  value={inputs.aspectRatio || '1:1'}
+                  value={inputs.aspectRatio || 'auto'}
                   onChange={(value) => onInputChange('aspectRatio', value)}
                   disabled={customRequestMode}
                 />
               </div>
+              {(inputs.aspectRatio || 'auto') === 'auto' && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    Auto Size
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={adobeAutoImageSizeOptions}
+                    value={inputs.autoImageSize || '1024x1024'}
+                    onChange={(value) => onInputChange('autoImageSize', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
               <div>
                 <Typography.Text strong className='text-sm'>
                   Output Resolution
