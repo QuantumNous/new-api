@@ -45,6 +45,28 @@ func TestConvertImageRequestPreservesEditImage(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestPreservesSize(t *testing.T) {
+	adaptor := &Adaptor{}
+
+	converted, err := adaptor.ConvertImageRequest(nil, nil, dto.ImageRequest{
+		Model:          "grok-imagine-1.0",
+		Prompt:         "draw a city skyline",
+		Size:           "1536x1024",
+		ResponseFormat: "url",
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	xaiReq, ok := converted.(ImageRequest)
+	if !ok {
+		t.Fatalf("expected xai.ImageRequest, got %T", converted)
+	}
+	if xaiReq.Size != "1536x1024" {
+		t.Fatalf("unexpected size: %s", xaiReq.Size)
+	}
+}
+
 func TestModelListIncludesGrokImagineOnePointZeroVariants(t *testing.T) {
 	expected := []string{
 		"grok-imagine-1.0",
