@@ -167,15 +167,32 @@ export const buildApiPayload = (
       payload.seconds = String(inputs.videoSeconds);
     }
     if (inputs.videoQuality) {
-      payload.quality =
-        inputs.videoQuality === '720p'
-          ? 'high'
-          : inputs.videoQuality === '480p'
-            ? 'standard'
+      const resolutionName =
+        inputs.videoQuality === 'high'
+          ? '720p'
+          : inputs.videoQuality === 'standard'
+            ? '480p'
             : inputs.videoQuality;
+      payload.quality =
+        resolutionName === '720p'
+          ? 'high'
+          : resolutionName === '480p'
+            ? 'standard'
+            : resolutionName;
+      if (isGrokImagineVideoModel && resolutionName) {
+        payload.resolution_name = resolutionName;
+      }
     }
     if (isGrokImagineVideoModel && inputs.videoPreset) {
       payload.preset = inputs.videoPreset;
+    }
+    if (isGrokImagineVideoModel && (payload.resolution_name || payload.preset)) {
+      payload.video_config = {
+        ...(payload.resolution_name
+          ? { resolution_name: payload.resolution_name }
+          : {}),
+        ...(payload.preset ? { preset: payload.preset } : {}),
+      };
     }
   }
 

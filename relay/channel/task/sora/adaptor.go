@@ -70,6 +70,99 @@ type TaskAdaptor struct {
 	baseURL     string
 }
 
+func stringifyBodyValue(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func normalizeGrokVideoQuality(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "720p":
+		return "high"
+	case "480p":
+		return "standard"
+	case "high", "standard":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return strings.TrimSpace(value)
+	}
+}
+
+func resolutionNameFromQuality(value string) string {
+	switch normalizeGrokVideoQuality(value) {
+	case "high":
+		return "720p"
+	case "standard":
+		return "480p"
+	default:
+		return ""
+	}
+}
+
+func qualityFromResolutionName(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "720p":
+		return "high"
+	case "480p":
+		return "standard"
+	default:
+		return ""
+	}
+}
+
+func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel string) {
+	if upstreamModel != "grok-imagine-1.0-video" {
+		return
+	}
+
+	quality := normalizeGrokVideoQuality(stringifyBodyValue(bodyMap["quality"]))
+	resolutionName := stringifyBodyValue(bodyMap["resolution_name"])
+	preset := stringifyBodyValue(bodyMap["preset"])
+
+	if videoConfig, ok := bodyMap["video_config"].(map[string]interface{}); ok {
+		if resolutionName == "" {
+			resolutionName = stringifyBodyValue(videoConfig["resolution_name"])
+		}
+		if preset == "" {
+			preset = stringifyBodyValue(videoConfig["preset"])
+		}
+	}
+
+	if quality == "" {
+		quality = qualityFromResolutionName(resolutionName)
+	}
+	if resolutionName == "" {
+		resolutionName = resolutionNameFromQuality(quality)
+	}
+
+	if quality != "" {
+		bodyMap["quality"] = quality
+	}
+	if resolutionName != "" {
+		bodyMap["resolution_name"] = resolutionName
+	}
+	if preset != "" {
+		bodyMap["preset"] = preset
+	}
+	if resolutionName != "" || preset != "" {
+		videoConfig := map[string]interface{}{}
+		if resolutionName != "" {
+			videoConfig["resolution_name"] = resolutionName
+		}
+		if preset != "" {
+			videoConfig["preset"] = preset
+		}
+		bodyMap["video_config"] = videoConfig
+	}
+}
+
 func extractVideoURL(respBody []byte) string {
 	for _, path := range []string{
 		"url",
@@ -177,6 +270,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		var bodyMap map[string]interface{}
 		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
 			bodyMap["model"] = info.UpstreamModelName
+			normalizeGrokVideoRequest(bodyMap, info.UpstreamModelName)
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
 			}

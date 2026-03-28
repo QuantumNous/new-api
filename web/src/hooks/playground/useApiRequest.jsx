@@ -106,8 +106,12 @@ export const useApiRequest = (
       const seconds = payload?.seconds || payload?.videoSeconds;
       const quality = payload?.quality || payload?.videoQuality;
       const preset = payload?.preset || payload?.videoPreset;
+      const isGrokImagineVideoModel = payload?.model === 'grok-imagine-1.0-video';
+      const resolutionName =
+        payload?.resolution_name ||
+        (isGrokImagineVideoModel ? formatVideoQuality(quality) : '');
 
-      return {
+      const requestPayload = {
         model: payload.model,
         prompt,
         seconds,
@@ -116,8 +120,23 @@ export const useApiRequest = (
         preset,
         ...(image ? { image } : {}),
       };
+
+      if (isGrokImagineVideoModel && resolutionName) {
+        requestPayload.resolution_name = resolutionName;
+        requestPayload.video_config = {
+          resolution_name: resolutionName,
+          ...(preset ? { preset } : {}),
+        };
+      }
+
+      return requestPayload;
     },
-    [getImageFromMessageContent, getTextFromMessageContent, normalizeVideoQuality],
+    [
+      formatVideoQuality,
+      getImageFromMessageContent,
+      getTextFromMessageContent,
+      normalizeVideoQuality,
+    ],
   );
 
   const extractVideoUrl = useCallback((payload) => {
