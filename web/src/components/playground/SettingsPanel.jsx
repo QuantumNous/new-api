@@ -47,6 +47,23 @@ const SettingsPanel = ({
   messages,
 }) => {
   const { t } = useTranslation();
+  const isVideoModel =
+    typeof inputs.model === 'string' && inputs.model.includes('video');
+  const videoSizeOptions = [
+    { label: '1280x720', value: '1280x720' },
+    { label: '720x1280', value: '720x1280' },
+    { label: '1792x1024', value: '1792x1024' },
+    { label: '1024x1792', value: '1024x1792' },
+    { label: '1024x1024', value: '1024x1024' },
+  ];
+  const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((v) => ({
+    label: `${v}s`,
+    value: String(v),
+  }));
+  const videoQualityOptions = [
+    { label: 'standard', value: 'standard' },
+    { label: 'high', value: 'high' },
+  ];
 
   const currentConfig = {
     inputs,
@@ -199,6 +216,50 @@ const SettingsPanel = ({
             disabled={customRequestMode}
           />
         </div>
+
+        {/* 视频参数（仅视频模型显示） */}
+        {isVideoModel && (
+          <div className={customRequestMode ? 'opacity-50' : ''}>
+            <div className='space-y-4'>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  {t('视频尺寸')}
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={videoSizeOptions}
+                  value={inputs.videoSize}
+                  onChange={(value) => onInputChange('videoSize', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  {t('视频时长')}
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={videoSecondsOptions}
+                  value={inputs.videoSeconds}
+                  onChange={(value) => onInputChange('videoSeconds', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  {t('视频质量')}
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={videoQualityOptions}
+                  value={inputs.videoQuality}
+                  onChange={(value) => onInputChange('videoQuality', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 流式输出开关 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>

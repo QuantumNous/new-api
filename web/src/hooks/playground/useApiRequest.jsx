@@ -40,6 +40,82 @@ export const useApiRequest = (
   saveMessages,
 ) => {
   const { t } = useTranslation();
+  const isVideoGenerationPayload = useCallback((payload) => {
+    const model = payload?.model;
+    return (
+      typeof model === 'string' &&
+      model.includes('video') &&
+      (!!payload?.seconds || !!payload?.size || !!payload?.quality)
+    );
+  }, []);
+
+  const getTextFromMessageContent = useCallback((content) => {
+    if (typeof content === 'string') {
+      return content;
+    }
+    if (!Array.isArray(content)) {
+      return '';
+    }
+    const textParts = content
+      .filter((item) => item?.type === 'text')
+      .map((item) => item?.text || '')
+      .filter(Boolean);
+    return textParts.join('\n');
+  }, []);
+
+  const getImageFromMessageContent = useCallback((content) => {
+    if (!Array.isArray(content)) {
+      return '';
+    }
+    const imageItem = content.find((item) => item?.type === 'image_url');
+    if (!imageItem) {
+      return '';
+    }
+    const imageURL = imageItem.image_url;
+    if (typeof imageURL === 'string') {
+      return imageURL;
+    }
+    return imageURL?.url || '';
+  }, []);
+
+  const buildVideoRequestPayload = useCallback(
+    (payload) => {
+      const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m?.role === 'user');
+      const prompt = getTextFromMessageContent(lastUserMessage?.content);
+      const image = getImageFromMessageContent(lastUserMessage?.content);
+
+      return {
+        model: payload.model,
+        prompt,
+        seconds: payload.seconds,
+        size: payload.size,
+        quality: payload.quality,
+        ...(image ? { image } : {}),
+      };
+    },
+    [getImageFromMessageContent, getTextFromMessageContent],
+  );
+
+  const resolveEndpointAndPayload = useCallback(
+    (payload) => {
+      if (isVideoGenerationPayload(payload)) {
+        return {
+          endpoint: API_ENDPOINTS.VIDEO_GENERATIONS,
+          requestPayload: buildVideoRequestPayload(payload),
+          forceNonStream: true,
+        };
+      }
+      return {
+        endpoint: API_ENDPOINTS.CHAT_COMPLETIONS,
+        requestPayload: payload,
+        forceNonStream: false,
+      };
+    },
+    [buildVideoRequestPayload, isVideoGenerationPayload],
+  );
 
   // 处理消息自动关闭逻辑的公共函数
   const applyAutoCollapseLogic = useCallback(
@@ -174,9 +250,10 @@ export const useApiRequest = (
   // 非流式请求
   const handleNonStreamRequest = useCallback(
     async (payload) => {
+      const { endpoint, requestPayload } = resolveEndpointAndPayload(payload);
       setDebugData((prev) => ({
         ...prev,
-        request: payload,
+        request: requestPayload,
         timestamp: new Date().toISOString(),
         response: null,
         sseMessages: null, // 非流式请求清除 SSE 消息
@@ -185,13 +262,13 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'New-Api-User': getUserIdFromLocalStorage(),
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestPayload),
         });
 
         if (!response.ok) {
@@ -227,6 +304,38 @@ export const useApiRequest = (
           response: JSON.stringify(data, null, 2),
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
+
+        if (
+          endpoint === API_ENDPOINTS.VIDEO_GENERATIONS ||
+          data.object === 'video' ||
+          data.task_id
+        ) {
+          const summary = [
+            `${t('视频任务已创建')}`,
+            `task_id: ${data.task_id || data.id || '-'}`,
+            `status: ${data.status || '-'}`,
+            `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
+            `size: ${data.size || requestPayload.size || '-'}`,
+          ].join('\n');
+          setMessage((prevMessage) => {
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+              const autoCollapseState = applyAutoCollapseLogic(
+                lastMessage,
+                true,
+              );
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: summary,
+                status: MESSAGE_STATUS.COMPLETE,
+                ...autoCollapseState,
+              };
+            }
+            return newMessages;
+          });
+          return;
+        }
 
         if (data.choices?.[0]) {
           const choice = data.choices[0];
@@ -285,7 +394,14 @@ export const useApiRequest = (
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [
+      resolveEndpointAndPayload,
+      setDebugData,
+      setActiveDebugTab,
+      setMessage,
+      t,
+      applyAutoCollapseLogic,
+    ],
   );
 
   // SSE请求
@@ -500,13 +616,14 @@ export const useApiRequest = (
   // 发送请求
   const sendRequest = useCallback(
     (payload, isStream) => {
-      if (isStream) {
+      const { forceNonStream } = resolveEndpointAndPayload(payload);
+      if (isStream && !forceNonStream) {
         handleSSE(payload);
       } else {
         handleNonStreamRequest(payload);
       }
     },
-    [handleSSE, handleNonStreamRequest],
+    [resolveEndpointAndPayload, handleSSE, handleNonStreamRequest],
   );
 
   return {
