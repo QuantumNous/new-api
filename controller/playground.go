@@ -35,22 +35,61 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
-
-	// Write user context to ensure acceptUnsetRatio is available
-	userCache, err := model.GetUserCache(userId)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	if newAPIError = setupPlaygroundTokenContext(c, fmt.Sprintf("playground-%s", relayInfo.UsingGroup), relayInfo.UsingGroup); newAPIError != nil {
 		return
 	}
-	userCache.WriteContext(c)
-
-	tempToken := &model.Token{
-		UserId: userId,
-		Name:   fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
-		Group:  relayInfo.UsingGroup,
-	}
-	_ = middleware.SetupContextForToken(c, tempToken)
 
 	Relay(c, types.RelayFormatOpenAI)
+}
+
+func PlaygroundVideoSubmit(c *gin.Context) {
+	var newAPIError *types.NewAPIError
+	defer func() {
+		if newAPIError != nil {
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+	}()
+	if newAPIError = setupPlaygroundTokenContext(c, "playground-video", c.GetString("group")); newAPIError != nil {
+		return
+	}
+	RelayTask(c)
+}
+
+func PlaygroundVideoFetch(c *gin.Context) {
+	var newAPIError *types.NewAPIError
+	defer func() {
+		if newAPIError != nil {
+			c.JSON(newAPIError.StatusCode, gin.H{
+				"error": newAPIError.ToOpenAIError(),
+			})
+		}
+	}()
+	if newAPIError = setupPlaygroundTokenContext(c, "playground-video-fetch", c.GetString("group")); newAPIError != nil {
+		return
+	}
+	RelayTaskFetch(c)
+}
+
+func setupPlaygroundTokenContext(c *gin.Context, tokenName string, tokenGroup string) *types.NewAPIError {
+	userId := c.GetInt("id")
+	userCache, err := model.GetUserCache(userId)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
+	}
+	userCache.WriteContext(c)
+	if tokenGroup == "" {
+		tokenGroup = c.GetString("group")
+	}
+	if tokenGroup == "" {
+		tokenGroup = userCache.Group
+	}
+	tempToken := &model.Token{
+		UserId: userId,
+		Name:   tokenName,
+		Group:  tokenGroup,
+	}
+	_ = middleware.SetupContextForToken(c, tempToken)
+	return nil
 }
