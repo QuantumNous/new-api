@@ -1,9 +1,9 @@
-# New-API Docker Compose Configuration (Local Development)
+# New-API Docker Compose Configuration
 #
 # Quick Start:
 #   1. Copy .env.example to .env and configure your environment variables
-#   2. docker-compose up -d --build
-#   3. Access at http://localhost:${PORT:-3000}
+#   2. docker-compose up -d
+#   3. Access at http://localhost:${PORT:-3001}
 #
 # Using MySQL instead of PostgreSQL:
 #   1. Set DB_TYPE=mysql in .env
@@ -15,9 +15,7 @@ version: '3.4'
 
 services:
   new-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/yebin-xu/new-api:latest
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
