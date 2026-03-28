@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -430,6 +431,39 @@ func TestJWTDirectResolveIdentityWithJWKS(t *testing.T) {
 	}
 	if requestCount != 1 {
 		t.Fatalf("expected jwks endpoint to be fetched once, got %d", requestCount)
+	}
+}
+
+func TestJWKToRSAPublicKeyRejectsInvalidExponent(t *testing.T) {
+	privateKey := mustGenerateRSAPrivateKey(t)
+	testCases := []struct {
+		name     string
+		exponent *big.Int
+	}{
+		{
+			name:     "non-positive",
+			exponent: big.NewInt(0),
+		},
+		{
+			name:     "too-large",
+			exponent: new(big.Int).Lsh(big.NewInt(1), 70),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := jwkToRSAPublicKey(&jwkKey{
+				Kty: "RSA",
+				N:   base64.RawURLEncoding.EncodeToString(privateKey.PublicKey.N.Bytes()),
+				E:   base64.RawURLEncoding.EncodeToString(testCase.exponent.Bytes()),
+			})
+			if err == nil {
+				t.Fatal("expected invalid rsa exponent to be rejected")
+			}
+			if !strings.Contains(err.Error(), "rsa exponent") {
+				t.Fatalf("expected rsa exponent error, got %v", err)
+			}
+		})
 	}
 }
 

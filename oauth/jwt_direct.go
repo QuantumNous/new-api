@@ -858,7 +858,18 @@ func jwkToRSAPublicKey(key *jwkKey) (*rsa.PublicKey, error) {
 	}
 	n := new(big.Int).SetBytes(nBytes)
 	e := new(big.Int).SetBytes(eBytes)
-	return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+	if e.Sign() <= 0 {
+		return nil, errors.New("rsa exponent must be positive")
+	}
+	if !e.IsInt64() {
+		return nil, errors.New("rsa exponent too large")
+	}
+	maxGoInt := int64(^uint(0) >> 1)
+	eInt64 := e.Int64()
+	if eInt64 > maxGoInt {
+		return nil, errors.New("rsa exponent too large")
+	}
+	return &rsa.PublicKey{N: n, E: int(eInt64)}, nil
 }
 
 func jwkToECPublicKey(key *jwkKey) (*ecdsa.PublicKey, error) {

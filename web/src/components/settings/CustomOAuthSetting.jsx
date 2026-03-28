@@ -270,6 +270,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const [advancedActiveKeys, setAdvancedActiveKeys] = useState([]);
   const [clientSecretDirty, setClientSecretDirty] = useState(false);
   const [clearClientSecret, setClearClientSecret] = useState(false);
+  const [clientSecretBackup, setClientSecretBackup] = useState('');
   const formApiRef = React.useRef(null);
   const customOAuthKindOptions = CUSTOM_OAUTH_KIND_OPTIONS.map((option) => ({
     ...option,
@@ -376,6 +377,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setAdvancedActiveKeys([]);
     setClientSecretDirty(false);
     setClearClientSecret(false);
+    setClientSecretBackup('');
   };
 
   const fetchProviders = async () => {
@@ -446,6 +448,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setAdvancedActiveKeys([]);
     setClientSecretDirty(false);
     setClearClientSecret(false);
+    setClientSecretBackup('');
     setModalVisible(true);
   };
 
@@ -491,6 +494,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setAdvancedActiveKeys([]);
     setClientSecretDirty(false);
     setClearClientSecret(false);
+    setClientSecretBackup('');
     setModalVisible(true);
   };
 
@@ -1302,6 +1306,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     }
                     onChange={(value) => {
                       setClientSecretDirty(true);
+                      setClientSecretBackup(value || '');
                       if (value) {
                         setClearClientSecret(false);
                       }
@@ -1332,12 +1337,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         onChange={(checked) => {
                           setClearClientSecret(checked);
                           if (checked) {
+                            setClientSecretBackup(
+                              getLatestFormValues().client_secret || '',
+                            );
                             setClientSecretDirty(true);
                             mergeFormValues({ client_secret: '' });
                             return;
                           }
-                          setClientSecretDirty(false);
-                          mergeFormValues({ client_secret: '' });
+                          setClientSecretDirty(clientSecretBackup !== '');
+                          mergeFormValues({
+                            client_secret: clientSecretBackup || '',
+                          });
                         }}
                       />
                       <Text type='secondary'>
