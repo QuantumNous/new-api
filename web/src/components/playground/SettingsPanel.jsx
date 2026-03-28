@@ -57,9 +57,11 @@ const SettingsPanel = ({
     typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const imageSizeOptions = [
-    { label: '1024x1024', value: '1024x1024' },
-    { label: '1536x1024', value: '1536x1024' },
-    { label: '1024x1536', value: '1024x1536' },
+    { label: '1:1 方图', value: '1024x1024' },
+    { label: '3:2 横图', value: '1536x1024' },
+    { label: '2:3 竖图', value: '1024x1536' },
+    { label: '16:9 宽屏', value: '1792x1024' },
+    { label: '9:16 竖屏', value: '1024x1792' },
   ];
   const videoSizeOptions = [
     { label: '1280x720', value: '1280x720' },
