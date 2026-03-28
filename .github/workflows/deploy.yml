@@ -8,7 +8,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/new-api
-  DOKPLOY_WEBHOOK: http://47.86.32.99:3000/api/deploy/compose/6UX7VElm9cJ5-dVAjphbC
 
 jobs:
   build-and-deploy:
@@ -46,4 +45,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Trigger Dokploy deployment
-        run: curl -X POST "$DOKPLOY_WEBHOOK"
+        run: |
+          curl -X POST "http://47.86.32.99:3000/api/deploy/compose/51742PKcXTUu9wMjwePKw"
+          # 添加更多 webhook，每行一个
+          # curl -X POST "http://your-server:3000/api/deploy/compose/another-webhook-id"
