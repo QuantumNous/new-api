@@ -2963,7 +2963,7 @@
     "启用 AllScale": "启用 AllScale",
     "默认 https://openapi.allscale.io，无需修改": "默认 https://openapi.allscale.io，无需修改",
     "单价 (USD / 配额单位)": "单价 (USD / 配额单位)",
-    "每个配额单位对应的 USD 金额，默认 0.002": "每个配额单位对应的 USD 金额，默认 0.002",
+    "每个配额单位对应的 USD 金额，默认为 1": "每个配额单位对应的 USD 金额，默认为 1",
     "最低充值金额 (USD)": "最低充值金额 (USD)",
     "最低支付金额（美元），默认 $0.20": "最低支付金额（美元），默认 $0.20",
     "启用 AllScale 时，API Key 不能为空": "启用 AllScale 时，API Key 不能为空",

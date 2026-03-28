@@ -40,7 +40,6 @@ import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
 
-const ALLSCALE_PENDING_PAYMENT_KEY = 'allscale_pending_payment';
 const ALLSCALE_MAX_POLL_ATTEMPTS = 120;
 const ALLSCALE_POLL_INTERVAL = 5000;
 const ALLSCALE_STATUS = {
@@ -57,6 +56,9 @@ const TopUp = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
+
+  // User-scoped localStorage key prevents one user from resuming another's pending payment.
+  const allScalePendingKey = `allscale_pending_payment_${userState?.user?.id ?? 'guest'}`;
 
   const [redemptionCode, setRedemptionCode] = useState('');
   const [amount, setAmount] = useState(0.0);
@@ -376,12 +378,12 @@ const TopUp = () => {
   }, []);
 
   const clearAllScalePendingPayment = () => {
-    localStorage.removeItem(ALLSCALE_PENDING_PAYMENT_KEY);
+    localStorage.removeItem(allScalePendingKey);
   };
 
-  const pollAllScaleStatusOnce = async (intentId, tradeNo) => {
+  const pollAllScaleStatusOnce = async (tradeNo) => {
     const res = await API.get('/api/user/allscale/status', {
-      params: { intent_id: intentId, trade_no: tradeNo },
+      params: { trade_no: tradeNo },
     });
     const { message, data } = res.data;
     if (message !== 'success') {
@@ -421,7 +423,7 @@ const TopUp = () => {
   const startAllScalePolling = useCallback((intentId, tradeNo) => {
     clearAllScalePolling();
     localStorage.setItem(
-      ALLSCALE_PENDING_PAYMENT_KEY,
+      allScalePendingKey,
       JSON.stringify({ intentId, tradeNo, startedAt: Date.now() })
     );
     let attempts = 0;
@@ -436,7 +438,7 @@ const TopUp = () => {
       }
       inFlight = true;
       try {
-        const result = await pollAllScaleStatusOnce(intentId, tradeNo);
+        const result = await pollAllScaleStatusOnce(tradeNo);
         if (result.state === 'success') {
           clearAllScalePolling();
           clearAllScalePendingPayment();
@@ -461,7 +463,7 @@ const TopUp = () => {
   }, [clearAllScalePolling, t]);
 
   const resumePendingAllScalePayment = useCallback(() => {
-    const raw = localStorage.getItem(ALLSCALE_PENDING_PAYMENT_KEY);
+    const raw = localStorage.getItem(allScalePendingKey);
     if (!raw) return;
     try {
       const pending = JSON.parse(raw);
@@ -489,10 +491,12 @@ const TopUp = () => {
         const { message, data } = res.data;
         if (message === 'success') {
           setAllScaleAmount(parseFloat(data));
+        } else {
+          setAllScaleAmount(0);
         }
       }
     } catch (e) {
-      // silent fail
+      setAllScaleAmount(0);
     }
   };
 

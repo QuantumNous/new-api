@@ -3315,7 +3315,7 @@
     "启用 AllScale": "Activer AllScale",
     "默认 https://openapi.allscale.io，无需修改": "Par défaut https://openapi.allscale.io, aucune modification nécessaire",
     "单价 (USD / 配额单位)": "Prix unitaire (USD / unité de quota)",
-    "每个配额单位对应的 USD 金额，默认 0.002": "Montant en USD par unité de quota, par défaut 0,002",
+    "每个配额单位对应的 USD 金额，默认为 1": "Montant en USD par unité de quota, par défaut 1",
     "最低充值金额 (USD)": "Montant minimum de recharge (USD)",
     "最低支付金额（美元），默认 $0.20": "Montant minimum de paiement en USD, par défaut 0,20 $",
     "启用 AllScale 时，API Key 不能为空": "La clé API est requise lorsque AllScale est activé",

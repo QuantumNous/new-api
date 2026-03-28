@@ -39,8 +39,10 @@ export default function SettingsPaymentGatewayAllScale(props) {
     AllScaleEnabled: false,
     AllScaleApiKey: '',
     AllScaleApiSecret: '',
+    AllScaleWebhookID: '',
     AllScaleBaseURL: 'https://openapi.allscale.io',
     AllScaleUnitPrice: 1,
+    AllScaleMinTopUp: 1,
   });
   const [originInputs, setOriginInputs] = useState({});
   const [hasExistingApiKey, setHasExistingApiKey] = useState(false);
@@ -55,9 +57,11 @@ export default function SettingsPaymentGatewayAllScale(props) {
           props.options.AllScaleEnabled === true,
         AllScaleApiKey: '',
         AllScaleApiSecret: '',
+        AllScaleWebhookID: props.options.AllScaleWebhookID || '',
         AllScaleBaseURL:
           props.options.AllScaleBaseURL || 'https://openapi.allscale.io',
         AllScaleUnitPrice: parseFloat(props.options.AllScaleUnitPrice) || 1,
+        AllScaleMinTopUp: parseFloat(props.options.AllScaleMinTopUp) || 1,
       };
       setHasExistingApiKey(props.options.AllScaleApiKeySet === 'true');
       setHasExistingApiSecret(props.options.AllScaleApiSecretSet === 'true');
@@ -94,6 +98,14 @@ export default function SettingsPaymentGatewayAllScale(props) {
         {
           key: 'AllScaleUnitPrice',
           value: String(parseFloat(inputs.AllScaleUnitPrice) || 1),
+        },
+        {
+          key: 'AllScaleMinTopUp',
+          value: String(parseFloat(inputs.AllScaleMinTopUp) || 1),
+        },
+        {
+          key: 'AllScaleWebhookID',
+          value: inputs.AllScaleWebhookID.trim(),
         },
       ];
 
@@ -221,13 +233,33 @@ export default function SettingsPaymentGatewayAllScale(props) {
 
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.Input
+                field='AllScaleWebhookID'
+                label={t('AllScale Webhook ID')}
+                placeholder={t('AllScale Webhook ID（可选，不填则跳过验证）')}
+              />
+            </Col>
+          </Row>
+
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
               <Form.InputNumber
                 field='AllScaleUnitPrice'
-                label={t('货币汇率（每 1 美元等于多少货币单位）')}
+                label={t('单价 (USD / 配额单位)')}
                 placeholder='1'
                 min={0.0001}
-                precision={4}
-                extraText={t('默认为 1，即使用美元。例如填写 10 表示 10 个货币单位 = 1 USD')}
+                precision={6}
+                extraText={t('每个配额单位对应的 USD 金额，默认为 1')}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.InputNumber
+                field='AllScaleMinTopUp'
+                label={t('最低充值金额 (USD)')}
+                placeholder='1'
+                min={0.01}
+                precision={2}
+                extraText={t('最低支付金额（美元），默认 $0.20')}
               />
             </Col>
           </Row>

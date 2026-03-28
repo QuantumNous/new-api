@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,6 +70,10 @@ func buildAllScaleRequestHeaders(method, path, query string, body []byte) (apiKe
 func verifyAllScaleWebhook(requestPath, queryString, webhookId, timestamp, nonce string, body []byte, sigHeader string) bool {
 	if setting.AllScaleApiSecret == "" {
 		log.Printf("AllScale webhook secret not configured")
+		return false
+	}
+	if setting.AllScaleWebhookID != "" && webhookId != setting.AllScaleWebhookID {
+		log.Printf("AllScale webhook: webhook_id mismatch (got=%s, want=%s)", webhookId, setting.AllScaleWebhookID)
 		return false
 	}
 	ts, err := strconv.ParseInt(timestamp, 10, 64)
@@ -231,7 +236,9 @@ func RequestAllScalePay(c *gin.Context) {
 	if unitPrice <= 0 {
 		unitPrice = 1.0
 	}
-	amountCents := int64(payMoney / unitPrice * 100)
+	// Round to 2 decimal places first so amountCents and preview display are consistent.
+	roundedUSD := math.Round(payMoney/unitPrice*100) / 100
+	amountCents := int64(roundedUSD * 100)
 	redirectURL := system_setting.ServerAddress + "/console/topup?show_history=true"
 
 	reqBody, _ := common.Marshal(map[string]any{
@@ -302,6 +309,10 @@ func RequestAllScalePay(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "error", "data": errMsg})
 		return
 	}
+
+	// Persist the intent ID so we can verify it on status polls (prevents replay with foreign intent IDs).
+	topUp.CheckoutIntentId = apiResp.Payload.AllScaleCheckoutIntentId
+	_ = topUp.Update()
 
 	log.Printf("AllScale: checkout intent created - user=%d tradeNo=%s intentId=%s amount=$%.2f",
 		userId, tradeNo, apiResp.Payload.AllScaleCheckoutIntentId, payMoney)
@@ -443,21 +454,33 @@ func getAllScaleFinalTopUpStatus(status int) string {
 // GetAllScaleStatus polls the AllScale API for the checkout intent status and,
 // on a successful payment, credits the user's quota.
 func GetAllScaleStatus(c *gin.Context) {
-	intentId := c.Query("intent_id")
 	tradeNo := c.Query("trade_no")
-	if intentId == "" || tradeNo == "" {
-		c.JSON(200, gin.H{"message": "error", "data": "missing intent_id or trade_no"})
+	if tradeNo == "" {
+		c.JSON(200, gin.H{"message": "error", "data": "missing trade_no"})
 		return
 	}
 
 	userId := c.GetInt("id")
 
-	// Fast path: check local DB first to avoid unnecessary API calls.
+	// Load the order and validate ownership.
 	topUp := model.GetTopUpByTradeNo(tradeNo)
 	if topUp == nil || topUp.UserId != userId {
 		c.JSON(200, gin.H{"message": "error", "data": "order not found"})
 		return
 	}
+	if topUp.PaymentMethod != "allscale" {
+		c.JSON(200, gin.H{"message": "error", "data": "order not found"})
+		return
+	}
+
+	// Use the DB-stored intent ID — never trust the caller-supplied value.
+	intentId := topUp.CheckoutIntentId
+	if intentId == "" {
+		c.JSON(200, gin.H{"message": "error", "data": "intent not found"})
+		return
+	}
+
+	// Fast path: if the order is already in a terminal state, return it directly.
 	if topUp.Status == common.TopUpStatusSuccess || topUp.Status == common.TopUpStatusFailed || topUp.Status == common.TopUpStatusExpired {
 		localStatus := allScaleCheckoutStatusCreated
 		switch topUp.Status {

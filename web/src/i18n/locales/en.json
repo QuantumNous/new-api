@@ -3344,6 +3344,8 @@
     "补全倍率 {{completionRatio}}": "Completion ratio {{completionRatio}}",
     "输入价格：{{symbol}}{{price}} / 1M tokens": "Input Price: {{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Output Price {{symbol}}{{price}} / 1M tokens",
+    "输出价格：{{symbol}}{{price}} / 1M tokens": "Output price: {{symbol}}{{price}} / 1M tokens",
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Output price: {{symbol}}{{total}} / 1M tokens",
     "例如：gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$": "Example: gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$",
     "支持精确匹配；使用 regex: 开头可按正则匹配。": "Supports exact matching. Use a regex: prefix for regex matching.",
     "AllScale USDT 设置": "AllScale USDT Settings",
@@ -3352,7 +3354,7 @@
     "启用 AllScale": "Enable AllScale",
     "默认 https://openapi.allscale.io，无需修改": "Default https://openapi.allscale.io, no change needed",
     "单价 (USD / 配额单位)": "Unit Price (USD / quota unit)",
-    "每个配额单位对应的 USD 金额，默认 0.002": "USD amount per quota unit, default 0.002",
+    "每个配额单位对应的 USD 金额，默认为 1": "USD amount per quota unit, default 1",
     "最低充值金额 (USD)": "Minimum Top-up Amount (USD)",
     "最低支付金额（美元），默认 $0.20": "Minimum payment amount in USD, default $0.20",
     "启用 AllScale 时，API Key 不能为空": "API Key is required when AllScale is enabled",
@@ -3367,6 +3369,10 @@
     "支付金额不足": "Insufficient payment amount",
     "更新 AllScale USDT 设置": "Update AllScale USDT Settings",
     "货币汇率（每 1 美元等于多少货币单位）": "Currency Rate (units per 1 USD)",
-    "默认为 1，即使用美元。例如填写 10 表示 10 个货币单位 = 1 USD": "Defaults to 1 (USD). Enter 10 to mean 10 currency units = 1 USD"
+    "默认为 1，即使用美元。例如填写 10 表示 10 个货币单位 = 1 USD": "Defaults to 1 (USD). Enter 10 to mean 10 currency units = 1 USD",
+    "AllScale USDT 结账": "AllScale USDT Checkout",
+    "AllScale Webhook ID": "AllScale Webhook ID",
+    "AllScale Webhook ID（可选，不填则跳过验证）": "AllScale Webhook ID (optional, skips verification if blank)",
+    "启用 AllScale 时，Webhook ID 不能为空": "Webhook ID is required when AllScale is enabled"
   }
 }

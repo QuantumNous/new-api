@@ -97,7 +97,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"min_topup":         operation_setting.MinTopUp,
 		"stripe_min_topup":  setting.StripeMinTopUp,
 		"waffo_min_topup":   setting.WaffoMinTopUp,
-		"allscale_min_topup": 1,
+		"allscale_min_topup": setting.AllScaleMinTopUp,
 		"amount_options":    operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":          operation_setting.GetPaymentSetting().AmountDiscount,
 	}

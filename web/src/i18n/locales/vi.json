@@ -3866,7 +3866,7 @@
     "启用 AllScale": "Bật AllScale",
     "默认 https://openapi.allscale.io，无需修改": "Mặc định https://openapi.allscale.io, không cần thay đổi",
     "单价 (USD / 配额单位)": "Đơn giá (USD / đơn vị hạn ngạch)",
-    "每个配额单位对应的 USD 金额，默认 0.002": "Số tiền USD mỗi đơn vị hạn ngạch, mặc định 0.002",
+    "每个配额单位对应的 USD 金额，默认为 1": "Số tiền USD mỗi đơn vị hạn ngạch, mặc định 1",
     "最低充值金额 (USD)": "Số tiền nạp tối thiểu (USD)",
     "最低支付金额（美元），默认 $0.20": "Số tiền thanh toán tối thiểu bằng USD, mặc định $0.20",
     "启用 AllScale 时，API Key 不能为空": "API Key là bắt buộc khi AllScale được bật",
