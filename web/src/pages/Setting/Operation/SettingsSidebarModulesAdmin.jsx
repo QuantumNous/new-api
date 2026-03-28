@@ -30,10 +30,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showSuccess, showError } from '../../../helpers';
 import { StatusContext } from '../../../context/Status';
-import {
-  DEFAULT_ADMIN_CONFIG,
-  mergeAdminConfig,
-} from '../../../hooks/common/useSidebar';
+import { mergeAdminConfig } from '../../../hooks/common/useSidebar';
 
 const { Text } = Typography;
 
