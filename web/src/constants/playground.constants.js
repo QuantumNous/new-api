@@ -97,7 +97,8 @@ export const DEFAULT_CONFIG = {
     imageUrls: [''],
     videoSize: '1280x720',
     videoSeconds: '10',
-    videoQuality: 'standard',
+    videoQuality: '480p',
+    videoPreset: 'normal',
   },
   parameterEnabled: {
     temperature: true,

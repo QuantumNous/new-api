@@ -49,6 +49,7 @@ const SettingsPanel = ({
   const { t } = useTranslation();
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
+  const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const videoSizeOptions = [
     { label: '1280x720', value: '1280x720' },
     { label: '720x1280', value: '720x1280' },
@@ -60,9 +61,15 @@ const SettingsPanel = ({
     label: `${v}s`,
     value: String(v),
   }));
+  const videoPresetOptions = [
+    { label: 'Normal', value: 'normal' },
+    { label: 'Fun', value: 'fun' },
+    { label: 'Spicy', value: 'spicy' },
+    { label: 'Custom', value: 'custom' },
+  ];
   const videoQualityOptions = [
-    { label: 'standard', value: 'standard' },
-    { label: 'high', value: 'high' },
+    { label: '480p', value: '480p' },
+    { label: '720p', value: '720p' },
   ];
 
   const currentConfig = {
@@ -245,6 +252,20 @@ const SettingsPanel = ({
                   disabled={customRequestMode}
                 />
               </div>
+              {isGrokImagineVideoModel && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    {t('椋庢牸棰勮')}
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={videoPresetOptions}
+                    value={inputs.videoPreset || 'normal'}
+                    onChange={(value) => onInputChange('videoPreset', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
               <div>
                 <Typography.Text strong className='text-sm'>
                   {t('视频质量')}
@@ -252,7 +273,13 @@ const SettingsPanel = ({
                 <Select
                   className='!rounded-lg mt-2'
                   optionList={videoQualityOptions}
-                  value={inputs.videoQuality}
+                  value={
+                    inputs.videoQuality === 'high'
+                      ? '720p'
+                      : inputs.videoQuality === 'standard'
+                        ? '480p'
+                        : inputs.videoQuality
+                  }
                   onChange={(value) => onInputChange('videoQuality', value)}
                   disabled={customRequestMode}
                 />

@@ -157,6 +157,7 @@ export const buildApiPayload = (
 
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
+  const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   if (isVideoModel) {
     payload.stream = false;
     if (inputs.videoSize) {
@@ -166,7 +167,15 @@ export const buildApiPayload = (
       payload.seconds = String(inputs.videoSeconds);
     }
     if (inputs.videoQuality) {
-      payload.quality = inputs.videoQuality;
+      payload.quality =
+        inputs.videoQuality === '720p'
+          ? 'high'
+          : inputs.videoQuality === '480p'
+            ? 'standard'
+            : inputs.videoQuality;
+    }
+    if (isGrokImagineVideoModel && inputs.videoPreset) {
+      payload.preset = inputs.videoPreset;
     }
   }
 

@@ -89,6 +89,7 @@ export const useApiRequest = (
         seconds: payload.seconds,
         size: payload.size,
         quality: payload.quality,
+        preset: payload.preset,
         ...(image ? { image } : {}),
       };
     },
