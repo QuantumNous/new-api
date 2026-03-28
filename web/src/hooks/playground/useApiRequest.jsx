@@ -37,6 +37,15 @@ const GROK_IMAGE_GENERATION_MODELS = new Set([
   'grok-imagine-1.0-fast',
 ]);
 const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+const normalizeGrokImageSize = (size) => {
+  if (size === '1536x1024') {
+    return '1792x1024';
+  }
+  if (size === '1024x1536') {
+    return '1024x1792';
+  }
+  return size;
+};
 
 export const useApiRequest = (
   setMessage,
@@ -177,7 +186,7 @@ export const useApiRequest = (
         (isGrokImagineImageEditModel(payload.model)
           ? 'Edit the provided media.'
           : '');
-      const size = payload?.size || payload?.imageSize;
+      const size = normalizeGrokImageSize(payload?.size || payload?.imageSize);
       const requestPayload = {
         model: payload.model,
         group: payload.group,

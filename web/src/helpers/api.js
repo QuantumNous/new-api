@@ -115,6 +115,15 @@ export const buildApiPayload = (
   inputs,
   parameterEnabled,
 ) => {
+  const normalizeGrokImageSize = (size) => {
+    if (size === '1536x1024') {
+      return '1792x1024';
+    }
+    if (size === '1024x1536') {
+      return '1024x1792';
+    }
+    return size;
+  };
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
@@ -167,7 +176,7 @@ export const buildApiPayload = (
   if (isGrokImagineImageModel) {
     payload.stream = false;
     if (inputs.imageSize) {
-      payload.size = inputs.imageSize;
+      payload.size = normalizeGrokImageSize(inputs.imageSize);
     }
   }
   if (isVideoModel) {

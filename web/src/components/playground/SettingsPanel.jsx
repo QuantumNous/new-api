@@ -47,6 +47,15 @@ const SettingsPanel = ({
   messages,
 }) => {
   const { t } = useTranslation();
+  const normalizeGrokImageSize = (size) => {
+    if (size === '1536x1024') {
+      return '1792x1024';
+    }
+    if (size === '1024x1536') {
+      return '1024x1792';
+    }
+    return size;
+  };
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
@@ -57,11 +66,11 @@ const SettingsPanel = ({
     typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const imageSizeOptions = [
-    { label: '1:1 方图', value: '1024x1024' },
-    { label: '3:2 横图', value: '1536x1024' },
-    { label: '2:3 竖图', value: '1024x1536' },
-    { label: '16:9 宽屏', value: '1792x1024' },
-    { label: '9:16 竖屏', value: '1024x1792' },
+    { label: '1:1 方图 (1024x1024)', value: '1024x1024' },
+    { label: '3:2 横图 (1792x1024)', value: '1792x1024' },
+    { label: '2:3 竖图 (1024x1792)', value: '1024x1792' },
+    { label: '16:9 宽屏 (1280x720)', value: '1280x720' },
+    { label: '9:16 竖屏 (720x1280)', value: '720x1280' },
   ];
   const videoSizeOptions = [
     { label: '1280x720', value: '1280x720' },
@@ -247,7 +256,7 @@ const SettingsPanel = ({
               <Select
                 className='!rounded-lg mt-2'
                 optionList={imageSizeOptions}
-                value={inputs.imageSize || '1024x1024'}
+                value={normalizeGrokImageSize(inputs.imageSize || '1024x1024')}
                 onChange={(value) => onInputChange('imageSize', value)}
                 disabled={customRequestMode}
               />
