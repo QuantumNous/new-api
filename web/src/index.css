@@ -31,6 +31,13 @@ body {
   background-color: var(--semi-color-bg-0);
 }
 
+/* 桌面端禁止 body 纵向滚动 - 防止 VChart tooltip 触发页面滚动条 */
+@media (min-width: 768px) {
+  body {
+    overflow-y: hidden;
+  }
+}
+
 .app-layout {
   height: 100vh;
   height: 100dvh;
