@@ -101,6 +101,10 @@ const REGION_EXAMPLE = {
   'gemini-1.5-flash-002': 'europe-west2',
   'claude-3-5-sonnet-20240620': 'europe-west1',
 };
+const SERVICE_TIER_RATIO_EXAMPLE = {
+  fast: 2,
+  flex: 1.3,
+};
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
 
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
@@ -131,6 +135,40 @@ const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
 ]);
+
+function normalizeServiceTierRatiosInput(raw) {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return { normalized: null, error: '' };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return { normalized: null, error: 'invalid_json' };
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { normalized: null, error: 'invalid_shape' };
+  }
+
+  const normalized = {};
+  for (const [rawKey, rawValue] of Object.entries(parsed)) {
+    const key = String(rawKey || '').trim().toLowerCase();
+    if (!key) {
+      return { normalized: null, error: 'empty_key' };
+    }
+
+    const value =
+      typeof rawValue === 'number' ? rawValue : Number(String(rawValue).trim());
+    if (!Number.isFinite(value) || value <= 0) {
+      return { normalized: null, error: 'invalid_value', key };
+    }
+    normalized[key] = value;
+  }
+
+  return { normalized, error: '' };
+}
 
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
@@ -202,6 +240,7 @@ const EditChannelModal = (props) => {
     is_enterprise_account: false,
     // 字段透传控制默认值
     allow_service_tier: false,
+    service_tier_ratios: '',
     disable_store: false, // false = 允许透传（默认开启）
     allow_safety_identifier: false,
     allow_include_obfuscation: false,
@@ -841,6 +880,21 @@ const EditChannelModal = (props) => {
             parsedSettings.openrouter_enterprise === true;
           // 读取字段透传控制设置
           data.allow_service_tier = parsedSettings.allow_service_tier || false;
+          if (typeof parsedSettings.service_tier_ratios === 'string') {
+            data.service_tier_ratios = parsedSettings.service_tier_ratios;
+          } else if (
+            parsedSettings.service_tier_ratios &&
+            typeof parsedSettings.service_tier_ratios === 'object' &&
+            !Array.isArray(parsedSettings.service_tier_ratios)
+          ) {
+            data.service_tier_ratios = JSON.stringify(
+              parsedSettings.service_tier_ratios,
+              null,
+              2,
+            );
+          } else {
+            data.service_tier_ratios = '';
+          }
           data.disable_store = parsedSettings.disable_store || false;
           data.allow_safety_identifier =
             parsedSettings.allow_safety_identifier || false;
@@ -873,6 +927,7 @@ const EditChannelModal = (props) => {
           data.aws_key_type = 'ak_sk';
           data.is_enterprise_account = false;
           data.allow_service_tier = false;
+          data.service_tier_ratios = '';
           data.disable_store = false;
           data.allow_safety_identifier = false;
           data.allow_include_obfuscation = false;
@@ -890,6 +945,7 @@ const EditChannelModal = (props) => {
         data.aws_key_type = 'ak_sk';
         data.is_enterprise_account = false;
         data.allow_service_tier = false;
+        data.service_tier_ratios = '';
         data.disable_store = false;
         data.allow_safety_identifier = false;
         data.allow_include_obfuscation = false;
@@ -1714,6 +1770,36 @@ const EditChannelModal = (props) => {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
       // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
       if (localInputs.type === 1) {
+        const { normalized, error, key } = normalizeServiceTierRatiosInput(
+          localInputs.service_tier_ratios,
+        );
+        if (error === 'invalid_json') {
+          showError(t('service_tier 倍率映射必须是合法的 JSON 格式！'));
+          return;
+        }
+        if (error === 'invalid_shape') {
+          showError(
+            t('service_tier 倍率映射必须是 JSON 对象，格式如 {"fast": 2}'),
+          );
+          return;
+        }
+        if (error === 'empty_key') {
+          showError(t('service_tier 倍率映射包含空的 tier 名称'));
+          return;
+        }
+        if (error === 'invalid_value') {
+          showError(
+            t('service_tier {{key}} 的倍率必须是大于 0 的数字', {
+              key,
+            }),
+          );
+          return;
+        }
+        if (normalized && Object.keys(normalized).length > 0) {
+          settings.service_tier_ratios = normalized;
+        } else {
+          delete settings.service_tier_ratios;
+        }
         settings.disable_store = localInputs.disable_store === true;
         settings.allow_safety_identifier =
           localInputs.allow_safety_identifier === true;
@@ -1721,9 +1807,12 @@ const EditChannelModal = (props) => {
           localInputs.allow_include_obfuscation === true;
       }
       if (localInputs.type === 14) {
+        delete settings.service_tier_ratios;
         settings.allow_inference_geo = localInputs.allow_inference_geo === true;
         settings.claude_beta_query = localInputs.claude_beta_query === true;
       }
+    } else if ('service_tier_ratios' in settings) {
+      delete settings.service_tier_ratios;
     }
 
     settings.upstream_model_update_check_enabled =
@@ -1765,6 +1854,7 @@ const EditChannelModal = (props) => {
     delete localInputs.aws_key_type;
     // 清理字段透传控制的临时字段
     delete localInputs.allow_service_tier;
+    delete localInputs.service_tier_ratios;
     delete localInputs.disable_store;
     delete localInputs.allow_safety_identifier;
     delete localInputs.allow_include_obfuscation;
@@ -2400,6 +2490,29 @@ const EditChannelModal = (props) => {
                         {t('字段透传控制')}
                       </div>
                       <Form.Switch field='allow_service_tier' label={t('允许 service_tier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_service_tier', value)} extraText={t('service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用')} />
+                      <JSONEditor
+                        key={`service_tier_ratios-${isEdit ? channelId : 'new'}`}
+                        field='service_tier_ratios'
+                        label={t('service_tier 倍率映射')}
+                        placeholder={
+                          t('为一个 JSON 文本，键为 service_tier，值为渠道级倍率，例如：') +
+                          '\n' +
+                          JSON.stringify(SERVICE_TIER_RATIO_EXAMPLE, null, 2)
+                        }
+                        value={inputs.service_tier_ratios || ''}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'service_tier_ratios',
+                            value,
+                          )
+                        }
+                        template={SERVICE_TIER_RATIO_EXAMPLE}
+                        templateLabel={t('填入模板')}
+                        editorType='keyValue'
+                        formApi={formApiRef.current}
+                        extraText={t('仅在最终发往上游的顶层 service_tier 命中映射时生效；未命中或未透传时不加倍率')}
+                        showClear
+                      />
                       <Form.Switch field='disable_store' label={t('禁用 store 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('disable_store', value)} extraText={t('store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用')} />
                       <Form.Switch field='allow_safety_identifier' label={t('允许 safety_identifier 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_safety_identifier', value)} extraText={t('safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私')} />
                       <Form.Switch field='allow_include_obfuscation' label={t('允许 stream_options.include_obfuscation 透传')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('allow_include_obfuscation', value)} extraText={t('include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护')} />

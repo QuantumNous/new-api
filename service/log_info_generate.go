@@ -42,6 +42,10 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
+	if relayInfo.PriceData.ServiceTier != "" {
+		other["service_tier"] = relayInfo.PriceData.ServiceTier
+		other["service_tier_ratio"] = relayInfo.PriceData.ServiceTierRatio
+	}
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
 	}
