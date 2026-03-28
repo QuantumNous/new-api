@@ -2,13 +2,13 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/new-api
-  DOKPLOY_WEBHOOK: http://47.86.32.99:3000/api/deploy/En4POIwfsjAEceVHUSw37
+  DOKPLOY_WEBHOOK: http://47.86.32.99:3000/api/deploy/compose/ItP0xhzSENH6ohjIo1CEj
 
 jobs:
   build-and-deploy:
