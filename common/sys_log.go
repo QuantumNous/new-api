@@ -58,5 +58,14 @@ func LogStartupSuccess(startTime time.Time, port string) {
 		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mNetwork:\033[0m http://%s:%s/\n", ip, port)
 	}
 
+	if MetricsEnabled {
+		if !IsRunningInContainer() {
+			fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mMetrics:\033[0m http://localhost:%s/metrics\n", port)
+		}
+		for _, ip := range networkIps {
+			fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mMetrics:\033[0m http://%s:%s/metrics\n", ip, port)
+		}
+	}
+
 	fmt.Fprintf(gin.DefaultWriter, "\n")
 }
