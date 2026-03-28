@@ -20,7 +20,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { API, isAdmin, showError, timestamp2string } from '../../helpers';
+import {
+  API,
+  buildRouteManagerHubDashboardSnapshot,
+  isAdmin,
+  showError,
+  timestamp2string,
+} from '../../helpers';
 import { getDefaultTime, getInitialTimestamp } from '../../helpers/dashboard';
 import { TIME_OPTIONS } from '../../constants/dashboard.constants';
 import { useIsMobile } from '../common/useIsMobile';
@@ -301,64 +307,20 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       });
 
       if (summaryRes.data?.success) {
+        const snapshot = buildRouteManagerHubDashboardSnapshot(
+          summaryRes.data?.data || {},
+        );
         setHubSummary({
-          onlineNodes: Number(summaryRes.data?.data?.online_nodes || 0),
-          busyNodes: Number(summaryRes.data?.data?.busy_nodes || 0),
-          pendingTasks: Number(summaryRes.data?.data?.pending_tasks || 0),
-          activeSchedules: Number(summaryRes.data?.data?.active_schedules || 0),
-          criticalAlerts: Number(summaryRes.data?.data?.critical_alerts || 0),
-          unacknowledgedAlerts: Number(
-            summaryRes.data?.data?.unacknowledged_alerts || 0,
-          ),
-          ai: {
-            modelCount: Number(summaryRes.data?.data?.ai?.model_count || 0),
-            aiCapableNodes: Number(
-              summaryRes.data?.data?.ai?.ai_capable_nodes || 0,
-            ),
-            onlineAINodes: Number(
-              summaryRes.data?.data?.ai?.online_ai_nodes || 0,
-            ),
-          },
-          network: {
-            mihomoConfigured: Boolean(
-              summaryRes.data?.data?.network?.mihomo_configured,
-            ),
-            mihomoReachable: Boolean(
-              summaryRes.data?.data?.network?.mihomo_reachable,
-            ),
-            dnsConfigured: Boolean(
-              summaryRes.data?.data?.network?.dns_configured,
-            ),
-            dnsReachable: Boolean(
-              summaryRes.data?.data?.network?.dns_reachable,
-            ),
-            dnsProtectionEnabled: Boolean(
-              summaryRes.data?.data?.network?.dns_protection_enabled,
-            ),
-            egressIP: summaryRes.data?.data?.network?.egress_ip || '',
-            egressRegion:
-              summaryRes.data?.data?.network?.egress_region || '',
-            egressISP: summaryRes.data?.data?.network?.egress_isp || '',
-            egressSource:
-              summaryRes.data?.data?.network?.egress_source || '',
-          },
-          homeAssistant: {
-            configured: Boolean(
-              summaryRes.data?.data?.home_assistant?.configured,
-            ),
-            reachable: Boolean(
-              summaryRes.data?.data?.home_assistant?.reachable,
-            ),
-            entityCount: Number(
-              summaryRes.data?.data?.home_assistant?.entity_count || 0,
-            ),
-          },
-          primaryNode: {
-            nodeID: summaryRes.data?.data?.primary_node?.node_id || '',
-            hostname: summaryRes.data?.data?.primary_node?.hostname || '',
-            status: summaryRes.data?.data?.primary_node?.status || '',
-            ipAddress: summaryRes.data?.data?.primary_node?.ip_address || '',
-          },
+          onlineNodes: snapshot.onlineNodes,
+          busyNodes: snapshot.busyNodes,
+          pendingTasks: snapshot.pendingTasks,
+          activeSchedules: snapshot.activeSchedules,
+          criticalAlerts: snapshot.criticalAlerts,
+          unacknowledgedAlerts: snapshot.unacknowledgedAlerts,
+          ai: snapshot.ai,
+          network: snapshot.network,
+          homeAssistant: snapshot.homeAssistant,
+          primaryNode: snapshot.primaryNode,
         });
         setHubNodes(
           Array.isArray(summaryRes.data?.data?.nodes)
@@ -386,6 +348,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         setHubSchedules([]);
         setHubTasks([]);
         setHubAlerts([]);
+        setHubError(
+          summaryRes.data?.message || t('家域中枢摘要加载失败，请稍后重试'),
+        );
+        return;
       }
 
       setHubError('');

@@ -1,6 +1,6 @@
 export function ensureOptionUpdateSucceeded(
   responseData = {},
-  fallbackMessage = 'Option update failed',
+  fallbackMessage = '',
 ) {
   const { success, message } = responseData || {};
 
@@ -18,7 +18,7 @@ export function ensureOptionUpdateSucceeded(
 
 export function getOptionUpdateErrorMessage(
   error,
-  fallbackMessage = 'Option update failed',
+  fallbackMessage = '',
 ) {
   const message =
     typeof error?.message === 'string' ? error.message.trim() : '';

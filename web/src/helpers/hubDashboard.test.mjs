@@ -317,6 +317,34 @@ describe('buildRouteManagerHubDashboardSnapshot', () => {
       acknowledged: false,
     });
   });
+
+  test('accepts snake_case summary counters from the hub API payload', () => {
+    const snapshot = buildRouteManagerHubDashboardSnapshot({
+      online_nodes: 3,
+      busy_nodes: 1,
+      pending_tasks: 4,
+      active_schedules: 2,
+      critical_alerts: 1,
+      unacknowledged_alerts: 5,
+      ai: {
+        model_count: 7,
+        ai_capable_nodes: 2,
+        online_ai_nodes: 1,
+      },
+    });
+
+    expect(snapshot.onlineNodes).toBe(3);
+    expect(snapshot.busyNodes).toBe(1);
+    expect(snapshot.pendingTasks).toBe(4);
+    expect(snapshot.activeSchedules).toBe(2);
+    expect(snapshot.criticalAlerts).toBe(1);
+    expect(snapshot.unacknowledgedAlerts).toBe(5);
+    expect(snapshot.ai).toEqual({
+      modelCount: 7,
+      aiCapableNodes: 2,
+      onlineAINodes: 1,
+    });
+  });
 });
 
 describe('buildRouteManagerHubQuickHighlights', () => {

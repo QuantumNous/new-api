@@ -223,11 +223,17 @@ export function extractRouteManagerTaskPreview(task) {
 
 export function buildRouteManagerHubDashboardSnapshot({
   onlineNodes,
+  online_nodes,
   busyNodes,
+  busy_nodes,
   pendingTasks,
+  pending_tasks,
   activeSchedules,
+  active_schedules,
   criticalAlerts,
+  critical_alerts,
   unacknowledgedAlerts,
+  unacknowledged_alerts,
   ai = {},
   network = {},
   homeAssistant = {},
@@ -301,22 +307,41 @@ export function buildRouteManagerHubDashboardSnapshot({
 
   return {
     onlineNodes:
-      typeof onlineNodes === 'number' ? onlineNodes : computedOnlineNodes,
-    busyNodes: typeof busyNodes === 'number' ? busyNodes : computedBusyNodes,
+      typeof onlineNodes === 'number'
+        ? onlineNodes
+        : typeof online_nodes === 'number'
+          ? online_nodes
+          : computedOnlineNodes,
+    busyNodes:
+      typeof busyNodes === 'number'
+        ? busyNodes
+        : typeof busy_nodes === 'number'
+          ? busy_nodes
+          : computedBusyNodes,
     pendingTasks:
-      typeof pendingTasks === 'number' ? pendingTasks : computedPendingTasks,
+      typeof pendingTasks === 'number'
+        ? pendingTasks
+        : typeof pending_tasks === 'number'
+          ? pending_tasks
+          : computedPendingTasks,
     activeSchedules:
       typeof activeSchedules === 'number'
         ? activeSchedules
-        : computedActiveSchedules,
+        : typeof active_schedules === 'number'
+          ? active_schedules
+          : computedActiveSchedules,
     criticalAlerts:
       typeof criticalAlerts === 'number'
         ? criticalAlerts
-        : computedCriticalAlerts,
+        : typeof critical_alerts === 'number'
+          ? critical_alerts
+          : computedCriticalAlerts,
     unacknowledgedAlerts:
       typeof unacknowledgedAlerts === 'number'
         ? unacknowledgedAlerts
-        : computedUnacknowledgedAlerts,
+        : typeof unacknowledged_alerts === 'number'
+          ? unacknowledged_alerts
+          : computedUnacknowledgedAlerts,
     ai: {
       modelCount: Number(ai?.modelCount || ai?.model_count || 0),
       aiCapableNodes: Number(ai?.aiCapableNodes || ai?.ai_capable_nodes || 0),

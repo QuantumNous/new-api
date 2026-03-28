@@ -970,6 +970,7 @@
     "中枢连接正常后，这里会显示最近告警和失败原因入口": "Une fois le hub connecté, les alertes récentes et les liens vers les causes d'échec apparaîtront ici",
     "关键计划": "Planifications clés",
     "激活": "Actif",
+    "已激活": "Actif",
     "查看任务中心": "Voir le centre des tâches",
     "未命名计划": "Planification sans nom",
     "已暂停": "En pause",

@@ -312,7 +312,7 @@ const RouteManagerHubPanel = ({
               <Text strong>{t('关键计划')}</Text>
               <div className='flex items-center gap-3'>
                 <Text type='tertiary'>
-                  {t('激活')} {snapshot.activeSchedules}
+                  {t('已激活')} {snapshot.activeSchedules}
                 </Text>
                 <a
                   href={routeManagerHubTasksHref}

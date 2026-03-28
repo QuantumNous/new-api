@@ -975,6 +975,7 @@
     "中枢连接正常后，这里会显示最近告警和失败原因入口": "Once the hub is connected, recent alerts and failure entry links will appear here",
     "关键计划": "Key Schedules",
     "激活": "Active",
+    "已激活": "Active",
     "查看任务中心": "View Task Center",
     "未命名计划": "Unnamed Schedule",
     "已暂停": "Paused",
