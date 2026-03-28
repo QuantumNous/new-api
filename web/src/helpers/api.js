@@ -158,14 +158,12 @@ export const buildApiPayload = (
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
   if (isVideoModel) {
+    payload.stream = false;
     if (inputs.videoSize) {
       payload.size = inputs.videoSize;
     }
     if (inputs.videoSeconds) {
-      const parsedSeconds = Number.parseInt(inputs.videoSeconds, 10);
-      if (Number.isFinite(parsedSeconds)) {
-        payload.seconds = parsedSeconds;
-      }
+      payload.seconds = String(inputs.videoSeconds);
     }
     if (inputs.videoQuality) {
       payload.quality = inputs.videoQuality;
