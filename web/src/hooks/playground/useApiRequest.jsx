@@ -37,6 +37,15 @@ const GROK_IMAGE_GENERATION_MODELS = new Set([
   'grok-imagine-1.0-fast',
 ]);
 const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+const normalizeGrokImageSize = (size) => {
+  if (size === '1536x1024') {
+    return '1792x1024';
+  }
+  if (size === '1024x1536') {
+    return '1024x1792';
+  }
+  return size;
+};
 
 export const useApiRequest = (
   setMessage,
@@ -177,12 +186,14 @@ export const useApiRequest = (
         (isGrokImagineImageEditModel(payload.model)
           ? 'Edit the provided media.'
           : '');
+      const size = normalizeGrokImageSize(payload?.size || payload?.imageSize);
       const requestPayload = {
         model: payload.model,
         group: payload.group,
         prompt: resolvedPrompt,
         n: 1,
         response_format: 'url',
+        ...(size ? { size } : {}),
       };
 
       if (isGrokImagineImageEditModel(payload.model) && image) {
@@ -501,6 +512,7 @@ export const useApiRequest = (
               : t('图片任务已完成'),
             `model: ${requestPayload.model || payload?.model || '-'}`,
             `count: ${imageUrls.length || data.data?.length || 0}`,
+            `size: ${requestPayload.size || '-'}`,
           ];
 
           imageUrls.forEach((url, index) => {

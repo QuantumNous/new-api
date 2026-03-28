@@ -47,9 +47,56 @@ const SettingsPanel = ({
   messages,
 }) => {
   const { t } = useTranslation();
+  const normalizeGrokImageSize = (size) => {
+    if (size === '1536x1024') {
+      return '1792x1024';
+    }
+    if (size === '1024x1536') {
+      return '1024x1792';
+    }
+    return size;
+  };
+  const grokImagineImageModels = new Set([
+    'grok-imagine-1.0',
+    'grok-imagine-1.0-fast',
+    'grok-imagine-1.0-edit',
+  ]);
+  const adobeImageModels = new Set([
+    'nano-banana',
+    'nano-banana-4k',
+    'nano-banana2',
+    'nano-banana2-4k',
+    'nano-banana-pro',
+    'nano-banana-pro-4k',
+  ]);
+  const adobeVideoModels = new Set([
+    'sora2',
+    'sora2-pro',
+    'veo31',
+    'veo31-ref',
+    'veo31-fast',
+  ]);
+  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isAdobeImageModel = adobeImageModels.has(inputs.model);
+  const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
+  const isAdobeImage4KModel =
+    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
+  const isAdobeSoraModel =
+    inputs.model === 'sora2' || inputs.model === 'sora2-pro';
+  const isAdobeVeoModel =
+    inputs.model === 'veo31' ||
+    inputs.model === 'veo31-ref' ||
+    inputs.model === 'veo31-fast';
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  const imageSizeOptions = [
+    { label: '1:1 方图 (1024x1024)', value: '1024x1024' },
+    { label: '3:2 横图 (1792x1024)', value: '1792x1024' },
+    { label: '2:3 竖图 (1024x1792)', value: '1024x1792' },
+    { label: '16:9 宽屏 (1280x720)', value: '1280x720' },
+    { label: '9:16 竖屏 (720x1280)', value: '720x1280' },
+  ];
   const videoSizeOptions = [
     { label: '1280x720', value: '1280x720' },
     { label: '720x1280', value: '720x1280' },
@@ -70,6 +117,46 @@ const SettingsPanel = ({
   const videoQualityOptions = [
     { label: '480p', value: '480p' },
     { label: '720p', value: '720p' },
+  ];
+  const adobeAspectRatioOptions = [
+    { label: 'Auto', value: 'auto' },
+    { label: '1:1', value: '1:1' },
+    { label: '16:9', value: '16:9' },
+    { label: '9:16', value: '9:16' },
+    { label: '4:3', value: '4:3' },
+    { label: '3:4', value: '3:4' },
+  ];
+  const adobeAutoImageSizeOptions = [
+    { label: 'Square (1024x1024)', value: '1024x1024' },
+    { label: 'Landscape (1792x1024)', value: '1792x1024' },
+    { label: 'Portrait (1024x1792)', value: '1024x1792' },
+    { label: 'Classic (2048x1536)', value: '2048x1536' },
+    { label: 'Tall (1536x2048)', value: '1536x2048' },
+  ];
+  const adobeVideoAspectRatioOptions = [
+    { label: '16:9', value: '16:9' },
+    { label: '9:16', value: '9:16' },
+  ];
+  const adobeOutputResolutionOptions = [
+    { label: '1K', value: '1K' },
+    { label: '2K', value: '2K' },
+  ];
+  const adobe4KResolutionOptions = [{ label: '4K', value: '4K' }];
+  const adobeSoraDurationOptions = [4, 8, 12].map((v) => ({
+    label: `${v}s`,
+    value: String(v),
+  }));
+  const adobeVeoDurationOptions = [4, 6, 8].map((v) => ({
+    label: `${v}s`,
+    value: String(v),
+  }));
+  const adobeVideoResolutionOptions = [
+    { label: '1080p', value: '1080p' },
+    { label: '720p', value: '720p' },
+  ];
+  const adobeReferenceModeOptions = [
+    { label: 'Frame', value: 'frame' },
+    { label: 'Image', value: 'image' },
   ];
 
   const currentConfig = {
@@ -225,6 +312,78 @@ const SettingsPanel = ({
         </div>
 
         {/* 视频参数（仅视频模型显示） */}
+        {isGrokImagineImageModel && (
+          <div className={customRequestMode ? 'opacity-50' : ''}>
+            <div>
+              <Typography.Text strong className='text-sm'>
+                {t('图片尺寸')}
+              </Typography.Text>
+              <Select
+                className='!rounded-lg mt-2'
+                optionList={imageSizeOptions}
+                value={normalizeGrokImageSize(inputs.imageSize || '1024x1024')}
+                onChange={(value) => onInputChange('imageSize', value)}
+                disabled={customRequestMode}
+              />
+            </div>
+          </div>
+        )}
+
+        {isAdobeImageModel && (
+          <div className={customRequestMode ? 'opacity-50' : ''}>
+            <div className='space-y-4'>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  Aspect Ratio
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={adobeAspectRatioOptions}
+                  value={inputs.aspectRatio || 'auto'}
+                  onChange={(value) => onInputChange('aspectRatio', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+              {(inputs.aspectRatio || 'auto') === 'auto' && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    Auto Size
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={adobeAutoImageSizeOptions}
+                    value={inputs.autoImageSize || '1024x1024'}
+                    onChange={(value) => onInputChange('autoImageSize', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  Output Resolution
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={
+                    isAdobeImage4KModel
+                      ? adobe4KResolutionOptions
+                      : adobeOutputResolutionOptions
+                  }
+                  value={
+                    isAdobeImage4KModel
+                      ? '4K'
+                      : inputs.outputResolution || '2K'
+                  }
+                  onChange={(value) =>
+                    !isAdobeImage4KModel && onInputChange('outputResolution', value)
+                  }
+                  disabled={customRequestMode || isAdobeImage4KModel}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {isVideoModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div className='space-y-4'>
@@ -284,6 +443,69 @@ const SettingsPanel = ({
                   disabled={customRequestMode}
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {isAdobeVideoModel && (
+          <div className={customRequestMode ? 'opacity-50' : ''}>
+            <div className='space-y-4'>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  Duration
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={
+                    isAdobeSoraModel
+                      ? adobeSoraDurationOptions
+                      : adobeVeoDurationOptions
+                  }
+                  value={inputs.videoDuration || '4'}
+                  onChange={(value) => onInputChange('videoDuration', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+              <div>
+                <Typography.Text strong className='text-sm'>
+                  Aspect Ratio
+                </Typography.Text>
+                <Select
+                  className='!rounded-lg mt-2'
+                  optionList={adobeVideoAspectRatioOptions}
+                  value={inputs.aspectRatio || '16:9'}
+                  onChange={(value) => onInputChange('aspectRatio', value)}
+                  disabled={customRequestMode}
+                />
+              </div>
+              {isAdobeVeoModel && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    Resolution
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={adobeVideoResolutionOptions}
+                    value={inputs.videoResolution || '1080p'}
+                    onChange={(value) => onInputChange('videoResolution', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
+              {inputs.model === 'veo31' && (
+                <div>
+                  <Typography.Text strong className='text-sm'>
+                    Reference Mode
+                  </Typography.Text>
+                  <Select
+                    className='!rounded-lg mt-2'
+                    optionList={adobeReferenceModeOptions}
+                    value={inputs.referenceMode || 'frame'}
+                    onChange={(value) => onInputChange('referenceMode', value)}
+                    disabled={customRequestMode}
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}
