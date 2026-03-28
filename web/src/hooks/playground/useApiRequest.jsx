@@ -95,6 +95,29 @@ export const useApiRequest = (
     [getImageFromMessageContent, getTextFromMessageContent],
   );
 
+  const extractVideoUrl = useCallback((payload) => {
+    if (!payload || typeof payload !== 'object') {
+      return '';
+    }
+
+    const candidates = [
+      payload.url,
+      payload.video_url,
+      payload.result_url,
+      payload.metadata?.url,
+      payload.data?.url,
+      payload.data?.video_url,
+      payload.data?.result_url,
+      payload.data?.metadata?.url,
+    ];
+
+    const matched = candidates.find(
+      (item) => typeof item === 'string' && item.trim() !== '',
+    );
+
+    return matched?.trim() || '';
+  }, []);
+
   const resolveEndpointAndPayload = useCallback(
     (payload) => {
       if (isVideoGenerationPayload(payload)) {
@@ -306,12 +329,14 @@ export const useApiRequest = (
           data.object === 'video' ||
           data.task_id
         ) {
+          const videoUrl = extractVideoUrl(data);
           const summary = [
             `${t('视频任务已创建')}`,
             `task_id: ${data.task_id || data.id || '-'}`,
             `status: ${data.status || '-'}`,
             `seconds: ${data.seconds || requestPayload.seconds || '-'}`,
             `size: ${data.size || requestPayload.size || '-'}`,
+            ...(videoUrl ? [`url: ${videoUrl}`, `[Open Video](${videoUrl})`] : []),
           ].join('\n');
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
@@ -396,6 +421,7 @@ export const useApiRequest = (
       setActiveDebugTab,
       setMessage,
       t,
+      extractVideoUrl,
       applyAutoCollapseLogic,
     ],
   );

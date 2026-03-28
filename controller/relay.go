@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -586,6 +587,42 @@ func RelayTask(c *gin.Context) {
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
+		if adaptor := relay.GetTaskAdaptor(result.Platform); adaptor != nil && len(result.TaskData) > 0 {
+			if taskInfo, err := adaptor.ParseTaskResult(result.TaskData); err == nil && taskInfo != nil && taskInfo.Status != "" {
+				now := time.Now().Unix()
+				task.Status = model.TaskStatus(taskInfo.Status)
+				switch task.Status {
+				case model.TaskStatusSubmitted:
+					task.Progress = taskcommon.ProgressSubmitted
+				case model.TaskStatusQueued:
+					task.Progress = taskcommon.ProgressQueued
+				case model.TaskStatusInProgress:
+					task.Progress = taskcommon.ProgressInProgress
+					if task.StartTime == 0 {
+						task.StartTime = now
+					}
+				case model.TaskStatusSuccess:
+					task.Progress = taskcommon.ProgressComplete
+					if task.StartTime == 0 {
+						task.StartTime = now
+					}
+					if task.FinishTime == 0 {
+						task.FinishTime = now
+					}
+					task.PrivateData.ResultURL = taskInfo.Url
+				case model.TaskStatusFailure:
+					task.Progress = taskcommon.ProgressComplete
+					if task.FinishTime == 0 {
+						task.FinishTime = now
+					}
+					task.FailReason = taskInfo.Reason
+					task.PrivateData.ResultURL = taskInfo.Url
+				}
+				if taskInfo.Progress != "" {
+					task.Progress = taskInfo.Progress
+				}
+			}
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}
