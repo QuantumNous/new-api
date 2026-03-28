@@ -63,7 +63,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const isHomeRoute = location.pathname === '/';
-  const showGlobalHeader = !isHomeRoute;
+  const showGlobalHeader = true;
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const shouldHideFooter = cardProPages.includes(location.pathname) || isHomeRoute;
 

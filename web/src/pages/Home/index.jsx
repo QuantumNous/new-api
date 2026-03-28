@@ -85,19 +85,6 @@ const btnWhiteOutline = {
   color: '#fff',
 };
 
-const headerActionBase = {
-  height: 44,
-  padding: '0 20px',
-  borderRadius: 9999,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 14,
-  fontWeight: 700,
-  textDecoration: 'none',
-  transition: `transform 220ms ${easing}, background 220ms ${easing}, color 220ms ${easing}, border-color 220ms ${easing}, box-shadow 220ms ${easing}`,
-};
-
 const useScrollY = () => {
   const [scrollY, setScrollY] = useState(0);
 
@@ -240,269 +227,6 @@ const FaqItem = ({ question, answer, isOpen, onClick }) => (
     </Collapsible>
   </div>
 );
-
-const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) => {
-  const isDark = actualTheme === 'dark';
-  const location = typeof window !== 'undefined' ? window.location.pathname : '/';
-  const [hoveredNavKey, setHoveredNavKey] = useState(null);
-  const navLinks = [
-    { key: 'home', label: t('首页'), to: '/', active: location === '/' },
-    { key: 'pricing', label: t('定价'), to: '/pricing', active: location === '/pricing' },
-    ...(docsLink
-      ? [
-          {
-            key: 'docs',
-            label: t('文档'),
-            href: docsLink,
-            external: true,
-          },
-        ]
-      : []),
-    { key: 'about', label: t('关于'), to: '/about', active: location === '/about' },
-  ];
-
-  const headerBackground = isDark
-    ? scrollY > 24
-      ? 'rgba(17, 24, 39, 0.82)'
-      : 'rgba(17, 24, 39, 0.62)'
-    : scrollY > 24
-      ? 'rgba(255, 255, 255, 0.88)'
-      : 'rgba(255, 255, 255, 0.68)';
-
-  const ghostActionStyle = {
-    ...headerActionBase,
-    color: 'var(--semi-color-text-0)',
-    border: '1px solid transparent',
-    background: 'transparent',
-  };
-
-  const primaryActionStyle = {
-    ...headerActionBase,
-    color: isDark ? '#0f172a' : '#ffffff',
-    background: isDark ? '#ffffff' : '#111827',
-    boxShadow: isDark
-      ? '0 16px 36px rgba(255, 255, 255, 0.12)'
-      : '0 16px 36px rgba(15, 23, 42, 0.22)',
-  };
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 80,
-        padding: isMobile ? '14px 16px' : '20px 24px',
-        pointerEvents: 'none',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1248,
-          margin: '0 auto',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: isMobile ? 12 : 20,
-          minHeight: isMobile ? 58 : 68,
-          padding: isMobile ? '10px 14px' : '12px 24px',
-          borderRadius: 9999,
-          border: `1px solid ${
-            isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(15, 23, 42, 0.08)'
-          }`,
-          background: headerBackground,
-          boxShadow:
-            scrollY > 20
-              ? isDark
-                ? '0 20px 50px rgba(0, 0, 0, 0.32)'
-                : '0 20px 50px rgba(15, 23, 42, 0.10)'
-              : 'none',
-          backdropFilter: 'blur(18px)',
-          WebkitBackdropFilter: 'blur(18px)',
-          transition: `background 240ms ${easing}, box-shadow 240ms ${easing}, border-color 240ms ${easing}`,
-          pointerEvents: 'auto',
-        }}
-      >
-        <Link
-          to='/'
-          className='uni-home-header-brand'
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 12,
-            minWidth: 0,
-            color: 'var(--semi-color-text-0)',
-            textDecoration: 'none',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background:
-                'linear-gradient(135deg, var(--semi-color-primary) 0%, var(--semi-color-warning) 100%)',
-              boxShadow: '0 12px 28px rgba(var(--semi-blue-5), 0.22)',
-              position: 'relative',
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                inset: 6,
-                borderRadius: '50%',
-                border: '2px solid rgba(255,255,255,0.48)',
-              }}
-            />
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: 0,
-            }}
-          >
-            <span
-              className='uni-home-brand-text'
-              style={{
-                fontSize: 18,
-                fontWeight: 900,
-                lineHeight: 1.1,
-                letterSpacing: '0.08em',
-              }}
-            >
-              OneDayAI
-            </span>
-            {!isMobile && (
-              <span
-                style={{
-                  fontSize: 11,
-                  lineHeight: 1.1,
-                  color: 'var(--semi-color-text-2)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.18em',
-                  marginTop: 3,
-                }}
-              >
-                All In One API Gateway
-              </span>
-            )}
-          </div>
-        </Link>
-
-        {!isMobile && (
-          <nav
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            {navLinks.map((item) => {
-              const isHighlighted = item.active || hoveredNavKey === item.key;
-              const commonStyle = {
-                position: 'relative',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '11px 16px',
-                borderRadius: 9999,
-                color: isHighlighted
-                  ? 'var(--semi-color-primary)'
-                  : 'var(--semi-color-text-0)',
-                background: isHighlighted
-                  ? 'var(--semi-color-primary-light-default)'
-                  : 'transparent',
-                textDecoration: 'none',
-                fontSize: 14,
-                fontWeight: 700,
-                lineHeight: 1,
-                transition: `transform 220ms ${easing}, background 220ms ${easing}, color 220ms ${easing}`,
-              };
-
-              const dotStyle = {
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--semi-color-primary)',
-                opacity: isHighlighted ? 1 : 0,
-                transition: `opacity 220ms ${easing}`,
-                flexShrink: 0,
-              };
-
-              const dotClassName = isHighlighted
-                ? 'uni-home-nav-dot uni-home-nav-dot-active'
-                : 'uni-home-nav-dot';
-
-              if (item.external) {
-                return (
-                  <a
-                    key={item.key}
-                    href={item.href}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='uni-home-header-link'
-                    style={commonStyle}
-                    onMouseEnter={() => setHoveredNavKey(item.key)}
-                    onMouseLeave={() => setHoveredNavKey(null)}
-                  >
-                    <span className={dotClassName} style={dotStyle} />
-                    {item.label}
-                  </a>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.key}
-                  to={item.to}
-                  className='uni-home-header-link'
-                  style={commonStyle}
-                  onMouseEnter={() => setHoveredNavKey(item.key)}
-                  onMouseLeave={() => setHoveredNavKey(null)}
-                >
-                  <span className={dotClassName} style={dotStyle} />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        )}
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexShrink: 0,
-          }}
-        >
-          <Link
-            to={userState?.user ? '/console' : '/login'}
-            className='uni-home-header-action'
-            style={ghostActionStyle}
-          >
-            {userState?.user ? t('控制台') : t('登录')}
-          </Link>
-          <Link
-            to={userState?.user ? '/console' : '/register'}
-            className='uni-home-header-action uni-home-header-action-primary'
-            style={primaryActionStyle}
-          >
-            {t('立即开始')}
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const Home = () => {
   const { t, i18n } = useTranslation();
@@ -714,8 +438,7 @@ const Home = () => {
           font-family: inherit;
         }
 
-        .uni-home-gradient-text,
-        .uni-home-brand-text {
+        .uni-home-gradient-text {
           background-image: linear-gradient(300deg, var(--semi-color-primary) 0%, var(--semi-color-warning) 25%, var(--semi-color-primary) 50%, var(--semi-color-warning) 75%, var(--semi-color-primary) 100%);
           background-size: 300% 300%;
           -webkit-background-clip: text;
@@ -757,23 +480,8 @@ const Home = () => {
         }
 
         .uni-home-hover-button:hover,
-        .uni-home-header-link:hover,
-        .uni-home-header-action:hover,
-        .uni-home-header-brand:hover,
         .uni-home-faq-item:hover {
           transform: translate3d(0, -2px, 0);
-        }
-
-        .uni-home-header-link:hover,
-        .uni-home-header-action:hover {
-          background: rgba(var(--semi-blue-5), 0.08);
-          color: var(--semi-color-primary);
-        }
-
-        .uni-home-header-action-primary:hover {
-          color: inherit;
-          background: inherit;
-          transform: translate3d(0, -2px, 0) scale(1.01);
         }
 
         .uni-home-rocket {
@@ -823,7 +531,6 @@ const Home = () => {
         @media (prefers-reduced-motion: reduce) {
           .uni-homepage *,
           .uni-home-gradient-text,
-          .uni-home-brand-text,
           .uni-home-watermark,
           .uni-home-float-dot,
           .uni-home-provider-icon,
@@ -851,14 +558,6 @@ const Home = () => {
             position: 'relative',
           }}
         >
-          <HomeHeader
-            isMobile={isMobile}
-            docsLink={docsLink}
-            actualTheme={actualTheme}
-            userState={userState}
-            t={t}
-            scrollY={scrollY}
-          />
 
           <section
             style={{

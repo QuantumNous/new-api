@@ -32,12 +32,10 @@ const Navigation = ({
 
   const renderNavLinks = () => {
     const baseClasses =
-      'flex-shrink-0 flex items-center gap-2 font-semibold rounded-full transition-all duration-200 ease-in-out';
-    const hoverClasses =
-      'hover:text-semi-color-primary hover:bg-semi-color-primary-light-default';
-    const spacingClasses = isMobile ? 'pl-6 pr-2 py-1' : 'pl-8 pr-4 py-2.5';
-    const activeClasses =
-      'text-semi-color-primary bg-semi-color-primary-light-default';
+      'flex-shrink-0 flex items-center gap-1.5 text-sm font-semibold text-[#0f172a] transition-colors duration-200 ease-in-out dark:text-white';
+    const hoverClasses = 'hover:text-[#2563eb] dark:hover:text-[#93c5fd]';
+    const spacingClasses = isMobile ? 'px-2 py-1' : 'px-2.5 py-1.5 lg:px-3';
+    const activeClasses = 'text-[#2563eb] dark:text-[#93c5fd]';
 
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
@@ -48,7 +46,7 @@ const Navigation = ({
         return (
           <>
             <span
-              className={`h-2.5 w-2.5 flex-shrink-0 rounded-full bg-semi-color-primary transition-opacity duration-200 ${
+              className={`h-1.5 w-1.5 flex-shrink-0 rounded-full bg-semi-color-primary transition-opacity duration-200 ${
                 showDot ? 'opacity-100' : 'opacity-0'
               }`}
             />
@@ -101,7 +99,7 @@ const Navigation = ({
   };
 
   return (
-    <nav className='flex flex-1 items-center gap-1 lg:gap-2 mx-2 md:mx-4 overflow-x-auto whitespace-nowrap scrollbar-hide'>
+    <nav className='hidden md:flex items-center gap-1 lg:gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide'>
       <SkeletonWrapper
         loading={isLoading}
         type='navigation'
