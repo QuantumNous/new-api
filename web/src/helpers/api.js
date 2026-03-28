@@ -115,6 +115,11 @@ export const buildApiPayload = (
   inputs,
   parameterEnabled,
 ) => {
+  const grokImagineImageModels = new Set([
+    'grok-imagine-1.0',
+    'grok-imagine-1.0-fast',
+    'grok-imagine-1.0-edit',
+  ]);
   const processedMessages = messages
     .filter(isValidMessage)
     .map(formatMessageForAPI)
@@ -157,7 +162,11 @@ export const buildApiPayload = (
 
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
+  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  if (isGrokImagineImageModel) {
+    payload.stream = false;
+  }
   if (isVideoModel) {
     payload.stream = false;
     if (inputs.videoSize) {

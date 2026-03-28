@@ -32,6 +32,12 @@ import {
   processIncompleteThinkTags,
 } from '../../helpers';
 
+const GROK_IMAGE_GENERATION_MODELS = new Set([
+  'grok-imagine-1.0',
+  'grok-imagine-1.0-fast',
+]);
+const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+
 export const useApiRequest = (
   setMessage,
   setDebugData,
@@ -40,10 +46,29 @@ export const useApiRequest = (
   saveMessages,
 ) => {
   const { t } = useTranslation();
+
+  const isGrokImagineImageModel = useCallback((model) => {
+    return (
+      GROK_IMAGE_GENERATION_MODELS.has(model) || GROK_IMAGE_EDIT_MODELS.has(model)
+    );
+  }, []);
+
+  const isGrokImagineImageEditModel = useCallback((model) => {
+    return GROK_IMAGE_EDIT_MODELS.has(model);
+  }, []);
+
   const isVideoGenerationPayload = useCallback((payload) => {
     const model = payload?.model;
     return typeof model === 'string' && model.includes('video');
   }, []);
+
+  const isImageGenerationPayload = useCallback(
+    (payload) => {
+      const model = payload?.model;
+      return typeof model === 'string' && isGrokImagineImageModel(model);
+    },
+    [isGrokImagineImageModel],
+  );
 
   const getTextFromMessageContent = useCallback((content) => {
     if (typeof content === 'string') {
@@ -139,6 +164,35 @@ export const useApiRequest = (
     ],
   );
 
+  const buildImageRequestPayload = useCallback(
+    (payload) => {
+      const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+      const lastUserMessage = [...messages]
+        .reverse()
+        .find((m) => m?.role === 'user');
+      const prompt = getTextFromMessageContent(lastUserMessage?.content);
+      const image = getImageFromMessageContent(lastUserMessage?.content);
+      const requestPayload = {
+        model: payload.model,
+        group: payload.group,
+        prompt,
+        n: 1,
+        response_format: 'url',
+      };
+
+      if (isGrokImagineImageEditModel(payload.model) && image) {
+        requestPayload.image = { url: image };
+      }
+
+      return requestPayload;
+    },
+    [
+      getImageFromMessageContent,
+      getTextFromMessageContent,
+      isGrokImagineImageEditModel,
+    ],
+  );
+
   const extractVideoUrl = useCallback((payload) => {
     if (!payload || typeof payload !== 'object') {
       return '';
@@ -164,6 +218,16 @@ export const useApiRequest = (
 
   const resolveEndpointAndPayload = useCallback(
     (payload) => {
+      if (isImageGenerationPayload(payload)) {
+        const requestPayload = buildImageRequestPayload(payload);
+        return {
+          endpoint: isGrokImagineImageEditModel(payload?.model)
+            ? API_ENDPOINTS.IMAGE_EDITS
+            : API_ENDPOINTS.IMAGE_GENERATIONS,
+          requestPayload,
+          forceNonStream: true,
+        };
+      }
       if (isVideoGenerationPayload(payload)) {
         return {
           endpoint: API_ENDPOINTS.VIDEO_GENERATIONS,
@@ -177,7 +241,13 @@ export const useApiRequest = (
         forceNonStream: false,
       };
     },
-    [buildVideoRequestPayload, isVideoGenerationPayload],
+    [
+      buildImageRequestPayload,
+      buildVideoRequestPayload,
+      isGrokImagineImageEditModel,
+      isImageGenerationPayload,
+      isVideoGenerationPayload,
+    ],
   );
 
   // 处理消息自动关闭逻辑的公共函数
@@ -402,6 +472,52 @@ export const useApiRequest = (
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: summary,
+                status: MESSAGE_STATUS.COMPLETE,
+                ...autoCollapseState,
+              };
+            }
+            return newMessages;
+          });
+          return;
+        }
+
+        if (
+          endpoint === API_ENDPOINTS.IMAGE_GENERATIONS ||
+          endpoint === API_ENDPOINTS.IMAGE_EDITS ||
+          Array.isArray(data.data)
+        ) {
+          const imageUrls = (Array.isArray(data.data) ? data.data : [])
+            .map((item) => item?.url)
+            .filter((item) => typeof item === 'string' && item.trim() !== '');
+
+          const summaryLines = [
+            endpoint === API_ENDPOINTS.IMAGE_EDITS
+              ? t('图片编辑已完成')
+              : t('图片任务已完成'),
+            `model: ${requestPayload.model || payload?.model || '-'}`,
+            `count: ${imageUrls.length || data.data?.length || 0}`,
+          ];
+
+          imageUrls.forEach((url, index) => {
+            summaryLines.push(`image_${index + 1}: [Open Image ${index + 1}](${url})`);
+            summaryLines.push(`![image_${index + 1}](${url})`);
+          });
+
+          if (imageUrls.length === 0) {
+            summaryLines.push(t('未在响应中解析到图片链接'));
+          }
+
+          setMessage((prevMessage) => {
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+              const autoCollapseState = applyAutoCollapseLogic(
+                lastMessage,
+                true,
+              );
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: summaryLines.join('\n\n'),
                 status: MESSAGE_STATUS.COMPLETE,
                 ...autoCollapseState,
               };
