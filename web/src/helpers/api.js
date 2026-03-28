@@ -129,6 +129,21 @@ export const buildApiPayload = (
     'grok-imagine-1.0-fast',
     'grok-imagine-1.0-edit',
   ]);
+  const adobeImageModels = new Set([
+    'nano-banana',
+    'nano-banana-4k',
+    'nano-banana2',
+    'nano-banana2-4k',
+    'nano-banana-pro',
+    'nano-banana-pro-4k',
+  ]);
+  const adobeVideoModels = new Set([
+    'sora2',
+    'sora2-pro',
+    'veo31',
+    'veo31-ref',
+    'veo31-fast',
+  ]);
   const processedMessages = messages
     .filter(isValidMessage)
     .map(formatMessageForAPI)
@@ -173,10 +188,30 @@ export const buildApiPayload = (
     typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  const isAdobeImageModel = adobeImageModels.has(inputs.model);
+  const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
+  const isAdobeImage4KModel =
+    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
+  const isAdobeVeoModel =
+    inputs.model === 'veo31' ||
+    inputs.model === 'veo31-ref' ||
+    inputs.model === 'veo31-fast';
+  const adobeAspectRatio =
+    inputs.aspectRatio || (isAdobeVideoModel ? '16:9' : '1:1');
   if (isGrokImagineImageModel) {
     payload.stream = false;
     if (inputs.imageSize) {
       payload.size = normalizeGrokImageSize(inputs.imageSize);
+    }
+  }
+  if (isAdobeImageModel) {
+    payload.aspect_ratio = adobeAspectRatio;
+    if (isAdobeImage4KModel) {
+      payload.output_resolution = '4K';
+    } else if (inputs.outputResolution) {
+      payload.output_resolution = inputs.outputResolution;
+    } else {
+      payload.output_resolution = '2K';
     }
   }
   if (isVideoModel) {
@@ -214,6 +249,18 @@ export const buildApiPayload = (
           : {}),
         ...(payload.preset ? { preset: payload.preset } : {}),
       };
+    }
+  }
+  if (isAdobeVideoModel) {
+    payload.duration = Number(inputs.videoDuration || 4);
+    payload.aspect_ratio = adobeAspectRatio;
+    if (isAdobeVeoModel) {
+      payload.resolution = inputs.videoResolution || '1080p';
+    }
+    if (inputs.model === 'veo31-ref') {
+      payload.reference_mode = 'image';
+    } else if (inputs.model === 'veo31' && inputs.referenceMode) {
+      payload.reference_mode = inputs.referenceMode;
     }
   }
 
