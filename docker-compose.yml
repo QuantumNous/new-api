@@ -16,6 +16,7 @@ version: '3.4'
 services:
   new-api:
     image: ghcr.io/yebin-xu/new-api:latest
+    pull_policy: always
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
