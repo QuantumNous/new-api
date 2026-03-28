@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { Button, Col, Form, Row, Spin, Typography, TextArea } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -28,6 +28,9 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import GroupManagement from '../../../components/table/groups/GroupManagement';
+
+const { Text } = Typography;
 
 export default function GroupRatioSettings(props) {
   const { t } = useTranslation();
@@ -42,6 +45,22 @@ export default function GroupRatioSettings(props) {
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+
+  const groupRatio = useMemo(() => {
+    try {
+      return inputs.GroupRatio ? JSON.parse(inputs.GroupRatio) : {};
+    } catch {
+      return {};
+    }
+  }, [inputs.GroupRatio]);
+
+  const userUsableGroups = useMemo(() => {
+    try {
+      return inputs.UserUsableGroups ? JSON.parse(inputs.UserUsableGroups) : {};
+    } catch {
+      return {};
+    }
+  }, [inputs.UserUsableGroups]);
 
   async function onSubmit() {
     try {
@@ -97,6 +116,62 @@ export default function GroupRatioSettings(props) {
     }
   }
 
+  const handleGroupManagementSave = async (data) => {
+    const updateArray = [];
+    if (data.GroupRatio !== inputsRow.GroupRatio) {
+      updateArray.push({ key: 'GroupRatio', value: data.GroupRatio });
+    }
+    if (data.UserUsableGroups !== inputsRow.UserUsableGroups) {
+      updateArray.push({ key: 'UserUsableGroups', value: data.UserUsableGroups });
+    }
+
+    if (!updateArray.length) {
+      showWarning(t('你似乎并没有修改什么'));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const requestQueue = updateArray.map((item) =>
+        API.put('/api/option/', { key: item.key, value: item.value })
+      );
+
+      const res = await Promise.all(requestQueue);
+
+      if (res.includes(undefined)) {
+        showError(t('保存失败，请重试'));
+        return;
+      }
+
+      for (let i = 0; i < res.length; i++) {
+        if (!res[i].data.success) {
+          showError(res[i].data.message);
+          return;
+        }
+      }
+
+      showSuccess(t('保存成功'));
+      
+      setInputs((prev) => ({
+        ...prev,
+        GroupRatio: data.GroupRatio,
+        UserUsableGroups: data.UserUsableGroups,
+      }));
+      setInputsRow((prev) => ({
+        ...prev,
+        GroupRatio: data.GroupRatio,
+        UserUsableGroups: data.UserUsableGroups,
+      }));
+      
+      props.refresh();
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      showError(t('保存失败，请重试'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
@@ -111,57 +186,49 @@ export default function GroupRatioSettings(props) {
 
   return (
     <Spin spinning={loading}>
+      <GroupManagement
+        groupRatio={groupRatio}
+        userUsableGroups={userUsableGroups}
+        loading={loading}
+        onSave={handleGroupManagementSave}
+        refresh={props.refresh}
+      />
+
+      <div style={{ marginBottom: 16, marginTop: 16 }}>
+        <Text type="tertiary" size="small">
+          {t('当前配置 JSON（只读，请通过上方表格修改）')}
+        </Text>
+        <Row gutter={16} style={{ marginTop: 8 }}>
+          <Col xs={24} sm={12}>
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" size="small">{t('分组倍率 JSON')}</Text>
+            </div>
+            <TextArea
+              value={inputs.GroupRatio}
+              autosize={{ minRows: 4, maxRows: 8 }}
+              disabled
+              style={{ fontFamily: 'monospace' }}
+            />
+          </Col>
+          <Col xs={24} sm={12}>
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary" size="small">{t('用户可选分组 JSON')}</Text>
+            </div>
+            <TextArea
+              value={inputs.UserUsableGroups}
+              autosize={{ minRows: 4, maxRows: 8 }}
+              disabled
+              style={{ fontFamily: 'monospace' }}
+            />
+          </Col>
+        </Row>
+      </div>
+
       <Form
         values={inputs}
         getFormApi={(formAPI) => (refForm.current = formAPI)}
-        style={{ marginBottom: 15 }}
+        style={{ marginBottom: 15, marginTop: 16 }}
       >
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('分组倍率')}
-              placeholder={t('为一个 JSON 文本，键为分组名称，值为倍率')}
-              extraText={t(
-                '分组倍率设置，可以在此处新增分组或修改现有分组的倍率，格式为 JSON 字符串，例如：{"vip": 0.5, "test": 1}，表示 vip 分组的倍率为 0.5，test 分组的倍率为 1',
-              )}
-              field={'GroupRatio'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: t('不是合法的 JSON 字符串'),
-                },
-              ]}
-              onChange={(value) => setInputs({ ...inputs, GroupRatio: value })}
-            />
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('用户可选分组')}
-              placeholder={t('为一个 JSON 文本，键为分组名称，值为分组描述')}
-              extraText={t(
-                '用户新建令牌时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
-              )}
-              field={'UserUsableGroups'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: t('不是合法的 JSON 字符串'),
-                },
-              ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, UserUsableGroups: value })
-              }
-            />
-          </Col>
-        </Row>
         <Row gutter={16}>
           <Col xs={24} sm={16}>
             <Form.TextArea
@@ -226,19 +293,16 @@ export default function GroupRatioSettings(props) {
                 {
                   validator: (rule, value) => {
                     if (!value || value.trim() === '') {
-                      return true; // Allow empty values
+                      return true;
                     }
 
-                    // First check if it's valid JSON
                     try {
                       const parsed = JSON.parse(value);
 
-                      // Check if it's an array
                       if (!Array.isArray(parsed)) {
                         return false;
                       }
 
-                      // Check if every element is a string
                       return parsed.every((item) => typeof item === 'string');
                     } catch (error) {
                       return false;

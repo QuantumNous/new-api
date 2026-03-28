@@ -88,6 +88,15 @@ func (al *AuditLogger) Reload() {
 	al.initStorage()
 }
 
+func ReloadAuditLogger() {
+	if auditLogger == nil {
+		auditLogger = &AuditLogger{
+			enabled: operation_setting.IsAuditEnabled(),
+		}
+	}
+	auditLogger.Reload()
+}
+
 func (al *AuditLogger) IsEnabled() bool {
 	al.mu.RLock()
 	defer al.mu.RUnlock()
@@ -128,8 +137,11 @@ func (al *AuditLogger) Close() error {
 }
 
 type LocalStorage struct {
-	basePath string
-	mu       sync.Mutex
+	basePath    string
+	mu          sync.Mutex
+	maxFileSize int64
+	currentFile string
+	currentSize int64
 }
 
 func NewLocalStorage() *LocalStorage {
@@ -137,7 +149,15 @@ func NewLocalStorage() *LocalStorage {
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		common.SysError(fmt.Sprintf("failed to create audit log directory: %v", err))
 	}
-	return &LocalStorage{basePath: basePath}
+	setting := operation_setting.GetAuditSetting()
+	maxSize := setting.MaxFileSize * 1024 * 1024
+	if maxSize <= 0 {
+		maxSize = 100 * 1024 * 1024
+	}
+	return &LocalStorage{
+		basePath:    basePath,
+		maxFileSize: maxSize,
+	}
 }
 
 func (ls *LocalStorage) Save(record *AuditRecord) error {
@@ -153,39 +173,50 @@ func (ls *LocalStorage) Save(record *AuditRecord) error {
 		return fmt.Errorf("failed to create token directory: %w", err)
 	}
 
-	dateFilename := record.Timestamp.Format("2006-01-02") + ".jsonl"
-	filePath := filepath.Join(tokenDir, dateFilename)
+	dateDir := filepath.Join(tokenDir, record.Timestamp.Format("2006-01-02"))
+	if err := os.MkdirAll(dateDir, 0755); err != nil {
+		return fmt.Errorf("failed to create date directory: %w", err)
+	}
+
+	if ls.currentFile == "" || ls.currentSize >= ls.maxFileSize {
+		ls.currentFile = ls.getNewFilePath(dateDir)
+		ls.currentSize = 0
+	}
 
 	data, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("failed to marshal audit record: %w", err)
 	}
 
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	data = append(data, '\n')
+
+	f, err := os.OpenFile(ls.currentFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open audit log file: %w", err)
 	}
 	defer f.Close()
 
-	if _, err := f.Write(append(data, '\n')); err != nil {
+	if _, err := f.Write(data); err != nil {
 		return fmt.Errorf("failed to write audit log: %w", err)
 	}
 
+	ls.currentSize += int64(len(data))
+
 	if len(record.Files) > 0 {
-		filesDir := filepath.Join(tokenDir, "files", record.Timestamp.Format("2006-01-02"), record.RequestID)
+		filesDir := filepath.Join(dateDir, "files", record.RequestID)
 		if err := os.MkdirAll(filesDir, 0755); err != nil {
 			common.SysError(fmt.Sprintf("failed to create files directory: %v", err))
 		} else {
 			for i, file := range record.Files {
 				if file.Base64Data != "" {
 					filename := fmt.Sprintf("%d_%s", i, file.Filename)
-					filePath := filepath.Join(filesDir, filename)
+					fp := filepath.Join(filesDir, filename)
 					decoded, err := decodeBase64(file.Base64Data)
 					if err != nil {
 						common.SysError(fmt.Sprintf("failed to decode file %s: %v", file.Filename, err))
 						continue
 					}
-					if err := os.WriteFile(filePath, decoded, 0644); err != nil {
+					if err := os.WriteFile(fp, decoded, 0644); err != nil {
 						common.SysError(fmt.Sprintf("failed to write file %s: %v", file.Filename, err))
 					}
 				}
@@ -196,15 +227,21 @@ func (ls *LocalStorage) Save(record *AuditRecord) error {
 	return nil
 }
 
+func (ls *LocalStorage) getNewFilePath(dateDir string) string {
+	timestamp := time.Now().Format("150405.000")
+	filename := fmt.Sprintf("audit_%s.jsonl", timestamp)
+	return filepath.Join(dateDir, filename)
+}
+
 func (ls *LocalStorage) Close() error {
 	return nil
 }
 
 func maskTokenKey(key string) string {
 	if len(key) <= 8 {
-		return "****"
+		return "unknown"
 	}
-	return key[:4] + "****" + key[len(key)-4:]
+	return key[:4] + "_xxxx_" + key[len(key)-4:]
 }
 
 func decodeBase64(data string) ([]byte, error) {
@@ -319,7 +356,8 @@ func ExtractFilesFromRequest(c interface{}, body []byte) []AuditFile {
 					}
 
 					setting := operation_setting.GetAuditSetting()
-					if int64(len(data)) > setting.MaxFileSize {
+					maxFileSizeBytes := setting.MaxFileSize * 1024 * 1024
+					if int64(len(data)) > maxFileSizeBytes {
 						continue
 					}
 

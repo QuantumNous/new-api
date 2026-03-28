@@ -9,7 +9,7 @@ const (
 )
 
 type AuditSetting struct {
-	Mode string `json:"mode"`
+	Mode           string `json:"mode"`
 	RemoteEndpoint string `json:"remote_endpoint"`
 	RemoteTimeout  int    `json:"remote_timeout"`
 	RemoteApiKey   string `json:"remote_api_key"`
@@ -22,7 +22,7 @@ var auditSetting = AuditSetting{
 	RemoteEndpoint: "",
 	RemoteTimeout:  30,
 	RemoteApiKey:   "",
-	MaxFileSize:    10 * 1024 * 1024,
+	MaxFileSize:    10,
 	RetentionDays:  30,
 }
 

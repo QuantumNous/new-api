@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service/audit"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -541,6 +542,9 @@ func handleConfigUpdate(key, value string) bool {
 	if configName == "performance_setting" {
 		// 同步磁盘缓存配置到 common 包
 		performance_setting.UpdateAndSync()
+	} else if configName == "audit_setting" {
+		// 重新加载审计服务
+		audit.ReloadAuditLogger()
 	}
 
 	return true // 已处理

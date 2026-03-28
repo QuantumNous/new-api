@@ -20,8 +20,10 @@ import (
 )
 
 func AuditMiddleware() gin.HandlerFunc {
+	auditLogger := audit.GetAuditLogger()
+
 	return func(c *gin.Context) {
-		if !operation_setting.IsAuditEnabled() {
+		if !auditLogger.IsEnabled() {
 			c.Next()
 			return
 		}
@@ -78,7 +80,6 @@ func AuditMiddleware() gin.HandlerFunc {
 		}
 
 		gopool.Go(func() {
-			auditLogger := audit.GetAuditLogger()
 			auditLogger.Log(record)
 		})
 	}
@@ -113,6 +114,7 @@ func extractMultipartData(c *gin.Context) ([]byte, []audit.AuditFile) {
 		}
 
 		setting := operation_setting.GetAuditSetting()
+		maxFileSizeBytes := setting.MaxFileSize * 1024 * 1024
 		for key, fileHeaders := range c.Request.MultipartForm.File {
 			for _, fh := range fileHeaders {
 				file, err := fh.Open()
@@ -125,7 +127,7 @@ func extractMultipartData(c *gin.Context) ([]byte, []audit.AuditFile) {
 					continue
 				}
 
-				if int64(len(data)) > setting.MaxFileSize {
+				if int64(len(data)) > maxFileSizeBytes {
 					continue
 				}
 
@@ -154,9 +156,9 @@ func extractMultipartData(c *gin.Context) ([]byte, []audit.AuditFile) {
 
 func maskTokenKey(key string) string {
 	if len(key) <= 8 {
-		return "****"
+		return "unknown"
 	}
-	return key[:4] + "****" + key[len(key)-4:]
+	return key[:4] + "_xxxx_" + key[len(key)-4:]
 }
 
 func getRelayFormatFromPath(path string) string {
