@@ -22,6 +22,9 @@ import { Button, Dropdown } from '@douyinfe/semi-ui';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useActualTheme } from '../../../context/Theme';
 
+const iconButtonClassName =
+  'inline-flex !h-8 !w-8 !min-w-8 items-center justify-center !rounded-full !p-0 !leading-none !text-current !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1 focus:!bg-semi-color-fill-1 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2 dark:focus:!bg-gray-700';
+
 const ThemeToggle = ({ theme, onThemeToggle, t }) => {
   const actualTheme = useActualTheme();
 
@@ -29,22 +32,22 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
     () => [
       {
         key: 'light',
-        icon: <Sun size={18} />,
-        buttonIcon: <Sun size={18} />,
+        icon: <Sun size={18} className='block' />,
+        buttonIcon: <Sun size={18} className='block' />,
         label: t('浅色模式'),
         description: t('始终使用浅色主题'),
       },
       {
         key: 'dark',
-        icon: <Moon size={18} />,
-        buttonIcon: <Moon size={18} />,
+        icon: <Moon size={18} className='block' />,
+        buttonIcon: <Moon size={18} className='block' />,
         label: t('深色模式'),
         description: t('始终使用深色主题'),
       },
       {
         key: 'auto',
-        icon: <Monitor size={18} />,
-        buttonIcon: <Monitor size={18} />,
+        icon: <Monitor size={18} className='block' />,
+        buttonIcon: <Monitor size={18} className='block' />,
         label: t('自动模式'),
         description: t('跟随系统主题设置'),
       },
@@ -100,7 +103,7 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         aria-label={t('切换主题')}
         theme='borderless'
         type='tertiary'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
+        className={iconButtonClassName}
       />
     </Dropdown>
   );

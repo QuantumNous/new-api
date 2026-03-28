@@ -65,7 +65,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header className='text-semi-color-text-0 pt-3 md:pt-5 px-4 md:px-6'>
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}
@@ -74,9 +74,9 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
         unreadKeys={getUnreadKeys()}
       />
 
-      <div className='w-full px-2'>
-        <div className='flex items-center justify-between h-16'>
-          <div className='flex items-center'>
+      <div className='mx-auto w-full max-w-[1248px]'>
+        <div className='flex min-h-[58px] md:min-h-[68px] items-center justify-between gap-3 md:gap-5 rounded-full border border-black/10 bg-white/80 px-4 py-2 shadow-[0_20px_50px_rgba(15,23,42,0.10)] backdrop-blur-[18px] transition-colors duration-300 dark:border-white/10 dark:bg-zinc-900/80 dark:shadow-[0_20px_50px_rgba(0,0,0,0.32)] md:px-6'>
+          <div className='flex items-center gap-2 md:gap-3'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
               isMobile={isMobile}

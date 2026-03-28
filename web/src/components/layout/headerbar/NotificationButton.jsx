@@ -21,15 +21,17 @@ import React from 'react';
 import { Button, Badge } from '@douyinfe/semi-ui';
 import { Bell } from 'lucide-react';
 
+const iconButtonClassName =
+  'inline-flex !h-8 !w-8 !min-w-8 items-center justify-center !rounded-full !p-0 !leading-none !text-current !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1 focus:!bg-semi-color-fill-1 dark:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2 dark:focus:!bg-gray-700';
+
 const NotificationButton = ({ unreadCount, onNoticeOpen, t }) => {
   const buttonProps = {
-    icon: <Bell size={18} />,
+    icon: <Bell size={18} className='block' />,
     'aria-label': t('系统公告'),
     onClick: onNoticeOpen,
     theme: 'borderless',
     type: 'tertiary',
-    className:
-      '!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 !rounded-full !bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-semi-color-fill-2',
+    className: iconButtonClassName,
   };
 
   if (unreadCount > 0) {

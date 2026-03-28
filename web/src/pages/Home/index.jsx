@@ -244,6 +244,7 @@ const FaqItem = ({ question, answer, isOpen, onClick }) => (
 const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) => {
   const isDark = actualTheme === 'dark';
   const location = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const [hoveredNavKey, setHoveredNavKey] = useState(null);
   const navLinks = [
     { key: 'home', label: t('首页'), to: '/', active: location === '/' },
     { key: 'pricing', label: t('定价'), to: '/pricing', active: location === '/pricing' },
@@ -405,6 +406,7 @@ const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) 
             }}
           >
             {navLinks.map((item) => {
+              const isHighlighted = item.active || hoveredNavKey === item.key;
               const commonStyle = {
                 position: 'relative',
                 display: 'inline-flex',
@@ -412,7 +414,12 @@ const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) 
                 gap: 6,
                 padding: '11px 16px',
                 borderRadius: 9999,
-                color: item.active ? 'var(--semi-color-primary)' : 'var(--semi-color-text-0)',
+                color: isHighlighted
+                  ? 'var(--semi-color-primary)'
+                  : 'var(--semi-color-text-0)',
+                background: isHighlighted
+                  ? 'var(--semi-color-primary-light-default)'
+                  : 'transparent',
                 textDecoration: 'none',
                 fontSize: 14,
                 fontWeight: 700,
@@ -424,12 +431,13 @@ const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) 
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: item.active ? 'var(--semi-color-primary)' : 'transparent',
-                transition: `background 220ms ${easing}`,
+                background: 'var(--semi-color-primary)',
+                opacity: isHighlighted ? 1 : 0,
+                transition: `opacity 220ms ${easing}`,
                 flexShrink: 0,
               };
 
-              const dotClassName = item.active
+              const dotClassName = isHighlighted
                 ? 'uni-home-nav-dot uni-home-nav-dot-active'
                 : 'uni-home-nav-dot';
 
@@ -442,6 +450,8 @@ const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) 
                     rel='noopener noreferrer'
                     className='uni-home-header-link'
                     style={commonStyle}
+                    onMouseEnter={() => setHoveredNavKey(item.key)}
+                    onMouseLeave={() => setHoveredNavKey(null)}
                   >
                     <span className={dotClassName} style={dotStyle} />
                     {item.label}
@@ -455,6 +465,8 @@ const HomeHeader = ({ isMobile, docsLink, actualTheme, userState, t, scrollY }) 
                   to={item.to}
                   className='uni-home-header-link'
                   style={commonStyle}
+                  onMouseEnter={() => setHoveredNavKey(item.key)}
+                  onMouseLeave={() => setHoveredNavKey(null)}
                 >
                   <span className={dotClassName} style={dotStyle} />
                   {item.label}
@@ -623,7 +635,7 @@ const Home = () => {
       },
       {
         q: t('可以开发票吗?'),
-        a: t('可以，累计支付金额达到1000CNY后，您可以联系我们的客服，提供开票信息，我们会为您开具发票。'),
+        a: t('可以，累计支付金额达到1000CNY后，您可以联系我们的客服，支付税点，提供开票信息，我们会为您开具发票。'),
       },
     ],
     [t],
@@ -756,10 +768,6 @@ const Home = () => {
         .uni-home-header-action:hover {
           background: rgba(var(--semi-blue-5), 0.08);
           color: var(--semi-color-primary);
-        }
-
-        .uni-home-header-link:hover .uni-home-nav-dot:not(.uni-home-nav-dot-active) {
-          background: rgba(var(--semi-blue-5), 0.3);
         }
 
         .uni-home-header-action-primary:hover {

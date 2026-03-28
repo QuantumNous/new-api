@@ -144,50 +144,26 @@ const UserArea = ({
   } else {
     const showRegisterButton = !isSelfUseMode;
 
-    const commonSizingAndLayoutClass =
-      'flex items-center justify-center !py-[10px] !px-1.5';
-
-    const loginButtonSpecificStyling =
-      '!bg-semi-color-fill-0 dark:!bg-semi-color-fill-1 hover:!bg-semi-color-fill-1 dark:hover:!bg-gray-700 transition-colors';
-    let loginButtonClasses = `${commonSizingAndLayoutClass} ${loginButtonSpecificStyling}`;
-
-    let registerButtonClasses = `${commonSizingAndLayoutClass}`;
-
-    const loginButtonTextSpanClass =
-      '!text-xs !text-semi-color-text-1 dark:!text-gray-300 !p-1.5';
-    const registerButtonTextSpanClass = '!text-xs !text-white !p-1.5';
-
-    if (showRegisterButton) {
-      if (isMobile) {
-        loginButtonClasses += ' !rounded-full';
-      } else {
-        loginButtonClasses += ' !rounded-l-full !rounded-r-none';
-      }
-      registerButtonClasses += ' !rounded-r-full !rounded-l-none';
-    } else {
-      loginButtonClasses += ' !rounded-full';
-    }
-
     return (
-      <div className='flex items-center'>
+      <div className='flex items-center gap-3'>
         <Link to='/login' className='flex'>
           <Button
             theme='borderless'
             type='tertiary'
-            className={loginButtonClasses}
+            className='!h-11 !rounded-full !bg-transparent !px-5 !text-sm !font-bold !text-semi-color-text-0 hover:!bg-semi-color-fill-0 dark:hover:!bg-semi-color-fill-1'
           >
-            <span className={loginButtonTextSpanClass}>{t('登录')}</span>
+            <span>{t('登录')}</span>
           </Button>
         </Link>
         {showRegisterButton && (
           <div className='hidden md:block'>
-            <Link to='/register' className='flex -ml-px'>
+            <Link to='/register' className='flex'>
               <Button
                 theme='solid'
                 type='primary'
-                className={registerButtonClasses}
+                className='!h-11 !rounded-full !border-0 !bg-[#111827] !px-7 !text-sm !font-bold !text-white !shadow-[0_16px_36px_rgba(15,23,42,0.22)] hover:!bg-[#0f172a] dark:!bg-white dark:!text-[#0f172a] dark:!shadow-[0_16px_36px_rgba(255,255,255,0.12)]'
               >
-                <span className={registerButtonTextSpanClass}>{t('注册')}</span>
+                <span>{t('立即开始')}</span>
               </Button>
             </Link>
           </div>
