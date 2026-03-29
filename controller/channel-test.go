@@ -896,3 +896,90 @@ func AutomaticallyTestChannels() {
 		}
 	})
 }
+
+var testAutoDisabledChannelsLock sync.Mutex
+var testAutoDisabledChannelsRunning bool = false
+
+func testAutoDisabledChannels() error {
+	testAutoDisabledChannelsLock.Lock()
+	if testAutoDisabledChannelsRunning {
+		testAutoDisabledChannelsLock.Unlock()
+		return errors.New("自动禁用通道测试已在运行中")
+	}
+	testAutoDisabledChannelsRunning = true
+	testAutoDisabledChannelsLock.Unlock()
+
+	channels, err := model.GetAutoDisabledChannelsWithAutoBan()
+	if err != nil {
+		testAutoDisabledChannelsLock.Lock()
+		testAutoDisabledChannelsRunning = false
+		testAutoDisabledChannelsLock.Unlock()
+		return err
+	}
+
+	if len(channels) == 0 {
+		testAutoDisabledChannelsLock.Lock()
+		testAutoDisabledChannelsRunning = false
+		testAutoDisabledChannelsLock.Unlock()
+		return nil
+	}
+
+	gopool.Go(func() {
+		defer func() {
+			testAutoDisabledChannelsLock.Lock()
+			testAutoDisabledChannelsRunning = false
+			testAutoDisabledChannelsLock.Unlock()
+		}()
+
+		for _, channel := range channels {
+			tik := time.Now()
+			result := testChannel(channel, "", "", false)
+			tok := time.Now()
+			milliseconds := tok.Sub(tik).Milliseconds()
+
+			// Only re-enable if the test truly succeeded (no errors at all)
+			if result.localErr == nil && result.newAPIError == nil {
+				// Re-read latest channel status to avoid stale snapshot race
+				// (e.g., admin manually disabled the channel while we were testing)
+				latestChannel, err := model.GetChannelById(channel.Id, false)
+				if err == nil && latestChannel.Status == common.ChannelStatusAutoDisabled && latestChannel.GetAutoBan() {
+					if service.ShouldEnableChannel(result.newAPIError, latestChannel.Status) {
+						service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+					}
+				}
+			}
+
+			channel.UpdateResponseTime(milliseconds)
+			time.Sleep(common.RequestInterval)
+		}
+	})
+	return nil
+}
+
+var autoTestDisabledChannelsOnce sync.Once
+
+func AutomaticallyTestDisabledChannels() {
+	// 只在Master节点定时测试渠道
+	if !common.IsMasterNode {
+		return
+	}
+	autoTestDisabledChannelsOnce.Do(func() {
+		for {
+			if !operation_setting.GetMonitorSetting().AutoTestDisabledChannelEnabled {
+				time.Sleep(1 * time.Minute)
+				continue
+			}
+			for {
+				frequency := operation_setting.GetMonitorSetting().AutoTestDisabledChannelMinutes
+				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
+				common.SysLog(fmt.Sprintf("automatically test disabled channels with interval %f minutes", frequency))
+				common.SysLog("automatically testing auto-disabled channels")
+				_ = testAutoDisabledChannels()
+				common.SysLog("automatically disabled channel test finished")
+				if !operation_setting.GetMonitorSetting().AutoTestDisabledChannelEnabled {
+					break
+				}
+			}
+		}
+	})
+}
