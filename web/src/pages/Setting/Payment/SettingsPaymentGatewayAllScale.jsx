@@ -180,7 +180,7 @@ export default function SettingsPaymentGatewayAllScale(props) {
               rel='noreferrer'
             >
               {' '}
-              AllScale Official Site
+              {t('AllScale 官方站点')}
             </a>
             <br />
           </Text>
@@ -206,7 +206,7 @@ export default function SettingsPaymentGatewayAllScale(props) {
               <Form.Input
                 field='AllScaleApiKey'
                 label={t('API Key')}
-                placeholder={hasExistingApiKey ? '****' : t('AllScale API Key')}
+                placeholder={hasExistingApiKey ? '****' : t('AllScale API 密钥')}
                 type='password'
               />
             </Col>
@@ -214,7 +214,7 @@ export default function SettingsPaymentGatewayAllScale(props) {
               <Form.Input
                 field='AllScaleApiSecret'
                 label={t('API Secret')}
-                placeholder={hasExistingApiSecret ? '****' : t('AllScale API Secret')}
+                placeholder={hasExistingApiSecret ? '****' : t('AllScale API 密钥（私有）')}
                 type='password'
               />
             </Col>
@@ -259,7 +259,7 @@ export default function SettingsPaymentGatewayAllScale(props) {
                 placeholder='1'
                 min={0.01}
                 precision={2}
-                extraText={t('最低支付金额（美元），默认 $0.20')}
+                extraText={t('最低支付金额（美元），默认 $1')}
               />
             </Col>
           </Row>

@@ -198,15 +198,32 @@ func RequestAllScalePay(c *gin.Context) {
 
 	group, _ := model.GetUserGroup(userId, true)
 	payMoney := getAllScalePayMoney(float64(req.Amount), group)
-	if payMoney < 1.0 {
-		c.JSON(200, gin.H{"message": "error", "data": "minimum payment is $1.00 USD"})
+
+	// Apply currency rate and round early so the minimum check uses the actual USD charge.
+	unitPrice := setting.AllScaleUnitPrice
+	if unitPrice <= 0 {
+		unitPrice = 1.0
+	}
+	roundedUSD := math.Round(payMoney/unitPrice*100) / 100
+
+	minTopUp := setting.AllScaleMinTopUp
+	if minTopUp <= 0 {
+		minTopUp = 1.0
+	}
+	if roundedUSD < minTopUp {
+		c.JSON(200, gin.H{"message": "error", "data": fmt.Sprintf("minimum payment is $%.2f USD", minTopUp)})
 		return
 	}
 
 	// Normalise stored amount for token-display mode (mirrors Waffo pattern).
 	amount := req.Amount
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		amount = int64(float64(req.Amount) / common.QuotaPerUnit)
+		quotaPerUnit := int64(common.QuotaPerUnit)
+		if quotaPerUnit > 0 && req.Amount%quotaPerUnit != 0 {
+			c.JSON(200, gin.H{"message": "error", "data": "token amount must be a multiple of the quota unit size"})
+			return
+		}
+		amount = req.Amount / quotaPerUnit
 		if amount < 1 {
 			amount = 1
 		}
@@ -231,14 +248,8 @@ func RequestAllScalePay(c *gin.Context) {
 	}
 
 	// Build the checkout-intent request body.
-	// Apply currency rate: AllScaleUnitPrice units = $1 USD.
-	unitPrice := setting.AllScaleUnitPrice
-	if unitPrice <= 0 {
-		unitPrice = 1.0
-	}
-	// Round to 2 decimal places first so amountCents and preview display are consistent.
-	roundedUSD := math.Round(payMoney/unitPrice*100) / 100
-	amountCents := int64(roundedUSD * 100)
+	// roundedUSD and unitPrice were already computed above for the minimum check.
+	amountCents := int64(math.Round(roundedUSD * 100))
 	redirectURL := system_setting.ServerAddress + "/console/topup?show_history=true"
 
 	reqBody, _ := common.Marshal(map[string]any{
@@ -311,8 +322,21 @@ func RequestAllScalePay(c *gin.Context) {
 	}
 
 	// Persist the intent ID so we can verify it on status polls (prevents replay with foreign intent IDs).
+	if apiResp.Payload.AllScaleCheckoutIntentId == "" {
+		log.Printf("AllScale: empty checkout intent id - tradeNo=%s", tradeNo)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
+		c.JSON(200, gin.H{"message": "error", "data": "unexpected response from payment gateway"})
+		return
+	}
 	topUp.CheckoutIntentId = apiResp.Payload.AllScaleCheckoutIntentId
-	_ = topUp.Update()
+	if err := topUp.Update(); err != nil {
+		log.Printf("AllScale: failed to persist checkout intent - tradeNo=%s err=%v", tradeNo, err)
+		topUp.Status = common.TopUpStatusFailed
+		_ = topUp.Update()
+		c.JSON(200, gin.H{"message": "error", "data": "failed to persist payment intent"})
+		return
+	}
 
 	log.Printf("AllScale: checkout intent created - user=%d tradeNo=%s intentId=%s amount=$%.2f",
 		userId, tradeNo, apiResp.Payload.AllScaleCheckoutIntentId, payMoney)

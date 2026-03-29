@@ -93,9 +93,11 @@ const TopUp = () => {
   // AllScale 相关状态
   const [enableAllScaleTopUp, setEnableAllScaleTopUp] = useState(false);
   const [allScaleAmount, setAllScaleAmount] = useState(0);
+  const [allScaleMinTopUp, setAllScaleMinTopUp] = useState(1);
 
   // AllScale polling
   const allScalePollingRef = useRef(null);
+  const allScalePollSessionRef = useRef(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -371,15 +373,16 @@ const TopUp = () => {
   // ── AllScale polling helpers ──────────────────────────────────────────────
 
   const clearAllScalePolling = useCallback(() => {
+    allScalePollSessionRef.current += 1;
     if (allScalePollingRef.current) {
       clearInterval(allScalePollingRef.current);
       allScalePollingRef.current = null;
     }
   }, []);
 
-  const clearAllScalePendingPayment = () => {
+  const clearAllScalePendingPayment = useCallback(() => {
     localStorage.removeItem(allScalePendingKey);
-  };
+  }, [allScalePendingKey]);
 
   const pollAllScaleStatusOnce = async (tradeNo) => {
     const res = await API.get('/api/user/allscale/status', {
@@ -422,6 +425,7 @@ const TopUp = () => {
 
   const startAllScalePolling = useCallback((intentId, tradeNo) => {
     clearAllScalePolling();
+    const sessionId = allScalePollSessionRef.current;
     localStorage.setItem(
       allScalePendingKey,
       JSON.stringify({ intentId, tradeNo, startedAt: Date.now() })
@@ -439,6 +443,7 @@ const TopUp = () => {
       inFlight = true;
       try {
         const result = await pollAllScaleStatusOnce(tradeNo);
+        if (allScalePollSessionRef.current !== sessionId) return;
         if (result.state === 'success') {
           clearAllScalePolling();
           clearAllScalePendingPayment();
@@ -452,6 +457,7 @@ const TopUp = () => {
           setHistoryReloadKey((k) => k + 1);
         }
       } catch (error) {
+        if (allScalePollSessionRef.current !== sessionId) return;
         if (attempts >= ALLSCALE_MAX_POLL_ATTEMPTS) {
           clearAllScalePolling();
           showInfo(t('支付处理中，请稍后在充值账单中查看结果'));
@@ -460,7 +466,7 @@ const TopUp = () => {
         inFlight = false;
       }
     }, ALLSCALE_POLL_INTERVAL);
-  }, [clearAllScalePolling, t]);
+  }, [allScalePendingKey, clearAllScalePendingPayment, clearAllScalePolling, t]);
 
   const resumePendingAllScalePayment = useCallback(() => {
     const raw = localStorage.getItem(allScalePendingKey);
@@ -479,7 +485,7 @@ const TopUp = () => {
     } catch (e) {
       clearAllScalePendingPayment();
     }
-  }, [startAllScalePolling]);
+  }, [allScalePendingKey, clearAllScalePendingPayment, startAllScalePolling]);
 
   const getAllScaleAmount = async (value) => {
     if (value === undefined) value = topUpCount;
@@ -504,8 +510,8 @@ const TopUp = () => {
 
   // Creates the checkout intent and immediately opens the AllScale checkout page.
   const allScaleTopUp = async () => {
-    if (topUpCount < minTopUp) {
-      showError(t('充值数量不能小于') + minTopUp);
+    if (allScaleAmount > 0 && allScaleAmount < allScaleMinTopUp) {
+      showError(`${t('最低充值金额 (USD)')}: $${allScaleMinTopUp}`);
       return;
     }
     setPaymentLoading(true);
@@ -684,6 +690,7 @@ const TopUp = () => {
           setWaffoMinTopUp(data.waffo_min_topup || 1);
           const enableAllScaleTopUp = data.enable_allscale_topup || false;
           setEnableAllScaleTopUp(enableAllScaleTopUp);
+          setAllScaleMinTopUp(data.allscale_min_topup || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
