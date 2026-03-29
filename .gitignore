@@ -29,4 +29,7 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+
+#my
 .github-registry-config
+my-docker-compose.yml
