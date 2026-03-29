@@ -372,7 +372,7 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 		dAmount := decimal.NewFromInt(topUp.Amount)
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-		if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
+		if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd, topUp.Id); err != nil {
 			log.Printf("Waffo回调处理邀请返利失败: %v", err)
 		}
 	}

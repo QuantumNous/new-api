@@ -1026,7 +1026,7 @@ func TopUp(c *gin.Context) {
 	}
 
 	// 处理邀请充值返利（兑换码充值也应触发返利）
-	if err := model.ProcessInviterReward(id, quota); err != nil {
+	if err := model.ProcessInviterReward(id, quota, 0); err != nil {
 		common.SysError("兑换码充值处理邀请返利失败: " + err.Error())
 	}
 

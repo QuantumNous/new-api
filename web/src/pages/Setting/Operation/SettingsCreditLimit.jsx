@@ -85,11 +85,11 @@ export default function SettingsCreditLimit(props) {
     setLoading(true);
     Promise.all(requestQueue)
       .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+        if (res.some((r) => !r || !r.success)) {
+          if (requestQueue.length === 1) {
+            return;
+          }
+          return showError(t('部分保存失败，请重试'));
         }
         showSuccess(t('保存成功'));
         props.refresh();
@@ -134,7 +134,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForNewUser: String(value),
+                      QuotaForNewUser: String(value ?? ''),
                     })
                   }
                 />
@@ -151,7 +151,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      PreConsumedQuota: String(value),
+                      PreConsumedQuota: String(value ?? ''),
                     })
                   }
                 />
@@ -168,7 +168,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInviter: String(value),
+                      QuotaForInviter: String(value ?? ''),
                     })
                   }
                 />
@@ -187,7 +187,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      QuotaForInvitee: String(value),
+                      QuotaForInvitee: String(value ?? ''),
                     })
                   }
                 />
@@ -269,7 +269,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      InviterRewardValue: String(value),
+                      InviterRewardValue: String(value ?? ''),
                     })
                   }
                 />

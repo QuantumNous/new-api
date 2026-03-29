@@ -12,15 +12,16 @@ import (
 )
 
 type TopUp struct {
-	Id               int     `json:"id"`
-	UserId           int     `json:"user_id" gorm:"index"`
-	Amount           int64   `json:"amount"`
-	Money            float64 `json:"money"`
-	TradeNo          string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod    string  `json:"payment_method" gorm:"type:varchar(50)"`
-	CreateTime       int64   `json:"create_time"`
-	CompleteTime     int64   `json:"complete_time"`
-	Status           string  `json:"status"`
+	Id                int     `json:"id"`
+	UserId            int     `json:"user_id" gorm:"index"`
+	Amount            int64   `json:"amount"`
+	Money             float64 `json:"money"`
+	TradeNo           string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod     string  `json:"payment_method" gorm:"type:varchar(50)"`
+	CreateTime        int64   `json:"create_time"`
+	CompleteTime      int64   `json:"complete_time"`
+	Status            string  `json:"status"`
+	InviterRewardSent bool    `json:"inviter_reward_sent" gorm:"default:false"`
 }
 
 func (topUp *TopUp) Insert() error {
@@ -236,9 +237,11 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 }
 
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
-func ManualCompleteTopUp(tradeNo string) error {
+// 返回值：completed 表示是否真正完成了状态切换（已成功的订单返回 false），
+// creditedQuota 为实际充值额度，topUpId 为订单ID，err 为错误信息
+func ManualCompleteTopUp(tradeNo string) (completed bool, creditedQuota int, topUpId int, topUpUserId int, err error) {
 	if tradeNo == "" {
-		return errors.New("未提供订单号")
+		return false, 0, 0, 0, errors.New("未提供订单号")
 	}
 
 	refCol := "`trade_no`"
@@ -249,16 +252,22 @@ func ManualCompleteTopUp(tradeNo string) error {
 	var userId int
 	var quotaToAdd int
 	var payMoney float64
+	var orderCompleted bool
+	var orderId int
 
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
 		// 行级锁，避免并发补单
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
 
-		// 幂等处理：已成功直接返回
+		orderId = topUp.Id
+		userId = topUp.UserId
+
+		// 幂等处理：已成功直接返回（不触发返利）
 		if topUp.Status == common.TopUpStatusSuccess {
+			orderCompleted = false
 			return nil
 		}
 
@@ -268,10 +277,13 @@ func ManualCompleteTopUp(tradeNo string) error {
 
 		// 计算应充值额度：
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
+		// - Creem 订单：Amount 已经是额度，直接使用
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
 		if topUp.PaymentMethod == "stripe" {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
+		} else if topUp.PaymentMethod == "creem" {
+			quotaToAdd = int(topUp.Amount)
 		} else {
 			dAmount := decimal.NewFromInt(topUp.Amount)
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
@@ -293,18 +305,20 @@ func ManualCompleteTopUp(tradeNo string) error {
 			return err
 		}
 
-		userId = topUp.UserId
 		payMoney = topUp.Money
+		orderCompleted = true
 		return nil
 	})
 
 	if err != nil {
-		return err
+		return false, 0, 0, 0, err
 	}
 
-	// 事务外记录日志，避免阻塞
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
-	return nil
+	if orderCompleted {
+		// 事务外记录日志，避免阻塞
+		RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
+	}
+	return orderCompleted, quotaToAdd, orderId, userId, nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string) (err error) {
 	if referenceId == "" {

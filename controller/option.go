@@ -199,6 +199,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+		// 切换到百分比模式时，检查当前返利值是否兼容
+		if rewardType == "percentage" && common.InviterRewardValue > 100 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("当前返利值为 %d，超过百分比模式上限 100，请先修改返利值", common.InviterRewardValue),
+			})
+			return
+		}
 	case "InviterRewardValue":
 		rewardValue, err := strconv.Atoi(option.Value.(string))
 		if err != nil {
