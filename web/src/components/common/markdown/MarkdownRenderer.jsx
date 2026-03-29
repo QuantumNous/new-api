@@ -27,7 +27,6 @@ import RehypeKatex from 'rehype-katex';
 import RemarkGfm from 'remark-gfm';
 import RehypeHighlight from 'rehype-highlight';
 import { useRef, useState, useEffect, useMemo } from 'react';
-import mermaid from 'mermaid';
 import React from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import clsx from 'clsx';
@@ -36,11 +35,20 @@ import { copy, rehypeSplitWordsIntoSpans } from '../../../helpers';
 import { IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'default',
-  securityLevel: 'loose',
-});
+// Mermaid lazy-loaded to reduce initial bundle by ~5MB
+let mermaidInstance = null;
+const getMermaid = async () => {
+  if (!mermaidInstance) {
+    const m = await import('mermaid');
+    mermaidInstance = m.default;
+    mermaidInstance.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+    });
+  }
+  return mermaidInstance;
+};
 
 export function Mermaid(props) {
   const ref = useRef(null);
@@ -48,11 +56,13 @@ export function Mermaid(props) {
 
   useEffect(() => {
     if (props.code && ref.current) {
-      mermaid
-        .run({
-          nodes: [ref.current],
-          suppressErrors: true,
-        })
+      getMermaid()
+        .then((m) =>
+          m.run({
+            nodes: [ref.current],
+            suppressErrors: true,
+          }),
+        )
         .catch((e) => {
           setHasError(true);
           console.error('[Mermaid] ', e.message);

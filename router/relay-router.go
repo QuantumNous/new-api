@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/types"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,6 +19,7 @@ func SetRelayRouter(router *gin.Engine) {
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
+	modelsRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	modelsRouter.Use(middleware.TokenAuth())
 	{
 		modelsRouter.GET("", func(c *gin.Context) {
@@ -43,6 +45,7 @@ func SetRelayRouter(router *gin.Engine) {
 
 	geminiRouter := router.Group("/v1beta/models")
 	geminiRouter.Use(middleware.RouteTag("relay"))
+	geminiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	geminiRouter.Use(middleware.TokenAuth())
 	{
 		geminiRouter.GET("", func(c *gin.Context) {
@@ -52,6 +55,7 @@ func SetRelayRouter(router *gin.Engine) {
 
 	geminiCompatibleRouter := router.Group("/v1beta/openai/models")
 	geminiCompatibleRouter.Use(middleware.RouteTag("relay"))
+	geminiCompatibleRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	geminiCompatibleRouter.Use(middleware.TokenAuth())
 	{
 		geminiCompatibleRouter.GET("", func(c *gin.Context) {
