@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -194,13 +195,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
-		for _, ra := range info.PriceData.OtherRatios {
-			if ra != 1.0 {
-				info.PriceData.Quota = int(float64(info.PriceData.Quota) * ra)
-			}
-		}
-	}
+	info.PriceData.Quota, info.PriceData.OtherRatios = calcTaskQuotaWithRatios(info, info.PriceData.OtherRatios)
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
@@ -244,7 +239,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := info.PriceData.Quota
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota
-		finalQuota = recalcQuotaFromRatios(info, adjustedRatios)
+		finalQuota, adjustedRatios = calcTaskQuotaWithRatios(info, adjustedRatios)
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}
@@ -276,6 +271,54 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 		}
 	}
 	return int(result)
+}
+
+func calcTaskQuotaWithRatios(info *relaycommon.RelayInfo, ratios map[string]float64) (int, map[string]float64) {
+	normalizedRatios := cloneTaskRatios(ratios)
+	baseQuota := info.PriceData.BaseQuota
+	if baseQuota <= 0 {
+		baseQuota = info.PriceData.Quota
+	}
+
+	if seconds, ok := extractTaskSeconds(normalizedRatios); ok {
+		if secondsPrice, found := ratio_setting.GetModelPriceBySeconds(info.OriginModelName, seconds); found {
+			info.PriceData.ModelPrice = secondsPrice
+			baseQuota = int(secondsPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+			normalizedRatios["seconds"] = 1
+		}
+	}
+
+	result := float64(baseQuota)
+	if !common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
+		for _, ra := range normalizedRatios {
+			if ra != 1.0 {
+				result *= ra
+			}
+		}
+	}
+	return int(result), normalizedRatios
+}
+
+func cloneTaskRatios(ratios map[string]float64) map[string]float64 {
+	if len(ratios) == 0 {
+		return map[string]float64{}
+	}
+	cloned := make(map[string]float64, len(ratios))
+	for key, value := range ratios {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func extractTaskSeconds(ratios map[string]float64) (int, bool) {
+	if len(ratios) == 0 {
+		return 0, false
+	}
+	seconds, ok := ratios["seconds"]
+	if !ok || seconds <= 0 {
+		return 0, false
+	}
+	return int(seconds), true
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){

@@ -1,6 +1,7 @@
 package ratio_setting
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -323,6 +324,7 @@ var defaultAudioCompletionRatio = map[string]float64{
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()
+var modelPriceBySecondsMap = types.NewRWMap[string, map[string]float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
@@ -349,8 +351,16 @@ func GetModelPriceMap() map[string]float64 {
 	return modelPriceMap.ReadAll()
 }
 
+func ModelPriceBySeconds2JSONString() string {
+	return modelPriceBySecondsMap.MarshalJSONString()
+}
+
 func ModelPrice2JSONString() string {
 	return modelPriceMap.MarshalJSONString()
+}
+
+func UpdateModelPriceBySecondsByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelPriceBySecondsMap, jsonStr, InvalidateExposedDataCache)
 }
 
 func UpdateModelPriceByJSONString(jsonStr string) error {
@@ -380,6 +390,19 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 		return -1, false
 	}
 	return price, true
+}
+
+func GetModelPriceBySeconds(name string, seconds int) (float64, bool) {
+	name = FormatMatchingModelName(name)
+	if seconds <= 0 {
+		return 0, false
+	}
+	secondsPriceMap, ok := modelPriceBySecondsMap.Get(name)
+	if !ok {
+		return 0, false
+	}
+	price, ok := secondsPriceMap[strconv.Itoa(seconds)]
+	return price, ok
 }
 
 func UpdateModelRatioByJSONString(jsonStr string) error {
@@ -424,6 +447,10 @@ func GetDefaultModelRatioMap() map[string]float64 {
 
 func GetDefaultModelPriceMap() map[string]float64 {
 	return defaultModelPrice
+}
+
+func GetModelPriceBySecondsCopy() map[string]map[string]float64 {
+	return modelPriceBySecondsMap.ReadAll()
 }
 
 func CompletionRatio2JSONString() string {
