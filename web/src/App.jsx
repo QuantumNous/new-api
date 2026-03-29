@@ -43,7 +43,6 @@ import Pricing from './pages/Pricing';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
-import CreationCenter from './pages/CreationCenter';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
 import OAuth2Callback from './components/auth/OAuth2Callback';
@@ -145,14 +144,6 @@ function App() {
           element={
             <PrivateRoute>
               <Token />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/creation'
-          element={
-            <PrivateRoute>
-              <CreationCenter />
             </PrivateRoute>
           }
         />

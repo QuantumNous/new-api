@@ -167,7 +167,6 @@ export const usePlaygroundState = () => {
     customRequestMode,
     customRequestBody,
     playgroundMode,
-    playgroundMode,
   ]);
 
   // 配置导入/重置

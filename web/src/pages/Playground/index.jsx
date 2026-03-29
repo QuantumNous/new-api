@@ -17,11 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useContext, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
-
+import { Card, Layout, Toast, Typography } from '@douyinfe/semi-ui';
+import { AlertTriangle } from 'lucide-react';
 import { UserContext } from '../../context/User';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { usePlaygroundState } from '../../hooks/playground/usePlaygroundState';
@@ -30,28 +30,30 @@ import { useApiRequest } from '../../hooks/playground/useApiRequest';
 import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody';
 import { useMessageEdit } from '../../hooks/playground/useMessageEdit';
 import { useDataLoader } from '../../hooks/playground/useDataLoader';
+import { ERROR_MESSAGES, MESSAGE_ROLES } from '../../constants/playground.constants';
 import {
-  MESSAGE_ROLES,
-  ERROR_MESSAGES,
-} from '../../constants/playground.constants';
-import {
-  getLogo,
-  stringToColor,
-  buildMessageContent,
-  createMessage,
-  createLoadingAssistantMessage,
-  getTextContent,
   buildApiPayload,
+  buildMessageContent,
+  createLoadingAssistantMessage,
+  createMessage,
   encodeToBase64,
+  getAvailableModelsForPlaygroundMode,
+  getLogo,
+  getPreferredModelForPlaygroundMode,
+  getTextContent,
+  isModelCompatibleWithPlaygroundMode,
+  PLAYGROUND_MODES,
+  stringToColor,
 } from '../../helpers';
 import {
-  OptimizedSettingsPanel,
   OptimizedDebugPanel,
-  OptimizedMessageContent,
   OptimizedMessageActions,
+  OptimizedMessageContent,
+  OptimizedSettingsPanel,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
+import PlaygroundCreationCenter from '../../components/playground/PlaygroundCreationCenter';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 
 const generateAvatarDataUrl = (username) => {
@@ -83,10 +85,10 @@ const Playground = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
     showSettings,
     models,
     groups,
-    status,
     message,
     debugData,
     activeDebugTab,
@@ -102,7 +104,6 @@ const Playground = () => {
     setShowSettings,
     setModels,
     setGroups,
-    setStatus,
     setMessage,
     setDebugData,
     setActiveDebugTab,
@@ -110,6 +111,7 @@ const Playground = () => {
     setShowDebugPanel,
     setCustomRequestMode,
     setCustomRequestBody,
+    setPlaygroundMode,
   } = state;
 
   const { sendRequest, onStopGenerator } = useApiRequest(
@@ -163,12 +165,64 @@ const Playground = () => {
     },
   };
 
-  const messageActions = useMessageActions(
-    message,
-    setMessage,
-    onMessageSend,
-    saveMessagesImmediately,
-  );
+  const availableModeModels = {
+    [PLAYGROUND_MODES.CHAT]: getAvailableModelsForPlaygroundMode(
+      models,
+      PLAYGROUND_MODES.CHAT,
+    ),
+    [PLAYGROUND_MODES.IMAGE]: getAvailableModelsForPlaygroundMode(
+      models,
+      PLAYGROUND_MODES.IMAGE,
+    ),
+    [PLAYGROUND_MODES.VIDEO]: getAvailableModelsForPlaygroundMode(
+      models,
+      PLAYGROUND_MODES.VIDEO,
+    ),
+  };
+  const modelsLoaded = models.length > 0;
+  const modeCounts = {
+    [PLAYGROUND_MODES.CHAT]: availableModeModels.chat.length,
+    [PLAYGROUND_MODES.IMAGE]: availableModeModels.image.length,
+    [PLAYGROUND_MODES.VIDEO]: availableModeModels.video.length,
+  };
+  const modeHasAvailableModels = !modelsLoaded || modeCounts[playgroundMode] > 0;
+
+  const modeUi = {
+    [PLAYGROUND_MODES.CHAT]: {
+      title: t('智能对话工作区'),
+      subtitle: inputs.model
+        ? `${t('当前模型')} · ${inputs.model}`
+        : t('选择模型开始创作'),
+      placeholder: t('输入你的问题、任务或提示词方向...'),
+      unavailableTitle: t('当前账号暂无适合智能对话的模型'),
+      unavailableDescription: t(
+        '可以先切换到图片创作或视频创作，也可以在左侧模型配置中查看当前账号返回的全量模型列表。',
+      ),
+    },
+    [PLAYGROUND_MODES.IMAGE]: {
+      title: t('图片创作工作区'),
+      subtitle: inputs.model
+        ? `${t('当前模型')} · ${inputs.model}`
+        : t('可继续使用文生图与带图编辑能力'),
+      placeholder: t('描述想要生成的画面，或先开启图片输入后再进行图片编辑...'),
+      unavailableTitle: t('当前账号暂无适合图片创作的模型'),
+      unavailableDescription: t(
+        '图片创作会优先匹配图片模型；如果当前账号没有返回相关模型，请切换模式或等待模型配置更新。',
+      ),
+    },
+    [PLAYGROUND_MODES.VIDEO]: {
+      title: t('视频创作工作区'),
+      subtitle: inputs.model
+        ? `${t('当前模型')} · ${inputs.model}`
+        : t('可继续使用文生视频与参考图视频能力'),
+      placeholder: t('描述想生成的视频镜头、节奏和风格，必要时可先开启图片输入作为参考图...'),
+      unavailableTitle: t('当前账号暂无适合视频创作的模型'),
+      unavailableDescription: t(
+        '视频创作会优先匹配视频模型；如果当前账号暂未返回相关模型，可先切换到其它创作模式。',
+      ),
+    },
+  };
+  const activeModeUi = modeUi[playgroundMode] || modeUi[PLAYGROUND_MODES.CHAT];
 
   const constructPreviewPayload = useCallback(() => {
     try {
@@ -176,32 +230,29 @@ const Playground = () => {
         try {
           return JSON.parse(customRequestBody);
         } catch (parseError) {
-          console.warn('自定义请求体JSON解析失败，回退到默认预览:', parseError);
+          console.warn('Failed to parse custom request body for preview:', parseError);
         }
       }
 
-      let messages = [...message];
-
+      const messages = [...message];
       if (
         !(
           messages.length === 0 ||
-          messages.every((msg) => msg.role !== MESSAGE_ROLES.USER)
+          messages.every((item) => item.role !== MESSAGE_ROLES.USER)
         )
       ) {
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === MESSAGE_ROLES.USER) {
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index].role === MESSAGE_ROLES.USER) {
             if (inputs.imageEnabled && inputs.imageUrls) {
               const validImageUrls = inputs.imageUrls.filter(
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(messages[i]) || '示例消息';
-                const content = buildMessageContent(
-                  textContent,
-                  validImageUrls,
-                  true,
-                );
-                messages[i] = { ...messages[i], content };
+                const textContent = getTextContent(messages[index]) || '示例消息';
+                messages[index] = {
+                  ...messages[index],
+                  content: buildMessageContent(textContent, validImageUrls, true),
+                };
               }
             }
             break;
@@ -211,80 +262,179 @@ const Playground = () => {
 
       return buildApiPayload(messages, null, inputs, parameterEnabled);
     } catch (error) {
-      console.error('构造预览请求体失败:', error);
+      console.error('Failed to construct preview payload:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [customRequestBody, customRequestMode, inputs, message, parameterEnabled]);
 
-  function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
-
-    const userMessage = createMessage(MESSAGE_ROLES.USER, content);
-    const loadingMessage = createLoadingAssistantMessage();
-
-    if (customRequestMode && customRequestBody) {
-      try {
-        const customPayload = JSON.parse(customRequestBody);
-
-        setMessage((prevMessage) => {
-          const newMessages = [...prevMessage, userMessage, loadingMessage];
-
-          sendRequest(customPayload, customPayload.stream !== false);
-
-          setTimeout(() => saveMessagesImmediately(newMessages), 0);
-
-          return newMessages;
-        });
-        return;
-      } catch (error) {
-        console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
-        return;
+  const handleModeChange = useCallback(
+    (nextMode) => {
+      setPlaygroundMode(nextMode);
+      if (nextMode === PLAYGROUND_MODES.CHAT && inputs.imageEnabled) {
+        handleInputChange('imageEnabled', false);
       }
+
+      const preferredModel = getPreferredModelForPlaygroundMode(
+        inputs.model,
+        models,
+        nextMode,
+      );
+      if (preferredModel && preferredModel !== inputs.model) {
+        handleInputChange('model', preferredModel);
+      }
+    },
+    [
+      handleInputChange,
+      inputs.imageEnabled,
+      inputs.model,
+      models,
+      setPlaygroundMode,
+    ],
+  );
+
+  useEffect(() => {
+    if (playgroundMode === PLAYGROUND_MODES.CHAT && inputs.imageEnabled) {
+      handleInputChange('imageEnabled', false);
+    }
+  }, [handleInputChange, inputs.imageEnabled, playgroundMode]);
+
+  useEffect(() => {
+    if (!modelsLoaded) {
+      return;
     }
 
-    const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
-    const messageContent = buildMessageContent(
-      content,
-      validImageUrls,
-      inputs.imageEnabled,
+    const preferredModel = getPreferredModelForPlaygroundMode(
+      inputs.model,
+      models,
+      playgroundMode,
     );
-    const userMessageWithImages = createMessage(
-      MESSAGE_ROLES.USER,
-      messageContent,
-    );
+    if (preferredModel && preferredModel !== inputs.model) {
+      handleInputChange('model', preferredModel);
+    }
+  }, [handleInputChange, inputs.model, models, modelsLoaded, playgroundMode]);
 
-    setMessage((prevMessage) => {
-      const newMessages = [...prevMessage, userMessageWithImages];
+  const onMessageSend = useCallback(
+    (content, attachment) => {
+      console.log('attachment: ', attachment);
 
-      const payload = buildApiPayload(
-        newMessages,
-        null,
-        inputs,
-        parameterEnabled,
-      );
-      sendRequest(payload, inputs.stream);
+      if (!customRequestMode) {
+        const preferredModel = getPreferredModelForPlaygroundMode(
+          inputs.model,
+          models,
+          playgroundMode,
+        );
+        const resolvedModel = preferredModel || inputs.model;
 
-      if (inputs.imageEnabled) {
-        setTimeout(() => {
-          handleInputChange('imageEnabled', false);
-        }, 100);
+        if (!modeHasAvailableModels || !resolvedModel) {
+          Toast.warning(activeModeUi.unavailableTitle);
+          return;
+        }
+
+        if (!isModelCompatibleWithPlaygroundMode(resolvedModel, playgroundMode)) {
+          Toast.warning(activeModeUi.unavailableTitle);
+          return;
+        }
+
+        if (resolvedModel !== inputs.model) {
+          handleInputChange('model', resolvedModel);
+        }
       }
 
-      const messagesWithLoading = [...newMessages, loadingMessage];
-      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+      const userMessage = createMessage(MESSAGE_ROLES.USER, content);
+      const loadingMessage = createLoadingAssistantMessage();
 
-      return messagesWithLoading;
-    });
-  }
+      if (customRequestMode && customRequestBody) {
+        try {
+          const customPayload = JSON.parse(customRequestBody);
+
+          setMessage((prevMessage) => {
+            const newMessages = [...prevMessage, userMessage, loadingMessage];
+            sendRequest(customPayload, customPayload.stream !== false);
+            setTimeout(() => saveMessagesImmediately(newMessages), 0);
+            return newMessages;
+          });
+          return;
+        } catch (error) {
+          console.error('Failed to parse custom request body:', error);
+          Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
+          return;
+        }
+      }
+
+      const validImageUrls = (inputs.imageUrls || []).filter(
+        (url) => url.trim() !== '',
+      );
+      const messageContent = buildMessageContent(
+        content,
+        validImageUrls,
+        inputs.imageEnabled,
+      );
+      const userMessageWithImages = createMessage(
+        MESSAGE_ROLES.USER,
+        messageContent,
+      );
+
+      const preferredModel = getPreferredModelForPlaygroundMode(
+        inputs.model,
+        models,
+        playgroundMode,
+      );
+      const requestInputs =
+        preferredModel && preferredModel !== inputs.model
+          ? { ...inputs, model: preferredModel }
+          : inputs;
+
+      setMessage((prevMessage) => {
+        const newMessages = [...prevMessage, userMessageWithImages];
+        const payload = buildApiPayload(
+          newMessages,
+          null,
+          requestInputs,
+          parameterEnabled,
+        );
+        sendRequest(payload, requestInputs.stream);
+
+        if (inputs.imageEnabled) {
+          setTimeout(() => {
+            handleInputChange('imageEnabled', false);
+          }, 100);
+        }
+
+        const messagesWithLoading = [...newMessages, loadingMessage];
+        setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
+        return messagesWithLoading;
+      });
+    },
+    [
+      activeModeUi.unavailableTitle,
+      customRequestBody,
+      customRequestMode,
+      handleInputChange,
+      inputs,
+      modeHasAvailableModels,
+      models,
+      parameterEnabled,
+      playgroundMode,
+      saveMessagesImmediately,
+      sendRequest,
+      setMessage,
+    ],
+  );
+
+  const messageActions = useMessageActions(
+    message,
+    setMessage,
+    onMessageSend,
+    saveMessagesImmediately,
+  );
 
   const toggleReasoningExpansion = useCallback(
     (messageId) => {
       setMessage((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.id === messageId && msg.role === MESSAGE_ROLES.ASSISTANT
-            ? { ...msg, isReasoningExpanded: !msg.isReasoningExpanded }
-            : msg,
+        prevMessages.map((item) =>
+          item.id === messageId && item.role === MESSAGE_ROLES.ASSISTANT
+            ? { ...item, isReasoningExpanded: !item.isReasoningExpanded }
+            : item,
         ),
       );
     },
@@ -292,12 +442,12 @@ const Playground = () => {
   );
 
   const renderCustomChatContent = useCallback(
-    ({ message, className }) => {
-      const isCurrentlyEditing = editingMessageId === message.id;
+    ({ message: currentMessage, className }) => {
+      const isCurrentlyEditing = editingMessageId === currentMessage.id;
 
       return (
         <OptimizedMessageContent
-          message={message}
+          message={currentMessage}
           className={className}
           styleState={styleState}
           onToggleReasoningExpansion={toggleReasoningExpansion}
@@ -310,12 +460,12 @@ const Playground = () => {
       );
     },
     [
-      styleState,
-      editingMessageId,
       editValue,
-      handleEditSave,
+      editingMessageId,
       handleEditCancel,
+      handleEditSave,
       setEditValue,
+      styleState,
       toggleReasoningExpansion,
     ],
   );
@@ -324,7 +474,7 @@ const Playground = () => {
     (props) => {
       const { message: currentMessage } = props;
       const isAnyMessageGenerating = message.some(
-        (msg) => msg.status === 'loading' || msg.status === 'incomplete',
+        (item) => item.status === 'loading' || item.status === 'incomplete',
       );
       const isCurrentlyEditing = editingMessageId === currentMessage.id;
 
@@ -342,7 +492,7 @@ const Playground = () => {
         />
       );
     },
-    [messageActions, styleState, message, editingMessageId, handleMessageEdit],
+    [editingMessageId, handleMessageEdit, message, messageActions, styleState],
   );
 
   useEffect(() => {
@@ -372,41 +522,41 @@ const Playground = () => {
 
     return () => clearTimeout(timer);
   }, [
-    message,
-    inputs,
-    parameterEnabled,
-    customRequestMode,
-    customRequestBody,
     constructPreviewPayload,
-    setPreviewPayload,
+    customRequestBody,
+    customRequestMode,
+    inputs,
+    message,
+    parameterEnabled,
     setDebugData,
+    setPreviewPayload,
   ]);
 
   useEffect(() => {
     debouncedSaveConfig();
   }, [
+    customRequestBody,
+    customRequestMode,
+    debouncedSaveConfig,
     inputs,
     parameterEnabled,
+    playgroundMode,
     showDebugPanel,
-    customRequestMode,
-    customRequestBody,
-    debouncedSaveConfig,
   ]);
 
   const handleClearMessages = useCallback(() => {
     setMessage([]);
     setTimeout(() => saveMessagesImmediately([]), 0);
-  }, [setMessage, saveMessagesImmediately]);
+  }, [saveMessagesImmediately, setMessage]);
 
   const handlePasteImage = useCallback(
     (base64Data) => {
       if (!inputs.imageEnabled) {
         return;
       }
-      const newUrls = [...(inputs.imageUrls || []), base64Data];
-      handleInputChange('imageUrls', newUrls);
+      handleInputChange('imageUrls', [...(inputs.imageUrls || []), base64Data]);
     },
-    [inputs.imageEnabled, inputs.imageUrls, handleInputChange],
+    [handleInputChange, inputs.imageEnabled, inputs.imageUrls],
   );
 
   const playgroundContextValue = {
@@ -422,13 +572,13 @@ const Playground = () => {
           {(showSettings || !isMobile) && (
             <Layout.Sider
               className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
-                isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
+                bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
+                ${
+                  isMobile
+                    ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
+                    : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
+                }
+              `}
               width={isMobile ? '100%' : 320}
             >
               <OptimizedSettingsPanel
@@ -441,6 +591,8 @@ const Playground = () => {
                 showDebugPanel={showDebugPanel}
                 customRequestMode={customRequestMode}
                 customRequestBody={customRequestBody}
+                playgroundMode={playgroundMode}
+                modeHasAvailableModels={modeHasAvailableModels}
                 onInputChange={handleInputChange}
                 onParameterToggle={handleParameterToggle}
                 onCloseSettings={() => setShowSettings(false)}
@@ -455,38 +607,77 @@ const Playground = () => {
           )}
 
           <Layout.Content className='relative flex-1 overflow-hidden'>
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
-                <ChatArea
-                  chatRef={chatRef}
-                  message={message}
-                  inputs={inputs}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  roleInfo={roleInfo}
-                  onMessageSend={onMessageSend}
-                  onMessageCopy={messageActions.handleMessageCopy}
-                  onMessageReset={messageActions.handleMessageReset}
-                  onMessageDelete={messageActions.handleMessageDelete}
-                  onStopGenerator={onStopGenerator}
-                  onClearMessages={handleClearMessages}
-                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                  renderCustomChatContent={renderCustomChatContent}
-                  renderChatBoxAction={renderChatBoxAction}
+            <div className='mt-[60px] h-[calc(100vh-66px)] flex flex-col overflow-hidden'>
+              <div className='px-4 pt-4 pb-4 lg:px-6 flex-shrink-0'>
+                <PlaygroundCreationCenter
+                  playgroundMode={playgroundMode}
+                  onModeChange={handleModeChange}
+                  modeCounts={modeCounts}
+                  currentModel={inputs.model}
                 />
               </div>
 
-              {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
-                  <OptimizedDebugPanel
-                    debugData={debugData}
-                    activeDebugTab={activeDebugTab}
-                    onActiveDebugTabChange={setActiveDebugTab}
-                    styleState={styleState}
-                    customRequestMode={customRequestMode}
-                  />
+              {!modeHasAvailableModels && modelsLoaded && !customRequestMode && (
+                <div className='px-4 pb-4 lg:px-6 flex-shrink-0'>
+                  <Card
+                    bordered={false}
+                    className='rounded-2xl border border-amber-200/80 bg-amber-50/90 shadow-none'
+                    bodyStyle={{ padding: 16 }}
+                  >
+                    <div className='flex items-start gap-3'>
+                      <div className='mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white'>
+                        <AlertTriangle size={18} />
+                      </div>
+                      <div>
+                        <Typography.Title heading={6} className='!mb-1 !text-amber-900'>
+                          {activeModeUi.unavailableTitle}
+                        </Typography.Title>
+                        <Typography.Paragraph className='!mb-0 text-sm text-amber-800'>
+                          {activeModeUi.unavailableDescription}
+                        </Typography.Paragraph>
+                      </div>
+                    </div>
+                  </Card>
                 </div>
               )}
+
+              <div className='flex-1 min-h-0 px-4 pb-4 lg:px-6 lg:pb-6 overflow-hidden'>
+                <div className='h-full overflow-hidden flex flex-col lg:flex-row gap-4'>
+                  <div className='flex-1 min-h-0 flex flex-col'>
+                    <ChatArea
+                      chatRef={chatRef}
+                      message={message}
+                      styleState={styleState}
+                      showDebugPanel={showDebugPanel}
+                      roleInfo={roleInfo}
+                      onMessageSend={onMessageSend}
+                      onMessageCopy={messageActions.handleMessageCopy}
+                      onMessageReset={messageActions.handleMessageReset}
+                      onMessageDelete={messageActions.handleMessageDelete}
+                      onStopGenerator={onStopGenerator}
+                      onClearMessages={handleClearMessages}
+                      onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+                      renderCustomChatContent={renderCustomChatContent}
+                      renderChatBoxAction={renderChatBoxAction}
+                      title={activeModeUi.title}
+                      subtitle={activeModeUi.subtitle}
+                      placeholder={activeModeUi.placeholder}
+                    />
+                  </div>
+
+                  {showDebugPanel && !isMobile && (
+                    <div className='w-96 flex-shrink-0 h-full'>
+                      <OptimizedDebugPanel
+                        debugData={debugData}
+                        activeDebugTab={activeDebugTab}
+                        onActiveDebugTabChange={setActiveDebugTab}
+                        styleState={styleState}
+                        customRequestMode={customRequestMode}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {showDebugPanel && isMobile && (
