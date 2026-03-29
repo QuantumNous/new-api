@@ -102,8 +102,8 @@ export default function SettingsCreditLimit(props) {
           key: item.key,
           value,
         });
-        if (res === undefined) {
-          showError(t('部分保存失败，请重试'));
+        if (!res || !res.success) {
+          showError(res?.message || t('部分保存失败，请重试'));
           return;
         }
       }
@@ -288,7 +288,7 @@ export default function SettingsCreditLimit(props) {
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
-                      InviterRewardValue: String(value),
+                      InviterRewardValue: String(value ?? ''),
                     })
                   }
                 />
