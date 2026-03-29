@@ -498,26 +498,6 @@ export const buildPreviewRows = (model, t) => {
     ];
   }
 
-  if (model.billingMode === 'per-duration') {
-    const durationValue = JSON.stringify(
-      Object.entries(model.durationPrices || {}).reduce((acc, [seconds, price]) => {
-        if (hasValue(price)) {
-          acc[seconds] = Number(price);
-        }
-        return acc;
-      }, {}),
-      null,
-      2,
-    );
-    return [
-      {
-        key: 'ModelPriceBySeconds',
-        label: 'ModelPriceBySeconds',
-        value: durationValue === '{}' ? t('绌?) : durationValue,
-      },
-    ];
-  }
-
   const inputPrice = toNumberOrNull(model.inputPrice);
   if (inputPrice === null) {
     return [
