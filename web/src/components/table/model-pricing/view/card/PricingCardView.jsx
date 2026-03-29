@@ -53,6 +53,8 @@ const CARD_STYLES = {
   default: 'border-gray-200 hover:border-gray-300',
 };
 
+const DURATION_PREVIEW_LIMIT = 2;
+
 const PricingCardView = ({
   filteredModels,
   loading,
@@ -95,7 +97,6 @@ const PricingCardView = ({
     rowSelection?.onChange?.(newKeys, null);
   };
 
-  // 获取模型图标
   const getModelIcon = (model) => {
     if (!model || !model.model_name) {
       return (
@@ -104,17 +105,15 @@ const PricingCardView = ({
         </div>
       );
     }
-    // 1) 优先使用模型自定义图标
+
     if (model.icon) {
       return (
         <div className={CARD_STYLES.container}>
-          <div className={CARD_STYLES.icon}>
-            {getLobeHubIcon(model.icon, 32)}
-          </div>
+          <div className={CARD_STYLES.icon}>{getLobeHubIcon(model.icon, 32)}</div>
         </div>
       );
     }
-    // 2) 退化为供应商图标
+
     if (model.vendor_icon) {
       return (
         <div className={CARD_STYLES.container}>
@@ -124,8 +123,6 @@ const PricingCardView = ({
         </div>
       );
     }
-
-    // 如果没有供应商图标，使用模型名称生成头像
 
     const avatarText = model.model_name.slice(0, 2).toUpperCase();
     return (
@@ -146,23 +143,54 @@ const PricingCardView = ({
     );
   };
 
-  // 获取模型描述
-  const getModelDescription = (record) => {
-    return record.description || '';
+  const getModelDescription = (record) => record.description || '';
+
+  const getDurationPriceItems = (record, ratio = 1) => {
+    const durationPriceMap =
+      record?.model_price_by_seconds &&
+      typeof record.model_price_by_seconds === 'object'
+        ? record.model_price_by_seconds
+        : {};
+
+    return Object.entries(durationPriceMap)
+      .map(([seconds, price]) => {
+        const secondsValue = Number(seconds);
+        const priceValue = Number(price);
+        if (
+          !Number.isFinite(secondsValue) ||
+          secondsValue <= 0 ||
+          !Number.isFinite(priceValue)
+        ) {
+          return null;
+        }
+
+        return {
+          key: `duration-${seconds}`,
+          seconds: secondsValue,
+          value: displayPrice(priceValue * ratio),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.seconds - b.seconds);
   };
 
-  // 渲染标签
   const renderTags = (record) => {
-    // 计费类型标签（左边）
     let billingTag = (
       <Tag key='billing' shape='circle' color='white' size='small'>
         -
       </Tag>
     );
+
     if (record.quota_type === 1) {
       billingTag = (
         <Tag key='billing' shape='circle' color='teal' size='small'>
           {t('按次计费')}
+        </Tag>
+      );
+    } else if (record.quota_type === 2) {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='orange' size='small'>
+          {t('按时长计费')}
         </Tag>
       );
     } else if (record.quota_type === 0) {
@@ -173,7 +201,6 @@ const PricingCardView = ({
       );
     }
 
-    // 自定义标签（右边）
     const customTags = [];
     if (record.tags) {
       const tagArr = record.tags.split(',').filter(Boolean);
@@ -192,16 +219,16 @@ const PricingCardView = ({
     }
 
     return (
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>{billingTag}</div>
-        <div className='flex items-center gap-1'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2 min-w-0'>{billingTag}</div>
+        <div className='flex items-center gap-1 min-w-0'>
           {customTags.length > 0 &&
             renderLimitedItems({
               items: customTags.map((tag, idx) => ({
                 key: `custom-${idx}`,
                 element: tag,
               })),
-              renderItem: (item, idx) => item.element,
+              renderItem: (item) => item.element,
               maxDisplay: 3,
             })}
         </div>
@@ -209,7 +236,51 @@ const PricingCardView = ({
     );
   };
 
-  // 显示骨架屏
+  const renderPriceSummary = (record, priceData) => {
+    if (record.quota_type === 2) {
+      const durationItems = getDurationPriceItems(
+        record,
+        priceData?.usedGroupRatio ?? 1,
+      );
+
+      if (durationItems.length === 0) {
+        return (
+          <span className='text-xs' style={{ color: 'var(--semi-color-text-2)' }}>
+            -
+          </span>
+        );
+      }
+
+      const previewItems = durationItems.slice(0, DURATION_PREVIEW_LIMIT);
+      const remainingCount = durationItems.length - previewItems.length;
+
+      return (
+        <>
+          {previewItems.map((item) => (
+            <span
+              key={item.key}
+              className='text-xs'
+              style={{ color: 'var(--semi-color-text-1)' }}
+            >
+              {item.seconds}
+              {t('秒')} {item.value} / {t('次')}
+            </span>
+          ))}
+          {remainingCount > 0 && (
+            <span
+              className='text-xs'
+              style={{ color: 'var(--semi-color-text-2)' }}
+            >
+              +{remainingCount} {t('档时长价格')}
+            </span>
+          )}
+        </>
+      );
+    }
+
+    return formatPriceInfo(priceData, t, siteDisplayType);
+  };
+
   if (showSkeleton) {
     return (
       <PricingCardSkeleton
@@ -239,6 +310,7 @@ const PricingCardView = ({
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
+          const description = getModelDescription(model).trim();
 
           const priceData = calculateModelPrice({
             record: model,
@@ -258,7 +330,6 @@ const PricingCardView = ({
               onClick={() => openModelDetail && openModelDetail(model)}
             >
               <div className='flex flex-col h-full'>
-                {/* 头部：图标 + 模型名称 + 操作按钮 */}
                 <div className='flex items-start justify-between mb-3'>
                   <div className='flex items-start space-x-3 flex-1 min-w-0'>
                     {getModelIcon(model)}
@@ -266,14 +337,13 @@ const PricingCardView = ({
                       <h3 className='text-lg font-bold text-gray-900 truncate'>
                         {model.model_name}
                       </h3>
-                      <div className='flex flex-col gap-1 text-xs mt-1'>
-                        {formatPriceInfo(priceData, t, siteDisplayType)}
+                      <div className='flex flex-col gap-1 text-xs mt-1 min-h-[2.5rem]'>
+                        {renderPriceSummary(model, priceData)}
                       </div>
                     </div>
                   </div>
 
                   <div className='flex items-center space-x-2 ml-3'>
-                    {/* 复制按钮 */}
                     <Button
                       size='small'
                       theme='outline'
@@ -285,7 +355,6 @@ const PricingCardView = ({
                       }}
                     />
 
-                    {/* 选择框 */}
                     {rowSelection && (
                       <Checkbox
                         checked={isSelected}
@@ -298,22 +367,22 @@ const PricingCardView = ({
                   </div>
                 </div>
 
-                {/* 模型描述 - 占据剩余空间 */}
-                <div className='flex-1 mb-4'>
-                  <p
-                    className='text-xs line-clamp-2 leading-relaxed'
-                    style={{ color: 'var(--semi-color-text-2)' }}
-                  >
-                    {getModelDescription(model)}
-                  </p>
-                </div>
+                {description ? (
+                  <div className='flex-1 mb-4'>
+                    <p
+                      className='text-xs line-clamp-2 leading-relaxed'
+                      style={{ color: 'var(--semi-color-text-2)' }}
+                    >
+                      {description}
+                    </p>
+                  </div>
+                ) : (
+                  <div className='mb-3' />
+                )}
 
-                {/* 底部区域 */}
                 <div className='mt-auto'>
-                  {/* 标签区域 */}
                   {renderTags(model)}
 
-                  {/* 倍率信息（可选） */}
                   {showRatio && (
                     <div className='pt-3'>
                       <div className='flex items-center space-x-1 mb-2'>
@@ -358,7 +427,6 @@ const PricingCardView = ({
         })}
       </div>
 
-      {/* 分页 */}
       {filteredModels.length > 0 && (
         <div className='flex justify-center mt-6 py-4 border-t pricing-pagination-divider'>
           <Pagination
