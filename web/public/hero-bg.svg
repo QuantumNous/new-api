@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" fill="none">
+  <defs>
+    <!-- Glow filters -->
+    <filter id="glow1" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Gradient for circuit lines -->
+    <linearGradient id="circuit1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#6366f1" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="circuit2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#a855f7" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="circuit3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0"/>
+      <stop offset="40%" stop-color="#06b6d4" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Radial glow for nodes -->
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="nodeGlow2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="nodeGlow3" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ═══ CIRCUIT NETWORK LINES ═══ -->
+  <!-- Horizontal data highways -->
+  <line x1="0" y1="180" x2="500" y2="180" stroke="url(#circuit1)" stroke-width="1"/>
+  <line x1="940" y1="180" x2="1440" y2="180" stroke="url(#circuit1)" stroke-width="1"/>
+  <line x1="0" y1="420" x2="380" y2="420" stroke="url(#circuit1)" stroke-width="0.8"/>
+  <line x1="1060" y1="420" x2="1440" y2="420" stroke="url(#circuit1)" stroke-width="0.8"/>
+  <line x1="0" y1="660" x2="450" y2="660" stroke="url(#circuit1)" stroke-width="1"/>
+  <line x1="990" y1="660" x2="1440" y2="660" stroke="url(#circuit1)" stroke-width="1"/>
+  <line x1="0" y1="780" x2="350" y2="780" stroke="url(#circuit1)" stroke-width="0.6"/>
+  <line x1="1090" y1="780" x2="1440" y2="780" stroke="url(#circuit1)" stroke-width="0.6"/>
+
+  <!-- Vertical data channels -->
+  <line x1="200" y1="0" x2="200" y2="350" stroke="url(#circuit2)" stroke-width="0.8"/>
+  <line x1="200" y1="550" x2="200" y2="900" stroke="url(#circuit2)" stroke-width="0.8"/>
+  <line x1="1240" y1="0" x2="1240" y2="300" stroke="url(#circuit2)" stroke-width="0.8"/>
+  <line x1="1240" y1="600" x2="1240" y2="900" stroke="url(#circuit2)" stroke-width="0.8"/>
+  <line x1="400" y1="0" x2="400" y2="280" stroke="url(#circuit2)" stroke-width="0.6"/>
+  <line x1="1040" y1="620" x2="1040" y2="900" stroke="url(#circuit2)" stroke-width="0.6"/>
+
+  <!-- Diagonal data streams -->
+  <line x1="0" y1="100" x2="350" y2="350" stroke="url(#circuit3)" stroke-width="0.7"/>
+  <line x1="1090" y1="550" x2="1440" y2="800" stroke="url(#circuit3)" stroke-width="0.7"/>
+  <line x1="1440" y1="120" x2="1100" y2="380" stroke="url(#circuit3)" stroke-width="0.6"/>
+  <line x1="340" y1="520" x2="0" y2="780" stroke="url(#circuit3)" stroke-width="0.6"/>
+
+  <!-- ═══ CIRCUIT NODES (intersection points) ═══ -->
+  <!-- Left cluster -->
+  <circle cx="200" cy="180" r="10" fill="url(#nodeGlow)" filter="url(#glow2)"/>
+  <circle cx="200" cy="180" r="2.5" fill="#818cf8"/>
+  <circle cx="200" cy="420" r="8" fill="url(#nodeGlow2)" filter="url(#glow2)"/>
+  <circle cx="200" cy="420" r="2" fill="#06b6d4"/>
+  <circle cx="400" cy="180" r="6" fill="url(#nodeGlow3)" filter="url(#glow1)"/>
+  <circle cx="400" cy="180" r="1.5" fill="#a855f7"/>
+  <circle cx="350" cy="350" r="7" fill="url(#nodeGlow)" filter="url(#glow1)"/>
+  <circle cx="350" cy="350" r="1.8" fill="#818cf8"/>
+
+  <!-- Right cluster -->
+  <circle cx="1240" cy="180" r="9" fill="url(#nodeGlow2)" filter="url(#glow2)"/>
+  <circle cx="1240" cy="180" r="2.2" fill="#06b6d4"/>
+  <circle cx="1240" cy="660" r="8" fill="url(#nodeGlow)" filter="url(#glow2)"/>
+  <circle cx="1240" cy="660" r="2" fill="#818cf8"/>
+  <circle cx="1040" cy="420" r="7" fill="url(#nodeGlow3)" filter="url(#glow1)"/>
+  <circle cx="1040" cy="420" r="1.8" fill="#a855f7"/>
+  <circle cx="1100" cy="380" r="6" fill="url(#nodeGlow2)" filter="url(#glow1)"/>
+  <circle cx="1100" cy="380" r="1.5" fill="#06b6d4"/>
+
+  <!-- Bottom nodes -->
+  <circle cx="200" cy="660" r="8" fill="url(#nodeGlow3)" filter="url(#glow2)"/>
+  <circle cx="200" cy="660" r="2" fill="#a855f7"/>
+  <circle cx="400" cy="660" r="5" fill="url(#nodeGlow)" filter="url(#glow1)"/>
+  <circle cx="400" cy="660" r="1.2" fill="#818cf8"/>
+  <circle cx="1040" cy="660" r="7" fill="url(#nodeGlow2)" filter="url(#glow1)"/>
+  <circle cx="1040" cy="660" r="1.8" fill="#06b6d4"/>
+
+  <!-- ═══ FLOATING PARTICLES ═══ -->
+  <circle cx="120" cy="250" r="1" fill="#818cf8" opacity="0.5"/>
+  <circle cx="300" cy="120" r="1.2" fill="#06b6d4" opacity="0.4"/>
+  <circle cx="80" cy="500" r="0.8" fill="#a855f7" opacity="0.6"/>
+  <circle cx="450" cy="300" r="1" fill="#818cf8" opacity="0.3"/>
+  <circle cx="1300" cy="250" r="1.2" fill="#06b6d4" opacity="0.5"/>
+  <circle cx="1100" cy="150" r="0.8" fill="#a855f7" opacity="0.4"/>
+  <circle cx="1350" cy="500" r="1" fill="#818cf8" opacity="0.5"/>
+  <circle cx="1150" cy="700" r="1.3" fill="#06b6d4" opacity="0.3"/>
+  <circle cx="150" cy="750" r="1" fill="#a855f7" opacity="0.4"/>
+  <circle cx="1300" cy="800" r="0.8" fill="#818cf8" opacity="0.5"/>
+  <circle cx="50" cy="350" r="1.5" fill="#06b6d4" opacity="0.3"/>
+  <circle cx="1400" cy="350" r="1.2" fill="#a855f7" opacity="0.35"/>
+
+  <!-- ═══ HEXAGONAL ACCENTS ═══ -->
+  <!-- Left hex -->
+  <polygon points="100,580 115,570 130,580 130,600 115,610 100,600" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.15"/>
+  <polygon points="130,600 145,590 160,600 160,620 145,630 130,620" fill="none" stroke="#06b6d4" stroke-width="0.5" opacity="0.12"/>
+  <!-- Right hex -->
+  <polygon points="1310,280 1325,270 1340,280 1340,300 1325,310 1310,300" fill="none" stroke="#a855f7" stroke-width="0.5" opacity="0.15"/>
+  <polygon points="1280,300 1295,290 1310,300 1310,320 1295,330 1280,320" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.12"/>
+
+  <!-- ═══ DATA FLOW ARCS ═══ -->
+  <path d="M 0 300 Q 200 250 350 350" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.12"/>
+  <path d="M 1440 300 Q 1240 250 1100 380" fill="none" stroke="#06b6d4" stroke-width="0.5" opacity="0.12"/>
+  <path d="M 0 700 Q 250 650 400 660" fill="none" stroke="#a855f7" stroke-width="0.5" opacity="0.1"/>
+  <path d="M 1440 700 Q 1200 650 1040 660" fill="none" stroke="#6366f1" stroke-width="0.5" opacity="0.1"/>
+</svg>

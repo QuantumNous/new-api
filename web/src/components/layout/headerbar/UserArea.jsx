@@ -40,16 +40,6 @@ const UserArea = ({
   t,
 }) => {
   const dropdownRef = useRef(null);
-  if (isLoading) {
-    return (
-      <SkeletonWrapper
-        loading={true}
-        type='userArea'
-        width={50}
-        isMobile={isMobile}
-      />
-    );
-  }
 
   if (userState.user) {
     return (

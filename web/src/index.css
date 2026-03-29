@@ -156,9 +156,9 @@ code {
   flex-direction: column;
   min-height: 0;
   transition: width var(--transition-normal);
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--glass-bg-thick);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
   border-right: 1px solid var(--glass-border);
 }
 
@@ -174,6 +174,7 @@ code {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  padding: 4px 6px;
 }
 
 .sidebar-nav::-webkit-scrollbar {
@@ -182,21 +183,23 @@ code {
 
 /* 侧边栏导航项样式 */
 .sidebar-nav-item {
-  border-radius: 6px;
-  margin: 3px 8px;
-  transition: all 0.15s ease;
+  border-radius: var(--radius-sm);
+  margin: 2px 4px;
+  transition: all var(--transition-fast);
   padding: 8px 12px;
+  position: relative;
 }
 
 .sidebar-nav-item:hover {
-  background-color: rgba(var(--semi-blue-0), 0.08);
+  background-color: rgba(var(--semi-blue-0), 0.06);
   color: var(--semi-color-primary);
 }
 
 .sidebar-nav-item-selected {
-  background-color: rgba(var(--semi-blue-0), 0.12);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(6, 182, 212, 0.06));
   color: var(--semi-color-primary);
   font-weight: 500;
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.12);
 }
 
 /* 图标容器样式 */
@@ -207,7 +210,12 @@ code {
   align-items: center;
   justify-content: center;
   margin-right: 10px;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
+  opacity: 0.7;
+}
+
+.sidebar-nav-item-selected .sidebar-icon-container {
+  opacity: 1;
 }
 
 .sidebar-sub-icon-container {
@@ -218,23 +226,25 @@ code {
   justify-content: center;
   margin-right: 10px;
   margin-left: 1px;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
+  opacity: 0.7;
 }
 
 /* 分割线样式 */
 .sidebar-divider {
-  margin: 4px 8px;
-  opacity: 0.15;
+  margin: 8px 12px;
+  opacity: 0.08;
 }
 
 /* 分组标签样式 */
 .sidebar-group-label {
-  padding: 4px 15px 8px;
+  padding: 12px 16px 6px;
   color: var(--semi-color-text-2);
-  font-size: 12px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  opacity: 0.8;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  opacity: 0.45;
 }
 
 /* 底部折叠按钮 */
@@ -245,13 +255,10 @@ code {
   padding: 12px;
   margin-top: auto;
   cursor: pointer;
-  background-color: transparent;
+  background: transparent;
   position: sticky;
   bottom: 0;
   z-index: 10;
-  box-shadow: 0 -10px 10px -5px var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-top: 1px solid var(--glass-border);
 }
 
@@ -263,7 +270,12 @@ code {
   align-items: center;
   justify-content: center;
   background-color: var(--semi-color-fill-0);
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-collapse-button-inner:hover {
+  background-color: rgba(var(--semi-blue-0), 0.1);
+  transform: scale(1.1);
 }
 
 .sidebar-collapse-icon-container {
@@ -278,9 +290,9 @@ code {
 
 @media (max-width: 767px) {
   .sidebar-container {
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
+    background: var(--glass-bg-thick);
+    backdrop-filter: blur(var(--glass-blur-heavy));
+    -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
     border-right: 1px solid var(--glass-border);
   }
 
@@ -289,8 +301,7 @@ code {
   }
 
   .sidebar-collapse-button {
-    background-color: transparent;
-    box-shadow: 0 -10px 10px -5px var(--glass-bg);
+    background: transparent;
   }
 }
 
@@ -1218,4 +1229,30 @@ html.dark .hero-gradient-flow {
   );
   background-size: 300% 300%;
   animation: gradientFlow 12s ease infinite;
+}
+
+/* ==================== 首页入场动画 ==================== */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s var(--ease-out-expo) both;
+}
+
+/* ==================== 首页电路背景动画 ==================== */
+@keyframes circuitPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.hero-circuit-bg {
+  animation: circuitPulse 6s ease-in-out infinite;
 }

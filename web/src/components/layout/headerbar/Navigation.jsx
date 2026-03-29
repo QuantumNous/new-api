@@ -19,18 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
   mainNavLinks,
   isMobile,
-  isLoading,
   userState,
   pricingRequireAuth,
 }) => {
   const location = useLocation();
   const navRef = useRef(null);
   const itemRefs = useRef({});
+  const hasMeasured = useRef(false);
   const [indicator, setIndicator] = useState({ left: 0, width: 0, opacity: 0 });
 
   const isActive = (link) => {
@@ -54,12 +53,19 @@ const Navigation = ({
       width: elRect.width,
       opacity: 1,
     });
+    hasMeasured.current = true;
   }, [location.pathname, mainNavLinks]);
 
   useEffect(() => {
-    updateIndicator();
+    // Delay first measurement to ensure DOM is painted
+    const raf = requestAnimationFrame(() => {
+      updateIndicator();
+    });
     window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', updateIndicator);
+    };
   }, [updateIndicator]);
 
   const renderNavLinks = () => {
@@ -117,20 +123,13 @@ const Navigation = ({
           width: indicator.width,
           opacity: indicator.opacity,
           background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-          boxShadow: '0 2px 12px rgba(99, 102, 241, 0.35)',
-          transition: 'left 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease',
+          boxShadow: indicator.opacity ? '0 2px 12px rgba(99, 102, 241, 0.35)' : 'none',
+          transition: hasMeasured.current
+            ? 'left 0.35s cubic-bezier(0.16, 1, 0.3, 1), width 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease'
+            : 'none',
         }}
       />
-      <SkeletonWrapper
-        loading={isLoading}
-        type='navigation'
-        count={4}
-        width={60}
-        height={16}
-        isMobile={isMobile}
-      >
-        {renderNavLinks()}
-      </SkeletonWrapper>
+      {renderNavLinks()}
     </nav>
   );
 }

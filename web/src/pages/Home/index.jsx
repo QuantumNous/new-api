@@ -134,131 +134,166 @@ const Home = () => {
       />
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='w-full overflow-x-hidden'>
-          {/* Banner 部分 — 高级科技感设计 */}
-          <div className='w-full min-h-[600px] md:min-h-[700px] lg:min-h-[800px] relative overflow-hidden'>
-            {/* 背景：流动渐变动画 */}
+
+          {/* ═══════ HERO SECTION ═══════ */}
+          <section className='relative min-h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden'>
+            {/* ── Background layers ── */}
             <div className='absolute inset-0 hero-gradient-flow pointer-events-none' />
-            {/* 微妙的网格纹理 */}
-            <div className='absolute inset-0 opacity-[0.03] pointer-events-none' style={{
-              backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-              backgroundSize: '60px 60px'
+            {/* Circuit network SVG background */}
+            <div className='absolute inset-0 pointer-events-none hero-circuit-bg' style={{
+              backgroundImage: 'url(/hero-bg.svg)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
             }} />
-            {/* 顶部光线 */}
-            <div className='absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[1px] pointer-events-none' style={{
-              background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), rgba(6, 182, 212, 0.5), transparent)'
+            <div className='absolute inset-0 opacity-[0.02] pointer-events-none' style={{
+              backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)',
+              backgroundSize: '32px 32px'
+            }} />
+            {/* Top glow line */}
+            <div className='absolute top-0 left-1/2 -translate-x-1/2 w-[min(600px,80vw)] h-px pointer-events-none' style={{
+              background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), rgba(6,182,212,0.4), transparent)'
+            }} />
+            {/* Radial spotlight */}
+            <div className='absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[600px] pointer-events-none' style={{
+              background: 'radial-gradient(ellipse at center, rgba(99,102,241,0.08) 0%, transparent 70%)'
             }} />
 
-            <div className='flex items-center justify-center h-full px-4 py-16 md:py-20 lg:py-24 mt-10'>
-              <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
+            {/* ── Content ── */}
+            <div className='relative z-10 flex flex-col items-center text-center px-6 py-20 md:py-28 max-w-4xl mx-auto'>
 
-                {/* 顶部标签 */}
-                <div className='mb-6 md:mb-8'>
-                  <span className='inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs md:text-sm font-medium border' style={{
-                    background: 'rgba(99, 102, 241, 0.08)',
-                    borderColor: 'rgba(99, 102, 241, 0.2)',
-                    color: 'rgb(129, 140, 248)'
-                  }}>
-                    <span className='w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse' />
-                    {t('无需翻墙即可使用海外大模型')}
+              {/* Badge */}
+              <div className='mb-8 md:mb-10 animate-fade-in-up'>
+                <span className='inline-flex items-center gap-2.5 px-5 py-2 rounded-full text-xs md:text-sm font-medium tracking-wide border backdrop-blur-sm' style={{
+                  background: 'rgba(99, 102, 241, 0.06)',
+                  borderColor: 'rgba(99, 102, 241, 0.15)',
+                  color: 'rgb(129, 140, 248)'
+                }}>
+                  <span className='relative flex h-2 w-2'>
+                    <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75' />
+                    <span className='relative inline-flex rounded-full h-2 w-2 bg-green-400' />
                   </span>
-                </div>
-
-                {/* 主标题 */}
-                <h1 className='text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold leading-[1.05] tracking-tight mb-6'>
-                  <span className='text-semi-color-text-0'>OpenAPI</span>
-                  <br />
-                  <span style={{
-                    background: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 50%, #a855f7 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}>{t('大模型接口网关')}</span>
-                </h1>
-
-                {/* 副标题 */}
-                <p className='text-base md:text-lg lg:text-xl text-semi-color-text-2 mt-2 mb-8 md:mb-10 max-w-2xl leading-relaxed font-light'>
-                  {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
-                </p>
-
-                {/* BASE URL 输入框 — 毛玻璃风格 */}
-                <div className='w-full max-w-lg mb-8 md:mb-10'>
-                  <div className='relative' style={{
-                    background: 'var(--glass-bg-thin)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    borderRadius: '9999px',
-                    border: '1px solid var(--glass-border)',
-                    boxShadow: '0 0 40px rgba(99, 102, 241, 0.06)',
-                  }}>
-                    <Input
-                      readonly
-                      value={serverAddress}
-                      className='flex-1 !rounded-full !bg-transparent !border-none'
-                      size={isMobile ? 'default' : 'large'}
-                      suffix={
-                        <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* CTA 按钮 */}
-                <div className='flex flex-row gap-4 justify-center items-center mb-16 md:mb-20'>
-                    <Button
-                      theme='solid'
-                      type='primary'
-                      size={isMobile ? 'default' : 'large'}
-                      className='!rounded-full !px-8 !py-2.5 !text-base !font-medium'
-                      icon={<IconPlay />}
-                      onClick={() => navigate('/console/token')}
-                      style={{
-                        background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                        boxShadow: '0 4px 20px rgba(99, 102, 241, 0.3), 0 0 40px rgba(99, 102, 241, 0.1)',
-                        border: 'none',
-                      }}
-                    >
-                      {t('获取密钥')}
-                    </Button>
-                  {isDemoSiteMode && statusState?.status?.version && (
-                    <Button
-                      size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-full !px-6 !py-2.5'
-                      icon={<IconGithubLogo />}
-                      onClick={() =>
-                        window.open(
-                          'https://github.com/QuantumNous/new-api',
-                          '_blank',
-                        )
-                      }
-                    >
-                      {statusState.status.version}
-                    </Button>
-                  )}
-                </div>
-
-                {/* 供应商图标区已移除 */}
+                  {t('无需翻墙即可使用海外大模型')}
+                </span>
               </div>
+
+              {/* Title */}
+              <h1 className='animate-fade-in-up' style={{ animationDelay: '0.1s' }}>
+                <span className='block text-5xl md:text-6xl lg:text-7xl xl:text-[5.5rem] font-extrabold tracking-tight text-semi-color-text-0'>
+                  OpenAPI
+                </span>
+                <span className='block mt-4 md:mt-5 text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight' style={{
+                  background: 'linear-gradient(135deg, #818cf8 0%, #06b6d4 40%, #a78bfa 70%, #c084fc 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                  {t('大模型接口网关')}
+                </span>
+              </h1>
+
+              {/* Subtitle */}
+              <p className='mt-6 md:mt-8 text-base md:text-lg lg:text-xl text-semi-color-text-2 max-w-xl leading-relaxed font-light animate-fade-in-up' style={{ animationDelay: '0.2s' }}>
+                {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
+              </p>
+
+              {/* URL Bar */}
+              <div className='w-full max-w-lg mt-8 md:mt-10 animate-fade-in-up' style={{ animationDelay: '0.3s' }}>
+                <div className='relative group' style={{
+                  background: 'var(--glass-bg-thin)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  borderRadius: '9999px',
+                  border: '1px solid var(--glass-border)',
+                  boxShadow: '0 0 0 1px rgba(99,102,241,0.04), 0 4px 30px rgba(99,102,241,0.06)',
+                  transition: 'box-shadow 0.4s ease, border-color 0.4s ease',
+                }}>
+                  <Input
+                    readonly
+                    value={serverAddress}
+                    className='flex-1 !rounded-full !bg-transparent !border-none'
+                    size={isMobile ? 'default' : 'large'}
+                    suffix={
+                      <div className='flex items-center gap-2'>
+                        <ScrollList
+                          bodyHeight={32}
+                          style={{ border: 'unset', boxShadow: 'unset' }}
+                        >
+                          <ScrollItem
+                            mode='wheel'
+                            cycled={true}
+                            list={endpointItems}
+                            selectedIndex={endpointIndex}
+                            onSelect={({ index }) => setEndpointIndex(index)}
+                          />
+                        </ScrollList>
+                        <Button
+                          type='primary'
+                          onClick={handleCopyBaseURL}
+                          icon={<IconCopy />}
+                          className='!rounded-full'
+                        />
+                      </div>
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div className='flex flex-col sm:flex-row gap-4 justify-center items-center mt-10 md:mt-12 animate-fade-in-up' style={{ animationDelay: '0.4s' }}>
+                <button
+                  onClick={() => navigate('/console/token')}
+                  className='group relative inline-flex items-center gap-2.5 px-8 py-3 rounded-full text-white text-base font-semibold overflow-hidden transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]'
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                    boxShadow: '0 4px 20px rgba(99,102,241,0.3), 0 0 60px rgba(99,102,241,0.08)',
+                  }}
+                >
+                  {/* Shine effect on hover */}
+                  <span className='absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700' />
+                  <IconPlay className='relative z-10' />
+                  <span className='relative z-10'>{t('获取密钥')}</span>
+                </button>
+
+                {isDemoSiteMode && statusState?.status?.version && (
+                  <button
+                    onClick={() => window.open('https://github.com/QuantumNous/new-api', '_blank')}
+                    className='inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 hover:scale-[1.03] active:scale-[0.98]'
+                    style={{
+                      background: 'var(--glass-bg-thin)',
+                      border: '1px solid var(--glass-border)',
+                      color: 'var(--semi-color-text-1)',
+                      backdropFilter: 'blur(8px)',
+                    }}
+                  >
+                    <IconGithubLogo />
+                    {statusState.status.version}
+                  </button>
+                )}
+              </div>
+
+              {/* Stats row */}
+              <div className='flex flex-wrap justify-center gap-8 md:gap-16 mt-16 md:mt-20 animate-fade-in-up' style={{ animationDelay: '0.5s' }}>
+                {[
+                  { value: '40+', label: t('支持模型供应商') },
+                  { value: '99.9%', label: t('服务可用性') },
+                  { value: '<100ms', label: t('平均响应延迟') },
+                ].map((stat) => (
+                  <div key={stat.label} className='text-center'>
+                    <div className='text-2xl md:text-3xl font-bold text-semi-color-text-0'>{stat.value}</div>
+                    <div className='text-xs md:text-sm text-semi-color-text-2 mt-1 font-light'>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
             </div>
-          </div>
+
+            {/* Bottom fade */}
+            <div className='absolute bottom-0 left-0 right-0 h-32 pointer-events-none' style={{
+              background: 'linear-gradient(to top, var(--semi-color-bg-0), transparent)'
+            }} />
+          </section>
+
         </div>
       ) : (
         <div className='overflow-x-hidden w-full'>

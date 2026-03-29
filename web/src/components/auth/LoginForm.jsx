@@ -64,6 +64,7 @@ import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
+import AnimatedCharacters from './AnimatedCharacters';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -104,6 +105,7 @@ const LoginForm = () => {
   const [showTwoFA, setShowTwoFA] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
@@ -947,34 +949,55 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
-          ? renderEmailLoginForm()
-          : renderOAuthOptions()}
-        {renderWeChatLoginModal()}
-        {render2FAModal()}
+    <div className='min-h-screen grid lg:grid-cols-2 overflow-hidden'>
+      {/* Left: Animated Characters */}
+      <div className='relative hidden lg:flex flex-col justify-between p-12' style={{
+        background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1), rgba(168,85,247,0.12))',
+      }}>
+        <div className='absolute inset-0 opacity-[0.03] pointer-events-none' style={{
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }} />
+        <div className='relative z-10 flex items-center gap-2'>
+          <img src={getLogo()} alt='logo' className='w-8 h-8 rounded-full' />
+          <span className='text-lg font-semibold text-semi-color-text-0'>{getSystemName()}</span>
+        </div>
+        <div className='relative z-10 flex items-end justify-center flex-1'>
+          <AnimatedCharacters
+            isTyping={inputs.username.length > 0 && inputs.password.length === 0}
+            showPassword={showPassword}
+            passwordLength={inputs.password.length}
+          />
+        </div>
+        <div className='relative z-10' />
+      </div>
 
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
-            <Turnstile
-              sitekey={turnstileSiteKey}
-              onVerify={(token) => {
-                setTurnstileToken(token);
-              }}
-            />
+      {/* Right: Login Form */}
+      <div className='flex items-center justify-center p-8 bg-semi-color-bg-0'>
+        <div className='w-full max-w-sm'>
+          {/* Mobile logo */}
+          <div className='lg:hidden flex items-center justify-center gap-2 mb-8'>
+            <img src={getLogo()} alt='logo' className='w-8 h-8 rounded-full' />
+            <span className='text-lg font-semibold'>{getSystemName()}</span>
           </div>
-        )}
+
+          {showEmailLogin || !hasOAuthLoginOptions
+            ? renderEmailLoginForm()
+            : renderOAuthOptions()}
+          {renderWeChatLoginModal()}
+          {render2FAModal()}
+
+          {turnstileEnabled && (
+            <div className='flex justify-center mt-6'>
+              <Turnstile
+                sitekey={turnstileSiteKey}
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
