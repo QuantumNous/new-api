@@ -199,6 +199,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+		// 当切换到 percentage 类型时，检查当前 value 是否在合理范围
+		if rewardType == "percentage" && common.InviterRewardValue > 100 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "切换为百分比类型前，请先将返利值调整到 0-100 之间。当前返利值过大，直接切换会导致异常的返利比例。",
+			})
+			return
+		}
 	case "InviterRewardValue":
 		rewardValue, err := strconv.Atoi(option.Value.(string))
 		if err != nil {
@@ -208,22 +216,19 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-		if common.InviterRewardType == "percentage" {
-			if rewardValue < 0 || rewardValue > 100 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "当充值返利类型为百分比时，返利值应在0-100之间",
-				})
-				return
-			}
-		} else {
-			if rewardValue < 0 {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "充值返利值不能为负数",
-				})
-				return
-			}
+		if rewardValue < 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "充值返利值不能为负数",
+			})
+			return
+		}
+		if common.InviterRewardType == "percentage" && rewardValue > 100 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "当充值返利类型为百分比时，返利值应在0-100之间",
+			})
+			return
 		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))

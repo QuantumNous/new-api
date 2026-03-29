@@ -361,7 +361,7 @@ func EpayNotify(c *gin.Context) {
 			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
 			// 处理邀请充值返利
 			if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
-				log.Printf("易支付回调处理邀请返利失败: %v", err)
+				common.SysError(fmt.Sprintf("[CRITICAL] 易支付回调处理邀请返利失败，充值用户ID: %d，充值额度: %d，错误: %v。请手动处理！", topUp.UserId, quotaToAdd, err))
 			}
 		}
 	} else {
@@ -476,7 +476,7 @@ func AdminCompleteTopUp(c *gin.Context) {
 			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
 		}
 		if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
-			log.Printf("管理员补单处理邀请返利失败: %v", err)
+			common.SysError(fmt.Sprintf("[CRITICAL] 管理员补单处理邀请返利失败，充值用户ID: %d，充值额度: %d，错误: %v。请手动处理！", topUp.UserId, quotaToAdd, err))
 		}
 	}
 

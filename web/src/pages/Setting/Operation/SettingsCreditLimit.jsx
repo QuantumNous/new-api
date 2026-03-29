@@ -47,13 +47,25 @@ export default function SettingsCreditLimit(props) {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
 
-    // 验证邀请充值返利值的范围
+    // 邀请充值返利的 Type 和 Value 必须一起提交，确保原子性
+    const rewardTypeChanged = updateArray.some(
+      (item) => item.key === 'InviterRewardType',
+    );
     const rewardValueChanged = updateArray.some(
       (item) => item.key === 'InviterRewardValue',
     );
-    if (rewardValueChanged) {
+    if (rewardTypeChanged && !rewardValueChanged) {
+      // Type 变了但 Value 没变，也要带上 Value 一起提交
+      updateArray.push({ key: 'InviterRewardValue', value: inputs.InviterRewardValue });
+    } else if (rewardValueChanged && !rewardTypeChanged) {
+      // Value 变了但 Type 没变，也要带上 Type 一起提交（放在最前面确保 Type 先保存）
+      updateArray.unshift({ key: 'InviterRewardType', value: inputs.InviterRewardType });
+    }
+
+    // 验证邀请充值返利值的范围
+    if (rewardTypeChanged || rewardValueChanged) {
       const rewardValue = parseInt(inputs.InviterRewardValue);
-      if (isNaN(rewardValue)) {
+      if (inputs.InviterRewardType && isNaN(rewardValue)) {
         showError(t('充值返利值必须是有效的数字'));
         return;
       }
@@ -70,30 +82,37 @@ export default function SettingsCreditLimit(props) {
       }
     }
 
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        value = inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
+    // 确保 InviterRewardType 在 InviterRewardValue 之前提交（后端依赖顺序做交叉校验）
+    updateArray.sort((a, b) => {
+      if (a.key === 'InviterRewardType' && b.key === 'InviterRewardValue') return -1;
+      if (a.key === 'InviterRewardValue' && b.key === 'InviterRewardType') return 1;
+      return 0;
     });
-    setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+
+    // 使用串行提交确保 Type 在 Value 之前保存
+    async function submitSequentially() {
+      for (const item of updateArray) {
+        let value = '';
+        if (typeof inputs[item.key] === 'boolean') {
+          value = String(inputs[item.key]);
+        } else {
+          value = inputs[item.key];
         }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
+        const res = await API.put('/api/option/', {
+          key: item.key,
+          value,
+        });
+        if (res === undefined) {
+          showError(t('部分保存失败，请重试'));
+          return;
+        }
+      }
+      showSuccess(t('保存成功'));
+      props.refresh();
+    }
+
+    setLoading(true);
+    submitSequentially()
       .catch(() => {
         showError(t('保存失败，请重试'));
       })

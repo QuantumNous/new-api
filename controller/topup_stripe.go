@@ -213,7 +213,7 @@ func sessionCompleted(event stripe.Event) {
 	if topUp != nil {
 		quota := int(topUp.Money * common.QuotaPerUnit)
 		if err := model.ProcessInviterReward(topUp.UserId, quota); err != nil {
-			log.Printf("Stripe回调处理邀请返利失败: %v", err)
+			common.SysError(fmt.Sprintf("[CRITICAL] Stripe回调处理邀请返利失败，充值用户ID: %d，充值额度: %d，错误: %v。请手动处理！", topUp.UserId, quota, err))
 		}
 	}
 

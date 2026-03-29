@@ -379,19 +379,14 @@ func ProcessInviterReward(userId int, rechargeQuota int) error {
 		return nil
 	}
 
-	// 给邀请人增加额度
-	err = IncreaseUserQuota(user.InviterId, rewardQuota, true)
-	if err != nil {
-		return err
-	}
-
-	// 更新邀请人的 aff_quota 和 aff_history_quota
+	// 只增加 aff_quota 和 aff_history_quota（返利余额），不直接增加 quota（可消费余额）
+	// 用户可以通过「划转到余额」功能手动将 aff_quota 转为 quota，避免双重充值
 	err = DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
 		"aff_quota":   gorm.Expr("aff_quota + ?", rewardQuota),
 		"aff_history": gorm.Expr("aff_history + ?", rewardQuota),
 	}).Error
 	if err != nil {
-		common.SysError("更新邀请人返利额度失败: " + err.Error())
+		return fmt.Errorf("更新邀请人返利额度失败: %w", err)
 	}
 
 	// 记录日志

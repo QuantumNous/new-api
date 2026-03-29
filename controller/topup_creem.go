@@ -364,7 +364,7 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 
 	// 处理邀请充值返利
 	if err := model.ProcessInviterReward(topUp.UserId, int(topUp.Amount)); err != nil {
-		log.Printf("Creem回调处理邀请返利失败: %v", err)
+		common.SysError(fmt.Sprintf("[CRITICAL] Creem回调处理邀请返利失败，充值用户ID: %d，充值额度: %d，错误: %v。请手动处理！", topUp.UserId, int(topUp.Amount), err))
 	}
 
 	c.Status(http.StatusOK)
