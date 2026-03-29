@@ -170,6 +170,64 @@ const renderPlatform = (platform, t) => {
   }
 };
 
+const extractModelName = (record) => {
+  const properties = record?.properties;
+  if (properties && typeof properties === 'object') {
+    if (properties.origin_model_name) {
+      return properties.origin_model_name;
+    }
+    if (properties.upstream_model_name) {
+      return properties.upstream_model_name;
+    }
+  }
+
+  const data = record?.data;
+  if (data && typeof data === 'object') {
+    if (data.model) {
+      return data.model;
+    }
+    if (data.request?.model) {
+      return data.request.model;
+    }
+    if (data.task_result?.model) {
+      return data.task_result.model;
+    }
+  }
+
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return (
+        parsed?.model ||
+        parsed?.request?.model ||
+        parsed?.task_result?.model ||
+        ''
+      );
+    } catch {
+      return '';
+    }
+  }
+
+  return '';
+};
+
+const renderModel = (record, t) => {
+  const modelName = extractModelName(record);
+  if (!modelName) {
+    return (
+      <Tag color='white' shape='circle'>
+        {t('未知模型')}
+      </Tag>
+    );
+  }
+
+  return (
+    <Tag color='blue' shape='circle'>
+      {modelName}
+    </Tag>
+  );
+};
+
 const renderStatus = (type, t) => {
   switch (type) {
     case 'SUCCESS':
@@ -316,10 +374,10 @@ export const getTaskLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.PLATFORM,
-      title: t('平台'),
+      title: t('模型'),
       dataIndex: 'platform',
       render: (text, record, index) => {
-        return <div>{renderPlatform(text, t)}</div>;
+        return <div>{renderModel(record, t)}</div>;
       },
     },
     {
