@@ -18,14 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Card, Chat, Typography } from '@douyinfe/semi-ui';
-import { Eye, EyeOff, MessageSquare } from 'lucide-react';
+import { Card, Chat, Typography, Button } from '@douyinfe/semi-ui';
+import { MessageSquare, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CustomInputRender from './CustomInputRender';
 
 const ChatArea = ({
   chatRef,
   message,
+  inputs,
   styleState,
   showDebugPanel,
   roleInfo,
@@ -38,9 +39,6 @@ const ChatArea = ({
   onToggleDebugPanel,
   renderCustomChatContent,
   renderChatBoxAction,
-  title,
-  subtitle,
-  placeholder,
 }) => {
   const { t } = useTranslation();
 
@@ -50,48 +48,52 @@ const ChatArea = ({
 
   return (
     <Card
-      className='h-full rounded-3xl overflow-hidden shadow-[0_18px_50px_rgba(15,23,42,0.08)]'
+      className='h-full'
       bordered={false}
       bodyStyle={{
         padding: 0,
-        height: '100%',
+        height: 'calc(100vh - 66px)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
       }}
     >
+      {/* 聊天头部 */}
       {styleState.isMobile ? (
-        <div className='pt-4' />
+        <div className='pt-4'></div>
       ) : (
-        <div className='px-6 py-4 bg-gradient-to-r from-slate-900 via-sky-900 to-cyan-700 rounded-t-3xl'>
-          <div className='flex items-center justify-between gap-4'>
-            <div className='flex items-center gap-3 min-w-0'>
-              <div className='w-10 h-10 rounded-full bg-white/15 backdrop-blur flex items-center justify-center text-white'>
-                <MessageSquare size={20} />
+        <div className='px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-t-2xl'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-3'>
+              <div className='w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center'>
+                <MessageSquare size={20} className='text-white' />
               </div>
-              <div className='min-w-0'>
+              <div>
                 <Typography.Title heading={5} className='!text-white mb-0'>
-                  {title || t('AI 对话')}
+                  {t('AI 对话')}
                 </Typography.Title>
                 <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
-                  {subtitle || t('选择模型开始创作')}
+                  {inputs.model || t('选择模型开始对话')}
                 </Typography.Text>
               </div>
             </div>
-            <Button
-              icon={showDebugPanel ? <EyeOff size={14} /> : <Eye size={14} />}
-              onClick={onToggleDebugPanel}
-              theme='borderless'
-              type='primary'
-              size='small'
-              className='!rounded-lg !text-white/80 hover:!text-white hover:!bg-white/10'
-            >
-              {showDebugPanel ? t('隐藏调试') : t('显示调试')}
-            </Button>
+            <div className='flex items-center gap-2'>
+              <Button
+                icon={showDebugPanel ? <EyeOff size={14} /> : <Eye size={14} />}
+                onClick={onToggleDebugPanel}
+                theme='borderless'
+                type='primary'
+                size='small'
+                className='!rounded-lg !text-white/80 hover:!text-white hover:!bg-white/10'
+              >
+                {showDebugPanel ? t('隐藏调试') : t('显示调试')}
+              </Button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* 聊天内容区域 */}
       <div className='flex-1 overflow-hidden'>
         <Chat
           ref={chatRef}
@@ -117,7 +119,7 @@ const ChatArea = ({
           onStopGenerator={onStopGenerator}
           onClear={onClearMessages}
           className='h-full'
-          placeholder={placeholder || t('请输入您的问题...')}
+          placeholder={t('请输入您的问题...')}
         />
       </div>
     </Card>

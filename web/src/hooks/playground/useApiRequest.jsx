@@ -28,13 +28,15 @@ import {
 import {
   getUserIdFromLocalStorage,
   handleApiError,
-  isGrokImagineImageEditModel,
-  isGrokImagineVideoModel,
   processThinkTags,
   processIncompleteThinkTags,
-  usesDedicatedImageGenerationEndpoint,
-  isVideoModeModel,
 } from '../../helpers';
+
+const GROK_IMAGE_GENERATION_MODELS = new Set([
+  'grok-imagine-1.0',
+  'grok-imagine-1.0-fast',
+]);
+const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
 const normalizeGrokImageSize = (size) => {
   if (size === '1536x1024') {
     return '1792x1024';
@@ -54,15 +56,27 @@ export const useApiRequest = (
 ) => {
   const { t } = useTranslation();
 
+  const isGrokImagineImageModel = useCallback((model) => {
+    return (
+      GROK_IMAGE_GENERATION_MODELS.has(model) || GROK_IMAGE_EDIT_MODELS.has(model)
+    );
+  }, []);
+
+  const isGrokImagineImageEditModel = useCallback((model) => {
+    return GROK_IMAGE_EDIT_MODELS.has(model);
+  }, []);
+
   const isVideoGenerationPayload = useCallback((payload) => {
-    return isVideoModeModel(payload?.model);
+    const model = payload?.model;
+    return typeof model === 'string' && model.includes('video');
   }, []);
 
   const isImageGenerationPayload = useCallback(
     (payload) => {
-      return usesDedicatedImageGenerationEndpoint(payload?.model);
+      const model = payload?.model;
+      return typeof model === 'string' && isGrokImagineImageModel(model);
     },
-    [],
+    [isGrokImagineImageModel],
   );
 
   const getTextFromMessageContent = useCallback((content) => {

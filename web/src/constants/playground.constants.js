@@ -30,12 +30,6 @@ export const MESSAGE_ROLES = {
   SYSTEM: 'system',
 };
 
-export const PLAYGROUND_MODES = {
-  CHAT: 'chat',
-  IMAGE: 'image',
-  VIDEO: 'video',
-};
-
 // 默认消息示例 - 使用函数生成以支持 i18n
 export const getDefaultMessages = (t) => [
   {
@@ -127,7 +121,6 @@ export const DEFAULT_CONFIG = {
   showDebugPanel: false,
   customRequestMode: false,
   customRequestBody: '',
-  playgroundMode: PLAYGROUND_MODES.CHAT,
 };
 
 // ========== 正则表达式 ==========

@@ -81,8 +81,6 @@ export const loadConfig = () => {
           parsedConfig.customRequestMode || DEFAULT_CONFIG.customRequestMode,
         customRequestBody:
           parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
-        playgroundMode:
-          parsedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
       };
 
       return mergedConfig;
