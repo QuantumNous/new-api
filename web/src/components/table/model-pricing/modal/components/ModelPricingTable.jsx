@@ -39,7 +39,34 @@ const ModelPricingTable = ({
   const modelEnableGroups = Array.isArray(modelData?.enable_groups)
     ? modelData.enable_groups
     : [];
+  const modelPriceBySeconds =
+    modelData?.model_price_by_seconds &&
+    typeof modelData.model_price_by_seconds === 'object'
+      ? modelData.model_price_by_seconds
+      : {};
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
+  const getSecondsPriceItems = (ratio) =>
+    Object.entries(modelPriceBySeconds)
+      .map(([seconds, price]) => {
+        const secondsValue = Number(seconds);
+        const priceValue = Number(price);
+        if (
+          !Number.isFinite(secondsValue) ||
+          secondsValue <= 0 ||
+          !Number.isFinite(priceValue)
+        ) {
+          return null;
+        }
+        return {
+          key: `seconds-${seconds}`,
+          label: `${secondsValue}${t('秒')}`,
+          value: displayPrice(priceValue * ratio),
+          suffix: ` / ${t('次')}`,
+          seconds: secondsValue,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.seconds - b.seconds);
   const renderGroupPriceTable = () => {
     // 仅展示模型可用的分组：模型 enable_groups 与用户可用分组的交集
 
@@ -77,6 +104,7 @@ const ModelPricingTable = ({
               ? t('按次计费')
               : '-',
         priceItems: getModelPriceItems(priceData, t, siteDisplayType),
+        secondsPriceItems: getSecondsPriceItems(groupRatioValue),
       };
     });
 
@@ -126,7 +154,7 @@ const ModelPricingTable = ({
     columns.push({
       title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
       dataIndex: 'priceItems',
-      render: (items) => (
+      render: (items, record) => (
         <div className='space-y-1'>
           {items.map((item) => (
             <div key={item.key}>
@@ -136,6 +164,23 @@ const ModelPricingTable = ({
               <div className='text-xs text-gray-500'>{item.suffix}</div>
             </div>
           ))}
+          {record.secondsPriceItems?.length > 0 && (
+            <div className='pt-2 border-t border-dashed border-gray-200'>
+              <div className='text-xs text-gray-500 mb-1'>
+                {t('按时长固定价格')}
+              </div>
+              <div className='space-y-1'>
+                {record.secondsPriceItems.map((item) => (
+                  <div key={item.key}>
+                    <div className='font-semibold text-orange-600'>
+                      {item.label} {item.value}
+                    </div>
+                    <div className='text-xs text-gray-500'>{item.suffix}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ),
     });
