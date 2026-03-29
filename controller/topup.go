@@ -359,6 +359,10 @@ func EpayNotify(c *gin.Context) {
 			}
 			log.Printf("易支付回调更新用户成功 %v", topUp)
 			model.RecordLog(topUp.UserId, model.LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money))
+			// 处理邀请充值返利
+			if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
+				log.Printf("易支付回调处理邀请返利失败: %v", err)
+			}
 		}
 	} else {
 		log.Printf("易支付异常回调: %v", verifyInfo)
@@ -461,6 +465,21 @@ func AdminCompleteTopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 处理邀请充值返利（管理员补单也应触发返利）
+	topUp := model.GetTopUpByTradeNo(req.TradeNo)
+	if topUp != nil && topUp.Status == common.TopUpStatusSuccess {
+		dAmount := decimal.NewFromInt(topUp.Amount)
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		if topUp.PaymentMethod == "stripe" {
+			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		}
+		if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
+			log.Printf("管理员补单处理邀请返利失败: %v", err)
+		}
+	}
+
 	common.ApiSuccess(c, nil)
 }
 
