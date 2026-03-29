@@ -103,6 +103,8 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
+// UpdateOption 更新系统配置选项
+// 对不同配置项进行校验（如邀请充值返利类型和返利值的合法性检查），通过后持久化到数据库
 func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)

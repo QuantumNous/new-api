@@ -340,7 +340,8 @@ func inviteUser(inviterId int) (err error) {
 }
 
 // ProcessInviterReward 处理邀请人的充值返利
-// 当被邀请人充值成功后，根据管理员设置的返利类型和返利值，给邀请人发放返利奖励
+// 当被邀请人充值成功后，根据管理员设置的返利类型（固定/百分比）和返利值，
+// 计算返利额度并增加邀请人的 aff_quota 和 aff_history，记录系统日志
 func ProcessInviterReward(userId int, rechargeQuota int) error {
 	// 如果返利功能未开启（类型为空或返利值为0），直接返回
 	if common.InviterRewardType == "" || common.InviterRewardValue == 0 {

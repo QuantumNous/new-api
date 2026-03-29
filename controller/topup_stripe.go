@@ -177,6 +177,8 @@ func StripeWebhook(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+// sessionCompleted 处理 Stripe checkout.session.completed 事件
+// 支付成功后更新充值订单状态，增加用户额度，并触发邀请人充值返利
 func sessionCompleted(event stripe.Event) {
 	customerId := event.GetObjectValue("customer")
 	referenceId := event.GetObjectValue("client_reference_id")

@@ -337,7 +337,8 @@ func WaffoWebhook(c *gin.Context) {
 	}
 }
 
-// handleWaffoPayment 处理支付完成通知
+// handleWaffoPayment 处理 Waffo 支付完成通知
+// 验证支付结果后更新充值订单状态，增加用户额度，并触发邀请人充值返利
 func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.PaymentNotificationResult) {
 	if result.OrderStatus != "PAY_SUCCESS" {
 		log.Printf("Waffo 订单状态非成功: %s, 订单: %s", result.OrderStatus, result.MerchantOrderID)

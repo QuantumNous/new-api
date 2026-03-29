@@ -280,6 +280,8 @@ func UnlockOrder(tradeNo string) {
 	createLock.Unlock()
 }
 
+// EpayNotify 处理易支付异步回调通知
+// 验证支付签名后更新充值订单状态，增加用户额度，并触发邀请人充值返利
 func EpayNotify(c *gin.Context) {
 	var params map[string]string
 
@@ -450,6 +452,7 @@ type AdminCompleteTopupRequest struct {
 }
 
 // AdminCompleteTopUp 管理员补单接口
+// 手动完成充值订单，增加用户额度，并触发邀请人充值返利
 func AdminCompleteTopUp(c *gin.Context) {
 	var req AdminCompleteTopupRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.TradeNo == "" {

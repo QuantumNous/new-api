@@ -1001,6 +1001,8 @@ func getTopUpLock(userID int) *topUpTryLock {
 	return l
 }
 
+// TopUp 处理兑换码充值请求
+// 验证兑换码有效性后增加用户额度，并触发邀请人充值返利
 func TopUp(c *gin.Context) {
 	id := c.GetInt("id")
 	lock := getTopUpLock(id)

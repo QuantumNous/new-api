@@ -282,7 +282,8 @@ func CreemWebhook(c *gin.Context) {
 	}
 }
 
-// 处理支付完成事件
+// handleCheckoutCompleted 处理 Creem 支付完成事件
+// 验证订单状态后更新充值记录，增加用户额度，并触发邀请人充值返利
 func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	// 验证订单状态
 	if event.Object.Order.Status != "paid" {

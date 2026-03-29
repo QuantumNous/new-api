@@ -103,8 +103,10 @@ var TelegramBotName = ""
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
-var InviterRewardType = ""     // 邀请充值返利类型：fixed（固定）或 percentage（百分比），空字符串表示关闭
-var InviterRewardValue = 0     // 邀请充值返利值：fixed 时为固定额度，percentage 时为百分比（0-100）
+// InviterRewardType 邀请充值返利类型，可选值为 "fixed"（固定额度）、"percentage"（百分比）或空字符串（关闭）
+var InviterRewardType = ""
+// InviterRewardValue 邀请充值返利值，当类型为 fixed 时表示固定返利额度，当类型为 percentage 时表示返利百分比（0-100）
+var InviterRewardValue = 0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false

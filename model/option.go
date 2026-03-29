@@ -26,6 +26,8 @@ func AllOption() ([]*Option, error) {
 	return options, err
 }
 
+// InitOptionMap 初始化系统配置选项的内存缓存
+// 将所有配置项（包括邀请充值返利类型和返利值）加载到 common.OptionMap 中
 func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
@@ -211,6 +213,8 @@ func UpdateOption(key string, value string) error {
 	return updateOptionMap(key, value)
 }
 
+// updateOptionMap 根据配置项 key 更新对应的内存变量
+// 支持更新邀请充值返利类型（InviterRewardType）和返利值（InviterRewardValue）等配置
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
