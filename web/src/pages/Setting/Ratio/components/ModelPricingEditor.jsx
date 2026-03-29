@@ -52,6 +52,7 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+const DURATION_PRESET_SECONDS = ['4', '8', '12', '15', '20', '25', '30'];
 
 const PriceInput = ({
   label,
@@ -84,6 +85,97 @@ const PriceInput = ({
   </div>
 );
 
+const DurationPricingEditor = ({
+  durationPrices = {},
+  onChange,
+  onAdd,
+  onRemove,
+  customSeconds,
+  setCustomSeconds,
+  t,
+}) => {
+  const sortedEntries = Object.entries(durationPrices).sort(
+    ([secondsA], [secondsB]) => Number(secondsA) - Number(secondsB),
+  );
+
+  return (
+    <Card
+      bodyStyle={{ padding: 16 }}
+      style={{
+        marginBottom: 16,
+        background: 'var(--semi-color-fill-0)',
+      }}
+    >
+      <div className='mb-3'>
+        <div className='font-medium'>{t('按时长价格')}</div>
+        <div className='text-xs text-gray-500 mt-1'>
+          {t('选择这个模式后，只会保存按时长价格表，不会和按次或按量计费重叠。')}
+        </div>
+      </div>
+
+      <div className='flex flex-wrap gap-2 mb-4'>
+        {DURATION_PRESET_SECONDS.map((seconds) => (
+          <Button
+            key={seconds}
+            size='small'
+            theme='outline'
+            disabled={Object.prototype.hasOwnProperty.call(durationPrices, seconds)}
+            onClick={() => onAdd(seconds)}
+          >
+            {seconds}
+            {t('秒')}
+          </Button>
+        ))}
+      </div>
+
+      <div className='flex flex-wrap gap-2 mb-4'>
+        <Input
+          value={customSeconds}
+          placeholder={t('自定义秒数')}
+          suffix={t('秒')}
+          onChange={(value) => setCustomSeconds(value.replace(/[^\d]/g, ''))}
+          style={{ width: 160 }}
+        />
+        <Button
+          onClick={() => {
+            if (!customSeconds) return;
+            onAdd(customSeconds);
+            setCustomSeconds('');
+          }}
+        >
+          {t('添加时长')}
+        </Button>
+      </div>
+
+      {sortedEntries.length === 0 ? (
+        <div className='text-sm text-gray-500'>{t('暂未添加任何时长价格')}</div>
+      ) : (
+        <div className='space-y-3'>
+          {sortedEntries.map(([seconds, price]) => (
+            <div key={seconds} className='flex items-center gap-2'>
+              <div className='w-20 text-sm font-medium text-gray-700'>
+                {seconds}
+                {t('秒')}
+              </div>
+              <Input
+                value={price}
+                placeholder={t('输入 $/次')}
+                suffix={t('$/次')}
+                onChange={(value) => onChange(seconds, value)}
+              />
+              <Button
+                type='danger'
+                icon={<IconDelete />}
+                onClick={() => onRemove(seconds)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 export default function ModelPricingEditor({
   options,
   refresh,
@@ -101,6 +193,7 @@ export default function ModelPricingEditor({
   const [addVisible, setAddVisible] = useState(false);
   const [batchVisible, setBatchVisible] = useState(false);
   const [newModelName, setNewModelName] = useState('');
+  const [customDurationSeconds, setCustomDurationSeconds] = useState('');
 
   const {
     selectedModel,
@@ -122,6 +215,9 @@ export default function ModelPricingEditor({
     isOptionalFieldEnabled,
     handleOptionalFieldToggle,
     handleNumericFieldChange,
+    handleDurationPriceChange,
+    addDurationPrice,
+    removeDurationPrice,
     handleBillingModeChange,
     handleSubmit,
     addModel,
@@ -175,10 +271,20 @@ export default function ModelPricingEditor({
         dataIndex: 'billingMode',
         key: 'billingMode',
         render: (_, record) => (
-          <Tag color={record.billingMode === 'per-request' ? 'teal' : 'violet'}>
+          <Tag
+            color={
+              record.billingMode === 'per-request'
+                ? 'teal'
+                : record.billingMode === 'per-duration'
+                  ? 'orange'
+                  : 'violet'
+            }
+          >
             {record.billingMode === 'per-request'
               ? t('按次计费')
-              : t('按量计费')}
+              : record.billingMode === 'per-duration'
+                ? t('按时长计费')
+                : t('按量计费')}
           </Tag>
         ),
       },
@@ -356,7 +462,9 @@ export default function ModelPricingEditor({
                 <Tag color='blue'>
                   {selectedModel.billingMode === 'per-request'
                     ? t('按次计费')
-                    : t('按量计费')}
+                    : selectedModel.billingMode === 'per-duration'
+                      ? t('按时长计费')
+                      : t('按量计费')}
                 </Tag>
               ) : null
             }
@@ -381,6 +489,7 @@ export default function ModelPricingEditor({
                   >
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
+                    <Radio value='per-duration'>{t('按时长计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
                     {t(
@@ -414,6 +523,16 @@ export default function ModelPricingEditor({
                     suffix={t('$/次')}
                     onChange={(value) => handleNumericFieldChange('fixedPrice', value)}
                     extraText={t('适合 MJ / 任务类等按次收费模型。')}
+                  />
+                ) : selectedModel.billingMode === 'per-duration' ? (
+                  <DurationPricingEditor
+                    durationPrices={selectedModel.durationPrices}
+                    onChange={handleDurationPriceChange}
+                    onAdd={addDurationPrice}
+                    onRemove={removeDurationPrice}
+                    customSeconds={customDurationSeconds}
+                    setCustomSeconds={setCustomDurationSeconds}
+                    t={t}
                   />
                 ) : (
                   <>

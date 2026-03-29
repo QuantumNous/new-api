@@ -405,6 +405,35 @@ func GetModelPriceBySeconds(name string, seconds int) (float64, bool) {
 	return price, ok
 }
 
+func GetModelPriceBySecondsMap(name string) (map[string]float64, bool) {
+	name = FormatMatchingModelName(name)
+	secondsPriceMap, ok := modelPriceBySecondsMap.Get(name)
+	if !ok || len(secondsPriceMap) == 0 {
+		return nil, false
+	}
+	cloned := make(map[string]float64, len(secondsPriceMap))
+	for seconds, price := range secondsPriceMap {
+		cloned[seconds] = price
+	}
+	return cloned, true
+}
+
+func GetModelPriceBySecondsMin(name string) (float64, bool) {
+	secondsPriceMap, ok := GetModelPriceBySecondsMap(name)
+	if !ok {
+		return 0, false
+	}
+	minPrice := 0.0
+	found := false
+	for _, price := range secondsPriceMap {
+		if !found || price < minPrice {
+			minPrice = price
+			found = true
+		}
+	}
+	return minPrice, found
+}
+
 func UpdateModelRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelRatioMap, jsonStr, InvalidateExposedDataCache)
 }

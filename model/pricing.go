@@ -294,8 +294,15 @@ func updatePricing() {
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
 		}
+		secondsPriceMap, hasSecondsPrice := modelPriceBySecondsMap[ratio_setting.FormatMatchingModelName(model)]
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
+		if hasSecondsPrice && len(secondsPriceMap) > 0 {
+			pricing.ModelPriceBySeconds = make(map[string]float64, len(secondsPriceMap))
+			for seconds, price := range secondsPriceMap {
+				pricing.ModelPriceBySeconds[seconds] = price
+			}
+			pricing.QuotaType = 2
+		} else if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
@@ -320,12 +327,6 @@ func updatePricing() {
 		if ratio_setting.ContainsAudioCompletionRatio(model) {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
-		}
-		if secondsPriceMap, ok := modelPriceBySecondsMap[ratio_setting.FormatMatchingModelName(model)]; ok && len(secondsPriceMap) > 0 {
-			pricing.ModelPriceBySeconds = make(map[string]float64, len(secondsPriceMap))
-			for seconds, price := range secondsPriceMap {
-				pricing.ModelPriceBySeconds[seconds] = price
-			}
 		}
 		pricingMap = append(pricingMap, pricing)
 	}

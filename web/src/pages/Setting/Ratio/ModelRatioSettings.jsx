@@ -164,7 +164,7 @@ export default function ModelRatioSettings(props) {
             />
           </Col>
         </Row>
-        <Row gutter={16}>
+        <Row gutter={16} style={{ display: 'none' }}>
           <Col xs={24} sm={16}>
             <Form.TextArea
               label={t('按时长固定价格')}
