@@ -179,22 +179,19 @@ const Home = () => {
 
               {/* Title */}
               <h1 className='animate-fade-in-up' style={{ animationDelay: '0.1s' }}>
-                <span className='block text-5xl md:text-6xl lg:text-7xl xl:text-[5.5rem] font-extrabold tracking-tight text-semi-color-text-0'>
-                  OpenAPI
-                </span>
                 <span className='block mt-4 md:mt-5 text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight' style={{
                   background: 'linear-gradient(135deg, #818cf8 0%, #06b6d4 40%, #a78bfa 70%, #c084fc 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
                 }}>
-                  {t('大模型接口网关')}
+                  {t('AI模型聚合网关')}
                 </span>
               </h1>
 
               {/* Subtitle */}
-              <p className='mt-6 md:mt-8 text-base md:text-lg lg:text-xl text-semi-color-text-2 max-w-xl leading-relaxed font-light animate-fade-in-up' style={{ animationDelay: '0.2s' }}>
-                {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
+              <p className='mt-6 md:mt-8 text-base md:text-lg lg:text-xl text-semi-color-text-2 max-w-3xl leading-relaxed font-light animate-fade-in-up whitespace-nowrap' style={{ animationDelay: '0.2s' }}>
+                {t('OpenAI/Claude/Gemini API代理与管理，只需要将模型基址替换为：')}
               </p>
 
               {/* URL Bar */}
