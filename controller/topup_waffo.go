@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 	waffo "github.com/waffo-com/waffo-go"
 	"github.com/waffo-com/waffo-go/config"
@@ -364,6 +365,18 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 	}
 
 	log.Printf("Waffo 充值成功 - 订单: %s", merchantOrderId)
+
+	// 处理邀请充值返利
+	topUp := model.GetTopUpByTradeNo(merchantOrderId)
+	if topUp != nil {
+		dAmount := decimal.NewFromInt(topUp.Amount)
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
+		if err := model.ProcessInviterReward(topUp.UserId, quotaToAdd); err != nil {
+			log.Printf("Waffo回调处理邀请返利失败: %v", err)
+		}
+	}
+
 	sendWaffoWebhookResponse(c, wh, true, "")
 }
 

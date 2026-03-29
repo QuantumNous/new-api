@@ -339,6 +339,67 @@ func inviteUser(inviterId int) (err error) {
 	return DB.Save(user).Error
 }
 
+// ProcessInviterReward 处理邀请人的充值返利
+// 当被邀请人充值成功后，根据管理员设置的返利类型和返利值，给邀请人发放返利奖励
+func ProcessInviterReward(userId int, rechargeQuota int) error {
+	// 如果返利功能未开启（类型为空或返利值为0），直接返回
+	if common.InviterRewardType == "" || common.InviterRewardValue == 0 {
+		return nil
+	}
+
+	// 获取充值用户信息，查看是否有邀请人
+	user, err := GetUserById(userId, false)
+	if err != nil {
+		return err
+	}
+
+	// 如果没有邀请人，直接返回
+	if user.InviterId == 0 {
+		return nil
+	}
+
+	var rewardQuota int
+	var logMessage string
+
+	if common.InviterRewardType == "percentage" {
+		// 百分比返利：按充值额度的百分比计算
+		rewardQuota = int(float64(rechargeQuota) * float64(common.InviterRewardValue) / 100.0)
+		logMessage = fmt.Sprintf("邀请用户充值返利 %s（充值额度: %s，返利比例: %d%%）",
+			logger.LogQuota(rewardQuota),
+			logger.LogQuota(rechargeQuota),
+			common.InviterRewardValue)
+	} else {
+		// 固定返利：每次充值返利固定额度
+		rewardQuota = common.InviterRewardValue
+		logMessage = fmt.Sprintf("邀请用户充值返利 %s（固定奖励）",
+			logger.LogQuota(rewardQuota))
+	}
+
+	if rewardQuota <= 0 {
+		return nil
+	}
+
+	// 给邀请人增加额度
+	err = IncreaseUserQuota(user.InviterId, rewardQuota, true)
+	if err != nil {
+		return err
+	}
+
+	// 更新邀请人的 aff_quota 和 aff_history_quota
+	err = DB.Model(&User{}).Where("id = ?", user.InviterId).Updates(map[string]interface{}{
+		"aff_quota":   gorm.Expr("aff_quota + ?", rewardQuota),
+		"aff_history": gorm.Expr("aff_history + ?", rewardQuota),
+	}).Error
+	if err != nil {
+		common.SysError("更新邀请人返利额度失败: " + err.Error())
+	}
+
+	// 记录日志
+	RecordLog(user.InviterId, LogTypeSystem, logMessage)
+
+	return nil
+}
+
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {

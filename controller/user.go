@@ -1024,6 +1024,12 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+
+	// 处理邀请充值返利（兑换码充值也应触发返利）
+	if err := model.ProcessInviterReward(id, quota); err != nil {
+		common.SysError("兑换码充值处理邀请返利失败: " + err.Error())
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
