@@ -78,6 +78,9 @@ export const usePlaygroundState = () => {
   const [customRequestBody, setCustomRequestBody] = useState(
     savedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
   );
+  const [playgroundMode, setPlaygroundMode] = useState(
+    savedConfig.playgroundMode || DEFAULT_CONFIG.playgroundMode,
+  );
 
   // UI状态
   const [showSettings, setShowSettings] = useState(false);
@@ -153,6 +156,7 @@ export const usePlaygroundState = () => {
         showDebugPanel,
         customRequestMode,
         customRequestBody,
+        playgroundMode,
       };
       saveConfig(configToSave);
     }, 1000);
@@ -162,6 +166,7 @@ export const usePlaygroundState = () => {
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
   ]);
 
   // 配置导入/重置
@@ -184,6 +189,9 @@ export const usePlaygroundState = () => {
     if (importedConfig.customRequestBody) {
       setCustomRequestBody(importedConfig.customRequestBody);
     }
+    if (importedConfig.playgroundMode) {
+      setPlaygroundMode(importedConfig.playgroundMode);
+    }
     // 如果导入的配置包含消息，也恢复消息
     if (importedConfig.messages && Array.isArray(importedConfig.messages)) {
       setMessage(importedConfig.messages);
@@ -198,6 +206,7 @@ export const usePlaygroundState = () => {
     setShowDebugPanel(DEFAULT_CONFIG.showDebugPanel);
     setCustomRequestMode(DEFAULT_CONFIG.customRequestMode);
     setCustomRequestBody(DEFAULT_CONFIG.customRequestBody);
+    setPlaygroundMode(DEFAULT_CONFIG.playgroundMode);
 
     // 只有在明确指定时才重置消息
     if (resetMessages) {
@@ -284,6 +293,7 @@ export const usePlaygroundState = () => {
     setShowDebugPanel,
     setCustomRequestMode,
     setCustomRequestBody,
+    setPlaygroundMode,
     setShowSettings,
     setModels,
     setGroups,

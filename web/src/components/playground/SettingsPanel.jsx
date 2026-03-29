@@ -18,14 +18,67 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
-import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
+import { Button, Card, Select, Switch, Typography } from '@douyinfe/semi-ui';
+import {
+  Clapperboard,
+  ImagePlus,
+  MessageSquareText,
+  Settings,
+  Sparkles,
+  ToggleLeft,
+  Users,
+  X,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { renderGroupOption, selectFilter } from '../../helpers';
-import ParameterControl from './ParameterControl';
-import ImageUrlInput from './ImageUrlInput';
+import {
+  isAdobeImage4KModel,
+  isAdobeImageModel,
+  isAdobeSoraModel,
+  isAdobeVeoModel,
+  isAdobeVideoModel,
+  isGrokImagineImageModel,
+  isGrokImagineVideoModel,
+  isVideoModeModel,
+  PLAYGROUND_MODES,
+  renderGroupOption,
+  selectFilter,
+} from '../../helpers';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
+import ImageUrlInput from './ImageUrlInput';
+import ParameterControl from './ParameterControl';
+
+const MODE_SUMMARY_STYLES = {
+  [PLAYGROUND_MODES.CHAT]: {
+    icon: MessageSquareText,
+    titleKey: '智能对话',
+    descriptionKey: '围绕系统提示词、多轮消息和流式响应来组织创作。',
+    accent: 'from-sky-500 to-cyan-400',
+  },
+  [PLAYGROUND_MODES.IMAGE]: {
+    icon: ImagePlus,
+    titleKey: '图片创作',
+    descriptionKey:
+      '优先调整图片尺寸、比例和参考图，让同一套操练场工作区更适合图像生成。',
+    accent: 'from-amber-500 to-orange-400',
+  },
+  [PLAYGROUND_MODES.VIDEO]: {
+    icon: Clapperboard,
+    titleKey: '视频创作',
+    descriptionKey: '聚焦视频时长、清晰度和参考模式，继续复用操练场现有视频生成链路。',
+    accent: 'from-rose-500 to-fuchsia-500',
+  },
+};
+
+const normalizeGrokImageSize = (size) => {
+  if (size === '1536x1024') {
+    return '1792x1024';
+  }
+  if (size === '1024x1536') {
+    return '1024x1792';
+  }
+  return size;
+};
 
 const SettingsPanel = ({
   inputs,
@@ -45,51 +98,23 @@ const SettingsPanel = ({
   onCustomRequestBodyChange,
   previewPayload,
   messages,
+  playgroundMode,
+  modeHasAvailableModels,
 }) => {
   const { t } = useTranslation();
-  const normalizeGrokImageSize = (size) => {
-    if (size === '1536x1024') {
-      return '1792x1024';
-    }
-    if (size === '1024x1536') {
-      return '1024x1792';
-    }
-    return size;
-  };
-  const grokImagineImageModels = new Set([
-    'grok-imagine-1.0',
-    'grok-imagine-1.0-fast',
-    'grok-imagine-1.0-edit',
-  ]);
-  const adobeImageModels = new Set([
-    'nano-banana',
-    'nano-banana-4k',
-    'nano-banana2',
-    'nano-banana2-4k',
-    'nano-banana-pro',
-    'nano-banana-pro-4k',
-  ]);
-  const adobeVideoModels = new Set([
-    'sora2',
-    'sora2-pro',
-    'veo31',
-    'veo31-ref',
-    'veo31-fast',
-  ]);
-  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
-  const isAdobeImageModel = adobeImageModels.has(inputs.model);
-  const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
-  const isAdobeImage4KModel =
-    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
-  const isAdobeSoraModel =
-    inputs.model === 'sora2' || inputs.model === 'sora2-pro';
-  const isAdobeVeoModel =
-    inputs.model === 'veo31' ||
-    inputs.model === 'veo31-ref' ||
-    inputs.model === 'veo31-fast';
-  const isVideoModel =
-    typeof inputs.model === 'string' && inputs.model.includes('video');
-  const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  const modeSummary =
+    MODE_SUMMARY_STYLES[playgroundMode] || MODE_SUMMARY_STYLES[PLAYGROUND_MODES.CHAT];
+  const ModeIcon = modeSummary.icon;
+
+  const isCurrentGrokImagineImageModel = isGrokImagineImageModel(inputs.model);
+  const isCurrentAdobeImageModel = isAdobeImageModel(inputs.model);
+  const isCurrentAdobeVideoModel = isAdobeVideoModel(inputs.model);
+  const isCurrentAdobeImage4KModel = isAdobeImage4KModel(inputs.model);
+  const isCurrentAdobeSoraModel = isAdobeSoraModel(inputs.model);
+  const isCurrentAdobeVeoModel = isAdobeVeoModel(inputs.model);
+  const isCurrentVideoModel = isVideoModeModel(inputs.model);
+  const isCurrentGrokImagineVideoModel = isGrokImagineVideoModel(inputs.model);
+
   const imageSizeOptions = [
     { label: '1:1 方图 (1024x1024)', value: '1024x1024' },
     { label: '3:2 横图 (1792x1024)', value: '1792x1024' },
@@ -104,9 +129,9 @@ const SettingsPanel = ({
     { label: '1024x1792', value: '1024x1792' },
     { label: '1024x1024', value: '1024x1024' },
   ];
-  const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((v) => ({
-    label: `${v}s`,
-    value: String(v),
+  const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((value) => ({
+    label: `${value}s`,
+    value: String(value),
   }));
   const videoPresetOptions = [
     { label: 'Normal', value: 'normal' },
@@ -142,13 +167,13 @@ const SettingsPanel = ({
     { label: '2K', value: '2K' },
   ];
   const adobe4KResolutionOptions = [{ label: '4K', value: '4K' }];
-  const adobeSoraDurationOptions = [4, 8, 12].map((v) => ({
-    label: `${v}s`,
-    value: String(v),
+  const adobeSoraDurationOptions = [4, 8, 12].map((value) => ({
+    label: `${value}s`,
+    value: String(value),
   }));
-  const adobeVeoDurationOptions = [4, 6, 8].map((v) => ({
-    label: `${v}s`,
-    value: String(v),
+  const adobeVeoDurationOptions = [4, 6, 8].map((value) => ({
+    label: `${value}s`,
+    value: String(value),
   }));
   const adobeVideoResolutionOptions = [
     { label: '1080p', value: '1080p' },
@@ -165,6 +190,7 @@ const SettingsPanel = ({
     showDebugPanel,
     customRequestMode,
     customRequestBody,
+    playgroundMode,
   };
 
   return (
@@ -178,7 +204,6 @@ const SettingsPanel = ({
         flexDirection: 'column',
       }}
     >
-      {/* 标题区域 - 与调试面板保持一致 */}
       <div className='flex items-center justify-between mb-6 flex-shrink-0'>
         <div className='flex items-center'>
           <div className='w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
@@ -201,7 +226,6 @@ const SettingsPanel = ({
         )}
       </div>
 
-      {/* 移动端配置管理 */}
       {styleState.isMobile && (
         <div className='mb-4 flex-shrink-0'>
           <ConfigManager
@@ -215,7 +239,35 @@ const SettingsPanel = ({
       )}
 
       <div className='space-y-6 overflow-y-auto flex-1 pr-2 model-settings-scroll'>
-        {/* 自定义请求体编辑器 */}
+        <div
+          className={`rounded-2xl bg-gradient-to-br ${modeSummary.accent} p-[1px]`}
+        >
+          <div className='rounded-[15px] bg-white/95 px-4 py-4 backdrop-blur'>
+            <div className='flex items-start gap-3'>
+              <div
+                className={`flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br ${modeSummary.accent} text-white shadow-sm`}
+              >
+                <ModeIcon size={18} />
+              </div>
+              <div className='min-w-0 flex-1'>
+                <Typography.Text strong className='text-sm text-gray-900'>
+                  {t(modeSummary.titleKey)}
+                </Typography.Text>
+                <Typography.Paragraph className='!mt-1 !mb-0 text-xs text-gray-600'>
+                  {t(modeSummary.descriptionKey)}
+                </Typography.Paragraph>
+                {!modeHasAvailableModels && (
+                  <Typography.Text className='mt-2 block text-xs text-amber-600'>
+                    {t(
+                      '当前账号下暂无适合此创作模式的模型，可切换模式或保留全量模型列表进行查看。',
+                    )}
+                  </Typography.Text>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <CustomRequestEditor
           customRequestMode={customRequestMode}
           customRequestBody={customRequestBody}
@@ -224,7 +276,6 @@ const SettingsPanel = ({
           defaultPayload={previewPayload}
         />
 
-        {/* 分组选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
             <Users size={16} className='text-gray-500' />
@@ -256,7 +307,6 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 模型选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
             <Sparkles size={16} className='text-gray-500' />
@@ -287,7 +337,6 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 图片URL输入 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <ImageUrlInput
             imageUrls={inputs.imageUrls}
@@ -300,7 +349,6 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 参数控制组件 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <ParameterControl
             inputs={inputs}
@@ -311,8 +359,7 @@ const SettingsPanel = ({
           />
         </div>
 
-        {/* 视频参数（仅视频模型显示） */}
-        {isGrokImagineImageModel && (
+        {isCurrentGrokImagineImageModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div>
               <Typography.Text strong className='text-sm'>
@@ -329,7 +376,7 @@ const SettingsPanel = ({
           </div>
         )}
 
-        {isAdobeImageModel && (
+        {isCurrentAdobeImageModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div className='space-y-4'>
               <div>
@@ -365,26 +412,27 @@ const SettingsPanel = ({
                 <Select
                   className='!rounded-lg mt-2'
                   optionList={
-                    isAdobeImage4KModel
+                    isCurrentAdobeImage4KModel
                       ? adobe4KResolutionOptions
                       : adobeOutputResolutionOptions
                   }
                   value={
-                    isAdobeImage4KModel
+                    isCurrentAdobeImage4KModel
                       ? '4K'
                       : inputs.outputResolution || '2K'
                   }
                   onChange={(value) =>
-                    !isAdobeImage4KModel && onInputChange('outputResolution', value)
+                    !isCurrentAdobeImage4KModel &&
+                    onInputChange('outputResolution', value)
                   }
-                  disabled={customRequestMode || isAdobeImage4KModel}
+                  disabled={customRequestMode || isCurrentAdobeImage4KModel}
                 />
               </div>
             </div>
           </div>
         )}
 
-        {isVideoModel && (
+        {isCurrentVideoModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div className='space-y-4'>
               <div>
@@ -411,7 +459,7 @@ const SettingsPanel = ({
                   disabled={customRequestMode}
                 />
               </div>
-              {isGrokImagineVideoModel && (
+              {isCurrentGrokImagineVideoModel && (
                 <div>
                   <Typography.Text strong className='text-sm'>
                     {t('风格预设')}
@@ -447,7 +495,7 @@ const SettingsPanel = ({
           </div>
         )}
 
-        {isAdobeVideoModel && (
+        {isCurrentAdobeVideoModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div className='space-y-4'>
               <div>
@@ -457,7 +505,7 @@ const SettingsPanel = ({
                 <Select
                   className='!rounded-lg mt-2'
                   optionList={
-                    isAdobeSoraModel
+                    isCurrentAdobeSoraModel
                       ? adobeSoraDurationOptions
                       : adobeVeoDurationOptions
                   }
@@ -478,7 +526,7 @@ const SettingsPanel = ({
                   disabled={customRequestMode}
                 />
               </div>
-              {isAdobeVeoModel && (
+              {isCurrentAdobeVeoModel && (
                 <div>
                   <Typography.Text strong className='text-sm'>
                     Resolution
@@ -510,7 +558,6 @@ const SettingsPanel = ({
           </div>
         )}
 
-        {/* 流式输出开关 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -536,7 +583,6 @@ const SettingsPanel = ({
         </div>
       </div>
 
-      {/* 桌面端的配置管理放在底部 */}
       {!styleState.isMobile && (
         <div className='flex-shrink-0 pt-3'>
           <ConfigManager
