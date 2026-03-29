@@ -23,6 +23,7 @@ type Pricing struct {
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
+	ModelPriceBySeconds    map[string]float64      `json:"model_price_by_seconds,omitempty"`
 	OwnerBy                string                  `json:"owner_by"`
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
@@ -273,6 +274,7 @@ func updatePricing() {
 		}
 	}
 
+	modelPriceBySecondsMap := ratio_setting.GetModelPriceBySecondsCopy()
 	pricingMap = make([]Pricing, 0)
 	for model, groups := range modelGroupsMap {
 		pricing := Pricing{
@@ -292,8 +294,15 @@ func updatePricing() {
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
 		}
+		secondsPriceMap, hasSecondsPrice := modelPriceBySecondsMap[ratio_setting.FormatMatchingModelName(model)]
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
+		if hasSecondsPrice && len(secondsPriceMap) > 0 {
+			pricing.ModelPriceBySeconds = make(map[string]float64, len(secondsPriceMap))
+			for seconds, price := range secondsPriceMap {
+				pricing.ModelPriceBySeconds[seconds] = price
+			}
+			pricing.QuotaType = 2
+		} else if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {

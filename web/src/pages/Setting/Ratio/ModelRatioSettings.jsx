@@ -41,6 +41,7 @@ export default function ModelRatioSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     ModelPrice: '',
+    ModelPriceBySeconds: '',
     ModelRatio: '',
     CacheRatio: '',
     CreateCacheRatio: '',
@@ -160,6 +161,32 @@ export default function ModelRatioSettings(props) {
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
+            />
+          </Col>
+        </Row>
+        <Row gutter={16} style={{ display: 'none' }}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('按时长固定价格')}
+              extraText={t(
+                '用于同一任务模型按 seconds 映射不同价格，例如可以分别设置 4/8/12/15/20/25/30 秒价格。',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为一个以秒数为键的价格表，例如：{\"grok-imagine-1.0-video\": {\"4\": 0.08, \"8\": 0.15, \"12\": 0.2}}',
+              )}
+              field={'ModelPriceBySeconds'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, ModelPriceBySeconds: value })
+              }
             />
           </Col>
         </Row>

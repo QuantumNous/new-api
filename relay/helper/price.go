@@ -146,6 +146,12 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	// 如果没有配置价格，检查模型倍率配置
 	if !success {
+		if secondsPrice, ok := ratio_setting.GetModelPriceBySecondsMin(info.OriginModelName); ok {
+			modelPrice = secondsPrice
+			success = true
+		}
+	}
+	if !success {
 
 		// 没有配置费用，也要使用默认费用,否则按费率计费模型无法使用
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
@@ -181,6 +187,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		FreeModel:      freeModel,
 		ModelPrice:     modelPrice,
 		Quota:          quota,
+		BaseQuota:      quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
 	return priceData, nil

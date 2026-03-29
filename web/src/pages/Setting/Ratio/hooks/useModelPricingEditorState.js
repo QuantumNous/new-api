@@ -9,6 +9,7 @@ const EMPTY_MODEL = {
   name: '',
   billingMode: 'per-token',
   fixedPrice: '',
+  durationPrices: {},
   inputPrice: '',
   completionPrice: '',
   lockedCompletionRatio: '',
@@ -64,6 +65,21 @@ const toNormalizedNumber = (value) => {
   return formatted === '' ? null : Number(formatted);
 };
 
+const normalizeDurationPrices = (rawValue) => {
+  if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
+    return {};
+  }
+  return Object.entries(rawValue).reduce((acc, [seconds, price]) => {
+    const normalizedSeconds = String(seconds).trim();
+    const normalizedPrice = toNumericString(price);
+    if (!normalizedSeconds || normalizedPrice === '') {
+      return acc;
+    }
+    acc[normalizedSeconds] = normalizedPrice;
+    return acc;
+  }, {});
+};
+
 const parseOptionJSON = (rawValue) => {
   if (!rawValue || rawValue.trim() === '') {
     return {};
@@ -111,6 +127,9 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const durationPrices = normalizeDurationPrices(
+    sourceMaps.ModelPriceBySeconds[name],
+  );
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
@@ -121,8 +140,14 @@ const buildModelState = (name, sourceMaps) => {
   return {
     ...EMPTY_MODEL,
     name,
-    billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
+    billingMode:
+      Object.keys(durationPrices).length > 0
+        ? 'per-duration'
+        : hasValue(fixedPrice)
+          ? 'per-request'
+          : 'per-token',
     fixedPrice,
+    durationPrices,
     inputPrice,
     completionRatioLocked: completionRatioMeta.locked,
     lockedCompletionRatio: completionRatioMeta.ratio,
@@ -169,21 +194,34 @@ const buildModelState = (name, sourceMaps) => {
       audioCompletionRatio,
     },
     hasConflict:
-      hasValue(fixedPrice) &&
-      [
-        modelRatio,
-        completionRatio,
-        cacheRatio,
-        createCacheRatio,
-        imageRatio,
-        audioRatio,
-        audioCompletionRatio,
-      ].some(hasValue),
+      (hasValue(fixedPrice) && Object.keys(durationPrices).length > 0) ||
+      (Object.keys(durationPrices).length > 0 &&
+        [
+          modelRatio,
+          completionRatio,
+          cacheRatio,
+          createCacheRatio,
+          imageRatio,
+          audioRatio,
+          audioCompletionRatio,
+        ].some(hasValue)) ||
+      (hasValue(fixedPrice) &&
+        [
+          modelRatio,
+          completionRatio,
+          cacheRatio,
+          createCacheRatio,
+          imageRatio,
+          audioRatio,
+          audioCompletionRatio,
+        ].some(hasValue)),
   };
 };
 
 export const isBasePricingUnset = (model) =>
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+  !hasValue(model.fixedPrice) &&
+  !hasValue(model.inputPrice) &&
+  Object.keys(model.durationPrices || {}).length === 0;
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
@@ -204,6 +242,13 @@ export const getModelWarnings = (model, t) => {
     warnings.push(
       t('当前模型同时存在按次价格和倍率配置，保存时会按当前计费方式覆盖。'),
     );
+  }
+
+  if (
+    model.billingMode === 'per-duration' &&
+    Object.keys(model.durationPrices || {}).length === 0
+  ) {
+    warnings.push(t('按时长计费下至少需要填写一个秒数价格。'));
   }
 
   if (
@@ -248,6 +293,13 @@ export const buildSummaryText = (model, t) => {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
   }
 
+  if (model.billingMode === 'per-duration') {
+    const durationCount = Object.keys(model.durationPrices || {}).length;
+    return durationCount > 0
+      ? `${t('按时长')} ${durationCount}${t('档价格')}`
+      : t('按时长计费未设置');
+  }
+
   if (hasValue(model.inputPrice)) {
     const extraCount = [
       model.completionPrice,
@@ -278,6 +330,7 @@ export const buildOptionalFieldToggles = (model) => ({
 const serializeModel = (model, t) => {
   const result = {
     ModelPrice: null,
+    ModelPriceBySeconds: null,
     ModelRatio: null,
     CompletionRatio: null,
     CacheRatio: null,
@@ -291,6 +344,22 @@ const serializeModel = (model, t) => {
     if (hasValue(model.fixedPrice)) {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
+    return result;
+  }
+
+  if (model.billingMode === 'per-duration') {
+    const durationPrices = Object.entries(model.durationPrices || {}).reduce(
+      (acc, [seconds, price]) => {
+        const normalizedPrice = toNormalizedNumber(price);
+        if (normalizedPrice !== null) {
+          acc[String(seconds)] = normalizedPrice;
+        }
+        return acc;
+      },
+      {},
+    );
+    result.ModelPriceBySeconds =
+      Object.keys(durationPrices).length > 0 ? durationPrices : {};
     return result;
   }
 
@@ -395,6 +464,29 @@ const serializeModel = (model, t) => {
 
 export const buildPreviewRows = (model, t) => {
   if (!model) return [];
+
+  if (model.billingMode === 'per-duration') {
+    const durationValue = JSON.stringify(
+      Object.entries(model.durationPrices || {}).reduce(
+        (acc, [seconds, price]) => {
+          if (hasValue(price)) {
+            acc[seconds] = Number(price);
+          }
+          return acc;
+        },
+        {},
+      ),
+      null,
+      2,
+    );
+    return [
+      {
+        key: 'ModelPriceBySeconds',
+        label: 'ModelPriceBySeconds',
+        value: durationValue === '{}' ? '-' : durationValue,
+      },
+    ];
+  }
 
   if (model.billingMode === 'per-request') {
     return [
@@ -544,6 +636,7 @@ export function useModelPricingEditorState({
   useEffect(() => {
     const sourceMaps = {
       ModelPrice: parseOptionJSON(options.ModelPrice),
+      ModelPriceBySeconds: parseOptionJSON(options.ModelPriceBySeconds),
       ModelRatio: parseOptionJSON(options.ModelRatio),
       CompletionRatio: parseOptionJSON(options.CompletionRatio),
       CompletionRatioMeta: parseOptionJSON(options.CompletionRatioMeta),
@@ -557,6 +650,7 @@ export function useModelPricingEditorState({
     const names = new Set([
       ...candidateModelNames,
       ...Object.keys(sourceMaps.ModelPrice),
+      ...Object.keys(sourceMaps.ModelPriceBySeconds),
       ...Object.keys(sourceMaps.ModelRatio),
       ...Object.keys(sourceMaps.CompletionRatio),
       ...Object.keys(sourceMaps.CompletionRatioMeta),
@@ -774,6 +868,55 @@ export function useModelPricingEditorState({
     });
   };
 
+  const handleDurationPriceChange = (seconds, value) => {
+    if (!selectedModel || !NUMERIC_INPUT_REGEX.test(value)) {
+      return;
+    }
+
+    const normalizedSeconds = String(seconds).trim();
+    if (!normalizedSeconds) {
+      return;
+    }
+
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      durationPrices: {
+        ...(model.durationPrices || {}),
+        [normalizedSeconds]: value,
+      },
+    }));
+  };
+
+  const addDurationPrice = (seconds = '') => {
+    if (!selectedModel) return;
+    const normalizedSeconds = String(seconds).trim();
+    if (!normalizedSeconds) return;
+
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      durationPrices: {
+        ...(model.durationPrices || {}),
+        [normalizedSeconds]:
+          model.durationPrices?.[normalizedSeconds] ?? '',
+      },
+    }));
+  };
+
+  const removeDurationPrice = (seconds) => {
+    if (!selectedModel) return;
+    const normalizedSeconds = String(seconds).trim();
+    if (!normalizedSeconds) return;
+
+    upsertModel(selectedModel.name, (model) => {
+      const nextDurationPrices = { ...(model.durationPrices || {}) };
+      delete nextDurationPrices[normalizedSeconds];
+      return {
+        ...model,
+        durationPrices: nextDurationPrices,
+      };
+    });
+  };
+
   const handleBillingModeChange = (value) => {
     if (!selectedModel) return;
     upsertModel(selectedModel.name, (model) => ({
@@ -847,6 +990,7 @@ export function useModelPricingEditorState({
           ...model,
           billingMode: selectedModel.billingMode,
           fixedPrice: selectedModel.fixedPrice,
+          durationPrices: { ...(selectedModel.durationPrices || {}) },
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
           cachePrice: selectedModel.cachePrice,
@@ -906,6 +1050,7 @@ export function useModelPricingEditorState({
     try {
       const output = {
         ModelPrice: {},
+        ModelPriceBySeconds: {},
         ModelRatio: {},
         CompletionRatio: {},
         CacheRatio: {},
@@ -969,6 +1114,9 @@ export function useModelPricingEditorState({
     isOptionalFieldEnabled,
     handleOptionalFieldToggle,
     handleNumericFieldChange,
+    handleDurationPriceChange,
+    addDurationPrice,
+    removeDurationPrice,
     handleBillingModeChange,
     handleSubmit,
     addModel,
