@@ -761,9 +761,17 @@ const LoginForm = () => {
                   label={t('密码')}
                   placeholder={t('请输入您的密码')}
                   name='password'
-                  mode='password'
+                  type={showPassword ? 'text' : 'password'}
                   onChange={(value) => handleChange('password', value)}
                   prefix={<IconLock />}
+                  suffix={
+                    <span
+                      style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 4px' }}
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? '🙈' : '👁️'}
+                    </span>
+                  }
                 />
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (
@@ -958,10 +966,6 @@ const LoginForm = () => {
           backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }} />
-        <div className='relative z-10 flex items-center gap-2'>
-          <img src={getLogo()} alt='logo' className='w-8 h-8 rounded-full' />
-          <span className='text-lg font-semibold text-semi-color-text-0'>{getSystemName()}</span>
-        </div>
         <div className='relative z-10 flex items-end justify-center flex-1'>
           <AnimatedCharacters
             isTyping={inputs.username.length > 0 && inputs.password.length === 0}
@@ -969,7 +973,6 @@ const LoginForm = () => {
             passwordLength={inputs.password.length}
           />
         </div>
-        <div className='relative z-10' />
       </div>
 
       {/* Right: Login Form */}

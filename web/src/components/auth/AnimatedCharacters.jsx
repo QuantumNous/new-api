@@ -118,7 +118,7 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
   }, [isTyping]);
 
   useEffect(() => {
-    if (passwordLength > 0 && showPassword) {
+    if (passwordLength > 0 && !showPassword) {
       const t = setTimeout(() => {
         setIsPurplePeeking(true);
         setTimeout(() => setIsPurplePeeking(false), 800);
@@ -146,6 +146,8 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
   const op = calcPos(orangeRef);
   const hiding = passwordLength > 0 && !showPassword;
   const showing = passwordLength > 0 && showPassword;
+  // When password is visible (showing): characters look away shyly
+  // When password is hidden (hiding): purple character sneaks a peek
 
   return (
     <div className='relative' style={{ width: 440, height: 320 }}>
@@ -161,11 +163,11 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
           top: showing ? 28 : isLookingAtEachOther ? 52 : 32 + pp.faceY,
         }}>
           <EyeBall size={14} pupilSize={6} maxDistance={4} eyeColor='white' pupilColor='#2D2D2D' isBlinking={isPurpleBlinking}
-            forceLookX={showing ? (isPurplePeeking ? 3 : -3) : isLookingAtEachOther ? 2 : undefined}
-            forceLookY={showing ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 3 : undefined} />
+            forceLookX={showing ? -4 : hiding ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 2 : undefined}
+            forceLookY={showing ? -4 : hiding ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 3 : undefined} />
           <EyeBall size={14} pupilSize={6} maxDistance={4} eyeColor='white' pupilColor='#2D2D2D' isBlinking={isPurpleBlinking}
-            forceLookX={showing ? (isPurplePeeking ? 3 : -3) : isLookingAtEachOther ? 2 : undefined}
-            forceLookY={showing ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 3 : undefined} />
+            forceLookX={showing ? -4 : hiding ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 2 : undefined}
+            forceLookY={showing ? -4 : hiding ? (isPurplePeeking ? 4 : -3) : isLookingAtEachOther ? 3 : undefined} />
         </div>
       </div>
       {/* Black */}
@@ -179,11 +181,11 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
           top: showing ? 22 : isLookingAtEachOther ? 10 : 26 + bp.faceY,
         }}>
           <EyeBall size={13} pupilSize={5} maxDistance={3} eyeColor='white' pupilColor='#2D2D2D' isBlinking={isBlackBlinking}
-            forceLookX={showing ? -3 : isLookingAtEachOther ? 0 : undefined}
-            forceLookY={showing ? -3 : isLookingAtEachOther ? -3 : undefined} />
+            forceLookX={showing ? -4 : isLookingAtEachOther ? 0 : undefined}
+            forceLookY={showing ? -4 : isLookingAtEachOther ? -3 : undefined} />
           <EyeBall size={13} pupilSize={5} maxDistance={3} eyeColor='white' pupilColor='#2D2D2D' isBlinking={isBlackBlinking}
-            forceLookX={showing ? -3 : isLookingAtEachOther ? 0 : undefined}
-            forceLookY={showing ? -3 : isLookingAtEachOther ? -3 : undefined} />
+            forceLookX={showing ? -4 : isLookingAtEachOther ? 0 : undefined}
+            forceLookY={showing ? -4 : isLookingAtEachOther ? -3 : undefined} />
         </div>
       </div>
       {/* Orange */}
@@ -194,8 +196,8 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
         <div className='absolute flex gap-6 transition-all duration-200 ease-out' style={{
           left: showing ? 40 : 66 + (op.faceX || 0), top: showing ? 68 : 72 + (op.faceY || 0),
         }}>
-          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -4 : undefined} forceLookY={showing ? -3 : undefined} />
-          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -4 : undefined} forceLookY={showing ? -3 : undefined} />
+          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -5 : undefined} forceLookY={showing ? -4 : undefined} />
+          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -5 : undefined} forceLookY={showing ? -4 : undefined} />
         </div>
       </div>
       {/* Yellow */}
@@ -206,8 +208,8 @@ const AnimatedCharacters = ({ isTyping = false, showPassword = false, passwordLe
         <div className='absolute flex gap-5 transition-all duration-200 ease-out' style={{
           left: showing ? 16 : 42 + (yp.faceX || 0), top: showing ? 28 : 32 + (yp.faceY || 0),
         }}>
-          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -4 : undefined} forceLookY={showing ? -3 : undefined} />
-          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -4 : undefined} forceLookY={showing ? -3 : undefined} />
+          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -5 : undefined} forceLookY={showing ? -4 : undefined} />
+          <Pupil size={10} maxDistance={4} pupilColor='#2D2D2D' forceLookX={showing ? -5 : undefined} forceLookY={showing ? -4 : undefined} />
         </div>
         <div className='absolute w-16 h-[3px] bg-[#2D2D2D] rounded-full transition-all duration-200 ease-out' style={{
           left: showing ? 8 : 32 + (yp.faceX || 0), top: showing ? 70 : 70 + (yp.faceY || 0),
