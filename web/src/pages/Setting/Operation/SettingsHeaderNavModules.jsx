@@ -32,6 +32,17 @@ import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
+const getDefaultHeaderNavModules = () => ({
+  home: true,
+  creativeCenter: true,
+  console: true,
+  pricing: {
+    enabled: true,
+    requireAuth: false,
+  },
+  docs: true,
+  about: true,
+});
 
 export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
@@ -39,16 +50,9 @@ export default function SettingsHeaderNavModules(props) {
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 顶栏模块管理状态
-  const [headerNavModules, setHeaderNavModules] = useState({
-    home: true,
-    console: true,
-    pricing: {
-      enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
-    },
-    docs: true,
-    about: true,
-  });
+  const [headerNavModules, setHeaderNavModules] = useState(
+    getDefaultHeaderNavModules(),
+  );
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -79,16 +83,7 @@ export default function SettingsHeaderNavModules(props) {
 
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
+    const defaultModules = getDefaultHeaderNavModules();
     setHeaderNavModules(defaultModules);
     showSuccess(t('已重置为默认配置'));
   }
@@ -142,20 +137,17 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
+        setHeaderNavModules({
+          ...getDefaultHeaderNavModules(),
+          ...modules,
+          pricing: {
+            ...getDefaultHeaderNavModules().pricing,
+            ...(typeof modules.pricing === 'object' ? modules.pricing : {}),
+          },
+        });
       } catch (error) {
         // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
-        setHeaderNavModules(defaultModules);
+        setHeaderNavModules(getDefaultHeaderNavModules());
       }
     }
   }, [props.options]);
@@ -166,6 +158,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'home',
       title: t('首页'),
       description: t('用户主页，展示系统信息'),
+    },
+    {
+      key: 'creativeCenter',
+      title: t('创作中心'),
+      description: t('展示创作中心页面入口'),
     },
     {
       key: 'console',
