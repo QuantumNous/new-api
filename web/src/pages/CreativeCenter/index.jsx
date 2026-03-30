@@ -31,6 +31,7 @@ import {
   Clock,
   History,
   ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 
 const apiKey = ''; // 环境变量会自动注入 API Key
@@ -67,6 +68,12 @@ const GrokIcon = ({ size = 24, className = '' }) => (
     <line x1='6' y1='18' x2='18' y2='6' />
     <circle cx='18' cy='6' r='2.5' fill='currentColor' />
   </svg>
+);
+
+const FeaturePill = ({ children }) => (
+  <span className='rounded-full border border-white/10 bg-white/70 px-3 py-1 text-[11px] font-medium tracking-wide text-slate-600 shadow-sm backdrop-blur'>
+    {children}
+  </span>
 );
 
 export default function CreativeCenter() {
@@ -201,30 +208,38 @@ export default function CreativeCenter() {
         : imageModels;
 
   return (
-    <div className='w-full bg-slate-50 pt-16'>
-      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50 font-sans text-slate-800'>
-        <div className='flex w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white'>
+    <div className='w-full overflow-hidden bg-[radial-gradient(circle_at_top,#eff6ff_0%,#f8fafc_42%,#eef2ff_100%)] pt-16'>
+      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden font-sans text-slate-800'>
+        <div className='flex w-[292px] shrink-0 flex-col border-r border-white/10 bg-[linear-gradient(180deg,#081120_0%,#0f172a_55%,#111c35_100%)] text-slate-100 shadow-[24px_0_80px_rgba(15,23,42,0.28)]'>
           <div className='flex items-center gap-3.5 px-6 py-7'>
             <img
               src='https://picui.ogmua.cn/s1/2026/03/26/69c4ddb5db12d.webp'
               alt='Logo'
-              className='h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm'
+              className='h-10 w-10 shrink-0 rounded-2xl object-cover shadow-[0_12px_32px_rgba(37,99,235,0.35)] ring-1 ring-white/20'
             />
-            <h1 className='text-[17px] font-bold tracking-tight text-slate-900'>
-              LinkSky 创作中心
-            </h1>
+            <div className='min-w-0'>
+              <div className='text-[17px] font-bold tracking-tight text-white'>
+                LinkSky 创作中心
+              </div>
+              <div className='mt-1 flex items-center gap-2 text-[11px] text-slate-300'>
+                <span className='rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-cyan-200'>
+                  Creative Studio
+                </span>
+                <span>灵感生成工作台</span>
+              </div>
+            </div>
           </div>
 
-          <div className='mb-2 flex justify-center gap-12 border-b border-slate-100 py-4'>
+          <div className='mx-4 mb-3 grid grid-cols-3 gap-2 rounded-[24px] border border-white/8 bg-white/5 p-2 shadow-inner shadow-black/10 backdrop-blur'>
             <div
               onClick={() => {
                 setActiveTab('聊天');
                 setActiveModel('chat1');
               }}
-              className={`flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
+              className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 py-3 transition-all ${
                 activeTab === '聊天'
-                  ? 'text-blue-600'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-white text-slate-900 shadow-lg shadow-cyan-950/30'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <MessageSquare size={24} strokeWidth={1.5} />
@@ -235,10 +250,10 @@ export default function CreativeCenter() {
                 setActiveTab('图片');
                 setActiveModel(1);
               }}
-              className={`flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
+              className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 py-3 transition-all ${
                 activeTab === '图片'
-                  ? 'text-blue-600'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-white text-slate-900 shadow-lg shadow-cyan-950/30'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <ImageIcon size={24} strokeWidth={1.5} />
@@ -249,34 +264,40 @@ export default function CreativeCenter() {
                 setActiveTab('视频');
                 setActiveModel('v1');
               }}
-              className={`relative flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
+              className={`relative flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl px-2 py-3 transition-all ${
                 activeTab === '视频'
-                  ? 'text-blue-600'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'bg-white text-slate-900 shadow-lg shadow-cyan-950/30'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
               }`}
             >
               <Video size={24} strokeWidth={1.5} />
               <span className='text-[13px] font-medium tracking-wide'>视频</span>
-              <span className='absolute -right-5 -top-1.5 rounded-md bg-orange-500 px-1.5 py-[1px] text-[9px] font-bold text-white shadow-sm'>
+              <span className='absolute -right-3 top-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-lg'>
                 HOT
               </span>
             </div>
           </div>
 
-          <div className='custom-scrollbar mt-2 flex-1 space-y-2 overflow-y-auto px-3 py-3'>
+          <div className='px-5 pb-2 text-[11px] font-medium uppercase tracking-[0.24em] text-slate-400'>
+            Model Deck
+          </div>
+
+          <div className='custom-scrollbar mt-1 flex-1 space-y-3 overflow-y-auto px-4 py-3'>
             {displayModels.map((model) => (
               <div
                 key={model.id}
                 onClick={() => setActiveModel(model.id)}
-                className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-all duration-200 ${
+                className={`group flex cursor-pointer gap-3 rounded-[22px] border p-3.5 transition-all duration-200 ${
                   activeModel === model.id
-                    ? model.activeBg || 'bg-blue-50 border-blue-200 shadow-sm'
-                    : 'border-transparent bg-transparent hover:bg-slate-50'
+                    ? 'border-cyan-300/25 bg-gradient-to-br from-cyan-400/16 via-sky-400/10 to-white/8 shadow-[0_18px_40px_rgba(8,145,178,0.18)]'
+                    : 'border-white/8 bg-white/5 hover:border-white/15 hover:bg-white/8'
                 }`}
               >
                 <div
-                  className={`mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors opacity-100 ${
-                    activeModel === model.id ? 'bg-blue-100' : 'bg-slate-100'
+                  className={`mt-1 flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
+                    activeModel === model.id
+                      ? 'bg-white/90 text-slate-900 shadow-lg'
+                      : 'bg-white/10 text-white group-hover:bg-white/15'
                   }`}
                 >
                   {typeof model.icon === 'string' ? (
@@ -290,8 +311,8 @@ export default function CreativeCenter() {
                     <span
                       className={`truncate pr-2 text-sm font-bold ${
                         activeModel === model.id
-                          ? 'text-blue-900'
-                          : 'text-slate-700'
+                          ? 'text-white'
+                          : 'text-slate-100'
                       }`}
                     >
                       {model.name}
@@ -302,7 +323,7 @@ export default function CreativeCenter() {
                       </span>
                     )}
                   </div>
-                  <p className='line-clamp-2 text-[11px] leading-tight text-slate-500'>
+                  <p className='line-clamp-2 text-[11px] leading-tight text-slate-400'>
                     {model.desc}
                   </p>
                 </div>
@@ -310,38 +331,54 @@ export default function CreativeCenter() {
             ))}
           </div>
 
-          <div className='flex flex-col gap-4 border-t border-slate-100 bg-white p-4'>
-            <div className='flex items-center justify-between'>
+          <div className='border-t border-white/8 bg-white/5 p-4 backdrop-blur'>
+            <div className='rounded-[24px] border border-white/10 bg-white/5 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.18)]'>
+              <div className='mb-3 flex items-center justify-between'>
+                <div className='text-[11px] uppercase tracking-[0.22em] text-slate-400'>
+                  Creator Profile
+                </div>
+                <span className='rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] text-emerald-200'>
+                  在线
+                </span>
+              </div>
+              <div className='flex items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <div className='relative'>
-                  <div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-blue-50'>
+                  <div className='flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/10'>
                     <span className='text-xl'>👩‍🦰</span>
                   </div>
                   <div className='absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500'></div>
                 </div>
                 <div>
-                  <div className='flex items-center gap-1 text-sm font-medium text-slate-900'>
+                  <div className='flex items-center gap-1 text-sm font-medium text-white'>
                     听雨的作家
-                    <span className='bg-slate-100 px-1 text-[9px] text-slate-500'>
+                    <span className='rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-slate-300'>
                       Lv.1
                     </span>
                   </div>
                   <div className='mt-0.5 flex items-center gap-1 text-[10px] text-slate-400'>
-                    在线
+                    今日灵感值 84
                   </div>
                 </div>
               </div>
-              <button className='flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95'>
+              <button className='flex items-center gap-1 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-950 shadow-lg shadow-cyan-900/30 transition-all hover:translate-y-[-1px] hover:shadow-cyan-900/40 active:scale-95'>
                 <span className='font-medium'>充值</span>
               </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className='relative flex flex-1 flex-col bg-slate-50/50'>
+        <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(248,250,252,0.92)_0%,rgba(239,246,255,0.76)_52%,rgba(241,245,249,0.92)_100%)]'>
+          <div className='pointer-events-none absolute inset-0'>
+            <div className='absolute left-[18%] top-[8%] h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl' />
+            <div className='absolute bottom-[14%] right-[10%] h-72 w-72 rounded-full bg-blue-300/20 blur-3xl' />
+            <div className='absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.46)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.46)_1px,transparent_1px)] bg-[size:38px_38px] opacity-[0.14]' />
+          </div>
+
           {activeTab === '聊天' && (
             <div className='absolute left-6 top-4 z-20 flex items-center gap-2'>
-              <button className='group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 transition-all shadow-sm hover:bg-slate-50'>
+              <button className='group flex items-center gap-1.5 rounded-full border border-white/70 bg-white/75 px-3 py-2 text-xs text-slate-700 transition-all shadow-lg shadow-slate-200/60 backdrop-blur hover:bg-white'>
                 <History size={16} className='text-slate-500' />
                 历史
                 <ChevronDown
@@ -349,75 +386,111 @@ export default function CreativeCenter() {
                   className='opacity-50 transition-transform group-hover:translate-y-0.5'
                 />
               </button>
-              <button className='flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:bg-blue-700 active:scale-95'>
+              <button className='flex items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-blue-200 transition-all hover:translate-y-[-1px] hover:shadow-blue-300 active:scale-95'>
                 <Plus size={16} strokeWidth={3} /> 新建对话
               </button>
             </div>
           )}
 
-          <div className='custom-scrollbar flex flex-1 flex-col items-center justify-center overflow-y-auto px-10 pb-32'>
+          <div className='custom-scrollbar relative z-10 flex flex-1 flex-col items-center justify-center overflow-y-auto px-10 pb-32'>
             {activeTab === '聊天' ? (
               <div className='flex max-w-2xl flex-col items-center text-center'>
-                <div className='mb-10 text-blue-600 opacity-90'>
-                  <GPTIcon size={100} className='drop-shadow-lg' />
+                <div className='mb-6 rounded-full border border-cyan-200/80 bg-white/70 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-700 shadow-sm backdrop-blur'>
+                  Conversation Engine
                 </div>
-                <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
+                <div className='mb-10 flex h-28 w-28 items-center justify-center rounded-[32px] bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-[0_24px_80px_rgba(59,130,246,0.36)]'>
+                  <GPTIcon size={102} className='drop-shadow-lg' />
+                </div>
+                <div className='rounded-[32px] border border-white/70 bg-white/70 p-8 shadow-[0_32px_120px_rgba(148,163,184,0.22)] backdrop-blur-xl'>
+                  <div className='mb-4 text-[32px] font-bold tracking-tight text-slate-900'>
+                    专业创作，从一句提示开始
+                  </div>
                   <p className='text-base font-light leading-relaxed text-slate-600'>
                     GPT-5.4是OpenAI用于复杂专业工作的前沿模型，具备强大的深度推理、多模态理解和工
                     <br />
                     具调用能力，适用于高难度分析、代码开发与创意写作。
                   </p>
+                  <div className='mt-6 flex flex-wrap items-center justify-center gap-2'>
+                    <FeaturePill>复杂推理</FeaturePill>
+                    <FeaturePill>代码开发</FeaturePill>
+                    <FeaturePill>创意写作</FeaturePill>
+                  </div>
                 </div>
               </div>
             ) : activeTab === '视频' ? (
               <div className='flex flex-col items-center text-center'>
-                <div className='relative mb-8 text-blue-600'>
-                  <GrokIcon size={90} className='drop-shadow-lg' />
+                <div className='mb-6 rounded-full border border-indigo-200/80 bg-white/70 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-indigo-700 shadow-sm backdrop-blur'>
+                  Motion Lab
                 </div>
-                <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
+                <div className='relative mb-8 flex h-28 w-28 items-center justify-center rounded-[32px] bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400 text-white shadow-[0_24px_80px_rgba(99,102,241,0.34)]'>
+                  <GrokIcon size={94} className='drop-shadow-lg' />
+                </div>
+                <div className='rounded-[32px] border border-white/70 bg-white/70 p-8 shadow-[0_32px_120px_rgba(148,163,184,0.22)] backdrop-blur-xl'>
+                  <div className='mb-4 text-[32px] font-bold tracking-tight text-slate-900'>
+                    让镜头语言更有张力
+                  </div>
                   <p className='max-w-[600px] text-base font-light leading-relaxed text-slate-600'>
                     Grok 推出的 Plus 级视频生成模型，支持多种时长，覆盖 16:9、9:16、
                     <br />
                     3:2、2:3、1:1 全比例，适合社交媒体和创意短片场景。
                   </p>
+                  <div className='mt-6 flex flex-wrap items-center justify-center gap-2'>
+                    <FeaturePill>动态镜头</FeaturePill>
+                    <FeaturePill>多比例输出</FeaturePill>
+                    <FeaturePill>短片氛围感</FeaturePill>
+                  </div>
                 </div>
               </div>
             ) : (
               <div className='flex flex-col items-center text-center'>
                 {isGenerating ? (
-                  <div className='flex flex-col items-center gap-4'>
-                    <Loader2 className='h-12 w-12 animate-spin text-blue-500' />
-                    <p className='animate-pulse text-sm font-medium tracking-widest text-blue-600'>
+                  <div className='flex flex-col items-center gap-4 rounded-[32px] border border-white/80 bg-white/70 px-10 py-12 shadow-[0_30px_120px_rgba(148,163,184,0.2)] backdrop-blur-xl'>
+                    <div className='flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 shadow-lg shadow-cyan-200/80'>
+                      <Loader2 className='h-10 w-10 animate-spin text-white' />
+                    </div>
+                    <p className='animate-pulse text-sm font-semibold tracking-[0.28em] text-blue-600'>
                       调用 Imagen 4.0 生成中...
                     </p>
+                    <p className='text-sm text-slate-500'>正在渲染你的视觉创意</p>
                   </div>
                 ) : generatedImage ? (
-                  <div className='group relative max-h-[70vh] max-w-4xl overflow-hidden rounded-3xl border border-slate-200 shadow-xl'>
+                  <div className='group relative max-h-[70vh] max-w-4xl overflow-hidden rounded-[32px] border border-white/80 bg-white p-3 shadow-[0_30px_120px_rgba(148,163,184,0.24)]'>
                     <img
                       src={generatedImage}
                       alt='Generated'
-                      className='h-full w-full bg-white object-contain'
+                      className='h-full w-full rounded-[26px] bg-white object-contain'
                     />
-                    <div className='absolute inset-0 flex items-center justify-center bg-slate-900/10 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100'>
-                      <button className='rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:bg-blue-700 active:scale-95'>
+                    <div className='absolute inset-3 flex items-center justify-center rounded-[26px] bg-slate-900/10 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100'>
+                      <button className='rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:translate-y-[-1px] active:scale-95'>
                         ✨ 下载高清大图
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className='relative mb-8'>
-                      <div className='absolute inset-0 scale-150 rounded-full bg-blue-400 opacity-10 blur-3xl'></div>
-                      <span className='relative z-10 text-[85px] drop-shadow-md'>
+                    <div className='mb-6 rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-700 shadow-sm backdrop-blur'>
+                      Image Forge
+                    </div>
+                    <div className='relative mb-8 flex h-28 w-28 items-center justify-center rounded-[32px] bg-gradient-to-br from-amber-300 via-orange-300 to-yellow-200 shadow-[0_24px_80px_rgba(251,191,36,0.25)]'>
+                      <div className='absolute inset-0 scale-125 rounded-[36px] bg-amber-300/20 blur-3xl'></div>
+                      <span className='relative z-10 text-[78px] drop-shadow-md'>
                         🍌
                       </span>
                     </div>
-                    <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
+                    <div className='rounded-[32px] border border-white/70 bg-white/70 p-8 shadow-[0_32px_120px_rgba(148,163,184,0.22)] backdrop-blur-xl'>
+                      <div className='mb-4 text-[32px] font-bold tracking-tight text-slate-900'>
+                        把灵感变成高质感画面
+                      </div>
                       <p className='text-base font-light leading-relaxed text-slate-600'>
                         谷歌2025年最新视觉增强模型，拥有极其惊艳的文字排版能力，
                         <br />
                         擅长生成绚烂摄影、幽默风格与复杂视觉设计。
                       </p>
+                      <div className='mt-6 flex flex-wrap items-center justify-center gap-2'>
+                        <FeaturePill>版式细节</FeaturePill>
+                        <FeaturePill>风格控制</FeaturePill>
+                        <FeaturePill>高质感出图</FeaturePill>
+                      </div>
                     </div>
                   </>
                 )}
@@ -426,10 +499,24 @@ export default function CreativeCenter() {
           </div>
 
           <div className='absolute bottom-6 left-1/2 z-10 flex w-full max-w-4xl -translate-x-1/2 flex-col gap-2 px-6'>
-            <div className='relative flex flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 transition-all focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-500/5'>
+            <div className='absolute -inset-x-12 -top-8 h-24 bg-gradient-to-t from-transparent via-white/20 to-transparent blur-3xl' />
+            <div className='relative flex flex-col rounded-[34px] border border-white/80 bg-white/72 p-4 shadow-[0_30px_120px_rgba(148,163,184,0.28)] backdrop-blur-xl transition-all focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-500/5'>
+              <div className='mb-3 flex items-center justify-between px-2'>
+                <div className='flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500'>
+                  <Sparkles size={14} className='text-cyan-500' />
+                  Prompt Composer
+                </div>
+                <div className='rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-[11px] text-slate-500'>
+                  {activeTab === '聊天'
+                    ? 'Conversation Mode'
+                    : activeTab === '视频'
+                      ? 'Motion Mode'
+                      : 'Image Mode'}
+                </div>
+              </div>
               <div className='flex gap-4 px-2'>
                 {activeTab !== '聊天' && (
-                  <button className='group flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100'>
+                  <button className='group flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-[22px] border border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-400 transition-colors hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-600'>
                     <Plus size={20} className='mb-1' />
                     <span className='text-[10px]'>
                       {activeTab === '视频' ? '首帧' : '参考图'}
@@ -463,10 +550,10 @@ export default function CreativeCenter() {
                       <div className='relative'>
                         <button
                           onClick={() => setIsQuantityOpen(!isQuantityOpen)}
-                          className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all ${
+                          className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
                             isQuantityOpen
-                              ? 'border-blue-200 bg-blue-100 text-blue-700'
-                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                              ? 'border-blue-200 bg-blue-100 text-blue-700 shadow-sm'
+                              : 'border-slate-200 bg-white/70 text-slate-600 hover:bg-slate-100'
                           }`}
                         >
                           <Layers size={12} /> {quantity}条
@@ -508,7 +595,7 @@ export default function CreativeCenter() {
                       <div className='relative'>
                         <button
                           onClick={() => setIsRatioOpen(!isRatioOpen)}
-                          className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
+                          className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                         >
                           <Copy size={12} /> {ratio}
                           <span className='ml-1 text-[10px] text-slate-400'>
@@ -556,7 +643,7 @@ export default function CreativeCenter() {
                         <div className='relative'>
                           <button
                             onClick={() => setIsDurationOpen(!isDurationOpen)}
-                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
+                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                           >
                             <Clock size={12} /> {duration}
                             <span className='ml-1 text-[10px] text-slate-400'>
@@ -594,7 +681,7 @@ export default function CreativeCenter() {
                             onClick={() =>
                               setIsResolutionOpen(!isResolutionOpen)
                             }
-                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
+                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                           >
                             {resolution}
                             <span className='ml-1 text-[10px] text-slate-400'>
@@ -634,7 +721,7 @@ export default function CreativeCenter() {
                 <button
                   onClick={handleSubmit}
                   disabled={isGenerating || !prompt.trim()}
-                  className='ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
+                  className='ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-200 transition-all hover:translate-y-[-1px] hover:shadow-blue-300 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
                 >
                   {isGenerating ? (
                     <Loader2 size={22} className='animate-spin' />
