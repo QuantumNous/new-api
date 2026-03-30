@@ -38,9 +38,9 @@ import {
 const TEXT = {
   creationCenter: '\u521b\u4f5c\u4e2d\u5fc3',
   unifiedStudio: '\u7edf\u4e00\u521b\u4f5c\u5de5\u4f5c\u53f0',
-  headerDesc:
-    '\u4e09\u79cd\u521b\u4f5c\u6a21\u5f0f\u5171\u7528\u540c\u4e00\u5957\u89c6\u89c9\u9aa8\u67b6\uff1a\u66f4\u8f7b\u76c8\u7684\u5361\u7247\u5c42\u7ea7\uff0c\u66f4\u7edf\u4e00\u7684\u5de5\u5177\u6761\uff0c\u66f4\u660e\u786e\u7684\u4e3b\u6b21\u5206\u533a\u3002',
   currentWorkspace: '\u5f53\u524d\u5de5\u4f5c\u533a',
+  layoutHint:
+    '\u53bb\u6389\u72ec\u7acb\u5927\u6a2a\u5e45\u540e\uff0c\u8ba9\u521b\u4f5c\u533a\u57df\u76f4\u63a5\u94fa\u5f00\u5728\u9875\u9762\u4e3b\u89c6\u533a\uff0c\u8d28\u611f\u66f4\u96c6\u4e2d\u3002',
   switchSection: '\u5207\u6362\u677f\u5757',
   switchHint:
     '\u53c2\u8003\u4e0d\u540c\u521b\u4f5c\u9875\u9762\u7684\u5e03\u5c40\u7279\u5f81\uff0c\u7edf\u4e00\u6210\u540c\u4e00\u5957\u521b\u4f5c\u4e2d\u5fc3\u98ce\u683c\u3002',
@@ -148,6 +148,8 @@ const panelClassName =
 const subtleCardClassName =
   'rounded-[26px] border border-slate-200/80 bg-white/88 shadow-[0_12px_30px_rgba(15,23,42,0.05)]';
 
+const workspaceHeightClassName = 'min-h-[calc(100vh-150px)]';
+
 const toolButtonClassName =
   '!rounded-2xl !border-slate-200 !bg-white/90 !text-slate-600 hover:!bg-slate-50 hover:!text-slate-900';
 
@@ -239,7 +241,7 @@ const ResultEmpty = ({ icon, title, description, note, actions }) => (
 );
 
 const ChatWorkspace = () => (
-  <div className='flex min-h-[720px] flex-col gap-4'>
+  <div className={`flex flex-col gap-4 ${workspaceHeightClassName}`}>
     <Card bordered={false} className={panelClassName} bodyStyle={{ padding: 0 }}>
       <div className='border-b border-slate-100 px-5 py-4'>
         <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
@@ -278,7 +280,7 @@ const ChatWorkspace = () => (
 
       <div className='relative overflow-hidden px-5 pb-5 pt-6'>
         <div className='absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_left_top,rgba(56,189,248,0.12),transparent_35%),radial-gradient(circle_at_right_top,rgba(129,140,248,0.12),transparent_35%)]' />
-        <div className='relative flex min-h-[560px] flex-col justify-between'>
+        <div className='relative flex min-h-[calc(100vh-290px)] flex-col justify-between'>
           <div className='space-y-8'>
             <div className='flex justify-end'>
               <div className='max-w-[320px] text-right'>
@@ -360,8 +362,10 @@ const ChatWorkspace = () => (
 );
 
 const ImageWorkspace = () => (
-  <div className='grid min-h-[720px] gap-4 xl:grid-cols-[minmax(460px,1.05fr)_minmax(420px,1fr)]'>
-    <Card bordered={false} className={panelClassName}>
+  <div
+    className={`grid gap-4 xl:grid-cols-[minmax(520px,1.15fr)_minmax(480px,1fr)] ${workspaceHeightClassName}`}
+  >
+    <Card bordered={false} className={`${panelClassName} h-full`}>
       <div className='mb-5 flex items-center justify-between gap-3'>
         <div>
           <Typography.Title heading={4} className='!mb-1'>
@@ -409,7 +413,7 @@ const ImageWorkspace = () => (
       </div>
     </Card>
 
-    <Card bordered={false} className={panelClassName}>
+    <Card bordered={false} className={`${panelClassName} h-full`}>
       <ResultEmpty
         title={TEXT.result}
         description={TEXT.startCreating}
@@ -422,8 +426,10 @@ const ImageWorkspace = () => (
 );
 
 const VideoWorkspace = () => (
-  <div className='grid min-h-[720px] gap-4 xl:grid-cols-[minmax(460px,1.05fr)_minmax(420px,1fr)]'>
-    <div className='space-y-4'>
+  <div
+    className={`grid gap-4 xl:grid-cols-[minmax(520px,1.15fr)_minmax(480px,1fr)] ${workspaceHeightClassName}`}
+  >
+    <div className='flex h-full flex-col gap-4'>
       <Card bordered={false} className={panelClassName}>
         <div className='mb-5 flex items-center justify-between gap-3'>
           <div>
@@ -478,8 +484,8 @@ const VideoWorkspace = () => (
       </Card>
     </div>
 
-    <div className='space-y-4'>
-      <Card bordered={false} className={panelClassName}>
+    <div className='flex h-full flex-col gap-4'>
+      <Card bordered={false} className={`${panelClassName} flex-1`}>
         <ResultEmpty
           title={TEXT.videoResult}
           description={TEXT.startCreating}
@@ -505,69 +511,36 @@ const CreationCenter = () => {
   const currentSection =
     SECTIONS.find((section) => section.key === activeSection) || SECTIONS[0];
 
-  const CurrentIcon = currentSection.icon;
-
   return (
-    <div className='min-h-[calc(100vh-66px)] bg-[linear-gradient(180deg,#f8fafc_0%,#edf4ff_38%,#f8fafc_100%)] px-4 pb-6 pt-[76px] lg:px-6'>
-      <div className='mx-auto flex w-full max-w-[1680px] flex-col gap-5'>
-        <Card
-          bordered={false}
-          className='overflow-hidden rounded-[34px] border border-slate-200/80 bg-white/86 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur'
-          bodyStyle={{ padding: 0 }}
-        >
-          <div className='relative overflow-hidden'>
-            <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_26%)]' />
-            <div className='relative px-6 py-6 lg:px-8 lg:py-7'>
-              <div className='flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between'>
-                <div className='max-w-3xl'>
-                  <Tag color='blue' className='!rounded-full !px-3 !py-1'>
-                    {TEXT.creationCenter}
-                  </Tag>
-                  <Typography.Title heading={2} className='!mb-2 !mt-4 text-slate-900'>
-                    {TEXT.unifiedStudio}
-                  </Typography.Title>
-                  <Typography.Paragraph className='!mb-0 text-sm leading-7 text-slate-600'>
-                    {TEXT.headerDesc}
-                  </Typography.Paragraph>
-                </div>
-
-                <div
-                  className={`rounded-[28px] bg-gradient-to-r ${currentSection.accent} p-[1px] shadow-[0_18px_40px_rgba(59,130,246,0.14)]`}
-                >
-                  <div
-                    className={`rounded-[27px] bg-gradient-to-r ${currentSection.softAccent} px-5 py-4`}
-                  >
-                    <div className='flex items-center gap-3'>
-                      <div className='flex h-11 w-11 items-center justify-center rounded-[18px] bg-white text-slate-700 shadow-sm'>
-                        <CurrentIcon size={20} />
-                      </div>
-                      <div>
-                        <Typography.Text strong className='block text-sm text-slate-900'>
-                          {currentSection.title}
-                        </Typography.Text>
-                        <Typography.Text className='text-xs leading-5 text-slate-500'>
-                          {TEXT.currentWorkspace}
-                        </Typography.Text>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <div className='grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]'>
+    <div className='min-h-[calc(100vh-66px)] bg-[linear-gradient(180deg,#f8fafc_0%,#edf4ff_38%,#f8fafc_100%)] px-3 pb-3 pt-[72px] lg:px-4'>
+      <div className='mx-auto flex w-full max-w-none flex-col gap-4'>
+        <div className='grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]'>
           <Card
             bordered={false}
             className='rounded-[30px] border border-slate-200/80 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.06)]'
-            bodyStyle={{ padding: 20 }}
+            bodyStyle={{ padding: 18, height: '100%' }}
           >
-            <div className='mb-5 flex items-center gap-2 text-slate-700'>
-              <LayoutPanelLeft size={18} />
-              <Typography.Text strong>{TEXT.switchSection}</Typography.Text>
+            <div className='mb-4 rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] px-4 py-4 shadow-sm'>
+              <Tag color='blue' className='!rounded-full !px-3 !py-1'>
+                {TEXT.creationCenter}
+              </Tag>
+              <Typography.Title heading={4} className='!mb-1 !mt-3 text-slate-900'>
+                {TEXT.unifiedStudio}
+              </Typography.Title>
+              <Typography.Paragraph className='!mb-0 text-sm leading-6 text-slate-500'>
+                {TEXT.layoutHint}
+              </Typography.Paragraph>
             </div>
-            <Typography.Paragraph className='!mb-5 text-sm leading-6 text-slate-500'>
+
+            <div className='mb-4 flex items-center justify-between gap-3 text-slate-700'>
+              <div className='flex items-center gap-2'>
+                <LayoutPanelLeft size={18} />
+                <Typography.Text strong>{TEXT.switchSection}</Typography.Text>
+              </div>
+              <Tag color={currentSection.tagColor}>{currentSection.title}</Tag>
+            </div>
+
+            <Typography.Paragraph className='!mb-4 text-sm leading-6 text-slate-500'>
               {TEXT.switchHint}
             </Typography.Paragraph>
 
