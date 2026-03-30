@@ -30,7 +30,6 @@ import {
   Loader2,
   MessageSquare,
   Plus,
-  Sparkles,
   Video,
 } from 'lucide-react';
 
@@ -39,7 +38,7 @@ const apiKey = ''; // API key is injected by environment
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
   { id: 'image', label: '图片', icon: ImageIcon },
-  { id: 'video', label: '视频', icon: Video, badge: '新' },
+  { id: 'video', label: '视频', icon: Video, badge: 'HOT' },
 ];
 
 const ratios = ['自动', '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
@@ -48,7 +47,7 @@ const imageResolutions = [
   { value: '2K', label: '2K' },
   { value: '3K', label: '3K' },
 ];
-const durations = ['10 秒', '15 秒', '20 秒', '25 秒'];
+const durations = ['10秒', '15秒', '20秒', '25秒'];
 
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg
@@ -60,7 +59,7 @@ const GPTIcon = ({ size = 24, className = '' }) => (
     className={className}
   >
     <path
-      d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5153-4.9066 6.0462 6.0462 0 0 0-3.9471-3.1358 6.0417 6.0417 0 0 0-5.1923 1.0689 6.0222 6.0222 0 0 0-4.385-1.9231 6.0464 6.0464 0 0 0-5.4604 3.4456 6.0536 6.0536 0 0 0-.8101 4.8906 6.0538 6.0538 0 0 0 3.1467 3.9573 6.0585 6.0585 0 0 0-1.065 5.2124 6.0545 6.0545 0 0 0 1.9292 4.3941 6.0513 6.0513 0 0 0 4.0011 1.6379 6.0106 6.0106 0 0 0 4.3389-1.8964 6.0562 6.0562 0 0 0 5.4628-3.4481 6.0519 6.0519 0 0 0 .8175-4.9088 6.0483 6.0483 0 0 0-3.1463-3.9429 6.0548 6.0548 0 0 0 1.0254-4.8882Zm-10.2819 11.1042a3.4298 3.4298 0 0 1-2.4357-1.006 3.4416 3.4416 0 0 1-.7185-1.5533l.1162-.0667 4.9883-2.8786a.3326.3326 0 0 0 .166-.2871v-7.0702l2.013 1.1621v5.9233a.3347.3347 0 0 0 .1661.2875l5.1326 2.9614a3.4351 3.4351 0 0 1-2.045 1.745 3.4082 3.4082 0 0 1-7.384-.2875Zm-8.4777-3.3403a3.4223 3.4223 0 0 1 .1865-2.6322 3.4405 3.4405 0 0 1 1.4875-1.5049l.1169.0678 4.9846 2.8846a.333.333 0 0 0 .3309 0l6.1227-3.5341-2.013-1.1621-5.1314 2.9646a.3332.3332 0 0 0-.1665.2875v-5.9208a3.4483 3.4483 0 0 1 .545-1.874 3.405 3.405 0 0 1 4.503-1.3171l.1158.0662-4.985 2.8792a.3326.3326 0 0 0-.166.2871v7.0702l-2.013-1.1621v-5.9233a.3347.3347 0 0 0-.1661-.2875l-5.1326-2.9614a3.4373 3.4373 0 0 1-1.8173-2.1832 3.4035 3.4035 0 0 1 2.0306-4.474Zm1.8763-12.429a3.4243 3.4243 0 0 1 2.6235-.191 3.4389 3.4389 0 0 1 1.5052 1.4883l-.1165.0673-4.9846 2.8846a.333.333 0 0 0 0 .3309l6.1226 3.5341 2.013-1.1621-2.9609-5.1312a.3332.3332 0 0 0-.2875-.1665h-5.9209a3.4482 3.4482 0 0 1-1.874-.545 3.405 3.405 0 0 1-1.3171-4.503l.0662-.1158 2.8792 4.985a.3326.3326 0 0 0 .2871.166h7.0702l-1.1621 2.013h-5.9233a.3347.3347 0 0 0-.2875.1661l-2.9614 5.1326a3.4373 3.4373 0 0 1-2.1832 1.8173 3.4035 3.4035 0 0 1-4.474-2.0306Zm15.101 0a3.4223 3.4223 0 0 1 .1865 2.6322 3.4405 3.4405 0 0 1-1.4875 1.5049l-.1169-.0678-4.9846-2.8846a.333.333 0 0 0-.3309 0l-6.1227 3.5341 2.013 1.1621 5.1314-2.9646a.3332.3332 0 0 0 .1665-.2875v5.9208a3.4483 3.4483 0 0 1-.545 1.874 3.405 3.405 0 0 1-4.503 1.3171l-.1158-.0662 4.985-2.8792a.3326.3326 0 0 0 .166-.2871v-7.0702l2.013 1.1621v5.9233a.3347.3347 0 0 0 .1661.2875l5.1326 2.9614a3.4373 3.4373 0 0 1 1.8173 2.1832 3.4035 3.4035 0 0 1-2.0306 4.474Zm-1.8763 12.429a3.4243 3.4243 0 0 1-2.6235.191 3.4389 3.4389 0 0 1-1.5052-1.4883l.1165-.0673 4.9846-2.8846a.333.333 0 0 0 0-.3309l-6.1226-3.5341-2.013 1.1621 2.9609 5.1312a.3332.3332 0 0 0 .2875.1665h5.9209a3.4482 3.4482 0 0 1 1.874.545 3.405 3.405 0 0 1 1.3171 4.503l-.0662.1158-2.8792-4.985a.3326.3326 0 0 0-.2871-.166h-7.0702l1.1621-2.013h5.9233a.3347.3347 0 0 0 .2875-.1661l2.9614-5.1326a3.4373 3.4373 0 0 1 2.1832-1.8173 3.4035 3.4035 0 0 1 4.474 2.0306Z'
+      d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5153-4.9066 6.0462 6.0462 0 0 0-3.9471-3.1358 6.0417 6.0417 0 0 0-5.1923 1.0689 6.0222 6.0222 0 0 0-4.385-1.9231 6.0464 6.0464 0 0 0-5.4604 3.4456 6.0536 6.0536 0 0 0-.8101 4.8906 6.0538 6.0538 0 0 0 3.1467 3.9573 6.0585 6.0585 0 0 0-1.065 5.2124 6.0545 6.0545 0 0 0 1.9292 4.3941 6.0513 6.0513 0 0 0 4.0011 1.6379 6.0106 6.0106 0 0 0 4.3389-1.8964 6.0562 6.0562 0 0 0 5.4628-3.4481 6.0519 6.0519 0 0 0 .8175-4.9088 6.0483 6.0483 0 0 0-3.1463-3.9429 6.0548 6.0548 0 0 0 1.0254-4.8882Zm-10.2819 11.1042a3.4298 3.4298 0 0 1-2.4357-1.006 3.4416 3.4416 0 0 1-.7185-1.5533l.1162-.0667 4.9883-2.8786a.3326.3326 0 0 0 .166-.2871v-7.0702l2.013 1.1621v5.9233a.3347.3347 0 0 0 .1661.2875l5.1326 2.9614a3.4351 3.4351 0 0 1-2.045 1.745 3.4082 3.4082 0 0 1-7.384-.2875Zm-8.4777-3.3403a3.4223 3.4223 0 0 1 .1865-2.6322 3.4405 3.4405 0 0 1 1.4875-1.5049l.1169.0678 4.9846 2.8846a.333.333 0 0 0 .3309 0l6.1227-3.5341-2.013-1.1621-5.1314 2.9646a.3332.3332 0 0 0-.1665.2875v-5.9208a3.4483 3.4483 0 0 1 .545-1.874 3.405 3.405 0 0 1 4.503-1.3171l.1158.0662-4.985 2.8792a.3326.3326 0 0 0-.166.2871v7.0702l-2.013-1.1621v-5.9233a.3347.3347 0 0 0-.1661-.2875l-5.1326-2.9614a3.4373 3.4373 0 0 1-1.8173-2.1832 3.4035 3.4035 0 0 1 2.0306-4.474Zm1.8763-12.429a3.4243 3.4243 0 0 1 2.6235-.191 3.4389 3.4389 0 0 1 1.5052 1.4883l-.1165.0673-4.9846 2.8846a.333.333 0 0 0 0 .3309l6.1226 3.5341 2.013-1.1621-2.9609-5.1312a.3332.3332 0 0 0-.2875-.1665h-5.9209a3.4482 3.4482 0 0 1-1.874-.545 3.405 3.405 0 0 1-1.3171-4.503l.0662-.1158 2.8792 4.985a.3326.3326 0 0 0 .2871.166h7.0702l-1.1621 2.013h-5.9233a.3347.3347 0 0 0-.2875.1661l-2.9614 5.1326a3.4373 3.4373 0 0 1-2.1832 1.8173 3.4035 3.4035 0 0 1-4.474-2.0306Zm15.101 0a3.4223 3.4223 0 0 1 .1865 2.6322 3.4405 3.4405 0 0 1-1.4875 1.5049l-.1169-.0678-4.9846-2.8846a.333.333 0 0 0-.3309 0l-6.1227 3.5341 2.013 1.1621 5.1314-2.9646a.3332.3332 0 0 0 .1665-.2875v5.9208a3.4483 3.4483 0 0 1-.545 1.874 3.405 3.405 0 0 1-4.503 1.3171l-.1158-.0662 4.985-2.8792a.3326.3326 0 0 0 .166-.2871v-7.0702l2.013 1.1621v5.9233a.3347.3347 0 0 0 .1661.2875l5.1326 2.9614a3.4373 3.4373 0 0 1 1.8173 2.1832 3.4035 3.4035 0 0 1-2.0306 4.474Zm-1.8763 12.429a3.4243 3.4243 0 0 1-2.6235.191 3.4389 3.4389 0 0 1-1.5052-1.4883l.1165-.0673 4.9846-2.8846a.333.333 0 0 0 0-.3309l-6.1226-3.5341-2.013 1.1621 2.9609 5.1312a.3332.3332 0 0 0 .2875.1665h5.9209a3.4482 3.4482 0 0 1 1.874.545 3.405 3.405 0 0 1 1.3171 4.503l-.0662.1158-2.8792-4.985a.3326.3326 0 0 0-.2871-.166h-7.0702l1.1621-2.013h-5.9233a.3347.3347 0 0 0 .2875-.1661l2.9614-5.1326a3.4373 3.4373 0 0 1 2.1832-1.8173 3.4035 3.4035 0 0 1 4.474 2.0306Z'
       fill='currentColor'
     />
   </svg>
@@ -84,99 +83,30 @@ const GrokIcon = ({ size = 24, className = '' }) => (
   </svg>
 );
 
-const FeaturePill = ({ children, tone = 'light' }) => (
-  <span
-    className={`rounded-full px-3 py-1 text-[11px] font-medium tracking-[0.18em] ${
-      tone === 'dark'
-        ? 'border border-sky-200 bg-white/75 text-sky-700 shadow-sm'
-        : 'border border-slate-200 bg-white/80 text-slate-500 shadow-sm'
-    }`}
-  >
-    {children}
-  </span>
-);
-
-const StageMetric = ({ value, label }) => (
-  <div className='min-w-[108px] rounded-[22px] border border-slate-200 bg-white/80 px-4 py-3 shadow-[0_18px_40px_rgba(148,163,184,0.16)] backdrop-blur'>
-    <div className='text-lg font-semibold tracking-tight text-slate-900'>{value}</div>
-    <div className='mt-1 text-[10px] uppercase tracking-[0.22em] text-slate-400'>{label}</div>
-  </div>
-);
-
-const FloatingPrompt = ({ children, className = '' }) => (
-  <div
-    className={`rounded-2xl border border-sky-100 bg-white/82 px-4 py-3 text-sm text-slate-600 shadow-[0_20px_50px_rgba(148,163,184,0.16)] backdrop-blur ${className}`}
-  >
-    {children}
-  </div>
-);
-
 const DropButton = ({ icon, label, open, onClick, children }) => (
   <div className='relative'>
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-medium transition-all ${
+      className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
         open
-          ? 'border-sky-300 bg-sky-50 text-sky-700 shadow-[0_10px_30px_rgba(59,130,246,0.12)]'
-          : 'border-slate-200 bg-white/80 text-slate-600 hover:bg-slate-50'
+          ? 'border-blue-200 bg-blue-50 text-blue-700'
+          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
       }`}
     >
       {icon}
       {label}
-      <ChevronDown
-        size={12}
-        className={`text-slate-400 transition-transform ${open ? 'rotate-180 text-sky-600' : ''}`}
-      />
+      <ChevronDown size={12} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
     </button>
     {children}
   </div>
 );
 
-const modeCopy = {
-  chat: {
-    eyebrow: '对话工作台',
-    title: '让复杂需求在更安静、更清晰的空间里成形',
-    desc: '以对话为入口，把代码、策略、内容和灵感组织成真正可推进的流程。少一点仪表盘噪音，多一点创作势能。',
-    chips: ['深度推理', '代码协作', '长文本创作'],
-    badge: '对话模式',
-    detail: '适合产品讨论、代码生成、信息整合、方案推演和创意写作。',
-    primaryMetric: '4.8s',
-    primaryLabel: '平均响应',
-    secondaryMetric: '128K',
-    secondaryLabel: '上下文',
-  },
-  image: {
-    eyebrow: '视觉工坊',
-    title: '把一句提示词，推成一张真正有设计感的画面',
-    desc: '围绕光线、材质、构图与排版来组织输出，不再只是“生成一张图”，而是更接近可展示的视觉提案。',
-    chips: ['构图控制', '材质质感', '高精输出'],
-    badge: '图片模式',
-    detail: '适合海报、封面、品牌主视觉、编辑感画面和概念提案。',
-    primaryMetric: '3 档',
-    primaryLabel: '输出规格',
-    secondaryMetric: '11:9',
-    secondaryLabel: '比例范围',
-  },
-  video: {
-    eyebrow: '动态实验室',
-    title: '让镜头语言不只是动起来，而是真正有节奏',
-    desc: '围绕时长、景别、机位、镜头运动与场景推进来生成短视频内容，让描述先长成镜头，再长成片段。',
-    chips: ['镜头节奏', '多比例输出', '短片氛围'],
-    badge: '视频模式',
-    detail: '适合广告预演、产品演示、社媒短片和分镜草案。',
-    primaryMetric: '25s',
-    primaryLabel: '最长时长',
-    secondaryMetric: '16:9',
-    secondaryLabel: '主舞台比例',
-  },
-};
-
 const chatModels = [
   {
     id: 'chat1',
     name: 'GPT-5.4',
-    desc: '面向复杂专业工作的前沿模型，适合深度推理、写作、方案整理和开发协作。',
-    icon: <GPTIcon size={28} className='text-sky-600' />,
+    desc: '适合复杂推理、代码协作、长文生成与结构化分析。',
+    icon: <GPTIcon size={28} className='text-blue-600' />,
   },
 ];
 
@@ -184,14 +114,14 @@ const imageModels = [
   {
     id: 1,
     name: 'Nano Banana Pro',
-    desc: '偏高质感的视觉模型，更适合商业海报、版式画面和完整视觉提案。',
-    icon: <span className='text-xl'>NB</span>,
+    desc: '偏商业视觉与版式表达，适合海报、封面和主视觉提案。',
+    icon: <span className='text-lg font-semibold text-blue-600'>NB</span>,
   },
   {
     id: 2,
     name: 'Nano Banana 2',
-    desc: '更轻盈的图片模型，适合快速探索想法和高频迭代。',
-    icon: <span className='text-xl'>N2</span>,
+    desc: '更轻量的探索模型，适合快速出图与创意迭代。',
+    icon: <span className='text-lg font-semibold text-blue-600'>N2</span>,
   },
 ];
 
@@ -199,8 +129,8 @@ const videoModels = [
   {
     id: 'v1',
     name: 'grok-video-3-plus',
-    desc: '强调镜头语言、画面张力与多比例输出，适合更具导演感的视频生成。',
-    icon: <GrokIcon size={28} className='text-sky-600' />,
+    desc: '适合镜头语言明确的短片、广告预演和动态概念稿。',
+    icon: <GrokIcon size={28} className='text-blue-600' />,
   },
 ];
 
@@ -226,6 +156,7 @@ const fetchWithRetry = async (url, options, maxRetries = 5) => {
 
   return null;
 };
+
 export default function CreativeCenter() {
   const [activeTab, setActiveTab] = useState('chat');
   const [activeModel, setActiveModel] = useState('chat1');
@@ -239,16 +170,10 @@ export default function CreativeCenter() {
   const [isResolutionOpen, setIsResolutionOpen] = useState(false);
   const [resolution, setResolution] = useState('2K');
   const [isDurationOpen, setIsDurationOpen] = useState(false);
-  const [duration, setDuration] = useState('10 秒');
+  const [duration, setDuration] = useState('10秒');
 
   const displayModels =
-    activeTab === 'chat'
-      ? chatModels
-      : activeTab === 'video'
-        ? videoModels
-        : imageModels;
-
-  const currentCopy = modeCopy[activeTab];
+    activeTab === 'chat' ? chatModels : activeTab === 'video' ? videoModels : imageModels;
 
   const closeAllMenus = () => {
     setIsQuantityOpen(false);
@@ -260,6 +185,7 @@ export default function CreativeCenter() {
   const switchTab = (tabId, modelId) => {
     setActiveTab(tabId);
     setActiveModel(modelId);
+    setGeneratedImage(null);
     closeAllMenus();
   };
 
@@ -301,39 +227,19 @@ export default function CreativeCenter() {
     setPrompt('');
   };
 
-  const renderStagePanel = () => {
+  const renderWorkspace = () => {
     if (activeTab === 'chat') {
       return (
-        <div className='relative flex h-full min-h-[420px] flex-col justify-between rounded-[32px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_56%,#eef4ff_100%)] p-7 text-slate-900 shadow-[0_24px_80px_rgba(148,163,184,0.14)]'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <div className='text-[11px] uppercase tracking-[0.26em] text-sky-600'>实时会话</div>
-              <div className='mt-2 text-2xl font-semibold tracking-tight text-slate-900'>思路在这里被整理成方向</div>
-            </div>
-            <div className='flex h-14 w-14 items-center justify-center rounded-[20px] border border-sky-100 bg-white/80'>
-              <GPTIcon size={38} className='text-sky-600' />
-            </div>
+        <div className='flex max-w-2xl flex-col items-center text-center'>
+          <div className='mb-10 text-blue-600 opacity-90'>
+            <GPTIcon size={100} className='drop-shadow-lg' />
           </div>
-
-          <div className='relative mt-10 flex-1 rounded-[28px] border border-slate-200 bg-white/72 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]'>
-            <div className='absolute left-10 top-8 h-24 w-24 rounded-full bg-sky-200/50 blur-2xl' />
-            <div className='absolute bottom-8 right-10 h-32 w-32 rounded-full bg-blue-200/45 blur-3xl' />
-            <FloatingPrompt className='absolute left-6 top-6 w-[220px] drift-card'>
-              为新模型写一段发布说明，语气专业，但不要太硬。
-            </FloatingPrompt>
-            <FloatingPrompt className='absolute right-6 top-20 w-[212px] drift-card-delay'>
-              把支付流程拆成 controller 和 service 两层。
-            </FloatingPrompt>
-            <FloatingPrompt className='absolute bottom-8 left-1/2 w-[260px] -translate-x-1/2'>
-              把复杂问题变成结构化推进，而不是一长段回答。
-            </FloatingPrompt>
-            <div className='flex h-full items-center justify-center'>
-              <div className='relative flex h-56 w-56 items-center justify-center rounded-full border border-sky-100 bg-[radial-gradient(circle,rgba(186,230,253,0.72),rgba(239,246,255,0.46)_58%,transparent_70%)]'>
-                <div className='absolute h-72 w-72 rounded-full border border-sky-100 orbit-spin' />
-                <div className='absolute h-44 w-44 rounded-full border border-sky-200/60' />
-                <GPTIcon size={92} className='text-sky-600 drop-shadow-[0_18px_32px_rgba(96,165,250,0.18)]' />
-              </div>
-            </div>
+          <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm'>
+            <p className='text-base font-light leading-relaxed text-slate-600'>
+              GPT-5.4 适合复杂推理、方案整理、代码协作与长内容生成。
+              <br />
+              你可以直接描述需求，也可以贴入代码、文案或任务目标开始协作。
+            </p>
           </div>
         </div>
       );
@@ -341,37 +247,16 @@ export default function CreativeCenter() {
 
     if (activeTab === 'video') {
       return (
-        <div className='relative flex min-h-[420px] flex-col justify-between rounded-[32px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f6f9ff_52%,#eef5ff_100%)] p-7 text-slate-900 shadow-[0_24px_80px_rgba(148,163,184,0.14)]'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <div className='text-[11px] uppercase tracking-[0.26em] text-sky-600'>动态预演</div>
-              <div className='mt-2 text-2xl font-semibold tracking-tight text-slate-900'>每一段描述，都会先长成一个镜头</div>
-            </div>
-            <div className='flex h-14 w-14 items-center justify-center rounded-[20px] border border-sky-100 bg-white/80'>
-              <GrokIcon size={36} className='text-sky-600' />
-            </div>
+        <div className='flex flex-col items-center text-center'>
+          <div className='mb-8 text-blue-600'>
+            <GrokIcon size={90} className='drop-shadow-lg' />
           </div>
-
-          <div className='relative mt-8 overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#fbfdff_0%,#eff5ff_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]'>
-            <div className='absolute left-6 top-6 rounded-full border border-slate-200 bg-white/82 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-500'>
-              机位 A
-            </div>
-            <div className='absolute right-6 top-6 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-sky-700'>
-              准备生成
-            </div>
-            <div className='aspect-[16/10] overflow-hidden rounded-[24px] border border-slate-200 bg-[radial-gradient(circle_at_30%_35%,rgba(191,219,254,0.55),transparent_28%),linear-gradient(145deg,#ffffff_0%,#eff5ff_42%,#dbeafe_100%)]'>
-              <div className='flex h-full items-end justify-between p-6'>
-                <div className='max-w-[220px] rounded-[22px] border border-slate-200 bg-white/82 px-4 py-3 text-left backdrop-blur'>
-                  <div className='text-xs uppercase tracking-[0.24em] text-sky-600'>镜头备注</div>
-                  <div className='mt-2 text-sm leading-6 text-slate-600'>雨夜街头，镜头从玻璃反射切入，缓慢推向主角。</div>
-                </div>
-                <div className='space-y-3'>
-                  <div className='h-10 w-28 rounded-full border border-sky-100 bg-white/80 pulse-glow' />
-                  <div className='h-10 w-36 rounded-full border border-sky-100 bg-white/72' />
-                  <div className='h-10 w-24 rounded-full border border-sky-100 bg-white/72' />
-                </div>
-              </div>
-            </div>
+          <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm'>
+            <p className='max-w-[600px] text-base font-light leading-relaxed text-slate-600'>
+              Grok 视频模型适合广告预演、社媒短片和镜头概念草案。
+              <br />
+              可以描述动作、机位、节奏和场景氛围，快速生成动态内容方向。
+            </p>
           </div>
         </div>
       );
@@ -379,30 +264,20 @@ export default function CreativeCenter() {
 
     if (isGenerating) {
       return (
-        <div className='flex h-full min-h-[380px] flex-col items-center justify-center rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_100%)] text-center shadow-[0_20px_60px_rgba(148,163,184,0.12)]'>
-          <div className='flex h-20 w-20 items-center justify-center rounded-full border border-sky-100 bg-[linear-gradient(135deg,#f8fbff,#eaf3ff)] shadow-[0_18px_50px_rgba(148,163,184,0.16)]'>
-            <Loader2 className='h-10 w-10 animate-spin text-sky-600' />
-          </div>
-          <div className='mt-6 text-[11px] uppercase tracking-[0.28em] text-sky-600'>正在生成</div>
-          <div className='mt-3 text-2xl font-semibold tracking-tight text-slate-900'>正在搭建你的画面语言</div>
-          <p className='mt-3 max-w-[340px] text-sm leading-7 text-slate-500'>
-            系统正在组织构图、材质和光线，请稍候片刻。
-          </p>
+        <div className='flex flex-col items-center gap-4'>
+          <Loader2 className='h-12 w-12 animate-spin text-blue-500' />
+          <p className='text-sm font-medium tracking-[0.28em] text-blue-600'>正在生成图片</p>
         </div>
       );
     }
 
     if (generatedImage) {
       return (
-        <div className='group relative min-h-[380px] overflow-hidden rounded-[28px] border border-slate-200 bg-white/92 p-3 shadow-[0_26px_80px_rgba(148,163,184,0.18)]'>
-          <img src={generatedImage} alt='生成结果' className='h-full min-h-[354px] w-full rounded-[22px] object-contain' />
-          <div className='absolute inset-3 flex items-end justify-between rounded-[22px] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(226,236,252,0.88))] p-5 opacity-0 transition-opacity group-hover:opacity-100'>
-            <div>
-              <div className='text-[11px] uppercase tracking-[0.24em] text-slate-500'>结果预览</div>
-              <div className='mt-2 text-lg font-semibold text-slate-900'>本次生成结果</div>
-            </div>
-            <button className='rounded-full border border-sky-200 bg-white/88 px-5 py-2 text-sm font-semibold text-sky-700 shadow-sm transition-transform hover:-translate-y-0.5 hover:bg-sky-50 active:scale-95'>
-              下载原图
+        <div className='group relative max-h-[70vh] max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl'>
+          <img src={generatedImage} alt='生成结果' className='h-full w-full object-contain bg-white' />
+          <div className='absolute inset-0 flex items-center justify-center bg-slate-900/10 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100'>
+            <button className='rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:bg-blue-700 active:scale-95'>
+              下载高清原图
             </button>
           </div>
         </div>
@@ -410,262 +285,144 @@ export default function CreativeCenter() {
     }
 
     return (
-      <div className='relative min-h-[380px] overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f6f9ff_100%)] p-4 shadow-[0_24px_80px_rgba(148,163,184,0.14)]'>
-        <div className='absolute right-10 top-10 h-28 w-28 rounded-full bg-sky-200/55 blur-3xl' />
-        <div className='absolute left-8 top-14 h-24 w-24 rounded-full bg-blue-200/50 blur-3xl' />
-        <div className='grid h-full gap-4 md:grid-cols-[0.82fr_1.18fr]'>
-          <div className='flex flex-col justify-between rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,#f8fbff_0%,#edf4ff_100%)] p-5 text-slate-900'>
-            <div>
-              <div className='text-[11px] uppercase tracking-[0.26em] text-sky-600'>视觉看板</div>
-              <div className='mt-3 text-2xl font-semibold tracking-tight text-slate-900'>从提示词到视觉定调</div>
-              <p className='mt-4 text-sm leading-7 text-slate-500'>
-                更关注海报感、排版、材质与品牌氛围，不只是生成图片，而是在组织一张完整画面。
-              </p>
-            </div>
-            <div className='flex flex-wrap gap-2'>
-              <FeaturePill>编辑感</FeaturePill>
-              <FeaturePill>材质层次</FeaturePill>
-              <FeaturePill>海报氛围</FeaturePill>
-            </div>
-          </div>
-          <div className='grid gap-4'>
-            <div className='relative overflow-hidden rounded-[26px] border border-slate-200 bg-[linear-gradient(145deg,#fdfefe_0%,#eef5ff_52%,#deebff_100%)] p-5'>
-              <div className='absolute right-4 top-4 rounded-full border border-slate-200 bg-white/82 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-500'>
-                主画面
-              </div>
-              <div className='mt-20 max-w-[280px] text-3xl font-semibold leading-tight tracking-tight text-slate-900'>
-                把一句灵感，长成一张真正有气氛的海报。
-              </div>
-            </div>
-            <div className='grid grid-cols-2 gap-4'>
-              <div className='rounded-[24px] border border-slate-200 bg-white/82 p-4'>
-                <div className='text-[11px] uppercase tracking-[0.24em] text-slate-400'>材质</div>
-                <div className='mt-3 text-sm leading-6 text-slate-600'>纸张颗粒、玻璃反射、柔和光晕与层次阴影。</div>
-              </div>
-              <div className='rounded-[24px] border border-slate-200 bg-white/82 p-4'>
-                <div className='text-[11px] uppercase tracking-[0.24em] text-slate-400'>氛围</div>
-                <div className='mt-3 text-sm leading-6 text-slate-600'>更接近品牌提案，而不是普通的生成素材。</div>
-              </div>
-            </div>
-          </div>
+      <div className='flex flex-col items-center text-center'>
+        <div className='relative mb-8'>
+          <div className='absolute inset-0 scale-150 rounded-full bg-blue-400 opacity-10 blur-3xl' />
+          <span className='relative z-10 text-[85px] drop-shadow-md'>🖼️</span>
+        </div>
+        <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm'>
+          <p className='text-base font-light leading-relaxed text-slate-600'>
+            图片模式更适合海报、封面、品牌主视觉和概念稿。
+            <br />
+            输入画面内容、风格、光线和构图，就可以开始出图。
+          </p>
         </div>
       </div>
     );
   };
+
   return (
-    <div className='w-full overflow-hidden bg-[#f7f9fd] pt-16 text-slate-900'>
-      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden'>
-        <aside className='relative flex w-[308px] shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-[linear-gradient(180deg,#f9fbff_0%,#f3f7fd_100%)]'>
-          <div className='pointer-events-none absolute inset-0'>
-            <div className='absolute inset-x-0 top-0 h-52 bg-[radial-gradient(circle_at_top,rgba(96,165,250,0.14),transparent_68%)]' />
-            <div className='absolute bottom-0 left-0 h-60 w-60 rounded-full bg-sky-200/40 blur-3xl' />
-            <div className='absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:30px_30px] opacity-50' />
+    <div className='w-full overflow-hidden bg-slate-50 pt-16 text-slate-800'>
+      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden font-sans'>
+        <aside className='flex w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white'>
+          <div className='flex items-center gap-3.5 px-6 py-7'>
+            <img
+              src='https://picui.ogmua.cn/s1/2026/03/26/69c4ddb5db12d.webp'
+              alt='LinkSky'
+              className='h-9 w-9 shrink-0 rounded-xl object-cover shadow-sm'
+            />
+            <h1 className='text-[17px] font-bold tracking-tight text-slate-900'>LinkSky 创作中心</h1>
           </div>
 
-          <div className='relative z-10 px-6 pb-5 pt-7'>
-            <div className='flex items-center gap-3'>
-              <div className='flex h-12 w-12 items-center justify-center rounded-[18px] border border-slate-200 bg-white/82 shadow-[0_18px_50px_rgba(148,163,184,0.14)] backdrop-blur'>
-                <Sparkles size={20} className='text-sky-600' />
-              </div>
-              <div className='min-w-0'>
-                <div className='text-[18px] font-semibold tracking-tight text-slate-900'>LinkSky 创作中心</div>
-                <div className='mt-1 text-xs tracking-[0.26em] text-slate-400'>CREATIVE OPERATING DECK</div>
-              </div>
-            </div>
-            <p className='mt-5 max-w-[240px] text-sm leading-6 text-slate-400'>
-              为对话、视觉和视频生成准备的一体化创作工作台。
-            </p>
+          <div className='mb-2 flex justify-center gap-12 border-b border-slate-100 py-4'>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <div
+                  key={tab.id}
+                  onClick={() =>
+                    switchTab(tab.id, tab.id === 'chat' ? 'chat1' : tab.id === 'video' ? 'v1' : 1)
+                  }
+                  className={`relative flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
+                    active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  <Icon size={24} strokeWidth={1.5} />
+                  <span className='text-[13px] font-medium tracking-wide'>{tab.label}</span>
+                  {tab.badge && (
+                    <span className='absolute -right-5 -top-1.5 rounded-md bg-orange-500 px-1.5 py-[1px] text-[9px] font-bold text-white shadow-sm'>
+                      {tab.badge}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          <div className='relative z-10 px-5'>
-            <div className='rounded-[28px] border border-slate-200 bg-white/72 p-2 shadow-[0_18px_50px_rgba(148,163,184,0.12)] backdrop-blur'>
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const active = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() =>
-                      switchTab(tab.id, tab.id === 'chat' ? 'chat1' : tab.id === 'video' ? 'v1' : 1)
-                    }
-                    className={`group relative flex w-full items-center gap-3 rounded-[22px] px-4 py-3.5 text-left transition-all ${
-                      active
-                        ? 'border border-sky-200 bg-sky-50 text-sky-700 shadow-[0_18px_45px_rgba(96,165,250,0.12)]'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div
-                      className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
-                        active ? 'bg-white text-sky-600 shadow-sm' : 'bg-slate-100/80 text-slate-400'
-                      }`}
-                    >
-                      <Icon size={20} strokeWidth={1.8} />
-                    </div>
-                    <div className='flex-1'>
-                      <div className='text-sm font-semibold tracking-wide'>{tab.label}</div>
-                      <div className={`mt-1 text-[11px] ${active ? 'text-slate-500' : 'text-slate-500 group-hover:text-slate-400'}`}>
-                        {tab.id === 'chat' ? '推理与协作' : tab.id === 'image' ? '视觉与版式' : '镜头与节奏'}
-                      </div>
-                    </div>
-                    {tab.badge && (
-                      <span
-                        className={`rounded-full px-2 py-1 text-[9px] font-bold tracking-[0.2em] ${
-                          active ? 'bg-sky-100 text-sky-700' : 'bg-sky-50 text-sky-600'
-                        }`}
-                      >
-                        {tab.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className='relative z-10 px-6 pb-3 pt-7 text-[11px] uppercase tracking-[0.24em] text-slate-500'>
-            模型列表
-          </div>
-
-          <div className='custom-scrollbar relative z-10 flex-1 space-y-3 overflow-y-auto px-5 pb-5'>
+          <div className='custom-scrollbar mt-2 flex-1 space-y-2 overflow-y-auto px-3 py-3'>
             {displayModels.map((model) => {
               const active = activeModel === model.id;
               return (
                 <button
                   key={model.id}
                   onClick={() => setActiveModel(model.id)}
-                  className={`w-full rounded-[24px] border p-4 text-left transition-all ${
+                  className={`flex w-full gap-3 rounded-xl border p-3 text-left transition-all duration-200 ${
                     active
-                      ? 'border-sky-200 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(219,234,254,0.84))] shadow-[0_22px_60px_rgba(148,163,184,0.14)]'
-                      : 'border-slate-200 bg-white/72 hover:border-slate-300 hover:bg-white'
+                      ? 'rounded-l-sm rounded-r-xl border-l-[3px] border-l-blue-600 border-blue-200 bg-blue-50 shadow-sm'
+                      : 'border-transparent bg-transparent hover:bg-slate-50'
                   }`}
                 >
-                  <div className='flex items-start gap-3'>
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] ${active ? 'bg-white text-sky-600 shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
-                      {model.icon}
+                  <div
+                    className={`mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                      active ? 'bg-blue-100' : 'bg-slate-100'
+                    }`}
+                  >
+                    {model.icon}
+                  </div>
+                  <div className='min-w-0 flex-1'>
+                    <div className={`mb-1 truncate pr-2 text-sm font-bold ${active ? 'text-blue-900' : 'text-slate-700'}`}>
+                      {model.name}
                     </div>
-                    <div className='min-w-0'>
-                      <div className='text-sm font-semibold tracking-wide text-slate-900'>{model.name}</div>
-                      <p className='mt-1 text-xs leading-5 text-slate-400'>{model.desc}</p>
-                    </div>
+                    <p className='text-[11px] leading-tight text-slate-500'>{model.desc}</p>
                   </div>
                 </button>
               );
             })}
           </div>
 
-          <div className='relative z-10 border-t border-slate-200/80 bg-white/55 p-5'>
-            <div className='rounded-[28px] border border-slate-200 bg-white/82 p-4 shadow-[0_18px_50px_rgba(148,163,184,0.12)] backdrop-blur'>
-              <div className='flex items-center justify-between'>
-                <div className='text-[11px] uppercase tracking-[0.22em] text-slate-500'>创作者席位</div>
-                <span className='rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] tracking-[0.18em] text-sky-700'>
-                  在线
-                </span>
-              </div>
-              <div className='mt-4 flex items-center justify-between gap-3'>
-                <div className='flex items-center gap-3'>
-                  <div className='relative'>
-                    <div className='flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-sm font-semibold text-slate-700'>
-                      L
-                    </div>
-                    <div className='absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-sky-400' />
+          <div className='border-t border-slate-100 bg-white p-4'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-3'>
+                <div className='relative'>
+                  <div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-blue-50'>
+                    <span className='text-xl'>👩‍💻</span>
                   </div>
-                  <div>
-                    <div className='text-sm font-semibold text-slate-900'>创作者席位</div>
-                    <div className='mt-1 text-xs text-slate-400'>今日灵感值 84</div>
-                  </div>
+                  <div className='absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500' />
                 </div>
-                <button className='rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 shadow-[0_14px_36px_rgba(148,163,184,0.14)] transition-transform hover:-translate-y-0.5 hover:bg-sky-100 active:scale-95'>
-                  充值
-                </button>
+                <div>
+                  <div className='flex items-center gap-1 text-sm font-medium text-slate-900'>
+                    创作者席位
+                    <span className='rounded bg-slate-100 px-1 text-[9px] text-slate-500'>Lv.1</span>
+                  </div>
+                  <div className='mt-0.5 text-[10px] text-slate-400'>在线</div>
+                </div>
               </div>
+              <button className='flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95'>
+                <span className='font-medium'>充值</span>
+              </button>
             </div>
           </div>
         </aside>
 
-        <main className='relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,#fbfcff_0%,#f6f9fe_50%,#f4f7fc_100%)]'>
-          <div className='pointer-events-none absolute inset-0'>
-            <div className='absolute left-[10%] top-[6%] h-72 w-72 rounded-full bg-sky-200/45 blur-3xl float-slow' />
-            <div className='absolute right-[8%] top-[14%] h-64 w-64 rounded-full bg-blue-200/40 blur-3xl float-delay' />
-            <div className='absolute bottom-[18%] right-[18%] h-72 w-72 rounded-full bg-slate-200/35 blur-3xl' />
-            <div className='absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:44px_44px] opacity-40' />
-          </div>
-
+        <main className='relative flex min-w-0 flex-1 flex-col bg-slate-50/50'>
           {activeTab === 'chat' && (
-            <div className='absolute left-8 top-6 z-20 flex items-center gap-2'>
-              <button className='group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/82 px-4 py-2 text-xs text-slate-600 shadow-sm backdrop-blur transition-all hover:bg-white'>
-                <History size={15} className='text-slate-400' />
-                历史记录
-                <ChevronDown size={14} className='opacity-60 transition-transform group-hover:translate-y-0.5' />
+            <div className='absolute left-6 top-4 z-20 flex items-center gap-2'>
+              <button className='group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm transition-all hover:bg-slate-50'>
+                <History size={16} className='text-slate-500' />
+                历史
+                <ChevronDown size={14} className='opacity-50 transition-transform group-hover:translate-y-0.5' />
               </button>
-              <button className='flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-semibold text-sky-700 shadow-[0_14px_36px_rgba(148,163,184,0.14)] transition-transform hover:-translate-y-0.5 hover:bg-sky-100 active:scale-95'>
+              <button className='flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:bg-blue-700 active:scale-95'>
                 <Plus size={16} strokeWidth={3} />
-                新建会话
+                新对话
               </button>
             </div>
           )}
 
-          <div className='custom-scrollbar relative z-10 flex flex-1 overflow-y-auto px-6 pb-36 pt-10 xl:px-10'>
-            <div className='mx-auto flex w-full max-w-7xl flex-col gap-8'>
-              <section className='grid gap-6 xl:grid-cols-[1.05fr_0.95fr]'>
-                <div className='relative overflow-hidden rounded-[40px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_56%,#edf4ff_100%)] p-8 shadow-[0_34px_120px_rgba(148,163,184,0.16)] xl:p-10'>
-                  <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(191,219,254,0.55),transparent_38%),radial-gradient(circle_at_80%_20%,rgba(219,234,254,0.45),transparent_30%)]' />
-                  <div className='relative'>
-                    <div className='flex flex-wrap items-center gap-3'>
-                      <FeaturePill tone='dark'>{currentCopy.eyebrow}</FeaturePill>
-                      <span className='rounded-full border border-slate-200 bg-white/82 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-500'>
-                        {currentCopy.badge}
-                      </span>
-                    </div>
-                    <div className='mt-8 max-w-[560px]'>
-                      <h1 className='text-4xl font-semibold leading-[1.12] tracking-tight text-slate-900 xl:text-[54px]'>
-                        {currentCopy.title}
-                      </h1>
-                      <p className='mt-5 max-w-[520px] text-base leading-8 text-slate-500'>{currentCopy.desc}</p>
-                    </div>
-                    <div className='mt-8 flex flex-wrap gap-2'>
-                      {currentCopy.chips.map((chip) => (
-                        <FeaturePill key={chip} tone='dark'>
-                          {chip}
-                        </FeaturePill>
-                      ))}
-                    </div>
-                    <div className='mt-10 flex flex-wrap gap-3'>
-                      <StageMetric value={currentCopy.primaryMetric} label={currentCopy.primaryLabel} />
-                      <StageMetric value={currentCopy.secondaryMetric} label={currentCopy.secondaryLabel} />
-                    </div>
-                    <p className='mt-8 max-w-[480px] text-sm leading-7 text-slate-500'>{currentCopy.detail}</p>
-                  </div>
-                </div>
-
-                <div className='relative overflow-hidden rounded-[40px] border border-slate-200 bg-white/72 p-5 shadow-[0_34px_120px_rgba(148,163,184,0.14)] backdrop-blur xl:p-6'>
-                  <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(191,219,254,0.35),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(219,234,254,0.35),transparent_38%)]' />
-                  {renderStagePanel()}
-                </div>
-              </section>
-            </div>
+          <div className='custom-scrollbar flex flex-1 items-center justify-center overflow-y-auto px-10 pb-32 pt-10'>
+            {renderWorkspace()}
           </div>
 
-          <div className='absolute bottom-6 left-1/2 z-20 w-full max-w-5xl -translate-x-1/2 px-6'>
-            <div className='absolute -inset-x-10 -top-10 h-24 bg-[radial-gradient(circle,rgba(191,219,254,0.45),transparent_72%)] blur-3xl' />
-            <div className='relative rounded-[34px] border border-slate-200 bg-white/86 p-4 shadow-[0_30px_120px_rgba(148,163,184,0.16)] backdrop-blur-xl'>
-              <div className='flex flex-wrap items-center justify-between gap-3 px-2'>
-                <div className='flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500'>
-                  <Sparkles size={14} className='text-sky-500' />
-                  提示词编辑器
-                </div>
-                <div className='rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-500'>
-                  {activeTab === 'chat' ? '对话模式' : activeTab === 'video' ? '视频模式' : '图片模式'}
-                </div>
-              </div>
-
-              <div className='mt-3 flex gap-4 px-2'>
+          <div className='absolute bottom-6 left-1/2 z-10 flex w-full max-w-4xl -translate-x-1/2 flex-col gap-2 px-6'>
+            <div className='relative flex flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 transition-all focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-500/5'>
+              <div className='flex gap-4 px-2'>
                 {activeTab !== 'chat' && (
-                  <button className='group flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-[22px] border border-dashed border-slate-200 bg-white/80 text-slate-400 transition-all hover:border-sky-300 hover:bg-sky-50 hover:text-sky-600'>
+                  <button className='group flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100'>
                     <Plus size={20} className='mb-1' />
                     <span className='text-[10px]'>{activeTab === 'video' ? '首帧' : '参考图'}</span>
                   </button>
                 )}
-
                 <textarea
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
@@ -677,22 +434,22 @@ export default function CreativeCenter() {
                   }}
                   placeholder={
                     activeTab === 'chat'
-                      ? '描述你的需求，或直接贴代码、文案、方案目标...'
+                      ? '描述你的需求，或直接粘贴代码、文案、方案目标...'
                       : activeTab === 'video'
-                        ? '描述镜头、动作、场景氛围与节奏，例如：雨夜街头，慢推镜头，电影感冷蓝色调...'
-                        : '描述想生成的画面内容、风格、光线和构图，例如：高级感海报，柔和逆光，杂志版式...'
+                        ? '描述视频动作、场景、镜头语言与氛围节奏...'
+                        : '描述你想生成的图片内容、风格、光线和构图...'
                   }
-                  className='h-20 flex-1 resize-none bg-transparent py-2 text-[15px] leading-7 text-slate-700 outline-none placeholder:text-slate-400'
+                  className='h-16 flex-1 resize-none bg-transparent py-2 text-[15px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400'
                 />
               </div>
 
-              <div className='mt-3 flex flex-wrap items-center justify-between gap-3 px-1'>
+              <div className='mt-3 flex items-center justify-between px-1'>
                 <div className='flex flex-wrap gap-2'>
                   {activeTab !== 'chat' && (
                     <>
                       <DropButton
                         icon={<Layers size={12} />}
-                        label={`${quantity} 张`}
+                        label={`${quantity}张`}
                         open={isQuantityOpen}
                         onClick={() => {
                           setIsQuantityOpen(!isQuantityOpen);
@@ -702,8 +459,10 @@ export default function CreativeCenter() {
                         }}
                       >
                         {isQuantityOpen && (
-                          <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[200px] flex-col rounded-[24px] border border-slate-200 bg-white py-2 shadow-2xl'>
-                            <div className='border-b border-slate-100 px-4 py-2 text-xs font-semibold text-slate-900'>输出数量</div>
+                          <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[200px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
+                            <div className='mb-1 border-b border-slate-50 px-4 py-2'>
+                              <div className='text-xs font-bold text-slate-900'>数量选择</div>
+                            </div>
                             {[1, 3, 5, 10].map((num) => (
                               <button
                                 key={num}
@@ -711,11 +470,11 @@ export default function CreativeCenter() {
                                   setQuantity(num);
                                   setIsQuantityOpen(false);
                                 }}
-                                className={`flex items-center justify-between px-4 py-2.5 text-sm ${
-                                  quantity === num ? 'bg-sky-50 font-medium text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                className={`flex items-center justify-between px-4 py-2 text-sm ${
+                                  quantity === num ? 'bg-blue-50 font-medium text-blue-600' : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                               >
-                                <span>{num} 张</span>
+                                <span>{num}张</span>
                                 {quantity === num && <Check size={14} />}
                               </button>
                             ))}
@@ -736,7 +495,7 @@ export default function CreativeCenter() {
                         }}
                       >
                         {isRatioOpen && (
-                          <div className='custom-scrollbar absolute bottom-full left-0 z-50 mb-3 flex max-h-64 w-[168px] flex-col overflow-y-auto rounded-[24px] border border-slate-200 bg-white py-2 shadow-2xl'>
+                          <div className='custom-scrollbar absolute bottom-full left-0 z-50 mb-3 flex max-h-60 w-[160px] flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                             {ratios.map((option) => (
                               <button
                                 key={option}
@@ -744,8 +503,8 @@ export default function CreativeCenter() {
                                   setRatio(option);
                                   setIsRatioOpen(false);
                                 }}
-                                className={`flex items-center justify-between px-4 py-2.5 text-sm ${
-                                  ratio === option ? 'bg-sky-50 font-medium text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                className={`flex items-center justify-between px-4 py-2 text-sm ${
+                                  ratio === option ? 'bg-blue-50 font-medium text-blue-600' : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                               >
                                 <span>{option}</span>
@@ -770,7 +529,7 @@ export default function CreativeCenter() {
                           }}
                         >
                           {isDurationOpen && (
-                            <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[132px] flex-col rounded-[24px] border border-slate-200 bg-white py-2 shadow-2xl'>
+                            <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[120px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                               {durations.map((option) => (
                                 <button
                                   key={option}
@@ -778,8 +537,8 @@ export default function CreativeCenter() {
                                     setDuration(option);
                                     setIsDurationOpen(false);
                                   }}
-                                  className={`px-4 py-2.5 text-left text-sm ${
-                                    duration === option ? 'bg-sky-50 font-medium text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                  className={`px-4 py-2 text-left text-sm ${
+                                    duration === option ? 'bg-blue-50 font-medium text-blue-600' : 'text-slate-600 hover:bg-slate-50'
                                   }`}
                                 >
                                   {option}
@@ -802,7 +561,7 @@ export default function CreativeCenter() {
                           }}
                         >
                           {isResolutionOpen && (
-                            <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[128px] flex-col rounded-[24px] border border-slate-200 bg-white py-2 shadow-2xl'>
+                            <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[120px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                               {imageResolutions.map((option) => (
                                 <button
                                   key={option.value}
@@ -810,8 +569,8 @@ export default function CreativeCenter() {
                                     setResolution(option.value);
                                     setIsResolutionOpen(false);
                                   }}
-                                  className={`px-4 py-2.5 text-left text-sm ${
-                                    resolution === option.value ? 'bg-sky-50 font-medium text-sky-700' : 'text-slate-600 hover:bg-slate-50'
+                                  className={`px-4 py-2 text-left text-sm ${
+                                    resolution === option.value ? 'bg-blue-50 font-medium text-blue-600' : 'text-slate-600 hover:bg-slate-50'
                                   }`}
                                 >
                                   {option.label}
@@ -829,50 +588,26 @@ export default function CreativeCenter() {
                 <button
                   onClick={handleSubmit}
                   disabled={isGenerating || !prompt.trim()}
-                  className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-[linear-gradient(135deg,#f7fbff,#e7f1ff)] text-sky-700 shadow-[0_18px_50px_rgba(148,163,184,0.16)] transition-all hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#f2f8ff,#deecff)] active:scale-95 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none'
+                  className='ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
                 >
-                  {isGenerating ? <Loader2 size={20} className='animate-spin' /> : <ArrowUp size={22} strokeWidth={3} />}
+                  {isGenerating ? <Loader2 size={22} className='animate-spin' /> : <ArrowUp size={24} strokeWidth={3} />}
                 </button>
               </div>
             </div>
           </div>
-
-          <style
-            dangerouslySetInnerHTML={{
-              __html: `
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.5); border-radius: 999px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
-                .float-slow { animation: floatSlow 10s ease-in-out infinite; }
-                .float-delay { animation: floatSlow 12s ease-in-out infinite 1.2s; }
-                .drift-card { animation: driftCard 8s ease-in-out infinite; }
-                .drift-card-delay { animation: driftCard 9.5s ease-in-out infinite 1.3s; }
-                .orbit-spin { animation: orbitSpin 18s linear infinite; }
-                .pulse-glow { animation: pulseGlow 3.8s ease-in-out infinite; }
-                @keyframes floatSlow {
-                  0%, 100% { transform: translate3d(0, 0, 0); }
-                  50% { transform: translate3d(0, 18px, 0); }
-                }
-                @keyframes driftCard {
-                  0%, 100% { transform: translate3d(0, 0, 0); }
-                  50% { transform: translate3d(0, -8px, 0); }
-                }
-                @keyframes orbitSpin {
-                  from { transform: rotate(0deg); }
-                  to { transform: rotate(360deg); }
-                }
-                @keyframes pulseGlow {
-                  0%, 100% { opacity: 0.42; transform: scale(1); }
-                  50% { opacity: 0.9; transform: scale(1.04); }
-                }
-              `,
-            }}
-          />
         </main>
       </div>
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+          `,
+        }}
+      />
     </div>
   );
 }
-
-
