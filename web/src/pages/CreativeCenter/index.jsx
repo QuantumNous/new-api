@@ -43,6 +43,8 @@ const imageResolutions = [
   { value: '3K', label: '3K' },
 ];
 const durations = ['10秒', '15秒', '20秒', '25秒'];
+const quantities = [1, 2, 3, 4];
+const videoResolutions = ['480p', '720p', '1080p'];
 
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
@@ -89,7 +91,8 @@ export default function App() {
     quantity: 1,
     ratio: '1:1',
     resolution: '2K',
-    duration: '10秒'
+    duration: '10秒',
+    videoResolution: '480p'
   });
 
   const textareaRef = useRef(null);
@@ -378,6 +381,20 @@ export default function App() {
     return selectedModel?.value || selectedModel?.name || '';
   };
 
+  const getVideoResolutionOptions = () => {
+    const modelName = getCurrentModelName().toLowerCase();
+
+    if (modelName.includes('grok-imagine-1.0-video')) {
+      return ['480p', '720p'];
+    }
+
+    if (modelName.includes('veo')) {
+      return ['720p', '1080p'];
+    }
+
+    return videoResolutions;
+  };
+
   const buildImageSizeFromRatio = (ratio) => {
     const ratioMap = {
       '1:1': '1024x1024',
@@ -423,12 +440,12 @@ export default function App() {
         outputResolution: params.resolution,
         videoSize: buildVideoSizeFromRatio(params.ratio),
         videoSeconds: String(parseInt(params.duration, 10) || 10),
-        videoQuality: '480p',
+        videoQuality: params.videoResolution,
         videoPreset: 'normal',
         aspectRatio: params.ratio === '自动' ? '' : params.ratio,
         autoImageSize: buildImageSizeFromRatio(params.ratio),
         videoDuration: String(parseInt(params.duration, 10) || 10),
-        videoResolution: '1080p',
+        videoResolution: params.videoResolution,
         referenceMode: 'image',
       },
       {
@@ -523,6 +540,16 @@ export default function App() {
           prompt: currentPrompt,
           seconds: String(parseInt(params.duration, 10) || 10),
           size: buildVideoSizeFromRatio(params.ratio),
+          quality: params.videoResolution,
+          ...(getCurrentModelName() === 'grok-imagine-1.0-video'
+            ? {
+                resolution_name: params.videoResolution,
+                video_config: {
+                  resolution_name: params.videoResolution,
+                  preset: 'normal',
+                },
+              }
+            : {}),
         };
         const data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
         setVideoTask({
@@ -763,9 +790,166 @@ export default function App() {
                 </div>
               )}
               {activeTab !== 'chat' && (
-                <div className='mt-5 flex items-center gap-3 border-t border-slate-50 pt-5 px-2'>
-                   <DropButton label={`${params.quantity}张`} open={openMenu === 'qty'} onClick={() => setOpenMenu(openMenu === 'qty' ? null : 'qty')} icon={<Layers size={14} />} />
-                   <DropButton label={params.ratio} open={openMenu === 'ratio'} onClick={() => setOpenMenu(openMenu === 'ratio' ? null : 'ratio')} icon={<Copy size={14} />} />
+                <div className='mt-5 flex flex-wrap items-center gap-3 border-t border-slate-50 pt-5 px-2'>
+                   {activeTab === 'image' && (
+                     <DropButton
+                       label={`${params.quantity}张`}
+                       open={openMenu === 'qty'}
+                       onClick={() => setOpenMenu(openMenu === 'qty' ? null : 'qty')}
+                       icon={<Layers size={14} />}
+                     >
+                       {openMenu === 'qty' && (
+                         <div className='absolute bottom-12 left-0 z-20 w-28 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
+                           {quantities.map((quantity) => (
+                             <button
+                               key={quantity}
+                               onClick={() => {
+                                 setParams((prev) => ({ ...prev, quantity }));
+                                 setOpenMenu(null);
+                               }}
+                               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                                 params.quantity === quantity
+                                   ? 'bg-blue-50 text-blue-700'
+                                   : 'text-slate-600 hover:bg-slate-50'
+                               }`}
+                             >
+                               <span>{quantity}张</span>
+                               {params.quantity === quantity ? <Check size={14} /> : null}
+                             </button>
+                           ))}
+                         </div>
+                       )}
+                     </DropButton>
+                   )}
+
+                   <DropButton
+                     label={params.ratio}
+                     open={openMenu === 'ratio'}
+                     onClick={() => setOpenMenu(openMenu === 'ratio' ? null : 'ratio')}
+                     icon={<Copy size={14} />}
+                   >
+                     {openMenu === 'ratio' && (
+                       <div className='absolute bottom-12 left-0 z-20 grid w-48 grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
+                         {ratios.map((ratio) => (
+                           <button
+                             key={ratio}
+                             onClick={() => {
+                               setParams((prev) => ({ ...prev, ratio }));
+                               setOpenMenu(null);
+                             }}
+                             className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                               params.ratio === ratio
+                                 ? 'bg-blue-50 text-blue-700'
+                                 : 'text-slate-600 hover:bg-slate-50'
+                             }`}
+                           >
+                             <span>{ratio}</span>
+                             {params.ratio === ratio ? <Check size={14} /> : null}
+                           </button>
+                         ))}
+                       </div>
+                     )}
+                   </DropButton>
+
+                   <div className='rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600'>
+                     尺寸 {activeTab === 'image' ? buildImageSizeFromRatio(params.ratio) : buildVideoSizeFromRatio(params.ratio)}
+                   </div>
+
+                   {activeTab === 'image' ? (
+                     <DropButton
+                       label={params.resolution}
+                       open={openMenu === 'resolution'}
+                       onClick={() => setOpenMenu(openMenu === 'resolution' ? null : 'resolution')}
+                       icon={<ImageIcon size={14} />}
+                     >
+                       {openMenu === 'resolution' && (
+                         <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
+                           {imageResolutions.map((resolution) => (
+                             <button
+                               key={resolution.value}
+                               onClick={() => {
+                                 setParams((prev) => ({ ...prev, resolution: resolution.value }));
+                                 setOpenMenu(null);
+                               }}
+                               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                                 params.resolution === resolution.value
+                                   ? 'bg-blue-50 text-blue-700'
+                                   : 'text-slate-600 hover:bg-slate-50'
+                               }`}
+                             >
+                               <span>{resolution.label}</span>
+                               {params.resolution === resolution.value ? <Check size={14} /> : null}
+                             </button>
+                           ))}
+                         </div>
+                       )}
+                     </DropButton>
+                   ) : (
+                     <>
+                       <DropButton
+                         label={params.duration}
+                         open={openMenu === 'duration'}
+                         onClick={() => setOpenMenu(openMenu === 'duration' ? null : 'duration')}
+                         icon={<Clock size={14} />}
+                       >
+                         {openMenu === 'duration' && (
+                           <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
+                             {durations.map((duration) => (
+                               <button
+                                 key={duration}
+                                 onClick={() => {
+                                   setParams((prev) => ({ ...prev, duration }));
+                                   setOpenMenu(null);
+                                 }}
+                                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                                   params.duration === duration
+                                     ? 'bg-blue-50 text-blue-700'
+                                     : 'text-slate-600 hover:bg-slate-50'
+                                 }`}
+                               >
+                                 <span>{duration}</span>
+                                 {params.duration === duration ? <Check size={14} /> : null}
+                               </button>
+                             ))}
+                           </div>
+                         )}
+                       </DropButton>
+
+                       <DropButton
+                         label={params.videoResolution}
+                         open={openMenu === 'videoResolution'}
+                         onClick={() =>
+                           setOpenMenu(
+                             openMenu === 'videoResolution' ? null : 'videoResolution',
+                           )
+                         }
+                         icon={<Video size={14} />}
+                       >
+                         {openMenu === 'videoResolution' && (
+                           <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
+                             {getVideoResolutionOptions().map((resolution) => (
+                               <button
+                                 key={resolution}
+                                 onClick={() => {
+                                   setParams((prev) => ({ ...prev, videoResolution: resolution }));
+                                   setOpenMenu(null);
+                                 }}
+                                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                                   params.videoResolution === resolution
+                                     ? 'bg-blue-50 text-blue-700'
+                                     : 'text-slate-600 hover:bg-slate-50'
+                                 }`}
+                               >
+                                 <span>{resolution}</span>
+                                 {params.videoResolution === resolution ? <Check size={14} /> : null}
+                               </button>
+                             ))}
+                           </div>
+                         )}
+                       </DropButton>
+                     </>
+                   )}
+
                    <div className='ml-auto text-[10px] text-slate-400 font-bold tracking-widest uppercase'>Enter 发送</div>
                 </div>
               )}
