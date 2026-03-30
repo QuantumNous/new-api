@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+﻿import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   ArrowUp,
   Check,
@@ -19,6 +19,7 @@ import {
   Send,
   X
 } from 'lucide-react';
+import { API } from '../../helpers';
 
 const apiKey = ''; 
 
@@ -89,12 +90,128 @@ export default function App() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [chatMessages, isGenerating]);
+  const fallbackModels = useMemo(
+    () => ({
+      chat: [
+        {
+          id: 'chat1',
+          name: 'Gemini 2.5 Flash',
+          desc: '新一代极速模型，适合深度对话、创意写作与逻辑分析。',
+          icon: <GPTIcon size={24} className='text-blue-600' />,
+        },
+      ],
+      image: [
+        {
+          id: 'img1',
+          name: 'Imagen 4.0 Pro',
+          desc: '顶尖图像生成模型，支持极高的细节表现力与材质还原。',
+          icon: <span className='font-bold text-blue-600'>IM</span>,
+        },
+      ],
+      video: [
+        {
+          id: 'v1',
+          name: 'Video Gen 3',
+          desc: '动态视觉概念模型，支持生成流畅的高清短片素材。',
+          icon: <GrokIcon size={24} className='text-blue-600' />,
+        },
+      ],
+    }),
+    [],
+  );
 
-  const chatModels = [{ id: 'chat1', name: 'Gemini 2.5 Flash', desc: '新一代极速模型，适合深度对话、创意写作与逻辑分析。', icon: <GPTIcon size={24} className='text-blue-600' /> }];
-  const imageModels = [{ id: 'img1', name: 'Imagen 4.0 Pro', desc: '顶尖图像生成模型，支持极高的细节表现力与材质还原。', icon: <span className='font-bold text-blue-600'>IM</span> }];
-  const videoModels = [{ id: 'v1', name: 'Video Gen 3', desc: '动态视觉概念模型，支持生成流畅的高清短片素材。', icon: <GrokIcon size={24} className='text-blue-600' /> }];
+  const [syncedModels, setSyncedModels] = useState({
+    chat: [],
+    image: [],
+    video: [],
+  });
 
-  const currentDisplayModels = activeTab === 'chat' ? chatModels : activeTab === 'video' ? videoModels : imageModels;
+  useEffect(() => {
+    let mounted = true;
+
+    const tabTagMap = {
+      chat: ['文本', '对话', '聊天'],
+      image: ['图片'],
+      video: ['视频'],
+    };
+
+    const createModelCard = (model, tabKey) => {
+      const iconMap = {
+        chat: <GPTIcon size={24} className='text-blue-600' />,
+        image: <span className='font-bold text-blue-600'>IM</span>,
+        video: <GrokIcon size={24} className='text-blue-600' />,
+      };
+
+      const tags = String(model?.tags || '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+      return {
+        id: model?.id || `${tabKey}-${model?.model_name || model?.name || Date.now()}`,
+        name: model?.model_name || model?.name || '未命名模型',
+        desc:
+          model?.description ||
+          (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理'),
+        icon: iconMap[tabKey],
+      };
+    };
+
+    const loadManagedModels = async () => {
+      try {
+        const res = await API.get('/api/models/?p=1&page_size=1000');
+        const { success, data } = res.data || {};
+        if (!success) return;
+
+        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+        const nextModels = { chat: [], image: [], video: [] };
+
+        items.forEach((item) => {
+          if (item?.status !== undefined && Number(item.status) !== 1) return;
+
+          const tags = String(item?.tags || '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean);
+
+          Object.entries(tabTagMap).forEach(([tabKey, aliases]) => {
+            if (aliases.some((alias) => tags.includes(alias))) {
+              nextModels[tabKey].push(createModelCard(item, tabKey));
+            }
+          });
+        });
+
+        if (mounted) {
+          setSyncedModels(nextModels);
+        }
+      } catch (error) {
+        console.error('Failed to sync creative center models:', error);
+      }
+    };
+
+    loadManagedModels();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const modelPools = useMemo(
+    () => ({
+      chat: syncedModels.chat.length > 0 ? syncedModels.chat : fallbackModels.chat,
+      image: syncedModels.image.length > 0 ? syncedModels.image : fallbackModels.image,
+      video: syncedModels.video.length > 0 ? syncedModels.video : fallbackModels.video,
+    }),
+    [fallbackModels, syncedModels],
+  );
+
+  const currentDisplayModels = modelPools[activeTab] || [];
+
+  useEffect(() => {
+    if (!currentDisplayModels.some((model) => model.id === activeModel)) {
+      setActiveModel(currentDisplayModels[0]?.id || '');
+    }
+  }, [activeModel, currentDisplayModels]);
 
   const fetchGemini = async (userPrompt) => {
     const maxRetries = 5;
@@ -181,7 +298,6 @@ export default function App() {
                 onClick={() => {
                   setActiveTab(tab.id);
                   setOpenMenu(null);
-                  setActiveModel(tab.id === 'chat' ? 'chat1' : tab.id === 'image' ? 'img1' : 'v1');
                 }}
                 className={`relative flex flex-col items-center gap-1.5 transition-all ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
               >
@@ -324,4 +440,6 @@ export default function App() {
     </div>
   );
 }
+
+
 
