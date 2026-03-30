@@ -18,6 +18,7 @@ type Pricing struct {
 	ModelName              string                  `json:"model_name"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
+	ChannelType            int                     `json:"channel_type,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
@@ -275,12 +276,19 @@ func updatePricing() {
 	}
 
 	modelPriceBySecondsMap := ratio_setting.GetModelPriceBySecondsCopy()
+	modelChannelTypeMap := make(map[string]int)
+	for _, ability := range enableAbilities {
+		if _, ok := modelChannelTypeMap[ability.Model]; !ok && ability.ChannelType != 0 {
+			modelChannelTypeMap[ability.Model] = ability.ChannelType
+		}
+	}
 	pricingMap = make([]Pricing, 0)
 	for model, groups := range modelGroupsMap {
 		pricing := Pricing{
 			ModelName:              model,
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
+			ChannelType:            modelChannelTypeMap[model],
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）

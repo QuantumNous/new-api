@@ -22,6 +22,8 @@ import {
 import {
   API,
   buildApiPayload,
+  getChannelIcon,
+  getLobeHubIcon,
   getUserIdFromLocalStorage,
   processGroupsData,
   processThinkTags,
@@ -184,6 +186,27 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
+const renderCreativeModelIcon = (channelType, iconName, fallbackTab) => {
+  const channelIcon = channelType ? getChannelIcon(channelType) : null;
+  if (channelIcon) {
+    return <div className='scale-[1.7] text-current'>{channelIcon}</div>;
+  }
+
+  if (iconName) {
+    return <div className='scale-[1.35]'>{getLobeHubIcon(iconName, 20)}</div>;
+  }
+
+  if (fallbackTab === 'image') {
+    return <span className='font-bold text-blue-600'>IM</span>;
+  }
+
+  if (fallbackTab === 'video') {
+    return <GrokIcon size={20} className='text-blue-600' />;
+  }
+
+  return <GPTIcon size={20} className='text-blue-600' />;
+};
+
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
     <path d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5153-4.9066 6.0462 6.0462 0 0 0-3.9471-3.1358 6.0417 6.0417 0 0 0-5.1923 1.0689 6.0222 6.0222 0 0 0-4.385-1.9231 6.0464 6.0464 0 0 0-5.4604 3.4456 6.0536 6.0536 0 0 0-.8101 4.8906 6.0538 6.0538 0 0 0 3.1467 3.9573 6.0585 6.0585 0 0 0-1.065 5.2124 6.0545 6.0545 0 0 0 1.9292 4.3941 6.0513 6.0513 0 0 0 4.0011 1.6379 6.0106 6.0106 0 0 0 4.3389-1.8964 6.0562 6.0562 0 0 0 5.4628-3.4481 6.0519 6.0519 0 0 0 .8175-4.9088 6.0483 6.0483 0 0 0-3.1463-3.9429 6.0548 6.0548 0 0 0 1.0254-4.8882Z' fill='currentColor' />
@@ -299,7 +322,7 @@ export default function App() {
           id: 'chat1',
           name: 'GPT-4o',
           desc: '通用旗舰模型，适合对话问答、写作整理与多场景创作。',
-          icon: <GPTIcon size={24} className='text-blue-600' />,
+          icon: renderCreativeModelIcon(1, '', 'chat'),
         },
       ],
       image: [
@@ -307,7 +330,7 @@ export default function App() {
           id: 'img1',
           name: 'FLUX',
           desc: '高质量图片生成模型，适合海报、插画与视觉概念创作。',
-          icon: <span className='font-bold text-blue-600'>IM</span>,
+          icon: renderCreativeModelIcon(0, '', 'image'),
         },
       ],
       video: [
@@ -315,7 +338,7 @@ export default function App() {
           id: 'v1',
           name: 'grok-video-3-plus',
           desc: '视频生成模型，适合生成短片分镜、动态概念与创意演示。',
-          icon: <GrokIcon size={24} className='text-blue-600' />,
+          icon: renderCreativeModelIcon(48, '', 'video'),
         },
       ],
     }),
@@ -412,12 +435,6 @@ export default function App() {
     };
 
     const createModelCard = (model, tabKey, modelName) => {
-      const iconMap = {
-        chat: <GPTIcon size={24} className='text-blue-600' />,
-        image: <span className='font-bold text-blue-600'>IM</span>,
-        video: <GrokIcon size={24} className='text-blue-600' />,
-      };
-
       const tags = String(model?.tags || '')
         .split(',')
         .map((tag) => tag.trim())
@@ -431,7 +448,11 @@ export default function App() {
         desc:
           model?.description ||
           (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理'),
-        icon: iconMap[tabKey],
+        icon: renderCreativeModelIcon(
+          Number(model?.channel_type || 0),
+          model?.icon,
+          tabKey,
+        ),
       };
     };
 
