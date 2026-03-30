@@ -131,6 +131,11 @@ const PARAMETER_TOGGLES_DISABLED = {
   presence_penalty: false,
   seed: false,
 };
+const EMPTY_HISTORY_SNAPSHOTS = {
+  chat: null,
+  image: null,
+  video: null,
+};
 
 const normalizeGrokImageSize = (size) => {
   if (size === '1536x1024') {
@@ -322,6 +327,7 @@ export default function App() {
     image: [],
     video: [],
   });
+  const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
 
   useEffect(() => {
     let mounted = true;
@@ -549,6 +555,7 @@ export default function App() {
   );
 
   const currentDisplayModels = modelPools[activeTab] || [];
+  const activeHistorySnapshot = historySnapshots[activeTab];
   const selectedModel =
     currentDisplayModels.find((model) => model.id === activeModel) ||
     currentDisplayModels[0] ||
@@ -575,6 +582,38 @@ export default function App() {
       setActiveModel(currentDisplayModels[0]?.id || '');
     }
   }, [activeModel, currentDisplayModels]);
+
+  useEffect(() => {
+    const savedModelName = activeHistorySnapshot?.model_name;
+    if (!savedModelName || currentDisplayModels.length === 0) {
+      return;
+    }
+
+    const matchedModel = currentDisplayModels.find(
+      (model) =>
+        model.value === savedModelName ||
+        model.name === savedModelName,
+    );
+    if (matchedModel && matchedModel.id !== activeModel) {
+      setActiveModel(matchedModel.id);
+    }
+  }, [activeHistorySnapshot, activeModel, currentDisplayModels]);
+
+  useEffect(() => {
+    const savedParams = activeHistorySnapshot?.payload?.params;
+    if (savedParams && typeof savedParams === 'object') {
+      setParams((prev) => ({
+        ...prev,
+        ...savedParams,
+      }));
+    }
+
+    if (typeof activeHistorySnapshot?.prompt === 'string') {
+      setPrompt(activeHistorySnapshot.prompt);
+    } else {
+      setPrompt('');
+    }
+  }, [activeHistorySnapshot, activeTab]);
 
   useEffect(() => {
     setParams((prev) => {
@@ -708,6 +747,67 @@ export default function App() {
     referenceMode: params.referenceMode,
   });
 
+  const saveCreativeHistory = async (
+    tabKey,
+    payload,
+    options = {},
+  ) => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    const requestBody = {
+      tab: tabKey,
+      model_name: options.modelName || currentModelName,
+      group: options.group ?? activeGroup,
+      prompt: options.prompt ?? '',
+      payload,
+    };
+
+    try {
+      await API.put(API_ENDPOINTS.CREATIVE_CENTER_HISTORY, requestBody, {
+        headers: {
+          'New-API-User': getUserIdFromLocalStorage(),
+        },
+      });
+
+      setHistorySnapshots((prev) => ({
+        ...prev,
+        [tabKey]: {
+          ...(prev[tabKey] || {}),
+          tab: tabKey,
+          model_name: requestBody.model_name,
+          group: requestBody.group,
+          prompt: requestBody.prompt,
+          payload,
+        },
+      }));
+    } catch (error) {
+      console.error('Failed to save creative center history:', error);
+    }
+  };
+
+  const deleteCreativeHistory = async (tabKey) => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    try {
+      await API.delete(`${API_ENDPOINTS.CREATIVE_CENTER_HISTORY}/${tabKey}`, {
+        headers: {
+          'New-API-User': getUserIdFromLocalStorage(),
+        },
+      });
+
+      setHistorySnapshots((prev) => ({
+        ...prev,
+        [tabKey]: null,
+      }));
+    } catch (error) {
+      console.error('Failed to delete creative center history:', error);
+    }
+  };
+
   const createBasePayload = (currentPrompt) => {
     return buildApiPayload(
       [{ role: 'user', content: currentPrompt }],
@@ -725,6 +825,113 @@ export default function App() {
     });
     return response.data;
   };
+
+  const handleClearImageResults = async () => {
+    setCurrentImages([]);
+    await deleteCreativeHistory('image');
+  };
+
+  const handleRemoveImage = async (indexToRemove) => {
+    const nextImages = currentImages.filter((_, index) => index !== indexToRemove);
+    setCurrentImages(nextImages);
+    if (nextImages.length === 0) {
+      await deleteCreativeHistory('image');
+    } else {
+      await saveCreativeHistory(
+        'image',
+        {
+          images: nextImages,
+          params,
+        },
+        {
+          prompt,
+        },
+      );
+    }
+  };
+
+  const handleClearVideoResults = async () => {
+    setVideoTasks([]);
+    await deleteCreativeHistory('video');
+  };
+
+  const handleRemoveVideoTask = async (indexToRemove) => {
+    const nextTasks = videoTasks.filter((_, index) => index !== indexToRemove);
+    setVideoTasks(nextTasks);
+    if (nextTasks.length === 0) {
+      await deleteCreativeHistory('video');
+    } else {
+      await saveCreativeHistory(
+        'video',
+        {
+          tasks: nextTasks,
+          params,
+        },
+        {
+          prompt,
+        },
+      );
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCreativeHistory = async () => {
+      if (!isLoggedIn) {
+        if (!mounted) {
+          return;
+        }
+        setHistorySnapshots(EMPTY_HISTORY_SNAPSHOTS);
+        setChatMessages([]);
+        setCurrentImages([]);
+        setVideoTasks([]);
+        return;
+      }
+
+      try {
+        const response = await API.get(API_ENDPOINTS.CREATIVE_CENTER_HISTORY, {
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        });
+        if (!mounted || !response?.data?.success) {
+          return;
+        }
+
+        const nextSnapshots = {
+          chat: response.data.data?.chat || null,
+          image: response.data.data?.image || null,
+          video: response.data.data?.video || null,
+        };
+        setHistorySnapshots(nextSnapshots);
+        setChatMessages(
+          Array.isArray(nextSnapshots.chat?.payload?.messages)
+            ? nextSnapshots.chat.payload.messages
+            : [],
+        );
+        setCurrentImages(
+          Array.isArray(nextSnapshots.image?.payload?.images)
+            ? nextSnapshots.image.payload.images
+            : [],
+        );
+        setVideoTasks(
+          Array.isArray(nextSnapshots.video?.payload?.tasks)
+            ? nextSnapshots.video.payload.tasks
+            : [],
+        );
+      } catch (error) {
+        console.error('Failed to load creative center history:', error);
+      }
+    };
+
+    loadCreativeHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isLoggedIn]);
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -753,20 +960,42 @@ export default function App() {
         const content =
           [processed.reasoningContent, processed.content].filter(Boolean).join('\n\n') ||
           '模型已返回响应，但未解析到可展示内容。';
-        setChatMessages(prev => [
-          ...prev,
-          { role: 'assistant', content, id: Date.now() + 1 },
-        ]);
+        const assistantMsg = {
+          role: 'assistant',
+          content,
+          id: Date.now() + 1,
+        };
+        const nextMessages = [...chatMessages, userMsg, assistantMsg];
+        setChatMessages(nextMessages);
+        await saveCreativeHistory(
+          'chat',
+          {
+            messages: nextMessages,
+          },
+          {
+            modelName: currentModelName,
+            prompt: currentPrompt,
+          },
+        );
       } catch (error) {
         console.error('Creative center chat error:', error);
-        setChatMessages(prev => [
-          ...prev,
+        const errorMsg = {
+          role: 'assistant',
+          content: `请求失败：${error.message || '请稍后再试。'}`,
+          id: Date.now() + 1,
+        };
+        const nextMessages = [...chatMessages, userMsg, errorMsg];
+        setChatMessages(nextMessages);
+        await saveCreativeHistory(
+          'chat',
           {
-            role: 'assistant',
-            content: `请求失败：${error.message || '请稍后再试。'}`,
-            id: Date.now() + 1,
+            messages: nextMessages,
           },
-        ]);
+          {
+            modelName: currentModelName,
+            prompt: currentPrompt,
+          },
+        );
       }
     } else if (activeTab === 'image') {
       setCurrentImages([]);
@@ -808,6 +1037,17 @@ export default function App() {
         }
 
         setCurrentImages(collectedImages);
+        await saveCreativeHistory(
+          'image',
+          {
+            images: collectedImages,
+            params,
+          },
+          {
+            modelName: currentModelName,
+            prompt: currentPrompt,
+          },
+        );
       } catch (error) {
         console.error('Creative center image error:', error);
       }
@@ -868,6 +1108,17 @@ export default function App() {
         }
 
         setVideoTasks(collectedTasks);
+        await saveCreativeHistory(
+          'video',
+          {
+            tasks: collectedTasks,
+            params,
+          },
+          {
+            modelName: currentModelName,
+            prompt: currentPrompt,
+          },
+        );
       } catch (error) {
         console.error('Creative center video error:', error);
       }
@@ -992,7 +1243,7 @@ export default function App() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => setCurrentImages([])}
+                    onClick={handleClearImageResults}
                     className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
                   >
                     清空结果
@@ -1026,11 +1277,7 @@ export default function App() {
                           <Download size={24} />
                         </button>
                         <button
-                          onClick={() =>
-                            setCurrentImages((prev) =>
-                              prev.filter((_, imageIndex) => imageIndex !== index),
-                            )
-                          }
+                          onClick={() => handleRemoveImage(index)}
                           className='rounded-full bg-white p-4 text-red-500 shadow-xl transition-transform hover:scale-110'
                         >
                           <Trash2 size={24} />
@@ -1052,7 +1299,7 @@ export default function App() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => setVideoTasks([])}
+                    onClick={handleClearVideoResults}
                     className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
                   >
                     清空结果
@@ -1080,11 +1327,7 @@ export default function App() {
                           </div>
                         </div>
                         <button
-                          onClick={() =>
-                            setVideoTasks((prev) =>
-                              prev.filter((_, taskIndex) => taskIndex !== index),
-                            )
-                          }
+                          onClick={() => handleRemoveVideoTask(index)}
                           className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
                         >
                           <X size={16} />

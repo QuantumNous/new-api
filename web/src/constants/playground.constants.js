@@ -81,6 +81,7 @@ export const API_ENDPOINTS = {
   VIDEO_GENERATIONS: '/pg/video/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
+  CREATIVE_CENTER_HISTORY: '/api/user/self/creative-center/history',
 };
 
 // ========== 配置默认值 ==========
