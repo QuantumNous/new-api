@@ -36,24 +36,6 @@ const imageResolutions = [
 ];
 const durations = ['10秒', '15秒', '20秒', '25秒'];
 
-const chatPromptSuggestions = [
-  '帮我提炼这段内容的关键观点：',
-  '写一段极简风格的产品宣传文案：',
-  '解释一下什么是量子计算：',
-];
-
-const imagePromptSuggestions = [
-  '现代科技风，极简版式，官网首屏主视觉。',
-  '日落时分的赛博朋克城市，霓虹灯光，电影质感。',
-  '可爱风格的 3D 渲染，一个小机器人在看书。',
-];
-
-const videoPromptSuggestions = [
-  '镜头缓慢推进，一个安静的咖啡馆，阳光洒在桌面上。',
-  '快节奏转场，未来都市的穿梭感。',
-  '微距摄影，水滴落在叶尖的瞬间。',
-];
-
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
     <path d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5153-4.9066 6.0462 6.0462 0 0 0-3.9471-3.1358 6.0417 6.0417 0 0 0-5.1923 1.0689 6.0222 6.0222 0 0 0-4.385-1.9231 6.0464 6.0464 0 0 0-5.4604 3.4456 6.0536 6.0536 0 0 0-.8101 4.8906 6.0538 6.0538 0 0 0 3.1467 3.9573 6.0585 6.0585 0 0 0-1.065 5.2124 6.0545 6.0545 0 0 0 1.9292 4.3941 6.0513 6.0513 0 0 0 4.0011 1.6379 6.0106 6.0106 0 0 0 4.3389-1.8964 6.0562 6.0562 0 0 0 5.4628-3.4481 6.0519 6.0519 0 0 0 .8175-4.9088 6.0483 6.0483 0 0 0-3.1463-3.9429 6.0548 6.0548 0 0 0 1.0254-4.8882Z' fill='currentColor' />
@@ -233,18 +215,6 @@ export default function App() {
             </button>
           ))}
         </div>
-
-        <div className='p-4 border-t border-slate-100'>
-          <div className='flex items-center justify-between rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/60'>
-            <div className='flex items-center gap-3'>
-              <div className='h-9 w-9 rounded-full bg-gradient-to-tr from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-black text-xs'>NP</div>
-              <div>
-                <div className='text-xs font-bold text-slate-900'>创作者计划</div>
-                <div className='text-[10px] font-medium text-green-600'>在线 · 已连接</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </aside>
 
       <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
@@ -314,20 +284,8 @@ export default function App() {
           </div>
         )}
 
-        <div className='p-8 pt-2 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent'>
+        <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent'>
           <div className='mx-auto max-w-4xl'>
-            <div className='mb-4 flex flex-wrap gap-2'>
-              {(activeTab === 'chat' ? chatPromptSuggestions : activeTab === 'image' ? imagePromptSuggestions : videoPromptSuggestions).map((s, i) => (
-                <button 
-                  key={i} 
-                  onClick={() => {setPrompt(s); textareaRef.current?.focus();}} 
-                  className='rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[11px] font-bold text-slate-500 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 transition-all active:scale-95 shadow-sm'
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
             <div className='relative flex flex-col rounded-[2.5rem] bg-white p-5 shadow-2xl shadow-blue-900/5 ring-1 ring-slate-200/80 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-400 transition-all'>
               <div className='flex items-end gap-4 px-2'>
                 <textarea
@@ -366,3 +324,4 @@ export default function App() {
     </div>
   );
 }
+
