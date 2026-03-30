@@ -17,8 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
-import { Avatar, Button, Card, Tag, Typography } from '@douyinfe/semi-ui';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Avatar,
+  Button,
+  Card,
+  Select,
+  Spin,
+  Tag,
+  Typography,
+} from '@douyinfe/semi-ui';
 import {
   Clapperboard,
   Eye,
@@ -34,6 +42,7 @@ import {
   Upload,
   Wand2,
 } from 'lucide-react';
+import { API } from '../../helpers';
 
 const TEXT = {
   creationCenter: '\u521b\u4f5c\u4e2d\u5fc3',
@@ -110,6 +119,30 @@ const TEXT = {
   imageWorkspace: '\u56fe\u7247\u5de5\u4f5c\u533a',
   videoWorkspace: '\u89c6\u9891\u5de5\u4f5c\u533a',
   currentAreaTag: '\u5f53\u524d\u4e3a\u4f4e\u4fdd\u771f\u4f46\u9ad8\u8d28\u611f\u7684\u7ed3\u6784\u7a3f\uff0c\u7528\u4e8e\u7ee7\u7eed\u63a5\u5165\u771f\u5b9e\u529f\u80fd\u3002',
+  loadingModels: '\u6b63\u5728\u540c\u6b65\u6a21\u578b\u6807\u7b7e...',
+  selectModel: '\u9009\u62e9\u6a21\u578b',
+  syncedModels: '\u5df2\u540c\u6b65\u6a21\u578b',
+  noTaggedModels: '\u6682\u65e0\u5df2\u6807\u8bb0\u6a21\u578b',
+  noTaggedModelsHint:
+    '\u8bf7\u5148\u53bb\u300c\u6a21\u578b\u7ba1\u7406\u300d\u4e3a\u6a21\u578b\u6253\u4e0a\u5bf9\u5e94\u6807\u7b7e\uff0c\u521b\u4f5c\u4e2d\u5fc3\u4f1a\u81ea\u52a8\u540c\u6b65\u3002',
+  chatEmptyTitle: '\u6682\u65e0\u6587\u672c\u6a21\u578b',
+  chatEmptyHint:
+    '\u7ed9\u6a21\u578b\u6253\u4e0a\u300c\u6587\u672c\u300d\u6807\u7b7e\u540e\uff0c\u8fd9\u91cc\u4f1a\u81ea\u52a8\u51fa\u73b0\u53ef\u7528\u5bf9\u8bdd\u6a21\u578b\u3002',
+  imageEmptyTitle: '\u6682\u65e0\u56fe\u7247\u6a21\u578b',
+  imageEmptyHint:
+    '\u7ed9\u6a21\u578b\u6253\u4e0a\u300c\u56fe\u7247\u300d\u6807\u7b7e\u540e\uff0c\u56fe\u7247\u521b\u4f5c\u677f\u5757\u4f1a\u81ea\u52a8\u4f7f\u7528\u8fd9\u4e9b\u6a21\u578b\u3002',
+  videoEmptyTitle: '\u6682\u65e0\u89c6\u9891\u6a21\u578b',
+  videoEmptyHint:
+    '\u7ed9\u6a21\u578b\u6253\u4e0a\u300c\u89c6\u9891\u300d\u6807\u7b7e\u540e\uff0c\u89c6\u9891\u521b\u4f5c\u677f\u5757\u4f1a\u81ea\u52a8\u540c\u6b65\u6a21\u578b\u5217\u8868\u3002',
+  textTag: '\u6587\u672c',
+  imageTag: '\u56fe\u7247',
+  videoTag: '\u89c6\u9891',
+};
+
+const MODEL_TAG_MAP = {
+  chat: TEXT.textTag,
+  image: TEXT.imageTag,
+  video: TEXT.videoTag,
 };
 
 const SECTIONS = [
@@ -155,6 +188,29 @@ const toolButtonClassName =
 
 const stepItems = [TEXT.uploadImage, TEXT.enterPrompt, TEXT.generate];
 
+const splitModelTags = (tags) =>
+  String(tags || '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+const getSectionModels = (models, sectionKey) =>
+  (Array.isArray(models) ? models : []).filter((model) => {
+    if (!model || model.status !== 1) {
+      return false;
+    }
+    const tags = splitModelTags(model.tags);
+    return tags.includes(MODEL_TAG_MAP[sectionKey]);
+  });
+
+const toModelOptions = (models) =>
+  (Array.isArray(models) ? models : []).map((model) => ({
+    label: model.vendor_id
+      ? `${model.model_name} · ID ${model.vendor_id}`
+      : model.model_name,
+    value: model.model_name,
+  }));
+
 const SurfaceLabel = ({ children }) => (
   <Typography.Text className='mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400'>
     {children}
@@ -199,6 +255,42 @@ const StatusSteps = () => (
   </div>
 );
 
+const ModelSelectField = ({
+  label,
+  value,
+  options,
+  onChange,
+  loading = false,
+}) => (
+  <div className='space-y-2'>
+    <SurfaceLabel>{label}</SurfaceLabel>
+    <Select
+      filter
+      size='large'
+      value={value}
+      onChange={onChange}
+      optionList={options}
+      placeholder={TEXT.selectModel}
+      loading={loading}
+      className='w-full'
+    />
+  </div>
+);
+
+const EmptyModelNotice = ({ title, description, color = 'grey' }) => (
+  <div className='rounded-[24px] border border-dashed border-slate-200 bg-slate-50/80 px-5 py-6'>
+    <div className='mb-3 flex items-center gap-2'>
+      <Tag color={color}>{TEXT.noTaggedModels}</Tag>
+      <Typography.Text strong className='text-slate-800'>
+        {title}
+      </Typography.Text>
+    </div>
+    <Typography.Text className='block text-sm leading-7 text-slate-500'>
+      {description}
+    </Typography.Text>
+  </div>
+);
+
 const ResultEmpty = ({ icon, title, description, note, actions }) => (
   <div className='flex h-full min-h-[360px] flex-col'>
     <div className='mb-4 flex items-center justify-between gap-3'>
@@ -240,12 +332,17 @@ const ResultEmpty = ({ icon, title, description, note, actions }) => (
   </div>
 );
 
-const ChatWorkspace = () => (
+const ChatWorkspace = ({
+  modelOptions,
+  selectedModel,
+  onSelectModel,
+  loadingModels,
+}) => (
   <div className={`flex flex-col gap-4 ${workspaceHeightClassName}`}>
     <Card bordered={false} className={panelClassName} bodyStyle={{ padding: 0 }}>
       <div className='border-b border-slate-100 px-5 py-4'>
         <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
-          <div className='flex items-center gap-3'>
+          <div className='flex min-w-0 flex-1 items-center gap-3'>
             <Button
               theme='light'
               type='primary'
@@ -254,8 +351,17 @@ const ChatWorkspace = () => (
             >
               {TEXT.newChat}
             </Button>
-            <div className='rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm'>
-              gpt-4o
+            <div className='min-w-0 flex-1'>
+              <Select
+                filter
+                size='large'
+                value={selectedModel}
+                onChange={onSelectModel}
+                optionList={modelOptions}
+                placeholder={TEXT.selectModel}
+                loading={loadingModels}
+                className='w-full'
+              />
             </div>
             <div className='rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm'>
               {TEXT.defaultMode}
@@ -282,6 +388,13 @@ const ChatWorkspace = () => (
         <div className='absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_left_top,rgba(56,189,248,0.12),transparent_35%),radial-gradient(circle_at_right_top,rgba(129,140,248,0.12),transparent_35%)]' />
         <div className='relative flex min-h-[calc(100vh-290px)] flex-col justify-between'>
           <div className='space-y-8'>
+            {!loadingModels && modelOptions.length === 0 ? (
+              <EmptyModelNotice
+                title={TEXT.chatEmptyTitle}
+                description={TEXT.chatEmptyHint}
+                color='blue'
+              />
+            ) : null}
             <div className='flex justify-end'>
               <div className='max-w-[320px] text-right'>
                 <div className='mb-2 flex items-center justify-end gap-3 text-sm text-slate-400'>
@@ -331,7 +444,7 @@ const ChatWorkspace = () => (
                 1x
               </div>
               <div className='rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 shadow-sm'>
-                gpt-4o
+                {selectedModel || TEXT.selectModel}
               </div>
             </div>
             <div className='flex items-end gap-3'>
@@ -361,7 +474,12 @@ const ChatWorkspace = () => (
   </div>
 );
 
-const ImageWorkspace = () => (
+const ImageWorkspace = ({
+  modelOptions,
+  selectedModel,
+  onSelectModel,
+  loadingModels,
+}) => (
   <div
     className={`grid gap-4 xl:grid-cols-[minmax(520px,1.15fr)_minmax(480px,1fr)] ${workspaceHeightClassName}`}
   >
@@ -379,15 +497,25 @@ const ImageWorkspace = () => (
       </div>
 
       <div className='space-y-4'>
+        {!loadingModels && modelOptions.length === 0 ? (
+          <EmptyModelNotice
+            title={TEXT.imageEmptyTitle}
+            description={TEXT.imageEmptyHint}
+            color='violet'
+          />
+        ) : null}
         <MockField
           label={TEXT.uploadRef}
           value={TEXT.selectImage}
           action={TEXT.clear}
           hint={TEXT.uploadHint}
         />
-        <MockField
+        <ModelSelectField
           label={TEXT.model}
-          value='Banana-pro-1k-\u6a2a\u5c4f\uff08gemini-3.0-pro-image-landscape\uff09'
+          value={selectedModel}
+          options={modelOptions}
+          onChange={onSelectModel}
+          loading={loadingModels}
         />
         <MockField label={TEXT.prompt} value={TEXT.promptPlaceholder} tall />
         <div className='grid gap-4 md:grid-cols-[140px_minmax(0,1fr)]'>
@@ -425,7 +553,12 @@ const ImageWorkspace = () => (
   </div>
 );
 
-const VideoWorkspace = () => (
+const VideoWorkspace = ({
+  modelOptions,
+  selectedModel,
+  onSelectModel,
+  loadingModels,
+}) => (
   <div
     className={`grid gap-4 xl:grid-cols-[minmax(520px,1.15fr)_minmax(480px,1fr)] ${workspaceHeightClassName}`}
   >
@@ -444,9 +577,19 @@ const VideoWorkspace = () => (
         </div>
 
         <div className='space-y-4'>
-          <MockField
+          {!loadingModels && modelOptions.length === 0 ? (
+            <EmptyModelNotice
+              title={TEXT.videoEmptyTitle}
+              description={TEXT.videoEmptyHint}
+              color='cyan'
+            />
+          ) : null}
+          <ModelSelectField
             label={TEXT.model}
-            value='VEO 3.1 \u6587\u751f\u89c6\u9891\uff08\u7ad6\u5c4f\uff09\uff08veo_3_1_t2v_fast_portrait\uff09'
+            value={selectedModel}
+            options={modelOptions}
+            onChange={onSelectModel}
+            loading={loadingModels}
           />
           <MockField
             label={TEXT.prompt}
@@ -507,9 +650,90 @@ const VideoWorkspace = () => (
 
 const CreationCenter = () => {
   const [activeSection, setActiveSection] = useState('chat');
+  const [models, setModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+  const [selectedModels, setSelectedModels] = useState({
+    chat: undefined,
+    image: undefined,
+    video: undefined,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadModels = async () => {
+      setLoadingModels(true);
+      try {
+        const res = await API.get('/api/models/?page_size=1000');
+        const { success, data } = res.data || {};
+        if (!mounted) {
+          return;
+        }
+        if (success) {
+          const items = data?.items || data || [];
+          setModels(Array.isArray(items) ? items : []);
+        } else {
+          setModels([]);
+        }
+      } catch (_) {
+        if (mounted) {
+          setModels([]);
+        }
+      } finally {
+        if (mounted) {
+          setLoadingModels(false);
+        }
+      }
+    };
+
+    loadModels();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const sectionModels = useMemo(
+    () => ({
+      chat: getSectionModels(models, 'chat'),
+      image: getSectionModels(models, 'image'),
+      video: getSectionModels(models, 'video'),
+    }),
+    [models],
+  );
+
+  const sectionOptions = useMemo(
+    () => ({
+      chat: toModelOptions(sectionModels.chat),
+      image: toModelOptions(sectionModels.image),
+      video: toModelOptions(sectionModels.video),
+    }),
+    [sectionModels],
+  );
+
+  useEffect(() => {
+    setSelectedModels((prev) => {
+      const next = { ...prev };
+      ['chat', 'image', 'video'].forEach((key) => {
+        const options = sectionOptions[key];
+        const currentExists = options.some(
+          (option) => option.value === prev[key],
+        );
+        next[key] = currentExists ? prev[key] : options[0]?.value;
+      });
+      return next;
+    });
+  }, [sectionOptions]);
 
   const currentSection =
     SECTIONS.find((section) => section.key === activeSection) || SECTIONS[0];
+
+  const handleSelectModel = (sectionKey, value) => {
+    setSelectedModels((prev) => ({
+      ...prev,
+      [sectionKey]: value,
+    }));
+  };
 
   return (
     <div className='min-h-[calc(100vh-66px)] bg-[linear-gradient(180deg,#f8fafc_0%,#edf4ff_38%,#f8fafc_100%)] px-3 pb-3 pt-[72px] lg:px-4'>
@@ -587,6 +811,16 @@ const CreationCenter = () => {
                           >
                             {section.subtitle}
                           </div>
+                          <div className='mt-3 flex items-center gap-2'>
+                            <Tag
+                              size='small'
+                              color={isActive ? 'white' : section.tagColor}
+                            >
+                              {loadingModels
+                                ? TEXT.loadingModels
+                                : `${TEXT.syncedModels} ${sectionOptions[section.key].length}`}
+                            </Tag>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -597,9 +831,32 @@ const CreationCenter = () => {
           </Card>
 
           <div className='min-w-0'>
-            {activeSection === 'chat' ? <ChatWorkspace /> : null}
-            {activeSection === 'image' ? <ImageWorkspace /> : null}
-            {activeSection === 'video' ? <VideoWorkspace /> : null}
+            <Spin spinning={loadingModels}>
+              {activeSection === 'chat' ? (
+                <ChatWorkspace
+                  modelOptions={sectionOptions.chat}
+                  selectedModel={selectedModels.chat}
+                  onSelectModel={(value) => handleSelectModel('chat', value)}
+                  loadingModels={loadingModels}
+                />
+              ) : null}
+              {activeSection === 'image' ? (
+                <ImageWorkspace
+                  modelOptions={sectionOptions.image}
+                  selectedModel={selectedModels.image}
+                  onSelectModel={(value) => handleSelectModel('image', value)}
+                  loadingModels={loadingModels}
+                />
+              ) : null}
+              {activeSection === 'video' ? (
+                <VideoWorkspace
+                  modelOptions={sectionOptions.video}
+                  selectedModel={selectedModels.video}
+                  onSelectModel={(value) => handleSelectModel('video', value)}
+                  loadingModels={loadingModels}
+                />
+              ) : null}
+            </Spin>
           </div>
         </div>
       </div>
