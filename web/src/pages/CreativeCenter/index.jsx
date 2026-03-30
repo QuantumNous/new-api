@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowUp,
   Check,
@@ -48,6 +48,24 @@ const imageResolutions = [
   { value: '3K', label: '3K' },
 ];
 const durations = ['10秒', '15秒', '20秒', '25秒'];
+
+const chatPromptSuggestions = [
+  '帮我基于这段内容提炼 3 个关键观点，并给出可执行的行动清单：',
+  '我需要一段用于产品页的文案（标题/卖点/CTA），语气偏专业但不枯燥：',
+  '把下面这段话改写成更有说服力的版本，并给出 2 个不同风格的替代方案：',
+];
+
+const imagePromptSuggestions = [
+  '以“现代科技风”为主题：浅色背景、冷色主调、极简版式，生成一张可用于官网首屏的主视觉，画面留出标题留白。',
+  '海报主视觉提案：人物居中、柔光氛围、细腻质感、干净背景，包含清晰的轮廓与高级配色。',
+  '电商详情页参考图：产品居中偏上构图，背景虚化，主色为蓝紫渐变，整体干净高级。',
+];
+
+const videoPromptSuggestions = [
+  '镜头语言明确的 20 秒短片：从中景推进到特写，光线由冷转暖，节奏平稳，营造“未来感”的品牌氛围。',
+  '广告预演：3 段镜头（开场/转场/收尾），强调产品质感与材质细节，整体使用柔和运动与留白字幕位。',
+  '概念稿风格：低饱和电影质感，轻微胶片颗粒，镜头缓慢横移，情绪克制但具有张力。',
+];
 
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg
@@ -175,6 +193,18 @@ export default function App() {
   const displayModels =
     activeTab === 'chat' ? chatModels : activeTab === 'video' ? videoModels : imageModels;
 
+  const textareaRef = useRef(null);
+
+  const currentModel = useMemo(() => {
+    return displayModels.find((m) => m.id === activeModel);
+  }, [activeModel, displayModels]);
+
+  const promptSuggestions = useMemo(() => {
+    if (activeTab === 'chat') return chatPromptSuggestions;
+    if (activeTab === 'video') return videoPromptSuggestions;
+    return imagePromptSuggestions;
+  }, [activeTab]);
+
   const closeAllMenus = () => {
     setIsQuantityOpen(false);
     setIsRatioOpen(false);
@@ -231,9 +261,22 @@ export default function App() {
     // 正在生成状态
     if (isGenerating) {
       return (
-        <div className='flex flex-col items-center gap-4'>
-          <Loader2 className='h-12 w-12 animate-spin text-blue-500' />
-          <p className='text-sm font-medium tracking-[0.28em] text-blue-600'>正在生成图片</p>
+        <div className='relative w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-lg'>
+          <div
+            aria-hidden
+            className='absolute inset-0 opacity-40'
+            style={{
+              backgroundImage:
+                'radial-gradient(600px 120px at 20% 0%, rgba(59,130,246,0.20), transparent 55%), radial-gradient(520px 160px at 90% 20%, rgba(99,102,241,0.18), transparent 60%)',
+            }}
+          />
+          <div className='relative flex flex-col items-center gap-4'>
+            <div className='flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600/10 text-blue-700'>
+              <Loader2 className='h-8 w-8 animate-spin' />
+            </div>
+            <p className='text-sm font-semibold text-blue-700'>正在生成高质量图片</p>
+            <p className='text-xs text-slate-500'>可能需要十几秒，请保持页面开启</p>
+          </div>
         </div>
       );
     }
@@ -242,26 +285,135 @@ export default function App() {
     if (activeTab === 'image' && generatedImage) {
       return (
         <div className='group relative max-h-[70vh] max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl'>
-          <img src={generatedImage} alt='生成结果' className='h-full w-full object-contain bg-white' />
+          <img
+            src={generatedImage}
+            alt='生成结果'
+            className='h-full w-full object-contain bg-white'
+          />
+
           <div className='absolute inset-0 flex items-center justify-center bg-slate-900/10 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100'>
             <button className='rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:bg-blue-700 active:scale-95'>
               下载高清原图
             </button>
           </div>
+
+          <div className='absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900/50 via-slate-900/20 to-transparent px-5 pb-4 pt-8'>
+            <div className='flex flex-wrap items-center justify-between gap-3'>
+              <div className='min-w-0'>
+                <div className='truncate text-sm font-bold text-white'>生成结果</div>
+                <div className='mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/80'>
+                  <span>{quantity}张</span>
+                  <span className='opacity-80'>{ratio}</span>
+                  <span className='opacity-80'>{resolution}</span>
+                </div>
+              </div>
+              <div className='flex items-center gap-2'>
+                <span className='inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] text-white/90'>
+                  <ImageIcon size={12} />
+                  已就绪
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }
 
-    // 默认空白状态 (去除了之前的引导卡片)
-    return null;
+    const title =
+      activeTab === 'chat' ? '从一句话开始创作' : activeTab === 'video' ? '为你的镜头编排' : '把灵感变成画面';
+    const subtitle =
+      activeTab === 'chat'
+        ? '选择模型后，直接输入需求。你也可以点击下面的示例快速填充。'
+        : activeTab === 'video'
+          ? '描述镜头语言、节奏与氛围。现在先把创意敲出来，下一步再生成。'
+          : '补全风格、光线、构图和材质信息，系统会按你的参数进行生成。';
+
+    const modelLine = currentModel?.name ? `当前模型：${currentModel.name}` : '当前模型：未选择';
+    const parameterLine =
+      activeTab === 'chat'
+        ? '对话模式'
+        : activeTab === 'video'
+          ? `时长：${duration}`
+          : `参数：${quantity}张 · ${ratio} · ${resolution}`;
+
+    return (
+      <div className='flex w-full max-w-4xl flex-col items-center gap-6 px-2'>
+        <div className='relative w-full overflow-hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-lg'>
+          <div
+            aria-hidden
+            className='absolute inset-0 opacity-50'
+            style={{
+              backgroundImage:
+                'radial-gradient(680px 220px at 18% 10%, rgba(59,130,246,0.18), transparent 55%), radial-gradient(540px 180px at 88% 20%, rgba(99,102,241,0.14), transparent 60%)',
+            }}
+          />
+
+          <div className='relative flex flex-col gap-3'>
+            <div className='flex flex-wrap items-center gap-3'>
+              <span className='inline-flex h-10 items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-2 text-sm font-semibold text-blue-700'>
+                {activeTab === 'chat' ? <MessageSquare size={18} /> : null}
+                {activeTab === 'image' ? <ImageIcon size={18} /> : null}
+                {activeTab === 'video' ? <Video size={18} /> : null}
+                {title}
+              </span>
+              <span className='inline-flex rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600'>
+                {modelLine}
+              </span>
+            </div>
+
+            <p className='text-sm leading-relaxed text-slate-600'>{subtitle}</p>
+
+            <div className='mt-2 flex flex-wrap gap-2'>
+              {promptSuggestions.map((text, idx) => (
+                <button
+                  type='button'
+                  key={`${activeTab}-suggestion-${idx}`}
+                  onClick={() => {
+                    setPrompt(text);
+                    textareaRef.current?.focus();
+                  }}
+                  className='rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99]'
+                >
+                  {text.length > 18 ? `${text.slice(0, 18)}...` : text}
+                </button>
+              ))}
+            </div>
+
+            <div className='mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500'>
+              <span className='inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200'>
+                <Layers size={14} className='text-slate-500' />
+                {parameterLine}
+              </span>
+              {activeTab === 'image' ? (
+                <span className='inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1 ring-1 ring-slate-200'>
+                  <Clock size={14} className='text-slate-500' />
+                  通常需要稍等
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className='w-full overflow-hidden bg-slate-50 pt-16 text-slate-800'>
-      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden font-sans'>
+    <div className='relative w-full overflow-hidden bg-slate-50 pt-16 text-slate-800'>
+      <div
+        aria-hidden
+        className='pointer-events-none absolute inset-0 opacity-70'
+        style={{
+          backgroundImage:
+            'radial-gradient(900px 300px at 20% 0%, rgba(59,130,246,0.12), transparent 60%), radial-gradient(800px 320px at 90% 10%, rgba(99,102,241,0.10), transparent 55%)',
+        }}
+      />
+      <div className='relative flex h-[calc(100vh-64px)] w-full overflow-hidden font-sans'>
         <aside className='flex w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white'>
           <div className='flex items-center px-6 py-7'>
-            <h1 className='text-[17px] font-bold tracking-tight text-slate-900'>创作中心</h1>
+            <div>
+              <h1 className='text-[18px] font-semibold tracking-tight text-slate-900'>创作中心</h1>
+              <p className='mt-0.5 text-[12px] text-slate-500'>把想法快速变成可用内容</p>
+            </div>
           </div>
 
           <div className='mb-2 flex justify-center gap-12 border-b border-slate-100 py-4'>
@@ -269,11 +421,13 @@ export default function App() {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
               return (
-                <div
+                <button
+                  type='button'
                   key={tab.id}
                   onClick={() =>
                     switchTab(tab.id, tab.id === 'chat' ? 'chat1' : tab.id === 'video' ? 'v1' : 1)
                   }
+                  aria-pressed={active}
                   className={`relative flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
                     active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
                   }`}
@@ -285,7 +439,7 @@ export default function App() {
                       {tab.badge}
                     </span>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -325,8 +479,8 @@ export default function App() {
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <div className='relative'>
-                  <div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-blue-50'>
-                    <span className='text-xl'>👩‍💻</span>
+                  <div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50'>
+                    <span className='text-[13px] font-bold text-blue-700'>NP</span>
                   </div>
                   <div className='absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500' />
                 </div>
@@ -338,7 +492,7 @@ export default function App() {
                   <div className='mt-0.5 text-[10px] text-slate-400'>在线</div>
                 </div>
               </div>
-              <button className='flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95'>
+              <button className='flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 active:scale-95'>
                 <span className='font-medium'>充值</span>
               </button>
             </div>
@@ -382,6 +536,8 @@ export default function App() {
                       handleSubmit();
                     }
                   }}
+                  ref={textareaRef}
+                  aria-label='输入内容'
                   placeholder={
                     activeTab === 'chat'
                       ? '描述你的需求，或直接粘贴代码、文案、方案目标...'
@@ -393,10 +549,14 @@ export default function App() {
                 />
               </div>
 
-              <div className='mt-3 flex items-center justify-between px-1'>
-                <div className='flex flex-wrap gap-2'>
+              <div className='mt-3 flex items-center justify-between gap-3 px-1'>
+                <div className='flex flex-wrap items-center gap-2'>
                   {activeTab !== 'chat' && (
                     <>
+                      <div className='mr-1 inline-flex items-center gap-1 rounded-full bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200'>
+                        <Layers size={12} className='text-slate-500' />
+                        参数
+                      </div>
                       <DropButton
                         icon={<Layers size={12} />}
                         label={`${quantity}张`}
@@ -461,7 +621,7 @@ export default function App() {
                                 {ratio === option && <Check size={14} />}
                               </button>
                             ))}
-                            <div className='fixed inset-0 -z-10' onClick={() => setIsRatioOpen(false)} />
+                            <div className='fixed inset-0 z-40' onClick={() => setIsRatioOpen(false)} />
                           </div>
                         )}
                       </DropButton>
@@ -494,7 +654,7 @@ export default function App() {
                                   {option}
                                 </button>
                               ))}
-                              <div className='fixed inset-0 -z-10' onClick={() => setIsDurationOpen(false)} />
+                              <div className='fixed inset-0 z-40' onClick={() => setIsDurationOpen(false)} />
                             </div>
                           )}
                         </DropButton>
@@ -526,7 +686,7 @@ export default function App() {
                                   {option.label}
                                 </button>
                               ))}
-                              <div className='fixed inset-0 -z-10' onClick={() => setIsResolutionOpen(false)} />
+                              <div className='fixed inset-0 z-40' onClick={() => setIsResolutionOpen(false)} />
                             </div>
                           )}
                         </DropButton>
@@ -538,10 +698,14 @@ export default function App() {
                 <button
                   onClick={handleSubmit}
                   disabled={isGenerating || !prompt.trim()}
-                  className='ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all hover:bg-blue-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
+                  className='flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transition-all hover:brightness-110 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none'
                 >
                   {isGenerating ? <Loader2 size={22} className='animate-spin' /> : <ArrowUp size={24} strokeWidth={3} />}
                 </button>
+              </div>
+
+              <div className='mt-2 px-2 text-right text-[11px] text-slate-400'>
+                Enter 发送 · Shift + Enter 换行
               </div>
             </div>
           </div>
