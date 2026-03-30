@@ -191,7 +191,7 @@ docker run --name new-api -d --restart always \
 
 ### 💰 Paiement et facturation
 
-- ✅ Recharge en ligne (EPay, Stripe)
+- ✅ Recharge en ligne (EPay, Stripe, AllScale)
 - ✅ Tarification des modèles de paiement à l'utilisation
 - ✅ Prise en charge de la facturation du cache (OpenAI, Azure, DeepSeek, Claude, Qwen et tous les modèles pris en charge)
 - ✅ Configuration flexible des politiques de facturation

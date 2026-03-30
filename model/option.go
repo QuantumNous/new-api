@@ -105,6 +105,15 @@ func InitOptionMap() {
 	common.OptionMap["WaffoUnitPrice"] = strconv.FormatFloat(setting.WaffoUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoMinTopUp"] = strconv.Itoa(setting.WaffoMinTopUp)
 	common.OptionMap["WaffoPayMethods"] = setting.WaffoPayMethods2JsonString()
+	common.OptionMap["AllScaleEnabled"] = strconv.FormatBool(setting.AllScaleEnabled)
+	common.OptionMap["AllScaleApiKey"] = setting.AllScaleApiKey
+	common.OptionMap["AllScaleApiSecret"] = setting.AllScaleApiSecret
+	common.OptionMap["AllScaleWebhookID"] = setting.AllScaleWebhookID
+	common.OptionMap["AllScaleBaseURL"] = setting.AllScaleBaseURL
+	common.OptionMap["AllScaleUnitPrice"] = strconv.FormatFloat(setting.AllScaleUnitPrice, 'f', -1, 64)
+	common.OptionMap["AllScaleMinTopUp"] = strconv.FormatFloat(setting.AllScaleMinTopUp, 'f', -1, 64)
+	common.OptionMap["AllScaleApiKeySet"] = strconv.FormatBool(setting.AllScaleApiKey != "")
+	common.OptionMap["AllScaleApiSecretSet"] = strconv.FormatBool(setting.AllScaleApiSecret != "")
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -404,6 +413,22 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoMinTopUp":
 		setting.WaffoMinTopUp, _ = strconv.Atoi(value)
+	case "AllScaleEnabled":
+		setting.AllScaleEnabled = value == "true"
+	case "AllScaleApiKey":
+		setting.AllScaleApiKey = value
+		common.OptionMap["AllScaleApiKeySet"] = strconv.FormatBool(value != "")
+	case "AllScaleApiSecret":
+		setting.AllScaleApiSecret = value
+		common.OptionMap["AllScaleApiSecretSet"] = strconv.FormatBool(value != "")
+	case "AllScaleBaseURL":
+		setting.AllScaleBaseURL = value
+	case "AllScaleWebhookID":
+		setting.AllScaleWebhookID = value
+	case "AllScaleUnitPrice":
+		setting.AllScaleUnitPrice, _ = strconv.ParseFloat(value, 64)
+	case "AllScaleMinTopUp":
+		setting.AllScaleMinTopUp, _ = strconv.ParseFloat(value, 64)
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

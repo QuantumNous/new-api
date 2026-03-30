@@ -191,7 +191,7 @@ docker run --name new-api -d --restart always \
 
 ### 💰 支付与计费
 
-- ✅ 在线充值（易支付、Stripe）
+- ✅ 在线充值（易支付、Stripe、AllScale）
 - ✅ 模型按次数收费
 - ✅ 缓存计费支持（OpenAI、Azure、DeepSeek、Claude、Qwen等所有支持的模型）
 - ✅ 灵活的计费策略配置

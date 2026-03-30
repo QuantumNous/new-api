@@ -188,7 +188,7 @@ docker run --name new-api -d --restart always \
 
 ### 💰 支付與計費
 
-- ✅ 在線儲值（易支付、Stripe）
+- ✅ 在線儲值（易支付、Stripe、AllScale）
 - ✅ 模型按次數收費
 - ✅ 快取計費支援（OpenAI、Azure、DeepSeek、Claude、Qwen等所有支援的模型）
 - ✅ 靈活的計費策略配置

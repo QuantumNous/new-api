@@ -191,7 +191,7 @@ docker run --name new-api -d --restart always \
 
 ### 💰 支払いと課金
 
-- ✅ オンライン充電（EPay、Stripe）
+- ✅ オンライン充電（EPay、Stripe、AllScale）
 - ✅ モデルの従量課金
 - ✅ キャッシュ課金サポート（OpenAI、Azure、DeepSeek、Claude、Qwenなどすべてのサポートされているモデル）
 - ✅ 柔軟な課金ポリシー設定

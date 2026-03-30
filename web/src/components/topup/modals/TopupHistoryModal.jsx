@@ -35,6 +35,7 @@ import {
 import { Coins } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { API, timestamp2string } from '../../../helpers';
+import { getCurrencyConfig } from '../../../helpers/render';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -52,11 +53,12 @@ const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
   creem: 'Creem',
   waffo: 'Waffo',
+  allscale: 'AllScale USDT 结账',
   alipay: '支付宝',
   wxpay: '微信',
 };
 
-const TopupHistoryModal = ({ visible, onCancel, t }) => {
+const TopupHistoryModal = ({ visible, onCancel, t, reloadKey }) => {
   const [loading, setLoading] = useState(false);
   const [topups, setTopups] = useState([]);
   const [total, setTotal] = useState(0);
@@ -93,6 +95,13 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       loadTopups(page, pageSize);
     }
   }, [visible, page, pageSize, keyword]);
+
+  // Reload when parent signals a payment was completed (e.g. polling success)
+  useEffect(() => {
+    if (visible && reloadKey > 0) {
+      loadTopups(page, pageSize);
+    }
+  }, [reloadKey]);
 
   const handlePageChange = (currentPage) => {
     setPage(currentPage);
@@ -197,7 +206,10 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        render: (money) => {
+          const { symbol } = getCurrencyConfig();
+          return <Text type='danger'>{symbol}{money.toFixed(2)}</Text>;
+        },
       },
       {
         title: t('状态'),
