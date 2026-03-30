@@ -19,9 +19,14 @@ import {
   Send,
   X
 } from 'lucide-react';
-import { API } from '../../helpers';
-
-const apiKey = ''; 
+import {
+  API,
+  buildApiPayload,
+  getUserIdFromLocalStorage,
+  processGroupsData,
+  processThinkTags,
+} from '../../helpers';
+import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
@@ -74,6 +79,8 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [currentImage, setCurrentImage] = useState(null);
+  const [videoTask, setVideoTask] = useState(null);
+  const [activeGroup, setActiveGroup] = useState('');
   const [openMenu, setOpenMenu] = useState(null); 
   const [params, setParams] = useState({
     quantity: 1,
@@ -135,7 +142,61 @@ export default function App() {
       video: ['视频'],
     };
 
-    const createModelCard = (model, tabKey) => {
+    const inferTabsFromModelName = (modelName) => {
+      const normalizedName = String(modelName || '').toLowerCase();
+      const videoKeywords = [
+        'video',
+        'veo',
+        'sora',
+        'kling',
+        'runway',
+        'pixverse',
+        'hailuo',
+        'wanx',
+        'mov',
+      ];
+      const imageKeywords = [
+        'image',
+        'img',
+        'imagen',
+        'imagine',
+        'flux',
+        'stable-diffusion',
+        'sdxl',
+        'midjourney',
+        'mj',
+        'banana',
+      ];
+
+      if (videoKeywords.some((keyword) => normalizedName.includes(keyword))) {
+        return ['video'];
+      }
+
+      if (imageKeywords.some((keyword) => normalizedName.includes(keyword))) {
+        return ['image'];
+      }
+
+      return ['chat'];
+    };
+
+    const resolveTabsForModel = (modelName, model) => {
+      const tags = String(model?.tags || '')
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+      const matchedTabs = Object.entries(tabTagMap)
+        .filter(([, aliases]) => aliases.some((alias) => tags.includes(alias)))
+        .map(([tabKey]) => tabKey);
+
+      if (matchedTabs.length > 0) {
+        return matchedTabs;
+      }
+
+      return inferTabsFromModelName(modelName);
+    };
+
+    const createModelCard = (model, tabKey, modelName) => {
       const iconMap = {
         chat: <GPTIcon size={24} className='text-blue-600' />,
         image: <span className='font-bold text-blue-600'>IM</span>,
@@ -146,10 +207,12 @@ export default function App() {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
+      const resolvedModelName = model?.model_name || model?.name || modelName || '未命名模型';
 
       return {
-        id: model?.id || `${tabKey}-${model?.model_name || model?.name || Date.now()}`,
-        name: model?.model_name || model?.name || '未命名模型',
+        id: `${tabKey}:${resolvedModelName}`,
+        value: resolvedModelName,
+        name: resolvedModelName,
         desc:
           model?.description ||
           (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理'),
@@ -159,30 +222,96 @@ export default function App() {
 
     const loadManagedModels = async () => {
       try {
-        const res = await API.get('/api/models/?p=1&page_size=1000');
-        const { success, data } = res.data || {};
-        if (!success) return;
+        const [userModelsResult, userGroupsResult, managedModelsResult] =
+          await Promise.allSettled([
+            API.get(API_ENDPOINTS.USER_MODELS),
+            API.get(API_ENDPOINTS.USER_GROUPS),
+            API.get('/api/models/?p=1&page_size=1000'),
+          ]);
 
-        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
+        const userModels =
+          userModelsResult.status === 'fulfilled' && userModelsResult.value?.data?.success
+            ? (Array.isArray(userModelsResult.value.data.data)
+                ? userModelsResult.value.data.data
+                : [])
+            : [];
+
+        const managedItems =
+          managedModelsResult.status === 'fulfilled' &&
+          managedModelsResult.value?.data?.success
+            ? (() => {
+                const rawData = managedModelsResult.value.data.data;
+                const items = Array.isArray(rawData?.items)
+                  ? rawData.items
+                  : Array.isArray(rawData)
+                    ? rawData
+                    : [];
+                return items.filter(
+                  (item) =>
+                    item &&
+                    (item?.status === undefined || Number(item.status) === 1),
+                );
+              })()
+            : [];
+
+        const managedModelMap = new Map();
+        managedItems.forEach((item) => {
+          const modelName = item?.model_name || item?.name;
+          if (modelName) {
+            managedModelMap.set(modelName, item);
+          }
+        });
+
         const nextModels = { chat: [], image: [], video: [] };
+        userModels.forEach((modelName) => {
+          const managedModel = managedModelMap.get(modelName);
+          const tabsForModel = resolveTabsForModel(modelName, managedModel);
 
-        items.forEach((item) => {
-          if (item?.status !== undefined && Number(item.status) !== 1) return;
-
-          const tags = String(item?.tags || '')
-            .split(',')
-            .map((tag) => tag.trim())
-            .filter(Boolean);
-
-          Object.entries(tabTagMap).forEach(([tabKey, aliases]) => {
-            if (aliases.some((alias) => tags.includes(alias))) {
-              nextModels[tabKey].push(createModelCard(item, tabKey));
-            }
+          tabsForModel.forEach((tabKey) => {
+            nextModels[tabKey].push(
+              createModelCard(managedModel || { model_name: modelName }, tabKey, modelName),
+            );
           });
         });
 
+        const dedupedModels = Object.fromEntries(
+          Object.entries(nextModels).map(([tabKey, list]) => [
+            tabKey,
+            list.filter(
+              (model, index, array) =>
+                array.findIndex((item) => item.value === model.value) === index,
+            ),
+          ]),
+        );
+
+        let resolvedGroup = '';
+        const localUserGroup = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('user') || '{}')?.group || '';
+          } catch {
+            return '';
+          }
+        })();
+
+        if (
+          userGroupsResult.status === 'fulfilled' &&
+          userGroupsResult.value?.data?.success
+        ) {
+          const groupOptions = processGroupsData(
+            userGroupsResult.value.data.data || {},
+            localUserGroup,
+          );
+          resolvedGroup =
+            groupOptions.find((group) => group.value === localUserGroup)?.value ||
+            groupOptions[0]?.value ||
+            localUserGroup;
+        } else {
+          resolvedGroup = localUserGroup;
+        }
+
         if (mounted) {
-          setSyncedModels(nextModels);
+          setSyncedModels(dedupedModels);
+          setActiveGroup(resolvedGroup);
         }
       } catch (error) {
         console.error('Failed to sync creative center models:', error);
@@ -206,6 +335,10 @@ export default function App() {
   );
 
   const currentDisplayModels = modelPools[activeTab] || [];
+  const selectedModel =
+    currentDisplayModels.find((model) => model.id === activeModel) ||
+    currentDisplayModels[0] ||
+    null;
 
   useEffect(() => {
     if (!currentDisplayModels.some((model) => model.id === activeModel)) {
@@ -213,45 +346,81 @@ export default function App() {
     }
   }, [activeModel, currentDisplayModels]);
 
-  const fetchGemini = async (userPrompt) => {
-    const maxRetries = 5;
-    const delays = [1000, 2000, 4000, 8000, 16000];
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: userPrompt }] }],
-            systemInstruction: { parts: [{ text: "你是一个专业的中文 AI 创作助手。你的回复应当充满创意、逻辑清晰且简洁有力。" }] }
-          }),
-        });
-        if (!response.ok) throw new Error('API Request Failed');
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "收到，但我现在无法生成有效的回复。";
-      } catch (e) {
-        if (i === maxRetries - 1) return "服务目前负载过高，请稍后再试。";
-        await new Promise(r => setTimeout(r, delays[i]));
-      }
-    }
+  const getCurrentModelName = () => {
+    return selectedModel?.value || selectedModel?.name || '';
   };
 
-  const fetchImagen = async (imgPrompt) => {
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: { prompt: imgPrompt },
-          parameters: { sampleCount: 1 },
-        }),
-      });
-      const data = await response.json();
-      return data.predictions?.[0]?.bytesBase64Encoded ? `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}` : null;
-    } catch (e) {
-      console.error('Image Generation Error:', e);
-      return null;
-    }
+  const buildImageSizeFromRatio = (ratio) => {
+    const ratioMap = {
+      '1:1': '1024x1024',
+      '2:3': '1024x1536',
+      '3:2': '1536x1024',
+      '3:4': '1024x1365',
+      '4:3': '1365x1024',
+      '4:5': '1024x1280',
+      '5:4': '1280x1024',
+      '9:16': '1024x1792',
+      '16:9': '1792x1024',
+      '21:9': '1792x768',
+    };
+    return ratioMap[ratio] || '1024x1024';
+  };
+
+  const buildVideoSizeFromRatio = (ratio) => {
+    const ratioMap = {
+      '1:1': '1024x1024',
+      '2:3': '832x1248',
+      '3:2': '1248x832',
+      '3:4': '768x1024',
+      '4:3': '1024x768',
+      '4:5': '864x1080',
+      '5:4': '1080x864',
+      '9:16': '720x1280',
+      '16:9': '1280x720',
+      '21:9': '1680x720',
+    };
+    return ratioMap[ratio] || '1280x720';
+  };
+
+  const createBasePayload = (currentPrompt) => {
+    const modelName = getCurrentModelName();
+    return buildApiPayload(
+        [{ role: 'user', content: currentPrompt }],
+        '',
+        {
+          model: modelName,
+          group: activeGroup,
+          stream: false,
+        imageSize: buildImageSizeFromRatio(params.ratio),
+        outputResolution: params.resolution,
+        videoSize: buildVideoSizeFromRatio(params.ratio),
+        videoSeconds: String(parseInt(params.duration, 10) || 10),
+        videoQuality: '480p',
+        videoPreset: 'normal',
+        aspectRatio: params.ratio === '自动' ? '' : params.ratio,
+        autoImageSize: buildImageSizeFromRatio(params.ratio),
+        videoDuration: String(parseInt(params.duration, 10) || 10),
+        videoResolution: '1080p',
+        referenceMode: 'image',
+      },
+      {
+        temperature: false,
+        top_p: false,
+        max_tokens: false,
+        frequency_penalty: false,
+        presence_penalty: false,
+        seed: false,
+      },
+    );
+  };
+
+  const postCreativeRequest = async (endpoint, payload) => {
+    const response = await API.post(endpoint, payload, {
+      headers: {
+        'New-API-User': getUserIdFromLocalStorage(),
+      },
+    });
+    return response.data;
   };
 
   const handleSubmit = async () => {
@@ -263,14 +432,72 @@ export default function App() {
     if (activeTab === 'chat') {
       const userMsg = { role: 'user', content: currentPrompt, id: Date.now() };
       setChatMessages(prev => [...prev, userMsg]);
-      const aiResponse = await fetchGemini(currentPrompt);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: aiResponse, id: Date.now() + 1 }]);
+      try {
+        const payload = createBasePayload(currentPrompt);
+        const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
+        const choice = data?.choices?.[0];
+        const processed = processThinkTags(
+          choice?.message?.content || '',
+          choice?.message?.reasoning_content || choice?.message?.reasoning || '',
+        );
+        const content =
+          [processed.reasoningContent, processed.content].filter(Boolean).join('\n\n') ||
+          '模型已返回响应，但未解析到可展示内容。';
+        setChatMessages(prev => [
+          ...prev,
+          { role: 'assistant', content, id: Date.now() + 1 },
+        ]);
+      } catch (error) {
+        console.error('Creative center chat error:', error);
+        setChatMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `请求失败：${error.message || '请稍后再试。'}`,
+            id: Date.now() + 1,
+          },
+        ]);
+      }
     } else if (activeTab === 'image') {
       setCurrentImage(null);
-      const b64 = await fetchImagen(currentPrompt);
-      if (b64) setCurrentImage(b64);
+      try {
+        const payload = {
+          model: getCurrentModelName(),
+          group: activeGroup,
+          prompt: currentPrompt,
+          n: Number(params.quantity) || 1,
+          response_format: 'url',
+          size: buildImageSizeFromRatio(params.ratio),
+        };
+        const data = await postCreativeRequest(API_ENDPOINTS.IMAGE_GENERATIONS, payload);
+        const imageUrl =
+          data?.data?.find?.((item) => typeof item?.url === 'string' && item.url.trim())?.url ||
+          '';
+        if (imageUrl) {
+          setCurrentImage(imageUrl);
+        }
+      } catch (error) {
+        console.error('Creative center image error:', error);
+      }
     } else if (activeTab === 'video') {
-      await new Promise(r => setTimeout(r, 4000));
+      setVideoTask(null);
+      try {
+        const payload = {
+          model: getCurrentModelName(),
+          group: activeGroup,
+          prompt: currentPrompt,
+          seconds: String(parseInt(params.duration, 10) || 10),
+          size: buildVideoSizeFromRatio(params.ratio),
+        };
+        const data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
+        setVideoTask({
+          id: data?.task_id || data?.id || '',
+          status: data?.status || 'submitted',
+          url: data?.url || data?.video_url || data?.result_url || '',
+        });
+      } catch (error) {
+        console.error('Creative center video error:', error);
+      }
     }
     setIsGenerating(false);
   };
@@ -338,9 +565,21 @@ export default function App() {
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 py-10 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
-                <div className='flex flex-col items-center justify-center h-full opacity-30 grayscale pointer-events-none'>
-                  <MessageSquare size={80} className='text-blue-500 mb-4' />
-                  <p className='text-sm font-black tracking-[0.2em]'>等待第一个灵感闪现</p>
+                <div className='flex h-full items-center justify-center'>
+                  <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
+                    <div className='mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm'>
+                      {selectedModel?.icon || <MessageSquare size={36} />}
+                    </div>
+                    <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
+                      当前模型
+                    </div>
+                    <h3 className='mt-4 text-3xl font-black tracking-tight text-slate-900'>
+                      {selectedModel?.name || '对话模型'}
+                    </h3>
+                    <p className='mt-4 text-sm leading-8 text-slate-500'>
+                      {selectedModel?.desc || '这里会显示当前对话模型的介绍，帮助你在开始前快速了解它适合做什么。'}
+                    </p>
+                  </div>
                 </div>
               )}
               {chatMessages.map((msg) => (
@@ -375,6 +614,51 @@ export default function App() {
                   <button className='p-4 bg-white rounded-full text-blue-600 hover:scale-110 transition-transform shadow-xl'><Download size={24} /></button>
                   <button className='p-4 bg-white rounded-full text-red-500 hover:scale-110 transition-transform shadow-xl' onClick={() => setCurrentImage(null)}><Trash2 size={24} /></button>
                 </div>
+              </div>
+            ) : activeTab === 'video' && videoTask ? (
+              <div className='w-full max-w-2xl rounded-[2.5rem] border border-slate-200 bg-white/90 p-10 text-left shadow-2xl shadow-blue-900/5'>
+                <div className='flex items-center gap-4'>
+                  <div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600'>
+                    <Video size={28} />
+                  </div>
+                  <div>
+                    <div className='text-xs font-bold uppercase tracking-[0.22em] text-slate-400'>
+                      视频任务已提交
+                    </div>
+                    <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
+                      {selectedModel?.name || '视频模型'}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className='mt-8 grid gap-4 rounded-[2rem] bg-slate-50 p-6 text-sm text-slate-600 sm:grid-cols-2'>
+                  <div>
+                    <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                      任务 ID
+                    </div>
+                    <div className='mt-2 break-all font-semibold text-slate-800'>
+                      {videoTask.id || '暂未返回'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                      当前状态
+                    </div>
+                    <div className='mt-2 font-semibold text-blue-700'>
+                      {videoTask.status || 'submitted'}
+                    </div>
+                  </div>
+                </div>
+
+                <p className='mt-6 text-sm leading-7 text-slate-500'>
+                  视频生成通常比图片更久。如果模型返回了结果链接，会在下方展示；否则你可以结合任务 ID 到任务日志继续查看进度。
+                </p>
+
+                {videoTask.url ? (
+                  <div className='mt-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950'>
+                    <video controls className='h-full w-full' src={videoTask.url} />
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className='text-center p-16 bg-white/60 rounded-[4rem] border-2 border-slate-200 border-dashed text-slate-400 max-w-lg'>
