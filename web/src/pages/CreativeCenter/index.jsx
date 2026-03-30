@@ -36,15 +36,110 @@ const tabs = [
   { id: 'video', label: '视频', icon: Video, badge: 'HOT' },
 ];
 
-const ratios = ['自动', '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
-const imageResolutions = [
-  { value: '1K', label: '1K' },
-  { value: '2K', label: '2K' },
-  { value: '3K', label: '3K' },
+const GROK_IMAGINE_IMAGE_MODELS = new Set([
+  'grok-imagine-1.0',
+  'grok-imagine-1.0-fast',
+  'grok-imagine-1.0-edit',
+]);
+const ADOBE_IMAGE_MODELS = new Set([
+  'nano-banana',
+  'nano-banana-4k',
+  'nano-banana2',
+  'nano-banana2-4k',
+  'nano-banana-pro',
+  'nano-banana-pro-4k',
+]);
+const ADOBE_VIDEO_MODELS = new Set([
+  'sora2',
+  'sora2-pro',
+  'veo31',
+  'veo31-ref',
+  'veo31-fast',
+]);
+
+const GROK_IMAGE_SIZE_OPTIONS = [
+  { label: '1024x1024', value: '1024x1024' },
+  { label: '1792x1024', value: '1792x1024' },
+  { label: '1024x1792', value: '1024x1792' },
+  { label: '1280x720', value: '1280x720' },
+  { label: '720x1280', value: '720x1280' },
 ];
-const durations = ['10秒', '15秒', '20秒', '25秒'];
-const quantities = [1, 2, 3, 4];
-const videoResolutions = ['480p', '720p', '1080p'];
+const ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
+  { label: 'Auto', value: 'auto' },
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+];
+const ADOBE_AUTO_IMAGE_SIZE_OPTIONS = [
+  { label: '1024x1024', value: '1024x1024' },
+  { label: '1792x1024', value: '1792x1024' },
+  { label: '1024x1792', value: '1024x1792' },
+  { label: '2048x1536', value: '2048x1536' },
+  { label: '1536x2048', value: '1536x2048' },
+];
+const ADOBE_OUTPUT_RESOLUTION_OPTIONS = [
+  { label: '1K', value: '1K' },
+  { label: '2K', value: '2K' },
+];
+const GENERIC_VIDEO_SIZE_OPTIONS = [
+  { label: '1280x720', value: '1280x720' },
+  { label: '720x1280', value: '720x1280' },
+  { label: '1792x1024', value: '1792x1024' },
+  { label: '1024x1792', value: '1024x1792' },
+  { label: '1024x1024', value: '1024x1024' },
+];
+const GENERIC_VIDEO_SECONDS_OPTIONS = [6, 8, 10, 12, 15, 20, 25, 30].map(
+  (value) => ({ label: `${value}s`, value: String(value) }),
+);
+const GENERIC_VIDEO_QUALITY_OPTIONS = [
+  { label: '480p', value: '480p' },
+  { label: '720p', value: '720p' },
+];
+const GROK_VIDEO_PRESET_OPTIONS = [
+  { label: 'Normal', value: 'normal' },
+  { label: 'Fun', value: 'fun' },
+  { label: 'Spicy', value: 'spicy' },
+  { label: 'Custom', value: 'custom' },
+];
+const ADOBE_VIDEO_DURATION_OPTIONS = {
+  sora: [4, 8, 12].map((value) => ({ label: `${value}s`, value: String(value) })),
+  veo: [4, 6, 8].map((value) => ({ label: `${value}s`, value: String(value) })),
+};
+const ADOBE_VIDEO_ASPECT_RATIO_OPTIONS = [
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+];
+const ADOBE_VIDEO_RESOLUTION_OPTIONS = [
+  { label: '1080p', value: '1080p' },
+  { label: '720p', value: '720p' },
+];
+const ADOBE_REFERENCE_MODE_OPTIONS = [
+  { label: 'Frame', value: 'frame' },
+  { label: 'Image', value: 'image' },
+];
+const PARAMETER_TOGGLES_DISABLED = {
+  temperature: false,
+  top_p: false,
+  max_tokens: false,
+  frequency_penalty: false,
+  presence_penalty: false,
+  seed: false,
+};
+
+const normalizeGrokImageSize = (size) => {
+  if (size === '1536x1024') {
+    return '1792x1024';
+  }
+  if (size === '1024x1536') {
+    return '1024x1792';
+  }
+  return size;
+};
+
+const getOptionLabel = (options, value) =>
+  options.find((option) => option.value === value)?.label || value;
 
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
@@ -76,6 +171,49 @@ const DropButton = ({ icon, label, open, onClick, children }) => (
   </div>
 );
 
+const DropSelectButton = ({
+  menuKey,
+  icon,
+  label,
+  value,
+  options,
+  openMenu,
+  setOpenMenu,
+  onSelect,
+  widthClass = 'w-40',
+}) => (
+  <DropButton
+    icon={icon}
+    label={label}
+    open={openMenu === menuKey}
+    onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
+  >
+    {openMenu === menuKey && (
+      <div
+        className={`absolute bottom-12 left-0 z-20 ${widthClass} rounded-2xl border border-slate-200 bg-white p-2 shadow-xl`}
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => {
+              onSelect(option.value);
+              setOpenMenu(null);
+            }}
+            className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+              value === option.value
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <span>{option.label}</span>
+            {value === option.value ? <Check size={14} /> : null}
+          </button>
+        ))}
+      </div>
+    )}
+  </DropButton>
+);
+
 export default function App() {
   const [userState] = useContext(UserContext);
   const [activeTab, setActiveTab] = useState('chat');
@@ -86,13 +224,19 @@ export default function App() {
   const [currentImage, setCurrentImage] = useState(null);
   const [videoTask, setVideoTask] = useState(null);
   const [activeGroup, setActiveGroup] = useState('');
-  const [openMenu, setOpenMenu] = useState(null); 
+  const [openMenu, setOpenMenu] = useState(null);
   const [params, setParams] = useState({
-    quantity: 1,
-    ratio: '1:1',
-    resolution: '2K',
-    duration: '10秒',
-    videoResolution: '480p'
+    imageSize: '1024x1024',
+    aspectRatio: 'auto',
+    autoImageSize: '1024x1024',
+    outputResolution: '2K',
+    videoSize: '1280x720',
+    videoSeconds: '10',
+    videoQuality: '480p',
+    videoPreset: 'normal',
+    videoDuration: '4',
+    videoResolution: '1080p',
+    referenceMode: 'frame',
   });
 
   const textareaRef = useRef(null);
@@ -370,6 +514,22 @@ export default function App() {
     currentDisplayModels.find((model) => model.id === activeModel) ||
     currentDisplayModels[0] ||
     null;
+  const currentModelName = selectedModel?.value || selectedModel?.name || '';
+  const isGrokImagineImageModel =
+    GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
+  const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
+  const isAdobeImage4KModel =
+    typeof currentModelName === 'string' && currentModelName.endsWith('-4k');
+  const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
+  const isAdobeSoraModel =
+    currentModelName === 'sora2' || currentModelName === 'sora2-pro';
+  const isAdobeVeoModel =
+    currentModelName === 'veo31' ||
+    currentModelName === 'veo31-ref' ||
+    currentModelName === 'veo31-fast';
+  const isVideoModel =
+    typeof currentModelName === 'string' && currentModelName.includes('video');
+  const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
 
   useEffect(() => {
     if (!currentDisplayModels.some((model) => model.id === activeModel)) {
@@ -377,85 +537,144 @@ export default function App() {
     }
   }, [activeModel, currentDisplayModels]);
 
-  const getCurrentModelName = () => {
-    return selectedModel?.value || selectedModel?.name || '';
-  };
+  useEffect(() => {
+    setParams((prev) => {
+      const next = { ...prev };
 
-  const getVideoResolutionOptions = () => {
-    const modelName = getCurrentModelName().toLowerCase();
+      if (
+        isGrokImagineImageModel &&
+        !GROK_IMAGE_SIZE_OPTIONS.some((option) => option.value === next.imageSize)
+      ) {
+        next.imageSize = '1024x1024';
+      }
 
-    if (modelName.includes('grok-imagine-1.0-video')) {
-      return ['480p', '720p'];
-    }
+      if (isAdobeImageModel) {
+        if (
+          !ADOBE_IMAGE_ASPECT_RATIO_OPTIONS.some(
+            (option) => option.value === next.aspectRatio,
+          )
+        ) {
+          next.aspectRatio = 'auto';
+        }
+        if (
+          !ADOBE_AUTO_IMAGE_SIZE_OPTIONS.some(
+            (option) => option.value === next.autoImageSize,
+          )
+        ) {
+          next.autoImageSize = '1024x1024';
+        }
+        if (isAdobeImage4KModel) {
+          next.outputResolution = '4K';
+        } else if (
+          !ADOBE_OUTPUT_RESOLUTION_OPTIONS.some(
+            (option) => option.value === next.outputResolution,
+          )
+        ) {
+          next.outputResolution = '2K';
+        }
+      }
 
-    if (modelName.includes('veo')) {
-      return ['720p', '1080p'];
-    }
+      if (isVideoModel && !isAdobeVideoModel) {
+        if (
+          !GENERIC_VIDEO_SIZE_OPTIONS.some(
+            (option) => option.value === next.videoSize,
+          )
+        ) {
+          next.videoSize = '1280x720';
+        }
+        if (
+          !GENERIC_VIDEO_SECONDS_OPTIONS.some(
+            (option) => option.value === next.videoSeconds,
+          )
+        ) {
+          next.videoSeconds = '10';
+        }
+        if (
+          !GENERIC_VIDEO_QUALITY_OPTIONS.some(
+            (option) => option.value === next.videoQuality,
+          )
+        ) {
+          next.videoQuality = '480p';
+        }
+        if (
+          !GROK_VIDEO_PRESET_OPTIONS.some(
+            (option) => option.value === next.videoPreset,
+          )
+        ) {
+          next.videoPreset = 'normal';
+        }
+      }
 
-    return videoResolutions;
-  };
+      if (isAdobeVideoModel) {
+        const durationOptions = isAdobeSoraModel
+          ? ADOBE_VIDEO_DURATION_OPTIONS.sora
+          : ADOBE_VIDEO_DURATION_OPTIONS.veo;
+        if (
+          !durationOptions.some((option) => option.value === next.videoDuration)
+        ) {
+          next.videoDuration = durationOptions[0]?.value || '4';
+        }
+        if (
+          !ADOBE_VIDEO_ASPECT_RATIO_OPTIONS.some(
+            (option) => option.value === next.aspectRatio,
+          )
+        ) {
+          next.aspectRatio = '16:9';
+        }
+        if (
+          isAdobeVeoModel &&
+          !ADOBE_VIDEO_RESOLUTION_OPTIONS.some(
+            (option) => option.value === next.videoResolution,
+          )
+        ) {
+          next.videoResolution = '1080p';
+        }
+        if (
+          currentModelName === 'veo31' &&
+          !ADOBE_REFERENCE_MODE_OPTIONS.some(
+            (option) => option.value === next.referenceMode,
+          )
+        ) {
+          next.referenceMode = 'frame';
+        }
+      }
 
-  const buildImageSizeFromRatio = (ratio) => {
-    const ratioMap = {
-      '1:1': '1024x1024',
-      '2:3': '1024x1536',
-      '3:2': '1536x1024',
-      '3:4': '1024x1365',
-      '4:3': '1365x1024',
-      '4:5': '1024x1280',
-      '5:4': '1280x1024',
-      '9:16': '1024x1792',
-      '16:9': '1792x1024',
-      '21:9': '1792x768',
-    };
-    return ratioMap[ratio] || '1024x1024';
-  };
+      return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+    });
+  }, [
+    currentModelName,
+    isAdobeImage4KModel,
+    isAdobeImageModel,
+    isAdobeSoraModel,
+    isAdobeVeoModel,
+    isAdobeVideoModel,
+    isGrokImagineImageModel,
+    isVideoModel,
+  ]);
 
-  const buildVideoSizeFromRatio = (ratio) => {
-    const ratioMap = {
-      '1:1': '1024x1024',
-      '2:3': '832x1248',
-      '3:2': '1248x832',
-      '3:4': '768x1024',
-      '4:3': '1024x768',
-      '4:5': '864x1080',
-      '5:4': '1080x864',
-      '9:16': '720x1280',
-      '16:9': '1280x720',
-      '21:9': '1680x720',
-    };
-    return ratioMap[ratio] || '1280x720';
-  };
+  const createCreativeInputs = () => ({
+    model: currentModelName,
+    group: activeGroup,
+    stream: false,
+    imageSize: normalizeGrokImageSize(params.imageSize),
+    aspectRatio: params.aspectRatio,
+    autoImageSize: params.autoImageSize,
+    outputResolution: isAdobeImage4KModel ? '4K' : params.outputResolution,
+    videoSize: params.videoSize,
+    videoSeconds: params.videoSeconds,
+    videoQuality: params.videoQuality,
+    videoPreset: params.videoPreset,
+    videoDuration: params.videoDuration,
+    videoResolution: params.videoResolution,
+    referenceMode: params.referenceMode,
+  });
 
   const createBasePayload = (currentPrompt) => {
-    const modelName = getCurrentModelName();
     return buildApiPayload(
-        [{ role: 'user', content: currentPrompt }],
-        '',
-        {
-          model: modelName,
-          group: activeGroup,
-          stream: false,
-        imageSize: buildImageSizeFromRatio(params.ratio),
-        outputResolution: params.resolution,
-        videoSize: buildVideoSizeFromRatio(params.ratio),
-        videoSeconds: String(parseInt(params.duration, 10) || 10),
-        videoQuality: params.videoResolution,
-        videoPreset: 'normal',
-        aspectRatio: params.ratio === '自动' ? '' : params.ratio,
-        autoImageSize: buildImageSizeFromRatio(params.ratio),
-        videoDuration: String(parseInt(params.duration, 10) || 10),
-        videoResolution: params.videoResolution,
-        referenceMode: 'image',
-      },
-      {
-        temperature: false,
-        top_p: false,
-        max_tokens: false,
-        frequency_penalty: false,
-        presence_penalty: false,
-        seed: false,
-      },
+      [{ role: 'user', content: currentPrompt }],
+      '',
+      createCreativeInputs(),
+      PARAMETER_TOGGLES_DISABLED,
     );
   };
 
@@ -513,14 +732,23 @@ export default function App() {
     } else if (activeTab === 'image') {
       setCurrentImage(null);
       try {
+        const basePayload = createBasePayload(currentPrompt);
         const payload = {
-          model: getCurrentModelName(),
+          model: currentModelName,
           group: activeGroup,
           prompt: currentPrompt,
-          n: Number(params.quantity) || 1,
+          n: 1,
           response_format: 'url',
-          size: buildImageSizeFromRatio(params.ratio),
         };
+        if (basePayload.size) {
+          payload.size = basePayload.size;
+        }
+        if (basePayload.aspect_ratio) {
+          payload.aspect_ratio = basePayload.aspect_ratio;
+        }
+        if (basePayload.output_resolution) {
+          payload.output_resolution = basePayload.output_resolution;
+        }
         const data = await postCreativeRequest(API_ENDPOINTS.IMAGE_GENERATIONS, payload);
         const imageUrl =
           data?.data?.find?.((item) => typeof item?.url === 'string' && item.url.trim())?.url ||
@@ -534,23 +762,28 @@ export default function App() {
     } else if (activeTab === 'video') {
       setVideoTask(null);
       try {
+        const basePayload = createBasePayload(currentPrompt);
         const payload = {
-          model: getCurrentModelName(),
+          model: currentModelName,
           group: activeGroup,
           prompt: currentPrompt,
-          seconds: String(parseInt(params.duration, 10) || 10),
-          size: buildVideoSizeFromRatio(params.ratio),
-          quality: params.videoResolution,
-          ...(getCurrentModelName() === 'grok-imagine-1.0-video'
-            ? {
-                resolution_name: params.videoResolution,
-                video_config: {
-                  resolution_name: params.videoResolution,
-                  preset: 'normal',
-                },
-              }
-            : {}),
         };
+        [
+          'size',
+          'seconds',
+          'quality',
+          'preset',
+          'resolution_name',
+          'video_config',
+          'duration',
+          'aspect_ratio',
+          'resolution',
+          'reference_mode',
+        ].forEach((key) => {
+          if (basePayload[key] !== undefined) {
+            payload[key] = basePayload[key];
+          }
+        });
         const data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
         setVideoTask({
           id: data?.task_id || data?.id || '',
@@ -791,166 +1024,226 @@ export default function App() {
               )}
               {activeTab !== 'chat' && (
                 <div className='mt-5 flex flex-wrap items-center gap-3 border-t border-slate-50 pt-5 px-2'>
-                   {activeTab === 'image' && (
-                     <DropButton
-                       label={`${params.quantity}张`}
-                       open={openMenu === 'qty'}
-                       onClick={() => setOpenMenu(openMenu === 'qty' ? null : 'qty')}
-                       icon={<Layers size={14} />}
-                     >
-                       {openMenu === 'qty' && (
-                         <div className='absolute bottom-12 left-0 z-20 w-28 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
-                           {quantities.map((quantity) => (
-                             <button
-                               key={quantity}
-                               onClick={() => {
-                                 setParams((prev) => ({ ...prev, quantity }));
-                                 setOpenMenu(null);
-                               }}
-                               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                                 params.quantity === quantity
-                                   ? 'bg-blue-50 text-blue-700'
-                                   : 'text-slate-600 hover:bg-slate-50'
-                               }`}
-                             >
-                               <span>{quantity}张</span>
-                               {params.quantity === quantity ? <Check size={14} /> : null}
-                             </button>
-                           ))}
-                         </div>
-                       )}
-                     </DropButton>
-                   )}
+                  {activeTab === 'image' && isGrokImagineImageModel && (
+                    <DropSelectButton
+                      menuKey='imageSize'
+                      icon={<Copy size={14} />}
+                      label={`尺寸 ${params.imageSize}`}
+                      value={params.imageSize}
+                      options={GROK_IMAGE_SIZE_OPTIONS}
+                      openMenu={openMenu}
+                      setOpenMenu={setOpenMenu}
+                      onSelect={(value) =>
+                        setParams((prev) => ({ ...prev, imageSize: value }))
+                      }
+                    />
+                  )}
 
-                   <DropButton
-                     label={params.ratio}
-                     open={openMenu === 'ratio'}
-                     onClick={() => setOpenMenu(openMenu === 'ratio' ? null : 'ratio')}
-                     icon={<Copy size={14} />}
-                   >
-                     {openMenu === 'ratio' && (
-                       <div className='absolute bottom-12 left-0 z-20 grid w-48 grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
-                         {ratios.map((ratio) => (
-                           <button
-                             key={ratio}
-                             onClick={() => {
-                               setParams((prev) => ({ ...prev, ratio }));
-                               setOpenMenu(null);
-                             }}
-                             className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                               params.ratio === ratio
-                                 ? 'bg-blue-50 text-blue-700'
-                                 : 'text-slate-600 hover:bg-slate-50'
-                             }`}
-                           >
-                             <span>{ratio}</span>
-                             {params.ratio === ratio ? <Check size={14} /> : null}
-                           </button>
-                         ))}
-                       </div>
-                     )}
-                   </DropButton>
+                  {activeTab === 'image' && isAdobeImageModel && (
+                    <>
+                      <DropSelectButton
+                        menuKey='aspectRatio'
+                        icon={<Copy size={14} />}
+                        label={`比例 ${getOptionLabel(
+                          ADOBE_IMAGE_ASPECT_RATIO_OPTIONS,
+                          params.aspectRatio,
+                        )}`}
+                        value={params.aspectRatio}
+                        options={ADOBE_IMAGE_ASPECT_RATIO_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, aspectRatio: value }))
+                        }
+                      />
 
-                   <div className='rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600'>
-                     尺寸 {activeTab === 'image' ? buildImageSizeFromRatio(params.ratio) : buildVideoSizeFromRatio(params.ratio)}
-                   </div>
+                      {params.aspectRatio === 'auto' && (
+                        <DropSelectButton
+                          menuKey='autoImageSize'
+                          icon={<ImageIcon size={14} />}
+                          label={`尺寸 ${params.autoImageSize}`}
+                          value={params.autoImageSize}
+                          options={ADOBE_AUTO_IMAGE_SIZE_OPTIONS}
+                          openMenu={openMenu}
+                          setOpenMenu={setOpenMenu}
+                          onSelect={(value) =>
+                            setParams((prev) => ({ ...prev, autoImageSize: value }))
+                          }
+                        />
+                      )}
 
-                   {activeTab === 'image' ? (
-                     <DropButton
-                       label={params.resolution}
-                       open={openMenu === 'resolution'}
-                       onClick={() => setOpenMenu(openMenu === 'resolution' ? null : 'resolution')}
-                       icon={<ImageIcon size={14} />}
-                     >
-                       {openMenu === 'resolution' && (
-                         <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
-                           {imageResolutions.map((resolution) => (
-                             <button
-                               key={resolution.value}
-                               onClick={() => {
-                                 setParams((prev) => ({ ...prev, resolution: resolution.value }));
-                                 setOpenMenu(null);
-                               }}
-                               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                                 params.resolution === resolution.value
-                                   ? 'bg-blue-50 text-blue-700'
-                                   : 'text-slate-600 hover:bg-slate-50'
-                               }`}
-                             >
-                               <span>{resolution.label}</span>
-                               {params.resolution === resolution.value ? <Check size={14} /> : null}
-                             </button>
-                           ))}
-                         </div>
-                       )}
-                     </DropButton>
-                   ) : (
-                     <>
-                       <DropButton
-                         label={params.duration}
-                         open={openMenu === 'duration'}
-                         onClick={() => setOpenMenu(openMenu === 'duration' ? null : 'duration')}
-                         icon={<Clock size={14} />}
-                       >
-                         {openMenu === 'duration' && (
-                           <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
-                             {durations.map((duration) => (
-                               <button
-                                 key={duration}
-                                 onClick={() => {
-                                   setParams((prev) => ({ ...prev, duration }));
-                                   setOpenMenu(null);
-                                 }}
-                                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                                   params.duration === duration
-                                     ? 'bg-blue-50 text-blue-700'
-                                     : 'text-slate-600 hover:bg-slate-50'
-                                 }`}
-                               >
-                                 <span>{duration}</span>
-                                 {params.duration === duration ? <Check size={14} /> : null}
-                               </button>
-                             ))}
-                           </div>
-                         )}
-                       </DropButton>
+                      {isAdobeImage4KModel ? (
+                        <div className='rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600'>
+                          分辨率 4K
+                        </div>
+                      ) : (
+                        <DropSelectButton
+                          menuKey='outputResolution'
+                          icon={<ImageIcon size={14} />}
+                          label={`分辨率 ${params.outputResolution}`}
+                          value={params.outputResolution}
+                          options={ADOBE_OUTPUT_RESOLUTION_OPTIONS}
+                          openMenu={openMenu}
+                          setOpenMenu={setOpenMenu}
+                          onSelect={(value) =>
+                            setParams((prev) => ({
+                              ...prev,
+                              outputResolution: value,
+                            }))
+                          }
+                          widthClass='w-32'
+                        />
+                      )}
+                    </>
+                  )}
 
-                       <DropButton
-                         label={params.videoResolution}
-                         open={openMenu === 'videoResolution'}
-                         onClick={() =>
-                           setOpenMenu(
-                             openMenu === 'videoResolution' ? null : 'videoResolution',
-                           )
-                         }
-                         icon={<Video size={14} />}
-                       >
-                         {openMenu === 'videoResolution' && (
-                           <div className='absolute bottom-12 left-0 z-20 w-32 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl'>
-                             {getVideoResolutionOptions().map((resolution) => (
-                               <button
-                                 key={resolution}
-                                 onClick={() => {
-                                   setParams((prev) => ({ ...prev, videoResolution: resolution }));
-                                   setOpenMenu(null);
-                                 }}
-                                 className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                                   params.videoResolution === resolution
-                                     ? 'bg-blue-50 text-blue-700'
-                                     : 'text-slate-600 hover:bg-slate-50'
-                                 }`}
-                               >
-                                 <span>{resolution}</span>
-                                 {params.videoResolution === resolution ? <Check size={14} /> : null}
-                               </button>
-                             ))}
-                           </div>
-                         )}
-                       </DropButton>
-                     </>
-                   )}
+                  {activeTab === 'video' && isVideoModel && !isAdobeVideoModel && (
+                    <>
+                      <DropSelectButton
+                        menuKey='videoSize'
+                        icon={<Copy size={14} />}
+                        label={`尺寸 ${params.videoSize}`}
+                        value={params.videoSize}
+                        options={GENERIC_VIDEO_SIZE_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, videoSize: value }))
+                        }
+                      />
 
-                   <div className='ml-auto text-[10px] text-slate-400 font-bold tracking-widest uppercase'>Enter 发送</div>
+                      <DropSelectButton
+                        menuKey='videoSeconds'
+                        icon={<Clock size={14} />}
+                        label={`时长 ${getOptionLabel(
+                          GENERIC_VIDEO_SECONDS_OPTIONS,
+                          params.videoSeconds,
+                        )}`}
+                        value={params.videoSeconds}
+                        options={GENERIC_VIDEO_SECONDS_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, videoSeconds: value }))
+                        }
+                        widthClass='w-32'
+                      />
+
+                      <DropSelectButton
+                        menuKey='videoQuality'
+                        icon={<Video size={14} />}
+                        label={`分辨率 ${params.videoQuality}`}
+                        value={params.videoQuality}
+                        options={GENERIC_VIDEO_QUALITY_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, videoQuality: value }))
+                        }
+                        widthClass='w-32'
+                      />
+
+                      {isGrokImagineVideoModel && (
+                        <DropSelectButton
+                          menuKey='videoPreset'
+                          icon={<Layers size={14} />}
+                          label={`预设 ${getOptionLabel(
+                            GROK_VIDEO_PRESET_OPTIONS,
+                            params.videoPreset,
+                          )}`}
+                          value={params.videoPreset}
+                          options={GROK_VIDEO_PRESET_OPTIONS}
+                          openMenu={openMenu}
+                          setOpenMenu={setOpenMenu}
+                          onSelect={(value) =>
+                            setParams((prev) => ({ ...prev, videoPreset: value }))
+                          }
+                          widthClass='w-36'
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {activeTab === 'video' && isAdobeVideoModel && (
+                    <>
+                      <DropSelectButton
+                        menuKey='videoDuration'
+                        icon={<Clock size={14} />}
+                        label={`时长 ${getOptionLabel(
+                          isAdobeSoraModel
+                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
+                            : ADOBE_VIDEO_DURATION_OPTIONS.veo,
+                          params.videoDuration,
+                        )}`}
+                        value={params.videoDuration}
+                        options={
+                          isAdobeSoraModel
+                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
+                            : ADOBE_VIDEO_DURATION_OPTIONS.veo
+                        }
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, videoDuration: value }))
+                        }
+                        widthClass='w-32'
+                      />
+
+                      <DropSelectButton
+                        menuKey='videoAspectRatio'
+                        icon={<Copy size={14} />}
+                        label={`比例 ${params.aspectRatio}`}
+                        value={params.aspectRatio}
+                        options={ADOBE_VIDEO_ASPECT_RATIO_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({ ...prev, aspectRatio: value }))
+                        }
+                        widthClass='w-32'
+                      />
+
+                      {isAdobeVeoModel && (
+                        <DropSelectButton
+                          menuKey='adobeVideoResolution'
+                          icon={<Video size={14} />}
+                          label={`分辨率 ${params.videoResolution}`}
+                          value={params.videoResolution}
+                          options={ADOBE_VIDEO_RESOLUTION_OPTIONS}
+                          openMenu={openMenu}
+                          setOpenMenu={setOpenMenu}
+                          onSelect={(value) =>
+                            setParams((prev) => ({
+                              ...prev,
+                              videoResolution: value,
+                            }))
+                          }
+                          widthClass='w-32'
+                        />
+                      )}
+
+                      {currentModelName === 'veo31' && (
+                        <DropSelectButton
+                          menuKey='referenceMode'
+                          icon={<Layers size={14} />}
+                          label={`参考 ${getOptionLabel(
+                            ADOBE_REFERENCE_MODE_OPTIONS,
+                            params.referenceMode,
+                          )}`}
+                          value={params.referenceMode}
+                          options={ADOBE_REFERENCE_MODE_OPTIONS}
+                          openMenu={openMenu}
+                          setOpenMenu={setOpenMenu}
+                          onSelect={(value) =>
+                            setParams((prev) => ({ ...prev, referenceMode: value }))
+                          }
+                          widthClass='w-36'
+                        />
+                      )}
+                    </>
+                  )}
+
+                  <div className='ml-auto text-[10px] text-slate-400 font-bold tracking-widest uppercase'>Enter 发送</div>
                 </div>
               )}
             </div>
