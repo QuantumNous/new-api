@@ -1473,6 +1473,7 @@
     "支付渠道": "Canaux de paiement",
     "支付设置": "Paiement",
     "支付请求失败": "Échec de la demande de paiement",
+    "无法获取支付金额，请稍后重试": "Impossible d'obtenir le montant du paiement, veuillez réessayer plus tard",
     "支付金额": "Montant payé",
     "支持 Ctrl+V 粘贴图片": "Supporte Ctrl+V pour coller l'image",
     "支持6位TOTP验证码或8位备用码，可到`个人设置-安全设置-两步验证设置`配置或查看。": "Prend en charge le code de vérification TOTP à 6 chiffres ou le code de sauvegarde à 8 chiffres, peut être configuré ou consulté dans `Paramètres personnels - Paramètres de sécurité - Paramètres d'authentification à deux facteurs`.",

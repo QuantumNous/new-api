@@ -1481,6 +1481,7 @@
     "支付渠道": "Payment Channels",
     "支付设置": "Payment Settings",
     "支付请求失败": "Payment request failed",
+    "无法获取支付金额，请稍后重试": "Unable to fetch payment amount, please try again later",
     "支付金额": "Payment Amount",
     "支持 Ctrl+V 粘贴图片": "Supports Ctrl+V to paste images",
     "支持 JSONPath，如 email, data.user.email": "Supports JSONPath, e.g. email, data.user.email",

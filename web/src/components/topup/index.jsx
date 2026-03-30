@@ -514,7 +514,11 @@ const TopUp = () => {
 
   // Creates the checkout intent and immediately opens the AllScale checkout page.
   const allScaleTopUp = async () => {
-    if (allScaleAmount > 0 && allScaleAmount < allScaleMinTopUp) {
+    if (allScaleAmount <= 0) {
+      showError(t('无法获取支付金额，请稍后重试'));
+      return;
+    }
+    if (allScaleAmount < allScaleMinTopUp) {
       showError(`${t('最低充值金额 (USD)')}: $${allScaleMinTopUp}`);
       return;
     }
