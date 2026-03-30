@@ -106,24 +106,24 @@ export default function App() {
       chat: [
         {
           id: 'chat1',
-          name: 'Gemini 2.5 Flash',
-          desc: '新一代极速模型，适合深度对话、创意写作与逻辑分析。',
+          name: 'GPT-4o',
+          desc: '通用旗舰模型，适合对话问答、写作整理与多场景创作。',
           icon: <GPTIcon size={24} className='text-blue-600' />,
         },
       ],
       image: [
         {
           id: 'img1',
-          name: 'Imagen 4.0 Pro',
-          desc: '顶尖图像生成模型，支持极高的细节表现力与材质还原。',
+          name: 'FLUX',
+          desc: '高质量图片生成模型，适合海报、插画与视觉概念创作。',
           icon: <span className='font-bold text-blue-600'>IM</span>,
         },
       ],
       video: [
         {
           id: 'v1',
-          name: 'Video Gen 3',
-          desc: '动态视觉概念模型，支持生成流畅的高清短片素材。',
+          name: 'grok-video-3-plus',
+          desc: '视频生成模型，适合生成短片分镜、动态概念与创意演示。',
           icon: <GrokIcon size={24} className='text-blue-600' />,
         },
       ],
@@ -139,18 +139,6 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-
-    if (!isLoggedIn) {
-      setSyncedModels({
-        chat: [],
-        image: [],
-        video: [],
-      });
-      setActiveGroup('');
-      return () => {
-        mounted = false;
-      };
-    }
 
     const tabTagMap = {
       chat: ['文本', '对话', '聊天'],
@@ -200,6 +188,12 @@ export default function App() {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
+      const endpointTypes = Array.isArray(model?.supported_endpoint_types)
+        ? model.supported_endpoint_types
+        : [];
+      const normalizedEndpoints = endpointTypes.map((type) =>
+        String(type || '').toLowerCase(),
+      );
 
       const matchedTabs = Object.entries(tabTagMap)
         .filter(([, aliases]) => aliases.some((alias) => tags.includes(alias)))
@@ -207,6 +201,19 @@ export default function App() {
 
       if (matchedTabs.length > 0) {
         return matchedTabs;
+      }
+
+      if (normalizedEndpoints.some((endpoint) => endpoint.includes('video'))) {
+        return ['video'];
+      }
+
+      if (
+        normalizedEndpoints.some(
+          (endpoint) =>
+            endpoint.includes('image') || endpoint.includes('images'),
+        )
+      ) {
+        return ['image'];
       }
 
       return inferTabsFromModelName(modelName);
@@ -238,12 +245,23 @@ export default function App() {
 
     const loadManagedModels = async () => {
       try {
-        const [userModelsResult, userGroupsResult, managedModelsResult] =
+        const [pricingResult, userModelsResult, userGroupsResult] =
           await Promise.allSettled([
-            API.get(API_ENDPOINTS.USER_MODELS),
-            API.get(API_ENDPOINTS.USER_GROUPS),
-            API.get('/api/models/?p=1&page_size=1000'),
+            API.get('/api/pricing', { skipErrorHandler: true }),
+            isLoggedIn
+              ? API.get(API_ENDPOINTS.USER_MODELS, { skipErrorHandler: true })
+              : Promise.resolve({ data: { success: false, data: [] } }),
+            isLoggedIn
+              ? API.get(API_ENDPOINTS.USER_GROUPS, { skipErrorHandler: true })
+              : Promise.resolve({ data: { success: false, data: {} } }),
           ]);
+
+        const pricingModels =
+          pricingResult.status === 'fulfilled' && pricingResult.value?.data?.success
+            ? (Array.isArray(pricingResult.value.data.data)
+                ? pricingResult.value.data.data
+                : [])
+            : [];
 
         const userModels =
           userModelsResult.status === 'fulfilled' && userModelsResult.value?.data?.success
@@ -252,40 +270,33 @@ export default function App() {
                 : [])
             : [];
 
-        const managedItems =
-          managedModelsResult.status === 'fulfilled' &&
-          managedModelsResult.value?.data?.success
-            ? (() => {
-                const rawData = managedModelsResult.value.data.data;
-                const items = Array.isArray(rawData?.items)
-                  ? rawData.items
-                  : Array.isArray(rawData)
-                    ? rawData
-                    : [];
-                return items.filter(
-                  (item) =>
-                    item &&
-                    (item?.status === undefined || Number(item.status) === 1),
-                );
-              })()
-            : [];
-
-        const managedModelMap = new Map();
-        managedItems.forEach((item) => {
+        const pricingModelMap = new Map();
+        pricingModels.forEach((item) => {
           const modelName = item?.model_name || item?.name;
           if (modelName) {
-            managedModelMap.set(modelName, item);
+            pricingModelMap.set(modelName, item);
           }
         });
 
+        const visibleModelNames =
+          isLoggedIn && userModels.length > 0
+            ? userModels
+            : pricingModels
+                .map((item) => item?.model_name || item?.name || '')
+                .filter(Boolean);
+
         const nextModels = { chat: [], image: [], video: [] };
-        userModels.forEach((modelName) => {
-          const managedModel = managedModelMap.get(modelName);
-          const tabsForModel = resolveTabsForModel(modelName, managedModel);
+        visibleModelNames.forEach((modelName) => {
+          const pricingModel = pricingModelMap.get(modelName);
+          const tabsForModel = resolveTabsForModel(modelName, pricingModel);
 
           tabsForModel.forEach((tabKey) => {
             nextModels[tabKey].push(
-              createModelCard(managedModel || { model_name: modelName }, tabKey, modelName),
+              createModelCard(
+                pricingModel || { model_name: modelName },
+                tabKey,
+                modelName,
+              ),
             );
           });
         });
@@ -310,6 +321,7 @@ export default function App() {
         })();
 
         if (
+          isLoggedIn &&
           userGroupsResult.status === 'fulfilled' &&
           userGroupsResult.value?.data?.success
         ) {
