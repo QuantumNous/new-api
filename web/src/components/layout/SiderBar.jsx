@@ -47,6 +47,7 @@ const routerMap = {
   task: '/console/task',
   models: '/console/models',
   deployment: '/console/deployment',
+  creation: '/console/creation',
   playground: '/console/playground',
   personal: '/console/personal',
 };
@@ -203,9 +204,20 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const chatMenuItems = useMemo(() => {
     const items = [
       {
+        text: t('创作中心'),
+        itemKey: 'creation_hidden',
+        to: '/creation',
+        className: 'tableHiddle',
+      },
+      {
         text: t('操练场'),
         itemKey: 'playground',
         to: '/playground',
+      },
+      {
+        text: t('创作中心'),
+        itemKey: 'creation',
+        to: '/creation',
       },
       {
         text: t('聊天'),
