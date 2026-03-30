@@ -186,6 +186,81 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
+const createCreativeRecordId = (prefix) =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const normalizeImageHistoryRecords = (snapshot) => {
+  const payload = snapshot?.payload || {};
+
+  if (Array.isArray(payload?.entries)) {
+    return payload.entries.map((entry, index) => ({
+      id: entry?.id || createCreativeRecordId(`image-history-${index}`),
+      prompt: entry?.prompt || '',
+      modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
+      params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      status: entry?.status || 'completed',
+      images: Array.isArray(entry?.images) ? entry.images.filter(Boolean) : [],
+      error: entry?.error || '',
+      createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
+      updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
+    }));
+  }
+
+  if (Array.isArray(payload?.images) && payload.images.length > 0) {
+    return [
+      {
+        id: createCreativeRecordId('image-history'),
+        prompt: snapshot?.prompt || '',
+        modelName: snapshot?.model_name || '',
+        params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
+        status: 'completed',
+        images: payload.images.filter(Boolean),
+        error: '',
+        createdAt: snapshot?.updated_at || Date.now(),
+        updatedAt: snapshot?.updated_at || Date.now(),
+      },
+    ];
+  }
+
+  return [];
+};
+
+const normalizeVideoHistoryRecords = (snapshot) => {
+  const payload = snapshot?.payload || {};
+
+  if (Array.isArray(payload?.entries)) {
+    return payload.entries.map((entry, index) => ({
+      id: entry?.id || createCreativeRecordId(`video-history-${index}`),
+      prompt: entry?.prompt || '',
+      modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
+      params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      status: entry?.status || 'completed',
+      tasks: Array.isArray(entry?.tasks) ? entry.tasks : [],
+      error: entry?.error || '',
+      createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
+      updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
+    }));
+  }
+
+  if (Array.isArray(payload?.tasks) && payload.tasks.length > 0) {
+    return [
+      {
+        id: createCreativeRecordId('video-history'),
+        prompt: snapshot?.prompt || '',
+        modelName: snapshot?.model_name || '',
+        params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
+        status: 'completed',
+        tasks: payload.tasks,
+        error: '',
+        createdAt: snapshot?.updated_at || Date.now(),
+        updatedAt: snapshot?.updated_at || Date.now(),
+      },
+    ];
+  }
+
+  return [];
+};
+
 const renderCreativeModelIcon = (channelType, iconName, fallbackTab) => {
   const channelIcon = channelType ? getChannelIcon(channelType) : null;
   if (channelIcon) {
@@ -287,8 +362,8 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
-  const [currentImages, setCurrentImages] = useState([]);
-  const [videoTasks, setVideoTasks] = useState([]);
+  const [imageRecords, setImageRecords] = useState([]);
+  const [videoRecords, setVideoRecords] = useState([]);
   const [activeGroup, setActiveGroup] = useState('');
   const [openMenu, setOpenMenu] = useState(null);
   const [params, setParams] = useState({
@@ -314,7 +389,7 @@ export default function App() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatMessages, isGenerating]);
+  }, [activeTab, chatMessages, imageRecords, videoRecords, isGenerating]);
   const fallbackModels = useMemo(
     () => ({
       chat: [
@@ -577,6 +652,10 @@ export default function App() {
 
   const currentDisplayModels = modelPools[activeTab] || [];
   const activeHistorySnapshot = historySnapshots[activeTab];
+  const findModelCard = (tabKey, modelName) =>
+    (modelPools[tabKey] || []).find(
+      (model) => model.value === modelName || model.name === modelName,
+    ) || null;
   const selectedModel =
     currentDisplayModels.find((model) => model.id === activeModel) ||
     currentDisplayModels[0] ||
@@ -597,6 +676,59 @@ export default function App() {
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
+  const formatImageRecordSummary = (record) => {
+    const summary = [];
+    const recordParams = record?.params || {};
+
+    if (recordParams.aspectRatio && recordParams.aspectRatio !== 'auto') {
+      summary.push(recordParams.aspectRatio);
+    }
+    if (recordParams.imageSize) {
+      summary.push(recordParams.imageSize);
+    } else if (
+      recordParams.aspectRatio === 'auto' &&
+      recordParams.autoImageSize
+    ) {
+      summary.push(recordParams.autoImageSize);
+    }
+    if (recordParams.outputResolution) {
+      summary.push(recordParams.outputResolution);
+    }
+    if (Array.isArray(record?.images) && record.images.length > 0) {
+      summary.push(`${record.images.length}张`);
+    }
+
+    return summary.join(' · ');
+  };
+
+  const formatVideoRecordSummary = (record) => {
+    const summary = [];
+    const recordParams = record?.params || {};
+
+    if (recordParams.videoDuration) {
+      summary.push(`${recordParams.videoDuration}s`);
+    } else if (recordParams.videoSeconds) {
+      summary.push(`${recordParams.videoSeconds}s`);
+    }
+
+    if (recordParams.aspectRatio && recordParams.aspectRatio !== 'auto') {
+      summary.push(recordParams.aspectRatio);
+    } else if (recordParams.videoSize) {
+      summary.push(recordParams.videoSize);
+    }
+
+    if (recordParams.videoResolution) {
+      summary.push(recordParams.videoResolution);
+    } else if (recordParams.videoQuality) {
+      summary.push(recordParams.videoQuality);
+    }
+
+    if (Array.isArray(record?.tasks) && record.tasks.length > 0) {
+      summary.push(`${record.tasks.length}条`);
+    }
+
+    return summary.join(' · ');
+  };
 
   useEffect(() => {
     if (!currentDisplayModels.some((model) => model.id === activeModel)) {
@@ -847,52 +979,83 @@ export default function App() {
     return response.data;
   };
 
+  const persistImageRecords = async (records, options = {}) => {
+    if (records.length === 0) {
+      await deleteCreativeHistory('image');
+      return;
+    }
+
+    await saveCreativeHistory(
+      'image',
+      {
+        entries: records,
+        params: options.params || records[records.length - 1]?.params || params,
+      },
+      {
+        modelName:
+          options.modelName || records[records.length - 1]?.modelName || currentModelName,
+        prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      },
+    );
+  };
+
+  const persistVideoRecords = async (records, options = {}) => {
+    if (records.length === 0) {
+      await deleteCreativeHistory('video');
+      return;
+    }
+
+    await saveCreativeHistory(
+      'video',
+      {
+        entries: records,
+        params: options.params || records[records.length - 1]?.params || params,
+      },
+      {
+        modelName:
+          options.modelName || records[records.length - 1]?.modelName || currentModelName,
+        prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      },
+    );
+  };
+
+  const handleReuseRecord = (record) => {
+    if (!record) {
+      return;
+    }
+
+    if (record.prompt) {
+      setPrompt(record.prompt);
+    }
+    if (record.params && typeof record.params === 'object') {
+      setParams((prev) => ({
+        ...prev,
+        ...record.params,
+      }));
+    }
+    textareaRef.current?.focus();
+  };
+
   const handleClearImageResults = async () => {
-    setCurrentImages([]);
+    setImageRecords([]);
     await deleteCreativeHistory('image');
   };
 
-  const handleRemoveImage = async (indexToRemove) => {
-    const nextImages = currentImages.filter((_, index) => index !== indexToRemove);
-    setCurrentImages(nextImages);
-    if (nextImages.length === 0) {
-      await deleteCreativeHistory('image');
-    } else {
-      await saveCreativeHistory(
-        'image',
-        {
-          images: nextImages,
-          params,
-        },
-        {
-          prompt,
-        },
-      );
-    }
+  const handleRemoveImageRecord = async (recordId) => {
+    const nextRecords = imageRecords.filter((record) => record.id !== recordId);
+    setImageRecords(nextRecords);
+    await persistImageRecords(nextRecords);
   };
 
   const handleClearVideoResults = async () => {
-    setVideoTasks([]);
+    setVideoRecords([]);
     await deleteCreativeHistory('video');
   };
 
-  const handleRemoveVideoTask = async (indexToRemove) => {
-    const nextTasks = videoTasks.filter((_, index) => index !== indexToRemove);
-    setVideoTasks(nextTasks);
-    if (nextTasks.length === 0) {
-      await deleteCreativeHistory('video');
-    } else {
-      await saveCreativeHistory(
-        'video',
-        {
-          tasks: nextTasks,
-          params,
-        },
-        {
-          prompt,
-        },
-      );
-    }
+  const handleRemoveVideoRecord = async (recordId) => {
+    const nextRecords = videoRecords.filter((record) => record.id !== recordId);
+    setVideoRecords(nextRecords);
+    await persistVideoRecords(nextRecords);
   };
 
   useEffect(() => {
@@ -905,8 +1068,8 @@ export default function App() {
         }
         setHistorySnapshots(EMPTY_HISTORY_SNAPSHOTS);
         setChatMessages([]);
-        setCurrentImages([]);
-        setVideoTasks([]);
+        setImageRecords([]);
+        setVideoRecords([]);
         return;
       }
 
@@ -932,16 +1095,8 @@ export default function App() {
             ? nextSnapshots.chat.payload.messages
             : [],
         );
-        setCurrentImages(
-          Array.isArray(nextSnapshots.image?.payload?.images)
-            ? nextSnapshots.image.payload.images
-            : [],
-        );
-        setVideoTasks(
-          Array.isArray(nextSnapshots.video?.payload?.tasks)
-            ? nextSnapshots.video.payload.tasks
-            : [],
-        );
+        setImageRecords(normalizeImageHistoryRecords(nextSnapshots.image));
+        setVideoRecords(normalizeVideoHistoryRecords(nextSnapshots.video));
       } catch (error) {
         console.error('Failed to load creative center history:', error);
       }
@@ -1019,7 +1174,21 @@ export default function App() {
         );
       }
     } else if (activeTab === 'image') {
-      setCurrentImages([]);
+      const recordId = createCreativeRecordId('image');
+      const pendingRecord = {
+        id: recordId,
+        prompt: currentPrompt,
+        modelName: currentModelName,
+        params: { ...params },
+        images: [],
+        status: 'generating',
+        error: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const pendingRecords = [...imageRecords, pendingRecord];
+      setImageRecords(pendingRecords);
+
       try {
         const generationCount = Number(params.generationCount) || 1;
         const collectedImages = [];
@@ -1057,23 +1226,56 @@ export default function App() {
           collectedImages.push(...imageUrls);
         }
 
-        setCurrentImages(collectedImages);
-        await saveCreativeHistory(
-          'image',
-          {
-            images: collectedImages,
-            params,
-          },
-          {
-            modelName: currentModelName,
-            prompt: currentPrompt,
-          },
+        const completedRecord = {
+          ...pendingRecord,
+          images: collectedImages,
+          status: 'completed',
+          updatedAt: Date.now(),
+        };
+        const completedRecords = pendingRecords.map((record) =>
+          record.id === recordId ? completedRecord : record,
         );
+
+        setImageRecords(completedRecords);
+        await persistImageRecords(completedRecords, {
+          modelName: currentModelName,
+          prompt: currentPrompt,
+          params: completedRecord.params,
+        });
       } catch (error) {
         console.error('Creative center image error:', error);
+        const failedRecord = {
+          ...pendingRecord,
+          status: 'failed',
+          error: `生成失败：${error.message || '请稍后再试。'}`,
+          updatedAt: Date.now(),
+        };
+        const failedRecords = pendingRecords.map((record) =>
+          record.id === recordId ? failedRecord : record,
+        );
+        setImageRecords(failedRecords);
+        await persistImageRecords(failedRecords, {
+          modelName: currentModelName,
+          prompt: currentPrompt,
+          params: failedRecord.params,
+        });
       }
     } else if (activeTab === 'video') {
-      setVideoTasks([]);
+      const recordId = createCreativeRecordId('video');
+      const pendingRecord = {
+        id: recordId,
+        prompt: currentPrompt,
+        modelName: currentModelName,
+        params: { ...params },
+        tasks: [],
+        status: 'generating',
+        error: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const pendingRecords = [...videoRecords, pendingRecord];
+      setVideoRecords(pendingRecords);
+
       try {
         const generationCount = Number(params.generationCount) || 1;
         const collectedTasks = [];
@@ -1128,20 +1330,39 @@ export default function App() {
           });
         }
 
-        setVideoTasks(collectedTasks);
-        await saveCreativeHistory(
-          'video',
-          {
-            tasks: collectedTasks,
-            params,
-          },
-          {
-            modelName: currentModelName,
-            prompt: currentPrompt,
-          },
+        const completedRecord = {
+          ...pendingRecord,
+          tasks: collectedTasks,
+          status: 'completed',
+          updatedAt: Date.now(),
+        };
+        const completedRecords = pendingRecords.map((record) =>
+          record.id === recordId ? completedRecord : record,
         );
+
+        setVideoRecords(completedRecords);
+        await persistVideoRecords(completedRecords, {
+          modelName: currentModelName,
+          prompt: currentPrompt,
+          params: completedRecord.params,
+        });
       } catch (error) {
         console.error('Creative center video error:', error);
+        const failedRecord = {
+          ...pendingRecord,
+          status: 'failed',
+          error: `生成失败：${error.message || '请稍后再试。'}`,
+          updatedAt: Date.now(),
+        };
+        const failedRecords = pendingRecords.map((record) =>
+          record.id === recordId ? failedRecord : record,
+        );
+        setVideoRecords(failedRecords);
+        await persistVideoRecords(failedRecords, {
+          modelName: currentModelName,
+          prompt: currentPrompt,
+          params: failedRecord.params,
+        });
       }
     }
     setIsGenerating(false);
@@ -1251,16 +1472,16 @@ export default function App() {
         )}
 
         {activeTab !== 'chat' && (
-          <div className='relative flex-1 overflow-y-auto p-10'>
-            {activeTab === 'image' && currentImages.length > 0 ? (
-              <div className='mx-auto flex w-full max-w-6xl flex-col gap-6'>
+          <div ref={scrollRef} className='relative flex-1 overflow-y-auto p-10 custom-scrollbar'>
+            {activeTab === 'image' && imageRecords.length > 0 ? (
+              <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='flex items-center justify-between gap-3'>
                   <div>
                     <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
-                      本次生成
+                      创作记录
                     </div>
                     <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
-                      共生成 {currentImages.length} 张图片
+                      共保留 {imageRecords.length} 条图片记录
                     </h3>
                   </div>
                   <button
@@ -1271,52 +1492,101 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
-                  {currentImages.map((imageUrl, index) => (
-                    <div
-                      key={`${imageUrl}-${index}`}
-                      className='group relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-blue-900/5'
-                    >
-                      <div className='absolute left-4 top-4 z-10 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm backdrop-blur-sm'>
-                        第 {index + 1} 张
-                      </div>
-                      <img
-                        src={imageUrl}
-                        alt={`Generated Art ${index + 1}`}
-                        className='aspect-square h-full w-full object-cover'
-                      />
-                      <div className='absolute inset-0 flex items-center justify-center gap-4 bg-slate-900/35 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-[2px]'>
-                        <button
-                          onClick={() =>
-                            triggerDownload(
-                              imageUrl,
-                              `${currentModelName || 'creative-image'}-${index + 1}.png`,
-                            )
-                          }
-                          className='rounded-full bg-white p-4 text-blue-600 shadow-xl transition-transform hover:scale-110'
-                        >
-                          <Download size={24} />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveImage(index)}
-                          className='rounded-full bg-white p-4 text-red-500 shadow-xl transition-transform hover:scale-110'
-                        >
-                          <Trash2 size={24} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className='space-y-10'>
+                  {imageRecords.map((record, recordIndex) => {
+                    const recordModel = findModelCard('image', record.modelName);
+                    const metaSummary = formatImageRecordSummary(record);
+
+                    return (
+                      <article key={record.id || `image-record-${recordIndex}`} className='space-y-4'>
+                        <div className='flex items-start gap-4'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
+                            {recordModel?.icon || <ImageIcon size={22} />}
+                          </div>
+                          <div className='min-w-0 flex-1'>
+                            <div className='rounded-[1.75rem] border border-slate-200 bg-white/90 px-5 py-4 shadow-sm'>
+                              <div className='flex items-start justify-between gap-4'>
+                                <div className='min-w-0'>
+                                  <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
+                                    {record.prompt || '未填写提示词'}
+                                  </p>
+                                  <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
+                                    <span>{record.modelName || '图片模型'}</span>
+                                    {metaSummary ? <span>{metaSummary}</span> : null}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveImageRecord(record.id)}
+                                  className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {record.status === 'generating' ? (
+                              <div className='mt-4 flex items-center gap-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
+                                <Loader2 size={18} className='animate-spin' />
+                                <span className='text-sm font-semibold'>正在生成这一组图片...</span>
+                              </div>
+                            ) : record.status === 'failed' ? (
+                              <div className='mt-4 rounded-[1.75rem] border border-red-100 bg-red-50 px-5 py-4 text-sm leading-7 text-red-600'>
+                                {record.error || '本次图片生成失败，请稍后重试。'}
+                              </div>
+                            ) : (
+                              <div className='mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                                {record.images.map((imageUrl, imageIndex) => (
+                                  <div
+                                    key={`${record.id}-${imageIndex}`}
+                                    className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Generated Art ${imageIndex + 1}`}
+                                      className='aspect-[3/4] h-full w-full object-cover'
+                                    />
+                                    <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
+                                      <button
+                                        onClick={() =>
+                                          triggerDownload(
+                                            imageUrl,
+                                            `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`,
+                                          )
+                                        }
+                                        className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
+                                      >
+                                        <Download size={18} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className='mt-3 flex flex-wrap items-center gap-2'>
+                              <button
+                                onClick={() => handleReuseRecord(record)}
+                                className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                              >
+                                再次生成
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
-            ) : activeTab === 'video' && videoTasks.length > 0 ? (
-              <div className='mx-auto flex w-full max-w-6xl flex-col gap-6'>
+            ) : activeTab === 'video' && videoRecords.length > 0 ? (
+              <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='flex items-center justify-between gap-3'>
                   <div>
                     <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
-                      本次生成
+                      创作记录
                     </div>
                     <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
-                      共提交 {videoTasks.length} 条视频任务
+                      共保留 {videoRecords.length} 条视频记录
                     </h3>
                   </div>
                   <button
@@ -1327,68 +1597,99 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className='grid gap-6 xl:grid-cols-2'>
-                  {videoTasks.map((task, index) => (
-                    <div
-                      key={`${task.id || 'video-task'}-${index}`}
-                      className='rounded-[2rem] border border-slate-200 bg-white/90 p-7 text-left shadow-xl shadow-blue-900/5'
-                    >
-                      <div className='flex items-start justify-between gap-4'>
-                        <div className='flex items-center gap-4'>
-                          <div className='flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600'>
-                            <Video size={24} />
+                <div className='space-y-10'>
+                  {videoRecords.map((record, recordIndex) => {
+                    const recordModel = findModelCard('video', record.modelName);
+                    const metaSummary = formatVideoRecordSummary(record);
+
+                    return (
+                      <article key={record.id || `video-record-${recordIndex}`} className='space-y-4'>
+                        <div className='flex items-start gap-4'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
+                            {recordModel?.icon || <Video size={22} />}
                           </div>
-                          <div>
-                            <div className='text-xs font-bold uppercase tracking-[0.22em] text-slate-400'>
-                              第 {index + 1} 条任务
+                          <div className='min-w-0 flex-1'>
+                            <div className='rounded-[1.75rem] border border-slate-200 bg-white/90 px-5 py-4 shadow-sm'>
+                              <div className='flex items-start justify-between gap-4'>
+                                <div className='min-w-0'>
+                                  <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
+                                    {record.prompt || '未填写提示词'}
+                                  </p>
+                                  <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
+                                    <span>{record.modelName || '视频模型'}</span>
+                                    {metaSummary ? <span>{metaSummary}</span> : null}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveVideoRecord(record.id)}
+                                  className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
                             </div>
-                            <h3 className='mt-2 text-xl font-black tracking-tight text-slate-900'>
-                              {selectedModel?.name || '视频模型'}
-                            </h3>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveVideoTask(index)}
-                          className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
 
-                      <div className='mt-6 grid gap-4 rounded-[1.5rem] bg-slate-50 p-5 text-sm text-slate-600 sm:grid-cols-2'>
-                        <div>
-                          <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                            任务 ID
-                          </div>
-                          <div className='mt-2 break-all font-semibold text-slate-800'>
-                            {task.id || '暂未返回'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                            当前状态
-                          </div>
-                          <div className='mt-2 font-semibold text-blue-700'>
-                            {task.status || 'submitted'}
-                          </div>
-                        </div>
-                      </div>
+                            {record.status === 'generating' ? (
+                              <div className='mt-4 flex items-center gap-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
+                                <Loader2 size={18} className='animate-spin' />
+                                <span className='text-sm font-semibold'>正在提交这一组视频任务...</span>
+                              </div>
+                            ) : record.status === 'failed' ? (
+                              <div className='mt-4 rounded-[1.75rem] border border-red-100 bg-red-50 px-5 py-4 text-sm leading-7 text-red-600'>
+                                {record.error || '本次视频生成失败，请稍后重试。'}
+                              </div>
+                            ) : (
+                              <div className='mt-4 grid gap-4 xl:grid-cols-2'>
+                                {record.tasks.map((task, taskIndex) => (
+                                  <div
+                                    key={`${record.id}-${task.id || taskIndex}`}
+                                    className='rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/40'
+                                  >
+                                    <div className='flex items-center justify-between gap-3'>
+                                      <div>
+                                        <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                                          第 {taskIndex + 1} 条任务
+                                        </div>
+                                        <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
+                                          {task.id || '暂未返回任务 ID'}
+                                        </div>
+                                      </div>
+                                      <div className='rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700'>
+                                        {task.status || 'submitted'}
+                                      </div>
+                                    </div>
 
-                      {task.url ? (
-                        <div className='mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-950'>
-                          <video controls className='h-full w-full' src={task.url} />
+                                    {task.url ? (
+                                      <div className='mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950'>
+                                        <video controls className='aspect-video h-full w-full' src={task.url} />
+                                      </div>
+                                    ) : task.content ? (
+                                      <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
+                                        {task.content}
+                                      </div>
+                                    ) : (
+                                      <p className='mt-4 text-sm leading-7 text-slate-500'>
+                                        视频任务已提交成功，生成时间通常会更长，可以稍后根据任务 ID 查看结果。
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className='mt-3 flex flex-wrap items-center gap-2'>
+                              <button
+                                onClick={() => handleReuseRecord(record)}
+                                className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                              >
+                                再次生成
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      ) : task.content ? (
-                        <div className='mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600'>
-                          {task.content}
-                        </div>
-                      ) : (
-                        <p className='mt-5 text-sm leading-7 text-slate-500'>
-                          视频生成通常比图片更久。当前任务已经提交成功，你可以稍后结合任务 ID 到任务日志继续查看进度。
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -1407,18 +1708,6 @@ export default function App() {
                     {selectedModel?.desc || '这里会显示当前模型的介绍，帮助你在开始创作前快速了解它更擅长生成什么内容。'}
                   </p>
                 </div>
-              </div>
-            )}
-            
-            {isGenerating && (
-              <div className='absolute inset-0 z-50 bg-white/80 backdrop-blur-xl flex flex-col items-center justify-center text-center p-10'>
-                <div className='relative mb-8'>
-                  <div className='h-32 w-32 rounded-[2.5rem] bg-blue-600/5 flex items-center justify-center border border-blue-100'>
-                    <Loader2 size={56} className='animate-spin text-blue-600' />
-                  </div>
-                </div>
-                <p className='text-2xl font-black text-blue-900 tracking-tight'>正在调配创意像素</p>
-                <p className='text-slate-500 mt-2 font-medium'>这通常需要 10-15 秒的时间来完成渲染</p>
               </div>
             )}
           </div>
