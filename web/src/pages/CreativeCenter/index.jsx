@@ -17,87 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ArrowUp,
-  Check,
-  ChevronDown,
-  Clock,
-  Copy,
-  History,
-  Image as ImageIcon,
-  Layers,
-  Loader2,
-  MessageSquare,
   Plus,
+  ArrowUp,
+  Image as ImageIcon,
+  MessageSquare,
   Video,
+  Loader2,
+  Layers,
+  Check,
+  Copy,
+  Clock,
+  History,
+  ChevronDown,
 } from 'lucide-react';
 
-const TABS = {
-  chat: '聊天',
-  image: '图片',
-  video: '视频',
-};
-
-const chatModels = [
-  {
-    id: 'chat1',
-    name: 'GPT-5.4',
-    desc: 'GPT-5.4是OpenAI用于复杂专业工作的前沿模型，具备强大的深度推理...',
-    activeBg:
-      'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
-  },
-];
-
-const imageModels = [
-  {
-    id: 1,
-    name: 'Nano Banana Pro',
-    desc: '谷歌2025年最新视觉增强模型，拥有极其惊艳的文字排版能力...',
-    icon: '🍌',
-    activeBg:
-      'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
-  },
-  {
-    id: 2,
-    name: 'Nano Banana 2',
-    desc: '谷歌推出的视觉模型基础版，针对日常应用场景优化...',
-    icon: '🌙',
-    activeBg:
-      'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
-  },
-];
-
-const videoModels = [
-  {
-    id: 'v1',
-    name: 'grok-video-3-plus',
-    desc: 'Grok 推出的 Plus 级视频生成模型，支持多种时长与比例...',
-    activeBg:
-      'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
-  },
-];
-
-const imageResolutions = [
-  { value: '1K', label: '1K' },
-  { value: '2K', label: '2K' },
-  { value: '3K', label: '3K' },
-];
-
-const durations = ['10秒', '15秒', '20秒', '25秒'];
-const ratios = [
-  '自动',
-  '1:1',
-  '2:3',
-  '3:2',
-  '3:4',
-  '4:3',
-  '4:5',
-  '5:4',
-  '9:16',
-  '16:9',
-  '21:9',
-];
+const apiKey = ''; // 环境变量会自动注入 API Key
 
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg
@@ -133,112 +69,142 @@ const GrokIcon = ({ size = 24, className = '' }) => (
   </svg>
 );
 
-const createDemoImage = (prompt) => {
-  const safePrompt = (prompt || '创作灵感').slice(0, 48).replace(/[<>&]/g, '');
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="768" viewBox="0 0 1280 768">
-      <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#eff6ff"/>
-          <stop offset="45%" stop-color="#dbeafe"/>
-          <stop offset="100%" stop-color="#e2e8f0"/>
-        </linearGradient>
-        <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#2563eb"/>
-          <stop offset="100%" stop-color="#0f172a"/>
-        </linearGradient>
-      </defs>
-      <rect width="1280" height="768" fill="url(#bg)"/>
-      <circle cx="220" cy="180" r="120" fill="#93c5fd" opacity="0.35"/>
-      <circle cx="1040" cy="620" r="180" fill="#bfdbfe" opacity="0.35"/>
-      <rect x="110" y="96" width="1060" height="576" rx="36" fill="white" opacity="0.9"/>
-      <rect x="170" y="156" width="420" height="456" rx="28" fill="url(#card)"/>
-      <text x="220" y="248" fill="white" font-size="52" font-family="Arial, sans-serif" font-weight="700">LinkSky</text>
-      <text x="220" y="314" fill="#dbeafe" font-size="28" font-family="Arial, sans-serif">创作中心 Demo Render</text>
-      <text x="660" y="246" fill="#0f172a" font-size="48" font-family="Arial, sans-serif" font-weight="700">灵感预览</text>
-      <text x="660" y="320" fill="#334155" font-size="30" font-family="Arial, sans-serif">${safePrompt}</text>
-      <text x="660" y="390" fill="#64748b" font-size="24" font-family="Arial, sans-serif">上传文件中的页面内容已接入当前站点</text>
-      <text x="660" y="430" fill="#64748b" font-size="24" font-family="Arial, sans-serif">这里展示的是站内演示图像生成效果</text>
-      <rect x="660" y="500" width="210" height="56" rx="28" fill="#2563eb"/>
-      <text x="710" y="537" fill="white" font-size="24" font-family="Arial, sans-serif">继续创作</text>
-    </svg>
-  `;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-};
-
-const MenuButton = ({ open, children, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
-      open
-        ? 'border-blue-200 bg-blue-100 text-blue-700'
-        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-    }`}
-  >
-    {children}
-  </button>
-);
-
 export default function CreativeCenter() {
-  const [activeTab, setActiveTab] = useState(TABS.chat);
+  const [activeTab, setActiveTab] = useState('聊天');
   const [activeModel, setActiveModel] = useState('chat1');
+
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
+
   const [isQuantityOpen, setIsQuantityOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
+
   const [isRatioOpen, setIsRatioOpen] = useState(false);
   const [ratio, setRatio] = useState('自动');
+
   const [isResolutionOpen, setIsResolutionOpen] = useState(false);
   const [resolution, setResolution] = useState('2K');
+
   const [isDurationOpen, setIsDurationOpen] = useState(false);
   const [duration, setDuration] = useState('10秒');
 
-  const displayModels = useMemo(() => {
-    if (activeTab === TABS.chat) {
-      return chatModels.map((model) => ({
-        ...model,
-        icon: <GPTIcon size={28} className='text-blue-600' />,
-      }));
+  const imageResolutions = [
+    { value: '1K', label: '1K' },
+    { value: '2K', label: '2K' },
+    { value: '3K', label: '3K' },
+  ];
+
+  const durations = ['10秒', '15秒', '20秒', '25秒'];
+
+  const fetchWithRetry = async (url, options, maxRetries = 5) => {
+    let retries = 0;
+    const delays = [1000, 2000, 4000, 8000, 16000];
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+      } catch (error) {
+        if (retries === maxRetries - 1) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delays[retries]));
+        retries++;
+      }
     }
-    if (activeTab === TABS.video) {
-      return videoModels.map((model) => ({
-        ...model,
-        icon: <GrokIcon size={28} className='text-blue-600' />,
-      }));
-    }
-    return imageModels;
-  }, [activeTab]);
+  };
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isGenerating) {
       return;
     }
-    if (activeTab === TABS.image) {
+    if (activeTab === '图片') {
       setIsGenerating(true);
       setGeneratedImage(null);
-      await new Promise((resolve) => setTimeout(resolve, 900));
-      setGeneratedImage(createDemoImage(prompt));
-      setIsGenerating(false);
-      return;
+      try {
+        const response = await fetchWithRetry(
+          `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instances: { prompt: prompt },
+              parameters: { sampleCount: 1 },
+            }),
+          },
+        );
+        if (response.predictions && response.predictions[0]) {
+          setGeneratedImage(
+            `data:image/png;base64,${response.predictions[0].bytesBase64Encoded}`,
+          );
+        }
+      } catch (error) {
+        console.error('Generate error', error);
+      } finally {
+        setIsGenerating(false);
+      }
+    } else {
+      console.log('Chat prompt submitted:', prompt);
+      setPrompt('');
     }
-    setPrompt('');
   };
 
-  const switchTab = (tab, modelId) => {
-    setActiveTab(tab);
-    setActiveModel(modelId);
-    setIsQuantityOpen(false);
-    setIsRatioOpen(false);
-    setIsResolutionOpen(false);
-    setIsDurationOpen(false);
-  };
+  const chatModels = [
+    {
+      id: 'chat1',
+      name: 'GPT-5.4',
+      desc: 'GPT-5.4是OpenAI用于复杂专业工作的前沿模型，具备强大的深度推理...',
+      icon: <GPTIcon size={28} className='text-blue-600' />,
+      activeBg:
+        'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
+    },
+  ];
+
+  const imageModels = [
+    {
+      id: 1,
+      name: 'Nano Banana Pro',
+      desc: '谷歌2025年最新视觉增强模型，拥有极其惊艳的文字排版能力...',
+      icon: '🍌',
+      activeBg:
+        'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
+    },
+    {
+      id: 2,
+      name: 'Nano Banana 2',
+      desc: '谷歌推出的视觉模型基础版，针对日常应用场景优化...',
+      icon: '🌙',
+      activeBg:
+        'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
+    },
+  ];
+
+  const videoModels = [
+    {
+      id: 'v1',
+      name: 'grok-video-3-plus',
+      desc: 'Grok 推出的 Plus 级视频生成模型，支持多种时长与比例...',
+      icon: <GrokIcon size={28} className='text-blue-600' />,
+      activeBg:
+        'bg-blue-50 border-l-[3px] border-l-blue-600 rounded-r-xl rounded-l-sm',
+    },
+  ];
+
+  const displayModels =
+    activeTab === '聊天'
+      ? chatModels
+      : activeTab === '视频'
+        ? videoModels
+        : imageModels;
 
   return (
     <div className='w-full bg-slate-50 pt-16'>
-      <div className='flex min-h-[calc(100vh-64px)] flex-col overflow-hidden bg-slate-50 text-slate-800 xl:flex-row'>
-        <div className='w-full shrink-0 border-b border-slate-200 bg-white xl:w-[280px] xl:border-b-0 xl:border-r'>
-          <div className='flex items-center gap-3.5 px-5 py-6 sm:px-6 sm:py-7'>
+      <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50 font-sans text-slate-800'>
+        <div className='flex w-[280px] shrink-0 flex-col border-r border-slate-200 bg-white'>
+          <div className='flex items-center gap-3.5 px-6 py-7'>
             <img
               src='https://picui.ogmua.cn/s1/2026/03/26/69c4ddb5db12d.webp'
               alt='Logo'
@@ -249,11 +215,14 @@ export default function CreativeCenter() {
             </h1>
           </div>
 
-          <div className='flex justify-center gap-10 border-b border-slate-100 px-4 py-4'>
+          <div className='mb-2 flex justify-center gap-12 border-b border-slate-100 py-4'>
             <div
-              onClick={() => switchTab(TABS.chat, 'chat1')}
+              onClick={() => {
+                setActiveTab('聊天');
+                setActiveModel('chat1');
+              }}
               className={`flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
-                activeTab === TABS.chat
+                activeTab === '聊天'
                   ? 'text-blue-600'
                   : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -262,9 +231,12 @@ export default function CreativeCenter() {
               <span className='text-[13px] font-medium tracking-wide'>聊天</span>
             </div>
             <div
-              onClick={() => switchTab(TABS.image, 1)}
+              onClick={() => {
+                setActiveTab('图片');
+                setActiveModel(1);
+              }}
               className={`flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
-                activeTab === TABS.image
+                activeTab === '图片'
                   ? 'text-blue-600'
                   : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -273,9 +245,12 @@ export default function CreativeCenter() {
               <span className='text-[13px] font-medium tracking-wide'>图片</span>
             </div>
             <div
-              onClick={() => switchTab(TABS.video, 'v1')}
+              onClick={() => {
+                setActiveTab('视频');
+                setActiveModel('v1');
+              }}
               className={`relative flex cursor-pointer flex-col items-center gap-1.5 transition-colors ${
-                activeTab === TABS.video
+                activeTab === '视频'
                   ? 'text-blue-600'
                   : 'text-slate-400 hover:text-slate-600'
               }`}
@@ -288,19 +263,19 @@ export default function CreativeCenter() {
             </div>
           </div>
 
-          <div className='custom-scrollbar flex max-h-[320px] flex-col gap-2 overflow-y-auto px-3 py-3 xl:max-h-none xl:flex-1'>
+          <div className='custom-scrollbar mt-2 flex-1 space-y-2 overflow-y-auto px-3 py-3'>
             {displayModels.map((model) => (
               <div
                 key={model.id}
                 onClick={() => setActiveModel(model.id)}
                 className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition-all duration-200 ${
                   activeModel === model.id
-                    ? model.activeBg || 'border-blue-200 bg-blue-50 shadow-sm'
+                    ? model.activeBg || 'bg-blue-50 border-blue-200 shadow-sm'
                     : 'border-transparent bg-transparent hover:bg-slate-50'
                 }`}
               >
                 <div
-                  className={`mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+                  className={`mt-1 flex h-10 w-10 items-center justify-center rounded-xl transition-colors opacity-100 ${
                     activeModel === model.id ? 'bg-blue-100' : 'bg-slate-100'
                   }`}
                 >
@@ -321,6 +296,11 @@ export default function CreativeCenter() {
                     >
                       {model.name}
                     </span>
+                    {model.tag && (
+                      <span className='shrink-0 rounded border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-600'>
+                        {model.tag}
+                      </span>
+                    )}
                   </div>
                   <p className='line-clamp-2 text-[11px] leading-tight text-slate-500'>
                     {model.desc}
@@ -330,36 +310,38 @@ export default function CreativeCenter() {
             ))}
           </div>
 
-          <div className='border-t border-slate-100 bg-white p-4'>
+          <div className='flex flex-col gap-4 border-t border-slate-100 bg-white p-4'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-3'>
                 <div className='relative'>
                   <div className='flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-blue-50'>
                     <span className='text-xl'>👩‍🦰</span>
                   </div>
-                  <div className='absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500' />
+                  <div className='absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500'></div>
                 </div>
                 <div>
                   <div className='flex items-center gap-1 text-sm font-medium text-slate-900'>
                     听雨的作家
-                    <span className='rounded bg-slate-100 px-1 text-[9px] text-slate-500'>
+                    <span className='bg-slate-100 px-1 text-[9px] text-slate-500'>
                       Lv.1
                     </span>
                   </div>
-                  <div className='mt-0.5 text-[10px] text-slate-400'>在线</div>
+                  <div className='mt-0.5 flex items-center gap-1 text-[10px] text-slate-400'>
+                    在线
+                  </div>
                 </div>
               </div>
-              <button className='rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95'>
+              <button className='flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95'>
                 <span className='font-medium'>充值</span>
               </button>
             </div>
           </div>
         </div>
 
-        <div className='relative flex min-h-[60vh] flex-1 flex-col bg-slate-50/50'>
-          {activeTab === TABS.chat && (
-            <div className='absolute left-4 top-4 z-20 flex items-center gap-2 sm:left-6'>
-              <button className='group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-sm transition-all hover:bg-slate-50'>
+        <div className='relative flex flex-1 flex-col bg-slate-50/50'>
+          {activeTab === '聊天' && (
+            <div className='absolute left-6 top-4 z-20 flex items-center gap-2'>
+              <button className='group flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 transition-all shadow-sm hover:bg-slate-50'>
                 <History size={16} className='text-slate-500' />
                 历史
                 <ChevronDown
@@ -373,27 +355,27 @@ export default function CreativeCenter() {
             </div>
           )}
 
-          <div className='custom-scrollbar flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-8 pt-20 sm:px-8 lg:px-10 xl:pb-32'>
-            {activeTab === TABS.chat ? (
+          <div className='custom-scrollbar flex flex-1 flex-col items-center justify-center overflow-y-auto px-10 pb-32'>
+            {activeTab === '聊天' ? (
               <div className='flex max-w-2xl flex-col items-center text-center'>
                 <div className='mb-10 text-blue-600 opacity-90'>
                   <GPTIcon size={100} className='drop-shadow-lg' />
                 </div>
                 <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
                   <p className='text-base font-light leading-relaxed text-slate-600'>
-                    GPT-5.4是OpenAI用于复杂专业工作的前沿模型，具备强大的深度推理、多模态理解和工具调用能力，
+                    GPT-5.4是OpenAI用于复杂专业工作的前沿模型，具备强大的深度推理、多模态理解和工
                     <br />
-                    适用于高难度分析、代码开发与创意写作。
+                    具调用能力，适用于高难度分析、代码开发与创意写作。
                   </p>
                 </div>
               </div>
-            ) : activeTab === TABS.video ? (
+            ) : activeTab === '视频' ? (
               <div className='flex flex-col items-center text-center'>
                 <div className='relative mb-8 text-blue-600'>
                   <GrokIcon size={90} className='drop-shadow-lg' />
                 </div>
-                <div className='max-w-[600px] rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
-                  <p className='text-base font-light leading-relaxed text-slate-600'>
+                <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
+                  <p className='max-w-[600px] text-base font-light leading-relaxed text-slate-600'>
                     Grok 推出的 Plus 级视频生成模型，支持多种时长，覆盖 16:9、9:16、
                     <br />
                     3:2、2:3、1:1 全比例，适合社交媒体和创意短片场景。
@@ -418,15 +400,17 @@ export default function CreativeCenter() {
                     />
                     <div className='absolute inset-0 flex items-center justify-center bg-slate-900/10 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100'>
                       <button className='rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:bg-blue-700 active:scale-95'>
-                        下载高清大图
+                        ✨ 下载高清大图
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
                     <div className='relative mb-8'>
-                      <div className='absolute inset-0 scale-150 rounded-full bg-blue-400 opacity-10 blur-3xl' />
-                      <span className='relative z-10 text-[85px] drop-shadow-md'>🍌</span>
+                      <div className='absolute inset-0 scale-150 rounded-full bg-blue-400 opacity-10 blur-3xl'></div>
+                      <span className='relative z-10 text-[85px] drop-shadow-md'>
+                        🍌
+                      </span>
                     </div>
                     <div className='rounded-3xl border border-slate-200 bg-white p-8 shadow-sm backdrop-blur-md'>
                       <p className='text-base font-light leading-relaxed text-slate-600'>
@@ -441,14 +425,14 @@ export default function CreativeCenter() {
             )}
           </div>
 
-          <div className='mt-auto w-full max-w-4xl self-center px-4 pb-4 sm:px-6 xl:absolute xl:bottom-6 xl:left-1/2 xl:-translate-x-1/2'>
+          <div className='absolute bottom-6 left-1/2 z-10 flex w-full max-w-4xl -translate-x-1/2 flex-col gap-2 px-6'>
             <div className='relative flex flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/50 transition-all focus-within:border-blue-300 focus-within:ring-4 focus-within:ring-blue-500/5'>
               <div className='flex gap-4 px-2'>
-                {activeTab !== TABS.chat && (
+                {activeTab !== '聊天' && (
                   <button className='group flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100'>
                     <Plus size={20} className='mb-1' />
                     <span className='text-[10px]'>
-                      {activeTab === TABS.video ? '首帧' : '参考图'}
+                      {activeTab === '视频' ? '首帧' : '参考图'}
                     </span>
                   </button>
                 )}
@@ -462,30 +446,34 @@ export default function CreativeCenter() {
                     }
                   }}
                   placeholder={
-                    activeTab === TABS.chat
+                    activeTab === '聊天'
                       ? '描述你的需求或粘贴代码...'
-                      : activeTab === TABS.video
+                      : activeTab === '视频'
                         ? '描述视频动作、场景及氛围...'
                         : '描述你想生成的图片内容...'
                   }
                   className='h-16 flex-1 resize-none bg-transparent py-2 text-[15px] leading-relaxed text-slate-800 outline-none placeholder:text-slate-400'
-                />
+                ></textarea>
               </div>
 
               <div className='mt-3 flex items-center justify-between px-1'>
                 <div className='flex flex-wrap gap-2'>
-                  {activeTab !== TABS.chat && (
+                  {activeTab !== '聊天' && (
                     <>
                       <div className='relative'>
-                        <MenuButton
-                          open={isQuantityOpen}
-                          onClick={() => setIsQuantityOpen((open) => !open)}
+                        <button
+                          onClick={() => setIsQuantityOpen(!isQuantityOpen)}
+                          className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs transition-all ${
+                            isQuantityOpen
+                              ? 'border-blue-200 bg-blue-100 text-blue-700'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                          }`}
                         >
                           <Layers size={12} /> {quantity}条
                           <span className='ml-1 text-[10px] text-slate-400'>
                             {isQuantityOpen ? '▲' : '▼'}
                           </span>
-                        </MenuButton>
+                        </button>
                         {isQuantityOpen && (
                           <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[200px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                             <div className='mb-1 border-b border-slate-50 px-4 py-2'>
@@ -513,24 +501,35 @@ export default function CreativeCenter() {
                             <div
                               className='fixed inset-0 -z-10'
                               onClick={() => setIsQuantityOpen(false)}
-                            />
+                            ></div>
                           </div>
                         )}
                       </div>
-
                       <div className='relative'>
-                        <MenuButton
-                          open={isRatioOpen}
-                          onClick={() => setIsRatioOpen((open) => !open)}
+                        <button
+                          onClick={() => setIsRatioOpen(!isRatioOpen)}
+                          className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                         >
                           <Copy size={12} /> {ratio}
                           <span className='ml-1 text-[10px] text-slate-400'>
                             ▼
                           </span>
-                        </MenuButton>
+                        </button>
                         {isRatioOpen && (
                           <div className='custom-scrollbar absolute bottom-full left-0 z-50 mb-3 flex max-h-60 w-[160px] flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
-                            {ratios.map((option) => (
+                            {[
+                              '自动',
+                              '1:1',
+                              '2:3',
+                              '3:2',
+                              '3:4',
+                              '4:3',
+                              '4:5',
+                              '5:4',
+                              '9:16',
+                              '16:9',
+                              '21:9',
+                            ].map((option) => (
                               <button
                                 key={option}
                                 onClick={() => {
@@ -549,22 +548,21 @@ export default function CreativeCenter() {
                             <div
                               className='fixed inset-0 -z-10'
                               onClick={() => setIsRatioOpen(false)}
-                            />
+                            ></div>
                           </div>
                         )}
                       </div>
-
-                      {activeTab === TABS.video ? (
+                      {activeTab === '视频' ? (
                         <div className='relative'>
-                          <MenuButton
-                            open={isDurationOpen}
-                            onClick={() => setIsDurationOpen((open) => !open)}
+                          <button
+                            onClick={() => setIsDurationOpen(!isDurationOpen)}
+                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                           >
                             <Clock size={12} /> {duration}
                             <span className='ml-1 text-[10px] text-slate-400'>
                               ▼
                             </span>
-                          </MenuButton>
+                          </button>
                           {isDurationOpen && (
                             <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[120px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                               {durations.map((option) => (
@@ -586,23 +584,23 @@ export default function CreativeCenter() {
                               <div
                                 className='fixed inset-0 -z-10'
                                 onClick={() => setIsDurationOpen(false)}
-                              />
+                              ></div>
                             </div>
                           )}
                         </div>
                       ) : (
                         <div className='relative'>
-                          <MenuButton
-                            open={isResolutionOpen}
+                          <button
                             onClick={() =>
-                              setIsResolutionOpen((open) => !open)
+                              setIsResolutionOpen(!isResolutionOpen)
                             }
+                            className='flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-all hover:bg-slate-100'
                           >
                             {resolution}
                             <span className='ml-1 text-[10px] text-slate-400'>
                               ▼
                             </span>
-                          </MenuButton>
+                          </button>
                           {isResolutionOpen && (
                             <div className='absolute bottom-full left-0 z-50 mb-3 flex w-[120px] flex-col rounded-2xl border border-slate-200 bg-white py-2 shadow-xl'>
                               {imageResolutions.map((option) => (
@@ -624,7 +622,7 @@ export default function CreativeCenter() {
                               <div
                                 className='fixed inset-0 -z-10'
                                 onClick={() => setIsResolutionOpen(false)}
-                              />
+                              ></div>
                             </div>
                           )}
                         </div>
@@ -652,7 +650,7 @@ export default function CreativeCenter() {
         <style
           dangerouslySetInnerHTML={{
             __html: `
-              .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+              .custom-scrollbar::-webkit-scrollbar { width: 4px; }
               .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
               .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
               .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
