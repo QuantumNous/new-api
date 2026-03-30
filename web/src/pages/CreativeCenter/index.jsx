@@ -119,6 +119,10 @@ const ADOBE_REFERENCE_MODE_OPTIONS = [
   { label: 'Frame', value: 'frame' },
   { label: 'Image', value: 'image' },
 ];
+const GENERATION_COUNT_OPTIONS = Array.from({ length: 10 }, (_, index) => ({
+  label: `${index + 1}条`,
+  value: String(index + 1),
+}));
 const PARAMETER_TOGGLES_DISABLED = {
   temperature: false,
   top_p: false,
@@ -158,6 +162,21 @@ const extractVideoUrlFromMessage = (content) => {
 
   const plainUrlMatch = content.match(/https?:\/\/[^\s'"]+/i);
   return plainUrlMatch?.[0] || '';
+};
+
+const triggerDownload = (url, filename) => {
+  if (!url) {
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 const GPTIcon = ({ size = 24, className = '' }) => (
@@ -240,11 +259,12 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
-  const [currentImage, setCurrentImage] = useState(null);
-  const [videoTask, setVideoTask] = useState(null);
+  const [currentImages, setCurrentImages] = useState([]);
+  const [videoTasks, setVideoTasks] = useState([]);
   const [activeGroup, setActiveGroup] = useState('');
   const [openMenu, setOpenMenu] = useState(null);
   const [params, setParams] = useState({
+    generationCount: '1',
     imageSize: '1024x1024',
     aspectRatio: 'auto',
     autoImageSize: '1024x1024',
@@ -749,86 +769,105 @@ export default function App() {
         ]);
       }
     } else if (activeTab === 'image') {
-      setCurrentImage(null);
+      setCurrentImages([]);
       try {
-        const basePayload = createBasePayload(currentPrompt);
-        const payload = {
-          model: currentModelName,
-          group: activeGroup,
-          prompt: currentPrompt,
-          n: 1,
-          response_format: 'url',
-        };
-        if (basePayload.size) {
-          payload.size = basePayload.size;
+        const generationCount = Number(params.generationCount) || 1;
+        const collectedImages = [];
+
+        for (let index = 0; index < generationCount; index += 1) {
+          const basePayload = createBasePayload(currentPrompt);
+          const payload = {
+            model: currentModelName,
+            group: activeGroup,
+            prompt: currentPrompt,
+            n: 1,
+            response_format: 'url',
+          };
+          if (basePayload.size) {
+            payload.size = basePayload.size;
+          }
+          if (basePayload.aspect_ratio) {
+            payload.aspect_ratio = basePayload.aspect_ratio;
+          }
+          if (basePayload.output_resolution) {
+            payload.output_resolution = basePayload.output_resolution;
+          }
+
+          const data = await postCreativeRequest(
+            API_ENDPOINTS.IMAGE_GENERATIONS,
+            payload,
+          );
+          const imageUrls = Array.isArray(data?.data)
+            ? data.data
+                .map((item) =>
+                  typeof item?.url === 'string' ? item.url.trim() : '',
+                )
+                .filter(Boolean)
+            : [];
+          collectedImages.push(...imageUrls);
         }
-        if (basePayload.aspect_ratio) {
-          payload.aspect_ratio = basePayload.aspect_ratio;
-        }
-        if (basePayload.output_resolution) {
-          payload.output_resolution = basePayload.output_resolution;
-        }
-        const data = await postCreativeRequest(API_ENDPOINTS.IMAGE_GENERATIONS, payload);
-        const imageUrl =
-          data?.data?.find?.((item) => typeof item?.url === 'string' && item.url.trim())?.url ||
-          '';
-        if (imageUrl) {
-          setCurrentImage(imageUrl);
-        }
+
+        setCurrentImages(collectedImages);
       } catch (error) {
         console.error('Creative center image error:', error);
       }
     } else if (activeTab === 'video') {
-      setVideoTask(null);
+      setVideoTasks([]);
       try {
-        const basePayload = createBasePayload(currentPrompt);
-        let data;
+        const generationCount = Number(params.generationCount) || 1;
+        const collectedTasks = [];
 
-        if (isAdobeVideoModel) {
-          data = await postCreativeRequest(
-            API_ENDPOINTS.CHAT_COMPLETIONS,
-            basePayload,
-          );
-          const content = data?.choices?.[0]?.message?.content || '';
-          const videoUrl = extractVideoUrlFromMessage(content);
-          setVideoTask({
-            id: data?.id || '',
-            status: videoUrl ? 'completed' : 'submitted',
-            url: videoUrl,
-            content,
+        for (let index = 0; index < generationCount; index += 1) {
+          const basePayload = createBasePayload(currentPrompt);
+          let data;
+
+          if (isAdobeVideoModel) {
+            data = await postCreativeRequest(
+              API_ENDPOINTS.CHAT_COMPLETIONS,
+              basePayload,
+            );
+            const content = data?.choices?.[0]?.message?.content || '';
+            const videoUrl = extractVideoUrlFromMessage(content);
+            collectedTasks.push({
+              id: data?.id || `video-${index + 1}`,
+              status: videoUrl ? 'completed' : 'submitted',
+              url: videoUrl,
+              content,
+            });
+            continue;
+          }
+
+          const payload = {
+            model: currentModelName,
+            group: activeGroup,
+            prompt: currentPrompt,
+          };
+          [
+            'size',
+            'seconds',
+            'quality',
+            'preset',
+            'resolution_name',
+            'video_config',
+            'duration',
+            'aspect_ratio',
+            'resolution',
+            'reference_mode',
+          ].forEach((key) => {
+            if (basePayload[key] !== undefined) {
+              payload[key] = basePayload[key];
+            }
           });
-          setIsGenerating(false);
-          return;
+          data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
+          collectedTasks.push({
+            id: data?.task_id || data?.id || `video-${index + 1}`,
+            status: data?.status || 'submitted',
+            url: data?.url || data?.video_url || data?.result_url || '',
+            content: '',
+          });
         }
 
-        const payload = {
-          model: currentModelName,
-          group: activeGroup,
-          prompt: currentPrompt,
-        };
-        [
-          'size',
-          'seconds',
-          'quality',
-          'preset',
-          'resolution_name',
-          'video_config',
-          'duration',
-          'aspect_ratio',
-          'resolution',
-          'reference_mode',
-        ].forEach((key) => {
-          if (basePayload[key] !== undefined) {
-            payload[key] = basePayload[key];
-          }
-        });
-        data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
-        setVideoTask({
-          id: data?.task_id || data?.id || '',
-          status: data?.status || 'submitted',
-          url: data?.url || data?.video_url || data?.result_url || '',
-          content: '',
-        });
+        setVideoTasks(collectedTasks);
       } catch (error) {
         console.error('Creative center video error:', error);
       }
@@ -837,7 +876,7 @@ export default function App() {
   };
 
   return (
-    <div className='flex h-screen w-full bg-slate-50 text-slate-800 font-sans overflow-hidden'>
+    <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-slate-50 text-slate-800 font-sans'>
       <aside className='flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
         <div className='p-6'>
           <div className='flex items-center gap-2'>
@@ -894,7 +933,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
+      <main className='relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white/40 backdrop-blur-md'>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 py-10 space-y-6 custom-scrollbar'>
@@ -940,78 +979,170 @@ export default function App() {
         )}
 
         {activeTab !== 'chat' && (
-          <div className='flex-1 flex flex-col items-center justify-center p-10 relative'>
-            {activeTab === 'image' && currentImage ? (
-              <div className='group relative max-w-2xl w-full aspect-square bg-white rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl transition-all hover:scale-[1.01]'>
-                <img src={currentImage} alt="Generated Art" className='w-full h-full object-cover' />
-                <div className='absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 backdrop-blur-[2px]'>
-                  <button className='p-4 bg-white rounded-full text-blue-600 hover:scale-110 transition-transform shadow-xl'><Download size={24} /></button>
-                  <button className='p-4 bg-white rounded-full text-red-500 hover:scale-110 transition-transform shadow-xl' onClick={() => setCurrentImage(null)}><Trash2 size={24} /></button>
-                </div>
-              </div>
-            ) : activeTab === 'video' && videoTask ? (
-              <div className='w-full max-w-2xl rounded-[2.5rem] border border-slate-200 bg-white/90 p-10 text-left shadow-2xl shadow-blue-900/5'>
-                <div className='flex items-center gap-4'>
-                  <div className='flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600'>
-                    <Video size={28} />
-                  </div>
+          <div className='relative flex-1 overflow-y-auto p-10'>
+            {activeTab === 'image' && currentImages.length > 0 ? (
+              <div className='mx-auto flex w-full max-w-6xl flex-col gap-6'>
+                <div className='flex items-center justify-between gap-3'>
                   <div>
-                    <div className='text-xs font-bold uppercase tracking-[0.22em] text-slate-400'>
-                      视频任务已提交
+                    <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
+                      本次生成
                     </div>
                     <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
-                      {selectedModel?.name || '视频模型'}
+                      共生成 {currentImages.length} 张图片
                     </h3>
                   </div>
+                  <button
+                    onClick={() => setCurrentImages([])}
+                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
+                  >
+                    清空结果
+                  </button>
                 </div>
 
-                <div className='mt-8 grid gap-4 rounded-[2rem] bg-slate-50 p-6 text-sm text-slate-600 sm:grid-cols-2'>
+                <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-3'>
+                  {currentImages.map((imageUrl, index) => (
+                    <div
+                      key={`${imageUrl}-${index}`}
+                      className='group relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-blue-900/5'
+                    >
+                      <div className='absolute left-4 top-4 z-10 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-600 shadow-sm backdrop-blur-sm'>
+                        第 {index + 1} 张
+                      </div>
+                      <img
+                        src={imageUrl}
+                        alt={`Generated Art ${index + 1}`}
+                        className='aspect-square h-full w-full object-cover'
+                      />
+                      <div className='absolute inset-0 flex items-center justify-center gap-4 bg-slate-900/35 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-[2px]'>
+                        <button
+                          onClick={() =>
+                            triggerDownload(
+                              imageUrl,
+                              `${currentModelName || 'creative-image'}-${index + 1}.png`,
+                            )
+                          }
+                          className='rounded-full bg-white p-4 text-blue-600 shadow-xl transition-transform hover:scale-110'
+                        >
+                          <Download size={24} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setCurrentImages((prev) =>
+                              prev.filter((_, imageIndex) => imageIndex !== index),
+                            )
+                          }
+                          className='rounded-full bg-white p-4 text-red-500 shadow-xl transition-transform hover:scale-110'
+                        >
+                          <Trash2 size={24} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : activeTab === 'video' && videoTasks.length > 0 ? (
+              <div className='mx-auto flex w-full max-w-6xl flex-col gap-6'>
+                <div className='flex items-center justify-between gap-3'>
                   <div>
-                    <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                      任务 ID
+                    <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
+                      本次生成
                     </div>
-                    <div className='mt-2 break-all font-semibold text-slate-800'>
-                      {videoTask.id || '暂未返回'}
-                    </div>
+                    <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
+                      共提交 {videoTasks.length} 条视频任务
+                    </h3>
                   </div>
-                  <div>
-                    <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                      当前状态
-                    </div>
-                    <div className='mt-2 font-semibold text-blue-700'>
-                      {videoTask.status || 'submitted'}
-                    </div>
-                  </div>
+                  <button
+                    onClick={() => setVideoTasks([])}
+                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
+                  >
+                    清空结果
+                  </button>
                 </div>
 
-                <p className='mt-6 text-sm leading-7 text-slate-500'>
-                  视频生成通常比图片更久。如果模型返回了结果链接，会在下方展示；否则你可以结合任务 ID 到任务日志继续查看进度。
-                </p>
+                <div className='grid gap-6 xl:grid-cols-2'>
+                  {videoTasks.map((task, index) => (
+                    <div
+                      key={`${task.id || 'video-task'}-${index}`}
+                      className='rounded-[2rem] border border-slate-200 bg-white/90 p-7 text-left shadow-xl shadow-blue-900/5'
+                    >
+                      <div className='flex items-start justify-between gap-4'>
+                        <div className='flex items-center gap-4'>
+                          <div className='flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600'>
+                            <Video size={24} />
+                          </div>
+                          <div>
+                            <div className='text-xs font-bold uppercase tracking-[0.22em] text-slate-400'>
+                              第 {index + 1} 条任务
+                            </div>
+                            <h3 className='mt-2 text-xl font-black tracking-tight text-slate-900'>
+                              {selectedModel?.name || '视频模型'}
+                            </h3>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setVideoTasks((prev) =>
+                              prev.filter((_, taskIndex) => taskIndex !== index),
+                            )
+                          }
+                          className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
 
-                {videoTask.url ? (
-                  <div className='mt-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950'>
-                    <video controls className='h-full w-full' src={videoTask.url} />
-                  </div>
-                ) : videoTask.content ? (
-                  <div className='mt-6 rounded-[2rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600'>
-                    {videoTask.content}
-                  </div>
-                ) : null}
+                      <div className='mt-6 grid gap-4 rounded-[1.5rem] bg-slate-50 p-5 text-sm text-slate-600 sm:grid-cols-2'>
+                        <div>
+                          <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                            任务 ID
+                          </div>
+                          <div className='mt-2 break-all font-semibold text-slate-800'>
+                            {task.id || '暂未返回'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                            当前状态
+                          </div>
+                          <div className='mt-2 font-semibold text-blue-700'>
+                            {task.status || 'submitted'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {task.url ? (
+                        <div className='mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-950'>
+                          <video controls className='h-full w-full' src={task.url} />
+                        </div>
+                      ) : task.content ? (
+                        <div className='mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600'>
+                          {task.content}
+                        </div>
+                      ) : (
+                        <p className='mt-5 text-sm leading-7 text-slate-500'>
+                          视频生成通常比图片更久。当前任务已经提交成功，你可以稍后结合任务 ID 到任务日志继续查看进度。
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
-                <div className='mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm'>
-                  {selectedModel?.icon || (activeTab === 'image' ? <ImageIcon size={36} /> : <Video size={36} />)}
+              <div className='flex min-h-full items-center justify-center'>
+                <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
+                  <div className='mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm'>
+                    {selectedModel?.icon || (activeTab === 'image' ? <ImageIcon size={36} /> : <Video size={36} />)}
+                  </div>
+                  <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
+                    当前模型
+                  </div>
+                  <h3 className='mt-4 text-3xl font-black tracking-tight text-slate-900'>
+                    {selectedModel?.name || (activeTab === 'image' ? '图片模型' : '视频模型')}
+                  </h3>
+                  <p className='mt-4 text-sm leading-8 text-slate-500'>
+                    {selectedModel?.desc || '这里会显示当前模型的介绍，帮助你在开始创作前快速了解它更擅长生成什么内容。'}
+                  </p>
                 </div>
-                <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
-                  当前模型
-                </div>
-                <h3 className='mt-4 text-3xl font-black tracking-tight text-slate-900'>
-                  {selectedModel?.name || (activeTab === 'image' ? '图片模型' : '视频模型')}
-                </h3>
-                <p className='mt-4 text-sm leading-8 text-slate-500'>
-                  {selectedModel?.desc || '这里会显示当前模型的介绍，帮助你在开始创作前快速了解它更擅长生成什么内容。'}
-                </p>
               </div>
             )}
             
@@ -1067,6 +1198,20 @@ export default function App() {
               )}
               {activeTab !== 'chat' && (
                 <div className='mt-5 flex flex-wrap items-center gap-3 border-t border-slate-50 pt-5 px-2'>
+                  <DropSelectButton
+                    menuKey='generationCount'
+                    icon={<Layers size={14} />}
+                    label={`生成 ${params.generationCount}条`}
+                    value={params.generationCount}
+                    options={GENERATION_COUNT_OPTIONS}
+                    openMenu={openMenu}
+                    setOpenMenu={setOpenMenu}
+                    onSelect={(value) =>
+                      setParams((prev) => ({ ...prev, generationCount: value }))
+                    }
+                    widthClass='w-28'
+                  />
+
                   {activeTab === 'image' && isGrokImagineImageModel && (
                     <DropSelectButton
                       menuKey='imageSize'
