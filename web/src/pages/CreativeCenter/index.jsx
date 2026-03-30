@@ -141,6 +141,25 @@ const normalizeGrokImageSize = (size) => {
 const getOptionLabel = (options, value) =>
   options.find((option) => option.value === value)?.label || value;
 
+const extractVideoUrlFromMessage = (content) => {
+  if (typeof content !== 'string') {
+    return '';
+  }
+
+  const htmlMatch = content.match(/<video[^>]+src=['"]([^'"]+)['"]/i);
+  if (htmlMatch?.[1]) {
+    return htmlMatch[1];
+  }
+
+  const markdownMatch = content.match(/\((https?:\/\/[^)\s]+)\)/i);
+  if (markdownMatch?.[1]) {
+    return markdownMatch[1];
+  }
+
+  const plainUrlMatch = content.match(/https?:\/\/[^\s'"]+/i);
+  return plainUrlMatch?.[0] || '';
+};
+
 const GPTIcon = ({ size = 24, className = '' }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg' className={className}>
     <path d='M22.2819 9.8211a5.9847 5.9847 0 0 0-.5153-4.9066 6.0462 6.0462 0 0 0-3.9471-3.1358 6.0417 6.0417 0 0 0-5.1923 1.0689 6.0222 6.0222 0 0 0-4.385-1.9231 6.0464 6.0464 0 0 0-5.4604 3.4456 6.0536 6.0536 0 0 0-.8101 4.8906 6.0538 6.0538 0 0 0 3.1467 3.9573 6.0585 6.0585 0 0 0-1.065 5.2124 6.0545 6.0545 0 0 0 1.9292 4.3941 6.0513 6.0513 0 0 0 4.0011 1.6379 6.0106 6.0106 0 0 0 4.3389-1.8964 6.0562 6.0562 0 0 0 5.4628-3.4481 6.0519 6.0519 0 0 0 .8175-4.9088 6.0483 6.0483 0 0 0-3.1463-3.9429 6.0548 6.0548 0 0 0 1.0254-4.8882Z' fill='currentColor' />
@@ -763,6 +782,25 @@ export default function App() {
       setVideoTask(null);
       try {
         const basePayload = createBasePayload(currentPrompt);
+        let data;
+
+        if (isAdobeVideoModel) {
+          data = await postCreativeRequest(
+            API_ENDPOINTS.CHAT_COMPLETIONS,
+            basePayload,
+          );
+          const content = data?.choices?.[0]?.message?.content || '';
+          const videoUrl = extractVideoUrlFromMessage(content);
+          setVideoTask({
+            id: data?.id || '',
+            status: videoUrl ? 'completed' : 'submitted',
+            url: videoUrl,
+            content,
+          });
+          setIsGenerating(false);
+          return;
+        }
+
         const payload = {
           model: currentModelName,
           group: activeGroup,
@@ -784,30 +822,12 @@ export default function App() {
             payload[key] = basePayload[key];
           }
         });
-        if (isAdobeVideoModel) {
-          payload.duration = Number(params.videoDuration || 4);
-          payload.metadata = {
-            durationSeconds: Number(params.videoDuration || 4),
-            aspectRatio: params.aspectRatio || '16:9',
-            ...(isAdobeVeoModel
-              ? {
-                  resolution: String(
-                    params.videoResolution || '1080p',
-                  ).toLowerCase(),
-                }
-              : {}),
-            ...(currentModelName === 'veo31'
-              ? { referenceMode: params.referenceMode || 'frame' }
-              : currentModelName === 'veo31-ref'
-                ? { referenceMode: 'image' }
-                : {}),
-          };
-        }
-        const data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
+        data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
         setVideoTask({
           id: data?.task_id || data?.id || '',
           status: data?.status || 'submitted',
           url: data?.url || data?.video_url || data?.result_url || '',
+          content: '',
         });
       } catch (error) {
         console.error('Creative center video error:', error);
@@ -971,6 +991,10 @@ export default function App() {
                 {videoTask.url ? (
                   <div className='mt-6 overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950'>
                     <video controls className='h-full w-full' src={videoTask.url} />
+                  </div>
+                ) : videoTask.content ? (
+                  <div className='mt-6 rounded-[2rem] border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600'>
+                    {videoTask.content}
                   </div>
                 ) : null}
               </div>
