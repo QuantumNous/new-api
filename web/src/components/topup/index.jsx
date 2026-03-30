@@ -98,6 +98,7 @@ const TopUp = () => {
   // AllScale polling
   const allScalePollingRef = useRef(null);
   const allScalePollSessionRef = useRef(0);
+  const allScaleAmountReqRef = useRef(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
@@ -489,10 +490,12 @@ const TopUp = () => {
 
   const getAllScaleAmount = async (value) => {
     if (value === undefined) value = topUpCount;
+    const reqId = ++allScaleAmountReqRef.current;
     try {
       const res = await API.post('/api/user/allscale/amount', {
         amount: parseFloat(value),
       });
+      if (allScaleAmountReqRef.current !== reqId) return; // stale response
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
@@ -502,6 +505,7 @@ const TopUp = () => {
         }
       }
     } catch (e) {
+      if (allScaleAmountReqRef.current !== reqId) return;
       setAllScaleAmount(0);
     }
   };

@@ -63,6 +63,8 @@ func buildAllScaleRequestHeaders(method, path, query string, body []byte) (apiKe
 	return
 }
 
+const maxAllScaleWebhookBody = 64 << 10 // 64 KiB
+
 // ── webhook signature verification ──────────────────────────────────────────
 
 // verifyAllScaleWebhook verifies the HMAC-SHA256 signature AllScale sends on
@@ -354,10 +356,15 @@ func RequestAllScalePay(c *gin.Context) {
 // AllScaleWebhook receives the payment-completed callback from AllScale and
 // credits the corresponding user's quota.
 func AllScaleWebhook(c *gin.Context) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, maxAllScaleWebhookBody+1))
 	if err != nil {
 		log.Printf("AllScale webhook: failed to read body: %v", err)
 		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if int64(len(bodyBytes)) > maxAllScaleWebhookBody {
+		log.Printf("AllScale webhook: body too large (%d bytes)", len(bodyBytes))
+		c.AbortWithStatus(http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -425,6 +432,16 @@ func RequestAllScaleAmount(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
+
+	// Mirror the same token-display validation as RequestAllScalePay.
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		quotaPerUnit := int64(common.QuotaPerUnit)
+		if quotaPerUnit > 0 && req.Amount%quotaPerUnit != 0 {
+			c.JSON(200, gin.H{"message": "error", "data": "token amount must be a multiple of the quota unit size"})
+			return
+		}
+	}
+
 	group, _ := model.GetUserGroup(userId, true)
 	payMoney := getAllScalePayMoney(float64(req.Amount), group)
 	unitPrice := setting.AllScaleUnitPrice
