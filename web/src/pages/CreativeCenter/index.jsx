@@ -103,14 +103,6 @@ export default function App() {
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    if (!window.tailwind) {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.tailwindcss.com';
-      document.head.appendChild(script);
-    }
-  }, []);
-
-  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
