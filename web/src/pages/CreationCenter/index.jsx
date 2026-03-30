@@ -18,299 +18,615 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Card, Tag, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Button, Card, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Clapperboard,
+  Eye,
+  Image as ImageIcon,
   ImagePlus,
   LayoutPanelLeft,
   MessageSquareText,
+  Plus,
+  Send,
+  Settings2,
+  SlidersHorizontal,
   Sparkles,
+  Upload,
+  Wand2,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
-const CREATION_SECTIONS = [
+const TEXT = {
+  creationCenter: '\u521b\u4f5c\u4e2d\u5fc3',
+  unifiedStudio: '\u7edf\u4e00\u521b\u4f5c\u5de5\u4f5c\u53f0',
+  headerDesc:
+    '\u4e09\u79cd\u521b\u4f5c\u6a21\u5f0f\u5171\u7528\u540c\u4e00\u5957\u89c6\u89c9\u9aa8\u67b6\uff1a\u66f4\u8f7b\u76c8\u7684\u5361\u7247\u5c42\u7ea7\uff0c\u66f4\u7edf\u4e00\u7684\u5de5\u5177\u6761\uff0c\u66f4\u660e\u786e\u7684\u4e3b\u6b21\u5206\u533a\u3002',
+  currentWorkspace: '\u5f53\u524d\u5de5\u4f5c\u533a',
+  switchSection: '\u5207\u6362\u677f\u5757',
+  switchHint:
+    '\u53c2\u8003\u4e0d\u540c\u521b\u4f5c\u9875\u9762\u7684\u5e03\u5c40\u7279\u5f81\uff0c\u7edf\u4e00\u6210\u540c\u4e00\u5957\u521b\u4f5c\u4e2d\u5fc3\u98ce\u683c\u3002',
+  chat: '\u667a\u80fd\u5bf9\u8bdd',
+  image: '\u56fe\u7247\u521b\u4f5c',
+  video: '\u89c6\u9891\u521b\u4f5c',
+  chatSub:
+    '\u50cf\u53c2\u8003\u56fe\u4e00\u90a3\u6837\u4fdd\u7559\u5927\u9762\u79ef\u4f1a\u8bdd\u7a7a\u95f4\uff0c\u4f46\u7edf\u4e00\u5230\u521b\u4f5c\u4e2d\u5fc3\u7684\u5de5\u4f5c\u53f0\u8bed\u8a00\u91cc\u3002',
+  imageSub:
+    '\u53c2\u8003\u56fe\u4e8c\u7684\u53cc\u680f\u5e03\u5c40\uff0c\u5de6\u4fa7\u53c2\u6570\u8bbe\u7f6e\uff0c\u53f3\u4fa7\u751f\u6210\u7ed3\u679c\uff0c\u6574\u4f53\u89c6\u89c9\u66f4\u514b\u5236\u7edf\u4e00\u3002',
+  videoSub:
+    '\u53c2\u8003\u56fe\u4e09\u7684\u53cc\u680f\u5e03\u5c40\uff0c\u4fdd\u7559\u89c6\u9891\u7ed3\u679c\u548c\u72b6\u6001\u533a\uff0c\u540c\u65f6\u7edf\u4e00\u5361\u7247\u548c\u5c42\u6b21\u3002',
+  newChat: '\u65b0\u5bf9\u8bdd',
+  defaultMode: '\u9ed8\u8ba4\u6a21\u5f0f',
+  assistant: 'Assistant',
+  hello: '\u4f60\u597d',
+  assistantReply: '\u4f60\u597d\uff0c\u8bf7\u95ee\u6709\u4ec0\u4e48\u53ef\u4ee5\u5e2e\u52a9\u60a8\u7684\u5417\uff1f',
+  inputPlaceholder:
+    '\u8f93\u5165\u60a8\u7684\u6d88\u606f...(Enter\u53d1\u9001\uff0cShift+Enter \u6362\u884c)',
+  inputHint:
+    '\u6309 Enter \u53d1\u9001\uff0cShift+Enter \u6362\u884c\uff0c\u652f\u6301\u62d6\u62fd\u4e0a\u4f20\u56fe\u7247\u6216 Ctrl+V \u7c98\u8d34\u56fe\u7247',
+  imageSettings: '\u751f\u6210\u8bbe\u7f6e',
+  imageSettingsDesc:
+    '\u53c2\u8003\u56fe\u4e8c\u7684\u64cd\u4f5c\u6d41\u7a0b\uff0c\u7edf\u4e00\u4e3a\u66f4\u8f7b\u76c8\u7684\u521b\u4f5c\u5de5\u4f5c\u53f0\u6837\u5f0f\u3002',
+  videoSettings: '\u89c6\u9891\u751f\u6210',
+  videoSettingsDesc:
+    '\u6cbf\u7528\u53c2\u8003\u56fe\u4e09\u7684\u7ed3\u6784\uff0c\u628a\u53c2\u6570\u533a\uff0c\u63d0\u793a\u533a\u548c\u52a8\u4f5c\u6309\u94ae\u505a\u6210\u7edf\u4e00\u5361\u7247\u7cfb\u7edf\u3002',
+  uploadRef: '\u4e0a\u4f20\u53c2\u8003\u56fe\uff08\u53ef\u9009\uff09',
+  selectImage: '\u9009\u62e9\u56fe\u7247',
+  clear: '\u6e05\u7a7a',
+  uploadHint:
+    '\u5982\u679c\u4f20\u9012\u4e86\u56fe\u751f\u56fe\u6a21\u578b\uff0c\u53c2\u8003\u56fe\u624d\u4f1a\u751f\u6548\uff1b\u5426\u5219\u53ea\u4f20 prompt \u4e5f\u53ef\u4ee5\u751f\u6210\u3002',
+  model: '\u6a21\u578b',
+  prompt: 'Prompt',
+  promptPlaceholder: '\u63cf\u8ff0\u4f60\u60f3\u751f\u6210\u7684\u5185\u5bb9...',
+  count: '\u751f\u6210\u6570\u91cf',
+  note: '\u8bf4\u660e',
+  oneResult: '\u5c06\u4ea7\u751f 1 \u4e2a\u7ed3\u679c',
+  imageCountHint:
+    '\u6700\u591a\u540c\u65f6\u751f\u6210 4 \u5f20\uff0c\u5efa\u8bae 1-2 \u5f20\u3002',
+  createImageTask: '\u521b\u5efa\u751f\u6210\u4efb\u52a1',
+  result: '\u751f\u6210\u7ed3\u679c',
+  startCreating: '\u7b80\u5355\u4e09\u6b65\u5f00\u59cb\u521b\u4f5c',
+  imageResultNote:
+    '\u7ed3\u679c\u753b\u5e03\u4fdd\u6301\u6e05\u723d\u7559\u767d\uff0c\u540e\u7eed\u53ef\u4ee5\u65e0\u7f1d\u63a5\u5165\u771f\u5b9e\u751f\u6210\u9884\u89c8\u3002',
+  copyLink: '\u590d\u5236\u94fe\u63a5',
+  downloadImage: '\u4e0b\u8f7d\u56fe\u7247',
+  videoResult: '\u89c6\u9891\u7ed3\u679c',
+  downloadVideo: '\u4e0b\u8f7d\u89c6\u9891',
+  videoResultNote:
+    '\u6587\u751f\u89c6\u9891\uff08T2V\uff09\uff1a\u586b\u5199 Prompt \u5373\u53ef\uff0c\u5206\u8fa8\u7387\u5df2\u6309\u6a21\u578b\u63a8\u8350\uff0c\u65e0\u9700\u4e0a\u4f20\u56fe\u7247\u3002',
+  uploadImage: '\u4e0a\u4f20\u56fe\u7247',
+  enterPrompt: '\u8f93\u5165\u63d0\u793a\u8bcd',
+  generate: '\u751f\u6210',
+  videoPromptPlaceholder: '\u63cf\u8ff0\u4f60\u8981\u751f\u6210\u7684\u89c6\u9891\u5185\u5bb9...',
+  sizeLabel: '\u5206\u8fa8\u7387 size',
+  duration: '\u65f6\u957f',
+  currentT2V:
+    '\u5f53\u524d\u4e3a\u6587\u751f\u89c6\u9891\uff08T2V\uff09\uff1a\u53ea\u9700\u586b\u5199 Prompt\uff0c\u65e0\u9700\u4e0a\u4f20\u56fe\u7247\u3002',
+  videoHint:
+    '\u652f\u6301\u8fde\u7eed\u63d0\u4ea4\u591a\u4e2a\u89c6\u9891\u4efb\u52a1\uff1b\u53f3\u4fa7\u7ed3\u679c\u533a\u4f18\u5148\u5c55\u793a\u6700\u65b0\u5b8c\u6210\u7684\u9884\u89c8\uff0c\u82e5\u6709\u66f4\u65b0\u4efb\u52a1\u4ecd\u5728\u751f\u6210\u4f1a\u663e\u793a\u8fdb\u5ea6\u63d0\u793a\u3002',
+  createVideoTask: '\u521b\u5efa\u89c6\u9891\u4efb\u52a1',
+  status: '\u72b6\u6001',
+  statusHint:
+    '\u9009\u62e9\u6a21\u578b\u540e\u5c06\u663e\u793a\u8bf4\u660e\uff1b\u63d0\u4ea4\u4efb\u52a1\u540e\u6b64\u5904\u663e\u793a\u8fdb\u5ea6\u63d0\u793a\u3002',
+  chatWorkspace: '\u5bf9\u8bdd\u5de5\u4f5c\u533a',
+  imageWorkspace: '\u56fe\u7247\u5de5\u4f5c\u533a',
+  videoWorkspace: '\u89c6\u9891\u5de5\u4f5c\u533a',
+  currentAreaTag: '\u5f53\u524d\u4e3a\u4f4e\u4fdd\u771f\u4f46\u9ad8\u8d28\u611f\u7684\u7ed3\u6784\u7a3f\uff0c\u7528\u4e8e\u7ee7\u7eed\u63a5\u5165\u771f\u5b9e\u529f\u80fd\u3002',
+};
+
+const SECTIONS = [
   {
     key: 'chat',
-    titleKey: '智能对话',
-    descriptionKey: '大模型对话工作区骨架',
+    title: TEXT.chat,
+    subtitle: TEXT.chatSub,
     icon: MessageSquareText,
+    accent: 'from-sky-500 via-cyan-500 to-blue-600',
+    softAccent: 'from-sky-50 via-cyan-50 to-blue-50',
+    tagColor: 'blue',
   },
   {
     key: 'image',
-    titleKey: '图片创作',
-    descriptionKey: '图片生成工作区骨架',
+    title: TEXT.image,
+    subtitle: TEXT.imageSub,
     icon: ImagePlus,
+    accent: 'from-fuchsia-500 via-violet-500 to-indigo-600',
+    softAccent: 'from-fuchsia-50 via-violet-50 to-indigo-50',
+    tagColor: 'violet',
   },
   {
     key: 'video',
-    titleKey: '视频创作',
-    descriptionKey: '视频生成工作区骨架',
+    title: TEXT.video,
+    subtitle: TEXT.videoSub,
     icon: Clapperboard,
+    accent: 'from-cyan-500 via-sky-500 to-indigo-600',
+    softAccent: 'from-cyan-50 via-sky-50 to-indigo-50',
+    tagColor: 'cyan',
   },
 ];
 
-const CHAT_BLOCKS = [
-  '顶部标题栏',
-  '模型 / 模式占位条',
-  '聊天内容区',
-  '底部输入区',
-];
+const panelClassName =
+  'rounded-[30px] border border-slate-200/80 bg-white/92 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur';
 
-const CreationWorkspace = ({ activeSection, t }) => {
-  if (activeSection === 'chat') {
-    return (
-      <div className='flex h-full min-h-[620px] flex-col gap-4'>
-        <Card
-          bordered={false}
-          className='rounded-3xl border border-slate-200/80 bg-white/90 shadow-sm'
-        >
-          <div className='flex items-center justify-between gap-3'>
-            <div>
-              <Typography.Title heading={5} className='!mb-1'>
-                {t('对话主工作区')}
-              </Typography.Title>
-              <Typography.Text className='text-sm text-slate-500'>
-                {t('用于承载模型切换、会话内容和输入操作。')}
-              </Typography.Text>
-            </div>
-            <Tag color='cyan'>{t('低保真骨架')}</Tag>
-          </div>
-        </Card>
+const subtleCardClassName =
+  'rounded-[26px] border border-slate-200/80 bg-white/88 shadow-[0_12px_30px_rgba(15,23,42,0.05)]';
 
-        <Card
-          bordered={false}
-          className='rounded-3xl border border-dashed border-slate-300 bg-slate-50/85 shadow-none'
-        >
-          <div className='flex flex-wrap gap-3'>
-            {CHAT_BLOCKS.map((block) => (
-              <div
-                key={block}
-                className='rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 shadow-sm'
-              >
-                {t(block)}
-              </div>
-            ))}
-          </div>
-        </Card>
+const toolButtonClassName =
+  '!rounded-2xl !border-slate-200 !bg-white/90 !text-slate-600 hover:!bg-slate-50 hover:!text-slate-900';
 
-        <Card
-          bordered={false}
-          className='flex-1 rounded-3xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.9))] shadow-none'
-          bodyStyle={{ height: '100%' }}
-        >
-          <div className='flex h-full min-h-[420px] flex-col justify-between gap-4'>
-            <div className='flex-1 rounded-[28px] border border-dashed border-slate-300 bg-white/70 p-6'>
-              <div className='mb-4 flex items-center gap-2 text-slate-400'>
-                <Sparkles size={16} />
-                <Typography.Text className='text-sm text-slate-500'>
-                  {t('会话内容占位')}
-                </Typography.Text>
-              </div>
-            </div>
-            <div className='rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm'>
-              <Typography.Text className='text-sm text-slate-500'>
-                {t('输入区占位')}
-              </Typography.Text>
-            </div>
-          </div>
-        </Card>
+const stepItems = [TEXT.uploadImage, TEXT.enterPrompt, TEXT.generate];
+
+const SurfaceLabel = ({ children }) => (
+  <Typography.Text className='mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400'>
+    {children}
+  </Typography.Text>
+);
+
+const MockField = ({ label, value, hint, tall = false, action }) => (
+  <div className='space-y-2'>
+    <SurfaceLabel>{label}</SurfaceLabel>
+    <div
+      className={`rounded-2xl border border-slate-200 bg-slate-50/80 px-4 text-sm text-slate-500 ${
+        tall ? 'min-h-[110px] py-4' : 'py-3'
+      }`}
+    >
+      <div className='flex items-start justify-between gap-3'>
+        <span>{value}</span>
+        {action ? (
+          <span className='rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500 shadow-sm'>
+            {action}
+          </span>
+        ) : null}
       </div>
-    );
-  }
+      {hint ? (
+        <Typography.Text className='mt-3 block text-xs leading-5 text-slate-400'>
+          {hint}
+        </Typography.Text>
+      ) : null}
+    </div>
+  </div>
+);
 
-  const titleKey = activeSection === 'image' ? '图片创作工作区' : '视频创作工作区';
-  const descriptionKey =
-    activeSection === 'image'
-      ? '左侧用于放置生成配置，右侧用于放置结果预览。'
-      : '左侧用于放置视频配置，右侧用于放置生成结果与状态。';
-
-  return (
-    <div className='flex h-full min-h-[620px] flex-col gap-4'>
-      <Card
-        bordered={false}
-        className='rounded-3xl border border-slate-200/80 bg-white/90 shadow-sm'
-      >
-        <div className='flex items-center justify-between gap-3'>
-          <div>
-            <Typography.Title heading={5} className='!mb-1'>
-              {t(titleKey)}
-            </Typography.Title>
-            <Typography.Text className='text-sm text-slate-500'>
-              {t(descriptionKey)}
-            </Typography.Text>
-          </div>
-          <Tag color={activeSection === 'image' ? 'lime' : 'violet'}>
-            {t('低保真骨架')}
-          </Tag>
+const StatusSteps = () => (
+  <div className='mt-6 flex items-center justify-center gap-3 text-xs text-slate-400'>
+    {stepItems.map((item, index) => (
+      <div key={item} className='flex items-center gap-3'>
+        <div className='flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500'>
+          {index + 1}
         </div>
-      </Card>
+        <span>{item}</span>
+      </div>
+    ))}
+  </div>
+);
 
-      <div className='grid flex-1 gap-4 xl:grid-cols-[minmax(420px,1.05fr)_minmax(420px,1fr)]'>
-        {[
-          { key: 'config', titleKey: '配置区', sideKey: '左栏' },
-          { key: 'result', titleKey: '结果区', sideKey: '右栏' },
-        ].map((block, index) => (
-          <Card
-            key={block.key}
-            bordered={false}
-            className='rounded-3xl border border-dashed border-slate-300 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] shadow-none'
-            bodyStyle={{ height: '100%' }}
+const ResultEmpty = ({ icon, title, description, note, actions }) => (
+  <div className='flex h-full min-h-[360px] flex-col'>
+    <div className='mb-4 flex items-center justify-between gap-3'>
+      <Typography.Title heading={5} className='!mb-0 text-slate-900'>
+        {title}
+      </Typography.Title>
+      <div className='flex items-center gap-2'>
+        {actions?.map((action) => (
+          <Button
+            key={action}
+            size='small'
+            theme='outline'
+            className={toolButtonClassName}
           >
-            <div className='flex h-full min-h-[520px] flex-col gap-4'>
-              <div className='flex items-center justify-between gap-3'>
-                <Typography.Title heading={6} className='!mb-0'>
-                  {t(block.titleKey)}
-                </Typography.Title>
-                <Tag size='small' color={index === 0 ? 'blue' : 'grey'}>
-                  {t(block.sideKey)}
-                </Tag>
-              </div>
-
-              <div className='rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm'>
-                {t(index === 0 ? '顶部标题栏' : '结果标题栏')}
-              </div>
-
-              <div className='flex-1 rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-500'>
-                {t(index === 0 ? '主要内容占位区' : '结果展示占位区')}
-              </div>
-
-              <div className='grid gap-3 md:grid-cols-2'>
-                <div className='rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm'>
-                  {t(index === 0 ? '参数卡片占位' : '状态卡片占位')}
-                </div>
-                <div className='rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm'>
-                  {t(index === 0 ? '附加操作占位' : '下载 / 操作占位')}
-                </div>
-              </div>
-            </div>
-          </Card>
+            {action}
+          </Button>
         ))}
       </div>
     </div>
-  );
-};
+
+    {note ? (
+      <div className='mb-4 rounded-2xl border border-slate-200 bg-slate-50/85 px-4 py-3 text-sm text-slate-600'>
+        {note}
+      </div>
+    ) : null}
+
+    <div className='flex flex-1 flex-col items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(248,250,252,0.9))] px-8 text-center'>
+      <div className='mb-5 flex h-14 w-14 items-center justify-center rounded-[20px] bg-slate-100 text-slate-400 shadow-inner'>
+        {icon}
+      </div>
+      <Typography.Title heading={3} className='!mb-2 text-slate-800'>
+        {title}
+      </Typography.Title>
+      <Typography.Text className='text-sm leading-7 text-slate-500'>
+        {description}
+      </Typography.Text>
+      <StatusSteps />
+    </div>
+  </div>
+);
+
+const ChatWorkspace = () => (
+  <div className='flex min-h-[720px] flex-col gap-4'>
+    <Card bordered={false} className={panelClassName} bodyStyle={{ padding: 0 }}>
+      <div className='border-b border-slate-100 px-5 py-4'>
+        <div className='flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between'>
+          <div className='flex items-center gap-3'>
+            <Button
+              theme='light'
+              type='primary'
+              icon={<Plus size={16} />}
+              className='!rounded-2xl !bg-sky-50 !px-4 !text-sky-700 hover:!bg-sky-100'
+            >
+              {TEXT.newChat}
+            </Button>
+            <div className='rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm'>
+              gpt-4o
+            </div>
+            <div className='rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm'>
+              {TEXT.defaultMode}
+            </div>
+          </div>
+          <div className='flex items-center gap-2'>
+            <Button
+              icon={<Eye size={15} />}
+              theme='outline'
+              size='small'
+              className={toolButtonClassName}
+            />
+            <Button
+              icon={<SlidersHorizontal size={15} />}
+              theme='outline'
+              size='small'
+              className={toolButtonClassName}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className='relative overflow-hidden px-5 pb-5 pt-6'>
+        <div className='absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_left_top,rgba(56,189,248,0.12),transparent_35%),radial-gradient(circle_at_right_top,rgba(129,140,248,0.12),transparent_35%)]' />
+        <div className='relative flex min-h-[560px] flex-col justify-between'>
+          <div className='space-y-8'>
+            <div className='flex justify-end'>
+              <div className='max-w-[320px] text-right'>
+                <div className='mb-2 flex items-center justify-end gap-3 text-sm text-slate-400'>
+                  <span>google_QaXdNZGh</span>
+                  <span>2024-05-14 4:52pm</span>
+                  <Avatar size='small' color='yellow'>
+                    G
+                  </Avatar>
+                </div>
+                <div className='ml-auto inline-flex rounded-[22px] border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-700 shadow-sm'>
+                  {TEXT.hello}
+                </div>
+                <div className='mt-3 flex justify-end gap-3 text-slate-300'>
+                  <Wand2 size={15} />
+                  <ImageIcon size={15} />
+                  <Sparkles size={15} />
+                </div>
+              </div>
+            </div>
+
+            <div className='max-w-[420px]'>
+              <div className='mb-3 flex items-center gap-3 text-sm text-slate-400'>
+                <Avatar size='small' color='blue'>
+                  A
+                </Avatar>
+                <span className='font-medium text-slate-700'>{TEXT.assistant}</span>
+                <span>2024-05-14 4:52pm</span>
+              </div>
+              <div className='rounded-[24px] border border-slate-200 bg-white px-5 py-5 text-sm leading-7 text-slate-700 shadow-sm'>
+                {TEXT.assistantReply}
+              </div>
+              <div className='mt-3 flex items-center gap-3 text-slate-300'>
+                <Wand2 size={15} />
+                <ImageIcon size={15} />
+                <Sparkles size={15} />
+                <Settings2 size={15} />
+              </div>
+            </div>
+          </div>
+
+          <div className='mt-10 rounded-[30px] border border-slate-200 bg-white p-3 shadow-[0_16px_36px_rgba(15,23,42,0.08)]'>
+            <div className='mb-3 flex items-center gap-3'>
+              <div className='rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-sky-600 shadow-sm'>
+                default
+              </div>
+              <div className='rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 shadow-sm'>
+                1x
+              </div>
+              <div className='rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 shadow-sm'>
+                gpt-4o
+              </div>
+            </div>
+            <div className='flex items-end gap-3'>
+              <div className='min-h-[84px] flex-1 rounded-[24px] border border-slate-200 bg-slate-50/80 px-5 py-4 text-sm text-slate-400'>
+                {TEXT.inputPlaceholder}
+              </div>
+              <Button
+                theme='solid'
+                type='primary'
+                icon={<Upload size={18} />}
+                className='!h-12 !w-12 !rounded-2xl !bg-slate-100 !text-sky-600'
+              />
+              <Button
+                theme='solid'
+                type='primary'
+                icon={<Send size={18} />}
+                className='!h-12 !w-12 !rounded-2xl !bg-sky-500 !text-white hover:!bg-sky-600'
+              />
+            </div>
+            <Typography.Text className='mt-3 block text-xs text-slate-400'>
+              {TEXT.inputHint}
+            </Typography.Text>
+          </div>
+        </div>
+      </div>
+    </Card>
+  </div>
+);
+
+const ImageWorkspace = () => (
+  <div className='grid min-h-[720px] gap-4 xl:grid-cols-[minmax(460px,1.05fr)_minmax(420px,1fr)]'>
+    <Card bordered={false} className={panelClassName}>
+      <div className='mb-5 flex items-center justify-between gap-3'>
+        <div>
+          <Typography.Title heading={4} className='!mb-1'>
+            {TEXT.imageSettings}
+          </Typography.Title>
+          <Typography.Text className='text-sm text-slate-500'>
+            {TEXT.imageSettingsDesc}
+          </Typography.Text>
+        </div>
+        <Tag color='violet'>{TEXT.image}</Tag>
+      </div>
+
+      <div className='space-y-4'>
+        <MockField
+          label={TEXT.uploadRef}
+          value={TEXT.selectImage}
+          action={TEXT.clear}
+          hint={TEXT.uploadHint}
+        />
+        <MockField
+          label={TEXT.model}
+          value='Banana-pro-1k-\u6a2a\u5c4f\uff08gemini-3.0-pro-image-landscape\uff09'
+        />
+        <MockField label={TEXT.prompt} value={TEXT.promptPlaceholder} tall />
+        <div className='grid gap-4 md:grid-cols-[140px_minmax(0,1fr)]'>
+          <MockField label={TEXT.count} value='1' />
+          <MockField
+            label={TEXT.note}
+            value={TEXT.oneResult}
+            hint={TEXT.imageCountHint}
+          />
+        </div>
+        <div className='rounded-[24px] bg-[linear-gradient(90deg,#4338ca,#9333ea,#c026d3)] p-[1px] shadow-[0_16px_36px_rgba(139,92,246,0.28)]'>
+          <div className='rounded-[23px] bg-white/10 p-[1px]'>
+            <Button
+              block
+              theme='solid'
+              type='primary'
+              className='!h-11 !rounded-[22px] !border-0 !bg-transparent !text-white hover:!bg-white/5'
+            >
+              {TEXT.createImageTask}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+
+    <Card bordered={false} className={panelClassName}>
+      <ResultEmpty
+        title={TEXT.result}
+        description={TEXT.startCreating}
+        note={TEXT.imageResultNote}
+        actions={[TEXT.copyLink, TEXT.downloadImage, TEXT.clear]}
+        icon={<ImageIcon size={24} />}
+      />
+    </Card>
+  </div>
+);
+
+const VideoWorkspace = () => (
+  <div className='grid min-h-[720px] gap-4 xl:grid-cols-[minmax(460px,1.05fr)_minmax(420px,1fr)]'>
+    <div className='space-y-4'>
+      <Card bordered={false} className={panelClassName}>
+        <div className='mb-5 flex items-center justify-between gap-3'>
+          <div>
+            <Typography.Title heading={4} className='!mb-1'>
+              {TEXT.videoSettings}
+            </Typography.Title>
+            <Typography.Text className='text-sm text-slate-500'>
+              {TEXT.videoSettingsDesc}
+            </Typography.Text>
+          </div>
+          <Tag color='cyan'>{TEXT.video}</Tag>
+        </div>
+
+        <div className='space-y-4'>
+          <MockField
+            label={TEXT.model}
+            value='VEO 3.1 \u6587\u751f\u89c6\u9891\uff08\u7ad6\u5c4f\uff09\uff08veo_3_1_t2v_fast_portrait\uff09'
+          />
+          <MockField
+            label={TEXT.prompt}
+            value={TEXT.videoPromptPlaceholder}
+            tall
+          />
+          <div className='grid gap-4 md:grid-cols-2'>
+            <MockField
+              label={TEXT.sizeLabel}
+              value='720\u00d71280\uff08\u7ad6\u5c4f\uff09'
+            />
+            <MockField label={TEXT.duration} value='8 \u79d2\uff08\u56fa\u5b9a\uff09' />
+          </div>
+          <div className='space-y-3 rounded-[24px] border border-slate-200 bg-slate-50/85 px-4 py-4 text-sm text-slate-500'>
+            <Typography.Text className='block text-sm text-slate-700'>
+              {TEXT.currentT2V}
+            </Typography.Text>
+            <Typography.Text className='block text-xs leading-6 text-slate-400'>
+              {TEXT.videoHint}
+            </Typography.Text>
+          </div>
+          <div className='rounded-[24px] bg-[linear-gradient(90deg,#38bdf8,#3b82f6,#6366f1)] p-[1px] shadow-[0_16px_36px_rgba(59,130,246,0.26)]'>
+            <div className='rounded-[23px] bg-white/10 p-[1px]'>
+              <Button
+                block
+                theme='solid'
+                type='primary'
+                className='!h-11 !rounded-[22px] !border-0 !bg-transparent !text-white hover:!bg-white/5'
+              >
+                {TEXT.createVideoTask}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+
+    <div className='space-y-4'>
+      <Card bordered={false} className={panelClassName}>
+        <ResultEmpty
+          title={TEXT.videoResult}
+          description={TEXT.startCreating}
+          note={TEXT.videoResultNote}
+          actions={[TEXT.copyLink, TEXT.downloadVideo, TEXT.clear]}
+          icon={<Clapperboard size={24} />}
+        />
+      </Card>
+
+      <Card bordered={false} className={subtleCardClassName}>
+        <SurfaceLabel>{TEXT.status}</SurfaceLabel>
+        <Typography.Text className='text-sm leading-7 text-slate-500'>
+          {TEXT.statusHint}
+        </Typography.Text>
+      </Card>
+    </div>
+  </div>
+);
 
 const CreationCenter = () => {
-  const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState('chat');
 
   const currentSection =
-    CREATION_SECTIONS.find((section) => section.key === activeSection) ||
-    CREATION_SECTIONS[0];
+    SECTIONS.find((section) => section.key === activeSection) || SECTIONS[0];
+
+  const CurrentIcon = currentSection.icon;
 
   return (
-    <div className='min-h-[calc(100vh-66px)] bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_46%,#f8fafc_100%)] px-4 pb-6 pt-[76px] lg:px-6'>
-      <div className='mx-auto flex w-full max-w-[1600px] flex-col gap-5'>
+    <div className='min-h-[calc(100vh-66px)] bg-[linear-gradient(180deg,#f8fafc_0%,#edf4ff_38%,#f8fafc_100%)] px-4 pb-6 pt-[76px] lg:px-6'>
+      <div className='mx-auto flex w-full max-w-[1680px] flex-col gap-5'>
         <Card
           bordered={false}
-          className='overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur'
+          className='overflow-hidden rounded-[34px] border border-slate-200/80 bg-white/86 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur'
           bodyStyle={{ padding: 0 }}
         >
           <div className='relative overflow-hidden'>
-            <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_32%),radial-gradient(circle_at_top_right,rgba(129,140,248,0.16),transparent_28%)]' />
-            <div className='relative flex flex-col gap-5 px-6 py-6 lg:px-8 lg:py-7'>
-              <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+            <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.14),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_26%)]' />
+            <div className='relative px-6 py-6 lg:px-8 lg:py-7'>
+              <div className='flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between'>
                 <div className='max-w-3xl'>
                   <Tag color='blue' className='!rounded-full !px-3 !py-1'>
-                    {t('创作工作台')}
+                    {TEXT.creationCenter}
                   </Tag>
                   <Typography.Title heading={2} className='!mb-2 !mt-4 text-slate-900'>
-                    {t('创作中心')}
+                    {TEXT.unifiedStudio}
                   </Typography.Title>
-                  <Typography.Paragraph className='!mb-0 max-w-2xl text-sm leading-7 text-slate-600'>
-                    {t(
-                      '面向创作任务的独立工作区，先完成页面骨架与布局分区，后续再接入真实功能。',
-                    )}
+                  <Typography.Paragraph className='!mb-0 text-sm leading-7 text-slate-600'>
+                    {TEXT.headerDesc}
                   </Typography.Paragraph>
                 </div>
 
-                <div className='rounded-3xl border border-slate-200 bg-slate-50/90 px-5 py-4 text-sm text-slate-500 shadow-sm'>
-                  <div className='mb-1 font-medium text-slate-700'>
-                    {t('当前为低保真占位页面，用于确认信息架构和版块布局。')}
+                <div
+                  className={`rounded-[28px] bg-gradient-to-r ${currentSection.accent} p-[1px] shadow-[0_18px_40px_rgba(59,130,246,0.14)]`}
+                >
+                  <div
+                    className={`rounded-[27px] bg-gradient-to-r ${currentSection.softAccent} px-5 py-4`}
+                  >
+                    <div className='flex items-center gap-3'>
+                      <div className='flex h-11 w-11 items-center justify-center rounded-[18px] bg-white text-slate-700 shadow-sm'>
+                        <CurrentIcon size={20} />
+                      </div>
+                      <div>
+                        <Typography.Text strong className='block text-sm text-slate-900'>
+                          {currentSection.title}
+                        </Typography.Text>
+                        <Typography.Text className='text-xs leading-5 text-slate-500'>
+                          {TEXT.currentWorkspace}
+                        </Typography.Text>
+                      </div>
+                    </div>
                   </div>
-                  <div>{t('工作区')}</div>
                 </div>
               </div>
             </div>
           </div>
         </Card>
 
-        <div className='grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]'>
+        <div className='grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]'>
           <Card
             bordered={false}
-            className='rounded-[28px] border border-slate-200/80 bg-white/90 shadow-[0_14px_40px_rgba(15,23,42,0.06)]'
+            className='rounded-[30px] border border-slate-200/80 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.06)]'
             bodyStyle={{ padding: 20 }}
           >
-            <div className='mb-4 flex items-center gap-2 text-slate-700'>
+            <div className='mb-5 flex items-center gap-2 text-slate-700'>
               <LayoutPanelLeft size={18} />
-              <Typography.Text strong>{t('切换板块')}</Typography.Text>
+              <Typography.Text strong>{TEXT.switchSection}</Typography.Text>
             </div>
-            <Typography.Paragraph className='!mb-4 text-sm text-slate-500'>
-              {t('选择对应板块后，在右侧查看骨架布局。')}
+            <Typography.Paragraph className='!mb-5 text-sm leading-6 text-slate-500'>
+              {TEXT.switchHint}
             </Typography.Paragraph>
 
             <div className='flex flex-col gap-3'>
-              {CREATION_SECTIONS.map((section) => {
+              {SECTIONS.map((section) => {
                 const Icon = section.icon;
                 const isActive = activeSection === section.key;
-
                 return (
-                  <Button
+                  <button
                     key={section.key}
-                    theme={isActive ? 'solid' : 'light'}
-                    type={isActive ? 'primary' : 'tertiary'}
+                    type='button'
                     onClick={() => setActiveSection(section.key)}
-                    className={`!h-auto !justify-start !rounded-2xl !px-4 !py-4 ${
+                    className={`rounded-[24px] p-[1px] text-left transition-all duration-200 ${
                       isActive
-                        ? '!bg-slate-900 !text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)]'
-                        : '!bg-slate-50 !text-slate-700 hover:!bg-white'
+                        ? `bg-gradient-to-r ${section.accent} shadow-[0_14px_30px_rgba(15,23,42,0.12)]`
+                        : 'bg-slate-200/80 hover:bg-slate-300/80'
                     }`}
                   >
-                    <div className='flex items-start gap-3 text-left'>
-                      <div
-                        className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${
-                          isActive
-                            ? 'bg-white/12 text-white'
-                            : 'bg-white text-slate-700 shadow-sm'
-                        }`}
-                      >
-                        <Icon size={18} />
-                      </div>
-                      <div className='min-w-0'>
-                        <div className='text-sm font-semibold'>
-                          {t(section.titleKey)}
-                        </div>
+                    <div
+                      className={`rounded-[23px] px-4 py-4 ${
+                        isActive
+                          ? 'bg-slate-950 text-white'
+                          : 'bg-white text-slate-800'
+                      }`}
+                    >
+                      <div className='flex items-start gap-3'>
                         <div
-                          className={`mt-1 text-xs leading-5 ${
-                            isActive ? 'text-white/72' : 'text-slate-500'
+                          className={`mt-0.5 flex h-11 w-11 items-center justify-center rounded-[18px] ${
+                            isActive
+                              ? 'bg-white/12 text-white'
+                              : `bg-gradient-to-r ${section.softAccent} text-slate-700`
                           }`}
                         >
-                          {t(section.descriptionKey)}
+                          <Icon size={18} />
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='text-sm font-semibold'>
+                            {section.title}
+                          </div>
+                          <div
+                            className={`mt-1 text-xs leading-6 ${
+                              isActive ? 'text-white/72' : 'text-slate-500'
+                            }`}
+                          >
+                            {section.subtitle}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </Button>
+                  </button>
                 );
               })}
             </div>
           </Card>
 
           <div className='min-w-0'>
-            <div className='mb-4 flex items-center justify-between gap-3'>
-              <div>
-                <Typography.Title heading={4} className='!mb-1'>
-                  {t(currentSection.titleKey)}
-                </Typography.Title>
-                <Typography.Text className='text-sm text-slate-500'>
-                  {t(currentSection.descriptionKey)}
-                </Typography.Text>
-              </div>
-              <Tag color='blue' className='!rounded-full !px-3 !py-1'>
-                {t('工作区')}
-              </Tag>
-            </div>
-
-            <CreationWorkspace activeSection={activeSection} t={t} />
+            {activeSection === 'chat' ? <ChatWorkspace /> : null}
+            {activeSection === 'image' ? <ImageWorkspace /> : null}
+            {activeSection === 'video' ? <VideoWorkspace /> : null}
           </div>
         </div>
       </div>
