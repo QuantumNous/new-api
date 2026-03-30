@@ -33,8 +33,6 @@ import {
   Video,
 } from 'lucide-react';
 
-const apiKey = ''; // API key is injected by environment
-
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
   { id: 'image', label: '图片', icon: ImageIcon },
@@ -181,6 +179,7 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
+  const [imageGenNotice, setImageGenNotice] = useState('');
   const [isQuantityOpen, setIsQuantityOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [isRatioOpen, setIsRatioOpen] = useState(false);
@@ -216,6 +215,7 @@ export default function App() {
     setActiveTab(tabId);
     setActiveModel(modelId);
     setGeneratedImage(null);
+    setImageGenNotice('');
     closeAllMenus();
   };
 
@@ -225,31 +225,11 @@ export default function App() {
     }
 
     if (activeTab === 'image') {
-      setIsGenerating(true);
+      // 取消第三方 key 相关调用：目前不再直接请求 Google 生成接口。
+      // 如果你希望恢复图片生成功能，需要走后端代理（后端保存 key），前端只请求自家服务。
+      setImageGenNotice('图片生成已暂停：当前版本不会调用第三方 API Key。');
       setGeneratedImage(null);
-
-      try {
-        const response = await fetchWithRetry(
-          `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              instances: { prompt },
-              parameters: { sampleCount: 1 },
-            }),
-          },
-        );
-
-        if (response?.predictions?.[0]?.bytesBase64Encoded) {
-          setGeneratedImage(`data:image/png;base64,${response.predictions[0].bytesBase64Encoded}`);
-        }
-      } catch (error) {
-        console.error('Generate error', error);
-      } finally {
-        setIsGenerating(false);
-      }
-
+      setIsGenerating(false);
       return;
     }
 
@@ -314,6 +294,24 @@ export default function App() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 图片生成被禁用时给出提示
+    if (activeTab === 'image' && imageGenNotice) {
+      return (
+        <div className='relative w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-lg'>
+          <div className='relative flex flex-col gap-3'>
+            <div className='flex items-center gap-2'>
+              <ImageIcon size={18} className='text-slate-600' />
+              <div className='text-sm font-semibold text-slate-900'>提示</div>
+            </div>
+            <p className='text-sm leading-relaxed text-slate-600'>{imageGenNotice}</p>
+            <p className='text-xs text-slate-500'>
+              若要恢复，请把图片生成请求改为由后端转发（后端持有 key），不要在前端暴露 key。
+            </p>
           </div>
         </div>
       );
