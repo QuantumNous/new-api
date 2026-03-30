@@ -784,6 +784,25 @@ export default function App() {
             payload[key] = basePayload[key];
           }
         });
+        if (isAdobeVideoModel) {
+          payload.duration = Number(params.videoDuration || 4);
+          payload.metadata = {
+            durationSeconds: Number(params.videoDuration || 4),
+            aspectRatio: params.aspectRatio || '16:9',
+            ...(isAdobeVeoModel
+              ? {
+                  resolution: String(
+                    params.videoResolution || '1080p',
+                  ).toLowerCase(),
+                }
+              : {}),
+            ...(currentModelName === 'veo31'
+              ? { referenceMode: params.referenceMode || 'frame' }
+              : currentModelName === 'veo31-ref'
+                ? { referenceMode: 'image' }
+                : {}),
+          };
+        }
         const data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
         setVideoTask({
           id: data?.task_id || data?.id || '',
