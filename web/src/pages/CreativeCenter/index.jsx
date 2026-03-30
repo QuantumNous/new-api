@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useState, useEffect } from 'react';
+﻿import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ArrowUp,
   Check,
@@ -25,8 +25,10 @@ import {
   getUserIdFromLocalStorage,
   processGroupsData,
   processThinkTags,
+  showWarning,
 } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
+import { UserContext } from '../../context/User';
 
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
@@ -73,6 +75,7 @@ const DropButton = ({ icon, label, open, onClick, children }) => (
 );
 
 export default function App() {
+  const [userState] = useContext(UserContext);
   const [activeTab, setActiveTab] = useState('chat');
   const [activeModel, setActiveModel] = useState('chat1');
   const [prompt, setPrompt] = useState('');
@@ -91,6 +94,7 @@ export default function App() {
 
   const textareaRef = useRef(null);
   const scrollRef = useRef(null);
+  const isLoggedIn = Boolean(userState?.user);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -135,6 +139,18 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
+
+    if (!isLoggedIn) {
+      setSyncedModels({
+        chat: [],
+        image: [],
+        video: [],
+      });
+      setActiveGroup('');
+      return () => {
+        mounted = false;
+      };
+    }
 
     const tabTagMap = {
       chat: ['文本', '对话', '聊天'],
@@ -323,7 +339,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isLoggedIn]);
 
   const modelPools = useMemo(
     () => ({
@@ -425,6 +441,13 @@ export default function App() {
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isGenerating) return;
+    if (!isLoggedIn) {
+      showWarning('\u8bf7\u5148\u767b\u5f55\u540e\u518d\u4f7f\u7528\u521b\u4f5c\u4e2d\u5fc3');
+      window.setTimeout(() => {
+        window.location.href = '/login';
+      }, 250);
+      return;
+    }
     const currentPrompt = prompt;
     setPrompt('');
     setIsGenerating(true);
@@ -661,12 +684,19 @@ export default function App() {
                 ) : null}
               </div>
             ) : (
-              <div className='text-center p-16 bg-white/60 rounded-[4rem] border-2 border-slate-200 border-dashed text-slate-400 max-w-lg'>
-                <div className='bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6'>
-                  {activeTab === 'image' ? <ImageIcon size={40} className='opacity-20' /> : <Video size={40} className='opacity-20' />}
+              <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
+                <div className='mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm'>
+                  {selectedModel?.icon || (activeTab === 'image' ? <ImageIcon size={36} /> : <Video size={36} />)}
                 </div>
-                <h3 className='text-xl font-black text-slate-700'>{activeTab === 'image' ? '视觉创意工坊' : '视频动力实验室'}</h3>
-                <p className='text-sm mt-3 leading-relaxed'>在下方输入描述词，我们将为你实时渲染高精度的视觉素材。</p>
+                <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
+                  当前模型
+                </div>
+                <h3 className='mt-4 text-3xl font-black tracking-tight text-slate-900'>
+                  {selectedModel?.name || (activeTab === 'image' ? '图片模型' : '视频模型')}
+                </h3>
+                <p className='mt-4 text-sm leading-8 text-slate-500'>
+                  {selectedModel?.desc || '这里会显示当前模型的介绍，帮助你在开始创作前快速了解它更擅长生成什么内容。'}
+                </p>
               </div>
             )}
             
@@ -693,7 +723,7 @@ export default function App() {
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
-                  placeholder={activeTab === 'chat' ? "发送消息..." : "描述你想要的画面..."}
+                  placeholder={!isLoggedIn ? "登录后即可开始对话、图片或视频创作..." : activeTab === 'chat' ? "发送消息..." : "描述你想要的画面..."}
                   className='max-h-60 min-h-[60px] flex-1 resize-none bg-transparent py-3 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-300'
                 />
                 <button
@@ -705,6 +735,21 @@ export default function App() {
                 </button>
               </div>
 
+              {!isLoggedIn && (
+                <div className='mt-4 flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-700'>
+                  <div className='font-medium'>
+                    {'\u5f53\u524d\u4ec5\u5f00\u653e\u6d4f\u89c8\uff0c\u53d1\u9001\u5185\u5bb9\u524d\u9700\u8981\u5148\u767b\u5f55\u8d26\u53f7\u3002'}
+                  </div>
+                  <button
+                    onClick={() => {
+                      window.location.href = '/login';
+                    }}
+                    className='shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100'
+                  >
+                    {'\u53bb\u767b\u5f55'}
+                  </button>
+                </div>
+              )}
               {activeTab !== 'chat' && (
                 <div className='mt-5 flex items-center gap-3 border-t border-slate-50 pt-5 px-2'>
                    <DropButton label={`${params.quantity}张`} open={openMenu === 'qty'} onClick={() => setOpenMenu(openMenu === 'qty' ? null : 'qty')} icon={<Layers size={14} />} />
@@ -724,6 +769,8 @@ export default function App() {
     </div>
   );
 }
+
+
 
 
 
