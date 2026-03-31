@@ -2008,8 +2008,13 @@ export default function App() {
               });
             }),
         );
-
-        await Promise.allSettled(imageTasks);
+        if (isAdobeImageModel && generationCount > 1) {
+          for (const imageTask of imageTasks) {
+            await imageTask;
+          }
+        } else {
+          await Promise.allSettled(imageTasks);
+        }
 
         await persistImageRecords(imageRecordsRef.current, {
           modelName: currentModelName,
@@ -2442,19 +2447,6 @@ export default function App() {
                                                 <Download size={16} />
                                               </button>
                                             </div>
-                                            <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
-                                              <button
-                                                onClick={() =>
-                                                  triggerDownload(
-                                                    imageItem.url,
-                                                    buildImageDownloadFilename(record, recordIndex, imageIndex),
-                                                  )
-                                                }
-                                                className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
-                                              >
-                                                <Download size={18} />
-                                              </button>
-                                            </div>
                                             <div className='absolute left-3 top-3 rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm'>
                                               已完成
                                             </div>
@@ -2560,19 +2552,6 @@ export default function App() {
                                             title='下载'
                                           >
                                             <Download size={16} />
-                                          </button>
-                                        </div>
-                                        <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
-                                          <button
-                                            onClick={() =>
-                                              triggerDownload(
-                                                imageItem.url,
-                                                buildImageDownloadFilename(record, recordIndex, imageIndex),
-                                              )
-                                            }
-                                            className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
-                                          >
-                                            <Download size={18} />
                                           </button>
                                         </div>
                                       </>
