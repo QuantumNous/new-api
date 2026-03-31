@@ -305,6 +305,7 @@ const normalizeImageTaskItem = (item, index = 0) => {
       status: 'completed',
       progress: 100,
       error: '',
+      progressUnavailable: false,
     };
   }
 
@@ -319,6 +320,7 @@ const normalizeImageTaskItem = (item, index = 0) => {
     error: item?.error || '',
     resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
     requestId: typeof item?.requestId === 'string' ? item.requestId : '',
+    progressUnavailable: item?.progressUnavailable === true,
     requestPollable:
       typeof item?.requestPollable === 'boolean'
         ? item.requestPollable
@@ -345,6 +347,7 @@ const normalizeVideoTaskItem = (item, index = 0) => {
     resultUrl: item?.resultUrl || '',
     resultContent: item?.resultContent || '',
     requestId: item?.requestId || '',
+    progressUnavailable: item?.progressUnavailable === true,
     requestPollable:
       typeof item?.requestPollable === 'boolean'
         ? item.requestPollable
@@ -373,6 +376,50 @@ const getTaskStatusLabel = (status) => {
     default:
       return '生成中';
   }
+};
+
+const isTaskInTerminalState = (status) =>
+  ['completed', 'failed'].includes(String(status || '').trim().toLowerCase());
+
+const getTaskProgressText = (task) => {
+  if (typeof task?.progress === 'number' && task.progress > 0) {
+    return `${task.progress}%`;
+  }
+  if (isTaskInTerminalState(task?.status)) {
+    return `${task?.progress || 100}%`;
+  }
+  if (task?.progressUnavailable) {
+    return '上游未提供实际进度';
+  }
+  return '检测实际进度中';
+};
+
+const getTaskProgressFillProps = (task) => {
+  if (typeof task?.progress === 'number' && task.progress > 0) {
+    return {
+      width: `${task.progress}%`,
+      className: task?.status === 'failed' ? 'bg-red-400' : 'bg-blue-500',
+    };
+  }
+  if (isTaskInTerminalState(task?.status)) {
+    return {
+      width: `${task?.progress || 100}%`,
+      className: task?.status === 'failed' ? 'bg-red-400' : 'bg-blue-500',
+    };
+  }
+  return null;
+};
+
+const isUnsupportedProgressEndpointError = (error) => {
+  const message =
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    error?.message ||
+    '';
+  return (
+    typeof message === 'string' &&
+    message.includes('Invalid URL (GET /v1/requests/')
+  );
 };
 
 const normalizeImageHistoryRecords = (snapshot) => {
@@ -1847,6 +1894,7 @@ export default function App() {
               status: isFailed ? 'failed' : currentTask.url ? 'completed' : 'generating',
               error: isFailed ? nextStatus.error || currentTask.error || '任务生成失败' : '',
               resultUrl: currentTask.resultUrl || nextStatus.previewUrl || '',
+              progressUnavailable: false,
               requestPollable: !shouldStop,
             }));
           } else {
@@ -1855,6 +1903,7 @@ export default function App() {
               status: isFailed ? 'failed' : currentTask.url ? 'completed' : 'generating',
               error: isFailed ? nextStatus.error || currentTask.error || '任务生成失败' : '',
               resultUrl: currentTask.resultUrl || nextStatus.previewUrl || '',
+              progressUnavailable: false,
               requestPollable: !shouldStop,
             }));
           }
@@ -1869,6 +1918,25 @@ export default function App() {
           }
         } catch (error) {
           if (!controller.active) {
+            return;
+          }
+          if (isUnsupportedProgressEndpointError(error)) {
+            if (target.kind === 'image') {
+              patchImageTask(target.recordId, target.taskId, {
+                progressUnavailable: true,
+                requestPollable: false,
+              });
+            } else {
+              patchVideoTask(target.recordId, target.taskId, {
+                progressUnavailable: true,
+                requestPollable: false,
+              });
+            }
+            controller.active = false;
+            if (controller.timer) {
+              window.clearTimeout(controller.timer);
+            }
+            requestStatusPollersRef.current.delete(target.taskId);
             return;
           }
           console.error('Failed to poll creative center request status:', error);
@@ -2218,6 +2286,7 @@ export default function App() {
           error: '',
           resultUrl: '',
           requestId: '',
+          progressUnavailable: false,
           requestPollable: false,
         })),
         status: 'generating',
@@ -2295,6 +2364,7 @@ export default function App() {
               progress: 100,
               error: imageUrls[0] ? '' : '未获取到图片结果',
               resultUrl: imageUrls[0] || '',
+              progressUnavailable: false,
               requestPollable: false,
             });
           })()
@@ -2303,6 +2373,7 @@ export default function App() {
                 status: 'failed',
                 progress: 100,
                 error: '请求失败，请稍后再试。',
+                progressUnavailable: false,
                 requestPollable: false,
               });
             }),
@@ -2357,6 +2428,7 @@ export default function App() {
           resultUrl: '',
           resultContent: '',
           requestId: '',
+          progressUnavailable: false,
           requestPollable: false,
           pollable: false,
         })),
@@ -2421,6 +2493,7 @@ export default function App() {
                 resultUrl: videoUrl || '',
                 resultContent: content,
                 requestId,
+                progressUnavailable: false,
                 requestPollable: false,
                 pollable: false,
               });
@@ -2490,6 +2563,7 @@ export default function App() {
               error: '',
               resultUrl: immediateResultUrl || '',
               requestId,
+              progressUnavailable: false,
               requestPollable: false,
               pollable:
                 !immediateResultUrl &&
@@ -2503,6 +2577,7 @@ export default function App() {
                 content: `请求失败：${requestError.message || '请稍后再试。'}`,
                 progress: 100,
                 error: requestError.message || '请稍后再试。',
+                progressUnavailable: false,
                 requestPollable: false,
                 pollable: false,
               });
@@ -2795,30 +2870,21 @@ export default function App() {
                                             <div>
                                               <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                                 <span>任务 {imageIndex + 1}</span>
-                                                {typeof imageItem.progress === 'number' &&
-                                                imageItem.progress > 0 ? (
-                                                  <span>{imageItem.progress}%</span>
-                                                ) : ['completed', 'failed'].includes(imageItem.status) ? (
-                                                  <span>{imageItem.progress || 100}%</span>
-                                                ) : (
-                                                  <span>实时生成中</span>
-                                                )}
+                                                <span>{getTaskProgressText(imageItem)}</span>
                                               </div>
                                               <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                                {typeof imageItem.progress === 'number' &&
-                                                imageItem.progress > 0 ? (
-                                                  <div
-                                                    className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                    style={{ width: `${imageItem.progress}%` }}
-                                                  />
-                                                ) : ['completed', 'failed'].includes(imageItem.status) ? (
-                                                  <div
-                                                    className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                    style={{ width: `${imageItem.progress || 100}%` }}
-                                                  />
-                                                ) : (
-                                                  <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                                )}
+                                                {(() => {
+                                                  const fillProps = getTaskProgressFillProps(imageItem);
+                                                  if (!fillProps) {
+                                                    return null;
+                                                  }
+                                                  return (
+                                                    <div
+                                                      className={`h-full rounded-full transition-all ${fillProps.className}`}
+                                                      style={{ width: fillProps.width }}
+                                                    />
+                                                  );
+                                                })()}
                                               </div>
                                               {imageItem.error ? (
                                                 <p className='mt-3 text-[11px] leading-5 text-red-500'>{imageItem.error}</p>
@@ -2908,30 +2974,21 @@ export default function App() {
                                         <div>
                                           <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                             <span>任务 {imageIndex + 1}</span>
-                                            {typeof imageItem.progress === 'number' &&
-                                            imageItem.progress > 0 ? (
-                                              <span>{imageItem.progress}%</span>
-                                            ) : ['completed', 'failed'].includes(imageItem.status) ? (
-                                              <span>{imageItem.progress || 100}%</span>
-                                            ) : (
-                                              <span>实时生成中</span>
-                                            )}
+                                            <span>{getTaskProgressText(imageItem)}</span>
                                           </div>
                                           <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                            {typeof imageItem.progress === 'number' &&
-                                            imageItem.progress > 0 ? (
-                                              <div
-                                                className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                style={{ width: `${imageItem.progress}%` }}
-                                              />
-                                            ) : ['completed', 'failed'].includes(imageItem.status) ? (
-                                              <div
-                                                className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                style={{ width: `${imageItem.progress || 100}%` }}
-                                              />
-                                            ) : (
-                                              <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                            )}
+                                            {(() => {
+                                              const fillProps = getTaskProgressFillProps(imageItem);
+                                              if (!fillProps) {
+                                                return null;
+                                              }
+                                              return (
+                                                <div
+                                                  className={`h-full rounded-full transition-all ${fillProps.className}`}
+                                                  style={{ width: fillProps.width }}
+                                                />
+                                              );
+                                            })()}
                                           </div>
                                           {imageItem.error ? (
                                             <p className='mt-3 text-[11px] leading-5 text-red-500'>{imageItem.error}</p>
@@ -3144,30 +3201,21 @@ export default function App() {
                                             <div>
                                               <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                                 <span>任务 {taskIndex + 1}</span>
-                                                {typeof task.progress === 'number' &&
-                                                task.progress > 0 ? (
-                                                  <span>{task.progress}%</span>
-                                                ) : ['completed', 'failed'].includes(task.status) ? (
-                                                  <span>{task.progress || 100}%</span>
-                                                ) : (
-                                                  <span>实时生成中</span>
-                                                )}
+                                                <span>{getTaskProgressText(task)}</span>
                                               </div>
                                               <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                                {typeof task.progress === 'number' &&
-                                                task.progress > 0 ? (
-                                                  <div
-                                                    className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                    style={{ width: `${task.progress}%` }}
-                                                  />
-                                                ) : ['completed', 'failed'].includes(task.status) ? (
-                                                  <div
-                                                    className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                    style={{ width: `${task.progress || 100}%` }}
-                                                  />
-                                                ) : (
-                                                  <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                                )}
+                                                {(() => {
+                                                  const fillProps = getTaskProgressFillProps(task);
+                                                  if (!fillProps) {
+                                                    return null;
+                                                  }
+                                                  return (
+                                                    <div
+                                                      className={`h-full rounded-full transition-all ${fillProps.className}`}
+                                                      style={{ width: fillProps.width }}
+                                                    />
+                                                  );
+                                                })()}
                                               </div>
                                               {task.content || task.error ? (
                                                 <p
@@ -3283,30 +3331,21 @@ export default function App() {
                                         <div>
                                           <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                             <span>任务 {taskIndex + 1}</span>
-                                            {typeof task.progress === 'number' &&
-                                            task.progress > 0 ? (
-                                              <span>{task.progress}%</span>
-                                            ) : ['completed', 'failed'].includes(task.status) ? (
-                                              <span>{task.progress || 100}%</span>
-                                            ) : (
-                                              <span>实时生成中</span>
-                                            )}
+                                            <span>{getTaskProgressText(task)}</span>
                                           </div>
                                           <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                            {typeof task.progress === 'number' &&
-                                            task.progress > 0 ? (
-                                              <div
-                                                className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                style={{ width: `${task.progress}%` }}
-                                              />
-                                            ) : ['completed', 'failed'].includes(task.status) ? (
-                                              <div
-                                                className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                style={{ width: `${task.progress || 100}%` }}
-                                              />
-                                            ) : (
-                                              <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                            )}
+                                            {(() => {
+                                              const fillProps = getTaskProgressFillProps(task);
+                                              if (!fillProps) {
+                                                return null;
+                                              }
+                                              return (
+                                                <div
+                                                  className={`h-full rounded-full transition-all ${fillProps.className}`}
+                                                  style={{ width: fillProps.width }}
+                                                />
+                                              );
+                                            })()}
                                           </div>
                                           {task.content || task.error ? (
                                             <p
