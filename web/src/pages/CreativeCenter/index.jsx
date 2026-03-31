@@ -189,6 +189,35 @@ const triggerDownload = (url, filename) => {
 const createCreativeRecordId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const normalizeImageTaskItem = (item, index = 0) => {
+  if (typeof item === 'string') {
+    return {
+      id: createCreativeRecordId(`image-task-${index}`),
+      url: item,
+      status: 'completed',
+      progress: 100,
+      error: '',
+    };
+  }
+
+  return {
+    id: item?.id || createCreativeRecordId(`image-task-${index}`),
+    url: typeof item?.url === 'string' ? item.url : '',
+    status: item?.status || (item?.url ? 'completed' : 'pending'),
+    progress: Number(item?.progress) || (item?.url ? 100 : 12),
+    error: item?.error || '',
+  };
+};
+
+const normalizeVideoTaskItem = (item, index = 0) => ({
+  id: item?.id || createCreativeRecordId(`video-task-${index}`),
+  status: item?.status || (item?.url ? 'completed' : 'submitted'),
+  url: item?.url || '',
+  content: item?.content || '',
+  progress: Number(item?.progress) || ((item?.url || item?.status === 'completed') ? 100 : 12),
+  error: item?.error || '',
+});
+
 const normalizeImageHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
@@ -199,8 +228,21 @@ const normalizeImageHistoryRecords = (snapshot) => {
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       status: entry?.status || 'completed',
-      images: Array.isArray(entry?.images) ? entry.images.filter(Boolean) : [],
+      images: Array.isArray(entry?.images)
+        ? entry.images
+            .filter(Boolean)
+            .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex))
+        : [],
       error: entry?.error || '',
+      total: Number(entry?.total) || (Array.isArray(entry?.images) ? entry.images.length : 0),
+      completedCount:
+        Number(entry?.completedCount) ||
+        Number(entry?.completed_count) ||
+        (Array.isArray(entry?.images) ? entry.images.length : 0),
+      successCount:
+        Number(entry?.successCount) ||
+        Number(entry?.success_count) ||
+        (Array.isArray(entry?.images) ? entry.images.length : 0),
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
     }));
@@ -214,8 +256,13 @@ const normalizeImageHistoryRecords = (snapshot) => {
         modelName: snapshot?.model_name || '',
         params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
         status: 'completed',
-        images: payload.images.filter(Boolean),
+        images: payload.images
+          .filter(Boolean)
+          .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex)),
         error: '',
+        total: payload.images.length,
+        completedCount: payload.images.length,
+        successCount: payload.images.length,
         createdAt: snapshot?.updated_at || Date.now(),
         updatedAt: snapshot?.updated_at || Date.now(),
       },
@@ -235,8 +282,19 @@ const normalizeVideoHistoryRecords = (snapshot) => {
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       status: entry?.status || 'completed',
-      tasks: Array.isArray(entry?.tasks) ? entry.tasks : [],
+      tasks: Array.isArray(entry?.tasks)
+        ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
+        : [],
       error: entry?.error || '',
+      total: Number(entry?.total) || (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
+      completedCount:
+        Number(entry?.completedCount) ||
+        Number(entry?.completed_count) ||
+        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
+      successCount:
+        Number(entry?.successCount) ||
+        Number(entry?.success_count) ||
+        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
     }));
@@ -250,8 +308,11 @@ const normalizeVideoHistoryRecords = (snapshot) => {
         modelName: snapshot?.model_name || '',
         params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
         status: 'completed',
-        tasks: payload.tasks,
+        tasks: payload.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex)),
         error: '',
+        total: payload.tasks.length,
+        completedCount: payload.tasks.length,
+        successCount: payload.tasks.length,
         createdAt: snapshot?.updated_at || Date.now(),
         updatedAt: snapshot?.updated_at || Date.now(),
       },
@@ -695,7 +756,9 @@ export default function App() {
       summary.push(recordParams.outputResolution);
     }
     if (Array.isArray(record?.images) && record.images.length > 0) {
-      summary.push(`${record.images.length}张`);
+      summary.push(
+        `${record.images.filter((item) => item?.status === 'completed' && item?.url).length}张`,
+      );
     }
 
     return summary.join(' · ');
@@ -724,7 +787,9 @@ export default function App() {
     }
 
     if (Array.isArray(record?.tasks) && record.tasks.length > 0) {
-      summary.push(`${record.tasks.length}条`);
+      summary.push(
+        `${record.tasks.filter((item) => item?.status !== 'failed').length}条`,
+      );
     }
 
     return summary.join(' · ');
@@ -1019,6 +1084,32 @@ export default function App() {
     );
   };
 
+  const patchImageRecord = (recordId, patch) => {
+    setImageRecords((prev) =>
+      prev.map((record) =>
+        record.id === recordId
+          ? {
+              ...record,
+              ...(typeof patch === 'function' ? patch(record) : patch),
+            }
+          : record,
+      ),
+    );
+  };
+
+  const patchVideoRecord = (recordId, patch) => {
+    setVideoRecords((prev) =>
+      prev.map((record) =>
+        record.id === recordId
+          ? {
+              ...record,
+              ...(typeof patch === 'function' ? patch(record) : patch),
+            }
+          : record,
+      ),
+    );
+  };
+
   const handleReuseRecord = (record) => {
     if (!record) {
       return;
@@ -1174,15 +1265,25 @@ export default function App() {
         );
       }
     } else if (activeTab === 'image') {
+      const generationCount = Number(params.generationCount) || 1;
       const recordId = createCreativeRecordId('image');
       const pendingRecord = {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
         params: { ...params },
-        images: [],
+        images: Array.from({ length: generationCount }, (_, index) => ({
+          id: createCreativeRecordId(`image-task-${index + 1}`),
+          url: '',
+          status: 'pending',
+          progress: 12,
+          error: '',
+        })),
         status: 'generating',
         error: '',
+        total: generationCount,
+        completedCount: 0,
+        successCount: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -1190,46 +1291,86 @@ export default function App() {
       setImageRecords(pendingRecords);
 
       try {
-        const generationCount = Number(params.generationCount) || 1;
-        const collectedImages = [];
+        let completedCount = 0;
+        let successCount = 0;
+        const collectedImages = pendingRecord.images.map((item) => ({ ...item }));
 
-        for (let index = 0; index < generationCount; index += 1) {
-          const basePayload = createBasePayload(currentPrompt);
-          const payload = {
-            model: currentModelName,
-            group: activeGroup,
-            prompt: currentPrompt,
-            n: 1,
-            response_format: 'url',
-          };
-          if (basePayload.size) {
-            payload.size = basePayload.size;
-          }
-          if (basePayload.aspect_ratio) {
-            payload.aspect_ratio = basePayload.aspect_ratio;
-          }
-          if (basePayload.output_resolution) {
-            payload.output_resolution = basePayload.output_resolution;
-          }
+        const imageTasks = Array.from({ length: generationCount }, (_, index) =>
+          (async () => {
+            const basePayload = createBasePayload(currentPrompt);
+            const payload = {
+              model: currentModelName,
+              group: activeGroup,
+              prompt: currentPrompt,
+              n: 1,
+              response_format: 'url',
+            };
+            if (basePayload.size) {
+              payload.size = basePayload.size;
+            }
+            if (basePayload.aspect_ratio) {
+              payload.aspect_ratio = basePayload.aspect_ratio;
+            }
+            if (basePayload.output_resolution) {
+              payload.output_resolution = basePayload.output_resolution;
+            }
 
-          const data = await postCreativeRequest(
-            API_ENDPOINTS.IMAGE_GENERATIONS,
-            payload,
-          );
-          const imageUrls = Array.isArray(data?.data)
-            ? data.data
-                .map((item) =>
-                  typeof item?.url === 'string' ? item.url.trim() : '',
-                )
-                .filter(Boolean)
-            : [];
-          collectedImages.push(...imageUrls);
-        }
+            const data = await postCreativeRequest(
+              API_ENDPOINTS.IMAGE_GENERATIONS,
+              payload,
+            );
+            const imageUrls = Array.isArray(data?.data)
+              ? data.data
+                  .map((item) =>
+                    typeof item?.url === 'string' ? item.url.trim() : '',
+                  )
+                  .filter(Boolean)
+              : [];
+
+            collectedImages[index] = {
+              ...collectedImages[index],
+              url: imageUrls[0] || '',
+              status: imageUrls[0] ? 'completed' : 'failed',
+              progress: 100,
+              error: imageUrls[0] ? '' : '未获取到图片结果',
+            };
+            successCount += imageUrls.length > 0 ? 1 : 0;
+          })()
+            .catch(() => {
+              collectedImages[index] = {
+                ...collectedImages[index],
+                status: 'failed',
+                progress: 100,
+                error: '请求失败，请稍后再试。',
+              };
+            })
+            .finally(() => {
+              completedCount += 1;
+              patchImageRecord(recordId, (record) => ({
+                images: [...collectedImages],
+                completedCount,
+                successCount,
+                updatedAt: Date.now(),
+                error:
+                  completedCount === generationCount && successCount === 0
+                    ? '全部图片任务都生成失败了，请稍后重试。'
+                    : '',
+              }));
+            }),
+        );
+
+        await Promise.allSettled(imageTasks);
 
         const completedRecord = {
           ...pendingRecord,
-          images: collectedImages,
-          status: 'completed',
+          images: [...collectedImages],
+          status: successCount > 0 ? 'completed' : 'failed',
+          error:
+            successCount > 0
+              ? ''
+              : '全部图片任务都生成失败了，请稍后重试。',
+          completedCount: generationCount,
+          successCount,
           updatedAt: Date.now(),
         };
         const completedRecords = pendingRecords.map((record) =>
@@ -1261,15 +1402,26 @@ export default function App() {
         });
       }
     } else if (activeTab === 'video') {
+      const generationCount = Number(params.generationCount) || 1;
       const recordId = createCreativeRecordId('video');
       const pendingRecord = {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
         params: { ...params },
-        tasks: [],
+        tasks: Array.from({ length: generationCount }, (_, index) => ({
+          id: createCreativeRecordId(`video-task-${index + 1}`),
+          status: 'pending',
+          url: '',
+          content: '',
+          progress: 12,
+          error: '',
+        })),
         status: 'generating',
         error: '',
+        total: generationCount,
+        completedCount: 0,
+        successCount: 0,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -1277,63 +1429,106 @@ export default function App() {
       setVideoRecords(pendingRecords);
 
       try {
-        const generationCount = Number(params.generationCount) || 1;
-        const collectedTasks = [];
+        let completedCount = 0;
+        let successCount = 0;
+        const collectedTasks = pendingRecord.tasks.map((item) => ({ ...item }));
 
-        for (let index = 0; index < generationCount; index += 1) {
-          const basePayload = createBasePayload(currentPrompt);
-          let data;
+        const videoRequests = Array.from({ length: generationCount }, (_, index) =>
+          (async () => {
+            const basePayload = createBasePayload(currentPrompt);
+            let data;
 
-          if (isAdobeVideoModel) {
-            data = await postCreativeRequest(
-              API_ENDPOINTS.CHAT_COMPLETIONS,
-              basePayload,
-            );
-            const content = data?.choices?.[0]?.message?.content || '';
-            const videoUrl = extractVideoUrlFromMessage(content);
-            collectedTasks.push({
-              id: data?.id || `video-${index + 1}`,
-              status: videoUrl ? 'completed' : 'submitted',
-              url: videoUrl,
-              content,
-            });
-            continue;
-          }
-
-          const payload = {
-            model: currentModelName,
-            group: activeGroup,
-            prompt: currentPrompt,
-          };
-          [
-            'size',
-            'seconds',
-            'quality',
-            'preset',
-            'resolution_name',
-            'video_config',
-            'duration',
-            'aspect_ratio',
-            'resolution',
-            'reference_mode',
-          ].forEach((key) => {
-            if (basePayload[key] !== undefined) {
-              payload[key] = basePayload[key];
+            if (isAdobeVideoModel) {
+              data = await postCreativeRequest(
+                API_ENDPOINTS.CHAT_COMPLETIONS,
+                basePayload,
+              );
+              const content = data?.choices?.[0]?.message?.content || '';
+              const videoUrl = extractVideoUrlFromMessage(content);
+              collectedTasks[index] = {
+                ...collectedTasks[index],
+                id: data?.id || `video-${index + 1}`,
+                status: videoUrl ? 'completed' : 'submitted',
+                url: videoUrl,
+                content,
+                progress: 100,
+                error: '',
+              };
+              successCount += 1;
+              return;
             }
-          });
-          data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
-          collectedTasks.push({
-            id: data?.task_id || data?.id || `video-${index + 1}`,
-            status: data?.status || 'submitted',
-            url: data?.url || data?.video_url || data?.result_url || '',
-            content: '',
-          });
-        }
+
+            const payload = {
+              model: currentModelName,
+              group: activeGroup,
+              prompt: currentPrompt,
+            };
+            [
+              'size',
+              'seconds',
+              'quality',
+              'preset',
+              'resolution_name',
+              'video_config',
+              'duration',
+              'aspect_ratio',
+              'resolution',
+              'reference_mode',
+            ].forEach((key) => {
+              if (basePayload[key] !== undefined) {
+                payload[key] = basePayload[key];
+              }
+            });
+            data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
+            collectedTasks[index] = {
+              ...collectedTasks[index],
+              id: data?.task_id || data?.id || `video-${index + 1}`,
+              status: data?.status || 'submitted',
+              url: data?.url || data?.video_url || data?.result_url || '',
+              content: '',
+              progress: 100,
+              error: '',
+            };
+            successCount += 1;
+          })()
+            .catch((requestError) => {
+              collectedTasks[index] = {
+                ...collectedTasks[index],
+                id: `video-failed-${index + 1}`,
+                status: 'failed',
+                url: '',
+                content: `请求失败：${requestError.message || '请稍后再试。'}`,
+                progress: 100,
+                error: requestError.message || '请稍后再试。',
+              };
+            })
+            .finally(() => {
+              completedCount += 1;
+              patchVideoRecord(recordId, (record) => ({
+                tasks: [...collectedTasks],
+                completedCount,
+                successCount,
+                updatedAt: Date.now(),
+                error:
+                  completedCount === generationCount && successCount === 0
+                    ? '全部视频任务都提交失败了，请稍后重试。'
+                    : '',
+              }));
+            }),
+        );
+
+        await Promise.allSettled(videoRequests);
 
         const completedRecord = {
           ...pendingRecord,
-          tasks: collectedTasks,
-          status: 'completed',
+          tasks: [...collectedTasks],
+          status: successCount > 0 ? 'completed' : 'failed',
+          error:
+            successCount > 0
+              ? ''
+              : '全部视频任务都提交失败了，请稍后重试。',
+          completedCount: generationCount,
+          successCount,
           updatedAt: Date.now(),
         };
         const completedRecords = pendingRecords.map((record) =>
@@ -1513,6 +1708,11 @@ export default function App() {
                                   <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
                                     <span>{record.modelName || '图片模型'}</span>
                                     {metaSummary ? <span>{metaSummary}</span> : null}
+                                    {record.total > 0 ? (
+                                      <span>
+                                        {record.completedCount || 0} / {record.total} 已完成
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <button
@@ -1525,39 +1725,122 @@ export default function App() {
                             </div>
 
                             {record.status === 'generating' ? (
-                              <div className='mt-4 flex items-center gap-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
-                                <Loader2 size={18} className='animate-spin' />
-                                <span className='text-sm font-semibold'>正在生成这一组图片...</span>
+                              <div className='mt-4 space-y-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
+                                <div className='flex items-center gap-3'>
+                                  <Loader2 size={18} className='animate-spin' />
+                                  <span className='text-sm font-semibold'>
+                                    正在生成图片，已完成 {record.completedCount || 0} / {record.total || 0}
+                                  </span>
+                                </div>
+                                <div className='h-2 overflow-hidden rounded-full bg-white/70'>
+                                  <div
+                                    className='h-full rounded-full bg-blue-500 transition-all'
+                                    style={{
+                                      width: `${record.total ? ((record.completedCount || 0) / record.total) * 100 : 0}%`,
+                                    }}
+                                  />
+                                </div>
+                                {record.images.length > 0 ? (
+                                  <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+                                    {record.images.map((imageItem, imageIndex) => (
+                                      <div
+                                        key={imageItem.id || `${record.id}-loading-${imageIndex}`}
+                                        className='overflow-hidden rounded-[1.25rem] border border-blue-100 bg-white shadow-sm'
+                                      >
+                                        {imageItem.url ? (
+                                          <img
+                                            src={imageItem.url}
+                                            alt={`Generating Art ${imageIndex + 1}`}
+                                            className='aspect-[3/4] h-full w-full object-cover'
+                                          />
+                                        ) : (
+                                          <div className='aspect-[3/4] h-full w-full bg-slate-100 p-4 flex flex-col justify-between'>
+                                            <div className='flex items-center gap-2 text-slate-500'>
+                                              <Loader2 size={14} className='animate-spin text-blue-500' />
+                                              <span className='text-xs font-semibold'>
+                                                {imageItem.status === 'failed' ? '生成失败' : '生成中'}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
+                                                <span>任务 {imageIndex + 1}</span>
+                                                <span>{imageItem.progress || 12}%</span>
+                                              </div>
+                                              <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
+                                                <div
+                                                  className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                  style={{ width: `${imageItem.progress || 12}%` }}
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
                             ) : record.status === 'failed' ? (
                               <div className='mt-4 rounded-[1.75rem] border border-red-100 bg-red-50 px-5 py-4 text-sm leading-7 text-red-600'>
                                 {record.error || '本次图片生成失败，请稍后重试。'}
                               </div>
                             ) : (
-                              <div className='mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-                                {record.images.map((imageUrl, imageIndex) => (
+                              <div className='mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+                                {record.images.map((imageItem, imageIndex) => (
                                   <div
-                                    key={`${record.id}-${imageIndex}`}
+                                    key={imageItem.id || `${record.id}-${imageIndex}`}
                                     className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
-                                    <img
-                                      src={imageUrl}
-                                      alt={`Generated Art ${imageIndex + 1}`}
-                                      className='aspect-[3/4] h-full w-full object-cover'
-                                    />
-                                    <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
-                                      <button
-                                        onClick={() =>
-                                          triggerDownload(
-                                            imageUrl,
-                                            `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`,
-                                          )
-                                        }
-                                        className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
-                                      >
-                                        <Download size={18} />
-                                      </button>
-                                    </div>
+                                    {imageItem.url ? (
+                                      <>
+                                        <img
+                                          src={imageItem.url}
+                                          alt={`Generated Art ${imageIndex + 1}`}
+                                          className='aspect-[3/4] h-full w-full object-cover'
+                                        />
+                                        <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
+                                          <button
+                                            onClick={() =>
+                                              triggerDownload(
+                                                imageItem.url,
+                                                `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`,
+                                              )
+                                            }
+                                            className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
+                                          >
+                                            <Download size={18} />
+                                          </button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className='aspect-[3/4] h-full w-full bg-slate-50 p-4 flex flex-col justify-between'>
+                                        <div className='flex items-center gap-2 text-slate-500'>
+                                          {imageItem.status === 'failed' ? (
+                                            <X size={14} className='text-red-500' />
+                                          ) : (
+                                            <Loader2 size={14} className='animate-spin text-blue-500' />
+                                          )}
+                                          <span className='text-xs font-semibold'>
+                                            {imageItem.status === 'failed' ? '生成失败' : '任务处理中'}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
+                                            <span>任务 {imageIndex + 1}</span>
+                                            <span>{imageItem.progress || 0}%</span>
+                                          </div>
+                                          <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
+                                            <div
+                                              className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                              style={{ width: `${imageItem.progress || 0}%` }}
+                                            />
+                                          </div>
+                                          {imageItem.error ? (
+                                            <p className='mt-3 text-[11px] leading-5 text-red-500'>{imageItem.error}</p>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -1618,6 +1901,11 @@ export default function App() {
                                   <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
                                     <span>{record.modelName || '视频模型'}</span>
                                     {metaSummary ? <span>{metaSummary}</span> : null}
+                                    {record.total > 0 ? (
+                                      <span>
+                                        {record.completedCount || 0} / {record.total} 已完成
+                                      </span>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <button
@@ -1630,16 +1918,54 @@ export default function App() {
                             </div>
 
                             {record.status === 'generating' ? (
-                              <div className='mt-4 flex items-center gap-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
-                                <Loader2 size={18} className='animate-spin' />
-                                <span className='text-sm font-semibold'>正在提交这一组视频任务...</span>
+                              <div className='mt-4 space-y-3 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
+                                <div className='flex items-center gap-3'>
+                                  <Loader2 size={18} className='animate-spin' />
+                                  <span className='text-sm font-semibold'>
+                                    正在提交视频任务，已完成 {record.completedCount || 0} / {record.total || 0}
+                                  </span>
+                                </div>
+                                <div className='h-2 overflow-hidden rounded-full bg-white/70'>
+                                  <div
+                                    className='h-full rounded-full bg-blue-500 transition-all'
+                                    style={{
+                                      width: `${record.total ? ((record.completedCount || 0) / record.total) * 100 : 0}%`,
+                                    }}
+                                  />
+                                </div>
+                                {record.tasks.length > 0 ? (
+                                  <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+                                    {record.tasks.map((task, taskIndex) => (
+                                      <div
+                                        key={`${record.id}-loading-task-${task.id || taskIndex}`}
+                                        className='rounded-[1.25rem] border border-blue-100 bg-white p-4 shadow-sm'
+                                      >
+                                        <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
+                                          第 {taskIndex + 1} 条任务
+                                        </div>
+                                        <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
+                                          {task.id || '任务提交中'}
+                                        </div>
+                                        <div className='mt-3 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 inline-flex'>
+                                          {task.status || 'submitted'}
+                                        </div>
+                                        <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
+                                          <div
+                                            className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                            style={{ width: `${task.progress || 12}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
                             ) : record.status === 'failed' ? (
                               <div className='mt-4 rounded-[1.75rem] border border-red-100 bg-red-50 px-5 py-4 text-sm leading-7 text-red-600'>
                                 {record.error || '本次视频生成失败，请稍后重试。'}
                               </div>
                             ) : (
-                              <div className='mt-4 grid gap-4 xl:grid-cols-2'>
+                              <div className='mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
                                 {record.tasks.map((task, taskIndex) => (
                                   <div
                                     key={`${record.id}-${task.id || taskIndex}`}
@@ -1658,10 +1984,20 @@ export default function App() {
                                         {task.status || 'submitted'}
                                       </div>
                                     </div>
+                                    <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
+                                      <div
+                                        className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                        style={{ width: `${task.progress || 0}%` }}
+                                      />
+                                    </div>
 
                                     {task.url ? (
                                       <div className='mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950'>
                                         <video controls className='aspect-video h-full w-full' src={task.url} />
+                                      </div>
+                                    ) : task.status === 'failed' ? (
+                                      <div className='mt-4 rounded-[1.25rem] border border-red-100 bg-red-50 px-4 py-3 text-sm leading-7 text-red-600'>
+                                        {task.content || task.error || '任务提交失败，请稍后重试。'}
                                       </div>
                                     ) : task.content ? (
                                       <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
