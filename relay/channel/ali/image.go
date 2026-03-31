@@ -55,9 +55,9 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 	}
 
 	// 检查n参数
-	if imageRequest.Parameters.N != 0 {
-		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
-	}
+	// if imageRequest.Parameters.N != 0 {
+	// 	info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
+	// }
 
 	// 同步图片模型和异步图片模型请求格式不一样
 	if isSync {
@@ -329,11 +329,12 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 
 	imageResponses := responseAli2OpenAIImage(c, aliResponse, originRespBody, info, responseFormat)
 	// 可能生成多张图片，修正计费数量n
-	if aliResponse.Usage.ImageCount != 0 {
-		info.PriceData.AddOtherRatio("n", float64(aliResponse.Usage.ImageCount))
-	} else if len(imageResponses.Data) != 0 {
-		info.PriceData.AddOtherRatio("n", float64(len(imageResponses.Data)))
-	}
+	// 注释掉，否则会导致多次扣费用
+	// if aliResponse.Usage.ImageCount != 0 {
+	// 	info.PriceData.AddOtherRatio("n", float64(aliResponse.Usage.ImageCount))
+	// } else if len(imageResponses.Data) != 0 {
+	// 	info.PriceData.AddOtherRatio("n", float64(len(imageResponses.Data)))
+	// }
 	jsonResponse, err := common.Marshal(imageResponses)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
