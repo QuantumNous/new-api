@@ -3452,22 +3452,11 @@ export default function App() {
                                                   getVideoTaskMediaUrl(task),
                                                 )
                                               }
-                                              className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                              className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                               title='预览'
                                             >
                                               <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                                 已完成
-                                              </div>
-                                              <div className='space-y-3'>
-                                                <div className='inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur-sm'>
-                                                  <Video size={22} />
-                                                </div>
-                                                <div className='space-y-1'>
-                                                  <p className='text-sm font-semibold'>点击预览视频</p>
-                                                  <p className='line-clamp-2 text-xs leading-5 text-white/65'>
-                                                    {record.prompt || `第 ${taskIndex + 1} 条视频任务`}
-                                                  </p>
-                                                </div>
                                               </div>
                                             </button>
                                             <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
@@ -3487,17 +3476,6 @@ export default function App() {
                                                 ) : (
                                                   <Square size={16} />
                                                 )}
-                                              </button>
-                                              <button
-                                                onClick={() =>
-                                                  openVideoPreviewInNewWindow(
-                                                    getVideoTaskMediaUrl(task),
-                                                  )
-                                                }
-                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
-                                                title='预览'
-                                              >
-                                                <Eye size={16} />
                                               </button>
                                               <button
                                                 onClick={() =>
@@ -3586,22 +3564,11 @@ export default function App() {
                                               getVideoTaskMediaUrl(task),
                                             )
                                           }
-                                          className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                          className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                           title='预览'
                                         >
                                           <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                             已完成
-                                          </div>
-                                          <div className='space-y-3'>
-                                            <div className='inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur-sm'>
-                                              <Video size={22} />
-                                            </div>
-                                            <div className='space-y-1'>
-                                              <p className='text-sm font-semibold'>点击预览视频</p>
-                                              <p className='line-clamp-2 text-xs leading-5 text-white/65'>
-                                                {record.prompt || `第 ${taskIndex + 1} 条视频任务`}
-                                              </p>
-                                            </div>
                                           </div>
                                         </button>
                                         <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
@@ -3621,17 +3588,6 @@ export default function App() {
                                             ) : (
                                               <Square size={16} />
                                             )}
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              openVideoPreviewInNewWindow(
-                                                getVideoTaskMediaUrl(task),
-                                              )
-                                            }
-                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
-                                            title='预览'
-                                          >
-                                            <Eye size={16} />
                                           </button>
                                           <button
                                             onClick={() =>
