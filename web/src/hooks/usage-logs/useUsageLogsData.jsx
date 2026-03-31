@@ -601,6 +601,32 @@ export const useLogsData = () => {
           value: other.request_path,
         });
       }
+      if (isAdminUser && other?.stream_status) {
+        const ss = other.stream_status;
+        const isOk = ss.status === 'ok';
+        const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
+        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        if (ss.error_count > 0) {
+          streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
+        }
+        if (ss.end_error) {
+          streamValue += ` - ${ss.end_error}`;
+        }
+        expandDataLocal.push({
+          key: t('流状态'),
+          value: streamValue,
+        });
+        if (Array.isArray(ss.errors) && ss.errors.length > 0) {
+          expandDataLocal.push({
+            key: t('流错误详情'),
+            value: (
+              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+                {ss.errors.join('\n')}
+              </div>
+            ),
+          });
+        }
+      }
       if (Array.isArray(other?.po) && other.po.length > 0) {
         expandDataLocal.push({
           key: t('参数覆盖'),
