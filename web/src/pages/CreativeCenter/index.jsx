@@ -3432,7 +3432,7 @@ export default function App() {
                                     {record.tasks.map((task, taskIndex) => (
                                       <div
                                         key={`${record.id}-loading-task-${task.id || taskIndex}`}
-                                        className='group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_-24px_rgba(15,23,42,0.55)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-26px_rgba(15,23,42,0.68)]'
+                                        className='group relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'
                                       >
                                         {getVideoTaskMediaUrl(task) ? (
                                           <div
@@ -3452,27 +3452,19 @@ export default function App() {
                                                   getVideoTaskMediaUrl(task),
                                                 )
                                               }
-                                              className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[linear-gradient(180deg,rgba(15,23,42,0.08)_0%,rgba(15,23,42,0.18)_38%,rgba(2,6,23,0.78)_100%)] p-3 text-left text-white transition duration-300 group-hover:scale-[1.015]'
+                                              className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                               title='预览'
                                             >
-                                              <div className='rounded-full bg-emerald-500/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-white shadow-[0_10px_25px_-14px_rgba(16,185,129,0.95)] w-fit'>
+                                              <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                                 已完成
                                               </div>
-                                              <div className='mt-auto inline-flex w-fit max-w-[calc(100%-1rem)] items-center gap-3 rounded-[1.15rem] border border-white/12 bg-slate-950/58 px-4 py-3 text-white shadow-[0_18px_38px_-24px_rgba(15,23,42,0.95)] backdrop-blur-md'>
-                                                <div className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/10'>
-                                                  <Video size={18} />
-                                                </div>
-                                                <span className='text-sm font-semibold tracking-[0.02em] text-white/96'>
-                                                  点击预览视频
-                                                </span>
-                                              </div>
                                             </button>
-                                            <div className='absolute right-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/18 bg-slate-950/36 px-2 py-2 shadow-[0_12px_34px_-22px_rgba(15,23,42,0.9)] backdrop-blur-md'>
+                                            <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                               <button
                                                 onClick={() =>
                                                   toggleVideoTaskSelection(record.id, task.id)
                                                 }
-                                                className='rounded-full bg-white/96 p-2 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-white'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title={
                                                   selectedVideoIdSet.has(task.id)
                                                     ? '取消选择'
@@ -3496,7 +3488,7 @@ export default function App() {
                                                     ),
                                                   )
                                                 }
-                                                className='rounded-full bg-white/96 p-2 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-white'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title='下载'
                                               >
                                                 <Download size={16} />
@@ -3552,7 +3544,7 @@ export default function App() {
                                 {record.tasks.map((task, taskIndex) => (
                                   <div
                                     key={`${record.id}-${task.id || taskIndex}`}
-                                    className='group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_-24px_rgba(15,23,42,0.55)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-26px_rgba(15,23,42,0.68)]'
+                                    className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
                                     {getVideoTaskMediaUrl(task) ? (
                                       <div
@@ -3572,27 +3564,19 @@ export default function App() {
                                               getVideoTaskMediaUrl(task),
                                             )
                                           }
-                                          className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[linear-gradient(180deg,rgba(15,23,42,0.08)_0%,rgba(15,23,42,0.18)_38%,rgba(2,6,23,0.78)_100%)] p-3 text-left text-white transition duration-300 group-hover:scale-[1.015]'
+                                          className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                           title='预览'
                                         >
-                                          <div className='rounded-full bg-emerald-500/92 px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-white shadow-[0_10px_25px_-14px_rgba(16,185,129,0.95)] w-fit'>
+                                          <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                             已完成
                                           </div>
-                                          <div className='mt-auto inline-flex w-fit max-w-[calc(100%-1rem)] items-center gap-3 rounded-[1.15rem] border border-white/12 bg-slate-950/58 px-4 py-3 text-white shadow-[0_18px_38px_-24px_rgba(15,23,42,0.95)] backdrop-blur-md'>
-                                            <div className='inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white ring-1 ring-white/10'>
-                                              <Video size={18} />
-                                            </div>
-                                            <span className='text-sm font-semibold tracking-[0.02em] text-white/96'>
-                                              点击预览视频
-                                            </span>
-                                          </div>
                                         </button>
-                                        <div className='absolute right-3 top-3 z-20 flex items-center gap-2 rounded-full border border-white/18 bg-slate-950/36 px-2 py-2 shadow-[0_12px_34px_-22px_rgba(15,23,42,0.9)] backdrop-blur-md'>
+                                        <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                           <button
                                             onClick={() =>
                                               toggleVideoTaskSelection(record.id, task.id)
                                             }
-                                            className='rounded-full bg-white/96 p-2 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-white'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title={
                                               selectedVideoIdSet.has(task.id)
                                                 ? '取消选择'
@@ -3616,7 +3600,7 @@ export default function App() {
                                                 ),
                                               )
                                             }
-                                            className='rounded-full bg-white/96 p-2 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-white'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title='下载'
                                           >
                                             <Download size={16} />
@@ -4077,7 +4061,6 @@ export default function App() {
     </div>
   );
 }
-
 
 
 
