@@ -471,6 +471,15 @@ const getVideoTaskMediaUrl = (task) => {
   return '';
 };
 
+const formatCreativeRecordTime = (timestamp) => {
+  const date = new Date(Number(timestamp) || 0);
+  if (Number.isNaN(date.getTime()) || date.getTime() <= 0) {
+    return '';
+  }
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}年${pad(date.getMonth() + 1)}月${pad(date.getDate())}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const buildCreativePersistSignature = (records, taskType) =>
   JSON.stringify(
     (records || []).map((record) => ({
@@ -908,8 +917,10 @@ export default function App() {
     video: [],
   });
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
+  const [collapsedImageRecordIds, setCollapsedImageRecordIds] = useState({});
   const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
+  const [collapsedVideoRecordIds, setCollapsedVideoRecordIds] = useState({});
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
   const [previewVideo, setPreviewVideo] = useState(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
@@ -2199,24 +2210,50 @@ export default function App() {
 
   const handleClearImageResults = async () => {
     setImageRecords([]);
+    setCollapsedImageRecordIds({});
     await deleteCreativeHistory('image');
   };
 
   const handleRemoveImageRecord = async (recordId) => {
     const nextRecords = imageRecords.filter((record) => record.id !== recordId);
     setImageRecords(nextRecords);
+    setCollapsedImageRecordIds((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
     await persistImageRecords(nextRecords);
   };
 
   const handleClearVideoResults = async () => {
     setVideoRecords([]);
+    setCollapsedVideoRecordIds({});
     await deleteCreativeHistory('video');
   };
 
   const handleRemoveVideoRecord = async (recordId) => {
     const nextRecords = videoRecords.filter((record) => record.id !== recordId);
     setVideoRecords(nextRecords);
+    setCollapsedVideoRecordIds((prev) => {
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
     await persistVideoRecords(nextRecords);
+  };
+
+  const toggleImageRecordCollapsed = (recordId) => {
+    setCollapsedImageRecordIds((prev) => ({
+      ...prev,
+      [recordId]: !(prev[recordId] ?? false),
+    }));
+  };
+
+  const toggleVideoRecordCollapsed = (recordId) => {
+    setCollapsedVideoRecordIds((prev) => ({
+      ...prev,
+      [recordId]: !(prev[recordId] ?? false),
+    }));
   };
 
   useEffect(() => {
@@ -2232,6 +2269,8 @@ export default function App() {
         setChatMessages([]);
         setImageRecords([]);
         setVideoRecords([]);
+        setCollapsedImageRecordIds({});
+        setCollapsedVideoRecordIds({});
         return;
       }
 
@@ -2261,6 +2300,12 @@ export default function App() {
         );
         setImageRecords(nextImageRecords);
         setVideoRecords(nextVideoRecords);
+        setCollapsedImageRecordIds(
+          Object.fromEntries(nextImageRecords.map((record) => [record.id, true])),
+        );
+        setCollapsedVideoRecordIds(
+          Object.fromEntries(nextVideoRecords.map((record) => [record.id, true])),
+        );
         lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
           nextImageRecords,
           'image',
@@ -2439,6 +2484,10 @@ export default function App() {
       };
       const pendingRecords = [...imageRecords, pendingRecord];
       setImageRecords(pendingRecords);
+      setCollapsedImageRecordIds((prev) => ({
+        ...prev,
+        [recordId]: false,
+      }));
 
       try {
         const batchSeedBase = createBatchSeedBase();
@@ -2613,6 +2662,10 @@ export default function App() {
       };
       const pendingRecords = [...videoRecords, pendingRecord];
       setVideoRecords(pendingRecords);
+      setCollapsedVideoRecordIds((prev) => ({
+        ...prev,
+        [recordId]: false,
+      }));
 
       try {
         const batchSeedBase = createBatchSeedBase();
@@ -2977,6 +3030,10 @@ export default function App() {
                     const completedImageItems = getCompletedImageItems(record);
                     const selectedImageItems = getSelectedImageItems(record);
                     const selectedImageIdSet = new Set(selectedImageTaskIds[record.id] || []);
+                    const isImageRecordCollapsed = collapsedImageRecordIds[record.id] ?? false;
+                    const recordTime = formatCreativeRecordTime(
+                      record.updatedAt || record.createdAt,
+                    );
 
                     return (
                       <article
@@ -2991,20 +3048,34 @@ export default function App() {
                           <div className='min-w-0 flex-1'>
                             <div className='rounded-[1.75rem] border border-slate-200 bg-white/90 px-5 py-4 shadow-sm'>
                               <div className='flex items-start justify-between gap-4'>
-                                <div className='min-w-0'>
-                                  <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
-                                    {record.prompt || '未填写提示词'}
-                                  </p>
-                                  <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
-                                    <span>{record.modelName || '图片模型'}</span>
-                                    {metaSummary ? <span>{metaSummary}</span> : null}
-                                    {record.total > 0 ? (
-                                      <span>
-                                        {record.completedCount || 0} / {record.total} 已完成
-                                      </span>
-                                    ) : null}
+                                <button
+                                  onClick={() => toggleImageRecordCollapsed(record.id)}
+                                  className='min-w-0 flex-1 text-left'
+                                >
+                                  <div className='flex items-start justify-between gap-4'>
+                                    <div className='min-w-0'>
+                                      <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
+                                        {record.prompt || '未填写提示词'}
+                                      </p>
+                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
+                                        <span>{record.modelName || '图片模型'}</span>
+                                        {metaSummary ? <span>{metaSummary}</span> : null}
+                                        {record.total > 0 ? (
+                                          <span>
+                                            {record.completedCount || 0} / {record.total} 已完成
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-400'>
+                                      {recordTime ? <span>{recordTime}</span> : null}
+                                      <ChevronDown
+                                        size={16}
+                                        className={`transition-transform ${isImageRecordCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
+                                </button>
                                 <button
                                   onClick={() => handleRemoveImageRecord(record.id)}
                                   className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
@@ -3014,7 +3085,7 @@ export default function App() {
                               </div>
                             </div>
 
-                            {record.status === 'generating' ? (
+                            {!isImageRecordCollapsed && (record.status === 'generating' ? (
                               <div className='mt-4 space-y-4 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
                                 <div className='space-y-3'>
                                   <div className='flex items-center gap-3'>
@@ -3213,8 +3284,9 @@ export default function App() {
                                   </div>
                                 ))}
                               </div>
-                            )}
+                            ))}
 
+                            {!isImageRecordCollapsed ? (
                             <div className='mt-3 flex flex-wrap items-center gap-2'>
                               {completedImageItems.length > 0 ? (
                                 <>
@@ -3255,6 +3327,7 @@ export default function App() {
                                 再次生成
                               </button>
                             </div>
+                            ) : null}
                           </div>
                         </div>
                       </article>
@@ -3271,6 +3344,10 @@ export default function App() {
                     const completedVideoTasks = getCompletedVideoTasks(record);
                     const selectedVideoTasks = getSelectedVideoTasks(record);
                     const selectedVideoIdSet = new Set(selectedVideoTaskIds[record.id] || []);
+                    const isVideoRecordCollapsed = collapsedVideoRecordIds[record.id] ?? false;
+                    const recordTime = formatCreativeRecordTime(
+                      record.updatedAt || record.createdAt,
+                    );
                     const videoCardAspectRatio = resolveCreativeAspectRatio(
                       record?.params?.aspectRatio,
                       '9 / 16',
@@ -3289,20 +3366,34 @@ export default function App() {
                           <div className='min-w-0 flex-1'>
                             <div className='rounded-[1.75rem] border border-slate-200 bg-white/90 px-5 py-4 shadow-sm'>
                               <div className='flex items-start justify-between gap-4'>
-                                <div className='min-w-0'>
-                                  <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
-                                    {record.prompt || '未填写提示词'}
-                                  </p>
-                                  <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
-                                    <span>{record.modelName || '视频模型'}</span>
-                                    {metaSummary ? <span>{metaSummary}</span> : null}
-                                    {record.total > 0 ? (
-                                      <span>
-                                        {record.completedCount || 0} / {record.total} 已完成
-                                      </span>
-                                    ) : null}
+                                <button
+                                  onClick={() => toggleVideoRecordCollapsed(record.id)}
+                                  className='min-w-0 flex-1 text-left'
+                                >
+                                  <div className='flex items-start justify-between gap-4'>
+                                    <div className='min-w-0'>
+                                      <p className='text-[15px] font-semibold leading-7 text-slate-700 whitespace-pre-wrap'>
+                                        {record.prompt || '未填写提示词'}
+                                      </p>
+                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400'>
+                                        <span>{record.modelName || '视频模型'}</span>
+                                        {metaSummary ? <span>{metaSummary}</span> : null}
+                                        {record.total > 0 ? (
+                                          <span>
+                                            {record.completedCount || 0} / {record.total} 已完成
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-400'>
+                                      {recordTime ? <span>{recordTime}</span> : null}
+                                      <ChevronDown
+                                        size={16}
+                                        className={`transition-transform ${isVideoRecordCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
+                                </button>
                                 <button
                                   onClick={() => handleRemoveVideoRecord(record.id)}
                                   className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
@@ -3312,7 +3403,7 @@ export default function App() {
                               </div>
                             </div>
 
-                            {record.status === 'generating' ? (
+                            {!isVideoRecordCollapsed && (record.status === 'generating' ? (
                               <div className='mt-4 space-y-4 rounded-[1.75rem] border border-blue-100 bg-blue-50/70 px-5 py-4 text-blue-700'>
                                 <div className='space-y-3'>
                                   <div className='flex items-center gap-3'>
@@ -3582,8 +3673,9 @@ export default function App() {
                                   </div>
                                 ))}
                               </div>
-                            )}
+                            ))}
 
+                            {!isVideoRecordCollapsed ? (
                             <div className='mt-3 flex flex-wrap items-center gap-2'>
                               {completedVideoTasks.length > 0 ? (
                                 <>
@@ -3624,6 +3716,7 @@ export default function App() {
                                 再次生成
                               </button>
                             </div>
+                            ) : null}
                           </div>
                         </div>
                       </article>
