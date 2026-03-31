@@ -148,7 +148,7 @@ const ACTIVE_VIDEO_POLL_STATUSES = new Set([
   'processing',
   'in_progress',
 ]);
-const CREATIVE_BATCH_REQUEST_SPACING_MS = 100;
+const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 
 const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
 const createBatchSeedBase = () =>
@@ -156,6 +156,8 @@ const createBatchSeedBase = () =>
 const createTaskSeed = (batchSeedBase, index) => batchSeedBase + index * 9973;
 const createTaskRequestUser = (batchSeedBase, index) =>
   `creative-center-${batchSeedBase}-${index + 1}`;
+const createTaskRequestId = (batchSeedBase, index) =>
+  `creative-request-${batchSeedBase}-${index + 1}`;
 const waitForMs = (ms) =>
   new Promise((resolve) => {
     window.setTimeout(resolve, Math.max(0, ms));
@@ -316,6 +318,11 @@ const normalizeImageTaskItem = (item, index = 0) => {
     progress,
     error: item?.error || '',
     resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
+    requestId: typeof item?.requestId === 'string' ? item.requestId : '',
+    requestPollable:
+      typeof item?.requestPollable === 'boolean'
+        ? item.requestPollable
+        : !item?.url && !['completed', 'failed'].includes(item?.status || 'pending'),
   };
 };
 
@@ -337,6 +344,11 @@ const normalizeVideoTaskItem = (item, index = 0) => {
     error: item?.error || '',
     resultUrl: item?.resultUrl || '',
     resultContent: item?.resultContent || '',
+    requestId: item?.requestId || '',
+    requestPollable:
+      typeof item?.requestPollable === 'boolean'
+        ? item.requestPollable
+        : false,
     pollable:
       typeof item?.pollable === 'boolean'
         ? item.pollable
@@ -372,6 +384,7 @@ const normalizeImageHistoryRecords = (snapshot) => {
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      group: entry?.group || snapshot?.group || '',
       status: entry?.status || 'completed',
       images: Array.isArray(entry?.images)
         ? entry.images
@@ -400,6 +413,7 @@ const normalizeImageHistoryRecords = (snapshot) => {
         prompt: snapshot?.prompt || '',
         modelName: snapshot?.model_name || '',
         params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
+        group: snapshot?.group || '',
         status: 'completed',
         images: payload.images
           .filter(Boolean)
@@ -426,6 +440,7 @@ const normalizeVideoHistoryRecords = (snapshot) => {
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      group: entry?.group || snapshot?.group || '',
       status: entry?.status || 'completed',
       tasks: Array.isArray(entry?.tasks)
         ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
@@ -591,6 +606,7 @@ export default function App() {
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const videoPollersRef = useRef(new Map());
+  const requestStatusPollersRef = useRef(new Map());
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const historyHydratedRef = useRef(false);
@@ -620,6 +636,13 @@ export default function App() {
         }
       });
       videoPollersRef.current.clear();
+      requestStatusPollersRef.current.forEach((controller) => {
+        controller.active = false;
+        if (controller.timer) {
+          window.clearTimeout(controller.timer);
+        }
+      });
+      requestStatusPollersRef.current.clear();
     };
   }, []);
   const fallbackModels = useMemo(
@@ -1305,10 +1328,11 @@ export default function App() {
     );
   };
 
-  const postCreativeRequest = async (endpoint, payload) => {
+  const postCreativeRequest = async (endpoint, payload, requestHeaders = {}) => {
     const response = await API.post(endpoint, payload, {
       headers: {
         'New-API-User': getUserIdFromLocalStorage(),
+        ...requestHeaders,
       },
     });
     return response.data;
@@ -1636,6 +1660,38 @@ export default function App() {
     };
   };
 
+  const parseCreativeRequestStatusPayload = (rawResponse) => {
+    const payload = rawResponse?.data && typeof rawResponse.data === 'object'
+      ? rawResponse.data
+      : rawResponse;
+    const normalizedTaskStatus = String(payload?.task_status || '').toUpperCase();
+    const progress = parseProgressValue(payload?.task_progress);
+    const previewUrl =
+      typeof payload?.preview_url === 'string' ? payload.preview_url.trim() : '';
+    const statusCode =
+      typeof payload?.status_code === 'number'
+        ? payload.status_code
+        : Number(payload?.status_code || 0);
+    const isFailed =
+      normalizedTaskStatus === 'FAILED' ||
+      (Number.isFinite(statusCode) && statusCode >= 400);
+    const isCompleted = normalizedTaskStatus === 'COMPLETED';
+    return {
+      status: isFailed
+        ? 'failed'
+        : isCompleted
+          ? 'completed'
+          : 'generating',
+      progress: progress ?? 0,
+      previewUrl,
+      error:
+        typeof payload?.error === 'string'
+          ? payload.error
+          : payload?.error?.message || '',
+      done: Boolean(payload?.done) || isFailed || isCompleted,
+    };
+  };
+
   const getMessageText = (content) => {
     if (typeof content === 'string') {
       return content;
@@ -1703,6 +1759,138 @@ export default function App() {
     };
     reader.readAsDataURL(file);
   };
+
+  useEffect(() => {
+    const requestPollTargets = [
+      ...imageRecords.flatMap((record) =>
+        (Array.isArray(record.images) ? record.images : [])
+          .filter(
+            (item) =>
+              ADOBE_IMAGE_MODELS.has(record.modelName) &&
+              Boolean(item?.requestId) &&
+              item?.requestPollable !== false &&
+              !Boolean(item?.url) &&
+              !['completed', 'failed'].includes(item?.status || ''),
+          )
+          .map((item) => ({
+            kind: 'image',
+            recordId: record.id,
+            taskId: item.id,
+            requestId: item.requestId,
+            modelName: record.modelName,
+            group: record.group || activeGroup,
+          })),
+      ),
+      ...videoRecords.flatMap((record) =>
+        (Array.isArray(record.tasks) ? record.tasks : [])
+          .filter(
+            (task) =>
+              Boolean(task?.requestId) &&
+              task?.requestPollable !== false &&
+              !Boolean(task?.url) &&
+              !['completed', 'failed'].includes(task?.status || '') &&
+              ADOBE_VIDEO_MODELS.has(record.modelName),
+          )
+          .map((task) => ({
+            kind: 'video',
+            recordId: record.id,
+            taskId: task.id,
+            requestId: task.requestId,
+            modelName: record.modelName,
+            group: record.group || activeGroup,
+          })),
+      ),
+    ];
+
+    requestPollTargets.forEach((target) => {
+      if (!target.requestId || requestStatusPollersRef.current.has(target.taskId)) {
+        return;
+      }
+
+      const controller = {
+        active: true,
+        timer: null,
+      };
+      requestStatusPollersRef.current.set(target.taskId, controller);
+
+      const pollStatus = async () => {
+        if (!controller.active) {
+          return;
+        }
+
+        try {
+          const response = await API.get(
+            `${API_ENDPOINTS.REQUEST_STATUS}/${encodeURIComponent(target.requestId)}`,
+            {
+              skipErrorHandler: true,
+              headers: {
+                'New-API-User': getUserIdFromLocalStorage(),
+              },
+              params: {
+                model: target.modelName,
+                group: target.group || undefined,
+              },
+            },
+          );
+
+          if (!controller.active) {
+            return;
+          }
+
+          const nextStatus = parseCreativeRequestStatusPayload(response);
+          const isFailed = nextStatus.status === 'failed';
+          const shouldStop = isFailed || nextStatus.done;
+
+          if (target.kind === 'image') {
+            patchImageTask(target.recordId, target.taskId, (currentTask) => ({
+              progress: nextStatus.progress || currentTask.progress || 0,
+              status: isFailed ? 'failed' : currentTask.url ? 'completed' : 'generating',
+              error: isFailed ? nextStatus.error || currentTask.error || '任务生成失败' : '',
+              resultUrl: currentTask.resultUrl || nextStatus.previewUrl || '',
+              requestPollable: !shouldStop,
+            }));
+          } else {
+            patchVideoTask(target.recordId, target.taskId, (currentTask) => ({
+              progress: nextStatus.progress || currentTask.progress || 0,
+              status: isFailed ? 'failed' : currentTask.url ? 'completed' : 'generating',
+              error: isFailed ? nextStatus.error || currentTask.error || '任务生成失败' : '',
+              resultUrl: currentTask.resultUrl || nextStatus.previewUrl || '',
+              requestPollable: !shouldStop,
+            }));
+          }
+
+          if (shouldStop) {
+            controller.active = false;
+            if (controller.timer) {
+              window.clearTimeout(controller.timer);
+            }
+            requestStatusPollersRef.current.delete(target.taskId);
+            return;
+          }
+        } catch (error) {
+          if (!controller.active) {
+            return;
+          }
+          console.error('Failed to poll creative center request status:', error);
+        }
+
+        controller.timer = window.setTimeout(pollStatus, 1200);
+      };
+
+      pollStatus();
+    });
+
+    const activeRequestTaskIds = new Set(requestPollTargets.map((item) => item.taskId));
+    requestStatusPollersRef.current.forEach((controller, taskId) => {
+      if (!activeRequestTaskIds.has(taskId)) {
+        controller.active = false;
+        if (controller.timer) {
+          window.clearTimeout(controller.timer);
+        }
+        requestStatusPollersRef.current.delete(taskId);
+      }
+    });
+  }, [imageRecords, videoRecords, activeGroup]);
 
   useEffect(() => {
     videoRecords.forEach((record) => {
@@ -2020,6 +2208,7 @@ export default function App() {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
+        group: activeGroup,
         params: currentParamsSnapshot,
         images: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`image-task-${index + 1}`),
@@ -2028,6 +2217,8 @@ export default function App() {
           progress: 0,
           error: '',
           resultUrl: '',
+          requestId: '',
+          requestPollable: false,
         })),
         status: 'generating',
         error: '',
@@ -2047,6 +2238,7 @@ export default function App() {
             const taskId = pendingRecord.images[index].id;
             const requestSeed = createTaskSeed(batchSeedBase, index);
             const requestUser = createTaskRequestUser(batchSeedBase, index);
+            const requestId = createTaskRequestId(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -2060,6 +2252,7 @@ export default function App() {
               prompt: currentPrompt,
               n: 1,
               response_format: 'url',
+              request_id: requestId,
               seed: requestSeed,
               user: requestUser,
             };
@@ -2076,10 +2269,17 @@ export default function App() {
               payload.image = currentUploadedImageUrls[0];
             }
 
+            patchImageTask(recordId, taskId, {
+              requestId,
+              requestPollable: ADOBE_IMAGE_MODELS.has(currentModelName),
+            });
             await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
             const data = await postCreativeRequest(
               API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
+              {
+                'X-Request-Id': requestId,
+              },
             );
             const imageUrls = Array.isArray(data?.data)
               ? data.data
@@ -2095,6 +2295,7 @@ export default function App() {
               progress: 100,
               error: imageUrls[0] ? '' : '未获取到图片结果',
               resultUrl: imageUrls[0] || '',
+              requestPollable: false,
             });
           })()
             .catch(() => {
@@ -2102,6 +2303,7 @@ export default function App() {
                 status: 'failed',
                 progress: 100,
                 error: '请求失败，请稍后再试。',
+                requestPollable: false,
               });
             }),
         );
@@ -2142,6 +2344,7 @@ export default function App() {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
+        group: activeGroup,
         params: currentParamsSnapshot,
         tasks: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`video-task-${index + 1}`),
@@ -2153,6 +2356,8 @@ export default function App() {
           error: '',
           resultUrl: '',
           resultContent: '',
+          requestId: '',
+          requestPollable: false,
           pollable: false,
         })),
         status: 'generating',
@@ -2173,6 +2378,7 @@ export default function App() {
             const localTaskId = pendingRecord.tasks[index].id;
             const requestSeed = createTaskSeed(batchSeedBase, index);
             const requestUser = createTaskRequestUser(batchSeedBase, index);
+            const requestId = createTaskRequestId(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -2185,15 +2391,23 @@ export default function App() {
             if (isAdobeVideoModel) {
               basePayload.seed = requestSeed;
               basePayload.user = requestUser;
+              basePayload.request_id = requestId;
               basePayload.metadata = {
                 creative_request_id: requestUser,
                 creative_seed: requestSeed,
                 creative_index: index + 1,
               };
+              patchVideoTask(recordId, localTaskId, {
+                requestId,
+                requestPollable: true,
+              });
               await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
               data = await postCreativeRequest(
                 API_ENDPOINTS.CHAT_COMPLETIONS,
                 basePayload,
+                {
+                  'X-Request-Id': requestId,
+                },
               );
               const content = data?.choices?.[0]?.message?.content || '';
               const videoUrl = extractVideoUrlFromMessage(content);
@@ -2206,6 +2420,8 @@ export default function App() {
                 error: videoUrl ? '' : '未获取到视频结果',
                 resultUrl: videoUrl || '',
                 resultContent: content,
+                requestId,
+                requestPollable: false,
                 pollable: false,
               });
               return;
@@ -2215,6 +2431,7 @@ export default function App() {
               model: currentModelName,
               group: activeGroup,
               prompt: currentPrompt,
+              request_id: requestId,
               seed: requestSeed,
               user: requestUser,
               metadata: {
@@ -2242,8 +2459,14 @@ export default function App() {
             if (currentUploadedImageUrls[0]) {
               payload.image = currentUploadedImageUrls[0];
             }
+            patchVideoTask(recordId, localTaskId, {
+              requestId,
+              requestPollable: false,
+            });
             await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
-            data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
+            data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload, {
+              'X-Request-Id': requestId,
+            });
             const submitPayload =
               data?.data && typeof data.data === 'object' ? data.data : data;
             const immediateResultUrl =
@@ -2266,6 +2489,8 @@ export default function App() {
                   : parseProgressValue(submitPayload?.progress) ?? 0,
               error: '',
               resultUrl: immediateResultUrl || '',
+              requestId,
+              requestPollable: false,
               pollable:
                 !immediateResultUrl &&
                 Boolean(submitPayload?.task_id || submitPayload?.id),
@@ -2278,6 +2503,7 @@ export default function App() {
                 content: `请求失败：${requestError.message || '请稍后再试。'}`,
                 progress: 100,
                 error: requestError.message || '请稍后再试。',
+                requestPollable: false,
                 pollable: false,
               });
             }),
@@ -2569,14 +2795,23 @@ export default function App() {
                                             <div>
                                               <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                                 <span>任务 {imageIndex + 1}</span>
-                                                {['completed', 'failed'].includes(imageItem.status) ? (
+                                                {typeof imageItem.progress === 'number' &&
+                                                imageItem.progress > 0 ? (
+                                                  <span>{imageItem.progress}%</span>
+                                                ) : ['completed', 'failed'].includes(imageItem.status) ? (
                                                   <span>{imageItem.progress || 100}%</span>
                                                 ) : (
                                                   <span>实时生成中</span>
                                                 )}
                                               </div>
                                               <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                                {['completed', 'failed'].includes(imageItem.status) ? (
+                                                {typeof imageItem.progress === 'number' &&
+                                                imageItem.progress > 0 ? (
+                                                  <div
+                                                    className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                    style={{ width: `${imageItem.progress}%` }}
+                                                  />
+                                                ) : ['completed', 'failed'].includes(imageItem.status) ? (
                                                   <div
                                                     className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
                                                     style={{ width: `${imageItem.progress || 100}%` }}
@@ -2673,14 +2908,23 @@ export default function App() {
                                         <div>
                                           <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                             <span>任务 {imageIndex + 1}</span>
-                                            {['completed', 'failed'].includes(imageItem.status) ? (
+                                            {typeof imageItem.progress === 'number' &&
+                                            imageItem.progress > 0 ? (
+                                              <span>{imageItem.progress}%</span>
+                                            ) : ['completed', 'failed'].includes(imageItem.status) ? (
                                               <span>{imageItem.progress || 100}%</span>
                                             ) : (
                                               <span>实时生成中</span>
                                             )}
                                           </div>
                                           <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                            {['completed', 'failed'].includes(imageItem.status) ? (
+                                            {typeof imageItem.progress === 'number' &&
+                                            imageItem.progress > 0 ? (
+                                              <div
+                                                className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                style={{ width: `${imageItem.progress}%` }}
+                                              />
+                                            ) : ['completed', 'failed'].includes(imageItem.status) ? (
                                               <div
                                                 className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
                                                 style={{ width: `${imageItem.progress || 100}%` }}
@@ -2900,14 +3144,23 @@ export default function App() {
                                             <div>
                                               <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                                 <span>任务 {taskIndex + 1}</span>
-                                                {['completed', 'failed'].includes(task.status) ? (
+                                                {typeof task.progress === 'number' &&
+                                                task.progress > 0 ? (
+                                                  <span>{task.progress}%</span>
+                                                ) : ['completed', 'failed'].includes(task.status) ? (
                                                   <span>{task.progress || 100}%</span>
                                                 ) : (
                                                   <span>实时生成中</span>
                                                 )}
                                               </div>
                                               <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                                {['completed', 'failed'].includes(task.status) ? (
+                                                {typeof task.progress === 'number' &&
+                                                task.progress > 0 ? (
+                                                  <div
+                                                    className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                    style={{ width: `${task.progress}%` }}
+                                                  />
+                                                ) : ['completed', 'failed'].includes(task.status) ? (
                                                   <div
                                                     className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
                                                     style={{ width: `${task.progress || 100}%` }}
@@ -3030,14 +3283,23 @@ export default function App() {
                                         <div>
                                           <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                             <span>任务 {taskIndex + 1}</span>
-                                            {['completed', 'failed'].includes(task.status) ? (
+                                            {typeof task.progress === 'number' &&
+                                            task.progress > 0 ? (
+                                              <span>{task.progress}%</span>
+                                            ) : ['completed', 'failed'].includes(task.status) ? (
                                               <span>{task.progress || 100}%</span>
                                             ) : (
                                               <span>实时生成中</span>
                                             )}
                                           </div>
                                           <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                            {['completed', 'failed'].includes(task.status) ? (
+                                            {typeof task.progress === 'number' &&
+                                            task.progress > 0 ? (
+                                              <div
+                                                className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                style={{ width: `${task.progress}%` }}
+                                              />
+                                            ) : ['completed', 'failed'].includes(task.status) ? (
                                               <div
                                                 className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
                                                 style={{ width: `${task.progress || 100}%` }}
