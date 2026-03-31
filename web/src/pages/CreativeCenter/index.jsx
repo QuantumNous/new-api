@@ -3433,6 +3433,13 @@ export default function App() {
                                             className='relative h-full w-full overflow-hidden bg-slate-950'
                                             style={{ aspectRatio: videoCardAspectRatio }}
                                           >
+                                            <video
+                                              muted
+                                              playsInline
+                                              preload='metadata'
+                                              className='absolute inset-0 z-0 h-full w-full object-cover'
+                                              src={getVideoTaskMediaUrl(task)}
+                                            />
                                             <button
                                               onClick={() =>
                                                 setPreviewVideo({
@@ -3440,7 +3447,7 @@ export default function App() {
                                                   title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
                                                 })
                                               }
-                                              className='absolute inset-0 z-0 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.22),_transparent_42%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.96))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                              className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
                                               title='预览'
                                             >
                                               <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
@@ -3562,6 +3569,13 @@ export default function App() {
                                         className='relative h-full w-full overflow-hidden bg-slate-950'
                                         style={{ aspectRatio: videoCardAspectRatio }}
                                       >
+                                        <video
+                                          muted
+                                          playsInline
+                                          preload='metadata'
+                                          className='absolute inset-0 z-0 h-full w-full object-cover'
+                                          src={getVideoTaskMediaUrl(task)}
+                                        />
                                         <button
                                           onClick={() =>
                                             setPreviewVideo({
@@ -3569,7 +3583,7 @@ export default function App() {
                                               title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
                                             })
                                           }
-                                          className='absolute inset-0 z-0 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.22),_transparent_42%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.96))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                          className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
                                           title='预览'
                                         >
                                           <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
