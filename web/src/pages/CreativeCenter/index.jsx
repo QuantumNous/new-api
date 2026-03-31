@@ -471,6 +471,36 @@ const getVideoTaskMediaUrl = (task) => {
   return '';
 };
 
+const buildCreativePersistSignature = (records, taskType) =>
+  JSON.stringify(
+    (records || []).map((record) => ({
+      id: record?.id || '',
+      prompt: record?.prompt || '',
+      modelName: record?.modelName || '',
+      group: record?.group || '',
+      status: record?.status || '',
+      error: record?.error || '',
+      total: Number(record?.total) || 0,
+      params: record?.params || {},
+      items:
+        taskType === 'video'
+          ? (record?.tasks || []).map((item) => ({
+              id: item?.id || '',
+              taskId: item?.taskId || item?.task_id || '',
+              status: item?.status || '',
+              url: getVideoTaskMediaUrl(item),
+              error: item?.error || '',
+              resultUrl: item?.resultUrl || '',
+            }))
+          : (record?.images || []).map((item) => ({
+              id: item?.id || '',
+              status: item?.status || '',
+              url: item?.url || item?.resultUrl || '',
+              error: item?.error || '',
+            })),
+    })),
+  );
+
 const createCreativeRecordId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -812,6 +842,8 @@ export default function App() {
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const historyHydratedRef = useRef(false);
+  const lastPersistedImageSignatureRef = useRef('');
+  const lastPersistedVideoSignatureRef = useRef('');
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImage, setUploadedImage] = useState(null);
 
@@ -881,24 +913,40 @@ export default function App() {
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
   const [previewVideo, setPreviewVideo] = useState(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const imagePersistSignature = useMemo(
+    () => buildCreativePersistSignature(imageRecords, 'image'),
+    [imageRecords],
+  );
+  const videoPersistSignature = useMemo(
+    () => buildCreativePersistSignature(videoRecords, 'video'),
+    [videoRecords],
+  );
+  const hasActiveEstimatedTasks = useMemo(() => {
+    if (activeTab === 'image') {
+      return imageRecords.some(
+        (record) =>
+          shouldUseEstimatedImageProgress(record.modelName) &&
+          record.images.some(
+            (task) => !['completed', 'failed'].includes(task.status || 'pending'),
+          ),
+      );
+    }
+
+    if (activeTab === 'video') {
+      return videoRecords.some(
+        (record) =>
+          shouldUseEstimatedVideoProgress(record.modelName) &&
+          record.tasks.some(
+            (task) => !['completed', 'failed'].includes(task.status || 'submitted'),
+          ),
+      );
+    }
+
+    return false;
+  }, [activeTab, imageRecords, videoRecords]);
 
   useEffect(() => {
-    const hasEstimatedImageTasks = imageRecords.some(
-      (record) =>
-        shouldUseEstimatedImageProgress(record.modelName) &&
-        record.images.some(
-          (task) => !['completed', 'failed'].includes(task.status || 'pending'),
-        ),
-    );
-    const hasEstimatedVideoTasks = videoRecords.some(
-      (record) =>
-        shouldUseEstimatedVideoProgress(record.modelName) &&
-        record.tasks.some(
-          (task) => !['completed', 'failed'].includes(task.status || 'submitted'),
-        ),
-    );
-
-    if (!(hasEstimatedImageTasks || hasEstimatedVideoTasks)) {
+    if (!hasActiveEstimatedTasks) {
       return undefined;
     }
 
@@ -909,7 +957,7 @@ export default function App() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [imageRecords, videoRecords]);
+  }, [hasActiveEstimatedTasks]);
 
   useEffect(() => {
     let mounted = true;
@@ -1598,9 +1646,11 @@ export default function App() {
   const persistImageRecords = async (records, options = {}) => {
     if (records.length === 0) {
       await deleteCreativeHistory('image');
+      lastPersistedImageSignatureRef.current = '';
       return;
     }
 
+    lastPersistedImageSignatureRef.current = buildCreativePersistSignature(records, 'image');
     await saveCreativeHistory(
       'image',
       {
@@ -1618,9 +1668,11 @@ export default function App() {
   const persistVideoRecords = async (records, options = {}) => {
     if (records.length === 0) {
       await deleteCreativeHistory('video');
+      lastPersistedVideoSignatureRef.current = '';
       return;
     }
 
+    lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(records, 'video');
     await saveCreativeHistory(
       'video',
       {
@@ -2199,14 +2251,24 @@ export default function App() {
           image: response.data.data?.image || null,
           video: response.data.data?.video || null,
         };
+        const nextImageRecords = normalizeImageHistoryRecords(nextSnapshots.image);
+        const nextVideoRecords = normalizeVideoHistoryRecords(nextSnapshots.video);
         setHistorySnapshots(nextSnapshots);
         setChatMessages(
           Array.isArray(nextSnapshots.chat?.payload?.messages)
             ? nextSnapshots.chat.payload.messages
             : [],
         );
-        setImageRecords(normalizeImageHistoryRecords(nextSnapshots.image));
-        setVideoRecords(normalizeVideoHistoryRecords(nextSnapshots.video));
+        setImageRecords(nextImageRecords);
+        setVideoRecords(nextVideoRecords);
+        lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
+          nextImageRecords,
+          'image',
+        );
+        lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(
+          nextVideoRecords,
+          'video',
+        );
         historyHydratedRef.current = true;
       } catch (error) {
         console.error('Failed to load creative center history:', error);
@@ -2225,6 +2287,9 @@ export default function App() {
     if (!isLoggedIn || !historyHydratedRef.current) {
       return undefined;
     }
+    if (imagePersistSignature === lastPersistedImageSignatureRef.current) {
+      return undefined;
+    }
 
     const timer = window.setTimeout(() => {
       persistImageRecords(imageRecordsRef.current).catch((error) => {
@@ -2233,10 +2298,13 @@ export default function App() {
     }, 800);
 
     return () => window.clearTimeout(timer);
-  }, [imageRecords, isLoggedIn]);
+  }, [imagePersistSignature, isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn || !historyHydratedRef.current) {
+      return undefined;
+    }
+    if (videoPersistSignature === lastPersistedVideoSignatureRef.current) {
       return undefined;
     }
 
@@ -2247,7 +2315,7 @@ export default function App() {
     }, 800);
 
     return () => window.clearTimeout(timer);
-  }, [videoRecords, isLoggedIn]);
+  }, [videoPersistSignature, isLoggedIn]);
 
   const handleSubmit = async () => {
     if ((!prompt.trim() && !uploadedImage?.url) || (isChatTab && isGenerating)) return;
@@ -2911,7 +2979,11 @@ export default function App() {
                     const selectedImageIdSet = new Set(selectedImageTaskIds[record.id] || []);
 
                     return (
-                      <article key={record.id || `image-record-${recordIndex}`} className='space-y-4'>
+                      <article
+                        key={record.id || `image-record-${recordIndex}`}
+                        className='space-y-4'
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
+                      >
                         <div className='flex items-start gap-4'>
                           <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
                             {recordModel?.icon || <ImageIcon size={22} />}
@@ -2972,6 +3044,8 @@ export default function App() {
                                             <img
                                               src={imageItem.url}
                                               alt={`Generating Art ${imageIndex + 1}`}
+                                              loading='lazy'
+                                              decoding='async'
                                               className='aspect-[3/4] h-full w-full object-cover'
                                             />
                                             <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
@@ -3065,6 +3139,8 @@ export default function App() {
                                         <img
                                           src={imageItem.url}
                                           alt={`Generated Art ${imageIndex + 1}`}
+                                          loading='lazy'
+                                          decoding='async'
                                           className='aspect-[3/4] h-full w-full object-cover'
                                         />
                                         <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
@@ -3201,7 +3277,11 @@ export default function App() {
                     );
 
                     return (
-                      <article key={record.id || `video-record-${recordIndex}`} className='space-y-4'>
+                      <article
+                        key={record.id || `video-record-${recordIndex}`}
+                        className='space-y-4'
+                        style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
+                      >
                         <div className='flex items-start gap-4'>
                           <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
                             {recordModel?.icon || <Video size={22} />}
@@ -3262,11 +3342,31 @@ export default function App() {
                                             className='relative h-full w-full overflow-hidden bg-slate-950'
                                             style={{ aspectRatio: videoCardAspectRatio }}
                                           >
-                                            <video
-                                              controls
-                                              className='h-full w-full object-cover'
-                                              src={getVideoTaskMediaUrl(task)}
-                                            />
+                                            <button
+                                              onClick={() =>
+                                                setPreviewVideo({
+                                                  url: getVideoTaskMediaUrl(task),
+                                                  title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                                })
+                                              }
+                                              className='absolute inset-0 z-0 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.22),_transparent_42%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.96))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                              title='预览'
+                                            >
+                                              <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
+                                                已完成
+                                              </div>
+                                              <div className='space-y-3'>
+                                                <div className='inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur-sm'>
+                                                  <Video size={22} />
+                                                </div>
+                                                <div className='space-y-1'>
+                                                  <p className='text-sm font-semibold'>点击预览视频</p>
+                                                  <p className='line-clamp-2 text-xs leading-5 text-white/65'>
+                                                    {record.prompt || `第 ${taskIndex + 1} 条视频任务`}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            </button>
                                             <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                               <button
                                                 onClick={() =>
@@ -3313,9 +3413,6 @@ export default function App() {
                                               >
                                                 <Download size={16} />
                                               </button>
-                                            </div>
-                                            <div className='absolute left-3 top-3 rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm'>
-                                              已完成
                                             </div>
                                           </div>
                                         ) : (
@@ -3374,11 +3471,31 @@ export default function App() {
                                         className='relative h-full w-full overflow-hidden bg-slate-950'
                                         style={{ aspectRatio: videoCardAspectRatio }}
                                       >
-                                        <video
-                                          controls
-                                          className='h-full w-full object-cover'
-                                          src={getVideoTaskMediaUrl(task)}
-                                        />
+                                        <button
+                                          onClick={() =>
+                                            setPreviewVideo({
+                                              url: getVideoTaskMediaUrl(task),
+                                              title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                            })
+                                          }
+                                          className='absolute inset-0 z-0 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.22),_transparent_42%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.96))] p-4 text-left text-white transition hover:scale-[1.01]'
+                                          title='预览'
+                                        >
+                                          <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
+                                            已完成
+                                          </div>
+                                          <div className='space-y-3'>
+                                            <div className='inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur-sm'>
+                                              <Video size={22} />
+                                            </div>
+                                            <div className='space-y-1'>
+                                              <p className='text-sm font-semibold'>点击预览视频</p>
+                                              <p className='line-clamp-2 text-xs leading-5 text-white/65'>
+                                                {record.prompt || `第 ${taskIndex + 1} 条视频任务`}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </button>
                                         <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                           <button
                                             onClick={() =>
@@ -3425,9 +3542,6 @@ export default function App() {
                                           >
                                             <Download size={16} />
                                           </button>
-                                        </div>
-                                        <div className='absolute left-3 top-3 rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm'>
-                                          已完成
                                         </div>
                                       </div>
                                     ) : (
