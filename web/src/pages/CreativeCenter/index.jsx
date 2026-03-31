@@ -62,11 +62,11 @@ const ADOBE_VIDEO_MODELS = new Set([
 ]);
 
 const GROK_IMAGE_SIZE_OPTIONS = [
-  { label: '3:2 横构图', value: '1792x1024' },
-  { label: '2:3 竖构图', value: '1024x1792' },
-  { label: '16:9 宽屏', value: '1280x720' },
-  { label: '9:16 竖屏', value: '720x1280' },
-  { label: '1:1 方形', value: '1024x1024' },
+  { label: '3:2', value: '1792x1024' },
+  { label: '2:3', value: '1024x1792' },
+  { label: '16:9', value: '1280x720' },
+  { label: '9:16', value: '720x1280' },
+  { label: '1:1', value: '1024x1024' },
 ];
 const ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: 'Auto', value: 'auto' },
@@ -89,11 +89,11 @@ const ADOBE_OUTPUT_RESOLUTION_OPTIONS = [
   { label: '4K', value: '4K' },
 ];
 const GENERIC_VIDEO_SIZE_OPTIONS = [
-  { label: '3:2 横构图', value: '1792x1024' },
-  { label: '2:3 竖构图', value: '1024x1792' },
-  { label: '16:9 宽屏', value: '1280x720' },
-  { label: '9:16 竖屏', value: '720x1280' },
-  { label: '1:1 方形', value: '1024x1024' },
+  { label: '3:2', value: '1792x1024' },
+  { label: '2:3', value: '1024x1792' },
+  { label: '16:9', value: '1280x720' },
+  { label: '9:16', value: '720x1280' },
+  { label: '1:1', value: '1024x1024' },
 ];
 const GENERIC_VIDEO_SECONDS_OPTIONS = [6, 8, 10, 12, 15, 20, 25, 30].map(
   (value) => ({ label: `${value}s`, value: String(value) }),

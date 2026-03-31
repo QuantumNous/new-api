@@ -100,18 +100,18 @@ const SettingsPanel = ({
     { label: '1024x1024', value: '1024x1024' },
   ];
   const grokImageRatioOptions = [
-    { label: '3:2 横构图', value: '1792x1024' },
-    { label: '2:3 竖构图', value: '1024x1792' },
-    { label: '16:9 宽屏', value: '1280x720' },
-    { label: '9:16 竖屏', value: '720x1280' },
-    { label: '1:1 方形', value: '1024x1024' },
+    { label: '3:2', value: '1792x1024' },
+    { label: '2:3', value: '1024x1792' },
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+    { label: '1:1', value: '1024x1024' },
   ];
   const grokVideoRatioOptions = [
-    { label: '3:2 横构图', value: '1792x1024' },
-    { label: '2:3 竖构图', value: '1024x1792' },
-    { label: '16:9 宽屏', value: '1280x720' },
-    { label: '9:16 竖屏', value: '720x1280' },
-    { label: '1:1 方形', value: '1024x1024' },
+    { label: '3:2', value: '1792x1024' },
+    { label: '2:3', value: '1024x1792' },
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+    { label: '1:1', value: '1024x1024' },
   ];
   const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((v) => ({
     label: `${v}s`,
