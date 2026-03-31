@@ -558,6 +558,10 @@ const EditChannelModal = (props) => {
   };
 
   const pasteFromClipboard = async () => {
+    if (!navigator?.clipboard?.readText) {
+      showError(t('无法读取剪贴板'));
+      return;
+    }
     try {
       const text = await navigator.clipboard.readText();
       const parsed = parseChannelConnectionString(text);
@@ -1302,13 +1306,14 @@ const EditChannelModal = (props) => {
         loadChannel();
       } else {
         formApiRef.current?.setValues(getInitValues());
-        // best-effort clipboard auto-detect for new channels
-        navigator.clipboard.readText().then((text) => {
-          const parsed = parseChannelConnectionString(text);
-          if (parsed) {
-            setClipboardConfig(parsed);
-          }
-        }).catch(() => {});
+        try {
+          navigator?.clipboard?.readText()?.then((text) => {
+            const parsed = parseChannelConnectionString(text);
+            if (parsed) {
+              setClipboardConfig(parsed);
+            }
+          }).catch(() => {});
+        } catch {}
       }
       fetchModelGroups();
       // 重置手动输入模式状态
