@@ -2008,13 +2008,7 @@ export default function App() {
               });
             }),
         );
-        if (isAdobeImageModel && generationCount > 1) {
-          for (const imageTask of imageTasks) {
-            await imageTask;
-          }
-        } else {
-          await Promise.allSettled(imageTasks);
-        }
+        await Promise.allSettled(imageTasks);
 
         await persistImageRecords(imageRecordsRef.current, {
           modelName: currentModelName,
