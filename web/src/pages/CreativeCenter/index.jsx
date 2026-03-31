@@ -2,15 +2,18 @@
 import {
   ArrowUp,
   Check,
+  CheckSquare,
   ChevronDown,
   Clock,
   Copy,
+  Eye,
   History,
   Image as ImageIcon,
   Layers,
   Loader2,
   MessageSquare,
   Plus,
+  Square,
   Video,
   Download,
   Trash2,
@@ -648,6 +651,8 @@ export default function App() {
     video: [],
   });
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
+  const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -1323,6 +1328,80 @@ export default function App() {
         prompt: options.prompt || records[records.length - 1]?.prompt || '',
       },
     );
+  };
+
+  const buildImageDownloadFilename = (record, recordIndex, imageIndex) =>
+    `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`;
+
+  const getCompletedImageItems = (record) =>
+    Array.isArray(record?.images) ? record.images.filter((item) => Boolean(item?.url)) : [];
+
+  const getSelectedImageItems = (record) => {
+    const selectedIds = new Set(selectedImageTaskIds[record.id] || []);
+    return Array.isArray(record?.images)
+      ? record.images.filter((item) => item?.url && selectedIds.has(item.id))
+      : [];
+  };
+
+  const toggleImageTaskSelection = (recordId, imageId) => {
+    setSelectedImageTaskIds((prev) => {
+      const current = new Set(prev[recordId] || []);
+      if (current.has(imageId)) {
+        current.delete(imageId);
+      } else {
+        current.add(imageId);
+      }
+
+      if (current.size === 0) {
+        const next = { ...prev };
+        delete next[recordId];
+        return next;
+      }
+
+      return {
+        ...prev,
+        [recordId]: Array.from(current),
+      };
+    });
+  };
+
+  const clearImageTaskSelection = (recordId) => {
+    setSelectedImageTaskIds((prev) => {
+      if (!prev[recordId]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+  };
+
+  const selectAllCompletedImageTasks = (record) => {
+    const completedItems = getCompletedImageItems(record);
+    if (completedItems.length === 0) {
+      return;
+    }
+
+    setSelectedImageTaskIds((prev) => ({
+      ...prev,
+      [record.id]: completedItems.map((item) => item.id),
+    }));
+  };
+
+  const downloadImageItems = (record, recordIndex, imageItems) => {
+    imageItems.forEach((item, selectionIndex) => {
+      const originalIndex = record.images.findIndex((candidate) => candidate.id === item.id);
+      window.setTimeout(() => {
+        triggerDownload(
+          item.url,
+          buildImageDownloadFilename(
+            record,
+            recordIndex,
+            originalIndex >= 0 ? originalIndex : selectionIndex,
+          ),
+        );
+      }, selectionIndex * 120);
+    });
   };
 
   const patchImageTask = (recordId, taskId, taskPatch) => {
@@ -2245,6 +2324,9 @@ export default function App() {
                   {imageRecords.map((record, recordIndex) => {
                     const recordModel = findModelCard('image', record.modelName);
                     const metaSummary = formatImageRecordSummary(record);
+                    const completedImageItems = getCompletedImageItems(record);
+                    const selectedImageItems = getSelectedImageItems(record);
+                    const selectedImageIdSet = new Set(selectedImageTaskIds[record.id] || []);
 
                     return (
                       <article key={record.id || `image-record-${recordIndex}`} className='space-y-4'>
@@ -2310,12 +2392,55 @@ export default function App() {
                                               alt={`Generating Art ${imageIndex + 1}`}
                                               className='aspect-[3/4] h-full w-full object-cover'
                                             />
+                                            <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
+                                              <button
+                                                onClick={() =>
+                                                  toggleImageTaskSelection(record.id, imageItem.id)
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title={
+                                                  selectedImageIdSet.has(imageItem.id)
+                                                    ? '取消选择'
+                                                    : '选择下载'
+                                                }
+                                              >
+                                                {selectedImageIdSet.has(imageItem.id) ? (
+                                                  <CheckSquare size={16} />
+                                                ) : (
+                                                  <Square size={16} />
+                                                )}
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  setPreviewImage({
+                                                    url: imageItem.url,
+                                                    title: `${record.prompt || '图片预览'} · 第 ${imageIndex + 1} 张`,
+                                                  })
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title='预览'
+                                              >
+                                                <Eye size={16} />
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  triggerDownload(
+                                                    imageItem.url,
+                                                    buildImageDownloadFilename(record, recordIndex, imageIndex),
+                                                  )
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title='下载'
+                                              >
+                                                <Download size={16} />
+                                              </button>
+                                            </div>
                                             <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
                                               <button
                                                 onClick={() =>
                                                   triggerDownload(
                                                     imageItem.url,
-                                                    `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`,
+                                                    buildImageDownloadFilename(record, recordIndex, imageIndex),
                                                   )
                                                 }
                                                 className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
@@ -2387,12 +2512,55 @@ export default function App() {
                                           alt={`Generated Art ${imageIndex + 1}`}
                                           className='aspect-[3/4] h-full w-full object-cover'
                                         />
+                                        <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
+                                          <button
+                                            onClick={() =>
+                                              toggleImageTaskSelection(record.id, imageItem.id)
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title={
+                                              selectedImageIdSet.has(imageItem.id)
+                                                ? '取消选择'
+                                                : '选择下载'
+                                            }
+                                          >
+                                            {selectedImageIdSet.has(imageItem.id) ? (
+                                              <CheckSquare size={16} />
+                                            ) : (
+                                              <Square size={16} />
+                                            )}
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              setPreviewImage({
+                                                url: imageItem.url,
+                                                title: `${record.prompt || '图片预览'} · 第 ${imageIndex + 1} 张`,
+                                              })
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title='预览'
+                                          >
+                                            <Eye size={16} />
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              triggerDownload(
+                                                imageItem.url,
+                                                buildImageDownloadFilename(record, recordIndex, imageIndex),
+                                              )
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title='下载'
+                                          >
+                                            <Download size={16} />
+                                          </button>
+                                        </div>
                                         <div className='absolute inset-0 flex items-center justify-center bg-slate-900/0 opacity-0 transition-all group-hover:bg-slate-900/25 group-hover:opacity-100'>
                                           <button
                                             onClick={() =>
                                               triggerDownload(
                                                 imageItem.url,
-                                                `${record.modelName || 'creative-image'}-${recordIndex + 1}-${imageIndex + 1}.png`,
+                                                buildImageDownloadFilename(record, recordIndex, imageIndex),
                                               )
                                             }
                                             className='rounded-full bg-white p-3 text-slate-700 shadow-lg transition-transform hover:scale-105'
@@ -2444,6 +2612,38 @@ export default function App() {
                             )}
 
                             <div className='mt-3 flex flex-wrap items-center gap-2'>
+                              {completedImageItems.length > 0 ? (
+                                <>
+                                  <button
+                                    onClick={() => selectAllCompletedImageTasks(record)}
+                                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                                  >
+                                    全选已完成
+                                  </button>
+                                  {selectedImageItems.length > 0 ? (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          downloadImageItems(
+                                            record,
+                                            recordIndex,
+                                            selectedImageItems,
+                                          )
+                                        }
+                                        className='rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100'
+                                      >
+                                        下载已选 {selectedImageItems.length} 张
+                                      </button>
+                                      <button
+                                        onClick={() => clearImageTaskSelection(record.id)}
+                                        className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600'
+                                      >
+                                        清空选择
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </>
+                              ) : null}
                               <button
                                 onClick={() => handleReuseRecord(record)}
                                 className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
@@ -3021,6 +3221,29 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {previewImage ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm'>
+          <div className='relative w-full max-w-5xl rounded-[2rem] bg-white p-4 shadow-2xl'>
+            <button
+              onClick={() => setPreviewImage(null)}
+              className='absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-red-500'
+            >
+              <X size={18} />
+            </button>
+            <div className='mb-4 px-2 pr-12 text-sm font-semibold text-slate-600'>
+              {previewImage.title || '图片预览'}
+            </div>
+            <div className='overflow-hidden rounded-[1.5rem] bg-slate-100'>
+              <img
+                src={previewImage.url}
+                alt={previewImage.title || 'Preview'}
+                className='max-h-[80vh] w-full object-contain'
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
