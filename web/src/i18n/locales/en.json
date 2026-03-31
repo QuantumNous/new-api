@@ -3352,6 +3352,15 @@
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Output Price: {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "Output Price: {{symbol}}{{total}} / 1M tokens",
     "例如：gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$": "Example: gpt-4.1-nano,regex:^claude-.*$,regex:^sora-.*$",
-    "支持精确匹配；使用 regex: 开头可按正则匹配。": "Supports exact matching. Use a regex: prefix for regex matching."
+    "支持精确匹配；使用 regex: 开头可按正则匹配。": "Supports exact matching. Use a regex: prefix for regex matching.",
+    "复制密钥": "Copy Key",
+    "复制连接信息": "Copy Connection String",
+    "检测到剪贴板中的连接信息": "Connection info detected in clipboard",
+    "自动填入": "Auto-fill",
+    "忽略": "Ignore",
+    "从剪贴板粘贴配置": "Paste Config",
+    "剪贴板中未检测到连接信息": "No connection info found in clipboard",
+    "连接信息已填入": "Connection info applied",
+    "无法读取剪贴板": "Cannot read clipboard"
   }
 }

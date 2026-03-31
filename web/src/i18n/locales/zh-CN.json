@@ -2956,6 +2956,15 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "输入价格：{{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "输出价格 {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "输出价格：{{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "输出价格：{{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "输出价格：{{symbol}}{{total}} / 1M tokens",
+    "复制密钥": "复制密钥",
+    "复制连接信息": "复制连接信息",
+    "检测到剪贴板中的连接信息": "检测到剪贴板中的连接信息",
+    "自动填入": "自动填入",
+    "忽略": "忽略",
+    "从剪贴板粘贴配置": "从剪贴板粘贴配置",
+    "剪贴板中未检测到连接信息": "剪贴板中未检测到连接信息",
+    "连接信息已填入": "连接信息已填入",
+    "无法读取剪贴板": "无法读取剪贴板"
   }
 }

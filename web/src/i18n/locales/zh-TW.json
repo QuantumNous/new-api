@@ -2973,6 +2973,15 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "輸入價格：{{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "輸出價格 {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "輸出價格：{{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "輸出價格：{{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "輸出價格：{{symbol}}{{total}} / 1M tokens",
+    "复制密钥": "複製金鑰",
+    "复制连接信息": "複製連線資訊",
+    "检测到剪贴板中的连接信息": "偵測到剪貼簿中的連線資訊",
+    "自动填入": "自動填入",
+    "忽略": "忽略",
+    "从剪贴板粘贴配置": "從剪貼簿貼上設定",
+    "剪贴板中未检测到连接信息": "剪貼簿中未偵測到連線資訊",
+    "连接信息已填入": "連線資訊已填入",
+    "无法读取剪贴板": "無法讀取剪貼簿"
   }
 }

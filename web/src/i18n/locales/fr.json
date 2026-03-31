@@ -3308,6 +3308,15 @@
     "输入价格：{{symbol}}{{price}} / 1M tokens": "Prix d'entrée : {{symbol}}{{price}} / 1M tokens",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Prix de sortie {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Prix de sortie : {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Prix de sortie : {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Prix de sortie : {{symbol}}{{total}} / 1M tokens",
+    "复制密钥": "Copier la clé",
+    "复制连接信息": "Copier les infos de connexion",
+    "检测到剪贴板中的连接信息": "Informations de connexion détectées dans le presse-papiers",
+    "自动填入": "Remplir auto",
+    "忽略": "Ignorer",
+    "从剪贴板粘贴配置": "Coller la config",
+    "剪贴板中未检测到连接信息": "Aucune info de connexion trouvée dans le presse-papiers",
+    "连接信息已填入": "Informations de connexion appliquées",
+    "无法读取剪贴板": "Impossible de lire le presse-papiers"
   }
 }

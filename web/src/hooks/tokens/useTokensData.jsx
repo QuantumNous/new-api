@@ -29,7 +29,11 @@ import {
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
-import { fetchTokenKey as fetchTokenKeyById } from '../../helpers/token';
+import {
+  fetchTokenKey as fetchTokenKeyById,
+  getServerAddress,
+  encodeChannelConnectionString,
+} from '../../helpers/token';
 
 export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const { t } = useTranslation();
@@ -196,6 +200,13 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const copyTokenKey = async (record) => {
     const fullKey = await fetchTokenKey(record);
     await copyText(`sk-${fullKey}`);
+  };
+
+  const copyTokenConnectionString = async (record) => {
+    const fullKey = await fetchTokenKey(record);
+    const serverUrl = getServerAddress();
+    const connStr = encodeChannelConnectionString(`sk-${fullKey}`, serverUrl);
+    await copyText(connStr);
   };
 
   // Open link function for chat integrations
@@ -465,6 +476,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     fetchTokenKey,
     toggleTokenVisibility,
     copyTokenKey,
+    copyTokenConnectionString,
     onOpenLink,
     manageToken,
     searchTokens,

@@ -3859,6 +3859,15 @@
     "补全倍率 {{completionRatio}}": "Tỷ lệ hoàn thành {{completionRatio}}",
     "输出价格 {{symbol}}{{price}} / 1M tokens": "Giá đầu ra {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "Giá đầu ra: {{symbol}}{{price}} / 1M tokens",
-    "输出价格：{{symbol}}{{total}} / 1M tokens": "Giá đầu ra: {{symbol}}{{total}} / 1M tokens"
+    "输出价格：{{symbol}}{{total}} / 1M tokens": "Giá đầu ra: {{symbol}}{{total}} / 1M tokens",
+    "复制密钥": "Sao chép khóa",
+    "复制连接信息": "Sao chép thông tin kết nối",
+    "检测到剪贴板中的连接信息": "Phát hiện thông tin kết nối trong bộ nhớ tạm",
+    "自动填入": "Tự động điền",
+    "忽略": "Bỏ qua",
+    "从剪贴板粘贴配置": "Dán cấu hình",
+    "剪贴板中未检测到连接信息": "Không tìm thấy thông tin kết nối trong bộ nhớ tạm",
+    "连接信息已填入": "Đã áp dụng thông tin kết nối",
+    "无法读取剪贴板": "Không thể đọc bộ nhớ tạm"
   }
 }
