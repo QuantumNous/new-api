@@ -17,11 +17,13 @@ import {
   User,
   Sparkles,
   Send,
-  X
+  X,
+  ImagePlus
 } from 'lucide-react';
 import {
   API,
   buildApiPayload,
+  buildMessageContent,
   getChannelIcon,
   getLobeHubIcon,
   getUserIdFromLocalStorage,
@@ -576,11 +578,13 @@ export default function App() {
 
   const textareaRef = useRef(null);
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
   const videoPollersRef = useRef(new Map());
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const historyHydratedRef = useRef(false);
   const isLoggedIn = Boolean(userState?.user);
+  const [uploadedImage, setUploadedImage] = useState(null);
 
   useEffect(() => {
     imageRecordsRef.current = imageRecords;
@@ -1265,9 +1269,15 @@ export default function App() {
     baseParams = params,
     modelName = currentModelName,
     tabKey = activeTab,
+    imageUrls = [],
   ) => {
     return buildApiPayload(
-      [{ role: 'user', content: currentPrompt }],
+      [
+        {
+          role: 'user',
+          content: buildMessageContent(currentPrompt, imageUrls, imageUrls.length > 0),
+        },
+      ],
       '',
       createCreativeInputs(baseParams, modelName, tabKey),
       PARAMETER_TOGGLES_DISABLED,
@@ -1455,6 +1465,74 @@ export default function App() {
       content,
       error,
     };
+  };
+
+  const getMessageText = (content) => {
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (!Array.isArray(content)) {
+      return '';
+    }
+
+    return content
+      .filter((item) => item?.type === 'text')
+      .map((item) => item?.text || '')
+      .filter(Boolean)
+      .join('\n');
+  };
+
+  const getMessageImages = (content) => {
+    if (!Array.isArray(content)) {
+      return [];
+    }
+
+    return content
+      .filter((item) => item?.type === 'image_url')
+      .map((item) =>
+        typeof item?.image_url === 'string'
+          ? item.image_url
+          : item?.image_url?.url || '',
+      )
+      .filter(Boolean);
+  };
+
+  const handleUploadButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageFileChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showWarning('请上传图片文件');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result) {
+        showWarning('图片读取失败，请重新选择');
+        return;
+      }
+
+      setUploadedImage({
+        id: createCreativeRecordId('local-image'),
+        name: file.name,
+        url: result,
+      });
+    };
+    reader.onerror = () => {
+      showWarning('图片读取失败，请重新选择');
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
@@ -1682,7 +1760,7 @@ export default function App() {
   }, [videoRecords, isLoggedIn]);
 
   const handleSubmit = async () => {
-    if (!prompt.trim() || isGenerating) return;
+    if ((!prompt.trim() && !uploadedImage?.url) || isGenerating) return;
     if (!isLoggedIn) {
       showWarning('\u8bf7\u5148\u767b\u5f55\u540e\u518d\u4f7f\u7528\u521b\u4f5c\u4e2d\u5fc3');
       window.setTimeout(() => {
@@ -1691,14 +1769,30 @@ export default function App() {
       return;
     }
     const currentPrompt = prompt;
+    const currentUploadedImageUrls = uploadedImage?.url ? [uploadedImage.url] : [];
     setPrompt('');
+    setUploadedImage(null);
     setIsGenerating(true);
 
     if (activeTab === 'chat') {
-      const userMsg = { role: 'user', content: currentPrompt, id: Date.now() };
+      const userMsg = {
+        role: 'user',
+        content: buildMessageContent(
+          currentPrompt,
+          currentUploadedImageUrls,
+          currentUploadedImageUrls.length > 0,
+        ),
+        id: Date.now(),
+      };
       setChatMessages(prev => [...prev, userMsg]);
       try {
-        const payload = createBasePayload(currentPrompt);
+        const payload = createBasePayload(
+          currentPrompt,
+          params,
+          currentModelName,
+          'chat',
+          currentUploadedImageUrls,
+        );
         const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
         const choice = data?.choices?.[0];
         const processed = processThinkTags(
@@ -1786,6 +1880,7 @@ export default function App() {
               currentParamsSnapshot,
               currentModelName,
               'image',
+              currentUploadedImageUrls,
             );
             const payload = {
               model: currentModelName,
@@ -1802,6 +1897,9 @@ export default function App() {
             }
             if (basePayload.output_resolution) {
               payload.output_resolution = basePayload.output_resolution;
+            }
+            if (currentUploadedImageUrls[0]) {
+              payload.image = currentUploadedImageUrls[0];
             }
 
             const data = await postCreativeRequest(
@@ -1903,6 +2001,7 @@ export default function App() {
               currentParamsSnapshot,
               currentModelName,
               'video',
+              currentUploadedImageUrls,
             );
             let data;
 
@@ -1948,6 +2047,9 @@ export default function App() {
                 payload[key] = basePayload[key];
               }
             });
+            if (currentUploadedImageUrls[0]) {
+              payload.image = currentUploadedImageUrls[0];
+            }
             data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
             const submitPayload =
               data?.data && typeof data.data === 'object' ? data.data : data;
@@ -2104,7 +2206,23 @@ export default function App() {
                       ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-100' 
                       : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
                   }`}>
-                    <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>{msg.content}</p>
+                    {getMessageImages(msg.content).length > 0 && (
+                      <div className='mb-3 grid grid-cols-1 gap-2'>
+                        {getMessageImages(msg.content).map((imageUrl, index) => (
+                          <img
+                            key={`${msg.id}-image-${index}`}
+                            src={imageUrl}
+                            alt={`uploaded-${index + 1}`}
+                            className='max-h-56 rounded-2xl border border-white/20 object-cover'
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {getMessageText(msg.content) ? (
+                      <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>
+                        {getMessageText(msg.content)}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -2504,7 +2622,42 @@ export default function App() {
         <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent'>
           <div className='mx-auto max-w-4xl'>
             <div className='relative flex flex-col rounded-[2.5rem] bg-white p-5 shadow-2xl shadow-blue-900/5 ring-1 ring-slate-200/80 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-400 transition-all'>
+              <input
+                ref={fileInputRef}
+                type='file'
+                accept='image/*'
+                className='hidden'
+                onChange={handleImageFileChange}
+              />
               <div className='flex items-end gap-4 px-2'>
+                <div className='shrink-0'>
+                  {uploadedImage ? (
+                    <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-blue-100 bg-slate-50 shadow-sm'>
+                      <img
+                        src={uploadedImage.url}
+                        alt={uploadedImage.name}
+                        className='h-full w-full object-cover'
+                      />
+                      <button
+                        onClick={() => setUploadedImage(null)}
+                        className='absolute right-2 top-2 rounded-full bg-slate-900/70 p-1 text-white transition hover:bg-slate-900'
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type='button'
+                      onClick={handleUploadButtonClick}
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
+                    >
+                      <div className='flex flex-col items-center gap-2'>
+                        <ImagePlus size={20} />
+                        <span className='text-[11px] font-semibold'>上传图片</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
                 <textarea
                   ref={textareaRef}
                   value={prompt}
@@ -2515,12 +2668,27 @@ export default function App() {
                 />
                 <button
                   onClick={handleSubmit}
-                  disabled={isGenerating || !prompt.trim()}
+                  disabled={isGenerating || (!prompt.trim() && !uploadedImage?.url)}
                   className='flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none'
                 >
                   {isGenerating ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={32} strokeWidth={3} />}
                 </button>
               </div>
+
+              {uploadedImage && (
+                <div className='mt-4 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500'>
+                  <div className='min-w-0 flex-1 truncate'>
+                    已选择图片：{uploadedImage.name}
+                  </div>
+                  <button
+                    type='button'
+                    onClick={handleUploadButtonClick}
+                    className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700'
+                  >
+                    重新选择
+                  </button>
+                </div>
+              )}
 
               {!isLoggedIn && (
                 <div className='mt-4 flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-700'>
