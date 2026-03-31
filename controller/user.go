@@ -936,6 +936,11 @@ type emailBindRequest struct {
 }
 
 func EmailBind(c *gin.Context) {
+	user, err := getSessionUser(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	var req emailBindRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiError(c, errors.New("invalid request body"))
@@ -945,11 +950,6 @@ func EmailBind(c *gin.Context) {
 	code := req.Code
 	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
-		return
-	}
-	user, err := getSessionUser(c)
-	if err != nil {
-		common.ApiError(c, err)
 		return
 	}
 	user.Email = email
