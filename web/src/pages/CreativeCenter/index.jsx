@@ -153,6 +153,8 @@ const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
 const createBatchSeedBase = () =>
   Math.floor(Date.now() % 1000000000) + Math.floor(Math.random() * 1000000);
 const createTaskSeed = (batchSeedBase, index) => batchSeedBase + index * 9973;
+const createTaskRequestUser = (batchSeedBase, index) =>
+  `creative-center-${batchSeedBase}-${index + 1}`;
 
 const parseProgressValue = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -1948,6 +1950,7 @@ export default function App() {
           (async () => {
             const taskId = pendingRecord.images[index].id;
             const requestSeed = createTaskSeed(batchSeedBase, index);
+            const requestUser = createTaskRequestUser(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -1962,6 +1965,7 @@ export default function App() {
               n: 1,
               response_format: 'url',
               seed: requestSeed,
+              user: requestUser,
             };
             if (basePayload.size) {
               payload.size = basePayload.size;
@@ -2072,6 +2076,7 @@ export default function App() {
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
             const requestSeed = createTaskSeed(batchSeedBase, index);
+            const requestUser = createTaskRequestUser(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -2083,6 +2088,7 @@ export default function App() {
 
             if (isAdobeVideoModel) {
               basePayload.seed = requestSeed;
+              basePayload.user = requestUser;
               data = await postCreativeRequest(
                 API_ENDPOINTS.CHAT_COMPLETIONS,
                 basePayload,
@@ -2108,6 +2114,7 @@ export default function App() {
               group: activeGroup,
               prompt: currentPrompt,
               seed: requestSeed,
+              user: requestUser,
             };
             [
               'size',
