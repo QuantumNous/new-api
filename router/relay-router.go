@@ -70,13 +70,6 @@ func SetRelayRouter(router *gin.Engine) {
 		playgroundRouter.POST("/video/generations", controller.PlaygroundVideoSubmit)
 		playgroundRouter.GET("/video/generations/:task_id", controller.PlaygroundVideoFetch)
 	}
-	playgroundRequestStatusRouter := router.Group("/pg")
-	playgroundRequestStatusRouter.Use(middleware.RouteTag("relay"))
-	playgroundRequestStatusRouter.Use(middleware.SystemPerformanceCheck())
-	playgroundRequestStatusRouter.Use(middleware.UserAuth())
-	{
-		playgroundRequestStatusRouter.GET("/requests/:request_id", controller.PlaygroundRequestStatus)
-	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())

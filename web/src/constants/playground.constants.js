@@ -79,7 +79,6 @@ export const API_ENDPOINTS = {
   IMAGE_GENERATIONS: '/pg/images/generations',
   IMAGE_EDITS: '/pg/images/edits',
   VIDEO_GENERATIONS: '/pg/video/generations',
-  REQUEST_STATUS: '/pg/requests',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
   CREATIVE_CENTER_HISTORY: '/api/user/self/creative-center/history',
