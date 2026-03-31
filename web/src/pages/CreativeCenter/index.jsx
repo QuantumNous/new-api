@@ -148,6 +148,7 @@ const ACTIVE_VIDEO_POLL_STATUSES = new Set([
   'processing',
   'in_progress',
 ]);
+const CREATIVE_BATCH_REQUEST_SPACING_MS = 100;
 
 const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
 const createBatchSeedBase = () =>
@@ -155,6 +156,10 @@ const createBatchSeedBase = () =>
 const createTaskSeed = (batchSeedBase, index) => batchSeedBase + index * 9973;
 const createTaskRequestUser = (batchSeedBase, index) =>
   `creative-center-${batchSeedBase}-${index + 1}`;
+const waitForMs = (ms) =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, Math.max(0, ms));
+  });
 
 const parseProgressValue = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -2071,6 +2076,7 @@ export default function App() {
               payload.image = currentUploadedImageUrls[0];
             }
 
+            await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
             const data = await postCreativeRequest(
               API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
@@ -2184,6 +2190,7 @@ export default function App() {
                 creative_seed: requestSeed,
                 creative_index: index + 1,
               };
+              await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
               data = await postCreativeRequest(
                 API_ENDPOINTS.CHAT_COMPLETIONS,
                 basePayload,
@@ -2235,6 +2242,7 @@ export default function App() {
             if (currentUploadedImageUrls[0]) {
               payload.image = currentUploadedImageUrls[0];
             }
+            await waitForMs(index * CREATIVE_BATCH_REQUEST_SPACING_MS);
             data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
             const submitPayload =
               data?.data && typeof data.data === 'object' ? data.data : data;
