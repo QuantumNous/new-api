@@ -893,6 +893,72 @@ export default function App() {
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
+  const createEffectiveParamsSnapshot = (
+    tabKey = activeTab,
+    modelName = currentModelName,
+    sourceParams = params,
+  ) => {
+    const snapshot = {
+      generationCount: sourceParams.generationCount,
+    };
+    const isCurrentGrokImagineImageModel =
+      GROK_IMAGINE_IMAGE_MODELS.has(modelName);
+    const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(modelName);
+    const isCurrentAdobeImage4KModel =
+      typeof modelName === 'string' && modelName.endsWith('-4k');
+    const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(modelName);
+    const isCurrentAdobeSoraModel =
+      modelName === 'sora2' || modelName === 'sora2-pro';
+    const isCurrentAdobeVeoModel =
+      modelName === 'veo31' ||
+      modelName === 'veo31-ref' ||
+      modelName === 'veo31-fast';
+    const isCurrentVideoModel =
+      typeof modelName === 'string' && modelName.includes('video');
+    const isCurrentGrokImagineVideoModel = modelName === 'grok-imagine-1.0-video';
+
+    if (tabKey === 'image') {
+      if (isCurrentGrokImagineImageModel) {
+        snapshot.imageSize = normalizeGrokImageSize(sourceParams.imageSize);
+      }
+
+      if (isCurrentAdobeImageModel) {
+        snapshot.aspectRatio = sourceParams.aspectRatio || 'auto';
+        if (snapshot.aspectRatio === 'auto') {
+          snapshot.autoImageSize = sourceParams.autoImageSize;
+        }
+        snapshot.outputResolution = isCurrentAdobeImage4KModel
+          ? '4K'
+          : sourceParams.outputResolution || '2K';
+      }
+    }
+
+    if (tabKey === 'video') {
+      if (isCurrentVideoModel && !isCurrentAdobeVideoModel) {
+        snapshot.videoSize = sourceParams.videoSize;
+        snapshot.videoSeconds = sourceParams.videoSeconds;
+        snapshot.videoQuality = sourceParams.videoQuality;
+        if (isCurrentGrokImagineVideoModel) {
+          snapshot.videoPreset = sourceParams.videoPreset;
+        }
+      }
+
+      if (isCurrentAdobeVideoModel) {
+        snapshot.videoDuration =
+          sourceParams.videoDuration ||
+          (isCurrentAdobeSoraModel ? '4' : '4');
+        snapshot.aspectRatio = sourceParams.aspectRatio || '16:9';
+        if (isCurrentAdobeVeoModel) {
+          snapshot.videoResolution = sourceParams.videoResolution || '1080p';
+        }
+        if (modelName === 'veo31') {
+          snapshot.referenceMode = sourceParams.referenceMode || 'frame';
+        }
+      }
+    }
+
+    return snapshot;
+  };
   const formatImageRecordSummary = (record) => {
     const summary = [];
     const recordParams = record?.params || {};
@@ -1104,22 +1170,34 @@ export default function App() {
     isVideoModel,
   ]);
 
-  const createCreativeInputs = () => ({
-    model: currentModelName,
-    group: activeGroup,
-    stream: false,
-    imageSize: normalizeGrokImageSize(params.imageSize),
-    aspectRatio: params.aspectRatio,
-    autoImageSize: params.autoImageSize,
-    outputResolution: isAdobeImage4KModel ? '4K' : params.outputResolution,
-    videoSize: params.videoSize,
-    videoSeconds: params.videoSeconds,
-    videoQuality: params.videoQuality,
-    videoPreset: params.videoPreset,
-    videoDuration: params.videoDuration,
-    videoResolution: params.videoResolution,
-    referenceMode: params.referenceMode,
-  });
+  const createCreativeInputs = (
+    baseParams = params,
+    modelName = currentModelName,
+    tabKey = activeTab,
+  ) => {
+    const effectiveParams = createEffectiveParamsSnapshot(
+      tabKey,
+      modelName,
+      baseParams,
+    );
+
+    return {
+      model: modelName,
+      group: activeGroup,
+      stream: false,
+      imageSize: effectiveParams.imageSize,
+      aspectRatio: effectiveParams.aspectRatio,
+      autoImageSize: effectiveParams.autoImageSize,
+      outputResolution: effectiveParams.outputResolution,
+      videoSize: effectiveParams.videoSize,
+      videoSeconds: effectiveParams.videoSeconds,
+      videoQuality: effectiveParams.videoQuality,
+      videoPreset: effectiveParams.videoPreset,
+      videoDuration: effectiveParams.videoDuration,
+      videoResolution: effectiveParams.videoResolution,
+      referenceMode: effectiveParams.referenceMode,
+    };
+  };
 
   const saveCreativeHistory = async (
     tabKey,
@@ -1182,11 +1260,16 @@ export default function App() {
     }
   };
 
-  const createBasePayload = (currentPrompt) => {
+  const createBasePayload = (
+    currentPrompt,
+    baseParams = params,
+    modelName = currentModelName,
+    tabKey = activeTab,
+  ) => {
     return buildApiPayload(
       [{ role: 'user', content: currentPrompt }],
       '',
-      createCreativeInputs(),
+      createCreativeInputs(baseParams, modelName, tabKey),
       PARAMETER_TOGGLES_DISABLED,
     );
   };
@@ -1663,13 +1746,18 @@ export default function App() {
         );
       }
     } else if (activeTab === 'image') {
+      const currentParamsSnapshot = createEffectiveParamsSnapshot(
+        'image',
+        currentModelName,
+        params,
+      );
       const generationCount = Number(params.generationCount) || 1;
       const recordId = createCreativeRecordId('image');
       const pendingRecord = {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
-        params: { ...params },
+        params: currentParamsSnapshot,
         images: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`image-task-${index + 1}`),
           url: '',
@@ -1693,7 +1781,12 @@ export default function App() {
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const taskId = pendingRecord.images[index].id;
-            const basePayload = createBasePayload(currentPrompt);
+            const basePayload = createBasePayload(
+              currentPrompt,
+              currentParamsSnapshot,
+              currentModelName,
+              'image',
+            );
             const payload = {
               model: currentModelName,
               group: activeGroup,
@@ -1766,13 +1859,18 @@ export default function App() {
         });
       }
     } else if (activeTab === 'video') {
+      const currentParamsSnapshot = createEffectiveParamsSnapshot(
+        'video',
+        currentModelName,
+        params,
+      );
       const generationCount = Number(params.generationCount) || 1;
       const recordId = createCreativeRecordId('video');
       const pendingRecord = {
         id: recordId,
         prompt: currentPrompt,
         modelName: currentModelName,
-        params: { ...params },
+        params: currentParamsSnapshot,
         tasks: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`video-task-${index + 1}`),
           taskId: '',
@@ -1800,7 +1898,12 @@ export default function App() {
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
-            const basePayload = createBasePayload(currentPrompt);
+            const basePayload = createBasePayload(
+              currentPrompt,
+              currentParamsSnapshot,
+              currentModelName,
+              'video',
+            );
             let data;
 
             if (isAdobeVideoModel) {
