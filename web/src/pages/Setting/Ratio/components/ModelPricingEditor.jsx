@@ -53,6 +53,7 @@ import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 const DURATION_PRESET_SECONDS = ['4', '8', '12', '15', '20', '25', '30'];
+const RESOLUTION_PRESET_OPTIONS = ['1K', '2K', '4K'];
 
 const PriceInput = ({
   label,
@@ -176,6 +177,77 @@ const DurationPricingEditor = ({
   );
 };
 
+const ResolutionPricingEditor = ({
+  resolutionPrices = {},
+  onChange,
+  onAdd,
+  onRemove,
+  t,
+}) => {
+  const sortedEntries = Object.entries(resolutionPrices).sort(([a], [b]) =>
+    a.localeCompare(b, undefined, { numeric: true }),
+  );
+
+  return (
+    <Card
+      bodyStyle={{ padding: 16 }}
+      style={{
+        marginBottom: 16,
+        background: 'var(--semi-color-fill-0)',
+      }}
+    >
+      <div className='mb-3'>
+        <div className='font-medium'>{t('按画质价格')}</div>
+        <div className='text-xs text-gray-500 mt-1'>
+          {t('选择这个模式后，只会保存按画质价格表，不会和按次或按量计费重叠。')}
+        </div>
+      </div>
+
+      <div className='flex flex-wrap gap-2 mb-4'>
+        {RESOLUTION_PRESET_OPTIONS.map((resolution) => (
+          <Button
+            key={resolution}
+            size='small'
+            theme='outline'
+            disabled={Object.prototype.hasOwnProperty.call(
+              resolutionPrices,
+              resolution,
+            )}
+            onClick={() => onAdd(resolution)}
+          >
+            {resolution}
+          </Button>
+        ))}
+      </div>
+
+      {sortedEntries.length === 0 ? (
+        <div className='text-sm text-gray-500'>{t('暂无添加任何画质价格')}</div>
+      ) : (
+        <div className='space-y-3'>
+          {sortedEntries.map(([resolution, price]) => (
+            <div key={resolution} className='flex items-center gap-2'>
+              <div className='w-20 text-sm font-medium text-gray-700'>
+                {resolution}
+              </div>
+              <Input
+                value={price}
+                placeholder={t('输入 $/次')}
+                suffix={t('$/次')}
+                onChange={(value) => onChange(resolution, value)}
+              />
+              <Button
+                type='danger'
+                icon={<IconDelete />}
+                onClick={() => onRemove(resolution)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 export default function ModelPricingEditor({
   options,
   refresh,
@@ -218,6 +290,9 @@ export default function ModelPricingEditor({
     handleDurationPriceChange,
     addDurationPrice,
     removeDurationPrice,
+    handleResolutionPriceChange,
+    addResolutionPrice,
+    removeResolutionPrice,
     handleBillingModeChange,
     handleSubmit,
     addModel,
@@ -277,6 +352,8 @@ export default function ModelPricingEditor({
                 ? 'teal'
                 : record.billingMode === 'per-duration'
                   ? 'orange'
+                  : record.billingMode === 'per-resolution'
+                    ? 'cyan'
                   : 'violet'
             }
           >
@@ -284,6 +361,8 @@ export default function ModelPricingEditor({
               ? t('按次计费')
               : record.billingMode === 'per-duration'
                 ? t('按时长计费')
+                : record.billingMode === 'per-resolution'
+                  ? t('按画质计费')
                 : t('按量计费')}
           </Tag>
         ),
@@ -464,6 +543,8 @@ export default function ModelPricingEditor({
                     ? t('按次计费')
                     : selectedModel.billingMode === 'per-duration'
                       ? t('按时长计费')
+                      : selectedModel.billingMode === 'per-resolution'
+                        ? t('按画质计费')
                       : t('按量计费')}
                 </Tag>
               ) : null
@@ -490,6 +571,7 @@ export default function ModelPricingEditor({
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
                     <Radio value='per-duration'>{t('按时长计费')}</Radio>
+                    <Radio value='per-resolution'>{t('按画质计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
                     {t(
@@ -532,6 +614,14 @@ export default function ModelPricingEditor({
                     onRemove={removeDurationPrice}
                     customSeconds={customDurationSeconds}
                     setCustomSeconds={setCustomDurationSeconds}
+                    t={t}
+                  />
+                ) : selectedModel.billingMode === 'per-resolution' ? (
+                  <ResolutionPricingEditor
+                    resolutionPrices={selectedModel.resolutionPrices}
+                    onChange={handleResolutionPriceChange}
+                    onAdd={addResolutionPrice}
+                    onRemove={removeResolutionPrice}
                     t={t}
                   />
                 ) : (

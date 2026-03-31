@@ -2,8 +2,10 @@ package helper
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -15,6 +17,71 @@ import (
 
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
 const claudeCacheCreation1hMultiplier = 6 / 3.75
+
+func normalizeResolutionPriceKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func extractResolutionKeyFromTaskRequest(req relaycommon.TaskSubmitReq) string {
+	candidates := []string{
+		req.Quality,
+		req.ResolutionName,
+		common.Interface2String(req.Metadata["output_resolution"]),
+		common.Interface2String(req.Metadata["resolution"]),
+		common.Interface2String(req.Metadata["resolution_name"]),
+		common.Interface2String(req.Metadata["quality"]),
+	}
+	for _, candidate := range candidates {
+		if key := normalizeResolutionPriceKey(candidate); key != "" {
+			return key
+		}
+	}
+	return ""
+}
+
+func extractResolutionKeyFromRequest(request dto.Request) string {
+	switch req := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		candidates := []string{
+			req.OutputResolution,
+			req.Resolution,
+		}
+		if req.Quality != nil {
+			candidates = append(candidates, *req.Quality)
+		}
+		for _, candidate := range candidates {
+			if key := normalizeResolutionPriceKey(candidate); key != "" {
+				return key
+			}
+		}
+	case *dto.ImageRequest:
+		for _, candidate := range []string{req.OutputResolution, req.Quality} {
+			if key := normalizeResolutionPriceKey(candidate); key != "" {
+				return key
+			}
+		}
+	}
+	return ""
+}
+
+func resolveResolutionBasedModelPrice(c *gin.Context, info *relaycommon.RelayInfo) (float64, bool) {
+	if info == nil {
+		return 0, false
+	}
+	if info != nil && info.Request != nil {
+		if resolution := extractResolutionKeyFromRequest(info.Request); resolution != "" {
+			return ratio_setting.GetModelPriceByResolution(info.OriginModelName, resolution)
+		}
+	}
+	if c != nil {
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			if resolution := extractResolutionKeyFromTaskRequest(req); resolution != "" {
+				return ratio_setting.GetModelPriceByResolution(info.OriginModelName, resolution)
+			}
+		}
+	}
+	return 0, false
+}
 
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.GroupRatioInfo {
@@ -47,6 +114,12 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	if !usePrice {
+		if resolutionPrice, ok := resolveResolutionBasedModelPrice(c, info); ok {
+			modelPrice = resolutionPrice
+			usePrice = true
+		}
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
@@ -144,10 +217,22 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
+	if !success {
+		if resolutionPrice, ok := resolveResolutionBasedModelPrice(c, info); ok {
+			modelPrice = resolutionPrice
+			success = true
+		}
+	}
 	// 如果没有配置价格，检查模型倍率配置
 	if !success {
 		if secondsPrice, ok := ratio_setting.GetModelPriceBySecondsMin(info.OriginModelName); ok {
 			modelPrice = secondsPrice
+			success = true
+		}
+	}
+	if !success {
+		if resolutionPrice, ok := ratio_setting.GetModelPriceByResolutionMin(info.OriginModelName); ok {
+			modelPrice = resolutionPrice
 			success = true
 		}
 	}

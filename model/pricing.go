@@ -25,6 +25,7 @@ type Pricing struct {
 	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
 	ModelPriceBySeconds    map[string]float64      `json:"model_price_by_seconds,omitempty"`
+	ModelPriceByResolution map[string]float64      `json:"model_price_by_resolution,omitempty"`
 	OwnerBy                string                  `json:"owner_by"`
 	CompletionRatio        float64                 `json:"completion_ratio"`
 	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
@@ -276,6 +277,7 @@ func updatePricing() {
 	}
 
 	modelPriceBySecondsMap := ratio_setting.GetModelPriceBySecondsCopy()
+	modelPriceByResolutionMap := ratio_setting.GetModelPriceByResolutionCopy()
 	modelChannelTypeMap := make(map[string]int)
 	for _, ability := range enableAbilities {
 		if _, ok := modelChannelTypeMap[ability.Model]; !ok && ability.ChannelType != 0 {
@@ -302,7 +304,9 @@ func updatePricing() {
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
 		}
-		secondsPriceMap, hasSecondsPrice := modelPriceBySecondsMap[ratio_setting.FormatMatchingModelName(model)]
+		formattedModelName := ratio_setting.FormatMatchingModelName(model)
+		secondsPriceMap, hasSecondsPrice := modelPriceBySecondsMap[formattedModelName]
+		resolutionPriceMap, hasResolutionPrice := modelPriceByResolutionMap[formattedModelName]
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if hasSecondsPrice && len(secondsPriceMap) > 0 {
 			pricing.ModelPriceBySeconds = make(map[string]float64, len(secondsPriceMap))
@@ -310,6 +314,12 @@ func updatePricing() {
 				pricing.ModelPriceBySeconds[seconds] = price
 			}
 			pricing.QuotaType = 2
+		} else if hasResolutionPrice && len(resolutionPriceMap) > 0 {
+			pricing.ModelPriceByResolution = make(map[string]float64, len(resolutionPriceMap))
+			for resolution, price := range resolutionPriceMap {
+				pricing.ModelPriceByResolution[resolution] = price
+			}
+			pricing.QuotaType = 3
 		} else if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1

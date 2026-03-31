@@ -152,6 +152,13 @@ const renderQuotaTypes = (arr, t) => {
           </Tag>
         );
       }
+      if (quotaType === 3) {
+        return (
+          <Tag key={`${qt}-${idx}`} color='cyan' size='small' shape='circle'>
+            {t('按画质计费')}
+          </Tag>
+        );
+      }
       if (quotaType === 0) {
         return (
           <Tag key={`${qt}-${idx}`} color='violet' size='small' shape='circle'>

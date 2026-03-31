@@ -195,7 +195,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度
-	info.PriceData.Quota, info.PriceData.OtherRatios = calcTaskQuotaWithRatios(info, info.PriceData.OtherRatios)
+	info.PriceData.Quota, info.PriceData.OtherRatios = calcTaskQuotaWithRatios(c, info, info.PriceData.OtherRatios)
 
 	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
 	if info.Billing == nil && !info.PriceData.FreeModel {
@@ -239,7 +239,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	finalQuota := info.PriceData.Quota
 	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
 		// 基于调整后的 ratios 重新计算 quota
-		finalQuota, adjustedRatios = calcTaskQuotaWithRatios(info, adjustedRatios)
+		finalQuota, adjustedRatios = calcTaskQuotaWithRatios(c, info, adjustedRatios)
 		info.PriceData.OtherRatios = adjustedRatios
 		info.PriceData.Quota = finalQuota
 	}
@@ -273,7 +273,28 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 	return int(result)
 }
 
-func calcTaskQuotaWithRatios(info *relaycommon.RelayInfo, ratios map[string]float64) (int, map[string]float64) {
+func normalizeTaskResolutionKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func extractTaskResolution(req relaycommon.TaskSubmitReq) string {
+	candidates := []string{
+		req.Quality,
+		req.ResolutionName,
+		common.Interface2String(req.Metadata["output_resolution"]),
+		common.Interface2String(req.Metadata["resolution"]),
+		common.Interface2String(req.Metadata["resolution_name"]),
+		common.Interface2String(req.Metadata["quality"]),
+	}
+	for _, candidate := range candidates {
+		if key := normalizeTaskResolutionKey(candidate); key != "" {
+			return key
+		}
+	}
+	return ""
+}
+
+func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios map[string]float64) (int, map[string]float64) {
 	normalizedRatios := cloneTaskRatios(ratios)
 	baseQuota := info.PriceData.BaseQuota
 	if baseQuota <= 0 {
@@ -285,6 +306,18 @@ func calcTaskQuotaWithRatios(info *relaycommon.RelayInfo, ratios map[string]floa
 			info.PriceData.ModelPrice = secondsPrice
 			baseQuota = int(secondsPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
 			normalizedRatios["seconds"] = 1
+		}
+	}
+
+	if c != nil {
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			if resolution := extractTaskResolution(req); resolution != "" {
+				if resolutionPrice, found := ratio_setting.GetModelPriceByResolution(info.OriginModelName, resolution); found {
+					info.PriceData.ModelPrice = resolutionPrice
+					baseQuota = int(resolutionPrice * common.QuotaPerUnit * info.PriceData.GroupRatioInfo.GroupRatio)
+					normalizedRatios["resolution"] = 1
+				}
+			}
 		}
 	}
 
