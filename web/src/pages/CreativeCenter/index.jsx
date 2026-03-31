@@ -1145,6 +1145,8 @@ export default function App() {
     currentModelName === 'veo31' ||
     currentModelName === 'veo31-ref' ||
     currentModelName === 'veo31-fast';
+  const isChatTab = activeTab === 'chat';
+  const isSubmitPending = isChatTab && isGenerating;
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
@@ -1348,12 +1350,6 @@ export default function App() {
         ...prev,
         ...savedParams,
       }));
-    }
-
-    if (typeof activeHistorySnapshot?.prompt === 'string') {
-      setPrompt(activeHistorySnapshot.prompt);
-    } else {
-      setPrompt('');
     }
   }, [activeHistorySnapshot, activeTab]);
 
@@ -2232,7 +2228,7 @@ export default function App() {
   }, [videoRecords, isLoggedIn]);
 
   const handleSubmit = async () => {
-    if ((!prompt.trim() && !uploadedImage?.url) || isGenerating) return;
+    if ((!prompt.trim() && !uploadedImage?.url) || (isChatTab && isGenerating)) return;
     if (!isLoggedIn) {
       showWarning('\u8bf7\u5148\u767b\u5f55\u540e\u518d\u4f7f\u7528\u521b\u4f5c\u4e2d\u5fc3');
       window.setTimeout(() => {
@@ -2244,7 +2240,9 @@ export default function App() {
     const currentUploadedImageUrls = uploadedImage?.url ? [uploadedImage.url] : [];
     setPrompt('');
     setUploadedImage(null);
-    setIsGenerating(true);
+    if (isChatTab) {
+      setIsGenerating(true);
+    }
 
     if (activeTab === 'chat') {
       const userMsg = {
@@ -2754,7 +2752,9 @@ export default function App() {
         });
       }
     }
-    setIsGenerating(false);
+    if (isChatTab) {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -3565,10 +3565,10 @@ export default function App() {
                 />
                 <button
                   onClick={handleSubmit}
-                  disabled={isGenerating || (!prompt.trim() && !uploadedImage?.url)}
+                  disabled={isSubmitPending || (!prompt.trim() && !uploadedImage?.url)}
                   className='flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none'
                 >
-                  {isGenerating ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={32} strokeWidth={3} />}
+                  {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={32} strokeWidth={3} />}
                 </button>
               </div>
 
