@@ -147,6 +147,9 @@ const ACTIVE_VIDEO_POLL_STATUSES = new Set([
 ]);
 
 const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
+const createBatchSeedBase = () =>
+  Math.floor(Date.now() % 1000000000) + Math.floor(Math.random() * 1000000);
+const createTaskSeed = (batchSeedBase, index) => batchSeedBase + index * 9973;
 
 const parseProgressValue = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -1861,9 +1864,11 @@ export default function App() {
       setImageRecords(pendingRecords);
 
       try {
+        const batchSeedBase = createBatchSeedBase();
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const taskId = pendingRecord.images[index].id;
+            const requestSeed = createTaskSeed(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -1877,6 +1882,7 @@ export default function App() {
               prompt: currentPrompt,
               n: 1,
               response_format: 'url',
+              seed: requestSeed,
             };
             if (basePayload.size) {
               payload.size = basePayload.size;
@@ -1982,9 +1988,11 @@ export default function App() {
       setVideoRecords(pendingRecords);
 
       try {
+        const batchSeedBase = createBatchSeedBase();
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
+            const requestSeed = createTaskSeed(batchSeedBase, index);
             const basePayload = createBasePayload(
               currentPrompt,
               currentParamsSnapshot,
@@ -1995,6 +2003,7 @@ export default function App() {
             let data;
 
             if (isAdobeVideoModel) {
+              basePayload.seed = requestSeed;
               data = await postCreativeRequest(
                 API_ENDPOINTS.CHAT_COMPLETIONS,
                 basePayload,
@@ -2019,6 +2028,7 @@ export default function App() {
               model: currentModelName,
               group: activeGroup,
               prompt: currentPrompt,
+              seed: requestSeed,
             };
             [
               'size',
