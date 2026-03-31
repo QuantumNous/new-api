@@ -3455,14 +3455,14 @@ export default function App() {
                                               className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                               title='预览'
                                             >
-                                              <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
+                                              <div className='w-fit whitespace-nowrap rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold leading-none text-white shadow-sm'>
                                                 已完成
                                               </div>
-                                              <div className='mt-auto inline-flex w-fit items-center gap-3 rounded-[1.25rem] bg-slate-950/55 px-4 py-3 text-white shadow-lg backdrop-blur-sm'>
-                                                <div className='inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white'>
+                                              <div className='absolute bottom-4 left-4 inline-flex items-center gap-3 whitespace-nowrap rounded-[1.1rem] bg-slate-950/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-sm'>
+                                                <div className='inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white'>
                                                   <Video size={20} />
                                                 </div>
-                                                <span className='text-sm font-semibold'>
+                                                <span className='text-sm font-semibold leading-none'>
                                                   点击预览视频
                                                 </span>
                                               </div>
@@ -3575,14 +3575,14 @@ export default function App() {
                                           className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
                                           title='预览'
                                         >
-                                          <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
+                                          <div className='w-fit whitespace-nowrap rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold leading-none text-white shadow-sm'>
                                             已完成
                                           </div>
-                                          <div className='mt-auto inline-flex w-fit items-center gap-3 rounded-[1.25rem] bg-slate-950/55 px-4 py-3 text-white shadow-lg backdrop-blur-sm'>
-                                            <div className='inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white'>
+                                          <div className='absolute bottom-4 left-4 inline-flex items-center gap-3 whitespace-nowrap rounded-[1.1rem] bg-slate-950/60 px-4 py-2.5 text-white shadow-lg backdrop-blur-sm'>
+                                            <div className='inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 text-white'>
                                               <Video size={20} />
                                             </div>
-                                            <span className='text-sm font-semibold'>
+                                            <span className='text-sm font-semibold leading-none'>
                                               点击预览视频
                                             </span>
                                           </div>
@@ -4077,6 +4077,5 @@ export default function App() {
     </div>
   );
 }
-
 
 
