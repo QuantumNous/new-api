@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -228,7 +228,7 @@ const PricingCardView = ({
     if (record.quota_type === 1) {
       billingTag = (
         <Tag key='billing' shape='circle' color='teal' size='small'>
-          {t('鎸夋璁¤垂')}
+          {t('按次计费')}
         </Tag>
       );
     } else if (record.quota_type === 2) {
@@ -246,7 +246,7 @@ const PricingCardView = ({
     } else if (record.quota_type === 0) {
       billingTag = (
         <Tag key='billing' shape='circle' color='violet' size='small'>
-          {t('鎸夐噺璁¤垂')}
+          {t('按量计费')}
         </Tag>
       );
     }
@@ -477,10 +477,10 @@ const PricingCardView = ({
                     <div className='pt-3'>
                       <div className='flex items-center space-x-1 mb-2'>
                         <span className='text-xs font-medium text-gray-700'>
-                          {t('鍊嶇巼淇℃伅')}
+                          {t('倍率信息')}
                         </span>
                         <Tooltip
-                          content={t('鍊嶇巼鏄负浜嗘柟渚挎崲绠椾笉鍚屼环鏍肩殑妯″瀷')}
+                          content={t('倍率是为了方便换算不同价格的模型')}
                         >
                           <IconHelpCircle
                             className='text-blue-500 cursor-pointer'
@@ -495,17 +495,17 @@ const PricingCardView = ({
                       </div>
                       <div className='grid grid-cols-3 gap-2 text-xs text-gray-600'>
                         <div>
-                          {t('妯″瀷')}:{' '}
+                          {t('模型')}:{' '}
                           {model.quota_type === 0 ? model.model_ratio : t('无')}
                         </div>
                         <div>
-                          {t('琛ュ叏')}:{' '}
+                          {t('补全')}:{' '}
                           {model.quota_type === 0
                             ? parseFloat(model.completion_ratio.toFixed(3))
                             : t('无')}
                         </div>
                         <div>
-                          {t('鍒嗙粍')}: {priceData?.usedGroupRatio ?? '-'}
+                          {t('分组')}: {priceData?.usedGroupRatio ?? '-'}
                         </div>
                       </div>
                     </div>
@@ -540,3 +540,4 @@ const PricingCardView = ({
 };
 
 export default PricingCardView;
+
