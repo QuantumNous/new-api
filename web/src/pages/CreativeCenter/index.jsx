@@ -1260,11 +1260,6 @@ export default function App() {
     }
     if (recordParams.imageSize) {
       summary.push(recordParams.imageSize);
-    } else if (
-      recordParams.aspectRatio === 'auto' &&
-      recordParams.autoImageSize
-    ) {
-      summary.push(recordParams.autoImageSize);
     }
     if (recordParams.outputResolution) {
       summary.push(recordParams.outputResolution);
@@ -3655,21 +3650,6 @@ export default function App() {
                           setParams((prev) => ({ ...prev, aspectRatio: value }))
                         }
                       />
-
-                      {params.aspectRatio === 'auto' && (
-                        <DropSelectButton
-                          menuKey='autoImageSize'
-                          icon={<ImageIcon size={14} />}
-                          label={`尺寸 ${params.autoImageSize}`}
-                          value={params.autoImageSize}
-                          options={ADOBE_AUTO_IMAGE_SIZE_OPTIONS}
-                          openMenu={openMenu}
-                          setOpenMenu={setOpenMenu}
-                          onSelect={(value) =>
-                            setParams((prev) => ({ ...prev, autoImageSize: value }))
-                          }
-                        />
-                      )}
 
                       <DropSelectButton
                         menuKey='outputResolution'
