@@ -47,11 +47,8 @@ const GROK_IMAGINE_IMAGE_MODELS = new Set([
 ]);
 const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana',
-  'nano-banana-4k',
   'nano-banana2',
-  'nano-banana2-4k',
   'nano-banana-pro',
-  'nano-banana-pro-4k',
 ]);
 const ADOBE_VIDEO_MODELS = new Set([
   'sora2',
@@ -86,6 +83,7 @@ const ADOBE_AUTO_IMAGE_SIZE_OPTIONS = [
 const ADOBE_OUTPUT_RESOLUTION_OPTIONS = [
   { label: '1K', value: '1K' },
   { label: '2K', value: '2K' },
+  { label: '4K', value: '4K' },
 ];
 const GENERIC_VIDEO_SIZE_OPTIONS = [
   { label: '1280x720', value: '1280x720' },
@@ -885,8 +883,6 @@ export default function App() {
   const isGrokImagineImageModel =
     GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
   const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
-  const isAdobeImage4KModel =
-    typeof currentModelName === 'string' && currentModelName.endsWith('-4k');
   const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
   const isAdobeSoraModel =
     currentModelName === 'sora2' || currentModelName === 'sora2-pro';
@@ -908,8 +904,6 @@ export default function App() {
     const isCurrentGrokImagineImageModel =
       GROK_IMAGINE_IMAGE_MODELS.has(modelName);
     const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(modelName);
-    const isCurrentAdobeImage4KModel =
-      typeof modelName === 'string' && modelName.endsWith('-4k');
     const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(modelName);
     const isCurrentAdobeSoraModel =
       modelName === 'sora2' || modelName === 'sora2-pro';
@@ -931,9 +925,7 @@ export default function App() {
         if (snapshot.aspectRatio === 'auto') {
           snapshot.autoImageSize = sourceParams.autoImageSize;
         }
-        snapshot.outputResolution = isCurrentAdobeImage4KModel
-          ? '4K'
-          : sourceParams.outputResolution || '2K';
+        snapshot.outputResolution = sourceParams.outputResolution || '2K';
       }
     }
 
@@ -1085,9 +1077,7 @@ export default function App() {
         ) {
           next.autoImageSize = '1024x1024';
         }
-        if (isAdobeImage4KModel) {
-          next.outputResolution = '4K';
-        } else if (
+        if (
           !ADOBE_OUTPUT_RESOLUTION_OPTIONS.some(
             (option) => option.value === next.outputResolution,
           )
@@ -1165,7 +1155,6 @@ export default function App() {
     });
   }, [
     currentModelName,
-    isAdobeImage4KModel,
     isAdobeImageModel,
     isAdobeSoraModel,
     isAdobeVeoModel,
@@ -2769,28 +2758,22 @@ export default function App() {
                         />
                       )}
 
-                      {isAdobeImage4KModel ? (
-                        <div className='rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600'>
-                          分辨率 4K
-                        </div>
-                      ) : (
-                        <DropSelectButton
-                          menuKey='outputResolution'
-                          icon={<ImageIcon size={14} />}
-                          label={`分辨率 ${params.outputResolution}`}
-                          value={params.outputResolution}
-                          options={ADOBE_OUTPUT_RESOLUTION_OPTIONS}
-                          openMenu={openMenu}
-                          setOpenMenu={setOpenMenu}
-                          onSelect={(value) =>
-                            setParams((prev) => ({
-                              ...prev,
-                              outputResolution: value,
-                            }))
-                          }
-                          widthClass='w-32'
-                        />
-                      )}
+                      <DropSelectButton
+                        menuKey='outputResolution'
+                        icon={<ImageIcon size={14} />}
+                        label={`分辨率 ${params.outputResolution}`}
+                        value={params.outputResolution}
+                        options={ADOBE_OUTPUT_RESOLUTION_OPTIONS}
+                        openMenu={openMenu}
+                        setOpenMenu={setOpenMenu}
+                        onSelect={(value) =>
+                          setParams((prev) => ({
+                            ...prev,
+                            outputResolution: value,
+                          }))
+                        }
+                        widthClass='w-32'
+                      />
                     </>
                   )}
 

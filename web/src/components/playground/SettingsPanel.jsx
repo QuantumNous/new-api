@@ -63,11 +63,8 @@ const SettingsPanel = ({
   ]);
   const adobeImageModels = new Set([
     'nano-banana',
-    'nano-banana-4k',
     'nano-banana2',
-    'nano-banana2-4k',
     'nano-banana-pro',
-    'nano-banana-pro-4k',
   ]);
   const adobeVideoModels = new Set([
     'sora2',
@@ -79,8 +76,6 @@ const SettingsPanel = ({
   const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
-  const isAdobeImage4KModel =
-    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
   const isAdobeSoraModel =
     inputs.model === 'sora2' || inputs.model === 'sora2-pro';
   const isAdobeVeoModel =
@@ -140,8 +135,8 @@ const SettingsPanel = ({
   const adobeOutputResolutionOptions = [
     { label: '1K', value: '1K' },
     { label: '2K', value: '2K' },
+    { label: '4K', value: '4K' },
   ];
-  const adobe4KResolutionOptions = [{ label: '4K', value: '4K' }];
   const adobeSoraDurationOptions = [4, 8, 12].map((v) => ({
     label: `${v}s`,
     value: String(v),
@@ -364,20 +359,10 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={
-                    isAdobeImage4KModel
-                      ? adobe4KResolutionOptions
-                      : adobeOutputResolutionOptions
-                  }
-                  value={
-                    isAdobeImage4KModel
-                      ? '4K'
-                      : inputs.outputResolution || '2K'
-                  }
-                  onChange={(value) =>
-                    !isAdobeImage4KModel && onInputChange('outputResolution', value)
-                  }
-                  disabled={customRequestMode || isAdobeImage4KModel}
+                  optionList={adobeOutputResolutionOptions}
+                  value={inputs.outputResolution || '2K'}
+                  onChange={(value) => onInputChange('outputResolution', value)}
+                  disabled={customRequestMode}
                 />
               </div>
             </div>
