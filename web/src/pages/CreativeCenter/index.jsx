@@ -3726,7 +3726,7 @@ export default function App() {
                         <DropSelectButton
                           menuKey='videoPreset'
                           icon={<Layers size={14} />}
-                          label={`预设 ${getOptionLabel(
+                          label={`风格预设 ${getOptionLabel(
                             GROK_VIDEO_PRESET_OPTIONS,
                             params.videoPreset,
                           )}`}
