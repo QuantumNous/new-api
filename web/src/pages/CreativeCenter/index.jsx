@@ -62,11 +62,11 @@ const ADOBE_VIDEO_MODELS = new Set([
 ]);
 
 const GROK_IMAGE_SIZE_OPTIONS = [
-  { label: '1024x1024', value: '1024x1024' },
-  { label: '1792x1024', value: '1792x1024' },
-  { label: '1024x1792', value: '1024x1792' },
-  { label: '1280x720', value: '1280x720' },
-  { label: '720x1280', value: '720x1280' },
+  { label: '1:1', value: '1024x1024' },
+  { label: '7:4', value: '1792x1024' },
+  { label: '4:7', value: '1024x1792' },
+  { label: '16:9', value: '1280x720' },
+  { label: '9:16', value: '720x1280' },
 ];
 const ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: 'Auto', value: 'auto' },
@@ -89,11 +89,11 @@ const ADOBE_OUTPUT_RESOLUTION_OPTIONS = [
   { label: '4K', value: '4K' },
 ];
 const GENERIC_VIDEO_SIZE_OPTIONS = [
-  { label: '1280x720', value: '1280x720' },
-  { label: '720x1280', value: '720x1280' },
-  { label: '1792x1024', value: '1792x1024' },
-  { label: '1024x1792', value: '1024x1792' },
-  { label: '1024x1024', value: '1024x1024' },
+  { label: '16:9', value: '1280x720' },
+  { label: '9:16', value: '720x1280' },
+  { label: '7:4', value: '1792x1024' },
+  { label: '4:7', value: '1024x1792' },
+  { label: '1:1', value: '1024x1024' },
 ];
 const GENERIC_VIDEO_SECONDS_OPTIONS = [6, 8, 10, 12, 15, 20, 25, 30].map(
   (value) => ({ label: `${value}s`, value: String(value) }),
@@ -1259,7 +1259,7 @@ export default function App() {
       summary.push(recordParams.aspectRatio);
     }
     if (recordParams.imageSize) {
-      summary.push(recordParams.imageSize);
+      summary.push(getOptionLabel(GROK_IMAGE_SIZE_OPTIONS, recordParams.imageSize));
     }
     if (recordParams.outputResolution) {
       summary.push(recordParams.outputResolution);
@@ -1286,7 +1286,7 @@ export default function App() {
     if (recordParams.aspectRatio && recordParams.aspectRatio !== 'auto') {
       summary.push(recordParams.aspectRatio);
     } else if (recordParams.videoSize) {
-      summary.push(recordParams.videoSize);
+      summary.push(getOptionLabel(GENERIC_VIDEO_SIZE_OPTIONS, recordParams.videoSize));
     }
 
     if (recordParams.videoResolution) {
@@ -3622,7 +3622,10 @@ export default function App() {
                     <DropSelectButton
                       menuKey='imageSize'
                       icon={<Copy size={14} />}
-                      label={`尺寸 ${params.imageSize}`}
+                      label={`比例 ${getOptionLabel(
+                        GROK_IMAGE_SIZE_OPTIONS,
+                        normalizeGrokImageSize(params.imageSize),
+                      )}`}
                       value={params.imageSize}
                       options={GROK_IMAGE_SIZE_OPTIONS}
                       openMenu={openMenu}
@@ -3675,7 +3678,10 @@ export default function App() {
                       <DropSelectButton
                         menuKey='videoSize'
                         icon={<Copy size={14} />}
-                        label={`尺寸 ${params.videoSize}`}
+                        label={`比例 ${getOptionLabel(
+                          GENERIC_VIDEO_SIZE_OPTIONS,
+                          params.videoSize,
+                        )}`}
                         value={params.videoSize}
                         options={GENERIC_VIDEO_SIZE_OPTIONS}
                         openMenu={openMenu}

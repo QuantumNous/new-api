@@ -99,6 +99,20 @@ const SettingsPanel = ({
     { label: '1024x1792', value: '1024x1792' },
     { label: '1024x1024', value: '1024x1024' },
   ];
+  const grokImageRatioOptions = [
+    { label: '1:1', value: '1024x1024' },
+    { label: '7:4', value: '1792x1024' },
+    { label: '4:7', value: '1024x1792' },
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+  ];
+  const grokVideoRatioOptions = [
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+    { label: '7:4', value: '1792x1024' },
+    { label: '4:7', value: '1024x1792' },
+    { label: '1:1', value: '1024x1024' },
+  ];
   const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((v) => ({
     label: `${v}s`,
     value: String(v),
@@ -315,7 +329,7 @@ const SettingsPanel = ({
               </Typography.Text>
               <Select
                 className='!rounded-lg mt-2'
-                optionList={imageSizeOptions}
+                optionList={grokImageRatioOptions}
                 value={normalizeGrokImageSize(inputs.imageSize || '1024x1024')}
                 onChange={(value) => onInputChange('imageSize', value)}
                 disabled={customRequestMode}
@@ -378,7 +392,7 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={videoSizeOptions}
+                  optionList={grokVideoRatioOptions}
                   value={inputs.videoSize}
                   onChange={(value) => onInputChange('videoSize', value)}
                   disabled={customRequestMode}
