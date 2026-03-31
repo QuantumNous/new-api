@@ -461,6 +461,16 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
+const getVideoTaskMediaUrl = (task) => {
+  if (typeof task?.url === 'string' && task.url.trim()) {
+    return task.url.trim();
+  }
+  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
+    return task.resultUrl.trim();
+  }
+  return '';
+};
+
 const createCreativeRecordId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -517,7 +527,7 @@ const normalizeVideoTaskItem = (item, index = 0) => {
     id: item?.id || createCreativeRecordId(`video-task-${index}`),
     taskId: item?.taskId || item?.task_id || item?.id || '',
     status: normalizedStatus,
-    url: item?.url || '',
+    url: getVideoTaskMediaUrl(item),
     content: item?.content || '',
     progress,
     error: item?.error || '',
@@ -1703,12 +1713,16 @@ export default function App() {
     `${record.modelName || 'creative-video'}-${recordIndex + 1}-${taskIndex + 1}.mp4`;
 
   const getCompletedVideoTasks = (record) =>
-    Array.isArray(record?.tasks) ? record.tasks.filter((item) => Boolean(item?.url)) : [];
+    Array.isArray(record?.tasks)
+      ? record.tasks.filter((item) => Boolean(getVideoTaskMediaUrl(item)))
+      : [];
 
   const getSelectedVideoTasks = (record) => {
     const selectedIds = new Set(selectedVideoTaskIds[record.id] || []);
     return Array.isArray(record?.tasks)
-      ? record.tasks.filter((item) => item?.url && selectedIds.has(item.id))
+      ? record.tasks.filter(
+          (item) => getVideoTaskMediaUrl(item) && selectedIds.has(item.id),
+        )
       : [];
   };
 
@@ -1762,7 +1776,7 @@ export default function App() {
       const originalIndex = record.tasks.findIndex((candidate) => candidate.id === task.id);
       window.setTimeout(() => {
         triggerDownload(
-          task.url,
+          getVideoTaskMediaUrl(task),
           buildVideoDownloadFilename(
             record,
             recordIndex,
@@ -1886,6 +1900,14 @@ export default function App() {
       dataPayload.result_url ||
       dataPayload.video_url ||
       dataPayload.output_url ||
+      dataPayload?.metadata?.url ||
+      dataPayload?.metadata?.remote_url ||
+      rootPayload?.url ||
+      rootPayload?.result_url ||
+      rootPayload?.video_url ||
+      rootPayload?.output_url ||
+      rootPayload?.metadata?.url ||
+      rootPayload?.metadata?.remote_url ||
       '';
     const content =
       dataPayload.content ||
@@ -3235,7 +3257,7 @@ export default function App() {
                                         key={`${record.id}-loading-task-${task.id || taskIndex}`}
                                         className='group relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'
                                       >
-                                        {task.url ? (
+                                        {getVideoTaskMediaUrl(task) ? (
                                           <div
                                             className='relative h-full w-full overflow-hidden bg-slate-950'
                                             style={{ aspectRatio: videoCardAspectRatio }}
@@ -3243,7 +3265,7 @@ export default function App() {
                                             <video
                                               controls
                                               className='h-full w-full object-cover'
-                                              src={task.url}
+                                              src={getVideoTaskMediaUrl(task)}
                                             />
                                             <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                               <button
@@ -3266,7 +3288,7 @@ export default function App() {
                                               <button
                                                 onClick={() =>
                                                   setPreviewVideo({
-                                                    url: task.url,
+                                                    url: getVideoTaskMediaUrl(task),
                                                     title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
                                                   })
                                                 }
@@ -3278,7 +3300,7 @@ export default function App() {
                                               <button
                                                 onClick={() =>
                                                   triggerDownload(
-                                                    task.url,
+                                                    getVideoTaskMediaUrl(task),
                                                     buildVideoDownloadFilename(
                                                       record,
                                                       recordIndex,
@@ -3347,7 +3369,7 @@ export default function App() {
                                     key={`${record.id}-${task.id || taskIndex}`}
                                     className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
-                                    {task.url ? (
+                                    {getVideoTaskMediaUrl(task) ? (
                                       <div
                                         className='relative h-full w-full overflow-hidden bg-slate-950'
                                         style={{ aspectRatio: videoCardAspectRatio }}
@@ -3355,7 +3377,7 @@ export default function App() {
                                         <video
                                           controls
                                           className='h-full w-full object-cover'
-                                          src={task.url}
+                                          src={getVideoTaskMediaUrl(task)}
                                         />
                                         <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                           <button
@@ -3378,7 +3400,7 @@ export default function App() {
                                           <button
                                             onClick={() =>
                                               setPreviewVideo({
-                                                url: task.url,
+                                                url: getVideoTaskMediaUrl(task),
                                                 title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
                                               })
                                             }
@@ -3390,7 +3412,7 @@ export default function App() {
                                           <button
                                             onClick={() =>
                                               triggerDownload(
-                                                task.url,
+                                                getVideoTaskMediaUrl(task),
                                                 buildVideoDownloadFilename(
                                                   record,
                                                   recordIndex,
