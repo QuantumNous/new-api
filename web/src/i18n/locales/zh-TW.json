@@ -2989,7 +2989,6 @@
     "输出价格 {{symbol}}{{price}} / 1M tokens": "輸出價格 {{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{price}} / 1M tokens": "輸出價格：{{symbol}}{{price}} / 1M tokens",
     "输出价格：{{symbol}}{{total}} / 1M tokens": "輸出價格：{{symbol}}{{total}} / 1M tokens",
-<<<<<<< HEAD
     "复制密钥": "複製金鑰",
     "复制连接信息": "複製連線資訊",
     "检测到剪贴板中的连接信息": "偵測到剪貼簿中的連線資訊",
