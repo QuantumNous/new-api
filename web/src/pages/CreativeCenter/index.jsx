@@ -138,6 +138,99 @@ const EMPTY_HISTORY_SNAPSHOTS = {
   image: null,
   video: null,
 };
+const ACTIVE_VIDEO_POLL_STATUSES = new Set([
+  'submitted',
+  'queued',
+  'generating',
+  'processing',
+  'in_progress',
+]);
+
+const clampProgress = (value) => Math.min(Math.max(value, 0), 100);
+
+const parseProgressValue = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return clampProgress(Math.round(value));
+  }
+
+  if (typeof value === 'string') {
+    const normalizedValue = value.trim().replace(/%$/, '');
+    const parsedValue = Number(normalizedValue);
+    if (Number.isFinite(parsedValue)) {
+      return clampProgress(Math.round(parsedValue));
+    }
+  }
+
+  return null;
+};
+
+const normalizeVideoTaskStatus = (status) => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+
+  if (
+    ['completed', 'complete', 'succeeded', 'success'].includes(normalizedStatus)
+  ) {
+    return 'completed';
+  }
+
+  if (['failed', 'failure', 'error', 'cancelled', 'canceled'].includes(normalizedStatus)) {
+    return 'failed';
+  }
+
+  if (['queued', 'queueing'].includes(normalizedStatus)) {
+    return 'queued';
+  }
+
+  if (['submitted', 'pending'].includes(normalizedStatus)) {
+    return 'submitted';
+  }
+
+  if (['processing', 'generating', 'in_progress', 'running'].includes(normalizedStatus)) {
+    return 'generating';
+  }
+
+  return normalizedStatus || 'submitted';
+};
+
+const summarizeImageTasks = (images) => {
+  const completedCount = images.filter((item) =>
+    ['completed', 'failed'].includes(item.status),
+  ).length;
+  const successCount = images.filter((item) => item.status === 'completed').length;
+  const hasActiveTask = images.some(
+    (item) => !['completed', 'failed'].includes(item.status),
+  );
+
+  return {
+    completedCount,
+    successCount,
+    status: hasActiveTask
+      ? 'generating'
+      : successCount > 0
+        ? 'completed'
+        : 'failed',
+  };
+};
+
+const summarizeVideoTasks = (tasks) => {
+  const completedCount = tasks.filter((item) =>
+    ['completed', 'failed'].includes(item.status),
+  ).length;
+  const successCount = tasks.filter((item) => item.status === 'completed').length;
+  const hasActiveTask = tasks.some(
+    (item) => !['completed', 'failed'].includes(item.status),
+  );
+
+  return {
+    completedCount,
+    successCount,
+    status: hasActiveTask
+      ? 'generating'
+      : successCount > 0
+        ? 'completed'
+        : 'failed',
+  };
+};
 
 const normalizeGrokImageSize = (size) => {
   if (size === '1536x1024') {
@@ -200,26 +293,43 @@ const normalizeImageTaskItem = (item, index = 0) => {
     };
   }
 
+  const progress =
+    parseProgressValue(item?.progress) ?? (item?.url ? 100 : 0);
+
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
     url: typeof item?.url === 'string' ? item.url : '',
     status: item?.status || (item?.url ? 'completed' : 'pending'),
-    progress: Number(item?.progress) || (item?.url ? 100 : 12),
+    progress,
     error: item?.error || '',
     resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
   };
 };
 
-const normalizeVideoTaskItem = (item, index = 0) => ({
-  id: item?.id || createCreativeRecordId(`video-task-${index}`),
-  status: item?.status || (item?.url ? 'completed' : 'submitted'),
-  url: item?.url || '',
-  content: item?.content || '',
-  progress: Number(item?.progress) || ((item?.url || item?.status === 'completed') ? 100 : 12),
-  error: item?.error || '',
-  resultUrl: item?.resultUrl || '',
-  resultContent: item?.resultContent || '',
-});
+const normalizeVideoTaskItem = (item, index = 0) => {
+  const normalizedStatus = normalizeVideoTaskStatus(
+    item?.status || (item?.url ? 'completed' : 'submitted'),
+  );
+  const progress =
+    parseProgressValue(item?.progress) ??
+    ((item?.url || normalizedStatus === 'completed') ? 100 : 0);
+
+  return {
+    id: item?.id || createCreativeRecordId(`video-task-${index}`),
+    taskId: item?.taskId || item?.task_id || item?.id || '',
+    status: normalizedStatus,
+    url: item?.url || '',
+    content: item?.content || '',
+    progress,
+    error: item?.error || '',
+    resultUrl: item?.resultUrl || '',
+    resultContent: item?.resultContent || '',
+    pollable:
+      typeof item?.pollable === 'boolean'
+        ? item.pollable
+        : !item?.url && ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
+  };
+};
 
 const getTaskStatusLabel = (status) => {
   switch (status) {
@@ -227,11 +337,13 @@ const getTaskStatusLabel = (status) => {
       return '已完成';
     case 'failed':
       return '失败';
+    case 'queued':
+      return '排队中';
     case 'submitted':
       return '已提交';
-    case 'finalizing':
-      return '即将完成';
     case 'generating':
+    case 'processing':
+    case 'in_progress':
     case 'pending':
     default:
       return '生成中';
@@ -464,7 +576,19 @@ export default function App() {
 
   const textareaRef = useRef(null);
   const scrollRef = useRef(null);
+  const videoPollersRef = useRef(new Map());
+  const imageRecordsRef = useRef([]);
+  const videoRecordsRef = useRef([]);
+  const historyHydratedRef = useRef(false);
   const isLoggedIn = Boolean(userState?.user);
+
+  useEffect(() => {
+    imageRecordsRef.current = imageRecords;
+  }, [imageRecords]);
+
+  useEffect(() => {
+    videoRecordsRef.current = videoRecords;
+  }, [videoRecords]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -473,130 +597,15 @@ export default function App() {
   }, [activeTab, chatMessages, imageRecords, videoRecords, isGenerating]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setImageRecords((prev) => {
-        let changed = false;
-        const next = prev.map((record) => {
-          const nextImages = record.images.map((item) => {
-            if (item.status === 'completed' || item.status === 'failed') {
-              return item;
-            }
-
-            if (item.status === 'finalizing') {
-              const nextProgress = Math.min((item.progress || 72) + 10, 100);
-              changed = true;
-              if (nextProgress >= 100) {
-                return {
-                  ...item,
-                  status: 'completed',
-                  progress: 100,
-                  url: item.resultUrl || item.url,
-                  resultUrl: '',
-                };
-              }
-              return {
-                ...item,
-                progress: nextProgress,
-              };
-            }
-
-            const nextProgress = Math.min((item.progress || 12) + 8, 86);
-            if (nextProgress !== item.progress || item.status !== 'generating') {
-              changed = true;
-              return {
-                ...item,
-                status: 'generating',
-                progress: nextProgress,
-              };
-            }
-            return item;
-          });
-
-          const hasActiveTask = nextImages.some(
-            (item) => item.status !== 'completed' && item.status !== 'failed',
-          );
-          const nextStatus =
-            record.status === 'failed'
-              ? 'failed'
-              : hasActiveTask
-                ? 'generating'
-                : nextImages.some((item) => item.status === 'completed')
-                  ? 'completed'
-                  : 'failed';
-
-          if (changed || nextStatus !== record.status) {
-            changed = true;
-            return { ...record, images: nextImages, status: nextStatus };
-          }
-          return record;
-        });
-        return changed ? next : prev;
+    return () => {
+      videoPollersRef.current.forEach((controller) => {
+        controller.active = false;
+        if (controller.timer) {
+          window.clearTimeout(controller.timer);
+        }
       });
-
-      setVideoRecords((prev) => {
-        let changed = false;
-        const next = prev.map((record) => {
-          const nextTasks = record.tasks.map((task) => {
-            if (task.status === 'completed' || task.status === 'failed') {
-              return task;
-            }
-
-            if (task.status === 'finalizing') {
-              const nextProgress = Math.min((task.progress || 72) + 10, 100);
-              changed = true;
-              if (nextProgress >= 100) {
-                return {
-                  ...task,
-                  status: 'completed',
-                  progress: 100,
-                  url: task.resultUrl || task.url,
-                  content: task.resultContent || task.content,
-                  resultUrl: '',
-                  resultContent: '',
-                };
-              }
-              return {
-                ...task,
-                progress: nextProgress,
-              };
-            }
-
-            const maxProgress = task.status === 'submitted' ? 72 : 86;
-            const nextProgress = Math.min((task.progress || 12) + 8, maxProgress);
-            if (nextProgress !== task.progress || task.status === 'pending') {
-              changed = true;
-              return {
-                ...task,
-                status: task.status === 'pending' ? 'generating' : task.status,
-                progress: nextProgress,
-              };
-            }
-            return task;
-          });
-
-          const hasActiveTask = nextTasks.some(
-            (task) => task.status !== 'completed' && task.status !== 'failed',
-          );
-          const nextStatus =
-            record.status === 'failed'
-              ? 'failed'
-              : hasActiveTask
-                ? 'generating'
-                : nextTasks.some((task) => task.status === 'completed' || task.status === 'submitted')
-                  ? 'completed'
-                  : 'failed';
-
-          if (changed || nextStatus !== record.status) {
-            changed = true;
-            return { ...record, tasks: nextTasks, status: nextStatus };
-          }
-          return record;
-        });
-        return changed ? next : prev;
-      });
-    }, 350);
-
-    return () => window.clearInterval(timer);
+      videoPollersRef.current.clear();
+    };
   }, []);
   const fallbackModels = useMemo(
     () => ({
@@ -1231,31 +1240,242 @@ export default function App() {
     );
   };
 
-  const patchImageRecord = (recordId, patch) => {
+  const patchImageTask = (recordId, taskId, taskPatch) => {
     setImageRecords((prev) =>
-      prev.map((record) =>
-        record.id === recordId
-          ? {
-              ...record,
-              ...(typeof patch === 'function' ? patch(record) : patch),
-            }
-          : record,
-      ),
+      prev.map((record) => {
+        if (record.id !== recordId) {
+          return record;
+        }
+
+        let hasChanged = false;
+        const nextImages = record.images.map((task) => {
+          if (task.id !== taskId) {
+            return task;
+          }
+
+          hasChanged = true;
+          return {
+            ...task,
+            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
+          };
+        });
+
+        if (!hasChanged) {
+          return record;
+        }
+
+        const summary = summarizeImageTasks(nextImages);
+        return {
+          ...record,
+          images: nextImages,
+          ...summary,
+          error:
+            summary.completedCount === record.total && summary.successCount === 0
+              ? '全部图片任务都生成失败了，请稍后重试。'
+              : '',
+          updatedAt: Date.now(),
+        };
+      }),
     );
   };
 
-  const patchVideoRecord = (recordId, patch) => {
+  const patchVideoTask = (recordId, taskId, taskPatch) => {
     setVideoRecords((prev) =>
-      prev.map((record) =>
-        record.id === recordId
-          ? {
-              ...record,
-              ...(typeof patch === 'function' ? patch(record) : patch),
-            }
-          : record,
-      ),
+      prev.map((record) => {
+        if (record.id !== recordId) {
+          return record;
+        }
+
+        let hasChanged = false;
+        const nextTasks = record.tasks.map((task) => {
+          if (task.id !== taskId) {
+            return task;
+          }
+
+          hasChanged = true;
+          const nextTask = {
+            ...task,
+            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
+          };
+          return {
+            ...nextTask,
+            status: normalizeVideoTaskStatus(nextTask.status),
+          };
+        });
+
+        if (!hasChanged) {
+          return record;
+        }
+
+        const summary = summarizeVideoTasks(nextTasks);
+        return {
+          ...record,
+          tasks: nextTasks,
+          ...summary,
+          error:
+            summary.completedCount === record.total && summary.successCount === 0
+              ? '全部视频任务都生成失败了，请稍后重试。'
+              : '',
+          updatedAt: Date.now(),
+        };
+      }),
     );
   };
+
+  const parseVideoFetchPayload = (rawResponse) => {
+    const rootPayload = rawResponse?.data;
+    const dataPayload =
+      rootPayload && typeof rootPayload === 'object' && rootPayload.data && typeof rootPayload.data === 'object'
+        ? rootPayload.data
+        : rootPayload;
+
+    if (!dataPayload || typeof dataPayload !== 'object') {
+      return {
+        status: 'submitted',
+        progress: null,
+        url: '',
+        content: '',
+        error: '',
+      };
+    }
+
+    const status = normalizeVideoTaskStatus(
+      dataPayload.status ||
+        dataPayload.task_status ||
+        dataPayload.state ||
+        rootPayload?.status,
+    );
+    const progress =
+      parseProgressValue(dataPayload.progress) ??
+      parseProgressValue(rootPayload?.progress);
+    const url =
+      dataPayload.url ||
+      dataPayload.result_url ||
+      dataPayload.video_url ||
+      dataPayload.output_url ||
+      '';
+    const content =
+      dataPayload.content ||
+      dataPayload.message ||
+      rootPayload?.message ||
+      '';
+    const error =
+      dataPayload.error?.message ||
+      dataPayload.fail_reason ||
+      rootPayload?.error?.message ||
+      '';
+
+    return {
+      status,
+      progress,
+      url,
+      content,
+      error,
+    };
+  };
+
+  useEffect(() => {
+    videoRecords.forEach((record) => {
+      record.tasks.forEach((task) => {
+        const queryTaskId = task.taskId || task.id;
+        const shouldPoll =
+          Boolean(queryTaskId) &&
+          task.pollable !== false &&
+          ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status));
+
+        if (!shouldPoll || videoPollersRef.current.has(task.id)) {
+          return;
+        }
+
+        const controller = {
+          active: true,
+          timer: null,
+        };
+        videoPollersRef.current.set(task.id, controller);
+
+        const pollTask = async () => {
+          if (!controller.active) {
+            return;
+          }
+
+          try {
+            const response = await API.get(
+              `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+              {
+                skipErrorHandler: true,
+                headers: {
+                  'New-API-User': getUserIdFromLocalStorage(),
+                },
+              },
+            );
+
+            if (!controller.active) {
+              return;
+            }
+
+            const nextTaskState = parseVideoFetchPayload(response);
+            const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
+            const isCompleted = nextStatus === 'completed' || Boolean(nextTaskState.url);
+            const isFailed = nextStatus === 'failed';
+
+            patchVideoTask(record.id, task.id, (currentTask) => ({
+              status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
+              progress: isCompleted
+                ? 100
+                : nextTaskState.progress ?? currentTask.progress ?? 0,
+              url: isCompleted ? (nextTaskState.url || currentTask.url) : currentTask.url,
+              content: nextTaskState.content || currentTask.content,
+              error: isFailed ? (nextTaskState.error || currentTask.error || '任务生成失败') : '',
+              pollable: !(isCompleted || isFailed),
+            }));
+
+            if (isCompleted || isFailed) {
+              controller.active = false;
+              if (controller.timer) {
+                window.clearTimeout(controller.timer);
+              }
+              videoPollersRef.current.delete(task.id);
+              return;
+            }
+          } catch (error) {
+            if (!controller.active) {
+              return;
+            }
+            console.error('Failed to poll creative center video task:', error);
+          }
+
+          controller.timer = window.setTimeout(pollTask, 2000);
+        };
+
+        pollTask();
+      });
+    });
+
+    const activeTaskIds = new Set(
+      videoRecords.flatMap((record) =>
+        record.tasks
+          .filter((task) => {
+            const queryTaskId = task.taskId || task.id;
+            return (
+              Boolean(queryTaskId) &&
+              task.pollable !== false &&
+              ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status))
+            );
+          })
+          .map((task) => task.id),
+      ),
+    );
+
+    videoPollersRef.current.forEach((controller, taskId) => {
+      if (!activeTaskIds.has(taskId)) {
+        controller.active = false;
+        if (controller.timer) {
+          window.clearTimeout(controller.timer);
+        }
+        videoPollersRef.current.delete(taskId);
+      }
+    });
+  }, [videoRecords]);
 
   const handleReuseRecord = (record) => {
     if (!record) {
@@ -1304,6 +1524,7 @@ export default function App() {
         if (!mounted) {
           return;
         }
+        historyHydratedRef.current = true;
         setHistorySnapshots(EMPTY_HISTORY_SNAPSHOTS);
         setChatMessages([]);
         setImageRecords([]);
@@ -1335,8 +1556,10 @@ export default function App() {
         );
         setImageRecords(normalizeImageHistoryRecords(nextSnapshots.image));
         setVideoRecords(normalizeVideoHistoryRecords(nextSnapshots.video));
+        historyHydratedRef.current = true;
       } catch (error) {
         console.error('Failed to load creative center history:', error);
+        historyHydratedRef.current = true;
       }
     };
 
@@ -1346,6 +1569,34 @@ export default function App() {
       mounted = false;
     };
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      persistImageRecords(imageRecordsRef.current).catch((error) => {
+        console.error('Failed to persist creative center image records:', error);
+      });
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [imageRecords, isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      persistVideoRecords(videoRecordsRef.current).catch((error) => {
+        console.error('Failed to persist creative center video records:', error);
+      });
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [videoRecords, isLoggedIn]);
 
   const handleSubmit = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -1423,7 +1674,7 @@ export default function App() {
           id: createCreativeRecordId(`image-task-${index + 1}`),
           url: '',
           status: 'generating',
-          progress: 12,
+          progress: 0,
           error: '',
           resultUrl: '',
         })),
@@ -1439,12 +1690,9 @@ export default function App() {
       setImageRecords(pendingRecords);
 
       try {
-        let completedCount = 0;
-        let successCount = 0;
-        const collectedImages = pendingRecord.images.map((item) => ({ ...item }));
-
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
+            const taskId = pendingRecord.images[index].id;
             const basePayload = createBasePayload(currentPrompt);
             const payload = {
               model: currentModelName,
@@ -1475,64 +1723,29 @@ export default function App() {
                   .filter(Boolean)
               : [];
 
-            collectedImages[index] = {
-              ...collectedImages[index],
-              url: '',
-              status: imageUrls[0] ? 'finalizing' : 'failed',
-              progress: imageUrls[0]
-                ? Math.max(collectedImages[index]?.progress || 12, 72)
-                : 100,
+            patchImageTask(recordId, taskId, {
+              url: imageUrls[0] || '',
+              status: imageUrls[0] ? 'completed' : 'failed',
+              progress: 100,
               error: imageUrls[0] ? '' : '未获取到图片结果',
               resultUrl: imageUrls[0] || '',
-            };
-            successCount += imageUrls.length > 0 ? 1 : 0;
+            });
           })()
             .catch(() => {
-              collectedImages[index] = {
-                ...collectedImages[index],
+              patchImageTask(recordId, pendingRecord.images[index].id, {
                 status: 'failed',
                 progress: 100,
                 error: '请求失败，请稍后再试。',
-              };
-            })
-            .finally(() => {
-              completedCount += 1;
-              patchImageRecord(recordId, (record) => ({
-                images: [...collectedImages],
-                completedCount,
-                successCount,
-                updatedAt: Date.now(),
-                error:
-                  completedCount === generationCount && successCount === 0
-                    ? '全部图片任务都生成失败了，请稍后重试。'
-                    : '',
-              }));
+              });
             }),
         );
 
         await Promise.allSettled(imageTasks);
 
-        const completedRecord = {
-          ...pendingRecord,
-          images: [...collectedImages],
-          status: successCount > 0 ? 'completed' : 'failed',
-          error:
-            successCount > 0
-              ? ''
-              : '全部图片任务都生成失败了，请稍后重试。',
-          completedCount: generationCount,
-          successCount,
-          updatedAt: Date.now(),
-        };
-        const completedRecords = pendingRecords.map((record) =>
-          record.id === recordId ? completedRecord : record,
-        );
-
-        setImageRecords(completedRecords);
-        await persistImageRecords(completedRecords, {
+        await persistImageRecords(imageRecordsRef.current, {
           modelName: currentModelName,
           prompt: currentPrompt,
-          params: completedRecord.params,
+          params: pendingRecord.params,
         });
       } catch (error) {
         console.error('Creative center image error:', error);
@@ -1562,13 +1775,15 @@ export default function App() {
         params: { ...params },
         tasks: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`video-task-${index + 1}`),
+          taskId: '',
           status: 'generating',
           url: '',
           content: '',
-          progress: 12,
+          progress: 0,
           error: '',
           resultUrl: '',
           resultContent: '',
+          pollable: false,
         })),
         status: 'generating',
         error: '',
@@ -1582,12 +1797,9 @@ export default function App() {
       setVideoRecords(pendingRecords);
 
       try {
-        let completedCount = 0;
-        let successCount = 0;
-        const collectedTasks = pendingRecord.tasks.map((item) => ({ ...item }));
-
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
+            const localTaskId = pendingRecord.tasks[index].id;
             const basePayload = createBasePayload(currentPrompt);
             let data;
 
@@ -1598,20 +1810,17 @@ export default function App() {
               );
               const content = data?.choices?.[0]?.message?.content || '';
               const videoUrl = extractVideoUrlFromMessage(content);
-              collectedTasks[index] = {
-                ...collectedTasks[index],
-                id: data?.id || `video-${index + 1}`,
-                status: videoUrl ? 'finalizing' : 'submitted',
-                url: '',
+              patchVideoTask(recordId, localTaskId, {
+                taskId: data?.id || '',
+                status: videoUrl ? 'completed' : 'failed',
+                url: videoUrl || '',
                 content: videoUrl ? '' : content,
-                progress: videoUrl
-                  ? Math.max(collectedTasks[index]?.progress || 12, 72)
-                  : Math.max(collectedTasks[index]?.progress || 12, 48),
-                error: '',
+                progress: 100,
+                error: videoUrl ? '' : '未获取到视频结果',
                 resultUrl: videoUrl || '',
                 resultContent: content,
-              };
-              successCount += 1;
+                pollable: false,
+              });
               return;
             }
 
@@ -1637,70 +1846,51 @@ export default function App() {
               }
             });
             data = await postCreativeRequest(API_ENDPOINTS.VIDEO_GENERATIONS, payload);
-            collectedTasks[index] = {
-              ...collectedTasks[index],
-              id: data?.task_id || data?.id || `video-${index + 1}`,
-              status: data?.url || data?.video_url || data?.result_url ? 'finalizing' : (data?.status || 'submitted'),
-              url: '',
-              content: '',
+            const submitPayload =
+              data?.data && typeof data.data === 'object' ? data.data : data;
+            const immediateResultUrl =
+              submitPayload?.url ||
+              submitPayload?.video_url ||
+              submitPayload?.result_url ||
+              '';
+            const normalizedStatus = normalizeVideoTaskStatus(
+              submitPayload?.status ||
+                (immediateResultUrl ? 'completed' : 'submitted'),
+            );
+            patchVideoTask(recordId, localTaskId, {
+              taskId: submitPayload?.task_id || submitPayload?.id || '',
+              status: immediateResultUrl ? 'completed' : normalizedStatus,
+              url: immediateResultUrl || '',
+              content: submitPayload?.message || '',
               progress:
-                data?.url || data?.video_url || data?.result_url
-                  ? Math.max(collectedTasks[index]?.progress || 12, 72)
-                  : Math.max(collectedTasks[index]?.progress || 12, 48),
+                immediateResultUrl
+                  ? 100
+                  : parseProgressValue(submitPayload?.progress) ?? 0,
               error: '',
-              resultUrl: data?.url || data?.video_url || data?.result_url || '',
-            };
-            successCount += 1;
+              resultUrl: immediateResultUrl || '',
+              pollable:
+                !immediateResultUrl &&
+                Boolean(submitPayload?.task_id || submitPayload?.id),
+            });
           })()
             .catch((requestError) => {
-              collectedTasks[index] = {
-                ...collectedTasks[index],
-                id: `video-failed-${index + 1}`,
+              patchVideoTask(recordId, pendingRecord.tasks[index].id, {
                 status: 'failed',
                 url: '',
                 content: `请求失败：${requestError.message || '请稍后再试。'}`,
                 progress: 100,
                 error: requestError.message || '请稍后再试。',
-              };
-            })
-            .finally(() => {
-              completedCount += 1;
-              patchVideoRecord(recordId, (record) => ({
-                tasks: [...collectedTasks],
-                completedCount,
-                successCount,
-                updatedAt: Date.now(),
-                error:
-                  completedCount === generationCount && successCount === 0
-                    ? '全部视频任务都提交失败了，请稍后重试。'
-                    : '',
-              }));
+                pollable: false,
+              });
             }),
         );
 
         await Promise.allSettled(videoRequests);
 
-        const completedRecord = {
-          ...pendingRecord,
-          tasks: [...collectedTasks],
-          status: successCount > 0 ? 'completed' : 'failed',
-          error:
-            successCount > 0
-              ? ''
-              : '全部视频任务都提交失败了，请稍后重试。',
-          completedCount: generationCount,
-          successCount,
-          updatedAt: Date.now(),
-        };
-        const completedRecords = pendingRecords.map((record) =>
-          record.id === recordId ? completedRecord : record,
-        );
-
-        setVideoRecords(completedRecords);
-        await persistVideoRecords(completedRecords, {
+        await persistVideoRecords(videoRecordsRef.current, {
           modelName: currentModelName,
           prompt: currentPrompt,
-          params: completedRecord.params,
+          params: pendingRecord.params,
         });
       } catch (error) {
         console.error('Creative center video error:', error);
@@ -1908,13 +2098,21 @@ export default function App() {
                                             <div>
                                               <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                                 <span>任务 {imageIndex + 1}</span>
-                                                <span>{imageItem.progress || 12}%</span>
+                                                {['completed', 'failed'].includes(imageItem.status) ? (
+                                                  <span>{imageItem.progress || 100}%</span>
+                                                ) : (
+                                                  <span>实时生成中</span>
+                                                )}
                                               </div>
                                               <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                                <div
-                                                  className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                                  style={{ width: `${imageItem.progress || 12}%` }}
-                                                />
+                                                {['completed', 'failed'].includes(imageItem.status) ? (
+                                                  <div
+                                                    className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                    style={{ width: `${imageItem.progress || 100}%` }}
+                                                  />
+                                                ) : (
+                                                  <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                                )}
                                               </div>
                                             </div>
                                           </div>
@@ -1971,13 +2169,21 @@ export default function App() {
                                         <div>
                                           <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
                                             <span>任务 {imageIndex + 1}</span>
-                                            <span>{imageItem.progress || 0}%</span>
+                                            {['completed', 'failed'].includes(imageItem.status) ? (
+                                              <span>{imageItem.progress || 100}%</span>
+                                            ) : (
+                                              <span>实时生成中</span>
+                                            )}
                                           </div>
                                           <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
-                                            <div
-                                              className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                              style={{ width: `${imageItem.progress || 0}%` }}
-                                            />
+                                            {['completed', 'failed'].includes(imageItem.status) ? (
+                                              <div
+                                                className={`h-full rounded-full transition-all ${imageItem.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                style={{ width: `${imageItem.progress || 100}%` }}
+                                              />
+                                            ) : (
+                                              <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                            )}
                                           </div>
                                           {imageItem.error ? (
                                             <p className='mt-3 text-[11px] leading-5 text-red-500'>{imageItem.error}</p>
@@ -2071,16 +2277,20 @@ export default function App() {
                                           第 {taskIndex + 1} 条任务
                                         </div>
                                         <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
-                                          {task.id || '任务提交中'}
+                                          {task.taskId || task.id || '任务提交中'}
                                         </div>
                                         <div className='mt-3 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 inline-flex'>
                                           {getTaskStatusLabel(task.status)}
                                         </div>
                                         <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
-                                          <div
-                                            className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                            style={{ width: `${task.progress || 12}%` }}
-                                          />
+                                          {typeof task.progress === 'number' && task.progress > 0 ? (
+                                            <div
+                                              className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                              style={{ width: `${task.progress}%` }}
+                                            />
+                                          ) : (
+                                            <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                          )}
                                         </div>
                                       </div>
                                     ))}
@@ -2104,18 +2314,30 @@ export default function App() {
                                           第 {taskIndex + 1} 条任务
                                         </div>
                                         <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
-                                          {task.id || '暂未返回任务 ID'}
+                                          {task.taskId || task.id || '暂未返回任务 ID'}
                                         </div>
                                       </div>
                                       <div className='rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700'>
                                         {getTaskStatusLabel(task.status)}
                                       </div>
                                     </div>
+                                    <div className='mt-3 flex items-center justify-between text-[11px] text-slate-400'>
+                                      <span>实时进度</span>
+                                      {typeof task.progress === 'number' && task.progress > 0 ? (
+                                        <span>{task.progress}%</span>
+                                      ) : (
+                                        <span>{['completed', 'failed'].includes(task.status) ? '100%' : '等待状态'}</span>
+                                      )}
+                                    </div>
                                     <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
-                                      <div
-                                        className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                        style={{ width: `${task.progress || 0}%` }}
-                                      />
+                                      {typeof task.progress === 'number' && task.progress > 0 ? (
+                                        <div
+                                          className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                          style={{ width: `${task.progress}%` }}
+                                        />
+                                      ) : (
+                                        <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                      )}
                                     </div>
 
                                     {task.url ? (
