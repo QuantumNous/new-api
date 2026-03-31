@@ -1651,13 +1651,22 @@ export default function App() {
   };
 
   const postCreativeRequest = async (endpoint, payload, requestHeaders = {}) => {
-    const response = await API.post(endpoint, payload, {
-      headers: {
-        'New-API-User': getUserIdFromLocalStorage(),
-        ...requestHeaders,
-      },
-    });
-    return response.data;
+    try {
+      const response = await API.post(endpoint, payload, {
+        headers: {
+          'New-API-User': getUserIdFromLocalStorage(),
+          ...requestHeaders,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      const apiMessage =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        '请求失败，请稍后再试。';
+      throw new Error(apiMessage);
+    }
   };
 
   const persistImageRecords = async (records, options = {}) => {
@@ -2588,11 +2597,11 @@ export default function App() {
               requestPollable: false,
             });
           })()
-            .catch(() => {
+            .catch((requestError) => {
               patchImageTask(recordId, pendingRecord.images[index].id, {
                 status: 'failed',
                 progress: 100,
-                error: '请求失败，请稍后再试。',
+                error: requestError?.message || '请求失败，请稍后再试。',
                 finalizingAt: 0,
                 progressUnavailable: false,
                 requestPollable: false,
@@ -4077,5 +4086,4 @@ export default function App() {
     </div>
   );
 }
-
 
