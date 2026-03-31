@@ -2792,12 +2792,16 @@ export default function App() {
                                         className='rounded-[1.5rem] border border-blue-100 bg-white p-5 shadow-sm'
                                       >
                                         <div className='flex items-center justify-between gap-3'>
-                                          <div>
+                                          <div className='min-w-0'>
                                             <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
                                               第 {taskIndex + 1} 条任务
                                             </div>
-                                            <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
-                                              {task.taskId || task.id || '任务提交中'}
+                                            <div className='mt-2 text-sm font-semibold text-slate-800'>
+                                              {task.url
+                                                ? '视频已生成'
+                                                : task.status === 'failed'
+                                                  ? '生成失败'
+                                                  : '正在生成中'}
                                             </div>
                                           </div>
                                           <div
@@ -2890,11 +2894,7 @@ export default function App() {
                                           <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
                                             {task.content}
                                           </div>
-                                        ) : (
-                                          <p className='mt-4 text-sm leading-7 text-slate-500'>
-                                            视频任务已提交成功，当前条目一完成就会直接显示预览和下载。
-                                          </p>
-                                        )}
+                                        ) : null}
                                       </div>
                                     ))}
                                   </div>
@@ -2912,12 +2912,16 @@ export default function App() {
                                     className='rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/40'
                                   >
                                     <div className='flex items-center justify-between gap-3'>
-                                      <div>
+                                      <div className='min-w-0'>
                                         <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
                                           第 {taskIndex + 1} 条任务
                                         </div>
-                                        <div className='mt-2 text-sm font-semibold text-slate-800 break-all'>
-                                          {task.taskId || task.id || '暂未返回任务 ID'}
+                                        <div className='mt-2 text-sm font-semibold text-slate-800'>
+                                          {task.url
+                                            ? '视频已生成'
+                                            : task.status === 'failed'
+                                              ? '生成失败'
+                                              : '等待结果'}
                                         </div>
                                       </div>
                                       <div className='rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700'>
@@ -3000,11 +3004,7 @@ export default function App() {
                                       <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
                                         {task.content}
                                       </div>
-                                    ) : (
-                                      <p className='mt-4 text-sm leading-7 text-slate-500'>
-                                        视频任务已提交成功，生成时间通常会更长，可以稍后根据任务 ID 查看结果。
-                                      </p>
-                                    )}
+                                    ) : null}
                                   </div>
                                 ))}
                               </div>
