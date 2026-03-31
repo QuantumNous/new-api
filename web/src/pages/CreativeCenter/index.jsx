@@ -655,6 +655,8 @@ export default function App() {
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
   const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
+  const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
+  const [previewVideo, setPreviewVideo] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -1406,6 +1408,80 @@ export default function App() {
     });
   };
 
+  const buildVideoDownloadFilename = (record, recordIndex, taskIndex) =>
+    `${record.modelName || 'creative-video'}-${recordIndex + 1}-${taskIndex + 1}.mp4`;
+
+  const getCompletedVideoTasks = (record) =>
+    Array.isArray(record?.tasks) ? record.tasks.filter((item) => Boolean(item?.url)) : [];
+
+  const getSelectedVideoTasks = (record) => {
+    const selectedIds = new Set(selectedVideoTaskIds[record.id] || []);
+    return Array.isArray(record?.tasks)
+      ? record.tasks.filter((item) => item?.url && selectedIds.has(item.id))
+      : [];
+  };
+
+  const toggleVideoTaskSelection = (recordId, taskId) => {
+    setSelectedVideoTaskIds((prev) => {
+      const current = new Set(prev[recordId] || []);
+      if (current.has(taskId)) {
+        current.delete(taskId);
+      } else {
+        current.add(taskId);
+      }
+
+      if (current.size === 0) {
+        const next = { ...prev };
+        delete next[recordId];
+        return next;
+      }
+
+      return {
+        ...prev,
+        [recordId]: Array.from(current),
+      };
+    });
+  };
+
+  const clearVideoTaskSelection = (recordId) => {
+    setSelectedVideoTaskIds((prev) => {
+      if (!prev[recordId]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[recordId];
+      return next;
+    });
+  };
+
+  const selectAllCompletedVideoTasks = (record) => {
+    const completedTasks = getCompletedVideoTasks(record);
+    if (completedTasks.length === 0) {
+      return;
+    }
+
+    setSelectedVideoTaskIds((prev) => ({
+      ...prev,
+      [record.id]: completedTasks.map((item) => item.id),
+    }));
+  };
+
+  const downloadVideoTasks = (record, recordIndex, tasks) => {
+    tasks.forEach((task, selectionIndex) => {
+      const originalIndex = record.tasks.findIndex((candidate) => candidate.id === task.id);
+      window.setTimeout(() => {
+        triggerDownload(
+          task.url,
+          buildVideoDownloadFilename(
+            record,
+            recordIndex,
+            originalIndex >= 0 ? originalIndex : selectionIndex,
+          ),
+        );
+      }, selectionIndex * 120);
+    });
+  };
+
   const patchImageTask = (recordId, taskId, taskPatch) => {
     setImageRecords((prev) =>
       prev.map((record) => {
@@ -2088,6 +2164,11 @@ export default function App() {
             if (isAdobeVideoModel) {
               basePayload.seed = requestSeed;
               basePayload.user = requestUser;
+              basePayload.metadata = {
+                creative_request_id: requestUser,
+                creative_seed: requestSeed,
+                creative_index: index + 1,
+              };
               data = await postCreativeRequest(
                 API_ENDPOINTS.CHAT_COMPLETIONS,
                 basePayload,
@@ -2114,6 +2195,11 @@ export default function App() {
               prompt: currentPrompt,
               seed: requestSeed,
               user: requestUser,
+              metadata: {
+                creative_request_id: requestUser,
+                creative_seed: requestSeed,
+                creative_index: index + 1,
+              },
             };
             [
               'size',
@@ -2644,6 +2730,9 @@ export default function App() {
                   {videoRecords.map((record, recordIndex) => {
                     const recordModel = findModelCard('video', record.modelName);
                     const metaSummary = formatVideoRecordSummary(record);
+                    const completedVideoTasks = getCompletedVideoTasks(record);
+                    const selectedVideoTasks = getSelectedVideoTasks(record);
+                    const selectedVideoIdSet = new Set(selectedVideoTaskIds[record.id] || []);
 
                     return (
                       <article key={record.id || `video-record-${recordIndex}`} className='space-y-4'>
@@ -2723,6 +2812,51 @@ export default function App() {
                                             {task.url ? '已完成' : getTaskStatusLabel(task.status)}
                                           </div>
                                         </div>
+                                        {task.url ? (
+                                          <div className='mt-4 flex items-center justify-end gap-2'>
+                                            <button
+                                              onClick={() =>
+                                                toggleVideoTaskSelection(record.id, task.id)
+                                              }
+                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                              title={
+                                                selectedVideoIdSet.has(task.id)
+                                                  ? '取消选择'
+                                                  : '选择下载'
+                                              }
+                                            >
+                                              {selectedVideoIdSet.has(task.id) ? (
+                                                <CheckSquare size={16} />
+                                              ) : (
+                                                <Square size={16} />
+                                              )}
+                                            </button>
+                                            <button
+                                              onClick={() =>
+                                                setPreviewVideo({
+                                                  url: task.url,
+                                                  title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                                })
+                                              }
+                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                              title='预览'
+                                            >
+                                              <Eye size={16} />
+                                            </button>
+                                            <button
+                                              onClick={() =>
+                                                triggerDownload(
+                                                  task.url,
+                                                  buildVideoDownloadFilename(record, recordIndex, taskIndex),
+                                                )
+                                              }
+                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                              title='下载'
+                                            >
+                                              <Download size={16} />
+                                            </button>
+                                          </div>
+                                        ) : null}
                                         <div className='mt-3 flex items-center justify-between text-[11px] text-slate-400'>
                                           <span>实时进度</span>
                                           {typeof task.progress === 'number' && task.progress > 0 ? (
@@ -2747,18 +2881,6 @@ export default function App() {
                                             <div className='mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950'>
                                               <video controls className='aspect-video h-full w-full' src={task.url} />
                                             </div>
-                                            <button
-                                              onClick={() =>
-                                                triggerDownload(
-                                                  task.url,
-                                                  `${record.modelName || 'creative-video'}-${recordIndex + 1}-${taskIndex + 1}.mp4`,
-                                                )
-                                              }
-                                              className='mt-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
-                                            >
-                                              <Download size={16} />
-                                              下载视频
-                                            </button>
                                           </>
                                         ) : task.status === 'failed' ? (
                                           <div className='mt-4 rounded-[1.25rem] border border-red-100 bg-red-50 px-4 py-3 text-sm leading-7 text-red-600'>
@@ -2802,6 +2924,51 @@ export default function App() {
                                         {getTaskStatusLabel(task.status)}
                                       </div>
                                     </div>
+                                    {task.url ? (
+                                      <div className='mt-4 flex items-center justify-end gap-2'>
+                                        <button
+                                          onClick={() =>
+                                            toggleVideoTaskSelection(record.id, task.id)
+                                          }
+                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                          title={
+                                            selectedVideoIdSet.has(task.id)
+                                              ? '取消选择'
+                                              : '选择下载'
+                                          }
+                                        >
+                                          {selectedVideoIdSet.has(task.id) ? (
+                                            <CheckSquare size={16} />
+                                          ) : (
+                                            <Square size={16} />
+                                          )}
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            setPreviewVideo({
+                                              url: task.url,
+                                              title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                            })
+                                          }
+                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                          title='预览'
+                                        >
+                                          <Eye size={16} />
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            triggerDownload(
+                                              task.url,
+                                              buildVideoDownloadFilename(record, recordIndex, taskIndex),
+                                            )
+                                          }
+                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
+                                          title='下载'
+                                        >
+                                          <Download size={16} />
+                                        </button>
+                                      </div>
+                                    ) : null}
                                     <div className='mt-3 flex items-center justify-between text-[11px] text-slate-400'>
                                       <span>实时进度</span>
                                       {typeof task.progress === 'number' && task.progress > 0 ? (
@@ -2844,6 +3011,38 @@ export default function App() {
                             )}
 
                             <div className='mt-3 flex flex-wrap items-center gap-2'>
+                              {completedVideoTasks.length > 0 ? (
+                                <>
+                                  <button
+                                    onClick={() => selectAllCompletedVideoTasks(record)}
+                                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                                  >
+                                    全选已完成
+                                  </button>
+                                  {selectedVideoTasks.length > 0 ? (
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          downloadVideoTasks(
+                                            record,
+                                            recordIndex,
+                                            selectedVideoTasks,
+                                          )
+                                        }
+                                        className='rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100'
+                                      >
+                                        下载已选 {selectedVideoTasks.length} 条
+                                      </button>
+                                      <button
+                                        onClick={() => clearVideoTaskSelection(record.id)}
+                                        className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600'
+                                      >
+                                        清空选择
+                                      </button>
+                                    </>
+                                  ) : null}
+                                </>
+                              ) : null}
                               <button
                                 onClick={() => handleReuseRecord(record)}
                                 className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
@@ -3219,6 +3418,30 @@ export default function App() {
                 src={previewImage.url}
                 alt={previewImage.title || 'Preview'}
                 className='max-h-[80vh] w-full object-contain'
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {previewVideo ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm'>
+          <div className='relative w-full max-w-5xl rounded-[2rem] bg-white p-4 shadow-2xl'>
+            <button
+              onClick={() => setPreviewVideo(null)}
+              className='absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-red-500'
+            >
+              <X size={18} />
+            </button>
+            <div className='mb-4 px-2 pr-12 text-sm font-semibold text-slate-600'>
+              {previewVideo.title || '视频预览'}
+            </div>
+            <div className='overflow-hidden rounded-[1.5rem] bg-slate-950'>
+              <video
+                controls
+                autoPlay
+                className='max-h-[80vh] w-full'
+                src={previewVideo.url}
               />
             </div>
           </div>
