@@ -60,16 +60,6 @@ const ADOBE_VIDEO_MODELS = new Set([
   'veo31-ref',
   'veo31-fast',
 ]);
-const ESTIMATED_PROGRESS_IMAGE_MODELS = new Set([
-  'nano-banana',
-  'nano-banana2',
-  'nano-banana-pro',
-]);
-const ESTIMATED_PROGRESS_VIDEO_MODELS = new Set([
-  'veo31',
-  'veo31-ref',
-  'veo31-fast',
-]);
 
 const GROK_IMAGE_SIZE_OPTIONS = [
   { label: '1024x1024', value: '1024x1024' },
@@ -211,10 +201,8 @@ const parseTimestampValue = (value, fallback = 0) => {
   return fallback;
 };
 
-const shouldUseEstimatedImageProgress = (modelName) =>
-  ESTIMATED_PROGRESS_IMAGE_MODELS.has(modelName);
-const shouldUseEstimatedVideoProgress = (modelName) =>
-  ESTIMATED_PROGRESS_VIDEO_MODELS.has(modelName);
+const shouldUseEstimatedImageProgress = (modelName) => Boolean(modelName);
+const shouldUseEstimatedVideoProgress = (modelName) => Boolean(modelName);
 
 const getEstimatedImageDurationMs = (params = {}) => {
   switch (params?.outputResolution) {
