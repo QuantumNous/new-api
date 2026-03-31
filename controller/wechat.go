@@ -133,17 +133,17 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
+	user, err := getSessionUser(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	var req wechatBindRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的请求",
 		})
-		return
-	}
-	user, err := getSessionUser(c)
-	if err != nil {
-		common.ApiError(c, err)
 		return
 	}
 	code := req.Code
