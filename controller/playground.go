@@ -6,7 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
@@ -16,6 +20,54 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type playgroundRequestRoute struct {
+	ChannelID int
+	ExpiresAt time.Time
+}
+
+var playgroundRequestRouteStore sync.Map
+
+func cachePlaygroundRequestRoute(c *gin.Context) {
+	requestID := strings.TrimSpace(c.GetHeader("X-Request-Id"))
+	if requestID == "" {
+		var req struct {
+			RequestID string `json:"request_id"`
+			RequestId string `json:"requestId"`
+		}
+		if err := common.UnmarshalBodyReusable(c, &req); err == nil {
+			requestID = strings.TrimSpace(req.RequestID)
+			if requestID == "" {
+				requestID = strings.TrimSpace(req.RequestId)
+			}
+		}
+	}
+	channelID := c.GetInt("channel_id")
+	if requestID == "" || channelID <= 0 {
+		return
+	}
+	playgroundRequestRouteStore.Store(requestID, playgroundRequestRoute{
+		ChannelID: channelID,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+}
+
+func getPlaygroundRequestRoute(requestID string) (playgroundRequestRoute, bool) {
+	value, ok := playgroundRequestRouteStore.Load(requestID)
+	if !ok {
+		return playgroundRequestRoute{}, false
+	}
+	route, ok := value.(playgroundRequestRoute)
+	if !ok {
+		playgroundRequestRouteStore.Delete(requestID)
+		return playgroundRequestRoute{}, false
+	}
+	if time.Now().After(route.ExpiresAt) {
+		playgroundRequestRouteStore.Delete(requestID)
+		return playgroundRequestRoute{}, false
+	}
+	return route, true
+}
 
 func Playground(c *gin.Context) {
 	var newAPIError *types.NewAPIError
@@ -44,6 +96,7 @@ func Playground(c *gin.Context) {
 		return
 	}
 
+	cachePlaygroundRequestRoute(c)
 	Relay(c, types.RelayFormatOpenAI)
 }
 
@@ -59,6 +112,7 @@ func PlaygroundVideoSubmit(c *gin.Context) {
 	if newAPIError = setupPlaygroundTokenContext(c, "playground-video", c.GetString("group")); newAPIError != nil {
 		return
 	}
+	cachePlaygroundRequestRoute(c)
 	RelayTask(c)
 }
 
@@ -74,6 +128,7 @@ func PlaygroundImageGenerations(c *gin.Context) {
 	if newAPIError = setupPlaygroundTokenContext(c, "playground-image", c.GetString("group")); newAPIError != nil {
 		return
 	}
+	cachePlaygroundRequestRoute(c)
 	Relay(c, types.RelayFormatOpenAIImage)
 }
 
@@ -89,6 +144,7 @@ func PlaygroundImageEdits(c *gin.Context) {
 	if newAPIError = setupPlaygroundTokenContext(c, "playground-image-edit", c.GetString("group")); newAPIError != nil {
 		return
 	}
+	cachePlaygroundRequestRoute(c)
 	Relay(c, types.RelayFormatOpenAIImage)
 }
 
@@ -141,8 +197,19 @@ func PlaygroundRequestStatus(c *gin.Context) {
 		tokenGroup = c.GetString("token_group")
 	}
 
-	channelModel, err := model.GetChannel(tokenGroup, modelName, 0)
-	if err != nil {
+	var (
+		channelModel *model.Channel
+		err          error
+	)
+	if requestRoute, ok := getPlaygroundRequestRoute(requestID); ok {
+		channelModel, err = model.GetChannelById(requestRoute.ChannelID, true)
+	} else {
+		channelModel, err = model.GetChannel(tokenGroup, modelName, 0)
+	}
+	if err != nil || channelModel == nil {
+		if err == nil {
+			err = errors.New("channel not found")
+		}
 		newAPIError = types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		return
 	}
