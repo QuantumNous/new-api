@@ -971,7 +971,7 @@ export default function App() {
     if (matchedModel && matchedModel.id !== activeModel) {
       setActiveModel(matchedModel.id);
     }
-  }, [activeHistorySnapshot, activeModel, currentDisplayModels]);
+  }, [activeHistorySnapshot, activeTab, currentDisplayModels]);
 
   useEffect(() => {
     const savedParams = activeHistorySnapshot?.payload?.params;
