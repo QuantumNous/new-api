@@ -226,7 +226,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/batch", controller.DeleteChannelBatch)
 			channelRoute.POST("/fix", controller.FixChannelsAbilities)
 			channelRoute.GET("/fetch_models/:id", controller.FetchUpstreamModels)
-			channelRoute.POST("/fetch_models", controller.FetchModels)
+			channelRoute.POST("/fetch_models", middleware.RootAuth(), controller.FetchModels)
 			channelRoute.POST("/codex/oauth/start", controller.StartCodexOAuth)
 			channelRoute.POST("/codex/oauth/complete", controller.CompleteCodexOAuth)
 			channelRoute.POST("/:id/codex/oauth/start", controller.StartCodexOAuthForChannel)
