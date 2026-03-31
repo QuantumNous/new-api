@@ -3458,6 +3458,14 @@ export default function App() {
                                               <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                                 已完成
                                               </div>
+                                              <div className='mt-auto inline-flex w-fit items-center gap-3 rounded-[1.25rem] bg-slate-950/55 px-4 py-3 text-white shadow-lg backdrop-blur-sm'>
+                                                <div className='inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white'>
+                                                  <Video size={20} />
+                                                </div>
+                                                <span className='text-sm font-semibold'>
+                                                  点击预览视频
+                                                </span>
+                                              </div>
                                             </button>
                                             <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
                                               <button
@@ -3569,6 +3577,14 @@ export default function App() {
                                         >
                                           <div className='rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm w-fit'>
                                             已完成
+                                          </div>
+                                          <div className='mt-auto inline-flex w-fit items-center gap-3 rounded-[1.25rem] bg-slate-950/55 px-4 py-3 text-white shadow-lg backdrop-blur-sm'>
+                                            <div className='inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-white'>
+                                              <Video size={20} />
+                                            </div>
+                                            <span className='text-sm font-semibold'>
+                                              点击预览视频
+                                            </span>
                                           </div>
                                         </button>
                                         <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
