@@ -925,9 +925,19 @@ func ManageUser(c *gin.Context) {
 	return
 }
 
+type emailBindRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 func EmailBind(c *gin.Context) {
-	email := c.Query("email")
-	code := c.Query("code")
+	var req emailBindRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiError(c, errors.New("invalid request body"))
+		return
+	}
+	email := req.Email
+	code := req.Code
 	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 		return
