@@ -1025,6 +1025,21 @@ export default function App() {
     return summary.join(' · ');
   };
 
+  const resolveCreativeAspectRatio = (ratio, fallback = '3 / 4') => {
+    if (!ratio || ratio === 'auto' || typeof ratio !== 'string') {
+      return fallback;
+    }
+    const normalized = ratio.trim();
+    if (!normalized.includes(':')) {
+      return fallback;
+    }
+    const [width, height] = normalized.split(':').map((item) => item.trim());
+    if (!width || !height) {
+      return fallback;
+    }
+    return `${width} / ${height}`;
+  };
+
   useEffect(() => {
     if (!currentDisplayModels.some((model) => model.id === activeModel)) {
       setActiveModel(currentDisplayModels[0]?.id || '');
@@ -2733,6 +2748,10 @@ export default function App() {
                     const completedVideoTasks = getCompletedVideoTasks(record);
                     const selectedVideoTasks = getSelectedVideoTasks(record);
                     const selectedVideoIdSet = new Set(selectedVideoTaskIds[record.id] || []);
+                    const videoCardAspectRatio = resolveCreativeAspectRatio(
+                      record?.params?.aspectRatio,
+                      '9 / 16',
+                    );
 
                     return (
                       <article key={record.id || `video-record-${recordIndex}`} className='space-y-4'>
@@ -2785,116 +2804,126 @@ export default function App() {
                                   </div>
                                 </div>
                                 {record.tasks.length > 0 ? (
-                                  <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+                                  <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
                                     {record.tasks.map((task, taskIndex) => (
                                       <div
                                         key={`${record.id}-loading-task-${task.id || taskIndex}`}
-                                        className='rounded-[1.5rem] border border-blue-100 bg-white p-5 shadow-sm'
+                                        className='group relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'
                                       >
-                                        <div className='flex items-center justify-between gap-3'>
-                                          <div className='min-w-0'>
-                                            <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                                              第 {taskIndex + 1} 条任务
-                                            </div>
-                                            <div className='mt-2 text-sm font-semibold text-slate-800'>
-                                              {task.url
-                                                ? '视频已生成'
-                                                : task.status === 'failed'
-                                                  ? '生成失败'
-                                                  : '正在生成中'}
-                                            </div>
-                                          </div>
+                                        {task.url ? (
                                           <div
-                                            className={`rounded-full px-3 py-1 text-xs font-bold ${
-                                              task.url
-                                                ? 'bg-emerald-50 text-emerald-700'
-                                                : task.status === 'failed'
-                                                  ? 'bg-red-50 text-red-700'
-                                                  : 'bg-blue-50 text-blue-700'
-                                            }`}
+                                            className='relative h-full w-full overflow-hidden bg-slate-950'
+                                            style={{ aspectRatio: videoCardAspectRatio }}
                                           >
-                                            {task.url ? '已完成' : getTaskStatusLabel(task.status)}
-                                          </div>
-                                        </div>
-                                        {task.url ? (
-                                          <div className='mt-4 flex items-center justify-end gap-2'>
-                                            <button
-                                              onClick={() =>
-                                                toggleVideoTaskSelection(record.id, task.id)
-                                              }
-                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                              title={
-                                                selectedVideoIdSet.has(task.id)
-                                                  ? '取消选择'
-                                                  : '选择下载'
-                                              }
-                                            >
-                                              {selectedVideoIdSet.has(task.id) ? (
-                                                <CheckSquare size={16} />
-                                              ) : (
-                                                <Square size={16} />
-                                              )}
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                setPreviewVideo({
-                                                  url: task.url,
-                                                  title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                                })
-                                              }
-                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                              title='预览'
-                                            >
-                                              <Eye size={16} />
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                triggerDownload(
-                                                  task.url,
-                                                  buildVideoDownloadFilename(record, recordIndex, taskIndex),
-                                                )
-                                              }
-                                              className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                              title='下载'
-                                            >
-                                              <Download size={16} />
-                                            </button>
-                                          </div>
-                                        ) : null}
-                                        <div className='mt-3 flex items-center justify-between text-[11px] text-slate-400'>
-                                          <span>实时进度</span>
-                                          {typeof task.progress === 'number' && task.progress > 0 ? (
-                                            <span>{task.progress}%</span>
-                                          ) : (
-                                            <span>{['completed', 'failed'].includes(task.status) ? '100%' : '等待状态'}</span>
-                                          )}
-                                        </div>
-                                        <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
-                                          {typeof task.progress === 'number' && task.progress > 0 ? (
-                                            <div
-                                              className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : task.url ? 'bg-emerald-500' : 'bg-blue-500'}`}
-                                              style={{ width: `${task.progress}%` }}
+                                            <video
+                                              controls
+                                              className='h-full w-full object-cover'
+                                              src={task.url}
                                             />
-                                          ) : (
-                                            <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                          )}
-                                        </div>
-
-                                        {task.url ? (
-                                          <>
-                                            <div className='mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950'>
-                                              <video controls className='aspect-video h-full w-full' src={task.url} />
+                                            <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
+                                              <button
+                                                onClick={() =>
+                                                  toggleVideoTaskSelection(record.id, task.id)
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title={
+                                                  selectedVideoIdSet.has(task.id)
+                                                    ? '取消选择'
+                                                    : '选择下载'
+                                                }
+                                              >
+                                                {selectedVideoIdSet.has(task.id) ? (
+                                                  <CheckSquare size={16} />
+                                                ) : (
+                                                  <Square size={16} />
+                                                )}
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  setPreviewVideo({
+                                                    url: task.url,
+                                                    title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                                  })
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title='预览'
+                                              >
+                                                <Eye size={16} />
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  triggerDownload(
+                                                    task.url,
+                                                    buildVideoDownloadFilename(
+                                                      record,
+                                                      recordIndex,
+                                                      taskIndex,
+                                                    ),
+                                                  )
+                                                }
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                                title='下载'
+                                              >
+                                                <Download size={16} />
+                                              </button>
                                             </div>
-                                          </>
-                                        ) : task.status === 'failed' ? (
-                                          <div className='mt-4 rounded-[1.25rem] border border-red-100 bg-red-50 px-4 py-3 text-sm leading-7 text-red-600'>
-                                            {task.content || task.error || '任务提交失败，请稍后重试。'}
+                                            <div className='absolute left-3 top-3 rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm'>
+                                              已完成
+                                            </div>
                                           </div>
-                                        ) : task.content ? (
-                                          <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
-                                            {task.content}
+                                        ) : (
+                                          <div
+                                            className='h-full w-full bg-slate-100 p-4 flex flex-col justify-between'
+                                            style={{ aspectRatio: videoCardAspectRatio }}
+                                          >
+                                            <div className='flex items-center gap-2 text-slate-500'>
+                                              {task.status === 'failed' ? (
+                                                <X size={14} className='text-red-500' />
+                                              ) : (
+                                                <Loader2
+                                                  size={14}
+                                                  className='animate-spin text-blue-500'
+                                                />
+                                              )}
+                                              <span className='text-xs font-semibold'>
+                                                {getTaskStatusLabel(task.status)}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
+                                                <span>任务 {taskIndex + 1}</span>
+                                                {['completed', 'failed'].includes(task.status) ? (
+                                                  <span>{task.progress || 100}%</span>
+                                                ) : (
+                                                  <span>实时生成中</span>
+                                                )}
+                                              </div>
+                                              <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
+                                                {['completed', 'failed'].includes(task.status) ? (
+                                                  <div
+                                                    className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                    style={{ width: `${task.progress || 100}%` }}
+                                                  />
+                                                ) : (
+                                                  <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                                )}
+                                              </div>
+                                              {task.content || task.error ? (
+                                                <p
+                                                  className={`mt-3 text-[11px] leading-5 ${
+                                                    task.status === 'failed'
+                                                      ? 'text-red-500'
+                                                      : 'text-slate-500'
+                                                  }`}
+                                                >
+                                                  {task.content ||
+                                                    task.error ||
+                                                    '任务提交失败，请稍后重试。'}
+                                                </p>
+                                              ) : null}
+                                            </div>
                                           </div>
-                                        ) : null}
+                                        )}
                                       </div>
                                     ))}
                                   </div>
@@ -2905,106 +2934,126 @@ export default function App() {
                                 {record.error || '本次视频生成失败，请稍后重试。'}
                               </div>
                             ) : (
-                              <div className='mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+                              <div className='mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
                                 {record.tasks.map((task, taskIndex) => (
                                   <div
                                     key={`${record.id}-${task.id || taskIndex}`}
-                                    className='rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/40'
+                                    className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
-                                    <div className='flex items-center justify-between gap-3'>
-                                      <div className='min-w-0'>
-                                        <div className='text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400'>
-                                          第 {taskIndex + 1} 条任务
-                                        </div>
-                                        <div className='mt-2 text-sm font-semibold text-slate-800'>
-                                          {task.url
-                                            ? '视频已生成'
-                                            : task.status === 'failed'
-                                              ? '生成失败'
-                                              : '等待结果'}
-                                        </div>
-                                      </div>
-                                      <div className='rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700'>
-                                        {getTaskStatusLabel(task.status)}
-                                      </div>
-                                    </div>
                                     {task.url ? (
-                                      <div className='mt-4 flex items-center justify-end gap-2'>
-                                        <button
-                                          onClick={() =>
-                                            toggleVideoTaskSelection(record.id, task.id)
-                                          }
-                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                          title={
-                                            selectedVideoIdSet.has(task.id)
-                                              ? '取消选择'
-                                              : '选择下载'
-                                          }
-                                        >
-                                          {selectedVideoIdSet.has(task.id) ? (
-                                            <CheckSquare size={16} />
-                                          ) : (
-                                            <Square size={16} />
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            setPreviewVideo({
-                                              url: task.url,
-                                              title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                            })
-                                          }
-                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                          title='预览'
-                                        >
-                                          <Eye size={16} />
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            triggerDownload(
-                                              task.url,
-                                              buildVideoDownloadFilename(record, recordIndex, taskIndex),
-                                            )
-                                          }
-                                          className='rounded-full bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200'
-                                          title='下载'
-                                        >
-                                          <Download size={16} />
-                                        </button>
-                                      </div>
-                                    ) : null}
-                                    <div className='mt-3 flex items-center justify-between text-[11px] text-slate-400'>
-                                      <span>实时进度</span>
-                                      {typeof task.progress === 'number' && task.progress > 0 ? (
-                                        <span>{task.progress}%</span>
-                                      ) : (
-                                        <span>{['completed', 'failed'].includes(task.status) ? '100%' : '等待状态'}</span>
-                                      )}
-                                    </div>
-                                    <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
-                                      {typeof task.progress === 'number' && task.progress > 0 ? (
-                                        <div
-                                          className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
-                                          style={{ width: `${task.progress}%` }}
+                                      <div
+                                        className='relative h-full w-full overflow-hidden bg-slate-950'
+                                        style={{ aspectRatio: videoCardAspectRatio }}
+                                      >
+                                        <video
+                                          controls
+                                          className='h-full w-full object-cover'
+                                          src={task.url}
                                         />
-                                      ) : (
-                                        <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
-                                      )}
-                                    </div>
-
-                                    {task.url ? (
-                                      <div className='mt-4 overflow-hidden rounded-[1.25rem] border border-slate-200 bg-slate-950'>
-                                        <video controls className='aspect-video h-full w-full' src={task.url} />
+                                        <div className='absolute right-3 top-3 z-10 flex items-center gap-2'>
+                                          <button
+                                            onClick={() =>
+                                              toggleVideoTaskSelection(record.id, task.id)
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title={
+                                              selectedVideoIdSet.has(task.id)
+                                                ? '取消选择'
+                                                : '选择下载'
+                                            }
+                                          >
+                                            {selectedVideoIdSet.has(task.id) ? (
+                                              <CheckSquare size={16} />
+                                            ) : (
+                                              <Square size={16} />
+                                            )}
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              setPreviewVideo({
+                                                url: task.url,
+                                                title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
+                                              })
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title='预览'
+                                          >
+                                            <Eye size={16} />
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              triggerDownload(
+                                                task.url,
+                                                buildVideoDownloadFilename(
+                                                  record,
+                                                  recordIndex,
+                                                  taskIndex,
+                                                ),
+                                              )
+                                            }
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
+                                            title='下载'
+                                          >
+                                            <Download size={16} />
+                                          </button>
+                                        </div>
+                                        <div className='absolute left-3 top-3 rounded-full bg-emerald-500/90 px-3 py-1 text-[11px] font-bold text-white shadow-sm'>
+                                          已完成
+                                        </div>
                                       </div>
-                                    ) : task.status === 'failed' ? (
-                                      <div className='mt-4 rounded-[1.25rem] border border-red-100 bg-red-50 px-4 py-3 text-sm leading-7 text-red-600'>
-                                        {task.content || task.error || '任务提交失败，请稍后重试。'}
+                                    ) : (
+                                      <div
+                                        className='h-full w-full bg-slate-50 p-4 flex flex-col justify-between'
+                                        style={{ aspectRatio: videoCardAspectRatio }}
+                                      >
+                                        <div className='flex items-center gap-2 text-slate-500'>
+                                          {task.status === 'failed' ? (
+                                            <X size={14} className='text-red-500' />
+                                          ) : (
+                                            <Loader2
+                                              size={14}
+                                              className='animate-spin text-blue-500'
+                                            />
+                                          )}
+                                          <span className='text-xs font-semibold'>
+                                            {getTaskStatusLabel(task.status)}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
+                                            <span>任务 {taskIndex + 1}</span>
+                                            {['completed', 'failed'].includes(task.status) ? (
+                                              <span>{task.progress || 100}%</span>
+                                            ) : (
+                                              <span>实时生成中</span>
+                                            )}
+                                          </div>
+                                          <div className='h-2 overflow-hidden rounded-full bg-slate-200'>
+                                            {['completed', 'failed'].includes(task.status) ? (
+                                              <div
+                                                className={`h-full rounded-full transition-all ${task.status === 'failed' ? 'bg-red-400' : 'bg-blue-500'}`}
+                                                style={{ width: `${task.progress || 100}%` }}
+                                              />
+                                            ) : (
+                                              <div className='h-full w-2/5 rounded-full bg-blue-500 animate-pulse' />
+                                            )}
+                                          </div>
+                                          {task.content || task.error ? (
+                                            <p
+                                              className={`mt-3 text-[11px] leading-5 ${
+                                                task.status === 'failed'
+                                                  ? 'text-red-500'
+                                                  : 'text-slate-500'
+                                              }`}
+                                            >
+                                              {task.content ||
+                                                task.error ||
+                                                '任务提交失败，请稍后重试。'}
+                                            </p>
+                                          ) : null}
+                                        </div>
                                       </div>
-                                    ) : task.content ? (
-                                      <div className='mt-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-600'>
-                                        {task.content}
-                                      </div>
-                                    ) : null}
+                                    )}
                                   </div>
                                 ))}
                               </div>
