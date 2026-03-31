@@ -461,6 +461,13 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
+const openVideoPreviewInNewWindow = (url) => {
+  if (!url) {
+    return;
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
 const getVideoTaskMediaUrl = (task) => {
   if (typeof task?.url === 'string' && task.url.trim()) {
     return task.url.trim();
@@ -922,7 +929,6 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState(null);
   const [collapsedVideoRecordIds, setCollapsedVideoRecordIds] = useState({});
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
-  const [previewVideo, setPreviewVideo] = useState(null);
   const [progressClock, setProgressClock] = useState(() => Date.now());
   const imagePersistSignature = useMemo(
     () => buildCreativePersistSignature(imageRecords, 'image'),
@@ -3442,10 +3448,9 @@ export default function App() {
                                             />
                                             <button
                                               onClick={() =>
-                                                setPreviewVideo({
-                                                  url: getVideoTaskMediaUrl(task),
-                                                  title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                                })
+                                                openVideoPreviewInNewWindow(
+                                                  getVideoTaskMediaUrl(task),
+                                                )
                                               }
                                               className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
                                               title='预览'
@@ -3485,10 +3490,9 @@ export default function App() {
                                               </button>
                                               <button
                                                 onClick={() =>
-                                                  setPreviewVideo({
-                                                    url: getVideoTaskMediaUrl(task),
-                                                    title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                                  })
+                                                  openVideoPreviewInNewWindow(
+                                                    getVideoTaskMediaUrl(task),
+                                                  )
                                                 }
                                                 className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title='预览'
@@ -3578,10 +3582,9 @@ export default function App() {
                                         />
                                         <button
                                           onClick={() =>
-                                            setPreviewVideo({
-                                              url: getVideoTaskMediaUrl(task),
-                                              title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                            })
+                                            openVideoPreviewInNewWindow(
+                                              getVideoTaskMediaUrl(task),
+                                            )
                                           }
                                           className='absolute inset-0 z-10 flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,6,23,0.72))] p-4 text-left text-white transition hover:scale-[1.01]'
                                           title='预览'
@@ -3621,10 +3624,9 @@ export default function App() {
                                           </button>
                                           <button
                                             onClick={() =>
-                                              setPreviewVideo({
-                                                url: getVideoTaskMediaUrl(task),
-                                                title: `${record.prompt || '视频预览'} · 第 ${taskIndex + 1} 条`,
-                                              })
+                                              openVideoPreviewInNewWindow(
+                                                getVideoTaskMediaUrl(task),
+                                              )
                                             }
                                             className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title='预览'
@@ -4090,30 +4092,6 @@ export default function App() {
                 src={previewImage.url}
                 alt={previewImage.title || 'Preview'}
                 className='max-h-[80vh] w-full object-contain'
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {previewVideo ? (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm'>
-          <div className='relative w-full max-w-5xl rounded-[2rem] bg-white p-4 shadow-2xl'>
-            <button
-              onClick={() => setPreviewVideo(null)}
-              className='absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-red-500'
-            >
-              <X size={18} />
-            </button>
-            <div className='mb-4 px-2 pr-12 text-sm font-semibold text-slate-600'>
-              {previewVideo.title || '视频预览'}
-            </div>
-            <div className='overflow-hidden rounded-[1.5rem] bg-slate-950'>
-              <video
-                controls
-                autoPlay
-                className='max-h-[80vh] w-full'
-                src={previewVideo.url}
               />
             </div>
           </div>
