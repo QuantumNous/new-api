@@ -206,6 +206,7 @@ const normalizeImageTaskItem = (item, index = 0) => {
     status: item?.status || (item?.url ? 'completed' : 'pending'),
     progress: Number(item?.progress) || (item?.url ? 100 : 12),
     error: item?.error || '',
+    resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
   };
 };
 
@@ -216,7 +217,26 @@ const normalizeVideoTaskItem = (item, index = 0) => ({
   content: item?.content || '',
   progress: Number(item?.progress) || ((item?.url || item?.status === 'completed') ? 100 : 12),
   error: item?.error || '',
+  resultUrl: item?.resultUrl || '',
+  resultContent: item?.resultContent || '',
 });
+
+const getTaskStatusLabel = (status) => {
+  switch (status) {
+    case 'completed':
+      return '已完成';
+    case 'failed':
+      return '失败';
+    case 'submitted':
+      return '已提交';
+    case 'finalizing':
+      return '即将完成';
+    case 'generating':
+    case 'pending':
+    default:
+      return '生成中';
+  }
+};
 
 const normalizeImageHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
@@ -451,6 +471,133 @@ export default function App() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [activeTab, chatMessages, imageRecords, videoRecords, isGenerating]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setImageRecords((prev) => {
+        let changed = false;
+        const next = prev.map((record) => {
+          const nextImages = record.images.map((item) => {
+            if (item.status === 'completed' || item.status === 'failed') {
+              return item;
+            }
+
+            if (item.status === 'finalizing') {
+              const nextProgress = Math.min((item.progress || 72) + 10, 100);
+              changed = true;
+              if (nextProgress >= 100) {
+                return {
+                  ...item,
+                  status: 'completed',
+                  progress: 100,
+                  url: item.resultUrl || item.url,
+                  resultUrl: '',
+                };
+              }
+              return {
+                ...item,
+                progress: nextProgress,
+              };
+            }
+
+            const nextProgress = Math.min((item.progress || 12) + 8, 86);
+            if (nextProgress !== item.progress || item.status !== 'generating') {
+              changed = true;
+              return {
+                ...item,
+                status: 'generating',
+                progress: nextProgress,
+              };
+            }
+            return item;
+          });
+
+          const hasActiveTask = nextImages.some(
+            (item) => item.status !== 'completed' && item.status !== 'failed',
+          );
+          const nextStatus =
+            record.status === 'failed'
+              ? 'failed'
+              : hasActiveTask
+                ? 'generating'
+                : nextImages.some((item) => item.status === 'completed')
+                  ? 'completed'
+                  : 'failed';
+
+          if (changed || nextStatus !== record.status) {
+            changed = true;
+            return { ...record, images: nextImages, status: nextStatus };
+          }
+          return record;
+        });
+        return changed ? next : prev;
+      });
+
+      setVideoRecords((prev) => {
+        let changed = false;
+        const next = prev.map((record) => {
+          const nextTasks = record.tasks.map((task) => {
+            if (task.status === 'completed' || task.status === 'failed') {
+              return task;
+            }
+
+            if (task.status === 'finalizing') {
+              const nextProgress = Math.min((task.progress || 72) + 10, 100);
+              changed = true;
+              if (nextProgress >= 100) {
+                return {
+                  ...task,
+                  status: 'completed',
+                  progress: 100,
+                  url: task.resultUrl || task.url,
+                  content: task.resultContent || task.content,
+                  resultUrl: '',
+                  resultContent: '',
+                };
+              }
+              return {
+                ...task,
+                progress: nextProgress,
+              };
+            }
+
+            const maxProgress = task.status === 'submitted' ? 72 : 86;
+            const nextProgress = Math.min((task.progress || 12) + 8, maxProgress);
+            if (nextProgress !== task.progress || task.status === 'pending') {
+              changed = true;
+              return {
+                ...task,
+                status: task.status === 'pending' ? 'generating' : task.status,
+                progress: nextProgress,
+              };
+            }
+            return task;
+          });
+
+          const hasActiveTask = nextTasks.some(
+            (task) => task.status !== 'completed' && task.status !== 'failed',
+          );
+          const nextStatus =
+            record.status === 'failed'
+              ? 'failed'
+              : hasActiveTask
+                ? 'generating'
+                : nextTasks.some((task) => task.status === 'completed' || task.status === 'submitted')
+                  ? 'completed'
+                  : 'failed';
+
+          if (changed || nextStatus !== record.status) {
+            changed = true;
+            return { ...record, tasks: nextTasks, status: nextStatus };
+          }
+          return record;
+        });
+        return changed ? next : prev;
+      });
+    }, 350);
+
+    return () => window.clearInterval(timer);
+  }, []);
   const fallbackModels = useMemo(
     () => ({
       chat: [
@@ -1275,9 +1422,10 @@ export default function App() {
         images: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`image-task-${index + 1}`),
           url: '',
-          status: 'pending',
+          status: 'generating',
           progress: 12,
           error: '',
+          resultUrl: '',
         })),
         status: 'generating',
         error: '',
@@ -1329,10 +1477,13 @@ export default function App() {
 
             collectedImages[index] = {
               ...collectedImages[index],
-              url: imageUrls[0] || '',
-              status: imageUrls[0] ? 'completed' : 'failed',
-              progress: 100,
+              url: '',
+              status: imageUrls[0] ? 'finalizing' : 'failed',
+              progress: imageUrls[0]
+                ? Math.max(collectedImages[index]?.progress || 12, 72)
+                : 100,
               error: imageUrls[0] ? '' : '未获取到图片结果',
+              resultUrl: imageUrls[0] || '',
             };
             successCount += imageUrls.length > 0 ? 1 : 0;
           })()
@@ -1411,11 +1562,13 @@ export default function App() {
         params: { ...params },
         tasks: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`video-task-${index + 1}`),
-          status: 'pending',
+          status: 'generating',
           url: '',
           content: '',
           progress: 12,
           error: '',
+          resultUrl: '',
+          resultContent: '',
         })),
         status: 'generating',
         error: '',
@@ -1448,11 +1601,15 @@ export default function App() {
               collectedTasks[index] = {
                 ...collectedTasks[index],
                 id: data?.id || `video-${index + 1}`,
-                status: videoUrl ? 'completed' : 'submitted',
-                url: videoUrl,
-                content,
-                progress: 100,
+                status: videoUrl ? 'finalizing' : 'submitted',
+                url: '',
+                content: videoUrl ? '' : content,
+                progress: videoUrl
+                  ? Math.max(collectedTasks[index]?.progress || 12, 72)
+                  : Math.max(collectedTasks[index]?.progress || 12, 48),
                 error: '',
+                resultUrl: videoUrl || '',
+                resultContent: content,
               };
               successCount += 1;
               return;
@@ -1483,11 +1640,15 @@ export default function App() {
             collectedTasks[index] = {
               ...collectedTasks[index],
               id: data?.task_id || data?.id || `video-${index + 1}`,
-              status: data?.status || 'submitted',
-              url: data?.url || data?.video_url || data?.result_url || '',
+              status: data?.url || data?.video_url || data?.result_url ? 'finalizing' : (data?.status || 'submitted'),
+              url: '',
               content: '',
-              progress: 100,
+              progress:
+                data?.url || data?.video_url || data?.result_url
+                  ? Math.max(collectedTasks[index]?.progress || 12, 72)
+                  : Math.max(collectedTasks[index]?.progress || 12, 48),
               error: '',
+              resultUrl: data?.url || data?.video_url || data?.result_url || '',
             };
             successCount += 1;
           })()
@@ -1670,23 +1831,6 @@ export default function App() {
           <div ref={scrollRef} className='relative flex-1 overflow-y-auto p-10 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
-                <div className='flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
-                      创作记录
-                    </div>
-                    <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
-                      共保留 {imageRecords.length} 条图片记录
-                    </h3>
-                  </div>
-                  <button
-                    onClick={handleClearImageResults}
-                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
-                  >
-                    清空结果
-                  </button>
-                </div>
-
                 <div className='space-y-10'>
                   {imageRecords.map((record, recordIndex) => {
                     const recordModel = findModelCard('image', record.modelName);
@@ -1758,7 +1902,7 @@ export default function App() {
                                             <div className='flex items-center gap-2 text-slate-500'>
                                               <Loader2 size={14} className='animate-spin text-blue-500' />
                                               <span className='text-xs font-semibold'>
-                                                {imageItem.status === 'failed' ? '生成失败' : '生成中'}
+                                                {getTaskStatusLabel(imageItem.status)}
                                               </span>
                                             </div>
                                             <div>
@@ -1821,7 +1965,7 @@ export default function App() {
                                             <Loader2 size={14} className='animate-spin text-blue-500' />
                                           )}
                                           <span className='text-xs font-semibold'>
-                                            {imageItem.status === 'failed' ? '生成失败' : '任务处理中'}
+                                            {getTaskStatusLabel(imageItem.status)}
                                           </span>
                                         </div>
                                         <div>
@@ -1863,23 +2007,6 @@ export default function App() {
               </div>
             ) : activeTab === 'video' && videoRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
-                <div className='flex items-center justify-between gap-3'>
-                  <div>
-                    <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
-                      创作记录
-                    </div>
-                    <h3 className='mt-2 text-2xl font-black tracking-tight text-slate-900'>
-                      共保留 {videoRecords.length} 条视频记录
-                    </h3>
-                  </div>
-                  <button
-                    onClick={handleClearVideoResults}
-                    className='rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50'
-                  >
-                    清空结果
-                  </button>
-                </div>
-
                 <div className='space-y-10'>
                   {videoRecords.map((record, recordIndex) => {
                     const recordModel = findModelCard('video', record.modelName);
@@ -1947,7 +2074,7 @@ export default function App() {
                                           {task.id || '任务提交中'}
                                         </div>
                                         <div className='mt-3 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 inline-flex'>
-                                          {task.status || 'submitted'}
+                                          {getTaskStatusLabel(task.status)}
                                         </div>
                                         <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
                                           <div
@@ -1981,7 +2108,7 @@ export default function App() {
                                         </div>
                                       </div>
                                       <div className='rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700'>
-                                        {task.status || 'submitted'}
+                                        {getTaskStatusLabel(task.status)}
                                       </div>
                                     </div>
                                     <div className='mt-3 h-2 overflow-hidden rounded-full bg-slate-200'>
