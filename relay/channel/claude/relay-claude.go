@@ -348,8 +348,37 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 					}
 					if mediaMessage.Type == "text" {
 						claudeMediaMessage.Text = common.GetPointer[string](mediaMessage.Text)
+					} else if mediaMessage.Type == dto.ContentTypeFile {
+						// Handle file/document types (PDF, etc.)
+						file := mediaMessage.GetFile()
+						if file == nil {
+							continue
+						}
+						if file.FileId != "" {
+							// FileId-based files not yet supported for Claude direct conversion
+							continue
+						}
+						fileSource := types.NewBase64FileSource(file.FileData, "")
+						base64Data, mimeType, err := service.GetBase64Data(c, fileSource, "formatting file for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+						// PDF and text documents use "document" type, others use "image"
+						if strings.HasPrefix(mimeType, "application/pdf") || strings.HasPrefix(mimeType, "text/") {
+							claudeMediaMessage.Type = "document"
+						} else {
+							claudeMediaMessage.Type = "image"
+						}
+						claudeMediaMessage.Source = &dto.ClaudeMessageSource{
+							Type:      "base64",
+							MediaType: mimeType,
+							Data:      base64Data,
+						}
 					} else {
 						imageUrl := mediaMessage.GetImageMedia()
+						if imageUrl == nil {
+							continue // Skip unsupported content types
+						}
 						claudeMediaMessage.Type = "image"
 						claudeMediaMessage.Source = &dto.ClaudeMessageSource{
 							Type: "base64",
