@@ -2,13 +2,17 @@ package openai
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	neturl "net/url"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -442,7 +446,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		writer.WriteField("model", request.Model)
 		// 使用已解析的 multipart 表单，避免重复解析
 		mf := c.Request.MultipartForm
-		if mf == nil {
+		if mf == nil && strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 			if _, err := c.MultipartForm(); err != nil {
 				return nil, errors.New("failed to parse multipart form")
 			}
@@ -458,6 +462,22 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				for _, value := range values {
 					writer.WriteField(key, value)
 				}
+			}
+		} else {
+			if request.Prompt != "" {
+				writer.WriteField("prompt", request.Prompt)
+			}
+			if request.N != nil && *request.N > 0 {
+				writer.WriteField("n", fmt.Sprintf("%d", *request.N))
+			}
+			if request.Size != "" {
+				writer.WriteField("size", request.Size)
+			}
+			if request.Quality != "" {
+				writer.WriteField("quality", request.Quality)
+			}
+			if request.ResponseFormat != "" {
+				writer.WriteField("response_format", request.ResponseFormat)
 			}
 		}
 
@@ -546,8 +566,8 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				}
 				_ = maskFile.Close()
 			}
-		} else {
-			return nil, errors.New("no multipart form data found")
+		} else if err := appendImagePartFromJSONPayload(writer, request.Image); err != nil {
+			return nil, err
 		}
 
 		// 关闭 multipart 编写器以设置分界线
@@ -578,6 +598,176 @@ func detectImageMimeType(filename string) string {
 		// Default to png as a fallback
 		return "image/png"
 	}
+}
+
+type openAIEditImagePayload struct {
+	URL      string `json:"url"`
+	Data     string `json:"data"`
+	B64JSON  string `json:"b64_json"`
+	Filename string `json:"filename"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
+}
+
+func appendImagePartFromJSONPayload(writer *multipart.Writer, rawImage []byte) error {
+	filename, mimeType, content, err := resolveOpenAIEditImagePayload(rawImage)
+	if err != nil {
+		return err
+	}
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, filename))
+	h.Set("Content-Type", mimeType)
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		return fmt.Errorf("create form file failed for image: %w", err)
+	}
+	if _, err = part.Write(content); err != nil {
+		return fmt.Errorf("write image file failed: %w", err)
+	}
+	return nil
+}
+
+func resolveOpenAIEditImagePayload(rawImage []byte) (string, string, []byte, error) {
+	trimmed := strings.TrimSpace(string(rawImage))
+	if len(rawImage) == 0 || trimmed == "" || trimmed == "null" {
+		return "", "", nil, errors.New("image is required")
+	}
+
+	var simpleString string
+	if err := common.Unmarshal(rawImage, &simpleString); err == nil {
+		return resolveOpenAIEditImageSource(simpleString, "", "")
+	}
+
+	var payload openAIEditImagePayload
+	if err := common.Unmarshal(rawImage, &payload); err == nil {
+		filename := payload.Filename
+		if filename == "" {
+			filename = payload.Name
+		}
+		switch {
+		case payload.URL != "":
+			return resolveOpenAIEditImageSource(payload.URL, filename, payload.MimeType)
+		case payload.Data != "":
+			return resolveOpenAIEditImageSource(payload.Data, filename, payload.MimeType)
+		case payload.B64JSON != "":
+			return resolveOpenAIEditImageSource(payload.B64JSON, filename, payload.MimeType)
+		}
+	}
+
+	return "", "", nil, errors.New("image is required")
+}
+
+func resolveOpenAIEditImageSource(source string, preferredFilename string, preferredMime string) (string, string, []byte, error) {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "", "", nil, errors.New("image is required")
+	}
+
+	if strings.HasPrefix(source, "data:") {
+		return decodeOpenAIEditDataURL(source, preferredFilename)
+	}
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		return downloadOpenAIEditRemoteImage(source, preferredFilename, preferredMime)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(source)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("unsupported image source for image edit: %w", err)
+	}
+	mimeType := preferredMime
+	if mimeType == "" {
+		mimeType = "image/png"
+	}
+	return ensureOpenAIEditFilename(preferredFilename, mimeType), mimeType, decoded, nil
+}
+
+func decodeOpenAIEditDataURL(source string, preferredFilename string) (string, string, []byte, error) {
+	parts := strings.SplitN(source, ",", 2)
+	if len(parts) != 2 {
+		return "", "", nil, errors.New("invalid image data url")
+	}
+	header := parts[0]
+	payload := parts[1]
+	if !strings.HasSuffix(header, ";base64") {
+		return "", "", nil, errors.New("image data url must be base64 encoded")
+	}
+
+	mimeType := strings.TrimPrefix(strings.TrimSuffix(header, ";base64"), "data:")
+	if mimeType == "" {
+		mimeType = "image/png"
+	}
+	content, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to decode image data url: %w", err)
+	}
+	return ensureOpenAIEditFilename(preferredFilename, mimeType), mimeType, content, nil
+}
+
+func downloadOpenAIEditRemoteImage(source string, preferredFilename string, preferredMime string) (string, string, []byte, error) {
+	resp, err := service.DoDownloadRequest(source, "openai image edit source")
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to download edit image: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", "", nil, fmt.Errorf("failed to download edit image: status %d", resp.StatusCode)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("failed to read downloaded edit image: %w", err)
+	}
+
+	mimeType := preferredMime
+	if mimeType == "" {
+		mimeType = detectOpenAIEditMimeFromHeader(resp.Header.Get("Content-Type"))
+	}
+	filename := preferredFilename
+	if filename == "" {
+		filename = openAIEditFilenameFromURL(source)
+	}
+	return ensureOpenAIEditFilename(filename, mimeType), mimeType, content, nil
+}
+
+func detectOpenAIEditMimeFromHeader(contentType string) string {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType == "" {
+		return "image/png"
+	}
+	return mediaType
+}
+
+func openAIEditFilenameFromURL(source string) string {
+	parsed, err := neturl.Parse(source)
+	if err != nil {
+		return ""
+	}
+	filename := path.Base(parsed.Path)
+	if filename == "." || filename == "/" {
+		return ""
+	}
+	return filename
+}
+
+func ensureOpenAIEditFilename(filename string, mimeType string) string {
+	filename = strings.TrimSpace(filename)
+	if filename != "" && filepath.Ext(filename) != "" {
+		return filename
+	}
+
+	exts, err := mime.ExtensionsByType(mimeType)
+	if err == nil && len(exts) > 0 {
+		if filename == "" {
+			return "image" + exts[0]
+		}
+		return filename + exts[0]
+	}
+	if filename == "" {
+		return "image.png"
+	}
+	return filename + ".png"
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
