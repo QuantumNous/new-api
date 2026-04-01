@@ -103,6 +103,7 @@ const REGION_EXAMPLE = {
   'claude-3-5-sonnet-20240620': 'europe-west1',
 };
 const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8;
+const ADVANCED_SETTINGS_EXPANDED_KEY = 'channel-advanced-settings-expanded';
 
 const PARAM_OVERRIDE_LEGACY_TEMPLATE = {
   temperature: 0,
@@ -404,6 +405,10 @@ const EditChannelModal = (props) => {
 
   // 高级设置折叠状态
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+  const toggleAdvancedSettings = (open) => {
+    setAdvancedSettingsOpen(open);
+    localStorage.setItem(ADVANCED_SETTINGS_EXPANDED_KEY, String(open));
+  };
   const formContainerRef = useRef(null);
   const doubaoApiClickCountRef = useRef(0);
   const initialBaseUrlRef = useRef('');
@@ -1318,8 +1323,10 @@ const EditChannelModal = (props) => {
       fetchModelGroups();
       // 重置手动输入模式状态
       setUseManualInput(false);
-      // 重置高级设置折叠状态
-      setAdvancedSettingsOpen(false);
+      // 编辑模式下恢复用户偏好，创建模式一律折叠
+      setAdvancedSettingsOpen(
+        isEdit && localStorage.getItem(ADVANCED_SETTINGS_EXPANDED_KEY) === 'true'
+      );
     } else {
       // 统一的模态框关闭重置逻辑
       resetModalState();
@@ -3636,7 +3643,7 @@ const EditChannelModal = (props) => {
                 {isMobile ? (
                 <Collapse
                   activeKey={advancedSettingsOpen ? ['advanced'] : []}
-                  onChange={(keys) => setAdvancedSettingsOpen(keys.includes('advanced'))}
+                  onChange={(keys) => toggleAdvancedSettings(keys.includes('advanced'))}
                 >
                   <Collapse.Panel
                     header={
@@ -3658,7 +3665,7 @@ const EditChannelModal = (props) => {
                       backgroundColor: advancedSettingsOpen ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-fill-0)',
                       border: '1px solid var(--semi-color-fill-2)',
                     }}
-                    onClick={() => setAdvancedSettingsOpen(!advancedSettingsOpen)}
+                    onClick={() => toggleAdvancedSettings(!advancedSettingsOpen)}
                   >
                     <div className='flex items-center gap-2'>
                       <IconSetting size={16} />
