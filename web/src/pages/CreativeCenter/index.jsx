@@ -446,6 +446,20 @@ const extractVideoUrlFromMessage = (content) => {
   return plainUrlMatch?.[0] || '';
 };
 
+const extractImageUrlsFromMessage = (content) => {
+  if (typeof content !== 'string' || !content.trim()) {
+    return [];
+  }
+
+  const matches = [
+    ...content.matchAll(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/gi),
+    ...content.matchAll(/\[[^\]]*]\((https?:\/\/[^)\s]+)\)/gi),
+    ...content.matchAll(/(https?:\/\/[^\s'"]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s'"]*)?)/gi),
+  ];
+
+  return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+};
+
 const triggerDownload = (url, filename) => {
   if (!url) {
     return;
@@ -2512,27 +2526,45 @@ export default function App() {
               'image',
               currentUploadedImageUrls,
             );
-            const payload = {
-              model: currentModelName,
-              group: activeGroup,
-              prompt: currentPrompt,
-              n: 1,
-              response_format: 'url',
-              request_id: requestId,
-              seed: requestSeed,
-              user: requestUser,
-            };
-            if (basePayload.size) {
-              payload.size = basePayload.size;
-            }
-            if (basePayload.aspect_ratio) {
-              payload.aspect_ratio = basePayload.aspect_ratio;
-            }
-            if (basePayload.output_resolution) {
-              payload.output_resolution = basePayload.output_resolution;
-            }
-            if (currentUploadedImageUrls[0]) {
-              payload.image = currentUploadedImageUrls[0];
+            const isGrokImageEditModel = currentModelName === 'grok-imagine-1.0-edit';
+            const payload = isGrokImageEditModel
+              ? {
+                  model: currentModelName,
+                  group: activeGroup,
+                  stream: false,
+                  messages: basePayload.messages,
+                  image_config: {
+                    n: 1,
+                    response_format: 'url',
+                    ...(basePayload.size ? { size: basePayload.size } : {}),
+                  },
+                  request_id: requestId,
+                  seed: requestSeed,
+                  user: requestUser,
+                }
+              : {
+                  model: currentModelName,
+                  group: activeGroup,
+                  prompt: currentPrompt,
+                  n: 1,
+                  response_format: 'url',
+                  request_id: requestId,
+                  seed: requestSeed,
+                  user: requestUser,
+                };
+            if (!isGrokImageEditModel) {
+              if (basePayload.size) {
+                payload.size = basePayload.size;
+              }
+              if (basePayload.aspect_ratio) {
+                payload.aspect_ratio = basePayload.aspect_ratio;
+              }
+              if (basePayload.output_resolution) {
+                payload.output_resolution = basePayload.output_resolution;
+              }
+              if (currentUploadedImageUrls[0]) {
+                payload.image = currentUploadedImageUrls[0];
+              }
             }
 
             patchImageTask(recordId, taskId, {
@@ -2552,19 +2584,23 @@ export default function App() {
               });
             }
             const data = await postCreativeRequest(
-              API_ENDPOINTS.IMAGE_GENERATIONS,
+              isGrokImageEditModel
+                ? API_ENDPOINTS.CHAT_COMPLETIONS
+                : API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
               {
                 'X-Request-Id': requestId,
               },
             );
-            const imageUrls = Array.isArray(data?.data)
-              ? data.data
-                  .map((item) =>
-                    typeof item?.url === 'string' ? item.url.trim() : '',
-                  )
-                  .filter(Boolean)
-              : [];
+            const imageUrls = isGrokImageEditModel
+              ? extractImageUrlsFromMessage(data?.choices?.[0]?.message?.content || '')
+              : Array.isArray(data?.data)
+                ? data.data
+                    .map((item) =>
+                      typeof item?.url === 'string' ? item.url.trim() : '',
+                    )
+                    .filter(Boolean)
+                : [];
 
             if (useEstimatedImageProgress && imageUrls[0]) {
               patchImageTask(recordId, taskId, {
@@ -4077,5 +4113,3 @@ export default function App() {
     </div>
   );
 }
-
-

@@ -50,6 +50,38 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "return_related_questions").Exists())
 }
 
+func TestGeneralOpenAIRequestPreservesImageConfig(t *testing.T) {
+	raw := []byte(`{
+		"model":"grok-imagine-1.0-edit",
+		"stream":false,
+		"image_config":{
+			"n":1,
+			"size":"1024x1024",
+			"response_format":"url"
+		},
+		"messages":[
+			{
+				"role":"user",
+				"content":[
+					{"type":"text","text":"把这张图改成赛博朋克风格"},
+					{"type":"image_url","image_url":{"url":"https://example.com/input.png"}}
+				]
+			}
+		]
+	}`)
+
+	var req GeneralOpenAIRequest
+	err := common.Unmarshal(raw, &req)
+	require.NoError(t, err)
+
+	encoded, err := common.Marshal(req)
+	require.NoError(t, err)
+
+	require.Equal(t, "1024x1024", gjson.GetBytes(encoded, "image_config.size").String())
+	require.Equal(t, "url", gjson.GetBytes(encoded, "image_config.response_format").String())
+	require.Equal(t, "https://example.com/input.png", gjson.GetBytes(encoded, "messages.0.content.1.image_url.url").String())
+}
+
 func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	raw := []byte(`{
 		"model":"gpt-4.1",
