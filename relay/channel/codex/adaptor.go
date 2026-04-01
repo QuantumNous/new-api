@@ -101,6 +101,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	// codex: store must be false
 	request.Store = json.RawMessage("false")
+	// codex backend rejects OpenAI Responses metadata even though some clients
+	// include it on compatibility paths.
+	request.Metadata = nil
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil

@@ -53,6 +53,7 @@ var claudeCliPassThroughHeaders = []string{
 	"X-Stainless-Timeout",
 	"User-Agent",
 	"X-App",
+	"X-Claude-Code-Session-Id",
 	"Anthropic-Beta",
 	"Anthropic-Dangerous-Direct-Browser-Access",
 	"Anthropic-Version",
@@ -67,6 +68,30 @@ func buildPassHeaderTemplate(headers []string) map[string]interface{} {
 				"mode":        "pass_headers",
 				"value":       clonedHeaders,
 				"keep_origin": true,
+			},
+		},
+	}
+}
+
+func buildClaudeCliHeaderTemplate(headers []string) map[string]interface{} {
+	clonedHeaders := make([]string, 0, len(headers))
+	clonedHeaders = append(clonedHeaders, headers...)
+	return map[string]interface{}{
+		"operations": []map[string]interface{}{
+			{
+				"mode":        "pass_headers",
+				"value":       clonedHeaders,
+				"keep_origin": true,
+			},
+			{
+				"mode": "sync_fields",
+				"from": "header:x-claude-code-session-id",
+				"to":   "header:session_id",
+			},
+			{
+				"mode": "sync_fields",
+				"from": "header:x-claude-code-session-id",
+				"to":   "json:prompt_cache_key",
 			},
 		},
 	}
@@ -95,14 +120,14 @@ var channelAffinitySetting = ChannelAffinitySetting{
 		},
 		{
 			Name:       "claude cli trace",
-			ModelRegex: []string{"^claude-.*$"},
+			ModelRegex: []string{"^claude-.*$", "^gpt-.*$"},
 			PathRegex:  []string{"/v1/messages"},
 			KeySources: []ChannelAffinityKeySource{
 				{Type: "gjson", Path: "metadata.user_id"},
 			},
 			ValueRegex:            "",
 			TTLSeconds:            0,
-			ParamOverrideTemplate: buildPassHeaderTemplate(claudeCliPassThroughHeaders),
+			ParamOverrideTemplate: buildClaudeCliHeaderTemplate(claudeCliPassThroughHeaders),
 			SkipRetryOnFailure:    true,
 			IncludeUsingGroup:     true,
 			IncludeRuleName:       true,

@@ -245,3 +245,47 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
 }
+
+func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	require.NotNil(t, setting)
+
+	var claudeRule *operation_setting.ChannelAffinityRule
+	for i := range setting.Rules {
+		rule := &setting.Rules[i]
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "claude cli trace") {
+			claudeRule = rule
+			break
+		}
+	}
+	require.NotNil(t, claudeRule)
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		RuleName:      claudeRule.Name,
+		ParamTemplate: claudeRule.ParamOverrideTemplate,
+	})
+
+	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, map[string]interface{}{})
+	require.True(t, applied)
+
+	info := &relaycommon.RelayInfo{
+		RequestHeaders: map[string]string{
+			"X-Claude-Code-Session-Id": "claude-session-123",
+			"User-Agent":               "claude-cli-test",
+			"X-App":                    "cli",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ParamOverride: mergedOverride,
+		},
+	}
+
+	out, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5.4"}`), info)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-5.4","prompt_cache_key":"claude-session-123"}`, string(out))
+
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["x-claude-code-session-id"])
+	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["session_id"])
+	require.Equal(t, "claude-cli-test", info.RuntimeHeadersOverride["user-agent"])
+	require.Equal(t, "cli", info.RuntimeHeadersOverride["x-app"])
+}
