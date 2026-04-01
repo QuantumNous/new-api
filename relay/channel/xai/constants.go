@@ -25,6 +25,7 @@ var ModelList = []string{
 	"grok-imagine-1.0",
 	"grok-imagine-1.0-fast",
 	"grok-imagine-1.0-edit",
+	"grok-imagine-1.0-video",
 	"grok-imagine-image-pro",
 	"grok-imagine-image",
 	"grok-2-image-1212",

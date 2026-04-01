@@ -22,6 +22,10 @@ var (
 	ImageEditModels = []string{
 		"exact:grok-imagine-1.0-edit",
 	}
+	OpenAIVideoModels = []string{
+		"exact:grok-imagine-1.0-video",
+		"exact:grok-imagine-video",
+	}
 	OpenAITextModels = []string{
 		"gpt-",
 		"o1",
@@ -59,6 +63,22 @@ func IsImageGenerationModel(modelName string) bool {
 func IsImageEditModel(modelName string) bool {
 	modelName = strings.ToLower(modelName)
 	for _, m := range ImageEditModels {
+		if strings.HasPrefix(m, "exact:") && modelName == strings.TrimPrefix(m, "exact:") {
+			return true
+		}
+		if strings.Contains(modelName, m) {
+			return true
+		}
+		if strings.HasPrefix(m, "prefix:") && strings.HasPrefix(modelName, strings.TrimPrefix(m, "prefix:")) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsOpenAIVideoModel(modelName string) bool {
+	modelName = strings.ToLower(modelName)
+	for _, m := range OpenAIVideoModels {
 		if strings.HasPrefix(m, "exact:") && modelName == strings.TrimPrefix(m, "exact:") {
 			return true
 		}

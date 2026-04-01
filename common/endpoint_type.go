@@ -37,7 +37,9 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 		}
 	}
-	if IsImageEditModel(modelName) {
+	if IsOpenAIVideoModel(modelName) {
+		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeOpenAIVideo}, endpointTypes...)
+	} else if IsImageEditModel(modelName) {
 		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageEdit}, endpointTypes...)
 	} else if IsImageGenerationModel(modelName) {
 		// add to first
