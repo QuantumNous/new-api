@@ -937,25 +937,6 @@ export default function App() {
   }, [uploadedImages]);
 
   useEffect(() => {
-    if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
-      return;
-    }
-
-    setUploadedImages((prev) => {
-      if (prev.length <= currentImageUploadLimit) {
-        return prev;
-      }
-      const removedItems = prev.slice(currentImageUploadLimit);
-      removedItems.forEach((item) => {
-        revokeCreativeCenterPreviewURL(item.previewUrl);
-      });
-      return prev.slice(0, currentImageUploadLimit);
-    });
-    setUploadImageNotice(`当前模型最多上传 ${currentImageUploadLimit} 张图片，已自动保留前 ${currentImageUploadLimit} 张`);
-    showWarning(`当前模型最多上传 ${currentImageUploadLimit} 张图片`);
-  }, [currentImageUploadLimit, uploadedImages.length]);
-
-  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -1318,6 +1299,24 @@ export default function App() {
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
   const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
+  useEffect(() => {
+    if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
+      return;
+    }
+
+    setUploadedImages((prev) => {
+      if (prev.length <= currentImageUploadLimit) {
+        return prev;
+      }
+      const removedItems = prev.slice(currentImageUploadLimit);
+      removedItems.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return prev.slice(0, currentImageUploadLimit);
+    });
+    setUploadImageNotice(`当前模型最多上传 ${currentImageUploadLimit} 张图片，已自动保留前 ${currentImageUploadLimit} 张`);
+    showWarning(`当前模型最多上传 ${currentImageUploadLimit} 张图片`);
+  }, [currentImageUploadLimit, uploadedImages.length]);
   const renderPendingTaskProgress = ({
     task,
     taskIndex,
