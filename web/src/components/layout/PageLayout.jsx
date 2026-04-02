@@ -62,6 +62,8 @@ const PageLayout = () => {
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
+  const authPages = ['/login', '/register', '/reset', '/user/reset'];
+  const isAuthRoute = authPages.includes(location.pathname);
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -210,7 +212,7 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              overflowY: isMobile || isAuthRoute ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',
@@ -223,6 +225,7 @@ const PageLayout = () => {
               style={{
                 flex: '0 0 auto',
                 width: '100%',
+                ...(isAuthRoute ? { background: 'transparent' } : {}),
               }}
             >
               <FooterBar />

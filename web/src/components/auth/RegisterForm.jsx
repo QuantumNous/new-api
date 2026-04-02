@@ -770,7 +770,7 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
+    <div className='relative overflow-visible bg-gray-100 flex items-center justify-center min-h-full py-12 px-4 sm:px-6 lg:px-8'>
       {/* 背景模糊晕染球 */}
       <div
         className='blur-ball blur-ball-indigo'
