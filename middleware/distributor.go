@@ -30,6 +30,7 @@ type ModelRequest struct {
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
+		channelContextReady := false
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
@@ -74,13 +75,15 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 
+			var usingGroup string
+			affinityPreferredSelected := false
 			if shouldSelectChannel {
 				if modelRequest.Model == "" {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 					return
 				}
 				var selectGroup string
-				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				usingGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
@@ -101,29 +104,37 @@ func Distribute() func(c *gin.Context) {
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
-								return
-							}
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
-								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+					if err != nil || preferred == nil {
+						service.ClearMatchedChannelAffinity(c)
+					} else if preferred.Status != common.ChannelStatusEnabled {
+						service.ClearMatchedChannelAffinity(c)
+						if service.ShouldSkipRetryForMatchedChannelAffinityRule(c) {
+							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+							return
 						}
+					} else if usingGroup == "auto" {
+						userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+						autoGroups := service.GetUserAutoGroup(userGroup)
+						for _, g := range autoGroups {
+							if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+								selectGroup = g
+								common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+								channel = preferred
+								affinityPreferredSelected = true
+								service.MarkChannelAffinityUsed(c, g, preferred.Id)
+								break
+							}
+						}
+						if channel == nil {
+							service.ClearMatchedChannelAffinity(c)
+						}
+					} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+						channel = preferred
+						selectGroup = usingGroup
+						affinityPreferredSelected = true
+						service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+					} else {
+						service.ClearMatchedChannelAffinity(c)
 					}
 				}
 
@@ -153,15 +164,80 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 				}
+
+				var setupErr *types.NewAPIError
+				channel, setupErr = setupDistributedChannel(c, channel, modelRequest.Model, usingGroup, true, affinityPreferredSelected)
+				if setupErr != nil {
+					abortWithOpenAiMessage(c, setupErr.StatusCode, setupErr.Error(), setupErr.GetErrorCode())
+					return
+				}
+				channelContextReady = true
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channel != nil && !channelContextReady {
+			setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+			if setupErr != nil {
+				abortWithOpenAiMessage(c, setupErr.StatusCode, setupErr.Error(), setupErr.GetErrorCode())
+				return
+			}
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func setupDistributedChannel(c *gin.Context, channel *model.Channel, modelName string, tokenGroup string, allowFallback bool, affinityPreferredSelected bool) (*model.Channel, *types.NewAPIError) {
+	setupErr := SetupContextForSelectedChannel(c, channel, modelName)
+	if setupErr == nil || !allowFallback {
+		return channel, setupErr
+	}
+
+	if affinityPreferredSelected {
+		service.ClearMatchedChannelAffinity(c)
+		if service.ShouldSkipRetryForMatchedChannelAffinityRule(c) {
+			return nil, setupErr
+		}
+	}
+
+	triedChannelIDs := make(map[int]struct{}, common.RetryTimes+1)
+	if channel != nil && channel.Id > 0 {
+		triedChannelIDs[channel.Id] = struct{}{}
+	}
+
+	retryParam := &service.RetryParam{
+		Ctx:        c,
+		ModelName:  modelName,
+		TokenGroup: tokenGroup,
+		Retry:      common.GetPointer(0),
+	}
+	lastErr := setupErr
+	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		fallbackChannel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		if fallbackChannel == nil {
+			break
+		}
+		if _, exists := triedChannelIDs[fallbackChannel.Id]; exists {
+			continue
+		}
+		triedChannelIDs[fallbackChannel.Id] = struct{}{}
+
+		setupErr = SetupContextForSelectedChannel(c, fallbackChannel, modelName)
+		if setupErr == nil {
+			if affinityPreferredSelected {
+				service.MarkChannelAffinityUsed(c, selectGroup, fallbackChannel.Id)
+			}
+			return fallbackChannel, nil
+		}
+		lastErr = setupErr
+	}
+
+	return nil, lastErr
 }
 
 // getModelFromRequest 从请求中读取模型信息

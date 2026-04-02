@@ -144,18 +144,6 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "fallback to matched rule meta",
-			ctx: func() *gin.Context {
-				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
-					RuleName:   "rule-skip-retry",
-					SkipRetry:  true,
-					UsingGroup: "default",
-					ModelName:  "gpt-5",
-				})
-			},
-			want: true,
-		},
-		{
 			name: "no flag and no skip retry meta",
 			ctx: func() *gin.Context {
 				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
@@ -174,6 +162,75 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
 		})
 	}
+}
+
+func TestShouldSkipRetryForMatchedChannelAffinityRule(t *testing.T) {
+	tests := []struct {
+		name string
+		ctx  func() *gin.Context
+		want bool
+	}{
+		{
+			name: "nil context",
+			ctx: func() *gin.Context {
+				return nil
+			},
+			want: false,
+		},
+		{
+			name: "matched rule requests skip retry",
+			ctx: func() *gin.Context {
+				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-skip-retry",
+					SkipRetry:  true,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+			},
+			want: true,
+		},
+		{
+			name: "matched rule allows retry",
+			ctx: func() *gin.Context {
+				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+					RuleName:   "rule-no-skip-retry",
+					SkipRetry:  false,
+					UsingGroup: "default",
+					ModelName:  "gpt-5",
+				})
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, ShouldSkipRetryForMatchedChannelAffinityRule(tt.ctx()))
+		})
+	}
+}
+
+func TestClearMatchedChannelAffinity(t *testing.T) {
+	cacheKeySuffix := fmt.Sprintf("clear-rule:default:%d", time.Now().UnixNano())
+	cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
+
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeyFull, 9527, time.Minute))
+	t.Cleanup(func() {
+		_, _ = cache.DeleteMany([]string{cacheKeyFull})
+	})
+
+	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+		CacheKey:   cacheKeyFull,
+		TTLSeconds: 60,
+		RuleName:   "clear-rule",
+	})
+
+	require.True(t, ClearMatchedChannelAffinity(ctx))
+
+	_, found, err := cache.Get(cacheKeyFull)
+	require.NoError(t, err)
+	require.False(t, found)
 }
 
 func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
