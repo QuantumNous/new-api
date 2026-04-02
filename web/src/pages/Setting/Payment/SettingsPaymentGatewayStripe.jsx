@@ -167,23 +167,23 @@ export default function SettingsPaymentGateway(props) {
       >
         <Form.Section text={t('Stripe 设置')}>
           <Text>
-            Stripe 密钥、Webhook 等设置请
+            {t('Stripe 密钥、Webhook 等设置请')}
             <a
               href='https://dashboard.stripe.com/developers'
               target='_blank'
               rel='noreferrer'
             >
-              点击此处
+              {t('点击此处')}
             </a>
-            进行设置，最好先在
+            {t('进行设置，最好先在')}
             <a
               href='https://dashboard.stripe.com/test/developers'
               target='_blank'
               rel='noreferrer'
             >
-              测试环境
+              {t('测试环境')}
             </a>
-            进行测试。
+            {t('进行测试。')}
             <br />
           </Text>
           <Banner

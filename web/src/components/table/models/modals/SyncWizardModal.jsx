@@ -115,13 +115,13 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
               <Radio value='en' extra='English'>
                 en
               </Radio>
-              <Radio value='zh-CN' extra='简体中文'>
+              <Radio value='zh-CN' extra={t('简体中文')}>
                 zh-CN
               </Radio>
-              <Radio value='zh-TW' extra='繁體中文'>
+              <Radio value='zh-TW' extra={t('繁體中文')}>
                 zh-TW
               </Radio>
-              <Radio value='ja' extra='日本語'>
+              <Radio value='ja' extra={t('日本語')}>
                 ja
               </Radio>
             </RadioGroup>

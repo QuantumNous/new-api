@@ -272,7 +272,7 @@ const MessageContent = ({
                       <div key={index} className='max-w-sm'>
                         <img
                           src={imgItem.image_url.url}
-                          alt={`用户上传的图片 ${index + 1}`}
+                          alt={t('用户上传的图片 {{index}}', { index: index + 1 })}
                           className='rounded-lg max-w-full h-auto shadow-sm border'
                           style={{ maxHeight: '300px' }}
                           onError={(e) => {
@@ -284,7 +284,7 @@ const MessageContent = ({
                           className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
                           style={{ display: 'none' }}
                         >
-                          图片加载失败: {imgItem.image_url.url}
+                          {t('图片加载失败:')} {imgItem.image_url.url}
                         </div>
                       </div>
                     ))}

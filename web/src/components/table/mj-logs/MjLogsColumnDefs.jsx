@@ -131,7 +131,7 @@ function renderType(type, t) {
     case 'UPLOAD':
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Upload size={14} />}>
-          上传文件
+          {t('上传文件')}
         </Tag>
       );
     case 'SHORTEN':

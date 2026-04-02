@@ -242,7 +242,7 @@ const renderResourceConfig = (resource, t) => {
       {memory && (
         <div className='flex items-center gap-1 text-xs'>
           <FaMemory className='text-green-500' />
-          <span>内存: {memory}</span>
+          <span>{t('内存:')} {memory}</span>
         </div>
       )}
       {gpu && (

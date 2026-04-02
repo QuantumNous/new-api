@@ -45,7 +45,17 @@ i18n
       ja: jaTranslation,
       vi: viTranslation,
     },
-    fallbackLng: 'zh-CN',
+    fallbackLng: {
+      'zh-CN': ['zh-CN'],
+      'zh-TW': ['zh-TW', 'zh-CN'],
+      en: ['en', 'zh-CN'],
+      fr: ['fr', 'en', 'zh-CN'],
+      ru: ['ru', 'en', 'zh-CN'],
+      ja: ['ja', 'en', 'zh-CN'],
+      vi: ['vi', 'en', 'zh-CN'],
+      default: ['en', 'zh-CN'],
+    },
+    returnEmptyString: false,
     nsSeparator: false,
     interpolation: {
       escapeValue: false,
