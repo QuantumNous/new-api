@@ -553,7 +553,11 @@ const escapePreviewHtml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const openVideoPreviewInNewWindow = (url, title = '视频预览') => {
+const openVideoPreviewInNewWindow = (
+  url,
+  title = '视频预览',
+  promptText = '',
+) => {
   if (!url) {
     return;
   }
@@ -565,6 +569,7 @@ const openVideoPreviewInNewWindow = (url, title = '视频预览') => {
 
   const safeUrl = escapePreviewHtml(url);
   const safeTitle = escapePreviewHtml(title);
+  const safePromptText = escapePreviewHtml(promptText || '未填写提示词');
   previewWindow.opener = null;
   previewWindow.document.open();
   previewWindow.document.write(`<!DOCTYPE html>
@@ -609,8 +614,40 @@ const openVideoPreviewInNewWindow = (url, title = '视频预览') => {
         word-break: break-word;
       }
       .hint {
-        font-size: 12px;
+        font-size: 13px;
         color: #94a3b8;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .share-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .share-input {
+        flex: 1;
+        min-width: 280px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.78);
+        color: #e2e8f0;
+        padding: 12px 14px;
+        font-size: 13px;
+      }
+      .share-button {
+        border: 0;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .share-button:hover {
+        filter: brightness(1.06);
       }
       .player-shell {
         flex: 1;
@@ -637,13 +674,46 @@ const openVideoPreviewInNewWindow = (url, title = '视频预览') => {
       <div class="header">
         <div>
           <div class="title">${safeTitle}</div>
-          <div class="hint">独立预览页播放，不占用创作中心当前页面</div>
+          <div class="hint">${safePromptText}</div>
         </div>
+      </div>
+      <div class="share-bar">
+        <input
+          id="video-url"
+          class="share-input"
+          type="text"
+          readonly
+          value="${safeUrl}"
+          title="${safeUrl}"
+        />
+        <button id="copy-url" class="share-button" type="button">复制视频链接</button>
       </div>
       <div class="player-shell">
         <video src="${safeUrl}" controls autoplay playsinline></video>
       </div>
     </div>
+    <script>
+      const copyButton = document.getElementById('copy-url');
+      const urlInput = document.getElementById('video-url');
+      if (copyButton && urlInput) {
+        copyButton.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(urlInput.value);
+            copyButton.textContent = '已复制链接';
+            window.setTimeout(() => {
+              copyButton.textContent = '复制视频链接';
+            }, 1500);
+          } catch (error) {
+            urlInput.focus();
+            urlInput.select();
+            copyButton.textContent = '请手动复制';
+            window.setTimeout(() => {
+              copyButton.textContent = '复制视频链接';
+            }, 1500);
+          }
+        });
+      }
+    </script>
   </body>
 </html>`);
   previewWindow.document.close();
@@ -3793,6 +3863,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 openVideoPreviewInNewWindow(
                                                   getVideoTaskMediaUrl(task),
                                                   `${record.modelName || '视频'} ${taskIndex + 1}`,
+                                                  record.prompt || '',
                                                 )
                                               }
                                               className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
@@ -3914,6 +3985,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                             openVideoPreviewInNewWindow(
                                               getVideoTaskMediaUrl(task),
                                               `${record.modelName || '视频'} ${taskIndex + 1}`,
+                                              record.prompt || '',
                                             )
                                           }
                                           className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
