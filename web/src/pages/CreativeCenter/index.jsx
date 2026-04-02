@@ -3204,7 +3204,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 payload[key] = basePayload[key];
               }
             });
-            if (currentUploadedImageUrls[0]) {
+            if (
+              currentModelName === 'grok-imagine-1.0-video' &&
+              currentUploadedImageUrls.length > 0
+            ) {
+              payload.image_reference = currentUploadedImageUrls;
+            } else if (currentUploadedImageUrls[0]) {
               payload.image = currentUploadedImageUrls[0];
             }
             patchVideoTask(recordId, localTaskId, {

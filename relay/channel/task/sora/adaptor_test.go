@@ -45,3 +45,34 @@ func TestNormalizeGrokVideoRequestBackfillsQualityFromResolutionName(t *testing.
 		t.Fatalf("expected resolution_name 720p, got %#v", got)
 	}
 }
+
+func TestNormalizeGrokVideoRequestPromotesImageReference(t *testing.T) {
+	body := map[string]interface{}{
+		"model":  "grok-imagine-1.0-video",
+		"image":  "https://example.com/cover.png",
+		"images": []interface{}{"https://example.com/frame-2.png"},
+	}
+
+	normalizeGrokVideoRequest(body, "grok-imagine-1.0-video")
+
+	if _, exists := body["image"]; exists {
+		t.Fatalf("expected legacy image field to be removed")
+	}
+	if _, exists := body["images"]; exists {
+		t.Fatalf("expected legacy images field to be removed")
+	}
+
+	imageReference, ok := body["image_reference"].([]interface{})
+	if !ok {
+		t.Fatalf("expected image_reference array, got %#v", body["image_reference"])
+	}
+	if len(imageReference) != 2 {
+		t.Fatalf("expected 2 image references, got %#v", imageReference)
+	}
+	if imageReference[0] != "https://example.com/cover.png" {
+		t.Fatalf("unexpected first image reference %#v", imageReference[0])
+	}
+	if imageReference[1] != "https://example.com/frame-2.png" {
+		t.Fatalf("unexpected second image reference %#v", imageReference[1])
+	}
+}

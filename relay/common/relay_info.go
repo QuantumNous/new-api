@@ -669,6 +669,7 @@ type TaskSubmitReq struct {
 	Mode           string                 `json:"mode,omitempty"`
 	Image          string                 `json:"image,omitempty"`
 	Images         []string               `json:"images,omitempty"`
+	ImageReference json.RawMessage        `json:"image_reference,omitempty"`
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	Seconds        string                 `json:"seconds,omitempty"`
@@ -684,7 +685,20 @@ func (t *TaskSubmitReq) GetPrompt() string {
 }
 
 func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0
+	if len(t.Images) > 0 {
+		return true
+	}
+	if strings.TrimSpace(t.Image) != "" || strings.TrimSpace(t.InputReference) != "" {
+		return true
+	}
+	if len(t.ImageReference) == 0 || common.GetJsonType(t.ImageReference) != "array" {
+		return false
+	}
+	var refs []any
+	if err := common.Unmarshal(t.ImageReference, &refs); err != nil {
+		return false
+	}
+	return len(refs) > 0
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {

@@ -117,6 +117,29 @@ func qualityFromResolutionName(value string) string {
 	}
 }
 
+func appendGrokVideoImageReference(target []interface{}, value interface{}) []interface{} {
+	if value == nil {
+		return target
+	}
+	switch v := value.(type) {
+	case string:
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			target = append(target, trimmed)
+		}
+	case []string:
+		for _, item := range v {
+			target = appendGrokVideoImageReference(target, item)
+		}
+	case []interface{}:
+		for _, item := range v {
+			target = appendGrokVideoImageReference(target, item)
+		}
+	case map[string]interface{}:
+		target = append(target, v)
+	}
+	return target
+}
+
 func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel string) {
 	if upstreamModel != "grok-imagine-1.0-video" {
 		return
@@ -145,6 +168,15 @@ func normalizeGrokVideoRequest(bodyMap map[string]interface{}, upstreamModel str
 	if quality != "" {
 		bodyMap["quality"] = quality
 	}
+	imageReferences := make([]interface{}, 0)
+	imageReferences = appendGrokVideoImageReference(imageReferences, bodyMap["image_reference"])
+	imageReferences = appendGrokVideoImageReference(imageReferences, bodyMap["image"])
+	imageReferences = appendGrokVideoImageReference(imageReferences, bodyMap["images"])
+	if len(imageReferences) > 0 {
+		bodyMap["image_reference"] = imageReferences
+	}
+	delete(bodyMap, "image")
+	delete(bodyMap, "images")
 	if resolutionName != "" {
 		bodyMap["resolution_name"] = resolutionName
 	}

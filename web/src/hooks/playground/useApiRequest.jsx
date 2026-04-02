@@ -165,7 +165,7 @@ export const useApiRequest = (
         .reverse()
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
-      const image = getImageFromMessageContent(lastUserMessage?.content);
+      const images = getImagesFromMessageContent(lastUserMessage?.content);
       const size = payload?.size || payload?.videoSize;
       const seconds = payload?.seconds || payload?.videoSeconds;
       const quality = payload?.quality || payload?.videoQuality;
@@ -182,8 +182,15 @@ export const useApiRequest = (
         size,
         quality: normalizeVideoQuality(quality),
         preset,
-        ...(image ? { image } : {}),
       };
+
+      if (isGrokImagineVideoModel) {
+        if (images.length > 0) {
+          requestPayload.image_reference = images;
+        }
+      } else if (images[0]) {
+        requestPayload.image = images[0];
+      }
 
       if (isGrokImagineVideoModel && resolutionName) {
         requestPayload.resolution_name = resolutionName;
@@ -197,7 +204,7 @@ export const useApiRequest = (
     },
     [
       formatVideoQuality,
-      getImageFromMessageContent,
+      getImagesFromMessageContent,
       getTextFromMessageContent,
       normalizeVideoQuality,
     ],
