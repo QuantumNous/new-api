@@ -65,6 +65,14 @@ const ADOBE_VIDEO_MODELS = new Set([
   'veo31-ref',
   'veo31-fast',
 ]);
+const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
+  'grok-imagine-1.0-edit': 3,
+  'grok-imagine-1.0-video': 7,
+  'nano-banana2': 14,
+  'nano-banana-pro': 14,
+  'veo31-fast': 2,
+  'veo31-ref': 3,
+};
 
 const GROK_IMAGE_SIZE_OPTIONS = [
   { label: '3:2', value: '1792x1024' },
@@ -486,6 +494,14 @@ const revokeCreativeCenterPreviewURL = (previewUrl) => {
   if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
     URL.revokeObjectURL(previewUrl);
   }
+};
+
+const getCreativeCenterImageUploadLimit = (modelName) => {
+  const normalizedModelName = typeof modelName === 'string' ? modelName.trim() : '';
+  if (!normalizedModelName) {
+    return null;
+  }
+  return CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS[normalizedModelName] ?? null;
 };
 
 const triggerDownload = (url, filename) => {
@@ -921,6 +937,25 @@ export default function App() {
   }, [uploadedImages]);
 
   useEffect(() => {
+    if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
+      return;
+    }
+
+    setUploadedImages((prev) => {
+      if (prev.length <= currentImageUploadLimit) {
+        return prev;
+      }
+      const removedItems = prev.slice(currentImageUploadLimit);
+      removedItems.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return prev.slice(0, currentImageUploadLimit);
+    });
+    setUploadImageNotice(`当前模型最多上传 ${currentImageUploadLimit} 张图片，已自动保留前 ${currentImageUploadLimit} 张`);
+    showWarning(`当前模型最多上传 ${currentImageUploadLimit} 张图片`);
+  }, [currentImageUploadLimit, uploadedImages.length]);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -1282,6 +1317,7 @@ export default function App() {
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
+  const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
   const renderPendingTaskProgress = ({
     task,
     taskIndex,
@@ -2156,8 +2192,30 @@ export default function App() {
       return;
     }
 
-    setUploadImageNotice('');
-    const pendingItems = imageFiles.map((file) => ({
+    const remainingSlots =
+      typeof currentImageUploadLimit === 'number'
+        ? currentImageUploadLimit - uploadedImages.length
+        : null;
+    if (remainingSlots !== null && remainingSlots <= 0) {
+      const message = `当前模型最多上传 ${currentImageUploadLimit} 张图片`;
+      setUploadImageNotice(message);
+      showWarning(message);
+      return;
+    }
+
+    const acceptedFiles =
+      remainingSlots !== null ? imageFiles.slice(0, remainingSlots) : imageFiles;
+    let limitNotice = '';
+    if (acceptedFiles.length < imageFiles.length && currentImageUploadLimit) {
+      limitNotice = `当前模型最多上传 ${currentImageUploadLimit} 张图片，本次仅保留前 ${acceptedFiles.length} 张`;
+      showWarning(limitNotice);
+    }
+    if (acceptedFiles.length === 0) {
+      return;
+    }
+
+    setUploadImageNotice(limitNotice);
+    const pendingItems = acceptedFiles.map((file) => ({
       id: createCreativeRecordId('hosted-image'),
       name: file.name,
       url: '',
@@ -2169,7 +2227,7 @@ export default function App() {
     setUploadedImages((prev) => [...prev, ...pendingItems]);
 
     await Promise.all(
-      imageFiles.map(async (file, index) => {
+      acceptedFiles.map(async (file, index) => {
         const pendingItem = pendingItems[index];
         try {
           const uploaded = await uploadCreativeCenterImage(file);
@@ -3964,6 +4022,11 @@ export default function App() {
               {uploadImageNotice ? (
                 <div className='mt-3 px-2 text-xs font-medium text-red-500'>
                   {uploadImageNotice}
+                </div>
+              ) : null}
+              {currentImageUploadLimit ? (
+                <div className='mt-2 px-2 text-[11px] text-slate-400'>
+                  当前模型最多可上传 {currentImageUploadLimit} 张图片
                 </div>
               ) : null}
 
