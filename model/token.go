@@ -88,10 +88,8 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
 // 规则：
 //  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
-//  2. 连续的 % 合并为单个 %
+//  2. 连续的 % 直接拒绝
 //  3. 最多允许 2 个 %
-//  4. 含 % 时（模糊搜索），去掉 % 后关键词长度必须 >= 2
-//  5. 不含 % 时按精确匹配
 func sanitizeLikePattern(input string) (string, error) {
 	// 1. 先转义 ESCAPE 字符 ! 自身，再转义 _
 	//    使用 ! 而非 \ 作为 ESCAPE 字符，避免 MySQL 中反斜杠的字符串转义问题
@@ -109,16 +107,6 @@ func sanitizeLikePattern(input string) (string, error) {
 		return "", errors.New("搜索模式中最多允许包含 2 个 % 通配符")
 	}
 
-	// 4. 含 % 时，去掉 % 后关键词长度必须 >= 2
-	if count > 0 {
-		stripped := strings.ReplaceAll(input, "%", "")
-		if len(stripped) < 2 {
-			return "", errors.New("使用模糊搜索时，关键词长度至少为 2 个字符")
-		}
-		return input, nil
-	}
-
-	// 5. 无 % 时，精确全匹配
 	return input, nil
 }
 
@@ -131,7 +119,12 @@ func applySearchPattern(pattern string, allowAutoFuzzy bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if allowAutoFuzzy && !strings.Contains(sanitized, "%") {
+	// 如果用户输入了 %，则尊重用户的输入
+	if strings.Contains(sanitized, "%") {
+		return sanitized, nil
+	}
+	// 如果允许自动模糊搜索，则自动包装为 %pattern%
+	if allowAutoFuzzy {
 		sanitized = "%" + sanitized + "%"
 	}
 	return sanitized, nil
@@ -153,17 +146,20 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	maxTokens := operation_setting.GetMaxUserTokens()
 	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
 
-	userTokenCount, err := CountUserTokens(userId)
-	if err != nil {
-		common.SysLog("failed to count user tokens: " + err.Error())
-		return nil, 0, errors.New("获取令牌数量失败")
-	}
+	allowAutoFuzzy := false
+	if keyword != "" || token != "" {
+		userTokenCount, err := CountUserTokens(userId)
+		if err != nil {
+			common.SysLog("failed to count user tokens: " + err.Error())
+			return nil, 0, errors.New("获取令牌数量失败")
+		}
 
-	if hasFuzzy && int(userTokenCount) > maxTokens {
-		return nil, 0, errors.New("令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符")
-	}
+		if hasFuzzy && int(userTokenCount) > maxTokens {
+			return nil, 0, errors.New("令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符")
+		}
 
-	allowAutoFuzzy := !hasFuzzy && int(userTokenCount) <= maxTokens
+		allowAutoFuzzy = !hasFuzzy && int(userTokenCount) <= maxTokens
+	}
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
 
 	if keyword != "" {
