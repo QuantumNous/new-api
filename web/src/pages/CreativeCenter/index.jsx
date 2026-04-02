@@ -4079,7 +4079,7 @@ export default function App() {
                   )}
                   {activeTab === 'image' && isGrokImageEditModel && (
                     <div className='rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-500'>
-                      比例 跟随原图
+                      比例 跟随图一
                     </div>
                   )}
 
