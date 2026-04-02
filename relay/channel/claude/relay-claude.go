@@ -431,14 +431,15 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						claudeMediaMessage.Source.MediaType = mimeType
 						claudeMediaMessage.Source.Data = base64Data
 						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
-					case dto.ContentTypeFile:
-						claudeFileMessage, err := buildClaudeFileMessage(c, mediaMessage.GetFile())
-						if err != nil {
-							return nil, err
-						}
-						if claudeFileMessage != nil {
-							claudeMediaMessages = append(claudeMediaMessages, *claudeFileMessage)
-						}
+					// FIXME
+					//case dto.ContentTypeFile:
+					//	claudeFileMessage, err := buildClaudeFileMessage(c, mediaMessage.GetFile())
+					//	if err != nil {
+					//		return nil, err
+					//	}
+					//	if claudeFileMessage != nil {
+					//		claudeMediaMessages = append(claudeMediaMessages, *claudeFileMessage)
+					//	}
 					default:
 						continue
 					}
