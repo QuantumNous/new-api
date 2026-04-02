@@ -135,6 +135,8 @@ func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) 
 	if statusCodeMappingStr == "" || statusCodeMappingStr == "{}" {
 		return
 	}
+	// Apply custom error message override (object format in status_code_mapping)
+	ApplyCustomErrorMessage(newApiErr, statusCodeMappingStr)
 	statusCodeMapping := make(map[string]any)
 	err := common.Unmarshal([]byte(statusCodeMappingStr), &statusCodeMapping)
 	if err != nil {
