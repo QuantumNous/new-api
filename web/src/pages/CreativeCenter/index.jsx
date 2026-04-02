@@ -2593,34 +2593,34 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     setUploadedImages((prev) => [...prev, ...pendingItems]);
 
-    await Promise.all(
-      acceptedFiles.map(async (file, index) => {
-        const pendingItem = pendingItems[index];
-        try {
-          const uploaded = await uploadCreativeCenterImage(file);
-          setUploadedImages((prev) =>
-            prev.map((item) =>
-              item.id === pendingItem.id
-                ? {
-                    ...item,
-                    name: uploaded.name || file.name,
-                    url: uploaded.url,
-                    fileName: uploaded.filename || '',
-                    status: 'uploaded',
-                  }
-                : item,
-            ),
-          );
-        } catch (error) {
-          console.error('Failed to upload creative center image:', error);
-          revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
-          setUploadedImages((prev) =>
-            prev.filter((item) => item.id !== pendingItem.id),
-          );
-          setUploadImageNotice('上传失败，请重新上传');
-        }
-      }),
-    );
+    for (let index = 0; index < acceptedFiles.length; index += 1) {
+      const file = acceptedFiles[index];
+      const pendingItem = pendingItems[index];
+
+      try {
+        const uploaded = await uploadCreativeCenterImage(file);
+        setUploadedImages((prev) =>
+          prev.map((item) =>
+            item.id === pendingItem.id
+              ? {
+                  ...item,
+                  name: uploaded.name || file.name,
+                  url: uploaded.url,
+                  fileName: uploaded.filename || '',
+                  status: 'uploaded',
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        console.error('Failed to upload creative center image:', error);
+        revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
+        setUploadedImages((prev) =>
+          prev.filter((item) => item.id !== pendingItem.id),
+        );
+        setUploadImageNotice('上传失败，请重新上传');
+      }
+    }
   };
 
   useEffect(() => {
@@ -4400,7 +4400,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
               {currentImageUploadLimit ? (
                 <div className='mt-2 px-2 text-[11px] text-slate-400'>
-                  当前模型最多可上传 {currentImageUploadLimit} 张图片
+                  当前模型最多可上传 {currentImageUploadLimit} 张图片（图片尽量不要大于5M）
                 </div>
               ) : null}
 
