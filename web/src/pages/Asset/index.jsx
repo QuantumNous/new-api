@@ -33,6 +33,8 @@ import {
   IconPlay,
   IconRefresh,
   IconSearch,
+  IconEyeClosed,
+  IconEyeOpened,
 } from '@douyinfe/semi-icons';
 import {
   Download,
@@ -82,7 +84,35 @@ const formatAssetTime = (timestamp) => {
   if (!timestamp) {
     return '-';
   }
-  return timestamp2string(timestamp);
+  const normalizedTimestamp = timestamp > 9999999999 ? Math.floor(timestamp / 1000) : timestamp;
+  return timestamp2string(normalizedTimestamp);
+};
+
+const parseDateValueToTimestamp = (value) => {
+  if (!value) {
+    return undefined;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return Math.floor(value.getTime() / 1000);
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 9999999999 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) {
+      return Math.floor(parsed / 1000);
+    }
+  }
+  if (typeof value?.valueOf === 'function') {
+    const parsedValue = value.valueOf();
+    if (typeof parsedValue === 'number' && Number.isFinite(parsedValue)) {
+      return parsedValue > 9999999999
+        ? Math.floor(parsedValue / 1000)
+        : parsedValue;
+    }
+  }
+  return undefined;
 };
 
 const getAssetPreviewUrl = (asset) => {
@@ -179,6 +209,7 @@ const AssetLibrary = () => {
   const [formApi, setFormApi] = useState(null);
   const [previewAsset, setPreviewAsset] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [showPreview, setShowPreview] = useState(false);
 
   const [formInitValues] = useState(() => {
     const now = new Date();
@@ -204,12 +235,8 @@ const AssetLibrary = () => {
   const getFormValues = () => {
     const values = formApi?.getValues?.() || {};
     const dateRange = Array.isArray(values.dateRange) ? values.dateRange : [];
-    const startTimestamp = dateRange[0]
-      ? parseInt(Date.parse(dateRange[0]) / 1000)
-      : undefined;
-    const endTimestamp = dateRange[1]
-      ? parseInt(Date.parse(dateRange[1]) / 1000)
-      : undefined;
+    const startTimestamp = parseDateValueToTimestamp(dateRange[0]);
+    const endTimestamp = parseDateValueToTimestamp(dateRange[1]);
 
     return {
       type: values.type || 'all',
@@ -260,8 +287,16 @@ const AssetLibrary = () => {
     const localPageSize =
       parseInt(localStorage.getItem('asset-library-page-size'), 10) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
+    const storedPreviewMode = localStorage.getItem('asset-library-show-preview');
+    if (storedPreviewMode === 'true') {
+      setShowPreview(true);
+    }
     loadAssets(1, localPageSize).then();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('asset-library-show-preview', showPreview ? 'true' : 'false');
+  }, [showPreview]);
 
   const refresh = async () => {
     setSelectedIds([]);
@@ -388,6 +423,14 @@ const AssetLibrary = () => {
               ? '取消全选本页'
               : '全选本页'}
           </Button>
+          <Button
+            size='small'
+            type={showPreview ? 'secondary' : 'tertiary'}
+            icon={showPreview ? <IconEyeOpened /> : <IconEyeClosed />}
+            onClick={() => setShowPreview((prev) => !prev)}
+          >
+            预览 {showPreview ? '开' : '关'}
+          </Button>
         </div>
         <Button
           size='small'
@@ -446,7 +489,7 @@ const AssetLibrary = () => {
           <Form.Input
             field='keyword'
             prefix={<IconSearch />}
-            placeholder='关键词 / 提示词 / 会话名'
+            placeholder='提示词 / 会话名'
             showClear
             pure
             size='small'
@@ -509,11 +552,12 @@ const AssetLibrary = () => {
               <Empty
                 image={<PackageOpen size={48} />}
                 title='暂无可展示的创作中心资产'
-                description='生成成功的图片和视频会在这里统一展示。'
               />
             </div>
           ) : (
-            <div className='grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3'>
+            <div
+              className={`grid gap-3 ${showPreview ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5' : 'grid-cols-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'}`}
+            >
               {assets.map((asset, index) => {
                 const previewUrl = getAssetPreviewUrl(asset);
                 const checked = selectedIds.includes(asset.asset_id);
@@ -544,45 +588,47 @@ const AssetLibrary = () => {
                       </div>
                     }
                   >
-                    <div className='flex flex-col gap-2.5'>
-                      <button
-                        type='button'
-                        className='relative overflow-hidden rounded-xl border bg-[var(--semi-color-fill-0)] aspect-square cursor-pointer'
-                        style={{ borderColor: 'var(--semi-color-border)' }}
-                        onClick={() => setPreviewAsset(asset)}
-                      >
-                        {asset.asset_type === 'image' ? (
-                          previewUrl ? (
-                            <img
-                              src={previewUrl}
-                              alt={asset.prompt || 'creative asset'}
-                              className='w-full h-full object-cover'
-                            />
+                    <div className={`flex flex-col ${showPreview ? 'gap-2.5' : 'gap-2'}`}>
+                      {showPreview ? (
+                        <button
+                          type='button'
+                          className='relative overflow-hidden rounded-xl border bg-[var(--semi-color-fill-0)] aspect-square cursor-pointer'
+                          style={{ borderColor: 'var(--semi-color-border)' }}
+                          onClick={() => setPreviewAsset(asset)}
+                        >
+                          {asset.asset_type === 'image' ? (
+                            previewUrl ? (
+                              <img
+                                src={previewUrl}
+                                alt={asset.prompt || 'creative asset'}
+                                className='w-full h-full object-cover'
+                              />
+                            ) : (
+                              <div className='w-full h-full flex items-center justify-center'>
+                                <ImageIcon size={36} />
+                              </div>
+                            )
+                          ) : previewUrl ? (
+                            <>
+                              <video
+                                src={previewUrl}
+                                className='w-full h-full object-cover'
+                                muted
+                                preload='metadata'
+                              />
+                              <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
+                                <span className='inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-900'>
+                                  <IconPlay />
+                                </span>
+                              </div>
+                            </>
                           ) : (
                             <div className='w-full h-full flex items-center justify-center'>
-                              <ImageIcon size={36} />
+                              <Video size={36} />
                             </div>
-                          )
-                        ) : previewUrl ? (
-                          <>
-                            <video
-                              src={previewUrl}
-                              className='w-full h-full object-cover'
-                              muted
-                              preload='metadata'
-                            />
-                            <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
-                              <span className='inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-900'>
-                                <IconPlay />
-                              </span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className='w-full h-full flex items-center justify-center'>
-                            <Video size={36} />
-                          </div>
-                        )}
-                      </button>
+                          )}
+                        </button>
+                      ) : null}
 
                       <div className='flex flex-wrap gap-2'>
                         <Tag color='white' size='small'>
@@ -600,9 +646,9 @@ const AssetLibrary = () => {
                         ) : null}
                       </div>
 
-                      <div className='min-h-[52px]'>
+                      <div className={showPreview ? 'min-h-[52px]' : 'min-h-[38px]'}>
                         <Paragraph
-                          ellipsis={{ rows: 2, showTooltip: true }}
+                          ellipsis={{ rows: showPreview ? 2 : 1, showTooltip: true }}
                           style={{
                             marginBottom: 0,
                             wordBreak: 'break-word',
@@ -614,7 +660,7 @@ const AssetLibrary = () => {
                         </Paragraph>
                       </div>
 
-                      <div className='grid grid-cols-1 gap-2 text-xs'>
+                      <div className={`grid grid-cols-1 text-xs ${showPreview ? 'gap-2' : 'gap-1.5'}`}>
                         <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
                           <Text type='tertiary' size='small'>
                             会话

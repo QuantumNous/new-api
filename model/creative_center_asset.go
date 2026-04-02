@@ -172,8 +172,12 @@ func flattenCreativeCenterSessionAssets(history *CreativeCenterHistory, username
 		modelName := fallbackString(stringValue(entry, "model_name", "modelName"), sessionModelName)
 		group := fallbackString(stringValue(entry, "group"), sessionGroup)
 		status := normalizeAssetStatus(fallbackString(stringValue(entry, "status"), "completed"))
-		createdAt := fallbackInt64(int64Value(entry, "created_at", "createdAt"), sessionCreatedAt)
-		updatedAt := fallbackInt64(int64Value(entry, "updated_at", "updatedAt"), sessionUpdatedAt)
+		createdAt := normalizeAssetTimestamp(
+			fallbackInt64(int64Value(entry, "created_at", "createdAt"), sessionCreatedAt),
+		)
+		updatedAt := normalizeAssetTimestamp(
+			fallbackInt64(int64Value(entry, "updated_at", "updatedAt"), sessionUpdatedAt),
+		)
 
 		var items []any
 		if tab == "image" {
@@ -284,6 +288,17 @@ func normalizeAssetStatus(status string) string {
 
 func isCompletedAssetStatus(status string) bool {
 	return normalizeAssetStatus(status) == "completed"
+}
+
+func normalizeAssetTimestamp(timestamp int64) int64 {
+	if timestamp <= 0 {
+		return 0
+	}
+	// Creative Center payload timestamps are often persisted in milliseconds.
+	if timestamp > 9999999999 {
+		return timestamp / 1000
+	}
+	return timestamp
 }
 
 type mapStringAny map[string]any

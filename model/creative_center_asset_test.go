@@ -25,8 +25,8 @@ func TestFlattenCreativeCenterHistoryAssetsImageSessions(t *testing.T) {
 								"modelName": "nano-banana",
 								"group": "group-a",
 								"status": "completed",
-								"createdAt": 1710000001,
-								"updatedAt": 1710000002,
+								"createdAt": 1710000001000,
+								"updatedAt": 1710000002000,
 								"images": [
 									{ "url": "https://example.com/image-a.png" },
 									{ "resultUrl": "https://example.com/image-b.png", "status": "success" },
@@ -57,6 +57,12 @@ func TestFlattenCreativeCenterHistoryAssetsImageSessions(t *testing.T) {
 	}
 	if first.MediaURL != "https://example.com/image-a.png" {
 		t.Fatalf("unexpected media url: %s", first.MediaURL)
+	}
+	if first.CreatedAt != 1710000001 {
+		t.Fatalf("expected milliseconds to normalize to seconds, got %d", first.CreatedAt)
+	}
+	if first.UpdatedAt != 1710000002 {
+		t.Fatalf("expected milliseconds to normalize to seconds, got %d", first.UpdatedAt)
 	}
 
 	second := assets[1]
