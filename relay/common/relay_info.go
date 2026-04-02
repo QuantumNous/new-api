@@ -252,7 +252,7 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "Token{ Id: %d, Unlimited: %t, Key: ***masked*** }, ", info.TokenId, info.TokenUnlimited)
 
 	// Time info
-	latencyMs := info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	latencyMs, _ := info.FirstResponseLatencyMs()
 	fmt.Fprintf(b, "Timing{ Start: %s, FirstResponse: %s, LatencyMs: %d }, ",
 		info.StartTime.Format(time.RFC3339Nano), info.FirstResponseTime.Format(time.RFC3339Nano), latencyMs)
 
@@ -468,7 +468,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		IsStream:        isStream,
 
 		StartTime:         startTime,
-		FirstResponseTime: startTime.Add(-time.Second),
+		FirstResponseTime: time.Time{},
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
@@ -640,14 +640,51 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {
-	if info.isFirstResponse {
-		info.FirstResponseTime = time.Now()
-		info.isFirstResponse = false
-	}
+	info.SetFirstResponseTimeAt(time.Now())
 }
 
 func (info *RelayInfo) HasSendResponse() bool {
-	return info.FirstResponseTime.After(info.StartTime)
+	if info == nil || info.FirstResponseTime.IsZero() {
+		return false
+	}
+	return !info.FirstResponseTime.Before(info.StartTime)
+}
+
+func (info *RelayInfo) SetFirstResponseTimeAt(ts time.Time) {
+	if info == nil || !info.isFirstResponse || ts.IsZero() {
+		return
+	}
+	info.FirstResponseTime = ts
+	info.isFirstResponse = false
+}
+
+func (info *RelayInfo) FirstResponseLatencyMs() (int64, bool) {
+	if info == nil || info.StartTime.IsZero() || !info.HasSendResponse() {
+		return 0, false
+	}
+	latencyMs := info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	if latencyMs < 0 {
+		return 0, false
+	}
+	return latencyMs, true
+}
+
+func SafeElapsedSeconds(startTime time.Time, endTime time.Time) int64 {
+	if startTime.IsZero() || endTime.IsZero() {
+		return 0
+	}
+	elapsedSeconds := endTime.Unix() - startTime.Unix()
+	if elapsedSeconds < 0 {
+		return 0
+	}
+	return elapsedSeconds
+}
+
+func (info *RelayInfo) UseTimeSeconds(now time.Time) int64 {
+	if info == nil {
+		return 0
+	}
+	return SafeElapsedSeconds(info.StartTime, now)
 }
 
 type TaskRelayInfo struct {

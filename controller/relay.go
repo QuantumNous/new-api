@@ -388,7 +388,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		if startTime.IsZero() {
 			startTime = time.Now()
 		}
-		useTimeSeconds := int(time.Since(startTime).Seconds())
+		useTimeSeconds := int(relaycommon.SafeElapsedSeconds(startTime, time.Now()))
 		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, false, userGroup, other)
 	}
 

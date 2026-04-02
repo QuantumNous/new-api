@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -115,7 +114,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		case data := <-dataChan:
 			if isFirst {
 				isFirst = false
-				info.FirstResponseTime = time.Now()
+				info.SetFirstResponseTime()
 			}
 			data = strings.TrimSuffix(data, "\r")
 			var cohereResp CohereResponse

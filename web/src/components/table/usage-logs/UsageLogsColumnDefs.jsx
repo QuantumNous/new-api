@@ -204,7 +204,10 @@ function renderIsStream(bool, t, streamStatus) {
 }
 
 function renderUseTime(type, t) {
-  const time = parseInt(type);
+  const time = parseInt(type, 10);
+  if (Number.isNaN(time) || time < 0) {
+    return null;
+  }
   if (time < 101) {
     return (
       <Tag color='green' shape='circle'>
@@ -230,16 +233,20 @@ function renderUseTime(type, t) {
 }
 
 function renderFirstUseTime(type, t) {
-  let time = parseFloat(type) / 1000.0;
-  time = time.toFixed(1);
-  if (time < 3) {
+  const rawTime = parseFloat(type);
+  if (!Number.isFinite(rawTime) || rawTime < 0) {
+    return null;
+  }
+  const seconds = rawTime / 1000.0;
+  const time = seconds.toFixed(1);
+  if (seconds < 3) {
     return (
       <Tag color='green' shape='circle'>
         {' '}
         {time} s{' '}
       </Tag>
     );
-  } else if (time < 10) {
+  } else if (seconds < 10) {
     return (
       <Tag color='orange' shape='circle'>
         {' '}
