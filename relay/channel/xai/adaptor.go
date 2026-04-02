@@ -3,6 +3,7 @@ package xai
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -188,7 +189,28 @@ func buildImageEditJSONRequest(request dto.ImageRequest) (map[string]any, error)
 	return payload, nil
 }
 
-func buildXAIImageEditSource(rawImage []byte) (map[string]any, error) {
+func buildXAIImageEditSource(rawImage []byte) (any, error) {
+	if len(rawImage) == 0 {
+		return nil, errors.New("image is required")
+	}
+
+	var rawImages []json.RawMessage
+	if err := common.Unmarshal(rawImage, &rawImages); err == nil && len(rawImages) > 0 {
+		images := make([]map[string]any, 0, len(rawImages))
+		for _, item := range rawImages {
+			image, err := buildSingleXAIImageEditSource(item)
+			if err != nil {
+				return nil, err
+			}
+			images = append(images, image)
+		}
+		return images, nil
+	}
+
+	return buildSingleXAIImageEditSource(rawImage)
+}
+
+func buildSingleXAIImageEditSource(rawImage []byte) (map[string]any, error) {
 	if len(rawImage) == 0 {
 		return nil, errors.New("image is required")
 	}

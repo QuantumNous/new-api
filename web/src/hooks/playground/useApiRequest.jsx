@@ -108,6 +108,22 @@ export const useApiRequest = (
     return imageURL?.url || '';
   }, []);
 
+  const getImagesFromMessageContent = useCallback((content) => {
+    if (!Array.isArray(content)) {
+      return [];
+    }
+    return content
+      .filter((item) => item?.type === 'image_url')
+      .map((item) => {
+        const imageURL = item?.image_url;
+        if (typeof imageURL === 'string') {
+          return imageURL;
+        }
+        return imageURL?.url || '';
+      })
+      .filter(Boolean);
+  }, []);
+
   const extractImageUrlsFromContent = useCallback((content) => {
     if (typeof content !== 'string' || !content.trim()) {
       return [];
@@ -194,7 +210,7 @@ export const useApiRequest = (
         .reverse()
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
-      const image = getImageFromMessageContent(lastUserMessage?.content);
+      const images = getImagesFromMessageContent(lastUserMessage?.content);
       const resolvedPrompt =
         prompt ||
         (isGrokImagineImageEditModel(payload.model)
@@ -210,8 +226,10 @@ export const useApiRequest = (
         requestPayload.prompt = resolvedPrompt;
         requestPayload.n = 1;
         requestPayload.response_format = 'url';
-        if (image) {
-          requestPayload.image = image;
+        if (images.length === 1) {
+          requestPayload.image = images[0];
+        } else if (images.length > 1) {
+          requestPayload.image = images;
         }
       } else {
         requestPayload.prompt = resolvedPrompt;
@@ -225,7 +243,7 @@ export const useApiRequest = (
       return requestPayload;
     },
     [
-      getImageFromMessageContent,
+      getImagesFromMessageContent,
       getTextFromMessageContent,
       isGrokImagineImageEditModel,
     ],

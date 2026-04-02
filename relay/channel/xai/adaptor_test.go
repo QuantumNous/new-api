@@ -60,6 +60,40 @@ func TestConvertImageRequestBuildsMultipartForEditImage(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestSupportsMultipleEditImages(t *testing.T) {
+	adaptor := &Adaptor{}
+
+	converted, err := adaptor.ConvertImageRequest(nil, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, dto.ImageRequest{
+		Model:          "grok-imagine-1.0-edit",
+		Prompt:         "blend both references",
+		Image:          []byte(`["https://example.com/1.png","https://example.com/2.png"]`),
+		ResponseFormat: "url",
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	payload, ok := converted.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", converted)
+	}
+	images, ok := payload["image"].([]map[string]any)
+	if !ok {
+		t.Fatalf("unexpected image payload: %#v", payload["image"])
+	}
+	if len(images) != 2 {
+		t.Fatalf("expected two images, got %d", len(images))
+	}
+	if images[0]["url"] != "https://example.com/1.png" {
+		t.Fatalf("unexpected first image url: %v", images[0]["url"])
+	}
+	if images[1]["url"] != "https://example.com/2.png" {
+		t.Fatalf("unexpected second image url: %v", images[1]["url"])
+	}
+}
+
 func TestConvertImageRequestPreservesSize(t *testing.T) {
 	adaptor := &Adaptor{}
 

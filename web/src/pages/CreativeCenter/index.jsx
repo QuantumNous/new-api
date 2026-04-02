@@ -482,6 +482,12 @@ const buildCreativeCenterImageDisplayUrl = (url) => {
   return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
 };
 
+const revokeCreativeCenterPreviewURL = (previewUrl) => {
+  if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(previewUrl);
+  }
+};
+
 const triggerDownload = (url, filename) => {
   if (!url) {
     return;
@@ -893,12 +899,14 @@ export default function App() {
   const videoPollersRef = useRef(new Map());
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
+  const uploadedImagesRef = useRef([]);
   const historyHydratedRef = useRef(false);
   const lastPersistedImageSignatureRef = useRef('');
   const lastPersistedVideoSignatureRef = useRef('');
   const isLoggedIn = Boolean(userState?.user);
-  const [uploadedImage, setUploadedImage] = useState(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [uploadImageNotice, setUploadImageNotice] = useState('');
+  const isUploadingImage = uploadedImages.some((item) => item?.status === 'uploading');
 
   useEffect(() => {
     imageRecordsRef.current = imageRecords;
@@ -907,6 +915,10 @@ export default function App() {
   useEffect(() => {
     videoRecordsRef.current = videoRecords;
   }, [videoRecords]);
+
+  useEffect(() => {
+    uploadedImagesRef.current = uploadedImages;
+  }, [uploadedImages]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -923,6 +935,11 @@ export default function App() {
         }
       });
       videoPollersRef.current.clear();
+      uploadedImagesRef.current.forEach((item) => {
+        if (item?.previewUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
     };
   }, []);
   const fallbackModels = useMemo(
@@ -2070,10 +2087,27 @@ export default function App() {
       .filter(Boolean);
   };
 
+  const removeUploadedImage = (imageId) => {
+    setUploadedImages((prev) => {
+      const target = prev.find((item) => item.id === imageId);
+      if (target) {
+        revokeCreativeCenterPreviewURL(target.previewUrl);
+      }
+      return prev.filter((item) => item.id !== imageId);
+    });
+  };
+
+  const clearUploadedImages = () => {
+    setUploadedImages((prev) => {
+      prev.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return [];
+    });
+    setUploadImageNotice('');
+  };
+
   const handleUploadButtonClick = () => {
-    if (isUploadingImage) {
-      return;
-    }
     fileInputRef.current?.click();
   };
 
@@ -2102,15 +2136,10 @@ export default function App() {
   };
 
   const handleImageFileChange = async (event) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files || []);
     event.target.value = '';
 
-    if (!file) {
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      showWarning('请上传图片文件');
+    if (files.length === 0) {
       return;
     }
 
@@ -2119,21 +2148,54 @@ export default function App() {
       return;
     }
 
-    setIsUploadingImage(true);
-    try {
-      const uploaded = await uploadCreativeCenterImage(file);
-      setUploadedImage({
-        id: createCreativeRecordId('hosted-image'),
-        name: uploaded.name || file.name,
-        url: uploaded.url,
-        fileName: uploaded.filename || '',
-      });
-    } catch (error) {
-      console.error('Failed to upload creative center image:', error);
-      showWarning(error?.message || '图片上传失败，请稍后重试');
-    } finally {
-      setIsUploadingImage(false);
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length !== files.length) {
+      showWarning('请上传图片文件');
     }
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    setUploadImageNotice('');
+    const pendingItems = imageFiles.map((file) => ({
+      id: createCreativeRecordId('hosted-image'),
+      name: file.name,
+      url: '',
+      fileName: '',
+      previewUrl: URL.createObjectURL(file),
+      status: 'uploading',
+    }));
+
+    setUploadedImages((prev) => [...prev, ...pendingItems]);
+
+    await Promise.all(
+      imageFiles.map(async (file, index) => {
+        const pendingItem = pendingItems[index];
+        try {
+          const uploaded = await uploadCreativeCenterImage(file);
+          setUploadedImages((prev) =>
+            prev.map((item) =>
+              item.id === pendingItem.id
+                ? {
+                    ...item,
+                    name: uploaded.name || file.name,
+                    url: uploaded.url,
+                    fileName: uploaded.filename || '',
+                    status: 'uploaded',
+                  }
+                : item,
+            ),
+          );
+        } catch (error) {
+          console.error('Failed to upload creative center image:', error);
+          revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
+          setUploadedImages((prev) =>
+            prev.filter((item) => item.id !== pendingItem.id),
+          );
+          setUploadImageNotice('上传失败，请重新上传');
+        }
+      }),
+    );
   };
 
   useEffect(() => {
@@ -2439,7 +2501,10 @@ export default function App() {
   }, [videoPersistSignature, isLoggedIn]);
 
   const handleSubmit = async () => {
-    if ((!prompt.trim() && !uploadedImage?.url) || (isChatTab && isGenerating)) return;
+    const uploadedImageUrls = uploadedImages
+      .filter((item) => item?.status === 'uploaded' && item?.url)
+      .map((item) => item.url);
+    if ((!prompt.trim() && uploadedImageUrls.length === 0) || (isChatTab && isGenerating)) return;
     if (!isLoggedIn) {
       showWarning('\u8bf7\u5148\u767b\u5f55\u540e\u518d\u4f7f\u7528\u521b\u4f5c\u4e2d\u5fc3');
       window.setTimeout(() => {
@@ -2448,9 +2513,9 @@ export default function App() {
       return;
     }
     const currentPrompt = prompt;
-    const currentUploadedImageUrls = uploadedImage?.url ? [uploadedImage.url] : [];
+    const currentUploadedImageUrls = uploadedImageUrls;
     setPrompt('');
-    setUploadedImage(null);
+    clearUploadedImages();
     if (isChatTab) {
       setIsGenerating(true);
     }
@@ -2607,8 +2672,10 @@ export default function App() {
               payload.size = basePayload.size;
             }
             if (isGrokImageEditModel) {
-              if (currentUploadedImageUrls[0]) {
+              if (currentUploadedImageUrls.length === 1) {
                 payload.image = currentUploadedImageUrls[0];
+              } else if (currentUploadedImageUrls.length > 1) {
+                payload.image = currentUploadedImageUrls;
               }
             } else {
               if (basePayload.aspect_ratio) {
@@ -3829,45 +3896,28 @@ export default function App() {
                 ref={fileInputRef}
                 type='file'
                 accept='image/*'
+                multiple
                 className='hidden'
                 onChange={handleImageFileChange}
               />
               <div className='flex items-end gap-4 px-2'>
                 <div className='shrink-0'>
-                  {uploadedImage ? (
-                    <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-blue-100 bg-slate-50 shadow-sm'>
-                      <img
-                        src={buildCreativeCenterImageDisplayUrl(uploadedImage.url)}
-                        alt={uploadedImage.name}
-                        className='h-full w-full object-cover'
-                      />
-                      <button
-                        onClick={() => setUploadedImage(null)}
-                        disabled={isUploadingImage}
-                        className='absolute right-2 top-2 rounded-full bg-slate-900/70 p-1 text-white transition hover:bg-slate-900'
-                      >
-                        <X size={12} />
-                      </button>
+                  <button
+                    type='button'
+                    onClick={handleUploadButtonClick}
+                    className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
+                  >
+                    <div className='flex flex-col items-center gap-2'>
+                      {isUploadingImage ? (
+                        <Loader2 size={20} className='animate-spin' />
+                      ) : (
+                        <ImagePlus size={20} />
+                      )}
+                      <span className='text-[11px] font-semibold'>
+                        {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
+                      </span>
                     </div>
-                  ) : (
-                    <button
-                      type='button'
-                      onClick={handleUploadButtonClick}
-                      disabled={isUploadingImage}
-                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300'
-                    >
-                      <div className='flex flex-col items-center gap-2'>
-                        {isUploadingImage ? (
-                          <Loader2 size={20} className='animate-spin' />
-                        ) : (
-                          <ImagePlus size={20} />
-                        )}
-                        <span className='text-[11px] font-semibold'>
-                          {isUploadingImage ? '上传中...' : '上传图片'}
-                        </span>
-                      </div>
-                    </button>
-                  )}
+                  </button>
                 </div>
                 <textarea
                   ref={textareaRef}
@@ -3879,28 +3929,43 @@ export default function App() {
                 />
                 <button
                   onClick={handleSubmit}
-                  disabled={isSubmitPending || (!prompt.trim() && !uploadedImage?.url)}
+                  disabled={isSubmitPending || (!prompt.trim() && uploadedImages.every((item) => !(item?.status === 'uploaded' && item?.url)))}
                   className='flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none'
                 >
                   {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={32} strokeWidth={3} />}
                 </button>
               </div>
 
-              {uploadedImage && (
-                <div className='mt-4 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500'>
-                  <div className='min-w-0 flex-1 truncate'>
-                    已上传图片：{uploadedImage.name}
-                  </div>
-                  <button
-                    type='button'
-                    onClick={handleUploadButtonClick}
-                    disabled={isUploadingImage}
-                    className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
-                  >
-                    {isUploadingImage ? '上传中...' : '重新选择'}
-                  </button>
+              {uploadedImages.length > 0 ? (
+                <div className='mt-4 flex flex-wrap gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4'>
+                  {uploadedImages.map((imageItem) => (
+                    <div key={imageItem.id} className='w-24'>
+                      <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'>
+                        <img
+                          src={imageItem.previewUrl || buildCreativeCenterImageDisplayUrl(imageItem.url)}
+                          alt={imageItem.name}
+                          className='h-full w-full object-cover'
+                        />
+                        <button
+                          onClick={() => removeUploadedImage(imageItem.id)}
+                          className='absolute right-2 top-2 rounded-full bg-slate-900/70 p-1 text-white transition hover:bg-slate-900'
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <div className='mt-2 truncate text-center text-[11px] text-slate-500'>
+                        {imageItem.status === 'uploading' ? '正在上传' : imageItem.name}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              ) : null}
+
+              {uploadImageNotice ? (
+                <div className='mt-3 px-2 text-xs font-medium text-red-500'>
+                  {uploadImageNotice}
+                </div>
+              ) : null}
 
               {!isLoggedIn && (
                 <div className='mt-4 flex items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-700'>
