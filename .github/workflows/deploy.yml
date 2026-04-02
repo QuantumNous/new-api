@@ -1,0 +1,26 @@
+name: Deploy
+on:
+  push:
+    branches: [main, test]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              cd /www/wwwroot/new-api
+              git pull origin main
+              docker-compose restart new-api
+              echo "Production deployed"
+            elif [ "${{ github.ref_name }}" = "test" ]; then
+              cd /www/wwwroot/new-api-test
+              git pull origin test
+              docker-compose restart new-api
+              echo "Test deployed"
+            fi
