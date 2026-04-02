@@ -337,6 +337,14 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
 
+		assetRoute := apiRouter.Group("/asset")
+		{
+			assetRoute.GET("/self", middleware.UserAuth(), controller.GetUserCreativeCenterAssets)
+			assetRoute.POST("/self/download", middleware.UserAuth(), controller.DownloadUserCreativeCenterAssets)
+			assetRoute.GET("/", middleware.AdminAuth(), controller.GetAllCreativeCenterAssets)
+			assetRoute.POST("/download", middleware.AdminAuth(), controller.DownloadAllCreativeCenterAssets)
+		}
+
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
 		{

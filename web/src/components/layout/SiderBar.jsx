@@ -40,6 +40,7 @@ const routerMap = {
   subscription: '/console/subscription',
   log: '/console/log',
   midjourney: '/console/midjourney',
+  asset: '/console/assets',
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
@@ -97,6 +98,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           localStorage.getItem('enable_drawing') === 'true'
             ? ''
             : 'tableHiddle',
+      },
+      {
+        text: t('资产库'),
+        itemKey: 'asset',
+        to: '/assets',
       },
       {
         text: t('任务日志'),
