@@ -504,12 +504,27 @@ func parseHEIFDimensions(data []byte) (int, int, bool) {
 	for offset+8 <= size {
 		boxSize := int(binary.BigEndian.Uint32(data[offset : offset+4]))
 		boxType := string(data[offset+4 : offset+8])
-		if boxSize < 8 || offset+boxSize > size {
+		headerLen := 8
+
+		if boxSize == 1 {
+			// 64-bit extended size
+			if offset+16 > size {
+				break
+			}
+			boxSize = int(binary.BigEndian.Uint64(data[offset+8 : offset+16]))
+			headerLen = 16
+		} else if boxSize == 0 {
+			// box extends to end of data
+			boxSize = size - offset
+		}
+
+		if boxSize < headerLen || offset+boxSize > size {
 			break
 		}
+
 		if boxType == "meta" {
 			// meta is a full box: 4 bytes version/flags after header
-			metaData := data[offset+8 : offset+boxSize]
+			metaData := data[offset+headerLen : offset+boxSize]
 			if len(metaData) < 4 {
 				return 0, 0, false
 			}
