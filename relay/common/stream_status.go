@@ -94,6 +94,22 @@ func (s *StreamStatus) IsNormalEnd() bool {
 		s.EndReason == StreamEndReasonHandlerStop
 }
 
+// IsRetriable returns true when the stream ended abnormally in a way
+// that warrants retrying on a different channel (timeout, scanner error,
+// ping failure, or panic).
+func (s *StreamStatus) IsRetriable() bool {
+	if s == nil {
+		return false
+	}
+	switch s.EndReason {
+	case StreamEndReasonTimeout, StreamEndReasonScannerErr,
+		StreamEndReasonPingFail, StreamEndReasonPanic:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *StreamStatus) Summary() string {
 	if s == nil {
 		return "StreamStatus<nil>"
