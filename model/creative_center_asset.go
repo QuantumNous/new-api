@@ -190,6 +190,9 @@ func flattenCreativeCenterSessionAssets(history *CreativeCenterHistory, username
 			}
 
 			itemStatus := normalizeAssetStatus(fallbackString(stringValue(itemMap, "status"), status))
+			if !isCompletedAssetStatus(itemStatus) {
+				continue
+			}
 			assetType := tab
 			thumbnailURL := mediaURL
 			if assetType == "video" {
@@ -277,6 +280,10 @@ func normalizeAssetStatus(status string) string {
 	default:
 		return normalized
 	}
+}
+
+func isCompletedAssetStatus(status string) bool {
+	return normalizeAssetStatus(status) == "completed"
 }
 
 type mapStringAny map[string]any

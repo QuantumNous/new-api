@@ -64,22 +64,6 @@ const ASSET_TYPE_OPTIONS = [
   { label: '视频', value: 'video' },
 ];
 
-const STATUS_OPTIONS = [
-  { label: '全部状态', value: 'all' },
-  { label: '已完成', value: 'completed' },
-  { label: '处理中', value: 'processing' },
-  { label: '排队中', value: 'queued' },
-  { label: '失败', value: 'failed' },
-];
-
-const statusMap = {
-  completed: { color: 'green', label: '已完成' },
-  processing: { color: 'blue', label: '处理中' },
-  queued: { color: 'yellow', label: '排队中' },
-  failed: { color: 'red', label: '失败' },
-  pending: { color: 'grey', label: '待处理' },
-};
-
 const buildCreativeCenterImageDisplayUrl = (url) => {
   if (typeof url !== 'string') {
     return '';
@@ -110,9 +94,6 @@ const getAssetPreviewUrl = (asset) => {
   }
   return asset.thumbnail_url || asset.media_url || '';
 };
-
-const getAssetStatusMeta = (status) =>
-  statusMap[status] || { color: 'grey', label: status || '未知' };
 
 const sanitizeFileNameSegment = (value, fallback) => {
   const normalized = String(value || '')
@@ -206,7 +187,6 @@ const AssetLibrary = () => {
       type: 'all',
       keyword: '',
       model_name: '',
-      status: 'all',
       username: '',
       dateRange: [
         timestamp2string(zeroNow.getTime() / 1000),
@@ -235,7 +215,6 @@ const AssetLibrary = () => {
       type: values.type || 'all',
       keyword: values.keyword || '',
       model_name: values.model_name || '',
-      status: values.status || 'all',
       username: isAdminUser ? values.username || '' : '',
       start_timestamp:
         Number.isFinite(startTimestamp) && startTimestamp > 0
@@ -435,18 +414,11 @@ const AssetLibrary = () => {
       stopValidateWithError={false}
     >
       <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2'>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2'>
           <Form.Select
             field='type'
             optionList={ASSET_TYPE_OPTIONS}
             placeholder='资产类型'
-            pure
-            size='small'
-          />
-          <Form.Select
-            field='status'
-            optionList={STATUS_OPTIONS}
-            placeholder='状态'
             pure
             size='small'
           />
@@ -541,9 +513,8 @@ const AssetLibrary = () => {
               />
             </div>
           ) : (
-            <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4'>
+            <div className='grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3'>
               {assets.map((asset, index) => {
-                const statusMeta = getAssetStatusMeta(asset.status);
                 const previewUrl = getAssetPreviewUrl(asset);
                 const checked = selectedIds.includes(asset.asset_id);
 
@@ -552,29 +523,31 @@ const AssetLibrary = () => {
                     key={asset.asset_id}
                     shadows='hover'
                     bordered={true}
-                    bodyStyle={{ padding: 16 }}
+                    bodyStyle={{ padding: 12 }}
                     className={`!rounded-2xl transition-all ${checked ? 'ring-2 ring-[var(--semi-color-primary)]' : ''}`}
                     headerLine={false}
                     title={
-                      <div className='flex items-center justify-between gap-2'>
-                        <div className='flex items-center gap-2 min-w-0'>
+                      <div className='flex items-center gap-2 min-w-0'>
+                        <label className='flex items-center gap-2 min-w-0 cursor-pointer'>
                           <input
                             type='checkbox'
                             checked={checked}
                             onChange={() => handleToggleSelect(asset.asset_id)}
                           />
-                          <Tag color={asset.asset_type === 'video' ? 'purple' : 'blue'}>
+                          <Tag
+                            color={asset.asset_type === 'video' ? 'purple' : 'blue'}
+                            size='small'
+                          >
                             {asset.asset_type === 'video' ? '视频' : '图片'}
                           </Tag>
-                        </div>
-                        <Tag color={statusMeta.color}>{statusMeta.label}</Tag>
+                        </label>
                       </div>
                     }
                   >
-                    <div className='flex flex-col gap-3'>
+                    <div className='flex flex-col gap-2.5'>
                       <button
                         type='button'
-                        className='relative overflow-hidden rounded-2xl border bg-[var(--semi-color-fill-0)] aspect-[4/3] cursor-pointer'
+                        className='relative overflow-hidden rounded-xl border bg-[var(--semi-color-fill-0)] aspect-square cursor-pointer'
                         style={{ borderColor: 'var(--semi-color-border)' }}
                         onClick={() => setPreviewAsset(asset)}
                       >
@@ -599,7 +572,7 @@ const AssetLibrary = () => {
                               preload='metadata'
                             />
                             <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
-                              <span className='inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-slate-900'>
+                              <span className='inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-900'>
                                 <IconPlay />
                               </span>
                             </div>
@@ -612,38 +585,49 @@ const AssetLibrary = () => {
                       </button>
 
                       <div className='flex flex-wrap gap-2'>
-                        <Tag color='white'>{asset.model_name || '未命名模型'}</Tag>
-                        {asset.group ? <Tag color='grey'>{asset.group}</Tag> : null}
+                        <Tag color='white' size='small'>
+                          {asset.model_name || '未命名模型'}
+                        </Tag>
+                        {asset.group ? (
+                          <Tag color='grey' size='small'>
+                            {asset.group}
+                          </Tag>
+                        ) : null}
                         {isAdminUser && asset.username ? (
-                          <Tag color='light-blue'>{asset.username}</Tag>
+                          <Tag color='light-blue' size='small'>
+                            {asset.username}
+                          </Tag>
                         ) : null}
                       </div>
 
-                      <div className='min-h-[72px]'>
+                      <div className='min-h-[52px]'>
                         <Paragraph
-                          ellipsis={{ rows: 3, showTooltip: true }}
-                          style={{ marginBottom: 0, wordBreak: 'break-word' }}
+                          ellipsis={{ rows: 2, showTooltip: true }}
+                          style={{
+                            marginBottom: 0,
+                            wordBreak: 'break-word',
+                            fontSize: 12,
+                            lineHeight: 1.5,
+                          }}
                         >
                           {asset.prompt || '未记录提示词'}
                         </Paragraph>
                       </div>
 
-                      <div className='grid grid-cols-2 gap-2 text-xs'>
-                        <div className='rounded-xl p-3 bg-[var(--semi-color-fill-0)]'>
-                          <Text type='tertiary'>会话</Text>
+                      <div className='grid grid-cols-1 gap-2 text-xs'>
+                        <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
+                          <Text type='tertiary' size='small'>
+                            会话
+                          </Text>
                           <div className='mt-1 font-medium break-all'>
                             {asset.session_name || asset.session_id || '-'}
                           </div>
                         </div>
-                        <div className='rounded-xl p-3 bg-[var(--semi-color-fill-0)]'>
-                          <Text type='tertiary'>记录 ID</Text>
-                          <div className='mt-1 font-medium break-all'>
-                            {asset.record_id || '-'}
-                          </div>
-                        </div>
-                        <div className='rounded-xl p-3 bg-[var(--semi-color-fill-0)] col-span-2'>
-                          <Text type='tertiary'>创建时间</Text>
-                          <div className='mt-1 font-medium'>
+                        <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
+                          <Text type='tertiary' size='small'>
+                            创建时间
+                          </Text>
+                          <div className='mt-1 font-medium text-[12px]'>
                             {formatAssetTime(asset.created_at)}
                           </div>
                         </div>
@@ -654,6 +638,7 @@ const AssetLibrary = () => {
                           block
                           type='tertiary'
                           icon={<Eye size={14} />}
+                          size='small'
                           onClick={() => setPreviewAsset(asset)}
                         >
                           预览
@@ -662,6 +647,7 @@ const AssetLibrary = () => {
                           block
                           type='primary'
                           icon={<Download size={14} />}
+                          size='small'
                           onClick={() => downloadAssetByUrl(asset, index)}
                         >
                           下载

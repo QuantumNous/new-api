@@ -103,32 +103,21 @@ func TestFlattenCreativeCenterHistoryAssetsVideoLegacyPayload(t *testing.T) {
 	}
 
 	assets := flattenCreativeCenterHistoryAssets(history, "bob")
-	if len(assets) != 2 {
-		t.Fatalf("expected 2 assets, got %d", len(assets))
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 completed asset, got %d", len(assets))
 	}
 
 	first := assets[0]
-	if first.AssetID != "cc:video:21:session-0:record-0:0" {
-		t.Fatalf("unexpected first asset id: %s", first.AssetID)
+	if first.AssetID != "cc:video:21:session-0:record-0:1" {
+		t.Fatalf("unexpected asset id: %s", first.AssetID)
 	}
 	if first.AssetType != "video" {
 		t.Fatalf("unexpected asset type: %s", first.AssetType)
 	}
-	if first.Status != "processing" {
-		t.Fatalf("expected normalized processing status, got %s", first.Status)
+	if first.MediaURL != "https://example.com/video-b.mp4" {
+		t.Fatalf("unexpected result url fallback: %s", first.MediaURL)
 	}
-	if first.ThumbnailURL != "https://example.com/video-a.jpg" {
-		t.Fatalf("unexpected thumbnail url: %s", first.ThumbnailURL)
-	}
-
-	second := assets[1]
-	if second.AssetID != "cc:video:21:session-0:record-0:1" {
-		t.Fatalf("unexpected second asset id: %s", second.AssetID)
-	}
-	if second.MediaURL != "https://example.com/video-b.mp4" {
-		t.Fatalf("unexpected result url fallback: %s", second.MediaURL)
-	}
-	if second.Status != "completed" {
-		t.Fatalf("expected completed status, got %s", second.Status)
+	if first.Status != "completed" {
+		t.Fatalf("expected completed status, got %s", first.Status)
 	}
 }
