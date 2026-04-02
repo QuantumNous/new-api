@@ -1267,14 +1267,25 @@ const formatCreativeSessionMeta = (tabKey, session) => {
   return `${entryCount} 条记录`;
 };
 
-const renderCreativeModelIcon = (channelType, iconName, fallbackTab) => {
+const renderCreativeModelIcon = (
+  channelType,
+  iconName,
+  fallbackTab,
+  vendorIconName = '',
+) => {
+  if (iconName) {
+    return <div className='scale-[1.35]'>{getLobeHubIcon(iconName, 20)}</div>;
+  }
+
+  if (vendorIconName) {
+    return (
+      <div className='scale-[1.35]'>{getLobeHubIcon(vendorIconName, 20)}</div>
+    );
+  }
+
   const channelIcon = channelType ? getChannelIcon(channelType) : null;
   if (channelIcon) {
     return <div className='scale-[1.7] text-current'>{channelIcon}</div>;
-  }
-
-  if (iconName) {
-    return <div className='scale-[1.35]'>{getLobeHubIcon(iconName, 20)}</div>;
   }
 
   if (fallbackTab === 'image') {
@@ -1617,24 +1628,32 @@ export default function App() {
       return inferTabsFromModelName(modelName);
     };
 
-    const createModelCard = (model, tabKey, modelName) => {
+    const createModelCard = (model, tabKey, modelName, vendorMap) => {
       const tags = String(model?.tags || '')
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
       const resolvedModelName = model?.model_name || model?.name || modelName || '未命名模型';
+      const vendor =
+        model?.vendor_id && vendorMap[model.vendor_id]
+          ? vendorMap[model.vendor_id]
+          : null;
+      const resolvedDescription =
+        model?.description ||
+        vendor?.description ||
+        (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理');
 
       return {
         id: `${tabKey}:${resolvedModelName}`,
         value: resolvedModelName,
         name: resolvedModelName,
-        desc:
-          model?.description ||
-          (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理'),
+        desc: resolvedDescription,
+        fullDesc: resolvedDescription,
         icon: renderCreativeModelIcon(
           Number(model?.channel_type || 0),
           model?.icon,
           tabKey,
+          vendor?.icon,
         ),
       };
     };
@@ -1658,6 +1677,12 @@ export default function App() {
                 ? pricingResult.value.data.data
                 : [])
             : [];
+        const pricingVendors =
+          pricingResult.status === 'fulfilled' && pricingResult.value?.data?.success
+            ? (Array.isArray(pricingResult.value.data.vendors)
+                ? pricingResult.value.data.vendors
+                : [])
+            : [];
 
         const userModels =
           userModelsResult.status === 'fulfilled' && userModelsResult.value?.data?.success
@@ -1673,6 +1698,13 @@ export default function App() {
             pricingModelMap.set(modelName, item);
           }
         });
+
+        const pricingVendorMap = pricingVendors.reduce((map, vendor) => {
+          if (vendor?.id) {
+            map[vendor.id] = vendor;
+          }
+          return map;
+        }, {});
 
         const visibleModelNames =
           isLoggedIn && userModels.length > 0
@@ -1692,6 +1724,7 @@ export default function App() {
                 pricingModel || { model_name: modelName },
                 tabKey,
                 modelName,
+                pricingVendorMap,
               ),
             );
           });
@@ -4228,7 +4261,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             <button
               key={model.id}
               onClick={() => setActiveModel(model.id)}
-              className={`w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
+              title={model.fullDesc || model.desc || model.name}
+              className={`relative w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
                 activeModel === model.id ? 'border-blue-200 bg-blue-50 shadow-sm' : 'border-transparent hover:bg-slate-50'
               }`}
             >
@@ -4239,6 +4273,16 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <div className={`text-sm font-bold truncate ${activeModel === model.id ? 'text-blue-900' : 'text-slate-700'}`}>{model.name}</div>
                 <p className='mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2'>{model.desc}</p>
               </div>
+              {model.fullDesc ? (
+                <div className='pointer-events-none absolute left-3 right-3 top-full z-20 mt-2 rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs text-slate-600 shadow-xl shadow-slate-200/70 opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100'>
+                  <div className='mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400'>
+                    模型简介
+                  </div>
+                  <div className='line-clamp-4 whitespace-normal break-words leading-6'>
+                    {model.fullDesc}
+                  </div>
+                </div>
+              ) : null}
             </button>
           ))}
         </div>
