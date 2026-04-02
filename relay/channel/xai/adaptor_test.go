@@ -1,47 +1,96 @@
 package xai
 
 import (
-	"encoding/json"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/samber/lo"
+
+	"github.com/gin-gonic/gin"
 )
 
-func TestConvertImageRequestPreservesEditImage(t *testing.T) {
+func TestConvertImageRequestBuildsMultipartForEditImage(t *testing.T) {
 	adaptor := &Adaptor{}
-	image := json.RawMessage(`{"url":"https://example.com/source.png"}`)
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/images/edits", nil)
 
-	converted, err := adaptor.ConvertImageRequest(nil, nil, dto.ImageRequest{
+	converted, err := adaptor.ConvertImageRequest(ctx, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, dto.ImageRequest{
 		Model:          "grok-imagine-1.0-edit",
 		Prompt:         "make it watercolor",
 		N:              lo.ToPtr(uint(2)),
-		Image:          image,
+		Image:          []byte(`{"url":"data:image/png;base64,aGVsbG8="}`),
+		Size:           "1024x1024",
 		ResponseFormat: "url",
 	})
 	if err != nil {
 		t.Fatalf("ConvertImageRequest returned error: %v", err)
 	}
 
-	xaiReq, ok := converted.(ImageRequest)
+	payload, ok := converted.(map[string]any)
 	if !ok {
-		t.Fatalf("expected xai.ImageRequest, got %T", converted)
+		t.Fatalf("expected map[string]any, got %T", converted)
 	}
-	if xaiReq.Model != "grok-imagine-1.0-edit" {
-		t.Fatalf("unexpected model: %s", xaiReq.Model)
+	if payload["model"] != "grok-imagine-1.0-edit" {
+		t.Fatalf("unexpected model: %v", payload["model"])
 	}
-	if xaiReq.N != 2 {
-		t.Fatalf("unexpected n: %d", xaiReq.N)
+	if payload["prompt"] != "make it watercolor" {
+		t.Fatalf("unexpected prompt: %v", payload["prompt"])
 	}
-	if xaiReq.ResponseFormat != "url" {
-		t.Fatalf("unexpected response_format: %s", xaiReq.ResponseFormat)
+	if payload["n"] != uint(2) {
+		t.Fatalf("unexpected n: %v", payload["n"])
 	}
-	gotImage, ok := xaiReq.Image.(json.RawMessage)
+	if payload["response_format"] != "url" {
+		t.Fatalf("unexpected response_format: %v", payload["response_format"])
+	}
+	image, ok := payload["image"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected json.RawMessage image, got %T", xaiReq.Image)
+		t.Fatalf("unexpected image payload: %#v", payload["image"])
 	}
-	if string(gotImage) != string(image) {
-		t.Fatalf("unexpected image payload: %s", string(gotImage))
+	if image["type"] != "image_url" {
+		t.Fatalf("unexpected image type: %v", image["type"])
+	}
+	if image["url"] != "data:image/png;base64,aGVsbG8=" {
+		t.Fatalf("unexpected image url: %v", image["url"])
+	}
+}
+
+func TestConvertImageRequestSupportsMultipleEditImages(t *testing.T) {
+	adaptor := &Adaptor{}
+
+	converted, err := adaptor.ConvertImageRequest(nil, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+	}, dto.ImageRequest{
+		Model:          "grok-imagine-1.0-edit",
+		Prompt:         "blend both references",
+		Image:          []byte(`["https://example.com/1.png","https://example.com/2.png"]`),
+		ResponseFormat: "url",
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	payload, ok := converted.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map[string]any, got %T", converted)
+	}
+	images, ok := payload["image"].([]map[string]any)
+	if !ok {
+		t.Fatalf("unexpected image payload: %#v", payload["image"])
+	}
+	if len(images) != 2 {
+		t.Fatalf("expected two images, got %d", len(images))
+	}
+	if images[0]["url"] != "https://example.com/1.png" {
+		t.Fatalf("unexpected first image url: %v", images[0]["url"])
+	}
+	if images[1]["url"] != "https://example.com/2.png" {
+		t.Fatalf("unexpected second image url: %v", images[1]["url"])
 	}
 }
 
@@ -64,6 +113,22 @@ func TestConvertImageRequestPreservesSize(t *testing.T) {
 	}
 	if xaiReq.Size != "1536x1024" {
 		t.Fatalf("unexpected size: %s", xaiReq.Size)
+	}
+}
+
+func TestResolveImagePayloadSupportsPlainURLObject(t *testing.T) {
+	filename, mimeType, content, err := resolveImagePayload([]byte(`{"url":"data:image/webp;base64,dGVzdA==","filename":"sample.webp"}`))
+	if err != nil {
+		t.Fatalf("resolveImagePayload returned error: %v", err)
+	}
+	if filename != "sample.webp" {
+		t.Fatalf("unexpected filename: %s", filename)
+	}
+	if mimeType != "image/webp" {
+		t.Fatalf("unexpected mime type: %s", mimeType)
+	}
+	if string(content) != "test" {
+		t.Fatalf("unexpected content: %q", string(content))
 	}
 }
 

@@ -108,6 +108,36 @@ export const useApiRequest = (
     return imageURL?.url || '';
   }, []);
 
+  const getImagesFromMessageContent = useCallback((content) => {
+    if (!Array.isArray(content)) {
+      return [];
+    }
+    return content
+      .filter((item) => item?.type === 'image_url')
+      .map((item) => {
+        const imageURL = item?.image_url;
+        if (typeof imageURL === 'string') {
+          return imageURL;
+        }
+        return imageURL?.url || '';
+      })
+      .filter(Boolean);
+  }, []);
+
+  const extractImageUrlsFromContent = useCallback((content) => {
+    if (typeof content !== 'string' || !content.trim()) {
+      return [];
+    }
+
+    const matches = [
+      ...content.matchAll(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/gi),
+      ...content.matchAll(/\[[^\]]*]\((https?:\/\/[^)\s]+)\)/gi),
+      ...content.matchAll(/(https?:\/\/[^\s'"]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s'"]*)?)/gi),
+    ];
+
+    return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+  }, []);
+
   const normalizeVideoQuality = useCallback((quality) => {
     if (quality === '720p') {
       return 'high';
@@ -180,7 +210,7 @@ export const useApiRequest = (
         .reverse()
         .find((m) => m?.role === 'user');
       const prompt = getTextFromMessageContent(lastUserMessage?.content);
-      const image = getImageFromMessageContent(lastUserMessage?.content);
+      const images = getImagesFromMessageContent(lastUserMessage?.content);
       const resolvedPrompt =
         prompt ||
         (isGrokImagineImageEditModel(payload.model)
@@ -190,20 +220,30 @@ export const useApiRequest = (
       const requestPayload = {
         model: payload.model,
         group: payload.group,
-        prompt: resolvedPrompt,
-        n: 1,
-        response_format: 'url',
-        ...(size ? { size } : {}),
       };
 
-      if (isGrokImagineImageEditModel(payload.model) && image) {
-        requestPayload.image = { url: image };
+      if (isGrokImagineImageEditModel(payload.model)) {
+        requestPayload.prompt = resolvedPrompt;
+        requestPayload.n = 1;
+        requestPayload.response_format = 'url';
+        if (images.length === 1) {
+          requestPayload.image = images[0];
+        } else if (images.length > 1) {
+          requestPayload.image = images;
+        }
+      } else {
+        requestPayload.prompt = resolvedPrompt;
+        requestPayload.n = 1;
+        requestPayload.response_format = 'url';
+        if (size) {
+          requestPayload.size = size;
+        }
       }
 
       return requestPayload;
     },
     [
-      getImageFromMessageContent,
+      getImagesFromMessageContent,
       getTextFromMessageContent,
       isGrokImagineImageEditModel,
     ],
@@ -551,6 +591,42 @@ export const useApiRequest = (
             choice.message?.reasoning_content ||
             choice.message?.reasoning ||
             '';
+
+          if (isGrokImagineImageEditModel(payload?.model)) {
+            const imageUrls = extractImageUrlsFromContent(content);
+            if (imageUrls.length > 0) {
+              const summaryLines = [
+                t('图片编辑已完成'),
+                `model: ${requestPayload.model || payload?.model || '-'}`,
+                `count: ${imageUrls.length}`,
+                `size: ${requestPayload.image_config?.size || requestPayload.size || '-'}`,
+              ];
+
+              imageUrls.forEach((url, index) => {
+                summaryLines.push(`image_${index + 1}: [Open Image ${index + 1}](${url})`);
+                summaryLines.push(`![image_${index + 1}](${url})`);
+              });
+
+              setMessage((prevMessage) => {
+                const newMessages = [...prevMessage];
+                const lastMessage = newMessages[newMessages.length - 1];
+                if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+                  const autoCollapseState = applyAutoCollapseLogic(
+                    lastMessage,
+                    true,
+                  );
+                  newMessages[newMessages.length - 1] = {
+                    ...lastMessage,
+                    content: summaryLines.join('\n\n'),
+                    status: MESSAGE_STATUS.COMPLETE,
+                    ...autoCollapseState,
+                  };
+                }
+                return newMessages;
+              });
+              return;
+            }
+          }
 
           const processed = processThinkTags(content, reasoningContent);
 

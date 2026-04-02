@@ -45,6 +45,7 @@ type GeneralOpenAIRequest struct {
 	N                   *int              `json:"n,omitempty"`
 	Input               any               `json:"input,omitempty"`
 	Instruction         string            `json:"instruction,omitempty"`
+	ImageConfig         json.RawMessage   `json:"image_config,omitempty"`
 	Size                string            `json:"size,omitempty"`
 	AspectRatio         string            `json:"aspect_ratio,omitempty"`
 	OutputResolution    string            `json:"output_resolution,omitempty"`

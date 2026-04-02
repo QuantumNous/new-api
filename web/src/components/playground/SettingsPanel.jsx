@@ -59,15 +59,12 @@ const SettingsPanel = ({
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
-    'grok-imagine-1.0-edit',
   ]);
+  const grokImagineImageEditModels = new Set(['grok-imagine-1.0-edit']);
   const adobeImageModels = new Set([
     'nano-banana',
-    'nano-banana-4k',
     'nano-banana2',
-    'nano-banana2-4k',
     'nano-banana-pro',
-    'nano-banana-pro-4k',
   ]);
   const adobeVideoModels = new Set([
     'sora2',
@@ -76,11 +73,12 @@ const SettingsPanel = ({
     'veo31-ref',
     'veo31-fast',
   ]);
-  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isGrokImagineImageModel =
+    grokImagineImageModels.has(inputs.model) ||
+    grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
-  const isAdobeImage4KModel =
-    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
   const isAdobeSoraModel =
     inputs.model === 'sora2' || inputs.model === 'sora2-pro';
   const isAdobeVeoModel =
@@ -103,6 +101,20 @@ const SettingsPanel = ({
     { label: '1792x1024', value: '1792x1024' },
     { label: '1024x1792', value: '1024x1792' },
     { label: '1024x1024', value: '1024x1024' },
+  ];
+  const grokImageRatioOptions = [
+    { label: '3:2', value: '1792x1024' },
+    { label: '2:3', value: '1024x1792' },
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+    { label: '1:1', value: '1024x1024' },
+  ];
+  const grokVideoRatioOptions = [
+    { label: '3:2', value: '1792x1024' },
+    { label: '2:3', value: '1024x1792' },
+    { label: '16:9', value: '1280x720' },
+    { label: '9:16', value: '720x1280' },
+    { label: '1:1', value: '1024x1024' },
   ];
   const videoSecondsOptions = [6, 8, 10, 12, 15, 20, 25, 30].map((v) => ({
     label: `${v}s`,
@@ -140,8 +152,8 @@ const SettingsPanel = ({
   const adobeOutputResolutionOptions = [
     { label: '1K', value: '1K' },
     { label: '2K', value: '2K' },
+    { label: '4K', value: '4K' },
   ];
-  const adobe4KResolutionOptions = [{ label: '4K', value: '4K' }];
   const adobeSoraDurationOptions = [4, 8, 12].map((v) => ({
     label: `${v}s`,
     value: String(v),
@@ -312,7 +324,7 @@ const SettingsPanel = ({
         </div>
 
         {/* 视频参数（仅视频模型显示） */}
-        {isGrokImagineImageModel && (
+        {isGrokImagineImageModel && !isGrokImagineImageEditModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div>
               <Typography.Text strong className='text-sm'>
@@ -320,12 +332,19 @@ const SettingsPanel = ({
               </Typography.Text>
               <Select
                 className='!rounded-lg mt-2'
-                optionList={imageSizeOptions}
+                optionList={grokImageRatioOptions}
                 value={normalizeGrokImageSize(inputs.imageSize || '1024x1024')}
                 onChange={(value) => onInputChange('imageSize', value)}
                 disabled={customRequestMode}
               />
             </div>
+          </div>
+        )}
+        {isGrokImagineImageEditModel && (
+          <div>
+            <Typography.Text type='tertiary'>
+              {t('单图编辑默认跟随上传图片比例，xAI 不支持在这里强制改尺寸。')}
+            </Typography.Text>
           </div>
         )}
 
@@ -364,20 +383,10 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={
-                    isAdobeImage4KModel
-                      ? adobe4KResolutionOptions
-                      : adobeOutputResolutionOptions
-                  }
-                  value={
-                    isAdobeImage4KModel
-                      ? '4K'
-                      : inputs.outputResolution || '2K'
-                  }
-                  onChange={(value) =>
-                    !isAdobeImage4KModel && onInputChange('outputResolution', value)
-                  }
-                  disabled={customRequestMode || isAdobeImage4KModel}
+                  optionList={adobeOutputResolutionOptions}
+                  value={inputs.outputResolution || '2K'}
+                  onChange={(value) => onInputChange('outputResolution', value)}
+                  disabled={customRequestMode}
                 />
               </div>
             </div>
@@ -393,7 +402,7 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={videoSizeOptions}
+                  optionList={grokVideoRatioOptions}
                   value={inputs.videoSize}
                   onChange={(value) => onInputChange('videoSize', value)}
                   disabled={customRequestMode}

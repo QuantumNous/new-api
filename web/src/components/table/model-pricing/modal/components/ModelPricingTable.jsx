@@ -16,13 +16,86 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 import React from 'react';
 import { Card, Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
 import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
 
 const { Text } = Typography;
+
+const RESOLUTION_ORDER = ['1K', '2K', '4K'];
+
+const normalizeResolutionLabel = (value) => String(value || '').trim().toUpperCase();
+
+const sortResolutionEntries = (entries) =>
+  [...entries].sort(([a], [b]) => {
+    const indexA = RESOLUTION_ORDER.indexOf(normalizeResolutionLabel(a));
+    const indexB = RESOLUTION_ORDER.indexOf(normalizeResolutionLabel(b));
+    if (indexA !== -1 || indexB !== -1) {
+      const safeA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+      const safeB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+      if (safeA !== safeB) {
+        return safeA - safeB;
+      }
+    }
+    return normalizeResolutionLabel(a).localeCompare(normalizeResolutionLabel(b), undefined, {
+      numeric: true,
+    });
+  });
+
+const buildSecondsPriceItems = (priceMap, ratio, displayPrice, t) =>
+  Object.entries(priceMap || {})
+    .map(([seconds, price]) => {
+      const secondsValue = Number(seconds);
+      const priceValue = Number(price);
+      if (!Number.isFinite(secondsValue) || secondsValue <= 0 || !Number.isFinite(priceValue)) {
+        return null;
+      }
+      return {
+        key: `seconds-${seconds}`,
+        label: `${secondsValue}${t('秒')}`,
+        value: displayPrice(priceValue * ratio),
+        suffix: `/ ${t('次')}`,
+        order: secondsValue,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
+
+const buildResolutionPriceItems = (priceMap, ratio, displayPrice, t) =>
+  sortResolutionEntries(Object.entries(priceMap || {}))
+    .map(([resolution, price]) => {
+      const priceValue = Number(price);
+      if (!Number.isFinite(priceValue)) {
+        return null;
+      }
+      return {
+        key: `resolution-${resolution}`,
+        label: normalizeResolutionLabel(resolution),
+        value: displayPrice(priceValue * ratio),
+        suffix: `/ ${t('次')}`,
+      };
+    })
+    .filter(Boolean);
+
+const renderSummaryRows = (items, colorClass = 'text-orange-600') => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className='space-y-1.5'>
+      {items.map((item) => (
+        <div key={item.key} className='space-y-0.5'>
+          <div className={`font-semibold ${colorClass}`}>
+            {item.label} {item.value}
+          </div>
+          <div className='text-xs text-gray-500'>{item.suffix}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const ModelPricingTable = ({
   modelData,
@@ -46,12 +119,19 @@ const ModelPricingTable = ({
       ? modelData.model_price_by_seconds
       : {};
 
+  const modelPriceByResolution =
+    modelData?.model_price_by_resolution &&
+    typeof modelData.model_price_by_resolution === 'object'
+      ? modelData.model_price_by_resolution
+      : {};
+
   const autoChain = autoGroups.filter((g) => modelEnableGroups.includes(g));
 
   const getBillingTypeLabel = (quotaType) => {
     if (quotaType === 0) return t('按量计费');
     if (quotaType === 1) return t('按次计费');
     if (quotaType === 2) return t('按时长计费');
+    if (quotaType === 3) return t('按画质计费');
     return '-';
   };
 
@@ -59,72 +139,37 @@ const ModelPricingTable = ({
     if (quotaType === 0) return 'violet';
     if (quotaType === 1) return 'teal';
     if (quotaType === 2) return 'orange';
+    if (quotaType === 3) return 'cyan';
     return 'white';
   };
 
-  const getSecondsPriceItems = (ratio) =>
-    Object.entries(modelPriceBySeconds)
-      .map(([seconds, price]) => {
-        const secondsValue = Number(seconds);
-        const priceValue = Number(price);
-        if (
-          !Number.isFinite(secondsValue) ||
-          secondsValue <= 0 ||
-          !Number.isFinite(priceValue)
-        ) {
-          return null;
-        }
+  const renderSummaryBlock = (record) => {
+    const hasRegularItems = Array.isArray(record.priceItems) && record.priceItems.length > 0;
+    const hasSecondsItems = Array.isArray(record.secondsPriceItems) && record.secondsPriceItems.length > 0;
+    const hasResolutionItems =
+      Array.isArray(record.resolutionPriceItems) && record.resolutionPriceItems.length > 0;
 
-        return {
-          key: `seconds-${seconds}`,
-          label: `${secondsValue}${t('秒')}`,
-          value: displayPrice(priceValue * ratio),
-          suffix: `/ ${t('次')}`,
-          seconds: secondsValue,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.seconds - b.seconds);
-
-  const renderSummaryBlock = (items, record) => {
-    const hasRegularItems = Array.isArray(items) && items.length > 0;
-    const hasSecondsItems =
-      Array.isArray(record.secondsPriceItems) && record.secondsPriceItems.length > 0;
-
-    if (!hasRegularItems && !hasSecondsItems) {
+    if (!hasRegularItems && !hasSecondsItems && !hasResolutionItems) {
       return <span className='text-gray-400'>-</span>;
     }
 
     return (
       <div className='space-y-2'>
-        {hasRegularItems &&
-          items.map((item) => (
-            <div key={item.key} className='space-y-0.5'>
-              <div className='font-semibold text-orange-600'>
-                {item.label} {item.value}
-              </div>
-              <div className='text-xs text-gray-500'>{item.suffix}</div>
-            </div>
-          ))}
-
+        {hasRegularItems && renderSummaryRows(record.priceItems, 'text-orange-600')}
         {hasSecondsItems && (
+          <div className={hasRegularItems ? 'pt-2 border-t border-dashed border-gray-200' : ''}>
+            {renderSummaryRows(record.secondsPriceItems, 'text-orange-600')}
+          </div>
+        )}
+        {hasResolutionItems && (
           <div
             className={
-              hasRegularItems
+              hasRegularItems || hasSecondsItems
                 ? 'pt-2 border-t border-dashed border-gray-200'
                 : ''
             }
           >
-            <div className='space-y-1.5'>
-              {record.secondsPriceItems.map((item) => (
-                <div key={item.key} className='space-y-0.5'>
-                  <div className='font-semibold text-orange-600'>
-                    {item.label} {item.value}
-                  </div>
-                  <div className='text-xs text-gray-500'>{item.suffix}</div>
-                </div>
-              ))}
-            </div>
+            {renderSummaryRows(record.resolutionPriceItems, 'text-cyan-700')}
           </div>
         )}
       </div>
@@ -150,20 +195,32 @@ const ModelPricingTable = ({
           })
         : { inputPrice: '-', outputPrice: '-', price: '-' };
 
-      const groupRatioValue =
-        groupRatio && groupRatio[group] ? groupRatio[group] : 1;
-      const isDurationBilling = modelData?.quota_type === 2;
+      const groupRatioValue = groupRatio && groupRatio[group] ? groupRatio[group] : 1;
+      const quotaType = modelData?.quota_type;
 
       return {
         key: group,
         group,
         ratio: groupRatioValue,
-        quotaType: modelData?.quota_type,
-        billingType: getBillingTypeLabel(modelData?.quota_type),
-        priceItems: isDurationBilling
-          ? []
-          : getModelPriceItems(priceData, t, siteDisplayType),
-        secondsPriceItems: getSecondsPriceItems(groupRatioValue),
+        quotaType,
+        billingType: getBillingTypeLabel(quotaType),
+        priceItems:
+          quotaType === 2 || quotaType === 3
+            ? []
+            : getModelPriceItems(priceData, t, siteDisplayType),
+        secondsPriceItems:
+          quotaType === 2
+            ? buildSecondsPriceItems(modelPriceBySeconds, groupRatioValue, displayPrice, t)
+            : [],
+        resolutionPriceItems:
+          quotaType === 3
+            ? buildResolutionPriceItems(
+                modelPriceByResolution,
+                groupRatioValue,
+                displayPrice,
+                t,
+              )
+            : [],
       };
     });
 
@@ -196,11 +253,7 @@ const ModelPricingTable = ({
       title: t('计费类型'),
       dataIndex: 'billingType',
       render: (text, record) => (
-        <Tag
-          color={getBillingTypeColor(record.quotaType)}
-          size='small'
-          shape='circle'
-        >
+        <Tag color={getBillingTypeColor(record.quotaType)} size='small' shape='circle'>
           {text || '-'}
         </Tag>
       ),
@@ -209,7 +262,7 @@ const ModelPricingTable = ({
     columns.push({
       title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
       dataIndex: 'priceItems',
-      render: (items, record) => renderSummaryBlock(items, record),
+      render: (_, record) => renderSummaryBlock(record),
     });
 
     return (

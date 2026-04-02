@@ -137,14 +137,29 @@ const renderQuotaTypes = (arr, t) => {
   return renderLimitedItems({
     items: arr,
     renderItem: (qt, idx) => {
-      if (qt === 1) {
+      const quotaType = Number(qt);
+      if (quotaType === 1) {
         return (
           <Tag key={`${qt}-${idx}`} color='teal' size='small' shape='circle'>
             {t('按次计费')}
           </Tag>
         );
       }
-      if (qt === 0) {
+      if (quotaType === 2) {
+        return (
+          <Tag key={`${qt}-${idx}`} color='orange' size='small' shape='circle'>
+            {t('按时长计费')}
+          </Tag>
+        );
+      }
+      if (quotaType === 3) {
+        return (
+          <Tag key={`${qt}-${idx}`} color='cyan' size='small' shape='circle'>
+            {t('按画质计费')}
+          </Tag>
+        );
+      }
+      if (quotaType === 0) {
         return (
           <Tag key={`${qt}-${idx}`} color='violet' size='small' shape='circle'>
             {t('按量计费')}

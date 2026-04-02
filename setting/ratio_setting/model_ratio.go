@@ -325,6 +325,7 @@ var defaultAudioCompletionRatio = map[string]float64{
 
 var modelPriceMap = types.NewRWMap[string, float64]()
 var modelPriceBySecondsMap = types.NewRWMap[string, map[string]float64]()
+var modelPriceByResolutionMap = types.NewRWMap[string, map[string]float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
@@ -355,12 +356,41 @@ func ModelPriceBySeconds2JSONString() string {
 	return modelPriceBySecondsMap.MarshalJSONString()
 }
 
+func normalizeResolutionKey(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func ModelPriceByResolution2JSONString() string {
+	return modelPriceByResolutionMap.MarshalJSONString()
+}
+
 func ModelPrice2JSONString() string {
 	return modelPriceMap.MarshalJSONString()
 }
 
 func UpdateModelPriceBySecondsByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceBySecondsMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func UpdateModelPriceByResolutionByJSONString(jsonStr string) error {
+	var parsed map[string]map[string]float64
+	if err := common.UnmarshalJsonStr(jsonStr, &parsed); err != nil {
+		return err
+	}
+	modelPriceByResolutionMap.Clear()
+	for modelName, resolutionMap := range parsed {
+		normalizedResolutionMap := make(map[string]float64, len(resolutionMap))
+		for resolution, price := range resolutionMap {
+			key := normalizeResolutionKey(resolution)
+			if key == "" {
+				continue
+			}
+			normalizedResolutionMap[key] = price
+		}
+		modelPriceByResolutionMap.Set(modelName, normalizedResolutionMap)
+	}
+	InvalidateExposedDataCache()
+	return nil
 }
 
 func UpdateModelPriceByJSONString(jsonStr string) error {
@@ -416,6 +446,49 @@ func GetModelPriceBySecondsMap(name string) (map[string]float64, bool) {
 		cloned[seconds] = price
 	}
 	return cloned, true
+}
+
+func GetModelPriceByResolution(name string, resolution string) (float64, bool) {
+	name = FormatMatchingModelName(name)
+	key := normalizeResolutionKey(resolution)
+	if key == "" {
+		return 0, false
+	}
+	resolutionPriceMap, ok := modelPriceByResolutionMap.Get(name)
+	if !ok {
+		return 0, false
+	}
+	price, ok := resolutionPriceMap[key]
+	return price, ok
+}
+
+func GetModelPriceByResolutionMap(name string) (map[string]float64, bool) {
+	name = FormatMatchingModelName(name)
+	resolutionPriceMap, ok := modelPriceByResolutionMap.Get(name)
+	if !ok || len(resolutionPriceMap) == 0 {
+		return nil, false
+	}
+	cloned := make(map[string]float64, len(resolutionPriceMap))
+	for resolution, price := range resolutionPriceMap {
+		cloned[resolution] = price
+	}
+	return cloned, true
+}
+
+func GetModelPriceByResolutionMin(name string) (float64, bool) {
+	resolutionPriceMap, ok := GetModelPriceByResolutionMap(name)
+	if !ok {
+		return 0, false
+	}
+	minPrice := 0.0
+	found := false
+	for _, price := range resolutionPriceMap {
+		if !found || price < minPrice {
+			minPrice = price
+			found = true
+		}
+	}
+	return minPrice, found
 }
 
 func GetModelPriceBySecondsMin(name string) (float64, bool) {
@@ -480,6 +553,10 @@ func GetDefaultModelPriceMap() map[string]float64 {
 
 func GetModelPriceBySecondsCopy() map[string]map[string]float64 {
 	return modelPriceBySecondsMap.ReadAll()
+}
+
+func GetModelPriceByResolutionCopy() map[string]map[string]float64 {
+	return modelPriceByResolutionMap.ReadAll()
 }
 
 func CompletionRatio2JSONString() string {

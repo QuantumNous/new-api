@@ -59,9 +59,12 @@ const PageLayout = () => {
     '/console/task',
     '/console/models',
     '/pricing',
+    '/creative-center',
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
+  const shouldAllowPageScroll =
+    isMobile || location.pathname === '/creative-center';
 
   const shouldInnerPadding =
     location.pathname.includes('/console') &&
@@ -210,7 +213,7 @@ const PageLayout = () => {
           <Content
             style={{
               flex: '1 0 auto',
-              overflowY: isMobile ? 'visible' : 'hidden',
+              overflowY: shouldAllowPageScroll ? 'auto' : 'hidden',
               WebkitOverflowScrolling: 'touch',
               padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
               position: 'relative',

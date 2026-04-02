@@ -69,6 +69,8 @@ func InitOptionMap() {
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
+	common.OptionMap["CreativeCenterImageBedURL"] = system_setting.CreativeCenterImageBedURL
+	common.OptionMap["CreativeCenterImageBedApiKey"] = system_setting.CreativeCenterImageBedApiKey
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
@@ -131,6 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["ModelPriceBySeconds"] = ratio_setting.ModelPriceBySeconds2JSONString()
+	common.OptionMap["ModelPriceByResolution"] = ratio_setting.ModelPriceByResolution2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
@@ -333,6 +336,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPToken = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
+	case "CreativeCenterImageBedURL":
+		system_setting.CreativeCenterImageBedURL = value
+	case "CreativeCenterImageBedApiKey":
+		system_setting.CreativeCenterImageBedApiKey = value
 	case "WorkerUrl":
 		system_setting.WorkerUrl = value
 	case "WorkerValidKey":
@@ -475,6 +482,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateModelPriceByJSONString(value)
 	case "ModelPriceBySeconds":
 		err = ratio_setting.UpdateModelPriceBySecondsByJSONString(value)
+	case "ModelPriceByResolution":
+		err = ratio_setting.UpdateModelPriceByResolutionByJSONString(value)
 	case "CacheRatio":
 		err = ratio_setting.UpdateCacheRatioByJSONString(value)
 	case "CreateCacheRatio":

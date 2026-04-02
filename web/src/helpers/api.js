@@ -127,15 +127,12 @@ export const buildApiPayload = (
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
-    'grok-imagine-1.0-edit',
   ]);
+  const grokImagineImageEditModels = new Set(['grok-imagine-1.0-edit']);
   const adobeImageModels = new Set([
     'nano-banana',
-    'nano-banana-4k',
     'nano-banana2',
-    'nano-banana2-4k',
     'nano-banana-pro',
-    'nano-banana-pro-4k',
   ]);
   const adobeVideoModels = new Set([
     'sora2',
@@ -186,12 +183,13 @@ export const buildApiPayload = (
 
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
-  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isGrokImagineImageModel =
+    grokImagineImageModels.has(inputs.model) ||
+    grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
-  const isAdobeImage4KModel =
-    typeof inputs.model === 'string' && inputs.model.endsWith('-4k');
   const isAdobeVeoModel =
     inputs.model === 'veo31' ||
     inputs.model === 'veo31-ref' ||
@@ -202,7 +200,7 @@ export const buildApiPayload = (
     adobeAspectRatioRaw === 'auto' ? '' : adobeAspectRatioRaw;
   if (isGrokImagineImageModel) {
     payload.stream = false;
-    if (inputs.imageSize) {
+    if (!isGrokImagineImageEditModel && inputs.imageSize) {
       payload.size = normalizeGrokImageSize(inputs.imageSize);
     }
   }
@@ -212,9 +210,7 @@ export const buildApiPayload = (
     } else if (inputs.autoImageSize) {
       payload.size = inputs.autoImageSize;
     }
-    if (isAdobeImage4KModel) {
-      payload.output_resolution = '4K';
-    } else if (inputs.outputResolution) {
+    if (inputs.outputResolution) {
       payload.output_resolution = inputs.outputResolution;
     } else {
       payload.output_resolution = '2K';

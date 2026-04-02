@@ -69,6 +69,8 @@ const SystemSetting = () => {
     SMTPAccount: '',
     SMTPFrom: '',
     SMTPToken: '',
+    CreativeCenterImageBedURL: '',
+    CreativeCenterImageBedApiKey: '',
     WorkerUrl: '',
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
@@ -315,6 +317,51 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+
+  const submitCreativeCenterImageBed = async () => {
+    const options = [];
+    const creativeCenterImageBedURL = removeTrailingSlash(
+      inputs.CreativeCenterImageBedURL || '',
+    );
+
+    if (
+      originInputs['CreativeCenterImageBedURL'] !== creativeCenterImageBedURL
+    ) {
+      options.push({
+        key: 'CreativeCenterImageBedURL',
+        value: creativeCenterImageBedURL,
+      });
+    }
+    if (
+      inputs.CreativeCenterImageBedApiKey &&
+      inputs.CreativeCenterImageBedApiKey !== ''
+    ) {
+      options.push({
+        key: 'CreativeCenterImageBedApiKey',
+        value: inputs.CreativeCenterImageBedApiKey,
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+      setInputs((prev) => ({
+        ...prev,
+        CreativeCenterImageBedURL: creativeCenterImageBedURL,
+        CreativeCenterImageBedApiKey: '',
+      }));
+      setOriginInputs((prev) => ({
+        ...prev,
+        CreativeCenterImageBedURL: creativeCenterImageBedURL,
+      }));
+      if (formApiRef.current) {
+        formApiRef.current.setValue(
+          'CreativeCenterImageBedURL',
+          creativeCenterImageBedURL,
+        );
+        formApiRef.current.setValue('CreativeCenterImageBedApiKey', '');
+      }
+    }
   };
 
   const submitSMTP = async () => {
@@ -729,6 +776,51 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitServerAddress}>
                     {t('更新服务器地址')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('图床设置')}>
+                  <Text>
+                    {t(
+                      '用于创作中心上传图片时，先上传到外部图床再将返回的图片 URL 提交给模型；未配置时会回退到本地上传。',
+                    )}
+                  </Text>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '按 CloudFlare ImgBed 兼容接口接入，程序会向你填写的地址自动追加 /upload，并使用 Bearer Token 鉴权。',
+                    )}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='CreativeCenterImageBedURL'
+                        label={t('图床 API 地址')}
+                        placeholder='https://linkss.top'
+                        extraText={t(
+                          '只填图床基础地址即可，例如 https://linkss.top',
+                        )}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='CreativeCenterImageBedApiKey'
+                        label={t('图床 API 密钥')}
+                        type='password'
+                        placeholder={t('留空则保持原有密钥')}
+                        extraText={t(
+                          '敏感信息不会回显到前端；如需停用外部图床，可直接清空图床 API 地址',
+                        )}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitCreativeCenterImageBed}>
+                    {t('保存图床设置')}
                   </Button>
                 </Form.Section>
               </Card>

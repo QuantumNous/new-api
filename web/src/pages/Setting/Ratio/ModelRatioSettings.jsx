@@ -42,6 +42,7 @@ export default function ModelRatioSettings(props) {
   const [inputs, setInputs] = useState({
     ModelPrice: '',
     ModelPriceBySeconds: '',
+    ModelPriceByResolution: '',
     ModelRatio: '',
     CacheRatio: '',
     CreateCacheRatio: '',
@@ -186,6 +187,32 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, ModelPriceBySeconds: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16} style={{ display: 'none' }}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('按画质固定价格')}
+              extraText={t(
+                '用于同一任务模型按 output_resolution / resolution / quality 映射不同价格，例如 1K、2K、4K。',
+              )}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为一个以画质为键的价格表，例如：{"nano-banana": {"1K": 0.02, "2K": 0.05, "4K": 0.1}}',
+              )}
+              field={'ModelPriceByResolution'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, ModelPriceByResolution: value })
               }
             />
           </Col>

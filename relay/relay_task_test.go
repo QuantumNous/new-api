@@ -37,7 +37,7 @@ func TestCalcTaskQuotaWithRatiosUsesMappedSecondsPrice(t *testing.T) {
 		},
 	}
 
-	quota, ratios := calcTaskQuotaWithRatios(info, map[string]float64{
+	quota, ratios := calcTaskQuotaWithRatios(nil, info, map[string]float64{
 		"seconds": 12,
 		"size":    1.666667,
 	})
@@ -64,7 +64,7 @@ func TestCalcTaskQuotaWithRatiosFallsBackToLinearSeconds(t *testing.T) {
 		},
 	}
 
-	quota, ratios := calcTaskQuotaWithRatios(info, map[string]float64{
+	quota, ratios := calcTaskQuotaWithRatios(nil, info, map[string]float64{
 		"seconds": 12,
 		"size":    1.5,
 	})

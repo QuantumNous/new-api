@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -54,6 +54,8 @@ const CARD_STYLES = {
 };
 
 const DURATION_PREVIEW_LIMIT = 2;
+const RESOLUTION_PREVIEW_LIMIT = 3;
+const RESOLUTION_ORDER = ['1K', '2K', '4K'];
 
 const PricingCardView = ({
   filteredModels,
@@ -174,6 +176,48 @@ const PricingCardView = ({
       .sort((a, b) => a.seconds - b.seconds);
   };
 
+  const normalizeResolutionLabel = (value) =>
+    String(value || '').trim().toUpperCase();
+
+  const getResolutionPriceItems = (record, ratio = 1) => {
+    const resolutionPriceMap =
+      record?.model_price_by_resolution &&
+      typeof record.model_price_by_resolution === 'object'
+        ? record.model_price_by_resolution
+        : {};
+
+    return Object.entries(resolutionPriceMap)
+      .sort(([a], [b]) => {
+        const indexA = RESOLUTION_ORDER.indexOf(normalizeResolutionLabel(a));
+        const indexB = RESOLUTION_ORDER.indexOf(normalizeResolutionLabel(b));
+        if (indexA !== -1 || indexB !== -1) {
+          const safeA = indexA === -1 ? Number.MAX_SAFE_INTEGER : indexA;
+          const safeB = indexB === -1 ? Number.MAX_SAFE_INTEGER : indexB;
+          if (safeA !== safeB) {
+            return safeA - safeB;
+          }
+        }
+        return normalizeResolutionLabel(a).localeCompare(
+          normalizeResolutionLabel(b),
+          undefined,
+          { numeric: true },
+        );
+      })
+      .map(([resolution, price]) => {
+        const priceValue = Number(price);
+        if (!Number.isFinite(priceValue)) {
+          return null;
+        }
+
+        return {
+          key: `resolution-${resolution}`,
+          resolution: normalizeResolutionLabel(resolution),
+          value: displayPrice(priceValue * ratio),
+        };
+      })
+      .filter(Boolean);
+  };
+
   const renderTags = (record) => {
     let billingTag = (
       <Tag key='billing' shape='circle' color='white' size='small'>
@@ -191,6 +235,12 @@ const PricingCardView = ({
       billingTag = (
         <Tag key='billing' shape='circle' color='orange' size='small'>
           {t('按时长计费')}
+        </Tag>
+      );
+    } else if (record.quota_type === 3) {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='cyan' size='small'>
+          {t('按画质计费')}
         </Tag>
       );
     } else if (record.quota_type === 0) {
@@ -272,6 +322,46 @@ const PricingCardView = ({
               style={{ color: 'var(--semi-color-text-2)' }}
             >
               +{remainingCount} {t('档时长价格')}
+            </span>
+          )}
+        </>
+      );
+    }
+
+    if (record.quota_type === 3) {
+      const resolutionItems = getResolutionPriceItems(
+        record,
+        priceData?.usedGroupRatio ?? 1,
+      );
+
+      if (resolutionItems.length === 0) {
+        return (
+          <span className='text-xs' style={{ color: 'var(--semi-color-text-2)' }}>
+            -
+          </span>
+        );
+      }
+
+      const previewItems = resolutionItems.slice(0, RESOLUTION_PREVIEW_LIMIT);
+      const remainingCount = resolutionItems.length - previewItems.length;
+
+      return (
+        <>
+          {previewItems.map((item) => (
+            <span
+              key={item.key}
+              className='text-xs'
+              style={{ color: 'var(--semi-color-text-1)' }}
+            >
+              {item.resolution} {item.value} / {t('次')}
+            </span>
+          ))}
+          {remainingCount > 0 && (
+            <span
+              className='text-xs'
+              style={{ color: 'var(--semi-color-text-2)' }}
+            >
+              +{remainingCount} {t('档画质价格')}
             </span>
           )}
         </>
@@ -450,3 +540,4 @@ const PricingCardView = ({
 };
 
 export default PricingCardView;
+
