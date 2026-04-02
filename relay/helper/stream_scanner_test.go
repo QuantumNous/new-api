@@ -77,8 +77,8 @@ func TestStreamScannerHandler_NilInputs(t *testing.T) {
 
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
 
-	StreamScannerHandler(c, nil, info, func(data string, sr *StreamResult) {})
-	StreamScannerHandler(c, &http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
+	_ = StreamScannerHandler(c,nil, info, func(data string, sr *StreamResult) {})
+	_ = StreamScannerHandler(c,&http.Response{Body: io.NopCloser(strings.NewReader(""))}, info, nil)
 }
 
 func TestStreamScannerHandler_EmptyBody(t *testing.T) {
@@ -87,7 +87,7 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(""))
 
 	var called atomic.Bool
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		called.Store(true)
 	})
 
@@ -102,7 +102,7 @@ func TestStreamScannerHandler_1000Chunks(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		count.Add(1)
 	})
 
@@ -120,7 +120,7 @@ func TestStreamScannerHandler_10000Chunks(t *testing.T) {
 	var count atomic.Int64
 	start := time.Now()
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		count.Add(1)
 	})
 
@@ -140,7 +140,7 @@ func TestStreamScannerHandler_OrderPreserved(t *testing.T) {
 	var mu sync.Mutex
 	received := make([]string, 0, numChunks)
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		mu.Lock()
 		received = append(received, data)
 		mu.Unlock()
@@ -160,7 +160,7 @@ func TestStreamScannerHandler_DoneStopsScanner(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		count.Add(1)
 	})
 
@@ -176,7 +176,7 @@ func TestStreamScannerHandler_StopStopsStream(t *testing.T) {
 
 	const stopAt int64 = 50
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		n := count.Add(1)
 		if n >= stopAt {
 			sr.Stop(fmt.Errorf("fatal at %d", n))
@@ -205,7 +205,7 @@ func TestStreamScannerHandler_SkipsNonDataLines(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		count.Add(1)
 	})
 
@@ -219,7 +219,7 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
 	var got string
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		got = data
 	})
 
@@ -260,7 +260,7 @@ func TestStreamScannerHandler_ScannerDecoupledFromSlowHandler(t *testing.T) {
 	start := time.Now()
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 			time.Sleep(handlerDelay)
 			count.Add(1)
 		})
@@ -296,7 +296,7 @@ func TestStreamScannerHandler_SlowUpstreamFastHandler(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 			count.Add(1)
 		})
 		close(done)
@@ -354,7 +354,7 @@ func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
 	var count atomic.Int64
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 			count.Add(1)
 		})
 		close(done)
@@ -417,7 +417,7 @@ func TestStreamScannerHandler_PingDisabledByRelayInfo(t *testing.T) {
 	var count atomic.Int64
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 			count.Add(1)
 		})
 		close(done)
@@ -444,7 +444,7 @@ func TestStreamScannerHandler_StreamStatus_DoneReason(t *testing.T) {
 	body := buildSSEBody(10)
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {})
 
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
@@ -462,7 +462,7 @@ func TestStreamScannerHandler_StreamStatus_EOFWithoutDone(t *testing.T) {
 	}
 	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {})
 
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonEOF, info.StreamStatus.EndReason)
@@ -476,7 +476,7 @@ func TestStreamScannerHandler_StreamStatus_HandlerStop(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		n := count.Add(1)
 		if n >= 10 {
 			sr.Stop(fmt.Errorf("stop at 10"))
@@ -495,7 +495,7 @@ func TestStreamScannerHandler_StreamStatus_HandlerDone(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		n := count.Add(1)
 		if n >= 5 {
 			sr.Done()
@@ -530,7 +530,7 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {})
 		close(done)
 	}()
 
@@ -551,7 +551,7 @@ func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {
 	body := buildSSEBody(10)
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		sr.Error(fmt.Errorf("soft error for chunk"))
 	})
 
@@ -567,7 +567,7 @@ func TestStreamScannerHandler_StreamStatus_MultipleErrorsPerChunk(t *testing.T) 
 	body := buildSSEBody(5)
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		sr.Error(fmt.Errorf("error A"))
 		sr.Error(fmt.Errorf("error B"))
 	})
@@ -589,7 +589,7 @@ func TestStreamScannerHandler_StreamStatus_ErrorThenStop(t *testing.T) {
 	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))
 
 	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 		count.Add(1)
 		sr.Error(fmt.Errorf("soft error"))
 		sr.Stop(fmt.Errorf("fatal"))
@@ -609,7 +609,7 @@ func TestStreamScannerHandler_StreamStatus_InitializedIfNil(t *testing.T) {
 
 	assert.Nil(t, info.StreamStatus)
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {})
 
 	assert.NotNil(t, info.StreamStatus)
 }
@@ -623,7 +623,7 @@ func TestStreamScannerHandler_StreamStatus_PreInitialized(t *testing.T) {
 	info.StreamStatus = relaycommon.NewStreamStatus()
 	info.StreamStatus.RecordError("pre-existing error")
 
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {})
 
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 	assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
@@ -668,7 +668,7 @@ func TestStreamScannerHandler_PingInterleavesWithSlowUpstream(t *testing.T) {
 	var count atomic.Int64
 	done := make(chan struct{})
 	go func() {
-		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StreamScannerHandler(c,resp, info, func(data string, sr *StreamResult) {
 			count.Add(1)
 		})
 		close(done)

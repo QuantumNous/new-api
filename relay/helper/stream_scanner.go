@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 
@@ -34,10 +35,10 @@ func getScannerBufferSize() int {
 	return DefaultMaxScannerBufferSize
 }
 
-func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
+func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) *types.NewAPIError {
 
 	if resp == nil || dataHandler == nil {
-		return
+		return nil
 	}
 
 	// 无条件新建 StreamStatus
@@ -296,4 +297,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
+
+	// If the stream ended abnormally and no tokens were ever sent to the client,
+	// return a retriable channel error so the retry loop can try another channel.
+	if info.StreamStatus.IsRetriable() && info.ReceivedResponseCount == 0 {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("stream failed without response: %s", info.StreamStatus.Summary()),
+			"channel:stream_timeout_no_response",
+			http.StatusBadGateway,
+		)
+	}
+
+	return nil
 }
