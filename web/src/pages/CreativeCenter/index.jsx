@@ -1391,6 +1391,7 @@ export default function App() {
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const videoPollersRef = useRef(new Map());
+  const chatMessagesRef = useRef([]);
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const uploadedImagesRef = useRef([]);
@@ -1402,6 +1403,10 @@ export default function App() {
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadImageNotice, setUploadImageNotice] = useState('');
   const isUploadingImage = uploadedImages.some((item) => item?.status === 'uploading');
+
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
 
   useEffect(() => {
     imageRecordsRef.current = imageRecords;
@@ -3532,14 +3537,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         ),
         id: Date.now(),
       };
-      setChatMessages(prev => [...prev, userMsg]);
+      const currentChatHistory = Array.isArray(chatMessagesRef.current)
+        ? chatMessagesRef.current
+        : [];
+      const nextUserMessages = [...currentChatHistory, userMsg];
+      setChatMessages(nextUserMessages);
       try {
-        const payload = createBasePayload(
-          currentPrompt,
-          params,
-          currentModelName,
-          'chat',
-          currentUploadedImageUrls,
+        const payload = buildApiPayload(
+          nextUserMessages,
+          '',
+          createCreativeInputs(params, currentModelName, 'chat'),
+          PARAMETER_TOGGLES_DISABLED,
         );
         const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
         const choice = data?.choices?.[0];
@@ -3555,7 +3563,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           content,
           id: Date.now() + 1,
         };
-        const nextMessages = [...chatMessages, userMsg, assistantMsg];
+        const nextMessages = [...nextUserMessages, assistantMsg];
         setChatMessages(nextMessages);
         await persistCreativeHistorySnapshot(
           'chat',
@@ -3576,7 +3584,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           content: `请求失败：${error.message || '请稍后再试。'}`,
           id: Date.now() + 1,
         };
-        const nextMessages = [...chatMessages, userMsg, errorMsg];
+        const nextMessages = [...nextUserMessages, errorMsg];
         setChatMessages(nextMessages);
         await persistCreativeHistorySnapshot(
           'chat',
