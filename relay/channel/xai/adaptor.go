@@ -50,7 +50,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info != nil && info.RelayMode == constant.RelayModeImagesEdits {
-		return buildImageEditMultipartRequest(c, request)
+		return buildImageEditJSONRequest(request)
 	}
 
 	xaiRequest := ImageRequest{
@@ -125,9 +125,6 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	if info != nil && info.RelayMode == constant.RelayModeImagesEdits {
-		return channel.DoFormRequest(a, c, info, requestBody)
-	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -166,6 +163,78 @@ type imagePayload struct {
 	Filename string `json:"filename"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
+}
+
+func buildImageEditJSONRequest(request dto.ImageRequest) (map[string]any, error) {
+	image, err := buildXAIImageEditSource(request.Image)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := map[string]any{
+		"model":  request.Model,
+		"prompt": request.Prompt,
+		"image":  image,
+	}
+	if request.N != nil && *request.N > 0 {
+		payload["n"] = *request.N
+	}
+	if strings.TrimSpace(request.ResponseFormat) != "" {
+		payload["response_format"] = request.ResponseFormat
+	}
+	if strings.TrimSpace(request.AspectRatio) != "" {
+		payload["aspect_ratio"] = request.AspectRatio
+	}
+	return payload, nil
+}
+
+func buildXAIImageEditSource(rawImage []byte) (map[string]any, error) {
+	if len(rawImage) == 0 {
+		return nil, errors.New("image is required")
+	}
+
+	var simpleString string
+	if err := common.Unmarshal(rawImage, &simpleString); err == nil {
+		return map[string]any{
+			"url":  normalizeXAIImageEditURL(simpleString, ""),
+			"type": "image_url",
+		}, nil
+	}
+
+	var payload imagePayload
+	if err := common.Unmarshal(rawImage, &payload); err == nil {
+		source := strings.TrimSpace(payload.URL)
+		if source == "" {
+			source = strings.TrimSpace(payload.Data)
+		}
+		if source == "" {
+			source = strings.TrimSpace(payload.B64JSON)
+		}
+		if source == "" {
+			return nil, errors.New("image is required")
+		}
+		return map[string]any{
+			"url":  normalizeXAIImageEditURL(source, payload.MimeType),
+			"type": "image_url",
+		}, nil
+	}
+
+	return nil, errors.New("unsupported image payload for xai image edit")
+}
+
+func normalizeXAIImageEditURL(source string, preferredMime string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return ""
+	}
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "data:") {
+		return source
+	}
+	mimeType := strings.TrimSpace(preferredMime)
+	if mimeType == "" {
+		mimeType = "image/png"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, source)
 }
 
 func buildImageEditMultipartRequest(c *gin.Context, request dto.ImageRequest) (*bytes.Buffer, error) {

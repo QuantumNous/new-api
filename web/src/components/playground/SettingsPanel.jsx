@@ -59,8 +59,8 @@ const SettingsPanel = ({
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
-    'grok-imagine-1.0-edit',
   ]);
+  const grokImagineImageEditModels = new Set(['grok-imagine-1.0-edit']);
   const adobeImageModels = new Set([
     'nano-banana',
     'nano-banana2',
@@ -73,7 +73,10 @@ const SettingsPanel = ({
     'veo31-ref',
     'veo31-fast',
   ]);
-  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isGrokImagineImageModel =
+    grokImagineImageModels.has(inputs.model) ||
+    grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
   const isAdobeSoraModel =
@@ -321,7 +324,7 @@ const SettingsPanel = ({
         </div>
 
         {/* 视频参数（仅视频模型显示） */}
-        {isGrokImagineImageModel && (
+        {isGrokImagineImageModel && !isGrokImagineImageEditModel && (
           <div className={customRequestMode ? 'opacity-50' : ''}>
             <div>
               <Typography.Text strong className='text-sm'>
@@ -335,6 +338,13 @@ const SettingsPanel = ({
                 disabled={customRequestMode}
               />
             </div>
+          </div>
+        )}
+        {isGrokImagineImageEditModel && (
+          <div>
+            <Typography.Text type='tertiary'>
+              {t('单图编辑默认跟随上传图片比例，xAI 不支持在这里强制改尺寸。')}
+            </Typography.Text>
           </div>
         )}
 

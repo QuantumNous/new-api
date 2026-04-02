@@ -127,8 +127,8 @@ export const buildApiPayload = (
   const grokImagineImageModels = new Set([
     'grok-imagine-1.0',
     'grok-imagine-1.0-fast',
-    'grok-imagine-1.0-edit',
   ]);
+  const grokImagineImageEditModels = new Set(['grok-imagine-1.0-edit']);
   const adobeImageModels = new Set([
     'nano-banana',
     'nano-banana2',
@@ -183,7 +183,10 @@ export const buildApiPayload = (
 
   const isVideoModel =
     typeof inputs.model === 'string' && inputs.model.includes('video');
-  const isGrokImagineImageModel = grokImagineImageModels.has(inputs.model);
+  const isGrokImagineImageModel =
+    grokImagineImageModels.has(inputs.model) ||
+    grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
   const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
   const isAdobeImageModel = adobeImageModels.has(inputs.model);
   const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
@@ -197,7 +200,7 @@ export const buildApiPayload = (
     adobeAspectRatioRaw === 'auto' ? '' : adobeAspectRatioRaw;
   if (isGrokImagineImageModel) {
     payload.stream = false;
-    if (inputs.imageSize) {
+    if (!isGrokImagineImageEditModel && inputs.imageSize) {
       payload.size = normalizeGrokImageSize(inputs.imageSize);
     }
   }

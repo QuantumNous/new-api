@@ -48,6 +48,11 @@ const GROK_IMAGINE_IMAGE_MODELS = new Set([
   'grok-imagine-1.0-fast',
   'grok-imagine-1.0-edit',
 ]);
+const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+const GROK_IMAGE_GENERATION_MODELS = new Set([
+  'grok-imagine-1.0',
+  'grok-imagine-1.0-fast',
+]);
 const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana',
   'nano-banana2',
@@ -458,6 +463,23 @@ const extractImageUrlsFromMessage = (content) => {
   ];
 
   return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+};
+
+const buildCreativeCenterImageDisplayUrl = (url) => {
+  if (typeof url !== 'string') {
+    return '';
+  }
+
+  const trimmedURL = url.trim();
+  if (!trimmedURL) {
+    return '';
+  }
+
+  if (!/^https?:\/\//i.test(trimmedURL)) {
+    return trimmedURL;
+  }
+
+  return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
 };
 
 const triggerDownload = (url, filename) => {
@@ -1227,6 +1249,9 @@ export default function App() {
   const currentModelName = selectedModel?.value || selectedModel?.name || '';
   const isGrokImagineImageModel =
     GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
+  const isGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(currentModelName);
+  const isGrokImageGenerationModel =
+    GROK_IMAGE_GENERATION_MODELS.has(currentModelName);
   const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
   const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
   const isAdobeSoraModel =
@@ -1291,6 +1316,7 @@ export default function App() {
     };
     const isCurrentGrokImagineImageModel =
       GROK_IMAGINE_IMAGE_MODELS.has(modelName);
+    const isCurrentGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(modelName);
     const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(modelName);
     const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(modelName);
     const isCurrentAdobeSoraModel =
@@ -1304,7 +1330,7 @@ export default function App() {
     const isCurrentGrokImagineVideoModel = modelName === 'grok-imagine-1.0-video';
 
     if (tabKey === 'image') {
-      if (isCurrentGrokImagineImageModel) {
+      if (isCurrentGrokImagineImageModel && !isCurrentGrokImageEditModel) {
         snapshot.imageSize = normalizeGrokImageSize(sourceParams.imageSize);
       }
 
@@ -2556,7 +2582,6 @@ export default function App() {
               'image',
               currentUploadedImageUrls,
             );
-            const isGrokImageEditModel = currentModelName === 'grok-imagine-1.0-edit';
             const payload = isGrokImageEditModel
               ? {
                   model: currentModelName,
@@ -2578,7 +2603,7 @@ export default function App() {
                   seed: requestSeed,
                   user: requestUser,
                 };
-            if (basePayload.size) {
+            if (!isGrokImageEditModel && basePayload.size) {
               payload.size = basePayload.size;
             }
             if (isGrokImageEditModel) {
@@ -3183,7 +3208,7 @@ export default function App() {
                                         {imageItem.url ? (
                                           <>
                                             <img
-                                              src={imageItem.url}
+                                              src={buildCreativeCenterImageDisplayUrl(imageItem.url)}
                                               alt={`Generating Art ${imageIndex + 1}`}
                                               loading='lazy'
                                               decoding='async'
@@ -3278,7 +3303,7 @@ export default function App() {
                                     {imageItem.url ? (
                                       <>
                                         <img
-                                          src={imageItem.url}
+                                          src={buildCreativeCenterImageDisplayUrl(imageItem.url)}
                                           alt={`Generated Art ${imageIndex + 1}`}
                                           loading='lazy'
                                           decoding='async'
@@ -3812,7 +3837,7 @@ export default function App() {
                   {uploadedImage ? (
                     <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-blue-100 bg-slate-50 shadow-sm'>
                       <img
-                        src={uploadedImage.url}
+                        src={buildCreativeCenterImageDisplayUrl(uploadedImage.url)}
                         alt={uploadedImage.name}
                         className='h-full w-full object-cover'
                       />
@@ -3908,7 +3933,7 @@ export default function App() {
                     widthClass='w-28'
                   />
 
-                  {activeTab === 'image' && isGrokImagineImageModel && (
+                  {activeTab === 'image' && isGrokImageGenerationModel && (
                     <DropSelectButton
                       menuKey='imageSize'
                       icon={<Copy size={14} />}
@@ -3924,6 +3949,11 @@ export default function App() {
                         setParams((prev) => ({ ...prev, imageSize: value }))
                       }
                     />
+                  )}
+                  {activeTab === 'image' && isGrokImageEditModel && (
+                    <div className='rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-500'>
+                      比例 跟随原图
+                    </div>
                   )}
 
                   {activeTab === 'image' && isAdobeImageModel && (
@@ -4134,7 +4164,7 @@ export default function App() {
             </div>
             <div className='overflow-hidden rounded-[1.5rem] bg-slate-100'>
               <img
-                src={previewImage.url}
+                src={buildCreativeCenterImageDisplayUrl(previewImage.url)}
                 alt={previewImage.title || 'Preview'}
                 className='max-h-[80vh] w-full object-contain'
               />

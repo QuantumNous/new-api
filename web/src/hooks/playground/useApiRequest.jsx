@@ -213,9 +213,6 @@ export const useApiRequest = (
         if (image) {
           requestPayload.image = image;
         }
-        if (size) {
-          requestPayload.size = size;
-        }
       } else {
         requestPayload.prompt = resolvedPrompt;
         requestPayload.n = 1;

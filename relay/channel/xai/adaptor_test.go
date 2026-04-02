@@ -1,11 +1,6 @@
 package xai
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
-	"mime"
-	"mime/multipart"
 	"net/http/httptest"
 	"testing"
 
@@ -19,7 +14,6 @@ import (
 
 func TestConvertImageRequestBuildsMultipartForEditImage(t *testing.T) {
 	adaptor := &Adaptor{}
-	image := json.RawMessage(`{"url":"data:image/png;base64,aGVsbG8="}`)
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest("POST", "/v1/images/edits", nil)
@@ -30,7 +24,7 @@ func TestConvertImageRequestBuildsMultipartForEditImage(t *testing.T) {
 		Model:          "grok-imagine-1.0-edit",
 		Prompt:         "make it watercolor",
 		N:              lo.ToPtr(uint(2)),
-		Image:          image,
+		Image:          []byte(`{"url":"data:image/png;base64,aGVsbG8="}`),
 		Size:           "1024x1024",
 		ResponseFormat: "url",
 	})
@@ -38,56 +32,31 @@ func TestConvertImageRequestBuildsMultipartForEditImage(t *testing.T) {
 		t.Fatalf("ConvertImageRequest returned error: %v", err)
 	}
 
-	body, ok := converted.(*bytes.Buffer)
+	payload, ok := converted.(map[string]any)
 	if !ok {
-		t.Fatalf("expected *bytes.Buffer, got %T", converted)
+		t.Fatalf("expected map[string]any, got %T", converted)
 	}
-
-	mediaType, params, err := mime.ParseMediaType(ctx.Request.Header.Get("Content-Type"))
-	if err != nil {
-		t.Fatalf("parse content type failed: %v", err)
+	if payload["model"] != "grok-imagine-1.0-edit" {
+		t.Fatalf("unexpected model: %v", payload["model"])
 	}
-	if mediaType != "multipart/form-data" {
-		t.Fatalf("unexpected media type: %s", mediaType)
+	if payload["prompt"] != "make it watercolor" {
+		t.Fatalf("unexpected prompt: %v", payload["prompt"])
 	}
-
-	reader := multipart.NewReader(bytes.NewReader(body.Bytes()), params["boundary"])
-	form, err := reader.ReadForm(1 << 20)
-	if err != nil {
-		t.Fatalf("read multipart form failed: %v", err)
+	if payload["n"] != uint(2) {
+		t.Fatalf("unexpected n: %v", payload["n"])
 	}
-
-	if form.Value["model"][0] != "grok-imagine-1.0-edit" {
-		t.Fatalf("unexpected model: %v", form.Value["model"])
+	if payload["response_format"] != "url" {
+		t.Fatalf("unexpected response_format: %v", payload["response_format"])
 	}
-	if form.Value["prompt"][0] != "make it watercolor" {
-		t.Fatalf("unexpected prompt: %v", form.Value["prompt"])
+	image, ok := payload["image"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected image payload: %#v", payload["image"])
 	}
-	if form.Value["n"][0] != "2" {
-		t.Fatalf("unexpected n: %v", form.Value["n"])
+	if image["type"] != "image_url" {
+		t.Fatalf("unexpected image type: %v", image["type"])
 	}
-	if form.Value["size"][0] != "1024x1024" {
-		t.Fatalf("unexpected size: %v", form.Value["size"])
-	}
-	if form.Value["response_format"][0] != "url" {
-		t.Fatalf("unexpected response_format: %v", form.Value["response_format"])
-	}
-
-	files := form.File["image"]
-	if len(files) != 1 {
-		t.Fatalf("expected one image file, got %d", len(files))
-	}
-	file, err := files[0].Open()
-	if err != nil {
-		t.Fatalf("open image file failed: %v", err)
-	}
-	defer file.Close()
-	content, err := io.ReadAll(file)
-	if err != nil {
-		t.Fatalf("read image file failed: %v", err)
-	}
-	if string(content) != "hello" {
-		t.Fatalf("unexpected image file content: %q", string(content))
+	if image["url"] != "data:image/png;base64,aGVsbG8=" {
+		t.Fatalf("unexpected image url: %v", image["url"])
 	}
 }
 

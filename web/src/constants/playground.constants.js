@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
   CREATIVE_CENTER_HISTORY: '/api/user/self/creative-center/history',
   CREATIVE_CENTER_IMAGE_UPLOAD: '/api/user/self/creative-center/image/upload',
+  CREATIVE_CENTER_IMAGE_PROXY: '/api/user/self/creative-center/image/proxy',
 };
 
 // ========== 配置默认值 ==========

@@ -164,6 +164,56 @@ func GetCreativeCenterUploadedImage(c *gin.Context) {
 	c.File(filePath)
 }
 
+func ProxyCreativeCenterRemoteImage(c *gin.Context) {
+	targetURL := strings.TrimSpace(c.Query("url"))
+	if targetURL == "" {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(targetURL, "https://") && !strings.HasPrefix(targetURL, "http://") {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	resp, err := service.DoDownloadRequest(targetURL, "creative center image proxy")
+	if err != nil {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+
+	head := make([]byte, 512)
+	headSize, err := io.ReadFull(resp.Body, head)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if contentType == "" || !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		contentType = http.DetectContentType(head[:headSize])
+	}
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		c.Status(http.StatusUnsupportedMediaType)
+		return
+	}
+
+	c.Header("Cache-Control", "private, max-age=300")
+	c.Header("Content-Disposition", "inline")
+	c.DataFromReader(
+		http.StatusOK,
+		-1,
+		contentType,
+		io.MultiReader(bytes.NewReader(head[:headSize]), resp.Body),
+		nil,
+	)
+}
+
 func creativeCenterImageUploadDir() string {
 	return filepath.Join("data", "uploads", "creative-center")
 }
