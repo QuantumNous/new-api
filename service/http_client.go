@@ -97,6 +97,13 @@ func newRelayHTTPTransport() *http.Transport {
 }
 
 func newRelayHTTPClient(transport *http.Transport) *http.Client {
+	// ResponseHeaderTimeout limits the time waiting for response headers (time to first byte).
+	// Unlike http.Client.Timeout, it does not affect streaming once headers arrive.
+	// This ensures upstream requests fail before Cloudflare's 100s proxy timeout (524 error).
+	if common.RelayTimeout > 0 {
+		transport.ResponseHeaderTimeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+
 	client := &http.Client{
 		Transport:     transport,
 		CheckRedirect: checkRedirect,
