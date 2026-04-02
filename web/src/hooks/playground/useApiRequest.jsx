@@ -37,6 +37,11 @@ const GROK_IMAGE_GENERATION_MODELS = new Set([
   'grok-imagine-1.0-fast',
 ]);
 const GROK_IMAGE_EDIT_MODELS = new Set(['grok-imagine-1.0-edit']);
+const ADOBE_IMAGE_MODELS = new Set([
+  'nano-banana',
+  'nano-banana2',
+  'nano-banana-pro',
+]);
 const normalizeGrokImageSize = (size) => {
   if (size === '1536x1024') {
     return '1792x1024';
@@ -64,6 +69,10 @@ export const useApiRequest = (
 
   const isGrokImagineImageEditModel = useCallback((model) => {
     return GROK_IMAGE_EDIT_MODELS.has(model);
+  }, []);
+
+  const isAdobeImageModel = useCallback((model) => {
+    return ADOBE_IMAGE_MODELS.has(model);
   }, []);
 
   const isVideoGenerationPayload = useCallback((payload) => {
@@ -137,6 +146,37 @@ export const useApiRequest = (
 
     return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
   }, []);
+
+  const extractImageUrlsFromResponse = useCallback(
+    (data) => {
+      const directUrls = (Array.isArray(data?.data) ? data.data : [])
+        .map((item) => item?.url)
+        .filter((item) => typeof item === 'string' && item.trim() !== '');
+      if (directUrls.length > 0) {
+        return directUrls;
+      }
+
+      const messageContent = data?.choices?.[0]?.message?.content;
+      if (typeof messageContent === 'string') {
+        return extractImageUrlsFromContent(messageContent);
+      }
+      if (Array.isArray(messageContent)) {
+        return messageContent
+          .filter((item) => item?.type === 'image_url')
+          .map((item) => {
+            const imageURL = item?.image_url;
+            if (typeof imageURL === 'string') {
+              return imageURL;
+            }
+            return imageURL?.url || '';
+          })
+          .filter(Boolean);
+      }
+
+      return [];
+    },
+    [extractImageUrlsFromContent],
+  );
 
   const normalizeVideoQuality = useCallback((quality) => {
     if (quality === '720p') {
@@ -291,6 +331,16 @@ export const useApiRequest = (
           forceNonStream: true,
         };
       }
+      if (isAdobeImageModel(payload?.model)) {
+        return {
+          endpoint: API_ENDPOINTS.CHAT_COMPLETIONS,
+          requestPayload: {
+            ...payload,
+            stream: false,
+          },
+          forceNonStream: true,
+        };
+      }
       if (isVideoGenerationPayload(payload)) {
         return {
           endpoint: API_ENDPOINTS.VIDEO_GENERATIONS,
@@ -307,6 +357,7 @@ export const useApiRequest = (
     [
       buildImageRequestPayload,
       buildVideoRequestPayload,
+      isAdobeImageModel,
       isGrokImagineImageEditModel,
       isImageGenerationPayload,
       isVideoGenerationPayload,
@@ -599,15 +650,28 @@ export const useApiRequest = (
             choice.message?.reasoning ||
             '';
 
-          if (isGrokImagineImageEditModel(payload?.model)) {
-            const imageUrls = extractImageUrlsFromContent(content);
+          if (
+            isGrokImagineImageEditModel(payload?.model) ||
+            isAdobeImageModel(payload?.model)
+          ) {
+            const imageUrls = extractImageUrlsFromResponse(data);
             if (imageUrls.length > 0) {
               const summaryLines = [
-                t('图片编辑已完成'),
+                isGrokImagineImageEditModel(payload?.model)
+                  ? t('图片编辑已完成')
+                  : t('图片任务已完成'),
                 `model: ${requestPayload.model || payload?.model || '-'}`,
                 `count: ${imageUrls.length}`,
-                `size: ${requestPayload.image_config?.size || requestPayload.size || '-'}`,
+                isAdobeImageModel(payload?.model)
+                  ? `aspect_ratio: ${requestPayload.aspect_ratio || '-'}`
+                  : `size: ${requestPayload.image_config?.size || requestPayload.size || '-'}`,
               ];
+
+              if (isAdobeImageModel(payload?.model)) {
+                summaryLines.push(
+                  `output_resolution: ${requestPayload.output_resolution || '-'}`,
+                );
+              }
 
               imageUrls.forEach((url, index) => {
                 summaryLines.push(`image_${index + 1}: [Open Image ${index + 1}](${url})`);
@@ -691,8 +755,11 @@ export const useApiRequest = (
       setMessage,
       t,
       extractVideoUrl,
+      extractImageUrlsFromResponse,
       formatVideoQuality,
       applyAutoCollapseLogic,
+      isAdobeImageModel,
+      isGrokImagineImageEditModel,
     ],
   );
 

@@ -58,6 +58,10 @@ const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
 ]);
+const ADOBE_CHAT_IMAGE_EDIT_MODELS = new Set([
+  'nano-banana2',
+  'nano-banana-pro',
+]);
 const ADOBE_VIDEO_MODELS = new Set([
   'sora2',
   'sora2-pro',
@@ -499,6 +503,35 @@ const extractImageUrlsFromMessage = (content) => {
   ];
 
   return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
+};
+
+const extractImageUrlsFromCreativeResponse = (data) => {
+  const directUrls = Array.isArray(data?.data)
+    ? data.data
+        .map((item) => (typeof item?.url === 'string' ? item.url.trim() : ''))
+        .filter(Boolean)
+    : [];
+  if (directUrls.length > 0) {
+    return directUrls;
+  }
+
+  const messageContent = data?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string') {
+    return extractImageUrlsFromMessage(messageContent);
+  }
+
+  if (Array.isArray(messageContent)) {
+    return messageContent
+      .filter((item) => item?.type === 'image_url')
+      .map((item) =>
+        typeof item?.image_url === 'string'
+          ? item.image_url.trim()
+          : item?.image_url?.url?.trim?.() || '',
+      )
+      .filter(Boolean);
+  }
+
+  return [];
 };
 
 const buildCreativeCenterImageDisplayUrl = (url) => {
@@ -3620,28 +3653,38 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               'image',
               currentUploadedImageUrls,
             );
-            const payload = isGrokImageEditModel
+            const useAdobeChatImageEditRequest =
+              ADOBE_CHAT_IMAGE_EDIT_MODELS.has(currentModelName) &&
+              currentUploadedImageUrls.length > 0;
+            const payload = useAdobeChatImageEditRequest
               ? {
                   model: currentModelName,
                   group: activeGroup,
-                  prompt: currentPrompt || 'Edit the provided media.',
-                  n: 1,
-                  response_format: 'url',
-                  request_id: requestId,
-                  seed: requestSeed,
-                  user: requestUser,
+                  stream: false,
+                  messages: basePayload.messages,
                 }
-              : {
-                  model: currentModelName,
-                  group: activeGroup,
-                  prompt: currentPrompt,
-                  n: 1,
-                  response_format: 'url',
-                  request_id: requestId,
-                  seed: requestSeed,
-                  user: requestUser,
-                };
-            if (!isGrokImageEditModel && basePayload.size) {
+              : isGrokImageEditModel
+                ? {
+                    model: currentModelName,
+                    group: activeGroup,
+                    prompt: currentPrompt || 'Edit the provided media.',
+                    n: 1,
+                    response_format: 'url',
+                    request_id: requestId,
+                    seed: requestSeed,
+                    user: requestUser,
+                  }
+                : {
+                    model: currentModelName,
+                    group: activeGroup,
+                    prompt: currentPrompt,
+                    n: 1,
+                    response_format: 'url',
+                    request_id: requestId,
+                    seed: requestSeed,
+                    user: requestUser,
+                  };
+            if (!isGrokImageEditModel && !useAdobeChatImageEditRequest && basePayload.size) {
               payload.size = basePayload.size;
             }
             if (isGrokImageEditModel) {
@@ -3649,6 +3692,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 payload.image = currentUploadedImageUrls[0];
               } else if (currentUploadedImageUrls.length > 1) {
                 payload.image = currentUploadedImageUrls;
+              }
+            } else if (useAdobeChatImageEditRequest) {
+              if (basePayload.aspect_ratio) {
+                payload.aspect_ratio = basePayload.aspect_ratio;
+              }
+              if (basePayload.output_resolution) {
+                payload.output_resolution = basePayload.output_resolution;
               }
             } else {
               if (basePayload.aspect_ratio) {
@@ -3664,7 +3714,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
             patchImageTask(recordId, taskId, {
               requestId,
-              requestPollable: ADOBE_IMAGE_MODELS.has(currentModelName),
+              requestPollable:
+                ADOBE_IMAGE_MODELS.has(currentModelName) &&
+                !useAdobeChatImageEditRequest,
               submittedAt,
               estimateStartAt,
               finalizingAt: 0,
@@ -3681,19 +3733,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const data = await postCreativeRequest(
               isGrokImageEditModel
                 ? API_ENDPOINTS.IMAGE_EDITS
-                : API_ENDPOINTS.IMAGE_GENERATIONS,
+                : useAdobeChatImageEditRequest
+                  ? API_ENDPOINTS.CHAT_COMPLETIONS
+                  : API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
               {
                 'X-Request-Id': requestId,
               },
             );
-            const imageUrls = Array.isArray(data?.data)
-              ? data.data
-                  .map((item) =>
-                    typeof item?.url === 'string' ? item.url.trim() : '',
-                  )
-                  .filter(Boolean)
-              : [];
+            const imageUrls = extractImageUrlsFromCreativeResponse(data);
 
             if (useEstimatedImageProgress && imageUrls[0]) {
               patchImageTask(recordId, taskId, {
@@ -4098,7 +4146,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             </button>
 
             {isSessionPanelOpen && (
-              <div className='absolute left-0 top-14 z-30 w-[360px] rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
+              <div className='absolute left-0 right-0 top-14 z-30 rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
                 <div className='mb-3 px-2'>
                   <div className='text-sm font-bold text-slate-800'>历史会话</div>
                   <div className='text-xs text-slate-400'>仅删除会话，图片视频资源仍保留</div>
@@ -4117,7 +4165,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       return (
                         <div
                           key={session.id}
-                          className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
+                          className={`rounded-2xl border px-3 py-3 transition ${
                             isCurrentSession
                               ? 'border-blue-200 bg-blue-50/80'
                               : 'border-slate-200 bg-slate-50/70 hover:bg-white'
@@ -4127,7 +4175,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                             type='button'
                             onClick={() => openCreativeSession(activeTab, session.id)}
                             disabled={isSubmitPending}
-                            className='min-w-0 flex-1 text-left disabled:cursor-not-allowed'
+                            className='min-w-0 w-full text-left disabled:cursor-not-allowed'
                           >
                             <div className='truncate text-sm font-semibold text-slate-700'>
                               {session.name || '未命名会话'}
@@ -4137,7 +4185,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                               {sessionTime ? ` · ${sessionTime}` : ''}
                             </div>
                           </button>
-                          <div className='flex shrink-0 items-center gap-2'>
+                          <div className='mt-3 flex items-center justify-end gap-2'>
                             <button
                               type='button'
                               onClick={() => renameCreativeSession(activeTab, session.id)}
