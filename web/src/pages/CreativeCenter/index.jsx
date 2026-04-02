@@ -1729,9 +1729,13 @@ export default function App() {
     [activeTab, historySnapshots],
   );
   const currentTabSessions = currentTabHistorySnapshot?.payload?.sessions || [];
-  const activeHistorySnapshot = currentTabHistorySnapshot
-    ? getCreativeCurrentSessionSnapshot(currentTabHistorySnapshot, activeTab)
-    : null;
+  const activeHistorySnapshot = useMemo(
+    () =>
+      currentTabHistorySnapshot
+        ? getCreativeCurrentSessionSnapshot(currentTabHistorySnapshot, activeTab)
+        : null,
+    [activeTab, currentTabHistorySnapshot],
+  );
   const findModelCard = (tabKey, modelName) =>
     (modelPools[tabKey] || []).find(
       (model) => model.value === modelName || model.name === modelName,
@@ -4038,7 +4042,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
   return (
     <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-slate-50 text-slate-800 font-sans'>
-      <aside className='flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
+      <aside className='relative z-10 flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
         <div className='p-6'>
           <div className='flex items-center gap-2'>
             <div className='h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200'>
@@ -4072,6 +4076,104 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           })}
         </nav>
 
+        <div className='border-b border-slate-100 px-4 py-4'>
+          <div className='relative flex flex-wrap items-center gap-3'>
+            <button
+              type='button'
+              onClick={() => setIsSessionPanelOpen((prev) => !prev)}
+              disabled={isSubmitPending}
+              className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+            >
+              <History size={16} />
+              历史会话
+            </button>
+            <button
+              type='button'
+              onClick={() => createCreativeSession(activeTab)}
+              disabled={isSubmitPending}
+              className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+            >
+              <Plus size={16} />
+              新建会话
+            </button>
+
+            {isSessionPanelOpen && (
+              <div className='absolute left-0 top-14 z-30 w-[360px] rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
+                <div className='mb-3 px-2'>
+                  <div className='text-sm font-bold text-slate-800'>历史会话</div>
+                  <div className='text-xs text-slate-400'>仅删除会话，图片视频资源仍保留</div>
+                </div>
+                <div className='max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
+                  {currentTabSessions
+                    .slice()
+                    .sort(
+                      (left, right) =>
+                        Number(right?.updated_at || 0) - Number(left?.updated_at || 0),
+                    )
+                    .map((session) => {
+                      const isCurrentSession =
+                        session.id === currentTabHistorySnapshot?.payload?.current_session_id;
+                      const sessionTime = formatCreativeRecordTime(session.updated_at);
+                      return (
+                        <div
+                          key={session.id}
+                          className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
+                            isCurrentSession
+                              ? 'border-blue-200 bg-blue-50/80'
+                              : 'border-slate-200 bg-slate-50/70 hover:bg-white'
+                          }`}
+                        >
+                          <button
+                            type='button'
+                            onClick={() => openCreativeSession(activeTab, session.id)}
+                            disabled={isSubmitPending}
+                            className='min-w-0 flex-1 text-left disabled:cursor-not-allowed'
+                          >
+                            <div className='truncate text-sm font-semibold text-slate-700'>
+                              {session.name || '未命名会话'}
+                            </div>
+                            <div className='mt-1 truncate text-xs text-slate-400'>
+                              {formatCreativeSessionMeta(activeTab, session)}
+                              {sessionTime ? ` · ${sessionTime}` : ''}
+                            </div>
+                          </button>
+                          <div className='flex shrink-0 items-center gap-2'>
+                            <button
+                              type='button'
+                              onClick={() => renameCreativeSession(activeTab, session.id)}
+                              disabled={isSubmitPending}
+                              className='rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+                            >
+                              重命名
+                            </button>
+                            <button
+                              type='button'
+                              onClick={() => deleteCreativeSession(activeTab, session.id)}
+                              disabled={isSubmitPending}
+                              className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500'
+                              title='只删除会话，图片视频资源仍保留'
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className='mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3'>
+            <div className='truncate text-sm font-semibold text-slate-700'>
+              {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
+            </div>
+            <div className='mt-1 text-xs text-slate-400'>
+              {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
+            </div>
+          </div>
+        </div>
+
         <div className='flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
           <div className='text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-2'>核心创作模型</div>
           {currentDisplayModels.map((model) => (
@@ -4095,107 +4197,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       </aside>
 
       <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
-        <div className='shrink-0 px-8 pt-6 pb-4'>
-          <div className='flex items-start justify-between gap-4'>
-            <div className='relative flex items-center gap-3'>
-              <button
-                type='button'
-                onClick={() => setIsSessionPanelOpen((prev) => !prev)}
-                disabled={isSubmitPending}
-                className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
-              >
-                <History size={16} />
-                历史会话
-              </button>
-              <button
-                type='button'
-                onClick={() => createCreativeSession(activeTab)}
-                disabled={isSubmitPending}
-                className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
-              >
-                <Plus size={16} />
-                新建会话
-              </button>
-
-              {isSessionPanelOpen && (
-                <div className='absolute left-0 top-14 z-30 w-[360px] rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
-                  <div className='mb-3 px-2'>
-                    <div className='text-sm font-bold text-slate-800'>历史会话</div>
-                    <div className='text-xs text-slate-400'>
-                      仅删除会话，图片视频资源仍保留
-                    </div>
-                  </div>
-                  <div className='max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
-                    {currentTabSessions
-                      .slice()
-                      .sort(
-                        (left, right) =>
-                          Number(right?.updated_at || 0) - Number(left?.updated_at || 0),
-                      )
-                      .map((session) => {
-                        const isCurrentSession =
-                          session.id === currentTabHistorySnapshot?.payload?.current_session_id;
-                        const sessionTime = formatCreativeRecordTime(session.updated_at);
-                        return (
-                          <div
-                            key={session.id}
-                            className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
-                              isCurrentSession
-                                ? 'border-blue-200 bg-blue-50/80'
-                                : 'border-slate-200 bg-slate-50/70 hover:bg-white'
-                            }`}
-                          >
-                            <button
-                              type='button'
-                              onClick={() => openCreativeSession(activeTab, session.id)}
-                              disabled={isSubmitPending}
-                              className='min-w-0 flex-1 text-left disabled:cursor-not-allowed'
-                            >
-                              <div className='truncate text-sm font-semibold text-slate-700'>
-                                {session.name || '未命名会话'}
-                              </div>
-                              <div className='mt-1 truncate text-xs text-slate-400'>
-                                {formatCreativeSessionMeta(activeTab, session)}
-                                {sessionTime ? ` · ${sessionTime}` : ''}
-                              </div>
-                            </button>
-                            <div className='flex shrink-0 items-center gap-2'>
-                              <button
-                                type='button'
-                                onClick={() => renameCreativeSession(activeTab, session.id)}
-                                disabled={isSubmitPending}
-                                className='rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
-                              >
-                                重命名
-                              </button>
-                              <button
-                                type='button'
-                                onClick={() => deleteCreativeSession(activeTab, session.id)}
-                                disabled={isSubmitPending}
-                                className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500'
-                                title='只删除会话，图片视频资源仍保留'
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className='min-w-0 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-right shadow-sm backdrop-blur-sm'>
-              <div className='truncate text-sm font-semibold text-slate-700'>
-                {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
-              </div>
-              <div className='mt-1 text-xs text-slate-400'>
-                {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
-              </div>
-            </div>
-          </div>
-        </div>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
