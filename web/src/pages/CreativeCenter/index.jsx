@@ -4212,14 +4212,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             )}
           </div>
 
-          <div className='mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3'>
-            <div className='truncate text-sm font-semibold text-slate-700'>
-              {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
-            </div>
-            <div className='mt-1 text-xs text-slate-400'>
-              {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
-            </div>
-          </div>
         </div>
 
         <div className='flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
