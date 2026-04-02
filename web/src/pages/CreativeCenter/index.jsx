@@ -4095,9 +4095,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       </aside>
 
       <main className='relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white/40 backdrop-blur-md'>
-        <div className='sticky top-0 z-20 border-b border-slate-100 bg-white/88 px-8 py-5 backdrop-blur-xl'>
-          <div className='flex items-center justify-between gap-4'>
-            <div className='relative flex items-center gap-3'>
+        <div className='pointer-events-none absolute left-8 right-8 top-6 z-20 flex items-start justify-between gap-4'>
+          <div className='pointer-events-auto relative flex items-center gap-3'>
               <button
                 type='button'
                 onClick={() => setIsSessionPanelOpen((prev) => !prev)}
@@ -4184,21 +4183,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   </div>
                 </div>
               )}
-            </div>
+          </div>
 
-            <div className='min-w-0 text-right'>
-              <div className='truncate text-sm font-semibold text-slate-700'>
-                {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
-              </div>
-              <div className='mt-1 text-xs text-slate-400'>
-                {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
-              </div>
+          <div className='pointer-events-auto min-w-0 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-right shadow-sm backdrop-blur-sm'>
+            <div className='truncate text-sm font-semibold text-slate-700'>
+              {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
+            </div>
+            <div className='mt-1 text-xs text-slate-400'>
+              {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
             </div>
           </div>
         </div>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
-            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 py-10 space-y-6 custom-scrollbar'>
+            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-28 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
                   <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
@@ -4257,7 +4255,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         )}
 
         {activeTab !== 'chat' && (
-          <div ref={scrollRef} className='relative flex-1 overflow-y-auto p-10 custom-scrollbar'>
+          <div ref={scrollRef} className='relative flex-1 overflow-y-auto px-10 pb-10 pt-28 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='space-y-10'>
@@ -5286,20 +5284,20 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   <div className='ml-auto text-[10px] text-slate-400 font-bold tracking-widest uppercase'>Enter 发送</div>
                 </div>
               )}
-              <div className='mt-4 flex items-center justify-end px-2'>
-                <button
-                  type='button'
-                  onClick={handleClearCurrentSession}
-                  disabled={isSubmitPending}
-                  title='只删除会话，图片视频资源仍保留'
-                  className='inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
-                >
-                  <Trash2 size={14} />
-                  清除会话
-                </button>
-              </div>
             </div>
           </div>
+        </div>
+        <div className='pointer-events-none absolute bottom-8 right-8 z-20'>
+          <button
+            type='button'
+            onClick={handleClearCurrentSession}
+            disabled={isSubmitPending}
+            title='只删除会话，图片视频资源仍保留'
+            className='pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-500 shadow-lg shadow-slate-200/60 backdrop-blur-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+          >
+            <Trash2 size={14} />
+            清除会话
+          </button>
         </div>
       </main>
 
