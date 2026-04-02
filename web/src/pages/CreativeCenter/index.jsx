@@ -4094,9 +4094,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         </div>
       </aside>
 
-      <main className='relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white/40 backdrop-blur-md'>
-        <div className='pointer-events-none absolute left-8 right-8 top-6 z-20 flex items-start justify-between gap-4'>
-          <div className='pointer-events-auto relative flex items-center gap-3'>
+      <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
+        <div className='shrink-0 px-8 pt-6 pb-4'>
+          <div className='flex items-start justify-between gap-4'>
+            <div className='relative flex items-center gap-3'>
               <button
                 type='button'
                 onClick={() => setIsSessionPanelOpen((prev) => !prev)}
@@ -4183,20 +4184,21 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   </div>
                 </div>
               )}
-          </div>
-
-          <div className='pointer-events-auto min-w-0 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-right shadow-sm backdrop-blur-sm'>
-            <div className='truncate text-sm font-semibold text-slate-700'>
-              {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
             </div>
-            <div className='mt-1 text-xs text-slate-400'>
-              {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
+
+            <div className='min-w-0 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 text-right shadow-sm backdrop-blur-sm'>
+              <div className='truncate text-sm font-semibold text-slate-700'>
+                {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
+              </div>
+              <div className='mt-1 text-xs text-slate-400'>
+                {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
+              </div>
             </div>
           </div>
         </div>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
-            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-28 space-y-6 custom-scrollbar'>
+            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
                   <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
@@ -4255,7 +4257,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         )}
 
         {activeTab !== 'chat' && (
-          <div ref={scrollRef} className='relative flex-1 overflow-y-auto px-10 pb-10 pt-28 custom-scrollbar'>
+          <div ref={scrollRef} className='relative flex-1 overflow-y-auto px-10 pb-10 pt-4 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='space-y-10'>
