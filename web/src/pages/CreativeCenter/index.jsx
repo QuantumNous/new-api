@@ -4426,7 +4426,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
               {currentImageUploadLimit ? (
                 <div className='mt-2 px-2 text-[11px] text-slate-400'>
-                  当前模型最多可上传 {currentImageUploadLimit} 张图片（图片不能大于10M）
+                  当前模型最多可上传 {currentImageUploadLimit} 张图片（建议不大于5M/张）
                 </div>
               ) : null}
 
