@@ -35,7 +35,7 @@ import {
   renderModelPriceSimple,
 } from '../../../helpers';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
-import { Route, Sparkles } from 'lucide-react';
+import { CircleAlert, Route, Sparkles } from 'lucide-react';
 
 const colors = [
   'amber',
@@ -141,12 +141,58 @@ function renderType(type, t) {
   }
 }
 
-function renderIsStream(bool, t) {
+function buildStreamStatusTooltip(ss, t) {
+  if (!ss) return null;
+  const lines = [
+    t('流状态') + '：' + t('异常'),
+    (ss.end_reason || 'unknown'),
+  ];
+  if (ss.error_count > 0) {
+    lines.push(`${t('软错误')}: ${ss.error_count}`);
+  }
+  if (ss.end_error) {
+    lines.push(ss.end_error);
+  }
+  return (
+    <div style={{ lineHeight: 1.6, display: 'flex', flexDirection: 'column' }}>
+      {lines.map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+    </div>
+  );
+}
+
+function renderIsStream(bool, t, streamStatus) {
+  const isError = streamStatus && streamStatus.status !== 'ok';
+
   if (bool) {
     return (
-      <Tag color='blue' shape='circle'>
-        {t('流')}
-      </Tag>
+      <span style={{ position: 'relative', display: 'inline-block' }}>
+        <Tag color='blue' shape='circle'>
+          {t('流')}
+        </Tag>
+        {isError && (
+          <Tooltip content={buildStreamStatusTooltip(streamStatus, t)}>
+            <span
+              style={{
+                position: 'absolute',
+                right: -4,
+                top: -4,
+                lineHeight: 1,
+                color: '#ef4444',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <CircleAlert
+                size={14}
+                strokeWidth={2.5}
+                color='currentColor'
+              />
+            </span>
+          </Tooltip>
+        )}
+      </span>
     );
   } else {
     return (
@@ -694,7 +740,7 @@ export const getLogsColumns = ({
               <Space>
                 {renderUseTime(text, t)}
                 {renderFirstUseTime(other?.frt, t)}
-                {renderIsStream(record.is_stream, t)}
+                {renderIsStream(record.is_stream, t, other?.stream_status)}
               </Space>
             </>
           );
