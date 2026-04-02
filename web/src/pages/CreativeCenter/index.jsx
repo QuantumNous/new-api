@@ -2561,13 +2561,9 @@ export default function App() {
               ? {
                   model: currentModelName,
                   group: activeGroup,
-                  stream: false,
-                  messages: basePayload.messages,
-                  image_config: {
-                    n: 1,
-                    response_format: 'url',
-                    ...(basePayload.size ? { size: basePayload.size } : {}),
-                  },
+                  prompt: currentPrompt || 'Edit the provided media.',
+                  n: 1,
+                  response_format: 'url',
                   request_id: requestId,
                   seed: requestSeed,
                   user: requestUser,
@@ -2582,10 +2578,14 @@ export default function App() {
                   seed: requestSeed,
                   user: requestUser,
                 };
-            if (!isGrokImageEditModel) {
-              if (basePayload.size) {
-                payload.size = basePayload.size;
+            if (basePayload.size) {
+              payload.size = basePayload.size;
+            }
+            if (isGrokImageEditModel) {
+              if (currentUploadedImageUrls[0]) {
+                payload.image = currentUploadedImageUrls[0];
               }
+            } else {
               if (basePayload.aspect_ratio) {
                 payload.aspect_ratio = basePayload.aspect_ratio;
               }
@@ -2615,22 +2615,20 @@ export default function App() {
             }
             const data = await postCreativeRequest(
               isGrokImageEditModel
-                ? API_ENDPOINTS.CHAT_COMPLETIONS
+                ? API_ENDPOINTS.IMAGE_EDITS
                 : API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
               {
                 'X-Request-Id': requestId,
               },
             );
-            const imageUrls = isGrokImageEditModel
-              ? extractImageUrlsFromMessage(data?.choices?.[0]?.message?.content || '')
-              : Array.isArray(data?.data)
-                ? data.data
-                    .map((item) =>
-                      typeof item?.url === 'string' ? item.url.trim() : '',
-                    )
-                    .filter(Boolean)
-                : [];
+            const imageUrls = Array.isArray(data?.data)
+              ? data.data
+                  .map((item) =>
+                    typeof item?.url === 'string' ? item.url.trim() : '',
+                  )
+                  .filter(Boolean)
+              : [];
 
             if (useEstimatedImageProgress && imageUrls[0]) {
               patchImageTask(recordId, taskId, {

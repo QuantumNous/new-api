@@ -206,14 +206,16 @@ export const useApiRequest = (
         group: payload.group,
       };
 
-      if (isGrokImagineImageEditModel(payload.model) && image) {
-        requestPayload.stream = false;
-        requestPayload.messages = messages;
-        requestPayload.image_config = {
-          n: 1,
-          response_format: 'url',
-          ...(size ? { size } : {}),
-        };
+      if (isGrokImagineImageEditModel(payload.model)) {
+        requestPayload.prompt = resolvedPrompt;
+        requestPayload.n = 1;
+        requestPayload.response_format = 'url';
+        if (image) {
+          requestPayload.image = image;
+        }
+        if (size) {
+          requestPayload.size = size;
+        }
       } else {
         requestPayload.prompt = resolvedPrompt;
         requestPayload.n = 1;
@@ -261,7 +263,7 @@ export const useApiRequest = (
         const requestPayload = buildImageRequestPayload(payload);
         return {
           endpoint: isGrokImagineImageEditModel(payload?.model)
-            ? API_ENDPOINTS.CHAT_COMPLETIONS
+            ? API_ENDPOINTS.IMAGE_EDITS
             : API_ENDPOINTS.IMAGE_GENERATIONS,
           requestPayload,
           forceNonStream: true,
