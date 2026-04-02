@@ -254,8 +254,10 @@ export const buildApiPayload = (
     }
   }
   if (isAdobeVideoModel) {
-    payload.duration = Number(inputs.videoDuration || 4);
-    payload.aspect_ratio = adobeAspectRatio;
+    const forcedDuration = inputs.model === 'veo31-ref' ? 8 : Number(inputs.videoDuration || 4);
+    const forcedAspectRatio = inputs.model === 'veo31-ref' ? '16:9' : adobeAspectRatio;
+    payload.duration = forcedDuration;
+    payload.aspect_ratio = forcedAspectRatio;
     if (isAdobeVeoModel) {
       payload.resolution = inputs.videoResolution || '1080p';
     }

@@ -162,6 +162,27 @@ const SettingsPanel = ({
     label: `${v}s`,
     value: String(v),
   }));
+  const getAdobeVideoDurationOptions = (modelName) => {
+    if (modelName === 'veo31-ref') {
+      return adobeVeoDurationOptions.filter((option) => option.value === '8');
+    }
+    if (modelName === 'sora2' || modelName === 'sora2-pro') {
+      return adobeSoraDurationOptions;
+    }
+    return adobeVeoDurationOptions;
+  };
+  const getAdobeVideoAspectRatioOptions = (modelName) => {
+    if (modelName === 'veo31-ref') {
+      return adobeVideoAspectRatioOptions.filter(
+        (option) => option.value === '16:9',
+      );
+    }
+    return adobeVideoAspectRatioOptions;
+  };
+  const getAdobeVideoDefaultDuration = (modelName) =>
+    getAdobeVideoDurationOptions(modelName)[0]?.value || '4';
+  const getAdobeVideoDefaultAspectRatio = (modelName) =>
+    getAdobeVideoAspectRatioOptions(modelName)[0]?.value || '16:9';
   const adobeVideoResolutionOptions = [
     { label: '1080p', value: '1080p' },
     { label: '720p', value: '720p' },
@@ -178,6 +199,20 @@ const SettingsPanel = ({
     customRequestMode,
     customRequestBody,
   };
+  const currentAdobeVideoDurationOptions = getAdobeVideoDurationOptions(inputs.model);
+  const currentAdobeVideoAspectRatioOptions = getAdobeVideoAspectRatioOptions(
+    inputs.model,
+  );
+  const selectedAdobeVideoDuration = currentAdobeVideoDurationOptions.some(
+    (option) => option.value === inputs.videoDuration,
+  )
+    ? inputs.videoDuration
+    : getAdobeVideoDefaultDuration(inputs.model);
+  const selectedAdobeVideoAspectRatio = currentAdobeVideoAspectRatioOptions.some(
+    (option) => option.value === inputs.aspectRatio,
+  )
+    ? inputs.aspectRatio
+    : getAdobeVideoDefaultAspectRatio(inputs.model);
 
   return (
     <Card
@@ -465,12 +500,8 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={
-                    isAdobeSoraModel
-                      ? adobeSoraDurationOptions
-                      : adobeVeoDurationOptions
-                  }
-                  value={inputs.videoDuration || '4'}
+                  optionList={currentAdobeVideoDurationOptions}
+                  value={selectedAdobeVideoDuration}
                   onChange={(value) => onInputChange('videoDuration', value)}
                   disabled={customRequestMode}
                 />
@@ -481,8 +512,8 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={adobeVideoAspectRatioOptions}
-                  value={inputs.aspectRatio || '16:9'}
+                  optionList={currentAdobeVideoAspectRatioOptions}
+                  value={selectedAdobeVideoAspectRatio}
                   onChange={(value) => onInputChange('aspectRatio', value)}
                   disabled={customRequestMode}
                 />

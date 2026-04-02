@@ -129,6 +129,27 @@ const ADOBE_VIDEO_ASPECT_RATIO_OPTIONS = [
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
 ];
+const getAdobeVideoDurationOptions = (modelName) => {
+  if (modelName === 'veo31-ref') {
+    return ADOBE_VIDEO_DURATION_OPTIONS.veo.filter((option) => option.value === '8');
+  }
+  if (modelName === 'sora2' || modelName === 'sora2-pro') {
+    return ADOBE_VIDEO_DURATION_OPTIONS.sora;
+  }
+  return ADOBE_VIDEO_DURATION_OPTIONS.veo;
+};
+const getAdobeVideoAspectRatioOptions = (modelName) => {
+  if (modelName === 'veo31-ref') {
+    return ADOBE_VIDEO_ASPECT_RATIO_OPTIONS.filter(
+      (option) => option.value === '16:9',
+    );
+  }
+  return ADOBE_VIDEO_ASPECT_RATIO_OPTIONS;
+};
+const getAdobeVideoDefaultDuration = (modelName) =>
+  getAdobeVideoDurationOptions(modelName)[0]?.value || '4';
+const getAdobeVideoDefaultAspectRatio = (modelName) =>
+  getAdobeVideoAspectRatioOptions(modelName)[0]?.value || '16:9';
 const ADOBE_VIDEO_RESOLUTION_OPTIONS = [
   { label: '1080p', value: '1080p' },
   { label: '720p', value: '720p' },
@@ -1407,9 +1428,9 @@ export default function App() {
 
       if (isCurrentAdobeVideoModel) {
         snapshot.videoDuration =
-          sourceParams.videoDuration ||
-          (isCurrentAdobeSoraModel ? '4' : '4');
-        snapshot.aspectRatio = sourceParams.aspectRatio || '16:9';
+          sourceParams.videoDuration || getAdobeVideoDefaultDuration(modelName);
+        snapshot.aspectRatio =
+          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(modelName);
         if (isCurrentAdobeVeoModel) {
           snapshot.videoResolution = sourceParams.videoResolution || '1080p';
         }
@@ -1588,20 +1609,17 @@ export default function App() {
       }
 
       if (isAdobeVideoModel) {
-        const durationOptions = isAdobeSoraModel
-          ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-          : ADOBE_VIDEO_DURATION_OPTIONS.veo;
+        const durationOptions = getAdobeVideoDurationOptions(currentModelName);
+        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentModelName);
         if (
           !durationOptions.some((option) => option.value === next.videoDuration)
         ) {
-          next.videoDuration = durationOptions[0]?.value || '4';
+          next.videoDuration = getAdobeVideoDefaultDuration(currentModelName);
         }
         if (
-          !ADOBE_VIDEO_ASPECT_RATIO_OPTIONS.some(
-            (option) => option.value === next.aspectRatio,
-          )
+          !aspectRatioOptions.some((option) => option.value === next.aspectRatio)
         ) {
-          next.aspectRatio = '16:9';
+          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentModelName);
         }
         if (
           isAdobeVeoModel &&
@@ -1626,7 +1644,6 @@ export default function App() {
   }, [
     currentModelName,
     isAdobeImageModel,
-    isAdobeSoraModel,
     isAdobeVeoModel,
     isAdobeVideoModel,
     isGrokImagineImageModel,
@@ -4196,17 +4213,11 @@ export default function App() {
                         menuKey='videoDuration'
                         icon={<Clock size={14} />}
                         label={`时长 ${getOptionLabel(
-                          isAdobeSoraModel
-                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-                            : ADOBE_VIDEO_DURATION_OPTIONS.veo,
+                          getAdobeVideoDurationOptions(currentModelName),
                           params.videoDuration,
                         )}`}
                         value={params.videoDuration}
-                        options={
-                          isAdobeSoraModel
-                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-                            : ADOBE_VIDEO_DURATION_OPTIONS.veo
-                        }
+                        options={getAdobeVideoDurationOptions(currentModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -4220,7 +4231,7 @@ export default function App() {
                         icon={<Copy size={14} />}
                         label={`比例 ${params.aspectRatio}`}
                         value={params.aspectRatio}
-                        options={ADOBE_VIDEO_ASPECT_RATIO_OPTIONS}
+                        options={getAdobeVideoAspectRatioOptions(currentModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
