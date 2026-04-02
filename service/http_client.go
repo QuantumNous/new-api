@@ -44,17 +44,16 @@ func InitHttpClient() {
 		transport.TLSClientConfig = common.InsecureTLSConfig
 	}
 
-	if common.RelayTimeout == 0 {
-		httpClient = &http.Client{
-			Transport:     transport,
-			CheckRedirect: checkRedirect,
-		}
-	} else {
-		httpClient = &http.Client{
-			Transport:     transport,
-			Timeout:       time.Duration(common.RelayTimeout) * time.Second,
-			CheckRedirect: checkRedirect,
-		}
+	// ResponseHeaderTimeout limits the time waiting for response headers (time to first byte).
+	// Unlike http.Client.Timeout, it does not affect streaming once headers arrive.
+	// This ensures upstream requests fail before Cloudflare's 100s proxy timeout (524 error).
+	if common.RelayTimeout > 0 {
+		transport.ResponseHeaderTimeout = time.Duration(common.RelayTimeout) * time.Second
+	}
+
+	httpClient = &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
 	}
 }
 
@@ -114,11 +113,13 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
+		if common.RelayTimeout > 0 {
+			transport.ResponseHeaderTimeout = time.Duration(common.RelayTimeout) * time.Second
+		}
 		client := &http.Client{
 			Transport:     transport,
 			CheckRedirect: checkRedirect,
 		}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client
 		proxyClientLock.Unlock()
@@ -155,9 +156,11 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
+		if common.RelayTimeout > 0 {
+			transport.ResponseHeaderTimeout = time.Duration(common.RelayTimeout) * time.Second
+		}
 
 		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 		proxyClientLock.Lock()
 		proxyClients[proxyURL] = client
 		proxyClientLock.Unlock()
