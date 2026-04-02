@@ -1041,6 +1041,199 @@ const normalizeVideoHistoryRecords = (snapshot) => {
   return [];
 };
 
+const getEmptyCreativeSessionPayload = (tabKey) => {
+  if (tabKey === 'chat') {
+    return { messages: [] };
+  }
+  return {
+    entries: [],
+    params: {},
+  };
+};
+
+const getDefaultCreativeSessionName = (tabKey, index = 1) => {
+  const tabLabelMap = {
+    chat: '对话',
+    image: '图片',
+    video: '视频',
+  };
+  return `${tabLabelMap[tabKey] || '创作'}会话 ${index}`;
+};
+
+const hasCreativeSessionContent = (tabKey, payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  if (tabKey === 'chat') {
+    return Array.isArray(payload.messages) && payload.messages.length > 0;
+  }
+
+  return Array.isArray(payload.entries) && payload.entries.length > 0;
+};
+
+const createCreativeSessionSnapshot = (tabKey, overrides = {}) => {
+  const now = Date.now();
+  return {
+    id: overrides.id || createCreativeRecordId(`${tabKey}-session`),
+    name: overrides.name || getDefaultCreativeSessionName(tabKey),
+    model_name: overrides.model_name || overrides.modelName || '',
+    group: overrides.group || '',
+    prompt: overrides.prompt || '',
+    payload:
+      overrides.payload && typeof overrides.payload === 'object'
+        ? overrides.payload
+        : getEmptyCreativeSessionPayload(tabKey),
+    created_at: overrides.created_at || overrides.createdAt || now,
+    updated_at: overrides.updated_at || overrides.updatedAt || now,
+  };
+};
+
+const normalizeCreativeSessionSnapshot = (
+  tabKey,
+  session,
+  fallbackSnapshot = null,
+  index = 0,
+) =>
+  createCreativeSessionSnapshot(tabKey, {
+    id: session?.id,
+    name:
+      session?.name ||
+      session?.title ||
+      getDefaultCreativeSessionName(tabKey, index + 1),
+    model_name:
+      session?.model_name ||
+      session?.modelName ||
+      fallbackSnapshot?.model_name ||
+      '',
+    group: session?.group || fallbackSnapshot?.group || '',
+    prompt: session?.prompt || fallbackSnapshot?.prompt || '',
+    payload:
+      session?.payload && typeof session.payload === 'object'
+        ? session.payload
+        : getEmptyCreativeSessionPayload(tabKey),
+    created_at:
+      session?.created_at ||
+      session?.createdAt ||
+      fallbackSnapshot?.created_at ||
+      fallbackSnapshot?.updated_at ||
+      Date.now(),
+    updated_at:
+      session?.updated_at ||
+      session?.updatedAt ||
+      fallbackSnapshot?.updated_at ||
+      Date.now(),
+  });
+
+const normalizeCreativeHistorySnapshot = (tabKey, snapshot) => {
+  const rawPayload =
+    snapshot?.payload && typeof snapshot.payload === 'object'
+      ? snapshot.payload
+      : {};
+
+  let sessions = Array.isArray(rawPayload?.sessions)
+    ? rawPayload.sessions
+        .filter(Boolean)
+        .map((session, index) =>
+          normalizeCreativeSessionSnapshot(tabKey, session, snapshot, index),
+        )
+    : [];
+
+  if (sessions.length === 0) {
+    const legacyPayload =
+      snapshot?.payload && typeof snapshot.payload === 'object'
+        ? snapshot.payload
+        : getEmptyCreativeSessionPayload(tabKey);
+
+    if (
+      snapshot ||
+      hasCreativeSessionContent(tabKey, legacyPayload) ||
+      snapshot?.model_name ||
+      snapshot?.prompt
+    ) {
+      sessions = [
+        normalizeCreativeSessionSnapshot(
+          tabKey,
+          {
+            name: getDefaultCreativeSessionName(tabKey, 1),
+            model_name: snapshot?.model_name || '',
+            group: snapshot?.group || '',
+            prompt: snapshot?.prompt || '',
+            payload: legacyPayload,
+            created_at: snapshot?.created_at,
+            updated_at: snapshot?.updated_at,
+          },
+          snapshot,
+          0,
+        ),
+      ];
+    }
+  }
+
+  if (sessions.length === 0) {
+    sessions = [createCreativeSessionSnapshot(tabKey, { name: getDefaultCreativeSessionName(tabKey, 1) })];
+  }
+
+  const requestedCurrentSessionId =
+    typeof rawPayload?.current_session_id === 'string'
+      ? rawPayload.current_session_id
+      : '';
+  const currentSessionId = sessions.some(
+    (session) => session.id === requestedCurrentSessionId,
+  )
+    ? requestedCurrentSessionId
+    : sessions[0]?.id || '';
+  const currentSession =
+    sessions.find((session) => session.id === currentSessionId) || sessions[0] || null;
+
+  return {
+    id: snapshot?.id || null,
+    tab: tabKey,
+    model_name: currentSession?.model_name || snapshot?.model_name || '',
+    group: currentSession?.group || snapshot?.group || '',
+    prompt: currentSession?.prompt || snapshot?.prompt || '',
+    payload: {
+      current_session_id: currentSessionId,
+      sessions,
+    },
+    created_at:
+      snapshot?.created_at || currentSession?.created_at || Date.now(),
+    updated_at:
+      snapshot?.updated_at || currentSession?.updated_at || Date.now(),
+  };
+};
+
+const getCreativeHistorySessions = (snapshot, tabKey) =>
+  normalizeCreativeHistorySnapshot(tabKey, snapshot)?.payload?.sessions || [];
+
+const getCreativeCurrentSessionSnapshot = (snapshot, tabKey) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot(tabKey, snapshot);
+  return (
+    normalizedSnapshot.payload.sessions.find(
+      (session) => session.id === normalizedSnapshot.payload.current_session_id,
+    ) ||
+    normalizedSnapshot.payload.sessions[0] ||
+    null
+  );
+};
+
+const buildCreativeSessionPayload = (tabKey, payload) =>
+  payload && typeof payload === 'object'
+    ? payload
+    : getEmptyCreativeSessionPayload(tabKey);
+
+const formatCreativeSessionMeta = (tabKey, session) => {
+  const payload = buildCreativeSessionPayload(tabKey, session?.payload);
+
+  if (tabKey === 'chat') {
+    const messageCount = Array.isArray(payload.messages) ? payload.messages.length : 0;
+    return `${messageCount} 条消息`;
+  }
+
+  const entryCount = Array.isArray(payload.entries) ? payload.entries.length : 0;
+  return `${entryCount} 条记录`;
+};
+
 const renderCreativeModelIcon = (channelType, iconName, fallbackTab) => {
   const channelIcon = channelType ? getChannelIcon(channelType) : null;
   if (channelIcon) {
@@ -1251,6 +1444,7 @@ export default function App() {
     video: [],
   });
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
+  const [isSessionPanelOpen, setIsSessionPanelOpen] = useState(false);
   const [collapsedImageRecordIds, setCollapsedImageRecordIds] = useState({});
   const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
@@ -1527,7 +1721,17 @@ export default function App() {
   );
 
   const currentDisplayModels = modelPools[activeTab] || [];
-  const activeHistorySnapshot = historySnapshots[activeTab];
+  const currentTabHistorySnapshot = useMemo(
+    () =>
+      historySnapshots[activeTab]
+        ? normalizeCreativeHistorySnapshot(activeTab, historySnapshots[activeTab])
+        : null,
+    [activeTab, historySnapshots],
+  );
+  const currentTabSessions = currentTabHistorySnapshot?.payload?.sessions || [];
+  const activeHistorySnapshot = currentTabHistorySnapshot
+    ? getCreativeCurrentSessionSnapshot(currentTabHistorySnapshot, activeTab)
+    : null;
   const findModelCard = (tabKey, modelName) =>
     (modelPools[tabKey] || []).find(
       (model) => model.value === modelName || model.name === modelName,
@@ -1765,6 +1969,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   }, [activeModel, currentDisplayModels]);
 
   useEffect(() => {
+    setIsSessionPanelOpen(false);
+  }, [activeTab]);
+
+  useEffect(() => {
     const savedModelName = activeHistorySnapshot?.model_name;
     if (!savedModelName || currentDisplayModels.length === 0) {
       return;
@@ -1927,6 +2135,307 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     };
   };
 
+  const applyCreativeSessionToView = (tabKey, sessionSnapshot) => {
+    clearUploadedImages();
+    setUploadImageNotice('');
+    setPrompt('');
+
+    if (tabKey === 'chat') {
+      setChatMessages(
+        Array.isArray(sessionSnapshot?.payload?.messages)
+          ? sessionSnapshot.payload.messages
+          : [],
+      );
+      return;
+    }
+
+    if (tabKey === 'image') {
+      const nextImageRecords = normalizeImageHistoryRecords(sessionSnapshot);
+      setImageRecords(nextImageRecords);
+      setCollapsedImageRecordIds(
+        Object.fromEntries(nextImageRecords.map((record) => [record.id, true])),
+      );
+      setSelectedImageTaskIds({});
+      lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
+        nextImageRecords,
+        'image',
+      );
+      return;
+    }
+
+    const nextVideoRecords = normalizeVideoHistoryRecords(sessionSnapshot);
+    setVideoRecords(nextVideoRecords);
+    setCollapsedVideoRecordIds(
+      Object.fromEntries(nextVideoRecords.map((record) => [record.id, true])),
+    );
+    setSelectedVideoTaskIds({});
+    lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(
+      nextVideoRecords,
+      'video',
+    );
+  };
+
+  const commitCreativeHistorySnapshot = (tabKey, nextSnapshot, options = {}) => {
+    const normalizedSnapshot = normalizeCreativeHistorySnapshot(tabKey, nextSnapshot);
+    const activeSession = getCreativeCurrentSessionSnapshot(
+      normalizedSnapshot,
+      tabKey,
+    );
+
+    setHistorySnapshots((prev) => ({
+      ...prev,
+      [tabKey]: normalizedSnapshot,
+    }));
+
+    if (options.applySessionState) {
+      applyCreativeSessionToView(tabKey, activeSession);
+    }
+
+    return {
+      normalizedSnapshot,
+      activeSession,
+    };
+  };
+
+  const persistCreativeHistorySnapshot = async (tabKey, nextSnapshot, options = {}) => {
+    const { normalizedSnapshot, activeSession } = commitCreativeHistorySnapshot(
+      tabKey,
+      nextSnapshot,
+      options,
+    );
+
+    if (!isLoggedIn) {
+      return normalizedSnapshot;
+    }
+
+    try {
+      await API.put(
+        API_ENDPOINTS.CREATIVE_CENTER_HISTORY,
+        {
+          tab: tabKey,
+          model_name: activeSession?.model_name || '',
+          group: activeSession?.group || '',
+          prompt: activeSession?.prompt || '',
+          payload: normalizedSnapshot.payload,
+        },
+        {
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+    } catch (error) {
+      console.error('Failed to save creative center history:', error);
+    }
+
+    return normalizedSnapshot;
+  };
+
+  const buildNextSessionName = (tabKey, sessions) => {
+    const existingNames = new Set(
+      (sessions || []).map((session) => String(session?.name || '').trim()).filter(Boolean),
+    );
+    let nextIndex = (sessions || []).length + 1;
+    let nextName = getDefaultCreativeSessionName(tabKey, nextIndex);
+
+    while (existingNames.has(nextName)) {
+      nextIndex += 1;
+      nextName = getDefaultCreativeSessionName(tabKey, nextIndex);
+    }
+
+    return nextName;
+  };
+
+  const createNextBlankSessionSnapshot = (tabKey, baseSnapshot = null) => {
+    const normalizedBaseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      baseSnapshot || historySnapshots[tabKey],
+    );
+    return createCreativeSessionSnapshot(tabKey, {
+      name: buildNextSessionName(
+        tabKey,
+        normalizedBaseSnapshot?.payload?.sessions || [],
+      ),
+      model_name: currentModelName,
+      group: activeGroup,
+      payload: getEmptyCreativeSessionPayload(tabKey),
+    });
+  };
+
+  const openCreativeSession = async (tabKey, sessionId) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    if (!baseSnapshot.payload.sessions.some((session) => session.id === sessionId)) {
+      return;
+    }
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      payload: {
+        ...baseSnapshot.payload,
+        current_session_id: sessionId,
+      },
+      updated_at: Date.now(),
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: true,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const createCreativeSession = async (tabKey) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const newSession = createNextBlankSessionSnapshot(tabKey, baseSnapshot);
+    const nextSnapshot = {
+      ...baseSnapshot,
+      model_name: newSession.model_name,
+      group: newSession.group,
+      prompt: '',
+      updated_at: newSession.updated_at,
+      payload: {
+        current_session_id: newSession.id,
+        sessions: [...baseSnapshot.payload.sessions, newSession],
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: true,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const renameCreativeSession = async (tabKey, sessionId) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const targetSession = baseSnapshot.payload.sessions.find(
+      (session) => session.id === sessionId,
+    );
+    if (!targetSession) {
+      return;
+    }
+
+    const nextName = window.prompt('重命名会话', targetSession.name || '');
+    if (nextName === null) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName) {
+      showWarning('会话名称不能为空');
+      return;
+    }
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      updated_at: Date.now(),
+      payload: {
+        ...baseSnapshot.payload,
+        sessions: baseSnapshot.payload.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                name: trimmedName,
+                updated_at: Date.now(),
+              }
+            : session,
+        ),
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot);
+  };
+
+  const deleteCreativeSession = async (
+    tabKey,
+    sessionId,
+    options = { createFallback: true },
+  ) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const targetSession = baseSnapshot.payload.sessions.find(
+      (session) => session.id === sessionId,
+    );
+    if (!targetSession) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `确认删除“${targetSession.name || '当前会话'}”吗？只删除会话，图片视频资源仍保留。`,
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    let nextSessions = baseSnapshot.payload.sessions.filter(
+      (session) => session.id !== sessionId,
+    );
+    if (nextSessions.length === 0 && options.createFallback !== false) {
+      nextSessions = [createNextBlankSessionSnapshot(tabKey, baseSnapshot)];
+    }
+
+    const nextCurrentSessionId =
+      baseSnapshot.payload.current_session_id === sessionId
+        ? nextSessions[0]?.id || ''
+        : baseSnapshot.payload.current_session_id;
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      updated_at: Date.now(),
+      payload: {
+        current_session_id: nextCurrentSessionId,
+        sessions: nextSessions,
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: baseSnapshot.payload.current_session_id === sessionId,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const updateCurrentCreativeSessionSnapshot = (tabKey, sessionPatch) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const currentSessionId = baseSnapshot.payload.current_session_id;
+    const nextSessions = baseSnapshot.payload.sessions.map((session) =>
+      session.id === currentSessionId
+        ? {
+            ...session,
+            ...sessionPatch,
+            payload: buildCreativeSessionPayload(
+              tabKey,
+              sessionPatch?.payload ?? session.payload,
+            ),
+            updated_at: sessionPatch?.updated_at || Date.now(),
+          }
+        : session,
+    );
+
+    return {
+      ...baseSnapshot,
+      model_name: sessionPatch?.model_name ?? baseSnapshot.model_name,
+      group: sessionPatch?.group ?? baseSnapshot.group,
+      prompt: sessionPatch?.prompt ?? baseSnapshot.prompt,
+      updated_at: sessionPatch?.updated_at || Date.now(),
+      payload: {
+        ...baseSnapshot.payload,
+        sessions: nextSessions,
+      },
+    };
+  };
+
   const saveCreativeHistory = async (
     tabKey,
     payload,
@@ -1951,16 +2460,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         },
       });
 
+      const nextSnapshot = normalizeCreativeHistorySnapshot(tabKey, {
+        ...(historySnapshots[tabKey] || {}),
+        tab: tabKey,
+        model_name: requestBody.model_name,
+        group: requestBody.group,
+        prompt: requestBody.prompt,
+        payload,
+      });
       setHistorySnapshots((prev) => ({
         ...prev,
-        [tabKey]: {
-          ...(prev[tabKey] || {}),
-          tab: tabKey,
-          model_name: requestBody.model_name,
-          group: requestBody.group,
-          prompt: requestBody.prompt,
-          payload,
-        },
+        [tabKey]: nextSnapshot,
       }));
     } catch (error) {
       console.error('Failed to save creative center history:', error);
@@ -1981,7 +2491,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       setHistorySnapshots((prev) => ({
         ...prev,
-        [tabKey]: null,
+        [tabKey]: normalizeCreativeHistorySnapshot(tabKey, null),
       }));
     } catch (error) {
       console.error('Failed to delete creative center history:', error);
@@ -2019,47 +2529,35 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   const persistImageRecords = async (records, options = {}) => {
-    if (records.length === 0) {
-      await deleteCreativeHistory('image');
-      lastPersistedImageSignatureRef.current = '';
-      return;
-    }
-
     lastPersistedImageSignatureRef.current = buildCreativePersistSignature(records, 'image');
-    await saveCreativeHistory(
-      'image',
-      {
+    const nextSnapshot = updateCurrentCreativeSessionSnapshot('image', {
+      model_name:
+        options.modelName || records[records.length - 1]?.modelName || currentModelName,
+      group: options.group ?? activeGroup,
+      prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      payload: {
         entries: records,
         params: options.params || records[records.length - 1]?.params || params,
       },
-      {
-        modelName:
-          options.modelName || records[records.length - 1]?.modelName || currentModelName,
-        prompt: options.prompt || records[records.length - 1]?.prompt || '',
-      },
-    );
+      updated_at: Date.now(),
+    });
+    await persistCreativeHistorySnapshot('image', nextSnapshot);
   };
 
   const persistVideoRecords = async (records, options = {}) => {
-    if (records.length === 0) {
-      await deleteCreativeHistory('video');
-      lastPersistedVideoSignatureRef.current = '';
-      return;
-    }
-
     lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(records, 'video');
-    await saveCreativeHistory(
-      'video',
-      {
+    const nextSnapshot = updateCurrentCreativeSessionSnapshot('video', {
+      model_name:
+        options.modelName || records[records.length - 1]?.modelName || currentModelName,
+      group: options.group ?? activeGroup,
+      prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      payload: {
         entries: records,
         params: options.params || records[records.length - 1]?.params || params,
       },
-      {
-        modelName:
-          options.modelName || records[records.length - 1]?.modelName || currentModelName,
-        prompt: options.prompt || records[records.length - 1]?.prompt || '',
-      },
-    );
+      updated_at: Date.now(),
+    });
+    await persistCreativeHistorySnapshot('video', nextSnapshot);
   };
 
   const buildImageDownloadFilename = (record, recordIndex, imageIndex) =>
@@ -2797,10 +3295,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     textareaRef.current?.focus();
   };
 
-  const handleClearImageResults = async () => {
-    setImageRecords([]);
-    setCollapsedImageRecordIds({});
-    await deleteCreativeHistory('image');
+  const handleClearCurrentSession = async () => {
+    const activeSessionId = currentTabHistorySnapshot?.payload?.current_session_id;
+    if (!activeSessionId) {
+      return;
+    }
+    await deleteCreativeSession(activeTab, activeSessionId, {
+      createFallback: true,
+    });
   };
 
   const handleRemoveImageRecord = async (recordId) => {
@@ -2812,12 +3314,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return next;
     });
     await persistImageRecords(nextRecords);
-  };
-
-  const handleClearVideoResults = async () => {
-    setVideoRecords([]);
-    setCollapsedVideoRecordIds({});
-    await deleteCreativeHistory('video');
   };
 
   const handleRemoveVideoRecord = async (recordId) => {
@@ -2854,12 +3350,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           return;
         }
         historyHydratedRef.current = true;
-        setHistorySnapshots(EMPTY_HISTORY_SNAPSHOTS);
+        const emptySnapshots = {
+          chat: normalizeCreativeHistorySnapshot('chat', null),
+          image: normalizeCreativeHistorySnapshot('image', null),
+          video: normalizeCreativeHistorySnapshot('video', null),
+        };
+        setHistorySnapshots(emptySnapshots);
         setChatMessages([]);
         setImageRecords([]);
         setVideoRecords([]);
         setCollapsedImageRecordIds({});
         setCollapsedVideoRecordIds({});
+        setSelectedImageTaskIds({});
+        setSelectedVideoTaskIds({});
         return;
       }
 
@@ -2875,16 +3378,25 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         }
 
         const nextSnapshots = {
-          chat: response.data.data?.chat || null,
-          image: response.data.data?.image || null,
-          video: response.data.data?.video || null,
+          chat: normalizeCreativeHistorySnapshot('chat', response.data.data?.chat || null),
+          image: normalizeCreativeHistorySnapshot('image', response.data.data?.image || null),
+          video: normalizeCreativeHistorySnapshot('video', response.data.data?.video || null),
         };
-        const nextImageRecords = normalizeImageHistoryRecords(nextSnapshots.image);
-        const nextVideoRecords = normalizeVideoHistoryRecords(nextSnapshots.video);
+        const nextChatSession = getCreativeCurrentSessionSnapshot(nextSnapshots.chat, 'chat');
+        const nextImageSession = getCreativeCurrentSessionSnapshot(
+          nextSnapshots.image,
+          'image',
+        );
+        const nextVideoSession = getCreativeCurrentSessionSnapshot(
+          nextSnapshots.video,
+          'video',
+        );
+        const nextImageRecords = normalizeImageHistoryRecords(nextImageSession);
+        const nextVideoRecords = normalizeVideoHistoryRecords(nextVideoSession);
         setHistorySnapshots(nextSnapshots);
         setChatMessages(
-          Array.isArray(nextSnapshots.chat?.payload?.messages)
-            ? nextSnapshots.chat.payload.messages
+          Array.isArray(nextChatSession?.payload?.messages)
+            ? nextChatSession.payload.messages
             : [],
         );
         setImageRecords(nextImageRecords);
@@ -2895,6 +3407,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         setCollapsedVideoRecordIds(
           Object.fromEntries(nextVideoRecords.map((record) => [record.id, true])),
         );
+        setSelectedImageTaskIds({});
+        setSelectedVideoTaskIds({});
         lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
           nextImageRecords,
           'image',
@@ -3006,15 +3520,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         };
         const nextMessages = [...chatMessages, userMsg, assistantMsg];
         setChatMessages(nextMessages);
-        await saveCreativeHistory(
+        await persistCreativeHistorySnapshot(
           'chat',
-          {
-            messages: nextMessages,
-          },
-          {
-            modelName: currentModelName,
+          updateCurrentCreativeSessionSnapshot('chat', {
+            model_name: currentModelName,
+            group: activeGroup,
             prompt: currentPrompt,
-          },
+            payload: {
+              messages: nextMessages,
+            },
+            updated_at: Date.now(),
+          }),
         );
       } catch (error) {
         console.error('Creative center chat error:', error);
@@ -3025,15 +3541,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         };
         const nextMessages = [...chatMessages, userMsg, errorMsg];
         setChatMessages(nextMessages);
-        await saveCreativeHistory(
+        await persistCreativeHistorySnapshot(
           'chat',
-          {
-            messages: nextMessages,
-          },
-          {
-            modelName: currentModelName,
+          updateCurrentCreativeSessionSnapshot('chat', {
+            model_name: currentModelName,
+            group: activeGroup,
             prompt: currentPrompt,
-          },
+            payload: {
+              messages: nextMessages,
+            },
+            updated_at: Date.now(),
+          }),
         );
       }
     } else if (activeTab === 'image') {
@@ -3577,6 +4095,107 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       </aside>
 
       <main className='relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white/40 backdrop-blur-md'>
+        <div className='sticky top-0 z-20 border-b border-slate-100 bg-white/88 px-8 py-5 backdrop-blur-xl'>
+          <div className='flex items-center justify-between gap-4'>
+            <div className='relative flex items-center gap-3'>
+              <button
+                type='button'
+                onClick={() => setIsSessionPanelOpen((prev) => !prev)}
+                disabled={isSubmitPending}
+                className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+              >
+                <History size={16} />
+                历史会话
+              </button>
+              <button
+                type='button'
+                onClick={() => createCreativeSession(activeTab)}
+                disabled={isSubmitPending}
+                className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+              >
+                <Plus size={16} />
+                新建会话
+              </button>
+
+              {isSessionPanelOpen && (
+                <div className='absolute left-0 top-14 z-30 w-[360px] rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
+                  <div className='mb-3 px-2'>
+                    <div className='text-sm font-bold text-slate-800'>历史会话</div>
+                    <div className='text-xs text-slate-400'>
+                      仅删除会话，图片视频资源仍保留
+                    </div>
+                  </div>
+                  <div className='max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
+                    {currentTabSessions
+                      .slice()
+                      .sort(
+                        (left, right) =>
+                          Number(right?.updated_at || 0) - Number(left?.updated_at || 0),
+                      )
+                      .map((session) => {
+                        const isCurrentSession =
+                          session.id === currentTabHistorySnapshot?.payload?.current_session_id;
+                        const sessionTime = formatCreativeRecordTime(session.updated_at);
+                        return (
+                          <div
+                            key={session.id}
+                            className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
+                              isCurrentSession
+                                ? 'border-blue-200 bg-blue-50/80'
+                                : 'border-slate-200 bg-slate-50/70 hover:bg-white'
+                            }`}
+                          >
+                            <button
+                              type='button'
+                              onClick={() => openCreativeSession(activeTab, session.id)}
+                              disabled={isSubmitPending}
+                              className='min-w-0 flex-1 text-left disabled:cursor-not-allowed'
+                            >
+                              <div className='truncate text-sm font-semibold text-slate-700'>
+                                {session.name || '未命名会话'}
+                              </div>
+                              <div className='mt-1 truncate text-xs text-slate-400'>
+                                {formatCreativeSessionMeta(activeTab, session)}
+                                {sessionTime ? ` · ${sessionTime}` : ''}
+                              </div>
+                            </button>
+                            <div className='flex shrink-0 items-center gap-2'>
+                              <button
+                                type='button'
+                                onClick={() => renameCreativeSession(activeTab, session.id)}
+                                disabled={isSubmitPending}
+                                className='rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+                              >
+                                重命名
+                              </button>
+                              <button
+                                type='button'
+                                onClick={() => deleteCreativeSession(activeTab, session.id)}
+                                disabled={isSubmitPending}
+                                className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500'
+                                title='只删除会话，图片视频资源仍保留'
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className='min-w-0 text-right'>
+              <div className='truncate text-sm font-semibold text-slate-700'>
+                {activeHistorySnapshot?.name || getDefaultCreativeSessionName(activeTab, 1)}
+              </div>
+              <div className='mt-1 text-xs text-slate-400'>
+                {formatCreativeSessionMeta(activeTab, activeHistorySnapshot)}
+              </div>
+            </div>
+          </div>
+        </div>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 py-10 space-y-6 custom-scrollbar'>
@@ -4667,6 +5286,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   <div className='ml-auto text-[10px] text-slate-400 font-bold tracking-widest uppercase'>Enter 发送</div>
                 </div>
               )}
+              <div className='mt-4 flex items-center justify-end px-2'>
+                <button
+                  type='button'
+                  onClick={handleClearCurrentSession}
+                  disabled={isSubmitPending}
+                  title='只删除会话，图片视频资源仍保留'
+                  className='inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+                >
+                  <Trash2 size={14} />
+                  清除会话
+                </button>
+              </div>
             </div>
           </div>
         </div>
