@@ -989,6 +989,8 @@
     "失败": "Thất bại",
     "失败原因": "Nguyên nhân thất bại",
     "失败后不重试": "Không thử lại sau khi thất bại",
+    "失败后是否重试": "Thử lại khi thất bại",
+    "不重试": "Không thử lại",
     "失败时自动禁用通道": "Tự động vô hiệu hóa kênh khi thất bại",
     "失败重试次数": "Số lần thử lại thất bại",
     "奖励说明": "Mô tả phần thưởng",
