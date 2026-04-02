@@ -876,6 +876,7 @@ export default function App() {
   const lastPersistedVideoSignatureRef = useRef('');
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImage, setUploadedImage] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     imageRecordsRef.current = imageRecords;
@@ -1235,7 +1236,7 @@ export default function App() {
     currentModelName === 'veo31-ref' ||
     currentModelName === 'veo31-fast';
   const isChatTab = activeTab === 'chat';
-  const isSubmitPending = isChatTab && isGenerating;
+  const isSubmitPending = (isChatTab && isGenerating) || isUploadingImage;
   const isVideoModel =
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
@@ -2044,10 +2045,37 @@ export default function App() {
   };
 
   const handleUploadButtonClick = () => {
+    if (isUploadingImage) {
+      return;
+    }
     fileInputRef.current?.click();
   };
 
-  const handleImageFileChange = (event) => {
+  const uploadCreativeCenterImage = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await API.post(
+      API_ENDPOINTS.CREATIVE_CENTER_IMAGE_UPLOAD,
+      formData,
+      {
+        skipErrorHandler: true,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'New-API-User': getUserIdFromLocalStorage(),
+        },
+      },
+    );
+
+    const { success, data, message } = response?.data || {};
+    if (!success || !data?.url) {
+      throw new Error(message || '图片上传失败，请稍后重试');
+    }
+
+    return data;
+  };
+
+  const handleImageFileChange = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
 
@@ -2060,24 +2088,26 @@ export default function App() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      if (!result) {
-        showWarning('图片读取失败，请重新选择');
-        return;
-      }
+    if (!isLoggedIn) {
+      showWarning('请先登录后再上传图片');
+      return;
+    }
 
+    setIsUploadingImage(true);
+    try {
+      const uploaded = await uploadCreativeCenterImage(file);
       setUploadedImage({
-        id: createCreativeRecordId('local-image'),
-        name: file.name,
-        url: result,
+        id: createCreativeRecordId('hosted-image'),
+        name: uploaded.name || file.name,
+        url: uploaded.url,
+        fileName: uploaded.filename || '',
       });
-    };
-    reader.onerror = () => {
-      showWarning('图片读取失败，请重新选择');
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to upload creative center image:', error);
+      showWarning(error?.message || '图片上传失败，请稍后重试');
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   useEffect(() => {
@@ -3790,6 +3820,7 @@ export default function App() {
                       />
                       <button
                         onClick={() => setUploadedImage(null)}
+                        disabled={isUploadingImage}
                         className='absolute right-2 top-2 rounded-full bg-slate-900/70 p-1 text-white transition hover:bg-slate-900'
                       >
                         <X size={12} />
@@ -3799,11 +3830,18 @@ export default function App() {
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
+                      disabled={isUploadingImage}
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-300'
                     >
                       <div className='flex flex-col items-center gap-2'>
-                        <ImagePlus size={20} />
-                        <span className='text-[11px] font-semibold'>上传图片</span>
+                        {isUploadingImage ? (
+                          <Loader2 size={20} className='animate-spin' />
+                        ) : (
+                          <ImagePlus size={20} />
+                        )}
+                        <span className='text-[11px] font-semibold'>
+                          {isUploadingImage ? '上传中...' : '上传图片'}
+                        </span>
                       </div>
                     </button>
                   )}
@@ -3828,14 +3866,15 @@ export default function App() {
               {uploadedImage && (
                 <div className='mt-4 flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500'>
                   <div className='min-w-0 flex-1 truncate'>
-                    已选择图片：{uploadedImage.name}
+                    已上传图片：{uploadedImage.name}
                   </div>
                   <button
                     type='button'
                     onClick={handleUploadButtonClick}
-                    className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700'
+                    disabled={isUploadingImage}
+                    className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300'
                   >
-                    重新选择
+                    {isUploadingImage ? '上传中...' : '重新选择'}
                   </button>
                 </div>
               )}
