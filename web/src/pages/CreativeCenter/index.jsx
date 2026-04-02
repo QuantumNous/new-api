@@ -516,6 +516,63 @@ const buildCreativeCenterImageDisplayUrl = (url) => {
   return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
 };
 
+const buildCreativeCenterImageBedUploadUrl = (
+  uploadUrl,
+  returnType = 'full',
+  autoRetry = true,
+) => {
+  const trimmedUploadUrl = typeof uploadUrl === 'string' ? uploadUrl.trim() : '';
+  if (!trimmedUploadUrl) {
+    return '';
+  }
+
+  const requestUrl = new URL(`${trimmedUploadUrl.replace(/\/+$/, '')}/upload`);
+  requestUrl.searchParams.set('returnFormat', returnType || 'full');
+  if (autoRetry) {
+    requestUrl.searchParams.set('autoRetry', 'true');
+  }
+  return requestUrl.toString();
+};
+
+const normalizeCreativeCenterDirectImageUrl = (uploadUrl, src) => {
+  const trimmedSrc = typeof src === 'string' ? src.trim() : '';
+  if (!trimmedSrc) {
+    return '';
+  }
+
+  try {
+    return new URL(trimmedSrc, `${uploadUrl.replace(/\/+$/, '')}/upload`).toString();
+  } catch (error) {
+    console.error('Failed to normalize creative center direct image url:', error);
+    return '';
+  }
+};
+
+const parseCreativeCenterDirectUploadImageUrl = (uploadUrl, payload) => {
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : [];
+
+  const firstSrc = items[0]?.src;
+  return normalizeCreativeCenterDirectImageUrl(uploadUrl, firstSrc);
+};
+
+const getCreativeCenterFilenameFromUrl = (url) => {
+  if (typeof url !== 'string' || !url.trim()) {
+    return '';
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    const pathnameParts = parsedUrl.pathname.split('/').filter(Boolean);
+    return pathnameParts[pathnameParts.length - 1] || '';
+  } catch (error) {
+    return '';
+  }
+};
+
 const revokeCreativeCenterPreviewURL = (previewUrl) => {
   if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
     URL.revokeObjectURL(previewUrl);
@@ -1109,6 +1166,7 @@ export default function App() {
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const uploadedImagesRef = useRef([]);
+  const creativeCenterUploadConfigRef = useRef(null);
   const historyHydratedRef = useRef(false);
   const lastPersistedImageSignatureRef = useRef('');
   const lastPersistedVideoSignatureRef = useRef('');
@@ -1128,6 +1186,10 @@ export default function App() {
   useEffect(() => {
     uploadedImagesRef.current = uploadedImages;
   }, [uploadedImages]);
+
+  useEffect(() => {
+    creativeCenterUploadConfigRef.current = null;
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -2347,7 +2409,40 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     fileInputRef.current?.click();
   };
 
-  const uploadCreativeCenterImage = async (file) => {
+  const getCreativeCenterImageUploadConfig = async () => {
+    if (creativeCenterUploadConfigRef.current) {
+      return creativeCenterUploadConfigRef.current;
+    }
+
+    try {
+      const response = await API.get(
+        API_ENDPOINTS.CREATIVE_CENTER_IMAGE_UPLOAD_CONFIG,
+        {
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+
+      const { success, data, message } = response?.data || {};
+      if (!success) {
+        throw new Error(message || '获取图片上传配置失败');
+      }
+
+      const nextConfig =
+        data?.mode === 'direct' && data?.upload_url && data?.api_key
+          ? data
+          : { mode: 'backend' };
+      creativeCenterUploadConfigRef.current = nextConfig;
+      return nextConfig;
+    } catch (error) {
+      creativeCenterUploadConfigRef.current = { mode: 'backend' };
+      return creativeCenterUploadConfigRef.current;
+    }
+  };
+
+  const uploadCreativeCenterImageViaBackend = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -2369,6 +2464,78 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     }
 
     return data;
+  };
+
+  const uploadCreativeCenterImageDirectly = async (file, uploadConfig) => {
+    const requestUrl = buildCreativeCenterImageBedUploadUrl(
+      uploadConfig?.upload_url,
+      uploadConfig?.return_type,
+      uploadConfig?.auto_retry !== false,
+    );
+    if (!requestUrl) {
+      throw new Error('图床配置无效，请检查系统设置');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let response;
+    try {
+      response = await window.fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${uploadConfig.api_key}`,
+        },
+        body: formData,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      throw new Error('浏览器直连图床失败，请检查图床 CORS 配置或网络状态');
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        creativeCenterUploadConfigRef.current = null;
+      }
+      throw new Error(
+        `图床上传失败，状态码 ${response.status}${
+          responseText.trim() ? `：${responseText.trim()}` : ''
+        }`,
+      );
+    }
+
+    let payload = null;
+    if (responseText.trim()) {
+      try {
+        payload = JSON.parse(responseText);
+      } catch (error) {
+        throw new Error('图床上传成功，但返回内容不是有效 JSON');
+      }
+    }
+
+    const imageUrl = parseCreativeCenterDirectUploadImageUrl(
+      uploadConfig.upload_url,
+      payload,
+    );
+    if (!imageUrl) {
+      throw new Error('图床上传成功但未返回可用图片链接');
+    }
+
+    return {
+      url: imageUrl,
+      name: file.name,
+      filename: getCreativeCenterFilenameFromUrl(imageUrl),
+      size: file.size,
+    };
+  };
+
+  const uploadCreativeCenterImage = async (file) => {
+    const uploadConfig = await getCreativeCenterImageUploadConfig();
+    if (uploadConfig?.mode === 'direct') {
+      return uploadCreativeCenterImageDirectly(file, uploadConfig);
+    }
+    return uploadCreativeCenterImageViaBackend(file);
   };
 
   const handleImageFileChange = async (event) => {

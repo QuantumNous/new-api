@@ -36,6 +36,23 @@ type creativeCenterExternalWrappedUploadResp struct {
 	Data []creativeCenterExternalUploadItem `json:"data"`
 }
 
+func GetCreativeCenterImageUploadConfig(c *gin.Context) {
+	if !system_setting.EnableCreativeCenterImageBed() {
+		common.ApiSuccess(c, gin.H{
+			"mode": "backend",
+		})
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"mode":        "direct",
+		"upload_url":  strings.TrimRight(strings.TrimSpace(system_setting.CreativeCenterImageBedURL), "/"),
+		"api_key":     strings.TrimSpace(system_setting.CreativeCenterImageBedApiKey),
+		"auto_retry":  true,
+		"return_type": "full",
+	})
+}
+
 func UploadCreativeCenterImage(c *gin.Context) {
 	if system_setting.EnableCreativeCenterImageBed() {
 		uploaded, err := uploadCreativeCenterImageToExternalBed(c)
