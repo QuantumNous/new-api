@@ -124,6 +124,19 @@ func sanitizeLikePattern(input string) (string, error) {
 
 const searchHardLimit = 100
 
+// applySearchPattern 清洗搜索模式并在允许的情况下自动填充模糊搜索通配符
+// 如果 allowAutoFuzzy 为 true 且模式不含 %，则自动包装为 %pattern%
+func applySearchPattern(pattern string, allowAutoFuzzy bool) (string, error) {
+	sanitized, err := sanitizeLikePattern(pattern)
+	if err != nil {
+		return "", err
+	}
+	if allowAutoFuzzy && !strings.Contains(sanitized, "%") {
+		sanitized = "%" + sanitized + "%"
+	}
+	return sanitized, nil
+}
+
 func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
@@ -137,32 +150,31 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		token = strings.TrimPrefix(token, "sk-")
 	}
 
-	// 超量用户（令牌数超过上限）只允许精确搜索，禁止模糊搜索
 	maxTokens := operation_setting.GetMaxUserTokens()
 	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
-	if hasFuzzy {
-		count, err := CountUserTokens(userId)
-		if err != nil {
-			common.SysLog("failed to count user tokens: " + err.Error())
-			return nil, 0, errors.New("获取令牌数量失败")
-		}
-		if int(count) > maxTokens {
-			return nil, 0, errors.New("令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符")
-		}
+
+	userTokenCount, err := CountUserTokens(userId)
+	if err != nil {
+		common.SysLog("failed to count user tokens: " + err.Error())
+		return nil, 0, errors.New("获取令牌数量失败")
 	}
 
+	if hasFuzzy && int(userTokenCount) > maxTokens {
+		return nil, 0, errors.New("令牌数量超过上限，仅允许精确搜索，请勿使用 % 通配符")
+	}
+
+	allowAutoFuzzy := !hasFuzzy && int(userTokenCount) <= maxTokens
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
 
-	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
-		keywordPattern, err := sanitizeLikePattern(keyword)
+		keywordPattern, err := applySearchPattern(keyword, allowAutoFuzzy)
 		if err != nil {
 			return nil, 0, err
 		}
 		baseQuery = baseQuery.Where("name LIKE ? ESCAPE '!'", keywordPattern)
 	}
 	if token != "" {
-		tokenPattern, err := sanitizeLikePattern(token)
+		tokenPattern, err := applySearchPattern(token, allowAutoFuzzy)
 		if err != nil {
 			return nil, 0, err
 		}
