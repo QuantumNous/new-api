@@ -3361,6 +3361,8 @@
     "从剪贴板粘贴配置": "Paste Config",
     "剪贴板中未检测到连接信息": "No connection info found in clipboard",
     "连接信息已填入": "Connection info applied",
-    "无法读取剪贴板": "Cannot read clipboard"
+    "无法读取剪贴板": "Cannot read clipboard",
+    "亲和性独占": "Affinity Exclusive",
+    "开启后，通过亲和性绑定到此渠道的令牌将独占该渠道，其他令牌无法使用此渠道，过期时间同亲和性绑定的 TTL": "When enabled, a token bound to this channel via affinity will exclusively occupy it. Other tokens cannot use this channel. The lock expires with the affinity binding TTL."
   }
 }

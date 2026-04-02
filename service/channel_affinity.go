@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -10,10 +11,13 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/go-redis/redis/v8"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
 	"github.com/tidwall/gjson"
@@ -28,6 +32,8 @@ const (
 
 	channelAffinityCacheNamespace           = "new-api:channel_affinity:v1"
 	channelAffinityUsageCacheStatsNamespace = "new-api:channel_affinity_usage_cache_stats:v1"
+	channelAffinityExclusiveNamespace       = "new-api:channel_affinity_exclusive:v1"
+	channelAffinityExclusiveBindingNamespace = "new-api:channel_affinity_exclusive_binding:v1"
 )
 
 var (
@@ -37,8 +43,21 @@ var (
 	channelAffinityUsageCacheStatsOnce  sync.Once
 	channelAffinityUsageCacheStatsCache *cachex.HybridCache[ChannelAffinityUsageCacheCounters]
 
+	channelAffinityExclusiveCacheOnce sync.Once
+	channelAffinityExclusiveCache     *cachex.HybridCache[int] // channelID -> tokenID
+
+	channelAffinityExclusiveBindingCacheOnce sync.Once
+	channelAffinityExclusiveBindingCache     *cachex.HybridCache[ChannelAffinityExclusiveBinding]
+
+	channelAffinityExclusiveMemoryLock sync.Mutex
+
 	channelAffinityRegexCache sync.Map // map[string]*regexp.Regexp
 )
+
+type ChannelAffinityExclusiveBinding struct {
+	ChannelID int `json:"channel_id"`
+	TokenID   int `json:"token_id"`
+}
 
 type channelAffinityMeta struct {
 	CacheKey       string
@@ -106,6 +125,410 @@ func getChannelAffinityCache() *cachex.HybridCache[int] {
 		})
 	})
 	return channelAffinityCache
+}
+
+func getChannelAffinityExclusiveCache() *cachex.HybridCache[int] {
+	channelAffinityExclusiveCacheOnce.Do(func() {
+		setting := operation_setting.GetChannelAffinitySetting()
+		defaultTTLSeconds := setting.DefaultTTLSeconds
+		if defaultTTLSeconds <= 0 {
+			defaultTTLSeconds = 3600
+		}
+
+		channelAffinityExclusiveCache = cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
+			Namespace: cachex.Namespace(channelAffinityExclusiveNamespace),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.IntCodec{},
+			Memory: func() *hot.HotCache[string, int] {
+				return hot.NewHotCache[string, int](hot.LRU, 10_000).
+					WithTTL(time.Duration(defaultTTLSeconds) * time.Second).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return channelAffinityExclusiveCache
+}
+
+func getChannelAffinityExclusiveBindingCache() *cachex.HybridCache[ChannelAffinityExclusiveBinding] {
+	channelAffinityExclusiveBindingCacheOnce.Do(func() {
+		setting := operation_setting.GetChannelAffinitySetting()
+		capacity := setting.MaxEntries
+		if capacity <= 0 {
+			capacity = 100_000
+		}
+		defaultTTLSeconds := setting.DefaultTTLSeconds
+		if defaultTTLSeconds <= 0 {
+			defaultTTLSeconds = 3600
+		}
+
+		channelAffinityExclusiveBindingCache = cachex.NewHybridCache[ChannelAffinityExclusiveBinding](cachex.HybridCacheConfig[ChannelAffinityExclusiveBinding]{
+			Namespace: cachex.Namespace(channelAffinityExclusiveBindingNamespace),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[ChannelAffinityExclusiveBinding]{},
+			Memory: func() *hot.HotCache[string, ChannelAffinityExclusiveBinding] {
+				return hot.NewHotCache[string, ChannelAffinityExclusiveBinding](hot.LRU, capacity).
+					WithTTL(time.Duration(defaultTTLSeconds) * time.Second).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return channelAffinityExclusiveBindingCache
+}
+
+func normalizeChannelAffinityCacheKey(cacheKey string) string {
+	cacheKey = strings.TrimSpace(cacheKey)
+	return strings.TrimPrefix(cacheKey, channelAffinityCacheNamespace+":")
+}
+
+func channelAffinityExclusiveRedisEnabled() bool {
+	return common.RedisEnabled && common.RDB != nil
+}
+
+// TrySetChannelAffinityExclusiveLock attempts to set an exclusive lock for the given channel.
+// Returns true if the lock was set (no existing lock or same token holds it).
+// Returns false if the channel is locked by a different token.
+func TrySetChannelAffinityExclusiveLock(channelID, tokenID int, ttl time.Duration) bool {
+	if channelID <= 0 || tokenID <= 0 {
+		return false
+	}
+	cache := getChannelAffinityExclusiveCache()
+	key := strconv.Itoa(channelID)
+	if ttl <= 0 {
+		ttl = time.Second
+	}
+
+	if channelAffinityExclusiveRedisEnabled() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		fullKey := cache.FullKey(key)
+		script := `
+local current = redis.call("GET", KEYS[1])
+if not current then
+	redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+	return 1
+end
+if current == ARGV[1] then
+	redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+	return 1
+end
+return 0
+`
+		res, err := common.RDB.Eval(ctx, script, []string{fullKey}, strconv.Itoa(tokenID), ttl.Milliseconds()).Int64()
+		if err != nil && err != redis.Nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive lock set failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+			return false
+		}
+		return res == 1
+	}
+
+	channelAffinityExclusiveMemoryLock.Lock()
+	defer channelAffinityExclusiveMemoryLock.Unlock()
+
+	existingTokenID, found, err := cache.Get(key)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock get failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+		return false
+	}
+	if found && existingTokenID != tokenID {
+		return false
+	}
+
+	if err := cache.SetWithTTL(key, tokenID, ttl); err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock set failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+		return false
+	}
+	return true
+}
+
+func deleteChannelAffinityExclusiveLockIfOwned(channelID, tokenID int) bool {
+	if channelID <= 0 || tokenID <= 0 {
+		return false
+	}
+	cache := getChannelAffinityExclusiveCache()
+	key := strconv.Itoa(channelID)
+
+	if channelAffinityExclusiveRedisEnabled() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		fullKey := cache.FullKey(key)
+		script := `
+local current = redis.call("GET", KEYS[1])
+if current == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0
+`
+		res, err := common.RDB.Eval(ctx, script, []string{fullKey}, strconv.Itoa(tokenID)).Int64()
+		if err != nil && err != redis.Nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive lock delete failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+			return false
+		}
+		return res > 0
+	}
+
+	channelAffinityExclusiveMemoryLock.Lock()
+	defer channelAffinityExclusiveMemoryLock.Unlock()
+
+	existingTokenID, found, err := cache.Get(key)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock get failed on delete: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+		return false
+	}
+	if !found || existingTokenID != tokenID {
+		return false
+	}
+	result, err := cache.DeleteMany([]string{key})
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock delete failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+		return false
+	}
+	return result[cache.FullKey(key)]
+}
+
+// IsChannelAffinityExclusiveAvailable checks if a channel is available for the given token.
+// Returns true if: no exclusive lock exists, or the lock is held by the same token.
+// When currentTokenID <= 0, the channel is only available when no lock exists.
+func IsChannelAffinityExclusiveAvailable(channelID, currentTokenID int) bool {
+	cache := getChannelAffinityExclusiveCache()
+	key := strconv.Itoa(channelID)
+	lockedTokenID, found, err := cache.Get(key)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock get failed: channel=%d, err=%v", channelID, err))
+		return false
+	}
+	if !found {
+		return true
+	}
+	return currentTokenID > 0 && lockedTokenID == currentTokenID
+}
+
+// GetChannelAffinityExclusiveLockHolder returns the token ID holding the exclusive lock, if any.
+func GetChannelAffinityExclusiveLockHolder(channelID int) (int, bool) {
+	cache := getChannelAffinityExclusiveCache()
+	key := strconv.Itoa(channelID)
+	tokenID, found, err := cache.Get(key)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive lock get failed: channel=%d, err=%v", channelID, err))
+		return 0, false
+	}
+	return tokenID, found
+}
+
+func getChannelAffinityExclusiveBinding(cacheKey string) (ChannelAffinityExclusiveBinding, bool) {
+	cache := getChannelAffinityExclusiveBindingCache()
+	rawKey := normalizeChannelAffinityCacheKey(cacheKey)
+	if rawKey == "" {
+		return ChannelAffinityExclusiveBinding{}, false
+	}
+	binding, found, err := cache.Get(rawKey)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive binding get failed: affinity_key=%s, err=%v", rawKey, err))
+		return ChannelAffinityExclusiveBinding{}, false
+	}
+	return binding, found
+}
+
+func setChannelAffinityExclusiveBinding(cacheKey string, binding ChannelAffinityExclusiveBinding, ttl time.Duration) error {
+	cache := getChannelAffinityExclusiveBindingCache()
+	rawKey := normalizeChannelAffinityCacheKey(cacheKey)
+	if rawKey == "" {
+		return nil
+	}
+	return cache.SetWithTTL(rawKey, binding, ttl)
+}
+
+func hasOtherChannelAffinityExclusiveBinding(channelID, tokenID int) bool {
+	if channelID <= 0 || tokenID <= 0 {
+		return false
+	}
+	cache := getChannelAffinityExclusiveBindingCache()
+	keys, err := cache.Keys()
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive binding keys failed: channel=%d, token=%d, err=%v", channelID, tokenID, err))
+		return true
+	}
+	prefix := channelAffinityExclusiveBindingNamespace + ":"
+	for _, key := range keys {
+		rawKey := strings.TrimPrefix(key, prefix)
+		binding, found, err := cache.Get(rawKey)
+		if err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive binding get failed: key=%s, err=%v", rawKey, err))
+			return true
+		}
+		if found && binding.ChannelID == channelID && binding.TokenID == tokenID {
+			return true
+		}
+	}
+	return false
+}
+
+func maybeReleaseChannelAffinityExclusiveLock(channelID, tokenID int) {
+	if channelID <= 0 || tokenID <= 0 {
+		return
+	}
+	if hasOtherChannelAffinityExclusiveBinding(channelID, tokenID) {
+		return
+	}
+	_ = deleteChannelAffinityExclusiveLockIfOwned(channelID, tokenID)
+}
+
+func clearChannelAffinityExclusiveBindingCacheAll() int {
+	cache := getChannelAffinityExclusiveBindingCache()
+	keys, err := cache.Keys()
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive binding cache list keys failed: err=%v", err))
+		return 0
+	}
+	if len(keys) > 0 {
+		if _, err := cache.DeleteMany(keys); err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive binding cache delete many failed: err=%v", err))
+		}
+	}
+	return len(keys)
+}
+
+func cleanupChannelAffinityExclusiveBindingsByAffinityKeys(cacheKeys []string) {
+	if len(cacheKeys) == 0 {
+		return
+	}
+	cache := getChannelAffinityExclusiveBindingCache()
+	released := make(map[string]ChannelAffinityExclusiveBinding, len(cacheKeys))
+	rawKeys := make([]string, 0, len(cacheKeys))
+
+	for _, cacheKey := range cacheKeys {
+		rawKey := normalizeChannelAffinityCacheKey(cacheKey)
+		if rawKey == "" {
+			continue
+		}
+		if binding, found := getChannelAffinityExclusiveBinding(rawKey); found {
+			released[fmt.Sprintf("%d:%d", binding.ChannelID, binding.TokenID)] = binding
+		}
+		rawKeys = append(rawKeys, rawKey)
+	}
+
+	if len(rawKeys) > 0 {
+		if _, err := cache.DeleteMany(rawKeys); err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive binding cache delete many failed: err=%v", err))
+			return
+		}
+	}
+
+	for _, binding := range released {
+		maybeReleaseChannelAffinityExclusiveLock(binding.ChannelID, binding.TokenID)
+	}
+}
+
+func clearChannelAffinityExclusiveBindingCacheByChannelID(channelID int) int {
+	if channelID <= 0 {
+		return 0
+	}
+	cache := getChannelAffinityExclusiveBindingCache()
+	keys, err := cache.Keys()
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive binding cache list keys failed: channel=%d, err=%v", channelID, err))
+		return 0
+	}
+	prefix := channelAffinityExclusiveBindingNamespace + ":"
+	targetKeys := make([]string, 0)
+	for _, key := range keys {
+		rawKey := strings.TrimPrefix(key, prefix)
+		binding, found, err := cache.Get(rawKey)
+		if err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive binding cache get failed: key=%s, err=%v", rawKey, err))
+			continue
+		}
+		if found && binding.ChannelID == channelID {
+			targetKeys = append(targetKeys, rawKey)
+		}
+	}
+	if len(targetKeys) == 0 {
+		return 0
+	}
+	result, err := cache.DeleteMany(targetKeys)
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive binding cache delete many failed: channel=%d, err=%v", channelID, err))
+		return 0
+	}
+	deleted := 0
+	for _, ok := range result {
+		if ok {
+			deleted++
+		}
+	}
+	return deleted
+}
+
+type ChannelAffinityExclusiveCacheStats struct {
+	Total   int            `json:"total"`
+	Entries map[int]int    `json:"entries"` // channelID -> tokenID
+}
+
+func GetChannelAffinityExclusiveCacheStats() ChannelAffinityExclusiveCacheStats {
+	cache := getChannelAffinityExclusiveCache()
+	keys, err := cache.Keys()
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive cache list keys failed: err=%v", err))
+		return ChannelAffinityExclusiveCacheStats{Total: 0, Entries: map[int]int{}}
+	}
+	entries := make(map[int]int, len(keys))
+	for _, k := range keys {
+		suffix := strings.TrimPrefix(k, channelAffinityExclusiveNamespace+":")
+		channelID, err := strconv.Atoi(suffix)
+		if err != nil {
+			continue
+		}
+		tokenID, found, _ := cache.Get(suffix)
+		if found {
+			entries[channelID] = tokenID
+		}
+	}
+	return ChannelAffinityExclusiveCacheStats{
+		Total:   len(entries),
+		Entries: entries,
+	}
+}
+
+func ClearChannelAffinityExclusiveCacheAll() int {
+	cache := getChannelAffinityExclusiveCache()
+	keys, err := cache.Keys()
+	if err != nil {
+		common.SysError(fmt.Sprintf("channel affinity exclusive cache list keys failed: err=%v", err))
+		clearChannelAffinityExclusiveBindingCacheAll()
+		return 0
+	}
+	if len(keys) > 0 {
+		if _, err := cache.DeleteMany(keys); err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive cache delete many failed: err=%v", err))
+		}
+	}
+	clearChannelAffinityExclusiveBindingCacheAll()
+	return len(keys)
+}
+
+func ClearChannelAffinityExclusiveCacheByChannelID(channelID int) bool {
+	cache := getChannelAffinityExclusiveCache()
+	key := strconv.Itoa(channelID)
+	bindingDeleted := clearChannelAffinityExclusiveBindingCacheByChannelID(channelID)
+	result, err := cache.DeleteMany([]string{key})
+	if err != nil {
+		return bindingDeleted > 0
+	}
+	for _, deleted := range result {
+		if deleted {
+			return true
+		}
+	}
+	return bindingDeleted > 0
 }
 
 func GetChannelAffinityCacheStats() ChannelAffinityCacheStats {
@@ -197,6 +620,7 @@ func ClearChannelAffinityCacheAll() int {
 			common.SysError(fmt.Sprintf("channel affinity cache delete many failed: err=%v", err))
 		}
 	}
+	ClearChannelAffinityExclusiveCacheAll()
 	return len(keys)
 }
 
@@ -228,9 +652,36 @@ func ClearChannelAffinityCacheByRuleName(ruleName string) (int, error) {
 	}
 
 	cache := getChannelAffinityCache()
-	deleted, err := cache.DeleteByPrefix(ruleName)
+	keys, err := cache.Keys()
 	if err != nil {
 		return 0, err
+	}
+
+	prefix := channelAffinityCacheNamespace + ":" + ruleName + ":"
+	matchedFullKeys := make([]string, 0)
+	matchedAffinityKeys := make([]string, 0)
+	for _, key := range keys {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		matchedFullKeys = append(matchedFullKeys, key)
+		matchedAffinityKeys = append(matchedAffinityKeys, normalizeChannelAffinityCacheKey(key))
+	}
+	if len(matchedFullKeys) == 0 {
+		return 0, nil
+	}
+
+	result, err := cache.DeleteMany(matchedFullKeys)
+	if err != nil {
+		return 0, err
+	}
+	cleanupChannelAffinityExclusiveBindingsByAffinityKeys(matchedAffinityKeys)
+
+	deleted := 0
+	for _, ok := range result {
+		if ok {
+			deleted++
+		}
 	}
 	return deleted, nil
 }
@@ -683,9 +1134,51 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if ttlSeconds <= 0 {
 		ttlSeconds = 3600
 	}
+	ttl := time.Duration(ttlSeconds) * time.Second
+	affinityCacheKey := normalizeChannelAffinityCacheKey(cacheKey)
+	if affinityCacheKey == "" {
+		return
+	}
+	oldBinding, oldBindingFound := getChannelAffinityExclusiveBinding(affinityCacheKey)
+
+	tokenID := c.GetInt(string(constant.ContextKeyTokenId))
+	shouldBindExclusive := false
+	newBinding := ChannelAffinityExclusiveBinding{}
+	ch, err := model.CacheGetChannel(channelID)
+	if err == nil && ch != nil && ch.GetOtherSettings().AffinityExclusive && tokenID > 0 {
+		shouldBindExclusive = true
+		newBinding = ChannelAffinityExclusiveBinding{
+			ChannelID: channelID,
+			TokenID:   tokenID,
+		}
+		if !TrySetChannelAffinityExclusiveLock(channelID, tokenID, ttl) {
+			common.SysLog(fmt.Sprintf("channel affinity exclusive lock skipped: channel=%d, token=%d", channelID, tokenID))
+			return
+		}
+	}
+
 	cache := getChannelAffinityCache()
-	if err := cache.SetWithTTL(cacheKey, channelID, time.Duration(ttlSeconds)*time.Second); err != nil {
+	if err := cache.SetWithTTL(cacheKey, channelID, ttl); err != nil {
 		common.SysError(fmt.Sprintf("channel affinity cache set failed: key=%s, err=%v", cacheKey, err))
+		if shouldBindExclusive && (!oldBindingFound || oldBinding != newBinding) {
+			_ = deleteChannelAffinityExclusiveLockIfOwned(channelID, tokenID)
+		}
+		return
+	}
+
+	if shouldBindExclusive {
+		if err := setChannelAffinityExclusiveBinding(affinityCacheKey, newBinding, ttl); err != nil {
+			common.SysError(fmt.Sprintf("channel affinity exclusive binding set failed: affinity_key=%s, channel=%d, token=%d, err=%v", affinityCacheKey, channelID, tokenID, err))
+			return
+		}
+		if oldBindingFound && oldBinding != newBinding {
+			maybeReleaseChannelAffinityExclusiveLock(oldBinding.ChannelID, oldBinding.TokenID)
+		}
+		return
+	}
+
+	if oldBindingFound {
+		cleanupChannelAffinityExclusiveBindingsByAffinityKeys([]string{affinityCacheKey})
 	}
 }
 

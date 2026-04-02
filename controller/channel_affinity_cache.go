@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/service"
@@ -55,6 +56,58 @@ func ClearChannelAffinityCache(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"deleted": deleted,
+		},
+	})
+}
+
+func GetChannelAffinityExclusiveCacheStats(c *gin.Context) {
+	stats := service.GetChannelAffinityExclusiveCacheStats()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    stats,
+	})
+}
+
+func ClearChannelAffinityExclusiveCache(c *gin.Context) {
+	all := strings.TrimSpace(c.Query("all"))
+	channelIDStr := strings.TrimSpace(c.Query("channel_id"))
+
+	if all == "true" {
+		deleted := service.ClearChannelAffinityExclusiveCacheAll()
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": gin.H{
+				"deleted": deleted,
+			},
+		})
+		return
+	}
+
+	if channelIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "缺少参数：channel_id，或使用 all=true 清空全部",
+		})
+		return
+	}
+
+	channelID, err := strconv.Atoi(channelIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "channel_id 必须是数字",
+		})
+		return
+	}
+
+	ok := service.ClearChannelAffinityExclusiveCacheByChannelID(channelID)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"deleted": ok,
 		},
 	})
 }

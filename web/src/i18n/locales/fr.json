@@ -3317,6 +3317,8 @@
     "从剪贴板粘贴配置": "Coller la config",
     "剪贴板中未检测到连接信息": "Aucune info de connexion trouvée dans le presse-papiers",
     "连接信息已填入": "Informations de connexion appliquées",
-    "无法读取剪贴板": "Impossible de lire le presse-papiers"
+    "无法读取剪贴板": "Impossible de lire le presse-papiers",
+    "亲和性独占": "Affinité exclusive",
+    "开启后，通过亲和性绑定到此渠道的令牌将独占该渠道，其他令牌无法使用此渠道，过期时间同亲和性绑定的 TTL": "Lorsqu'il est activé, un jeton lié à ce canal par affinité l'occupera exclusivement. Les autres jetons ne peuvent pas utiliser ce canal. Le verrou expire avec le TTL de la liaison d'affinité."
   }
 }
