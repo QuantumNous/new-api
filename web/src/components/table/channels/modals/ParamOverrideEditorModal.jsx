@@ -1528,14 +1528,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     return BUILTIN_FIELD_SECTIONS.map((section) => ({
       ...section,
       fields: section.fields.filter((field) =>
-        [field.key, field.label, field.tip]
+        [field.key, t(field.label), t(field.tip)]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
           .includes(keyword),
       ),
     })).filter((section) => section.fields.length > 0);
-  }, [fieldGuideKeyword]);
+  }, [fieldGuideKeyword, t]);
 
   const fieldGuideActionLabel = useMemo(() => {
     if (fieldGuideTarget === 'from') return t('填入来源');
@@ -3397,7 +3397,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
               />
               <Select
                 value={fieldGuideTarget}
-                optionList={FIELD_GUIDE_TARGET_OPTIONS}
+                optionList={FIELD_GUIDE_TARGET_OPTIONS.map((item) => ({
+                  ...item,
+                  label: t(item.label),
+                }))}
                 onChange={(nextValue) =>
                   setFieldGuideTarget(nextValue || 'path')
                 }
@@ -3429,7 +3432,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 >
                   <div className='flex items-center justify-between mb-1'>
                     <Text strong style={{ fontSize: 18 }}>
-                      {section.title}
+                      {t(section.title)}
                     </Text>
                     <Tag color='grey'>{`${section.fields.length} ${t('项')}`}</Tag>
                   </div>
@@ -3454,7 +3457,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text strong>{field.label}</Text>
+                          <Text strong>{t(field.label)}</Text>
                           <Text
                             type='secondary'
                             size='small'
@@ -3475,7 +3478,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                             className='block mt-1'
                             style={{ lineHeight: '18px' }}
                           >
-                            {field.tip}
+                            {t(field.tip)}
                           </Text>
                         </div>
                         <Space spacing={6} align='center'>

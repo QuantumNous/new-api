@@ -64,7 +64,7 @@ const RateLimitSetting = () => {
       await getOptions();
       // showSuccess('刷新成功');
     } catch (error) {
-      showError('刷新失败');
+      showError(t('刷新失败'));
     } finally {
       setLoading(false);
     }

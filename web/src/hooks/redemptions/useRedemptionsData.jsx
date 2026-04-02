@@ -228,10 +228,10 @@ export const useRedemptionsData = () => {
   // Copy text
   const copyText = async (text) => {
     if (await copy(text)) {
-      showSuccess('已复制到剪贴板！');
+      showSuccess(t('已复制到剪贴板！'));
     } else {
       Modal.error({
-        title: '无法复制到剪贴板，请手动复制',
+        title: t('无法复制到剪贴板，请手动复制'),
         content: text,
         size: 'large',
       });

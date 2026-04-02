@@ -791,7 +791,7 @@ export const useLogsData = () => {
   const copyText = async (e, text) => {
     e.stopPropagation();
     if (await copy(text)) {
-      showSuccess('已复制：' + text);
+      showSuccess(t('已复制：{{text}}', { text }));
     } else {
       Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
     }

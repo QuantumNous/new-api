@@ -62,6 +62,35 @@ i18n
     },
   });
 
+// If non-Chinese locales still return Chinese text for a key,
+// prefer English as a stable fallback to avoid mixed-language UI.
+const containsChinese = /[\u4e00-\u9fff]/;
+const originalT = i18n.t.bind(i18n);
+i18n.t = function patchedT(...args) {
+  const result = originalT(...args);
+  const key = args[0];
+  const options = args[1];
+  const currentLang = i18n.resolvedLanguage || i18n.language || '';
+
+  if (
+    typeof key === 'string' &&
+    typeof result === 'string' &&
+    !/^zh(?:-|$)/i.test(currentLang) &&
+    containsChinese.test(result)
+  ) {
+    const enResult = originalT(key, { ...(options || {}), lng: 'en' });
+    if (
+      typeof enResult === 'string' &&
+      enResult !== key &&
+      !containsChinese.test(enResult)
+    ) {
+      return enResult;
+    }
+  }
+
+  return result;
+};
+
 window.__i18n = i18n;
 
 export default i18n;

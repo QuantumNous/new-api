@@ -204,7 +204,7 @@ const TopUp = () => {
     }
 
     if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
+      showError(t('充值数量不能小于') + minTopUp);
       return;
     }
     setConfirmLoading(true);
