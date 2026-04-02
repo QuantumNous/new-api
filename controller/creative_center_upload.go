@@ -19,7 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const creativeCenterImageUploadMaxBytes int64 = 20 << 20
+const creativeCenterImageUploadMaxBytes int64 = 10 << 20
 
 var creativeCenterImageExtByMime = map[string]string{
 	"image/gif":  ".gif",
@@ -74,7 +74,7 @@ func UploadCreativeCenterImage(c *gin.Context) {
 		return
 	}
 	if fileHeader.Size > creativeCenterImageUploadMaxBytes {
-		common.ApiErrorMsg(c, "图片大小不能超过 20MB")
+		common.ApiErrorMsg(c, "图片大小不能超过 10MB")
 		return
 	}
 
@@ -267,7 +267,7 @@ func uploadCreativeCenterImageToExternalBed(c *gin.Context) (gin.H, error) {
 		return nil, fmt.Errorf("图片文件不能为空")
 	}
 	if fileHeader.Size > creativeCenterImageUploadMaxBytes {
-		return nil, fmt.Errorf("图片大小不能超过 20MB")
+		return nil, fmt.Errorf("图片大小不能超过 10MB")
 	}
 
 	src, err := fileHeader.Open()
@@ -388,3 +388,4 @@ func normalizeCreativeCenterExternalImageURL(uploadURL string, items []creativeC
 	}
 	return baseURL + "/" + src
 }
+

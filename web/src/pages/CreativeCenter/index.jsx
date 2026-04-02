@@ -187,6 +187,8 @@ const UNIFORM_CREATIVE_VIDEO_CARD_MODELS = new Set([
   'veo31-fast',
   'veo31-ref',
 ]);
+const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -2551,11 +2553,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return;
     }
 
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length !== files.length) {
+    const rawImageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (rawImageFiles.length !== files.length) {
       showWarning('请上传图片文件');
     }
+    if (rawImageFiles.length === 0) {
+      return;
+    }
+
+    const imageFiles = rawImageFiles.filter(
+      (file) => file.size <= CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES,
+    );
+    if (imageFiles.length !== rawImageFiles.length) {
+      showWarning('图片大小不能超过 10MB');
+    }
     if (imageFiles.length === 0) {
+      setUploadImageNotice('上传失败，请重新上传不大于 10MB 的图片');
       return;
     }
 
@@ -2593,33 +2606,46 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     setUploadedImages((prev) => [...prev, ...pendingItems]);
 
-    for (let index = 0; index < acceptedFiles.length; index += 1) {
-      const file = acceptedFiles[index];
-      const pendingItem = pendingItems[index];
+    for (
+      let batchStartIndex = 0;
+      batchStartIndex < acceptedFiles.length;
+      batchStartIndex += CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY
+    ) {
+      const fileBatch = acceptedFiles.slice(
+        batchStartIndex,
+        batchStartIndex + CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY,
+      );
 
-      try {
-        const uploaded = await uploadCreativeCenterImage(file);
-        setUploadedImages((prev) =>
-          prev.map((item) =>
-            item.id === pendingItem.id
-              ? {
-                  ...item,
-                  name: uploaded.name || file.name,
-                  url: uploaded.url,
-                  fileName: uploaded.filename || '',
-                  status: 'uploaded',
-                }
-              : item,
-          ),
-        );
-      } catch (error) {
-        console.error('Failed to upload creative center image:', error);
-        revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
-        setUploadedImages((prev) =>
-          prev.filter((item) => item.id !== pendingItem.id),
-        );
-        setUploadImageNotice('上传失败，请重新上传');
-      }
+      await Promise.all(
+        fileBatch.map(async (file, offset) => {
+          const index = batchStartIndex + offset;
+          const pendingItem = pendingItems[index];
+
+          try {
+            const uploaded = await uploadCreativeCenterImage(file);
+            setUploadedImages((prev) =>
+              prev.map((item) =>
+                item.id === pendingItem.id
+                  ? {
+                      ...item,
+                      name: uploaded.name || file.name,
+                      url: uploaded.url,
+                      fileName: uploaded.filename || '',
+                      status: 'uploaded',
+                    }
+                  : item,
+              ),
+            );
+          } catch (error) {
+            console.error('Failed to upload creative center image:', error);
+            revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
+            setUploadedImages((prev) =>
+              prev.filter((item) => item.id !== pendingItem.id),
+            );
+            setUploadImageNotice('上传失败，请重新上传');
+          }
+        }),
+      );
     }
   };
 
@@ -4400,7 +4426,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
               {currentImageUploadLimit ? (
                 <div className='mt-2 px-2 text-[11px] text-slate-400'>
-                  当前模型最多可上传 {currentImageUploadLimit} 张图片（图片尽量不要大于5M）
+                  当前模型最多可上传 {currentImageUploadLimit} 张图片（图片不能大于10M）
                 </div>
               ) : null}
 
