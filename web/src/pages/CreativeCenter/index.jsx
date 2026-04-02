@@ -545,6 +545,110 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
+const escapePreviewHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const openVideoPreviewInNewWindow = (url, title = '视频预览') => {
+  if (!url) {
+    return;
+  }
+
+  const previewWindow = window.open('', '_blank');
+  if (!previewWindow) {
+    return;
+  }
+
+  const safeUrl = escapePreviewHtml(url);
+  const safeTitle = escapePreviewHtml(title);
+  previewWindow.opener = null;
+  previewWindow.document.open();
+  previewWindow.document.write(`<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeTitle}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: radial-gradient(circle at top, #1e293b, #020617 58%);
+        color: #e2e8f0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      .page {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        gap: 16px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .title {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+      .hint {
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .player-shell {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.86);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.45);
+        overflow: hidden;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        max-height: calc(100vh - 140px);
+        background: #020617;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div>
+          <div class="title">${safeTitle}</div>
+          <div class="hint">独立预览页播放，不占用创作中心当前页面</div>
+        </div>
+      </div>
+      <div class="player-shell">
+        <video src="${safeUrl}" controls autoplay playsinline></video>
+      </div>
+    </div>
+  </body>
+</html>`);
+  previewWindow.document.close();
+};
+
 const getVideoTaskMediaUrl = (task) => {
   if (typeof task?.url === 'string' && task.url.trim()) {
     return task.url.trim();
@@ -1016,7 +1120,6 @@ export default function App() {
   const [collapsedImageRecordIds, setCollapsedImageRecordIds] = useState({});
   const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
-  const [previewVideo, setPreviewVideo] = useState(null);
   const [collapsedVideoRecordIds, setCollapsedVideoRecordIds] = useState({});
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
   const [progressClock, setProgressClock] = useState(() => Date.now());
@@ -2431,13 +2534,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     textareaRef.current?.focus();
   };
 
-  const openVideoPreview = (url, title = '视频预览') => {
-    if (!url) {
-      return;
-    }
-    setPreviewVideo({ url, title });
-  };
-
   const handleClearImageResults = async () => {
     setImageRecords([]);
     setCollapsedImageRecordIds({});
@@ -3694,7 +3790,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                             />
                                             <button
                                               onClick={() =>
-                                                openVideoPreview(
+                                                openVideoPreviewInNewWindow(
                                                   getVideoTaskMediaUrl(task),
                                                   `${record.modelName || '视频'} ${taskIndex + 1}`,
                                                 )
@@ -3815,7 +3911,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         />
                                         <button
                                           onClick={() =>
-                                            openVideoPreview(
+                                            openVideoPreviewInNewWindow(
                                               getVideoTaskMediaUrl(task),
                                               `${record.modelName || '视频'} ${taskIndex + 1}`,
                                             )
@@ -4322,31 +4418,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               <img
                 src={buildCreativeCenterImageDisplayUrl(previewImage.url)}
                 alt={previewImage.title || 'Preview'}
-                className='max-h-[80vh] w-full object-contain'
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {previewVideo ? (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm'>
-          <div className='relative w-full max-w-5xl rounded-[2rem] bg-white p-4 shadow-2xl'>
-            <button
-              onClick={() => setPreviewVideo(null)}
-              className='absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-red-500'
-            >
-              <X size={18} />
-            </button>
-            <div className='mb-4 px-2 pr-12 text-sm font-semibold text-slate-600'>
-              {previewVideo.title || '视频预览'}
-            </div>
-            <div className='overflow-hidden rounded-[1.5rem] bg-slate-950'>
-              <video
-                src={previewVideo.url}
-                controls
-                autoPlay
-                playsInline
                 className='max-h-[80vh] w-full object-contain'
               />
             </div>
