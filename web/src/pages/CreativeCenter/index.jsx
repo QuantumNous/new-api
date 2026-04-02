@@ -36,6 +36,7 @@ import {
 } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 import { UserContext } from '../../context/User';
+import { StatusContext } from '../../context/Status';
 
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
@@ -620,6 +621,184 @@ const getCreativeCenterImageUploadLimit = (modelName) => {
     return null;
   }
   return CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS[normalizedModelName] ?? null;
+};
+
+const resolveCreativeCenterDisplayCurrency = (quotaDisplayType = 'USD') =>
+  quotaDisplayType === 'CNY' || quotaDisplayType === 'CUSTOM'
+    ? quotaDisplayType
+    : 'USD';
+
+const getCreativeCenterCurrencySymbol = (
+  currency = 'USD',
+  customCurrencySymbol = '¤',
+) => {
+  if (currency === 'CNY') {
+    return '¥';
+  }
+  if (currency === 'CUSTOM') {
+    return customCurrencySymbol || '¤';
+  }
+  return '$';
+};
+
+const convertCreativeCenterUsdPrice = (
+  usdAmount,
+  currency = 'USD',
+  options = {},
+) => {
+  const safeAmount = Number(usdAmount);
+  if (!Number.isFinite(safeAmount)) {
+    return null;
+  }
+
+  if (currency === 'CNY') {
+    return safeAmount * Number(options.usdExchangeRate || 1);
+  }
+
+  if (currency === 'CUSTOM') {
+    return safeAmount * Number(options.customExchangeRate || 1);
+  }
+
+  return safeAmount;
+};
+
+const formatCreativeCenterPriceNumber = (amount) => {
+  const safeAmount = Number(amount);
+  if (!Number.isFinite(safeAmount)) {
+    return '';
+  }
+
+  const absAmount = Math.abs(safeAmount);
+  let maximumFractionDigits = 3;
+  if (absAmount >= 100) {
+    maximumFractionDigits = 2;
+  } else if (absAmount >= 1) {
+    maximumFractionDigits = 3;
+  } else if (absAmount >= 0.01) {
+    maximumFractionDigits = 4;
+  } else {
+    maximumFractionDigits = 6;
+  }
+
+  return safeAmount.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  });
+};
+
+const resolveCreativeCenterGroupRatio = (
+  pricingModel,
+  activeGroup,
+  groupRatioMap,
+) => {
+  const enableGroups = Array.isArray(pricingModel?.enable_groups)
+    ? pricingModel.enable_groups
+    : [];
+
+  if (
+    activeGroup &&
+    enableGroups.includes(activeGroup) &&
+    Number.isFinite(Number(groupRatioMap?.[activeGroup]))
+  ) {
+    return Number(groupRatioMap[activeGroup]);
+  }
+
+  let minRatio = Number.POSITIVE_INFINITY;
+  enableGroups.forEach((group) => {
+    const ratio = Number(groupRatioMap?.[group]);
+    if (Number.isFinite(ratio) && ratio < minRatio) {
+      minRatio = ratio;
+    }
+  });
+
+  return Number.isFinite(minRatio) ? minRatio : 1;
+};
+
+const buildCreativeCenterModelPriceLabel = (
+  pricingModel,
+  activeGroup,
+  groupRatioMap,
+  currencyOptions = {},
+) => {
+  if (!pricingModel || typeof pricingModel !== 'object') {
+    return '';
+  }
+
+  const displayCurrency = resolveCreativeCenterDisplayCurrency(
+    currencyOptions.quotaDisplayType,
+  );
+  const groupRatio = resolveCreativeCenterGroupRatio(
+    pricingModel,
+    activeGroup,
+    groupRatioMap,
+  );
+  const prices = [];
+  const appendPrice = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return;
+    }
+
+    const convertedValue = convertCreativeCenterUsdPrice(
+      numericValue,
+      displayCurrency,
+      currencyOptions,
+    );
+    if (Number.isFinite(convertedValue)) {
+      prices.push(convertedValue);
+    }
+  };
+
+  if (pricingModel.quota_type === 0) {
+    const inputPrice = Number(pricingModel.model_ratio) * 2 * groupRatio;
+    appendPrice(inputPrice);
+    appendPrice(inputPrice * Number(pricingModel.completion_ratio));
+    appendPrice(inputPrice * Number(pricingModel.cache_ratio));
+    appendPrice(inputPrice * Number(pricingModel.create_cache_ratio));
+    appendPrice(inputPrice * Number(pricingModel.image_ratio));
+    appendPrice(inputPrice * Number(pricingModel.audio_ratio));
+    appendPrice(
+      inputPrice *
+        Number(pricingModel.audio_ratio) *
+        Number(pricingModel.audio_completion_ratio),
+    );
+  } else if (pricingModel.quota_type === 1) {
+    appendPrice(Number(pricingModel.model_price) * groupRatio);
+  } else if (pricingModel.quota_type === 2) {
+    Object.values(pricingModel.model_price_by_seconds || {}).forEach((value) => {
+      appendPrice(Number(value) * groupRatio);
+    });
+  } else if (pricingModel.quota_type === 3) {
+    Object.values(pricingModel.model_price_by_resolution || {}).forEach(
+      (value) => {
+        appendPrice(Number(value) * groupRatio);
+      },
+    );
+  }
+
+  if (prices.length === 0) {
+    return '';
+  }
+
+  const sortedPrices = [...new Set(prices.map((value) => Number(value.toFixed(8))))].sort(
+    (left, right) => left - right,
+  );
+  const minPrice = sortedPrices[0];
+  const maxPrice = sortedPrices[sortedPrices.length - 1];
+  const symbol = getCreativeCenterCurrencySymbol(
+    displayCurrency,
+    currencyOptions.customCurrencySymbol,
+  );
+
+  if (!Number.isFinite(minPrice)) {
+    return '';
+  }
+
+  if (!Number.isFinite(maxPrice) || Math.abs(maxPrice - minPrice) < 0.000001) {
+    return `${symbol}${formatCreativeCenterPriceNumber(minPrice)}`;
+  }
+
+  return `${symbol}${formatCreativeCenterPriceNumber(minPrice)}~${symbol}${formatCreativeCenterPriceNumber(maxPrice)}`;
 };
 
 const triggerDownload = (url, filename) => {
@@ -1374,8 +1553,10 @@ const DropSelectButton = ({
 
 export default function App() {
   const [userState] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const [activeTab, setActiveTab] = useState('chat');
   const [activeModel, setActiveModel] = useState('chat1');
+  const [hoveredSidebarModelId, setHoveredSidebarModelId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -1492,6 +1673,7 @@ export default function App() {
     image: [],
     video: [],
   });
+  const [pricingGroupRatio, setPricingGroupRatio] = useState({});
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
   const [isSessionPanelOpen, setIsSessionPanelOpen] = useState(false);
   const [collapsedImageRecordIds, setCollapsedImageRecordIds] = useState({});
@@ -1500,6 +1682,20 @@ export default function App() {
   const [collapsedVideoRecordIds, setCollapsedVideoRecordIds] = useState({});
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const creativeCenterCurrencyOptions = useMemo(
+    () => ({
+      quotaDisplayType: statusState?.status?.quota_display_type || 'USD',
+      usdExchangeRate:
+        statusState?.status?.usd_exchange_rate ??
+        statusState?.status?.price ??
+        1,
+      customExchangeRate:
+        statusState?.status?.custom_currency_exchange_rate ?? 1,
+      customCurrencySymbol:
+        statusState?.status?.custom_currency_symbol ?? '¤',
+    }),
+    [statusState],
+  );
   const imagePersistSignature = useMemo(
     () => buildCreativePersistSignature(imageRecords, 'image'),
     [imageRecords],
@@ -1649,6 +1845,7 @@ export default function App() {
         name: resolvedModelName,
         desc: resolvedDescription,
         fullDesc: resolvedDescription,
+        pricingModel: model,
         icon: renderCreativeModelIcon(
           Number(model?.channel_type || 0),
           model?.icon,
@@ -1768,6 +1965,14 @@ export default function App() {
 
         if (mounted) {
           setSyncedModels(dedupedModels);
+          setPricingGroupRatio(
+            pricingResult.status === 'fulfilled' &&
+              pricingResult.value?.data?.success &&
+              pricingResult.value?.data?.group_ratio &&
+              typeof pricingResult.value.data.group_ratio === 'object'
+              ? pricingResult.value.data.group_ratio
+              : {},
+          );
           setActiveGroup(resolvedGroup);
         }
       } catch (error) {
@@ -1784,14 +1989,55 @@ export default function App() {
 
   const modelPools = useMemo(
     () => ({
-      chat: syncedModels.chat.length > 0 ? syncedModels.chat : fallbackModels.chat,
-      image: syncedModels.image.length > 0 ? syncedModels.image : fallbackModels.image,
-      video: syncedModels.video.length > 0 ? syncedModels.video : fallbackModels.video,
+      chat:
+        syncedModels.chat.length > 0
+          ? syncedModels.chat.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.chat,
+      image:
+        syncedModels.image.length > 0
+          ? syncedModels.image.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.image,
+      video:
+        syncedModels.video.length > 0
+          ? syncedModels.video.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.video,
     }),
-    [fallbackModels, syncedModels],
+    [
+      activeGroup,
+      creativeCenterCurrencyOptions,
+      fallbackModels,
+      pricingGroupRatio,
+      syncedModels,
+    ],
   );
 
   const currentDisplayModels = modelPools[activeTab] || [];
+  const hoveredSidebarModel =
+    currentDisplayModels.find((model) => model.id === hoveredSidebarModelId) || null;
   const currentTabHistorySnapshot = useMemo(
     () =>
       historySnapshots[activeTab]
@@ -2042,6 +2288,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       setActiveModel(currentDisplayModels[0]?.id || '');
     }
   }, [activeModel, currentDisplayModels]);
+
+  useEffect(() => {
+    if (!currentDisplayModels.some((model) => model.id === hoveredSidebarModelId)) {
+      setHoveredSidebarModelId('');
+    }
+  }, [currentDisplayModels, hoveredSidebarModelId]);
 
   useEffect(() => {
     setIsSessionPanelOpen(false);
@@ -4255,36 +4507,71 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
 
-        <div className='flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
+        <div className='relative flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
           <div className='text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-2'>核心创作模型</div>
           {currentDisplayModels.map((model) => (
             <button
               key={model.id}
               onClick={() => setActiveModel(model.id)}
+              onMouseEnter={() => setHoveredSidebarModelId(model.id)}
+              onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
               title={model.fullDesc || model.desc || model.name}
               className={`relative w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
                 activeModel === model.id ? 'border-blue-200 bg-blue-50 shadow-sm' : 'border-transparent hover:bg-slate-50'
               }`}
             >
+              {model.priceLabel ? (
+                <div
+                  className={`absolute right-3 top-3 max-w-[118px] truncate rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm ${
+                    activeModel === model.id
+                      ? 'bg-white text-blue-700'
+                      : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700'
+                  }`}
+                >
+                  {model.priceLabel}
+                </div>
+              ) : null}
               <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${activeModel === model.id ? 'bg-white shadow-sm text-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
                 {model.icon}
               </div>
-              <div className='min-w-0'>
+              <div className='min-w-0 flex-1 pr-20'>
                 <div className={`text-sm font-bold truncate ${activeModel === model.id ? 'text-blue-900' : 'text-slate-700'}`}>{model.name}</div>
                 <p className='mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2'>{model.desc}</p>
               </div>
-              {model.fullDesc ? (
-                <div className='pointer-events-none absolute left-3 right-3 top-full z-20 mt-2 rounded-2xl border border-slate-200 bg-white/95 p-3 text-xs text-slate-600 shadow-xl shadow-slate-200/70 opacity-0 transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100'>
-                  <div className='mb-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400'>
-                    模型简介
-                  </div>
-                  <div className='line-clamp-4 whitespace-normal break-words leading-6'>
-                    {model.fullDesc}
-                  </div>
-                </div>
-              ) : null}
             </button>
           ))}
+          {hoveredSidebarModel ? (
+            <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[320px] lg:block'>
+              <div className='relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-200/70 backdrop-blur-sm'>
+                <div className='absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_60%)]' />
+                <div className='relative'>
+                  <div className='mb-3 flex items-start justify-between gap-3'>
+                    <div className='flex min-w-0 items-center gap-3'>
+                      <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
+                        {hoveredSidebarModel.icon}
+                      </div>
+                      <div className='min-w-0'>
+                        <div className='truncate text-sm font-black tracking-tight text-slate-900'>
+                          {hoveredSidebarModel.name}
+                        </div>
+                        <div className='mt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400'>
+                          模型简介
+                        </div>
+                      </div>
+                    </div>
+                    {hoveredSidebarModel.priceLabel ? (
+                      <div className='shrink-0 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700'>
+                        {hoveredSidebarModel.priceLabel}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className='rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm leading-7 text-slate-600'>
+                    {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无简介'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </aside>
 
