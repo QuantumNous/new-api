@@ -108,10 +108,6 @@ func Distribute() func(c *gin.Context) {
 						service.ClearMatchedChannelAffinity(c)
 					} else if preferred.Status != common.ChannelStatusEnabled {
 						service.ClearMatchedChannelAffinity(c)
-						if service.ShouldSkipRetryForMatchedChannelAffinityRule(c) {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
-							return
-						}
 					} else if usingGroup == "auto" {
 						userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 						autoGroups := service.GetUserAutoGroup(userGroup)
@@ -197,9 +193,6 @@ func setupDistributedChannel(c *gin.Context, channel *model.Channel, modelName s
 
 	if affinityPreferredSelected {
 		service.ClearMatchedChannelAffinity(c)
-		if service.ShouldSkipRetryForMatchedChannelAffinityRule(c) {
-			return nil, setupErr
-		}
 	}
 
 	triedChannelIDs := make(map[int]struct{}, common.RetryTimes+1)

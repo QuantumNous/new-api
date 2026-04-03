@@ -619,17 +619,6 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	return false
 }
 
-func ShouldSkipRetryForMatchedChannelAffinityRule(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	meta, ok := getChannelAffinityMeta(c)
-	if !ok {
-		return false
-	}
-	return meta.SkipRetry
-}
-
 func ClearMatchedChannelAffinity(c *gin.Context) bool {
 	if c == nil {
 		return false

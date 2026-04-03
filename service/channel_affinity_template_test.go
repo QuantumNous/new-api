@@ -155,30 +155,8 @@ func TestShouldSkipRetryAfterChannelAffinityFailure(t *testing.T) {
 			},
 			want: false,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
-		})
-	}
-}
-
-func TestShouldSkipRetryForMatchedChannelAffinityRule(t *testing.T) {
-	tests := []struct {
-		name string
-		ctx  func() *gin.Context
-		want bool
-	}{
 		{
-			name: "nil context",
-			ctx: func() *gin.Context {
-				return nil
-			},
-			want: false,
-		},
-		{
-			name: "matched rule requests skip retry",
+			name: "matched rule skip retry meta alone should not block retry",
 			ctx: func() *gin.Context {
 				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 					RuleName:   "rule-skip-retry",
@@ -187,25 +165,13 @@ func TestShouldSkipRetryForMatchedChannelAffinityRule(t *testing.T) {
 					ModelName:  "gpt-5",
 				})
 			},
-			want: true,
-		},
-		{
-			name: "matched rule allows retry",
-			ctx: func() *gin.Context {
-				return buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
-					RuleName:   "rule-no-skip-retry",
-					SkipRetry:  false,
-					UsingGroup: "default",
-					ModelName:  "gpt-5",
-				})
-			},
 			want: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ShouldSkipRetryForMatchedChannelAffinityRule(tt.ctx()))
+			require.Equal(t, tt.want, ShouldSkipRetryAfterChannelAffinityFailure(tt.ctx()))
 		})
 	}
 }
