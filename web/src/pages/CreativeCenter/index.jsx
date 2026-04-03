@@ -1107,6 +1107,55 @@ const getTaskIdFromCreativeLog = (log) => {
   return '';
 };
 
+const normalizeCreativeTimestampToSeconds = (value) => {
+  const numericValue = Number(value) || 0;
+  if (numericValue <= 0) {
+    return 0;
+  }
+  return numericValue > 9999999999
+    ? Math.floor(numericValue / 1000)
+    : Math.floor(numericValue);
+};
+
+const getTaskDtoResultUrl = (task) => {
+  if (typeof task?.result_url === 'string' && task.result_url.trim()) {
+    return task.result_url.trim();
+  }
+  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
+    return task.resultUrl.trim();
+  }
+  return '';
+};
+
+const getTaskDtoModelName = (task) => {
+  const properties = task?.properties;
+  if (properties && typeof properties === 'object') {
+    const candidate = String(
+      properties.origin_model_name ||
+        properties.originModelName ||
+        properties.upstream_model_name ||
+        properties.upstreamModelName ||
+        '',
+    ).trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  const data = task?.data;
+  if (data && typeof data === 'object') {
+    const candidate = String(data.model || '').trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return '';
+};
+
+const buildRecoverableVideoCandidateKey = (candidate) =>
+  `${candidate.sessionId}:${candidate.recordId}:${candidate.taskId}`;
+
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
     return {
@@ -1382,14 +1431,18 @@ const collectRecoverableVideoCandidatesFromSnapshot = (snapshot) => {
     .flatMap((session) => {
       const records = normalizeVideoHistoryRecords(session);
       return records.flatMap((record) =>
-        record.tasks.map((task) => ({
+        record.tasks.map((task, taskIndex) => ({
           sessionId: session.id,
           recordId: record.id,
           taskId: task.id,
+          itemIndex: taskIndex,
           queryTaskId: getRecoverableVideoTaskId(task),
           requestId: String(task?.requestId || '').trim(),
           hasMedia: Boolean(getVideoTaskMediaUrl(task)),
           status: normalizeVideoTaskStatus(task.status),
+          recordModelName: String(record?.modelName || '').trim(),
+          recordCreatedAt: Number(record?.createdAt) || 0,
+          recordUpdatedAt: Number(record?.updatedAt) || 0,
           sortTimestamp:
             Number(task?.submittedAt) ||
             Number(record?.updatedAt) ||
@@ -1402,8 +1455,7 @@ const collectRecoverableVideoCandidatesFromSnapshot = (snapshot) => {
     .filter(
       (task) =>
         !task.hasMedia &&
-        task.status !== 'failed' &&
-        (Boolean(task.queryTaskId) || Boolean(task.requestId)),
+        task.status !== 'failed',
     )
     .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
 };
@@ -4030,6 +4082,124 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return '';
     };
 
+    const fetchCompletedTasksForRecord = async (recordCandidates) => {
+      if (!Array.isArray(recordCandidates) || recordCandidates.length === 0) {
+        return [];
+      }
+
+      const modelName = String(recordCandidates[0]?.recordModelName || '').trim().toLowerCase();
+      const candidateTimes = recordCandidates
+        .map((candidate) =>
+          normalizeCreativeTimestampToSeconds(
+            candidate.sortTimestamp ||
+              candidate.recordUpdatedAt ||
+              candidate.recordCreatedAt,
+          ),
+        )
+        .filter((value) => value > 0);
+      const baseStartTimestamp =
+        candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
+      const baseEndTimestamp =
+        candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
+      const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+      const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+      try {
+        const response = await API.get('/api/task/self', {
+          params: {
+            p: 1,
+            page_size: 100,
+            status: 'SUCCESS',
+            start_timestamp: startTimestamp,
+            end_timestamp: endTimestamp,
+          },
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        });
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+        const usedTaskIds = new Set(
+          recordCandidates
+            .map((candidate) => String(candidate.queryTaskId || '').trim())
+            .filter(Boolean),
+        );
+
+        return items
+          .filter((item) => {
+            const taskId = String(item?.task_id || '').trim();
+            const resultUrl = getTaskDtoResultUrl(item);
+            if (!taskId || !resultUrl || usedTaskIds.has(taskId)) {
+              return false;
+            }
+
+            const taskModelName = getTaskDtoModelName(item).toLowerCase();
+            if (modelName && taskModelName && taskModelName !== modelName) {
+              return false;
+            }
+
+            const submitTime = normalizeCreativeTimestampToSeconds(item?.submit_time);
+            if (submitTime > 0 && (submitTime < startTimestamp || submitTime > endTimestamp)) {
+              return false;
+            }
+
+            return true;
+          })
+          .sort(
+            (left, right) =>
+              normalizeCreativeTimestampToSeconds(left?.submit_time) -
+              normalizeCreativeTimestampToSeconds(right?.submit_time),
+          );
+      } catch (error) {
+        console.error('Failed to recover creative center video tasks from task list:', error);
+        return [];
+      }
+    };
+
+    const buildFallbackTaskMatchMap = async (recordCandidateGroups) => {
+      const fallbackMatches = new Map();
+
+      for (const group of recordCandidateGroups) {
+        if (cancelled || group.length === 0) {
+          break;
+        }
+
+        const missingTaskIdCandidates = group.filter(
+          (candidate) => !candidate.queryTaskId,
+        );
+        if (missingTaskIdCandidates.length === 0) {
+          continue;
+        }
+
+        const matchedTasks = await fetchCompletedTasksForRecord(group);
+        if (matchedTasks.length === 0) {
+          continue;
+        }
+
+        const sortedCandidates = [...missingTaskIdCandidates].sort(
+          (left, right) =>
+            normalizeCreativeTimestampToSeconds(left.sortTimestamp) -
+            normalizeCreativeTimestampToSeconds(right.sortTimestamp),
+        );
+
+        sortedCandidates.forEach((candidate, index) => {
+          const matchedTask = matchedTasks[index];
+          if (!matchedTask) {
+            return;
+          }
+          fallbackMatches.set(
+            buildRecoverableVideoCandidateKey(candidate),
+            matchedTask,
+          );
+        });
+      }
+
+      return fallbackMatches;
+    };
+
     const recoverStartupVideoTasks = async () => {
       let recoveredSnapshot = normalizeCreativeHistorySnapshot(
         'video',
@@ -4038,6 +4208,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       let hasRecoveredChanges = false;
 
       try {
+        const groupedCandidates = Array.from(
+          limitedCandidates.reduce((map, candidate) => {
+            const key = `${candidate.sessionId}:${candidate.recordId}`;
+            if (!map.has(key)) {
+              map.set(key, []);
+            }
+            map.get(key).push(candidate);
+            return map;
+          }, new Map()),
+        ).map(([, group]) => group);
+        const fallbackTaskMatches = await buildFallbackTaskMatchMap(groupedCandidates);
+
         for (
           let startIndex = 0;
           startIndex < limitedCandidates.length && !cancelled;
@@ -4051,6 +4233,24 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           const batchResults = await Promise.allSettled(
             currentBatch.map(async (candidate) => {
               let queryTaskId = candidate.queryTaskId;
+              const fallbackTask = fallbackTaskMatches.get(
+                buildRecoverableVideoCandidateKey(candidate),
+              );
+
+              if (!queryTaskId && fallbackTask) {
+                return {
+                  candidate,
+                  queryTaskId: String(fallbackTask.task_id || '').trim(),
+                  nextTaskState: {
+                    status: 'completed',
+                    progress: 100,
+                    url: getTaskDtoResultUrl(fallbackTask),
+                    content: '',
+                    error: '',
+                  },
+                };
+              }
+
               if (!queryTaskId) {
                 queryTaskId = await resolveVideoTaskIdByRequestId(candidate.requestId);
               }
