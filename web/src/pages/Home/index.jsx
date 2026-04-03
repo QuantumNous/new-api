@@ -77,6 +77,8 @@ const Home = () => {
   const docsLink = statusState?.status?.docs_link || '';
   const serverAddress =
     statusState?.status?.server_address || `${window.location.origin}`;
+  const claudeCodeInitCommand =
+    `irm ${serverAddress}/scripts/init-claude.ps1 |iex`;
   const endpointItems = API_ENDPOINTS.map((e) => ({ value: e }));
   const [endpointIndex, setEndpointIndex] = useState(0);
   const isChinese = i18n.language.startsWith('zh');
@@ -112,6 +114,13 @@ const Home = () => {
 
   const handleCopyBaseURL = async () => {
     const ok = await copy(serverAddress);
+    if (ok) {
+      showSuccess(t('已复制到剪切板'));
+    }
+  };
+
+  const handleCopyClaudeInitCommand = async () => {
+    const ok = await copy(claudeCodeInitCommand);
     if (ok) {
       showSuccess(t('已复制到剪切板'));
     }
@@ -206,6 +215,25 @@ const Home = () => {
                             className='!rounded-full'
                           />
                         </div>
+                      }
+                    />
+                  </div>
+                  <div className='flex flex-col items-center justify-center gap-2 w-full mt-3 max-w-2xl'>
+                    <p className='text-sm text-semi-color-text-2'>
+                      {t('Claude Code 一键安装并配置命令（PowerShell）：')}
+                    </p>
+                    <Input
+                      readonly
+                      value={claudeCodeInitCommand}
+                      className='w-full !rounded-full'
+                      size={isMobile ? 'default' : 'large'}
+                      suffix={
+                        <Button
+                          type='primary'
+                          onClick={handleCopyClaudeInitCommand}
+                          icon={<IconCopy />}
+                          className='!rounded-full'
+                        />
                       }
                     />
                   </div>
