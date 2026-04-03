@@ -71,6 +71,12 @@ func buildPlaygroundImageResultURL(item dto.ImageData) string {
 	if strings.TrimSpace(item.Url) != "" {
 		return strings.TrimSpace(item.Url)
 	}
+	if strings.TrimSpace(item.PresignedURL) != "" {
+		return strings.TrimSpace(item.PresignedURL)
+	}
+	if strings.TrimSpace(item.PresignedURLAlt) != "" {
+		return strings.TrimSpace(item.PresignedURLAlt)
+	}
 	if strings.TrimSpace(item.B64Json) != "" {
 		return "data:image/png;base64," + strings.TrimSpace(item.B64Json)
 	}
@@ -412,7 +418,19 @@ func extractPlaygroundMediaFieldURL(value any) string {
 	case string:
 		return strings.TrimSpace(typedValue)
 	case map[string]any:
-		return strings.TrimSpace(common.Interface2String(typedValue["url"]))
+		candidates := []string{
+			common.Interface2String(typedValue["url"]),
+			common.Interface2String(typedValue["presignedUrl"]),
+			common.Interface2String(typedValue["presigned_url"]),
+			common.Interface2String(typedValue["resultUrl"]),
+			common.Interface2String(typedValue["result_url"]),
+		}
+		for _, candidate := range candidates {
+			if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+				return trimmed
+			}
+		}
+		return ""
 	default:
 		return ""
 	}
@@ -450,6 +468,10 @@ func extractPlaygroundChatMediaURLs(responseBody []byte) ([]string, []string) {
 				continue
 			}
 			appendUnique(&imageURLs, extractPlaygroundMediaFieldURL(itemPayload["url"]))
+			appendUnique(&imageURLs, extractPlaygroundMediaFieldURL(itemPayload["presignedUrl"]))
+			appendUnique(&imageURLs, extractPlaygroundMediaFieldURL(itemPayload["presigned_url"]))
+			appendUnique(&imageURLs, extractPlaygroundMediaFieldURL(itemPayload["resultUrl"]))
+			appendUnique(&imageURLs, extractPlaygroundMediaFieldURL(itemPayload["result_url"]))
 			if b64 := strings.TrimSpace(common.Interface2String(itemPayload["b64_json"])); b64 != "" {
 				appendUnique(&imageURLs, "data:image/png;base64,"+b64)
 			}

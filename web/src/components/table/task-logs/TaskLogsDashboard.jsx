@@ -17,10 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Button, Skeleton } from '@douyinfe/semi-ui';
 import { Activity, Image as ImageIcon, Video } from 'lucide-react';
-import { VChart } from '@visactor/react-vchart';
 
 const StatGridCard = ({ loading, title, icon, accentClass, stats }) => {
   const items = [
@@ -82,77 +81,6 @@ const TaskLogsDashboard = ({
   taskMediaTypeOptions,
   t,
 }) => {
-  const chartSpec = useMemo(() => {
-    const values = (statsData?.daily_counts || []).map((item) => ({
-      date: item.date,
-      total: Number(item.total || 0),
-    }));
-
-    return {
-      type: 'line',
-      data: [{ id: 'daily-task-counts', values }],
-      xField: 'date',
-      yField: 'total',
-      point: {
-        visible: true,
-        style: {
-          fill: '#2563eb',
-          stroke: '#ffffff',
-          lineWidth: 2,
-        },
-      },
-      line: {
-        style: {
-          curveType: 'monotone',
-          lineWidth: 3,
-          stroke: '#2563eb',
-        },
-      },
-      axes: [
-        {
-          orient: 'bottom',
-          type: 'band',
-          label: {
-            visible: true,
-            style: { fontSize: 11 },
-          },
-        },
-        {
-          orient: 'left',
-          type: 'linear',
-          label: {
-            visible: true,
-            style: { fontSize: 11 },
-          },
-          tick: { visible: false },
-          grid: {
-            visible: true,
-            style: {
-              stroke: '#e2e8f0',
-              lineDash: [4, 4],
-            },
-          },
-        },
-      ],
-      padding: {
-        top: 16,
-        right: 16,
-        bottom: 28,
-        left: 48,
-      },
-      tooltip: {
-        mark: {
-          content: [
-            {
-              key: (datum) => datum.date,
-              value: (datum) => `${datum.total}`,
-            },
-          ],
-        },
-      },
-    };
-  }, [statsData]);
-
   return (
     <div className='w-full space-y-4'>
       <div className='space-y-3'>
@@ -209,30 +137,6 @@ const TaskLogsDashboard = ({
           accentClass='bg-violet-100'
           stats={statsData?.video_stats}
         />
-      </div>
-
-      <div className='rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'>
-        <div className='mb-4 text-lg font-bold text-slate-900'>
-          {t('每天任务数')}
-        </div>
-        <div className='h-[280px]'>
-          {statsLoading ? (
-            <Skeleton
-              loading={true}
-              active
-              placeholder={
-                <Skeleton.Paragraph
-                  rows={8}
-                  style={{
-                    height: '100%',
-                  }}
-                />
-              }
-            />
-          ) : (
-            <VChart spec={chartSpec} />
-          )}
-        </div>
       </div>
     </div>
   );

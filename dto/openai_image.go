@@ -180,7 +180,9 @@ type ImageResponse struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 type ImageData struct {
-	Url           string `json:"url"`
-	B64Json       string `json:"b64_json"`
-	RevisedPrompt string `json:"revised_prompt"`
+	Url              string `json:"url"`
+	PresignedURL     string `json:"presignedUrl"`
+	PresignedURLAlt  string `json:"presigned_url"`
+	B64Json          string `json:"b64_json"`
+	RevisedPrompt    string `json:"revised_prompt"`
 }
