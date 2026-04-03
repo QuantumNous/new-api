@@ -565,67 +565,13 @@ func RelayTask(c *gin.Context) {
 	}
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
+	upsertRelayTaskRecord(c, relayInfo, result, taskErr)
+
 	if taskErr == nil {
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
 		service.LogTaskConsumption(c, relayInfo)
-
-		task := model.InitTask(result.Platform, relayInfo)
-		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
-		task.PrivateData.BillingSource = relayInfo.BillingSource
-		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
-		task.PrivateData.TokenId = relayInfo.TokenId
-		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName),
-		}
-		task.Quota = result.Quota
-		task.Data = result.TaskData
-		task.Action = relayInfo.Action
-		if adaptor := relay.GetTaskAdaptor(result.Platform); adaptor != nil && len(result.TaskData) > 0 {
-			if taskInfo, err := adaptor.ParseTaskResult(result.TaskData); err == nil && taskInfo != nil && taskInfo.Status != "" {
-				now := time.Now().Unix()
-				task.Status = model.TaskStatus(taskInfo.Status)
-				switch task.Status {
-				case model.TaskStatusSubmitted:
-					task.Progress = taskcommon.ProgressSubmitted
-				case model.TaskStatusQueued:
-					task.Progress = taskcommon.ProgressQueued
-				case model.TaskStatusInProgress:
-					task.Progress = taskcommon.ProgressInProgress
-					if task.StartTime == 0 {
-						task.StartTime = now
-					}
-				case model.TaskStatusSuccess:
-					task.Progress = taskcommon.ProgressComplete
-					if task.StartTime == 0 {
-						task.StartTime = now
-					}
-					if task.FinishTime == 0 {
-						task.FinishTime = now
-					}
-					task.PrivateData.ResultURL = taskInfo.Url
-				case model.TaskStatusFailure:
-					task.Progress = taskcommon.ProgressComplete
-					if task.FinishTime == 0 {
-						task.FinishTime = now
-					}
-					task.FailReason = taskInfo.Reason
-					task.PrivateData.ResultURL = taskInfo.Url
-				}
-				if taskInfo.Progress != "" {
-					task.Progress = taskInfo.Progress
-				}
-			}
-		}
-		if insertErr := task.Insert(); insertErr != nil {
-			common.SysError("insert task error: " + insertErr.Error())
-		}
 	}
 
 	if taskErr != nil {
@@ -639,6 +585,129 @@ func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
+}
+
+func applyTaskInfoToRelayTask(task *model.Task, taskInfo *relaycommon.TaskInfo, now int64) {
+	if task == nil || taskInfo == nil || taskInfo.Status == "" {
+		return
+	}
+
+	task.Status = model.TaskStatus(taskInfo.Status)
+	switch task.Status {
+	case model.TaskStatusSubmitted:
+		task.Progress = taskcommon.ProgressSubmitted
+	case model.TaskStatusQueued:
+		task.Progress = taskcommon.ProgressQueued
+	case model.TaskStatusInProgress:
+		task.Progress = taskcommon.ProgressInProgress
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+	case model.TaskStatusSuccess:
+		task.Progress = taskcommon.ProgressComplete
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.PrivateData.ResultURL = taskInfo.Url
+	case model.TaskStatusFailure:
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		task.FailReason = taskInfo.Reason
+		task.PrivateData.ResultURL = taskInfo.Url
+	}
+
+	if taskInfo.Progress != "" {
+		task.Progress = taskInfo.Progress
+	}
+}
+
+func upsertRelayTaskRecord(c *gin.Context, relayInfo *relaycommon.RelayInfo, result *relay.TaskSubmitResult, taskErr *dto.TaskError) {
+	if relayInfo == nil || relayInfo.PublicTaskID == "" {
+		return
+	}
+
+	platform := relay.GetTaskPlatform(c)
+	if result != nil && result.Platform != "" {
+		platform = result.Platform
+	}
+	if platform == "" {
+		return
+	}
+
+	task, exist, err := model.GetByOnlyTaskId(relayInfo.PublicTaskID)
+	if err != nil {
+		common.SysError("get task for upsert error: " + err.Error())
+		return
+	}
+	if !exist || task == nil {
+		task = model.InitTask(platform, relayInfo)
+	} else {
+		task.Platform = platform
+	}
+
+	task.Action = relayInfo.Action
+	task.PrivateData.BillingSource = relayInfo.BillingSource
+	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+	task.PrivateData.TokenId = relayInfo.TokenId
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      relayInfo.PriceData.ModelPrice,
+		GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+		ModelRatio:      relayInfo.PriceData.ModelRatio,
+		OtherRatios:     relayInfo.PriceData.OtherRatios,
+		OriginModelName: relayInfo.OriginModelName,
+		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName),
+	}
+
+	now := common.GetTimestamp()
+	if result != nil {
+		if result.UpstreamTaskID != "" {
+			task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+		}
+		task.Quota = result.Quota
+		if len(result.TaskData) > 0 {
+			task.Data = result.TaskData
+		}
+		if adaptor := relay.GetTaskAdaptor(platform); adaptor != nil && len(result.TaskData) > 0 {
+			if taskInfo, parseErr := adaptor.ParseTaskResult(result.TaskData); parseErr == nil {
+				applyTaskInfoToRelayTask(task, taskInfo, now)
+			}
+		}
+	}
+
+	if taskErr != nil {
+		task.Status = model.TaskStatusFailure
+		task.Progress = taskcommon.ProgressComplete
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		if task.FailReason == "" {
+			task.FailReason = strings.TrimSpace(taskErr.Message)
+		}
+		if task.FailReason == "" && taskErr.Error != nil {
+			task.FailReason = taskErr.Error.Error()
+		}
+	}
+
+	if result != nil && taskErr == nil && task.Status == model.TaskStatusNotStart {
+		task.Status = model.TaskStatusSubmitted
+		task.Progress = taskcommon.ProgressSubmitted
+	}
+
+	if exist {
+		if updateErr := task.Update(); updateErr != nil {
+			common.SysError("update task error: " + updateErr.Error())
+		}
+		return
+	}
+
+	if insertErr := task.Insert(); insertErr != nil {
+		common.SysError("insert task error: " + insertErr.Error())
+	}
 }
 
 func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {
