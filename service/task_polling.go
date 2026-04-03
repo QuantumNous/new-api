@@ -498,6 +498,17 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
 	}
+	if isDone {
+		startAt := task.SubmitTime
+		if startAt <= 0 {
+			startAt = task.StartTime
+		}
+		if task.PrivateData.RequestId != "" && startAt > 0 && task.FinishTime > startAt {
+			if err := model.UpdateConsumeLogUseTimeByRequestId(task.PrivateData.RequestId, int(task.FinishTime-startAt)); err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("failed to update consume log use_time for task %s: %s", task.TaskID, err.Error()))
+			}
+		}
+	}
 
 	return nil
 }

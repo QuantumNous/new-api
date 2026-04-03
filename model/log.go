@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -240,6 +241,16 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
+}
+
+func UpdateConsumeLogUseTimeByRequestId(requestId string, useTimeSeconds int) error {
+	if strings.TrimSpace(requestId) == "" || useTimeSeconds <= 0 {
+		return nil
+	}
+
+	return LOG_DB.Model(&Log{}).
+		Where("request_id = ? AND type = ? AND use_time < ?", strings.TrimSpace(requestId), LogTypeConsume, useTimeSeconds).
+		Update("use_time", useTimeSeconds).Error
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {

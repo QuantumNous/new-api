@@ -651,9 +651,15 @@ func upsertRelayTaskRecord(c *gin.Context, relayInfo *relaycommon.RelayInfo, res
 	}
 
 	task.Action = relayInfo.Action
+	task.PrivateData.RequestId = relayInfo.RequestId
 	task.PrivateData.BillingSource = relayInfo.BillingSource
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 	task.PrivateData.TokenId = relayInfo.TokenId
+	if task.Properties.Input == "" {
+		if req, reqErr := relaycommon.GetTaskRequest(c); reqErr == nil {
+			task.Properties.Input = strings.TrimSpace(req.GetPrompt())
+		}
+	}
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      relayInfo.PriceData.ModelPrice,
 		GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,

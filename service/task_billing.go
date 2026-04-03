@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,6 +20,13 @@ import (
 func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
+	useTimeSeconds := 0
+	if !info.StartTime.IsZero() {
+		elapsedSeconds := time.Now().Unix() - info.StartTime.Unix()
+		if elapsedSeconds > 0 {
+			useTimeSeconds = int(elapsedSeconds)
+		}
+	}
 	// 支持任务仅按次计费
 	if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
 		logContent = fmt.Sprintf("%s，按次计费", logContent)
@@ -36,6 +44,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		}
 	}
 	other := make(map[string]interface{})
+	other["task_id"] = info.PublicTaskID
 	other["request_path"] = c.Request.URL.Path
 	other["model_price"] = info.PriceData.ModelPrice
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
@@ -47,14 +56,15 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
-		ChannelId: info.ChannelId,
-		ModelName: info.OriginModelName,
-		TokenName: tokenName,
-		Quota:     info.PriceData.Quota,
-		Content:   logContent,
-		TokenId:   info.TokenId,
-		Group:     info.UsingGroup,
-		Other:     other,
+		ChannelId:      info.ChannelId,
+		ModelName:      info.OriginModelName,
+		TokenName:      tokenName,
+		Quota:          info.PriceData.Quota,
+		Content:        logContent,
+		TokenId:        info.TokenId,
+		UseTimeSeconds: useTimeSeconds,
+		Group:          info.UsingGroup,
+		Other:          other,
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)

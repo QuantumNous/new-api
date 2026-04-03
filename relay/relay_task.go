@@ -41,7 +41,15 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
-func upsertPendingRelayTaskRecord(info *relaycommon.RelayInfo, platform constant.TaskPlatform) {
+func extractTaskPromptFromContext(c *gin.Context) string {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.GetPrompt())
+}
+
+func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, platform constant.TaskPlatform) {
 	if info == nil || info.PublicTaskID == "" || info.Action == "" || platform == "" {
 		return
 	}
@@ -63,9 +71,13 @@ func upsertPendingRelayTaskRecord(info *relaycommon.RelayInfo, platform constant
 	task.Action = info.Action
 	task.Status = model.TaskStatusSubmitted
 	task.Progress = taskcommon.ProgressSubmitted
+	task.PrivateData.RequestId = info.RequestId
 	task.PrivateData.BillingSource = info.BillingSource
 	task.PrivateData.SubscriptionId = info.SubscriptionId
 	task.PrivateData.TokenId = info.TokenId
+	if prompt := extractTaskPromptFromContext(c); prompt != "" {
+		task.Properties.Input = prompt
+	}
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      info.PriceData.ModelPrice,
 		GroupRatio:      info.PriceData.GroupRatioInfo.GroupRatio,
@@ -267,7 +279,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
 
-	upsertPendingRelayTaskRecord(info, platform)
+	upsertPendingRelayTaskRecord(c, info, platform)
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
