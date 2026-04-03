@@ -561,12 +561,14 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		if task.StartTime == 0 {
 			if createdAt > 0 {
 				task.StartTime = createdAt
+			} else if task.SubmitTime > 0 {
+				task.StartTime = task.SubmitTime
 			} else {
 				task.StartTime = now
 			}
 		}
 	case model.TaskStatusSuccess:
-		if task.StartTime == 0 {
+		if createdAt > 0 && (task.StartTime == 0 || task.StartTime > createdAt) {
 			task.StartTime = createdAt
 		}
 		if task.StartTime == 0 {
@@ -575,20 +577,16 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		if task.StartTime == 0 {
 			task.StartTime = now
 		}
-		if task.FinishTime == 0 {
-			if completedAt > 0 {
-				task.FinishTime = completedAt
-			} else {
-				task.FinishTime = now
-			}
+		if completedAt > 0 && completedAt > task.FinishTime {
+			task.FinishTime = completedAt
+		} else if task.FinishTime == 0 {
+			task.FinishTime = now
 		}
 	case model.TaskStatusFailure:
-		if task.FinishTime == 0 {
-			if completedAt > 0 {
-				task.FinishTime = completedAt
-			} else {
-				task.FinishTime = now
-			}
+		if completedAt > 0 && completedAt > task.FinishTime {
+			task.FinishTime = completedAt
+		} else if task.FinishTime == 0 {
+			task.FinishTime = now
 		}
 	}
 	if strings.HasPrefix(ti.Url, "data:") {

@@ -136,18 +136,28 @@ const renderDuration = (submitTime, finishTime, record) => {
       0,
   );
 
-  let durationSec = 0;
-  if (startTimestamp > 0 && finishTimestamp > 0) {
-    durationSec = finishTimestamp - startTimestamp;
-  } else if (submitTimestamp > 0 && finishTimestamp > 0) {
-    durationSec = finishTimestamp - submitTimestamp;
-  } else {
+  const durationCandidates = [
+    calculateDurationSec(startTimestamp, finishTimestamp),
+    calculateDurationSec(submitTimestamp, finishTimestamp),
+    calculateDurationSec(
+      taskDataTimeFallbacks.createdTimestamp,
+      taskDataTimeFallbacks.completedTimestamp,
+    ),
+    calculateDurationSec(
+      submitTimestamp,
+      taskDataTimeFallbacks.completedTimestamp || finishTimestamp,
+    ),
+    calculateDurationSec(
+      taskDataTimeFallbacks.createdTimestamp || startTimestamp,
+      record?.updated_at || taskDataTimeFallbacks.completedTimestamp,
+    ),
+  ].filter((value) => value >= 0);
+
+  if (!durationCandidates.length) {
     return '-';
   }
 
-  if (durationSec < 0) {
-    return '-';
-  }
+  const durationSec = Math.max(...durationCandidates);
 
   const color = durationSec >= 60 ? 'red' : 'green';
   let durationLabel = '0s';
@@ -234,6 +244,19 @@ const readTaskDataTimestamp = (data, paths) => {
     }
   }
   return 0;
+};
+
+const calculateDurationSec = (startTimestamp, finishTimestamp) => {
+  const normalizedStart = normalizeUnixTimestamp(startTimestamp);
+  const normalizedFinish = normalizeUnixTimestamp(finishTimestamp);
+  if (!normalizedStart || !normalizedFinish) {
+    return -1;
+  }
+  const duration = normalizedFinish - normalizedStart;
+  if (duration < 0) {
+    return -1;
+  }
+  return duration;
 };
 
 const getTaskDataTimeFallbacks = (record) => {
