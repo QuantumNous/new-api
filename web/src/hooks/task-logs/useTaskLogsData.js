@@ -71,6 +71,8 @@ export const useTaskLogsData = () => {
   // 新增：视频预览弹窗状态
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
 
   // Audio preview modal state
   const [isAudioModalOpen, setIsAudioModalOpen] = useState(false);
@@ -281,6 +283,11 @@ export const useTaskLogsData = () => {
     setIsVideoModalOpen(true);
   };
 
+  const openImageModal = (url) => {
+    setImageUrl(url);
+    setIsImageModalOpen(true);
+  };
+
   const openAudioModal = (clips) => {
     setAudioClips(clips);
     setIsAudioModalOpen(true);
@@ -327,6 +334,9 @@ export const useTaskLogsData = () => {
     isVideoModalOpen,
     setIsVideoModalOpen,
     videoUrl,
+    isImageModalOpen,
+    setIsImageModalOpen,
+    imageUrl,
 
     // Audio preview modal
     isAudioModalOpen,
@@ -366,6 +376,7 @@ export const useTaskLogsData = () => {
     copyText,
     openContentModal,
     openVideoModal,
+    openImageModal,
     openAudioModal,
     enrichLogs,
     syncPageData,

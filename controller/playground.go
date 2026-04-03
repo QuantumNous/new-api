@@ -24,6 +24,7 @@ type playgroundChatRequestMeta struct {
 	ModelName      string
 	HasVisualInput bool
 	IsStream       bool
+	Prompt         string
 }
 
 var (
@@ -75,6 +76,70 @@ func buildPlaygroundImageResultURL(item dto.ImageData) string {
 	return ""
 }
 
+func extractPlaygroundPromptFromMessageContent(content any) string {
+	switch typedContent := content.(type) {
+	case string:
+		return strings.TrimSpace(typedContent)
+	case []any:
+		promptParts := make([]string, 0, len(typedContent))
+		for _, item := range typedContent {
+			itemPayload, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			textValue := strings.TrimSpace(common.Interface2String(itemPayload["text"]))
+			if textValue == "" {
+				textValue = strings.TrimSpace(common.Interface2String(itemPayload["content"]))
+			}
+			if textValue != "" {
+				promptParts = append(promptParts, textValue)
+			}
+		}
+		return strings.TrimSpace(strings.Join(promptParts, "\n"))
+	default:
+		return ""
+	}
+}
+
+func readPlaygroundRequestPrompt(c *gin.Context) string {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return ""
+	}
+	bodyBytes, err := storage.Bytes()
+	if err != nil || len(bodyBytes) == 0 {
+		return ""
+	}
+
+	var payload map[string]any
+	if err := common.Unmarshal(bodyBytes, &payload); err != nil {
+		return ""
+	}
+
+	if prompt := strings.TrimSpace(common.Interface2String(payload["prompt"])); prompt != "" {
+		return prompt
+	}
+	if inputPrompt := strings.TrimSpace(common.Interface2String(payload["input"])); inputPrompt != "" {
+		return inputPrompt
+	}
+	if messages, ok := payload["messages"].([]any); ok {
+		promptParts := make([]string, 0, len(messages))
+		for _, message := range messages {
+			messagePayload, ok := message.(map[string]any)
+			if !ok {
+				continue
+			}
+			messagePrompt := extractPlaygroundPromptFromMessageContent(messagePayload["content"])
+			if messagePrompt != "" {
+				promptParts = append(promptParts, messagePrompt)
+			}
+		}
+		return strings.TrimSpace(strings.Join(promptParts, "\n"))
+	}
+
+	return ""
+}
+
 func insertPlaygroundMediaTask(c *gin.Context, action string, modelName string, responseBody []byte, resultURL string) {
 	if action == "" || len(responseBody) == 0 || strings.TrimSpace(resultURL) == "" {
 		return
@@ -99,6 +164,7 @@ func insertPlaygroundMediaTask(c *gin.Context, action string, modelName string, 
 		Properties: model.Properties{
 			OriginModelName:   resolvedModelName,
 			UpstreamModelName: resolvedModelName,
+			Input:             readPlaygroundRequestPrompt(c),
 		},
 		Data: json.RawMessage(responseBody),
 	}
@@ -163,6 +229,7 @@ func readPlaygroundChatRequestMeta(c *gin.Context) playgroundChatRequestMeta {
 	if modelName := strings.TrimSpace(common.Interface2String(payload["model"])); modelName != "" {
 		meta.ModelName = modelName
 	}
+	meta.Prompt = readPlaygroundRequestPrompt(c)
 	if stream, ok := payload["stream"].(bool); ok {
 		meta.IsStream = stream
 	}

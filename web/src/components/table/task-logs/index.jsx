@@ -46,6 +46,11 @@ const TaskLogsPage = () => {
         modalContent={taskLogsData.videoUrl}
         isVideo={true}
       />
+      <ContentModal
+        isModalOpenurl={taskLogsData.isImageModalOpen}
+        setIsModalOpenurl={taskLogsData.setIsImageModalOpen}
+        modalImageUrl={taskLogsData.imageUrl}
+      />
       <AudioPreviewModal
         isModalOpen={taskLogsData.isAudioModalOpen}
         setIsModalOpen={taskLogsData.setIsAudioModalOpen}

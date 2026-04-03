@@ -468,7 +468,7 @@ const AssetLibrary = () => {
             loading={downloading}
             onClick={handleBatchDownload}
           >
-            批量下载 ZIP
+            批量下载
           </Button>
           <Button size='small' type='tertiary' onClick={toggleSelectCurrentPage}>
             {assets.length > 0 &&

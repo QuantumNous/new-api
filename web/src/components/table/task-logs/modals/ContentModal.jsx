@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
+import { Modal, Button, Typography, Spin, ImagePreview } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 
@@ -29,6 +29,9 @@ const ContentModal = ({
   setIsModalOpen,
   modalContent,
   isVideo,
+  isModalOpenurl,
+  setIsModalOpenurl,
+  modalImageUrl,
 }) => {
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
@@ -153,26 +156,33 @@ const ContentModal = ({
   };
 
   return (
-    <Modal
-      visible={isModalOpen}
-      onOk={() => setIsModalOpen(false)}
-      onCancel={() => setIsModalOpen(false)}
-      closable={null}
-      bodyStyle={{
-        height: isVideo ? '70vh' : '400px',
-        maxHeight: '80vh',
-        overflow: 'auto',
-        padding: isVideo && videoError ? '0' : '24px',
-      }}
-      width={isVideo ? '90vw' : 800}
-      style={isVideo ? { maxWidth: 960 } : undefined}
-    >
-      {isVideo ? (
-        renderVideoContent()
-      ) : (
-        <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
-      )}
-    </Modal>
+    <>
+      <Modal
+        visible={isModalOpen}
+        onOk={() => setIsModalOpen(false)}
+        onCancel={() => setIsModalOpen(false)}
+        closable={null}
+        bodyStyle={{
+          height: isVideo ? '70vh' : '400px',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          padding: isVideo && videoError ? '0' : '24px',
+        }}
+        width={isVideo ? '90vw' : 800}
+        style={isVideo ? { maxWidth: 960 } : undefined}
+      >
+        {isVideo ? (
+          renderVideoContent()
+        ) : (
+          <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
+        )}
+      </Modal>
+      <ImagePreview
+        src={modalImageUrl}
+        visible={Boolean(isModalOpenurl)}
+        onVisibleChange={(visible) => setIsModalOpenurl?.(visible)}
+      />
+    </>
   );
 };
 
