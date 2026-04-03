@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import { Modal } from '@douyinfe/semi-ui';
 
 import enTranslation from './locales/en.json';
 import frTranslation from './locales/fr.json';
@@ -95,6 +96,49 @@ i18n.t = function patchedT(...args) {
 
   return result;
 };
+
+function getLocalizedModalConfig(config = {}, withCancel = true) {
+  const normalizedConfig =
+    config && typeof config === 'object' ? { ...config } : {};
+  if (typeof normalizedConfig.okText !== 'string') {
+    normalizedConfig.okText = i18n.t('确定');
+  }
+  const shouldSetCancelText = withCancel && normalizedConfig.hasCancel !== false;
+  if (
+    shouldSetCancelText &&
+    typeof normalizedConfig.cancelText !== 'string'
+  ) {
+    normalizedConfig.cancelText = i18n.t('取消');
+  }
+  return normalizedConfig;
+}
+
+function patchSemiStaticModalI18n() {
+  const patchFlag = '__newApiSemiStaticModalI18nPatched';
+  if (globalThis[patchFlag]) {
+    return;
+  }
+  globalThis[patchFlag] = true;
+
+  const methods = [
+    ['confirm', true],
+    ['warning', true],
+    ['error', true],
+    ['info', true],
+    ['success', true],
+  ];
+
+  methods.forEach(([methodName, withCancel]) => {
+    const originalMethod = Modal?.[methodName];
+    if (typeof originalMethod !== 'function') {
+      return;
+    }
+    Modal[methodName] = (config = {}) =>
+      originalMethod.call(Modal, getLocalizedModalConfig(config, withCancel));
+  });
+}
+
+patchSemiStaticModalI18n();
 
 window.__i18n = i18n;
 

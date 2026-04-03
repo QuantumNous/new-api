@@ -436,6 +436,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
             title={t('确定要删除此密钥吗？')}
             content={t('此操作不可撤销，将永久删除该密钥')}
             onConfirm={() => handleDeleteKey(record.index)}
+            okText={t('确定')}
+            cancelText={t('取消')}
             okType={'danger'}
             position={'topRight'}
           >
@@ -643,6 +645,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           <Popconfirm
                             title={t('确定要启用所有密钥吗？')}
                             onConfirm={handleEnableAll}
+                            okText={t('确定')}
+                            cancelText={t('取消')}
                             position={'topRight'}
                           >
                             <Button
@@ -658,6 +662,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                           <Popconfirm
                             title={t('确定要禁用所有的密钥吗？')}
                             onConfirm={handleDisableAll}
+                            okText={t('确定')}
+                            cancelText={t('取消')}
                             okType={'danger'}
                             position={'topRight'}
                           >
@@ -676,6 +682,8 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
                             '此操作不可撤销，将永久删除已自动禁用的密钥',
                           )}
                           onConfirm={handleDeleteDisabledKeys}
+                          okText={t('确定')}
+                          cancelText={t('取消')}
                           okType={'danger'}
                           position={'topRight'}
                         >

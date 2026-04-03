@@ -595,6 +595,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           <Popconfirm
             title={t('确定要删除此 OAuth 提供商吗？')}
             onConfirm={() => handleDelete(record.id)}
+            okText={t('确定')}
+            cancelText={t('取消')}
           >
             <Button icon={<IconDelete />} size="small" type="danger">
               {t('删除')}

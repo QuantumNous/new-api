@@ -336,6 +336,8 @@ export default function ModelRatioSettings(props) {
         <Popconfirm
           title={t('确定重置模型倍率吗？')}
           content={t('此修改将不可逆')}
+          okText={t('确定')}
+          cancelText={t('取消')}
           okType={'danger'}
           position={'top'}
           onConfirm={resetModelRatio}

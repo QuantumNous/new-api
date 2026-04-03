@@ -488,6 +488,8 @@ export default function SettingsPerformance(props) {
                         })
                   }
                   onConfirm={cleanupLogFiles}
+                  okText={t('确定')}
+                  cancelText={t('取消')}
                 >
                   <Button type='danger' loading={logCleanupLoading}>
                     {t('清理日志文件')}
@@ -516,6 +518,8 @@ export default function SettingsPerformance(props) {
                   title={t('确认清理不活跃的磁盘缓存？')}
                   content={t('这将删除超过 10 分钟未使用的临时缓存文件')}
                   onConfirm={clearDiskCache}
+                  okText={t('确定')}
+                  cancelText={t('取消')}
                 >
                   <Button type='warning'>{t('清理不活跃缓存')}</Button>
                 </Popconfirm>
