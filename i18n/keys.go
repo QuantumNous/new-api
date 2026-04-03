@@ -314,3 +314,15 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// SMS related messages
+const (
+	MsgSmsLoginDisabled        = "sms.login_disabled"
+	MsgSmsSendSuccess          = "sms.send_success"
+	MsgSmsSendFailed           = "sms.send_failed"
+	MsgSmsCodeRequired         = "sms.code_required"
+	MsgSmsPhoneRequired        = "sms.phone_required"
+	MsgSmsPhoneInvalid         = "sms.phone_invalid"
+	MsgSmsProviderNotConfig    = "sms.provider_not_configured"
+	MsgSmsVerificationCodeErr  = "sms.verification_code_error"
+)

@@ -100,6 +100,14 @@ const SystemSetting = () => {
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
     ServerAddress: '',
+    'sms.enabled': '',
+    'sms.provider': '',
+    'sms.access_key_id': '',
+    'sms.access_key_secret': '',
+    'sms.sign_name': '',
+    'sms.template_code': '',
+    'sms.app_id': '',
+    'sms.scheme_code': '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
     'fetch_setting.allow_private_ip': '',
@@ -584,6 +592,33 @@ const SystemSetting = () => {
       { key: 'TelegramBotName', value: inputs.TelegramBotName },
     ];
     await updateOptions(options);
+  };
+
+  const submitSmsSettings = async () => {
+    const options = [];
+    const smsKeys = [
+      'sms.provider',
+      'sms.access_key_id',
+      'sms.sign_name',
+      'sms.template_code',
+      'sms.app_id',
+      'sms.scheme_code',
+    ];
+    for (const key of smsKeys) {
+      if (originInputs[key] !== inputs[key]) {
+        options.push({ key, value: inputs[key] });
+      }
+    }
+    // Secret field: only send if non-empty
+    if (inputs['sms.access_key_secret'] !== '') {
+      options.push({
+        key: 'sms.access_key_secret',
+        value: inputs['sms.access_key_secret'],
+      });
+    }
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
   };
 
   const submitTurnstile = async () => {
@@ -1089,6 +1124,15 @@ const SystemSetting = () => {
                       >
                         {t('允许通过 OIDC 进行登录')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field="['sms.enabled']"
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('sms.enabled', e)
+                        }
+                      >
+                        {t('允许通过短信验证码登录')}
+                      </Form.Checkbox>
                     </Col>
                   </Row>
                 </Form.Section>
@@ -1593,6 +1637,91 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitTelegramSettings}>
                     {t('保存 Telegram 登录设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('配置短信登录')}>
+                  <Text>{t('用以支持通过手机短信验证码进行登录注册，支持阿里云、腾讯云短信服务')}</Text>
+                  <Banner
+                    type='info'
+                    description={t('个人开发者推荐使用「阿里云号码认证(PNVS)」，无需企业资质、签名和模板审核，开通后即可使用系统赠送的签名和模板')}
+                    style={{ marginBottom: 12 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field="['sms.provider']"
+                        label={t('短信服务商')}
+                        placeholder={t('请选择短信服务商')}
+                        optionList={[
+                          { label: t('阿里云号码认证 PNVS（个人推荐）'), value: 'aliyun_pnvs' },
+                          { label: t('阿里云短信服务（需企业资质）'), value: 'aliyun' },
+                          { label: t('腾讯云'), value: 'tencent' },
+                        ]}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.sign_name']"
+                        label={t('短信签名')}
+                        placeholder={t('PNVS 用户使用控制台赠送的签名')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.access_key_id']"
+                        label='Access Key ID'
+                        placeholder='Access Key ID'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.access_key_secret']"
+                        label='Access Key Secret'
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.template_code']"
+                        label={t('短信模板 ID')}
+                        placeholder={t('PNVS 用户使用控制台赠送的模板')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.scheme_code']"
+                        label={t('方案 Code（PNVS 可选）')}
+                        placeholder={t('号码认证方案Code，可不填')}
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['sms.app_id']"
+                        label={t('App ID（腾讯云）')}
+                        placeholder={t('仅腾讯云需要填写')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitSmsSettings}>
+                    {t('保存短信登录设置')}
                   </Button>
                 </Form.Section>
               </Card>

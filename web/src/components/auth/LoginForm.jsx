@@ -63,13 +63,18 @@ import {
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import PhoneIcon from '../common/logo/PhoneIcon';
 import TwoFAVerification from './TwoFAVerification';
+import SmsLoginForm from './SmsLoginForm';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
 const LoginForm = () => {
   let navigate = useNavigate();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const isPopupMode = searchParams.get('mode') === 'popup';
+  const callbackOrigin = searchParams.get('callback_origin') || '';
   const githubButtonTextKeyByState = {
     idle: '使用 GitHub 继续',
     redirecting: '正在跳转 GitHub...',
@@ -81,7 +86,6 @@ const LoginForm = () => {
     wechat_verification_code: '',
   });
   const { username, password } = inputs;
-  const [searchParams, setSearchParams] = useSearchParams();
   const [submitted, setSubmitted] = useState(false);
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
@@ -90,6 +94,7 @@ const LoginForm = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [showSmsLogin, setShowSmsLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -140,6 +145,7 @@ const LoginForm = () => {
       status.wechat_login ||
       status.linuxdo_oauth ||
       status.telegram_oauth ||
+      status.sms_login ||
       hasCustomOAuthProviders,
   );
 
@@ -198,8 +204,12 @@ const LoginForm = () => {
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
         updateAPI();
-        navigate('/');
-        showSuccess('登录成功！');
+        if (isPopupMode) {
+          handlePopupCallback(data);
+        } else {
+          navigate('/');
+          showSuccess('登录成功！');
+        }
         setShowWeChatLoginModal(false);
       } else {
         showError(message);
@@ -247,15 +257,19 @@ const LoginForm = () => {
           userDispatch({ type: 'login', payload: data });
           setUserData(data);
           updateAPI();
-          showSuccess('登录成功！');
-          if (username === 'root' && password === '123456') {
-            Modal.error({
-              title: '您正在使用默认密码！',
-              content: '请立刻修改默认密码！',
-              centered: true,
-            });
+          if (isPopupMode) {
+            handlePopupCallback(data);
+          } else {
+            showSuccess('登录成功！');
+            if (username === 'root' && password === '123456') {
+              Modal.error({
+                title: '您正在使用默认密码！',
+                content: '请立刻修改默认密码！',
+                centered: true,
+              });
+            }
+            navigate('/console');
           }
-          navigate('/console');
         } else {
           showError(message);
         }
@@ -297,10 +311,14 @@ const LoginForm = () => {
       if (success) {
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
-        showSuccess('登录成功！');
         setUserData(data);
         updateAPI();
-        navigate('/');
+        if (isPopupMode) {
+          handlePopupCallback(data);
+        } else {
+          showSuccess('登录成功！');
+          navigate('/');
+        }
       } else {
         showError(message);
       }
@@ -455,8 +473,12 @@ const LoginForm = () => {
         userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
         updateAPI();
-        showSuccess('登录成功！');
-        navigate('/console');
+        if (isPopupMode) {
+          handlePopupCallback(finish.data);
+        } else {
+          showSuccess('登录成功！');
+          navigate('/console');
+        }
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -490,8 +512,65 @@ const LoginForm = () => {
     userDispatch({ type: 'login', payload: data });
     setUserData(data);
     updateAPI();
-    showSuccess('登录成功！');
-    navigate('/console');
+    if (isPopupMode) {
+      handlePopupCallback(data);
+    } else {
+      showSuccess('登录成功！');
+      navigate('/console');
+    }
+  };
+
+  // 弹窗模式：登录成功后获取 token 并回传给 opener
+  const handlePopupCallback = async (userData) => {
+    if (!window.opener || !callbackOrigin) {
+      showSuccess('登录成功！');
+      navigate('/console');
+      return;
+    }
+    try {
+      // 1. 获取 Access Token
+      const tokenRes = await API.get('/api/user/token');
+      const accessToken = tokenRes.data.success ? tokenRes.data.data : '';
+
+      // 2. 获取 API Token 列表
+      const tokensRes = await API.get('/api/token/');
+      let apiTokenKey = '';
+      let tokens = tokensRes.data?.data?.items || tokensRes.data?.data || [];
+      if (tokens.length === 0) {
+        // 没有 Token，创建一个
+        const createRes = await API.post('/api/token/', {
+          name: 'AionUi Default',
+          remain_quota: 0,
+          expired_time: -1,
+          unlimited_quota: true,
+        });
+        if (createRes.data.success) {
+          const newTokensRes = await API.get('/api/token/');
+          tokens = newTokensRes.data?.data?.items || newTokensRes.data?.data || [];
+        }
+      }
+      if (tokens.length > 0) {
+        // 获取第一个 token 的 key
+        const keyRes = await API.post(`/api/token/${tokens[0].id}/key`);
+        if (keyRes.data.success) {
+          apiTokenKey = keyRes.data.data;
+        }
+      }
+
+      // 3. postMessage 回传
+      window.opener.postMessage({
+        type: 'aionui-auth',
+        accessToken,
+        apiToken: apiTokenKey,
+        user: userData,
+      }, callbackOrigin);
+
+      // 4. 关闭弹窗
+      window.close();
+    } catch (error) {
+      console.error('Popup callback failed:', error);
+      showError('获取令牌失败，请重试');
+    }
   };
 
   // 返回登录页面
@@ -639,6 +718,26 @@ const LoginForm = () => {
                     loading={passkeyLoading}
                   >
                     <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                  </Button>
+                )}
+
+                {status.sms_login && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <Icon svg={<PhoneIcon />} />
+                    }
+                    onClick={() => {
+                      if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+                        showInfo(t('请先阅读并同意用户协议和隐私政策'));
+                        return;
+                      }
+                      setShowSmsLogin(true);
+                    }}
+                  >
+                    <span className='ml-3'>{t('使用手机号登录')}</span>
                   </Button>
                 )}
 
@@ -958,10 +1057,19 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
-          ? renderEmailLoginForm()
-          : renderOAuthOptions()}
+        {showSmsLogin && status.sms_login
+          ? <SmsLoginForm
+              onBack={() => setShowSmsLogin(false)}
+              logo={logo}
+              systemName={systemName}
+              isPopupMode={isPopupMode}
+              onPopupCallback={handlePopupCallback}
+            />
+          : showEmailLogin ||
+            !hasOAuthLoginOptions
+            ? renderEmailLoginForm()
+            : renderOAuthOptions()
+        }
         {renderWeChatLoginModal()}
         {render2FAModal()}
 

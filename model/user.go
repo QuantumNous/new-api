@@ -34,6 +34,7 @@ type User struct {
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
+	Phone            string         `json:"phone" gorm:"type:varchar(20);column:phone;index" validate:"max=20"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
@@ -552,6 +553,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"wechat":   "wechat_id",
 		"telegram": "telegram_id",
 		"linuxdo":  "linux_do_id",
+		"phone":    "phone",
 	}
 
 	column, ok := bindingColumnMap[bindingType]
@@ -623,6 +625,18 @@ func (user *User) FillUserByEmail() error {
 	}
 	DB.Where(User{Email: user.Email}).First(user)
 	return nil
+}
+
+func (user *User) FillUserByPhone() error {
+	if user.Phone == "" {
+		return errors.New("phone 为空！")
+	}
+	DB.Where("phone = ?", user.Phone).First(user)
+	return nil
+}
+
+func IsPhoneAlreadyTaken(phone string) bool {
+	return DB.Unscoped().Where("phone = ?", phone).Find(&User{}).RowsAffected == 1
 }
 
 func (user *User) FillUserByGitHubId() error {

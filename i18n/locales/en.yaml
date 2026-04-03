@@ -263,3 +263,13 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# SMS messages
+sms.login_disabled: "SMS login is not enabled"
+sms.send_success: "Verification code sent successfully"
+sms.send_failed: "Failed to send verification code"
+sms.code_required: "Verification code is required"
+sms.phone_required: "Phone number is required"
+sms.phone_invalid: "Invalid phone number format"
+sms.provider_not_configured: "SMS provider is not configured"
+sms.verification_code_error: "Incorrect or expired verification code"

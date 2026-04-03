@@ -264,3 +264,13 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+
+# SMS messages
+sms.login_disabled: "短信登录未启用"
+sms.send_success: "验证码发送成功"
+sms.send_failed: "验证码发送失败"
+sms.code_required: "请输入验证码"
+sms.phone_required: "请输入手机号"
+sms.phone_invalid: "手机号格式无效"
+sms.provider_not_configured: "短信服务未配置"
+sms.verification_code_error: "验证码错误或已过期"

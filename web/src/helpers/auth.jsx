@@ -34,6 +34,12 @@ export function authHeader() {
 
 export const AuthRedirect = ({ children }) => {
   const user = localStorage.getItem('user');
+  const params = new URLSearchParams(window.location.search);
+
+  // In popup mode, don't redirect even if already logged in
+  if (params.get('mode') === 'popup') {
+    return children;
+  }
 
   if (user) {
     return <Navigate to='/console' replace />;

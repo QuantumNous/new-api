@@ -188,6 +188,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "sms.enabled":
+		if option.Value == "true" && system_setting.GetSmsSettings().Provider == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用短信登录，请先配置短信服务商！",
+			})
+			return
+		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))
 		if err != nil {

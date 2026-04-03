@@ -264,3 +264,13 @@ custom_oauth.name_empty: "供應者名稱不能為空"
 custom_oauth.has_bindings: "無法刪除已有使用者綁定的供應者"
 custom_oauth.binding_not_found: "OAuth 綁定不存在"
 custom_oauth.provider_id_field_invalid: "無法從供應者響應中提取使用者 ID"
+
+# SMS messages
+sms.login_disabled: "簡訊登入未啟用"
+sms.send_success: "驗證碼發送成功"
+sms.send_failed: "驗證碼發送失敗"
+sms.code_required: "請輸入驗證碼"
+sms.phone_required: "請輸入手機號"
+sms.phone_invalid: "手機號格式無效"
+sms.provider_not_configured: "簡訊服務未配置"
+sms.verification_code_error: "驗證碼錯誤或已過期"
