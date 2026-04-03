@@ -193,26 +193,6 @@ const downloadAssetByUrl = (asset, index = 0) => {
   document.body.removeChild(link);
 };
 
-const downloadBlobResponse = (blob, fallbackName, responseHeaders) => {
-  const headerName = responseHeaders?.['content-disposition'];
-  let fileName = fallbackName;
-  if (typeof headerName === 'string') {
-    const match = headerName.match(/filename="?([^"]+)"?/i);
-    if (match?.[1]) {
-      fileName = decodeURIComponent(match[1]);
-    }
-  }
-
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = objectUrl;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(objectUrl);
-};
-
 const AssetLibrary = () => {
   const isMobile = useIsMobile();
   const isAdminUser = isAdmin();
@@ -225,6 +205,7 @@ const AssetLibrary = () => {
   const [formApi, setFormApi] = useState(null);
   const [previewAsset, setPreviewAsset] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedAssetMap, setSelectedAssetMap] = useState({});
   const [showPreview, setShowPreview] = useState(false);
 
   const [formInitValues] = useState(() => {
@@ -274,6 +255,15 @@ const AssetLibrary = () => {
     setAssetCount(payload?.total || 0);
     setActivePage(payload?.page || 1);
     setPageSize(payload?.page_size || pageSize);
+    setSelectedAssetMap((prev) => {
+      const next = { ...prev };
+      items.forEach((asset) => {
+        if (next[asset.asset_id]) {
+          next[asset.asset_id] = asset;
+        }
+      });
+      return next;
+    });
   };
 
   const loadAssets = async (page = 1, size = pageSize) => {
@@ -316,6 +306,7 @@ const AssetLibrary = () => {
 
   const refresh = async () => {
     setSelectedIds([]);
+    setSelectedAssetMap({});
     await loadAssets(1, pageSize);
   };
 
@@ -326,15 +317,31 @@ const AssetLibrary = () => {
   const handlePageSizeChange = async (size) => {
     localStorage.setItem('asset-library-page-size', `${size}`);
     setSelectedIds([]);
+    setSelectedAssetMap({});
     await loadAssets(1, size);
   };
 
-  const handleToggleSelect = (assetID) => {
+  const handleToggleSelect = (asset) => {
+    const assetID = asset?.asset_id;
+    if (!assetID) {
+      return;
+    }
     setSelectedIds((prev) =>
       prev.includes(assetID)
         ? prev.filter((id) => id !== assetID)
         : [...prev, assetID],
     );
+    setSelectedAssetMap((prev) => {
+      if (prev[assetID]) {
+        const next = { ...prev };
+        delete next[assetID];
+        return next;
+      }
+      return {
+        ...prev,
+        [assetID]: asset,
+      };
+    });
   };
 
   const toggleSelectCurrentPage = () => {
@@ -343,10 +350,24 @@ const AssetLibrary = () => {
 
     if (alreadySelected) {
       setSelectedIds((prev) => prev.filter((id) => !currentPageIds.includes(id)));
+      setSelectedAssetMap((prev) => {
+        const next = { ...prev };
+        currentPageIds.forEach((id) => {
+          delete next[id];
+        });
+        return next;
+      });
       return;
     }
 
     setSelectedIds((prev) => Array.from(new Set([...prev, ...currentPageIds])));
+    setSelectedAssetMap((prev) => {
+      const next = { ...prev };
+      assets.forEach((asset) => {
+        next[asset.asset_id] = asset;
+      });
+      return next;
+    });
   };
 
   const handleBatchDownload = async () => {
@@ -357,6 +378,22 @@ const AssetLibrary = () => {
 
     setDownloading(true);
     try {
+      const selectedAssets = selectedIds
+        .map((assetID) => selectedAssetMap[assetID])
+        .filter(Boolean);
+      if (selectedAssets.length === 0) {
+        showError('未找到可下载的素材，请重新选择后再试');
+        return;
+      }
+
+      selectedAssets.forEach((asset, index) => {
+        window.setTimeout(() => {
+          downloadAssetByUrl(asset, index);
+        }, index * 120);
+      });
+      showSuccess('批量下载已开始');
+      return;
+
       const endpoint = isAdminUser
         ? '/api/asset/download'
         : '/api/asset/self/download';
@@ -592,7 +629,7 @@ const AssetLibrary = () => {
                           <input
                             type='checkbox'
                             checked={checked}
-                            onChange={() => handleToggleSelect(asset.asset_id)}
+                            onChange={() => handleToggleSelect(asset)}
                           />
                           <Tag
                             color={asset.asset_type === 'video' ? 'purple' : 'blue'}

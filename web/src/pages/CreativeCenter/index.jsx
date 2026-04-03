@@ -1045,6 +1045,19 @@ const buildCreativePersistSignature = (records, taskType) =>
 const createCreativeRecordId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const getImageTaskMediaUrl = (item) => {
+  if (typeof item?.url === 'string' && item.url.trim()) {
+    return item.url.trim();
+  }
+  if (typeof item?.resultUrl === 'string' && item.resultUrl.trim()) {
+    return item.resultUrl.trim();
+  }
+  if (typeof item?.result_url === 'string' && item.result_url.trim()) {
+    return item.result_url.trim();
+  }
+  return '';
+};
+
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
     return {
@@ -1056,16 +1069,22 @@ const normalizeImageTaskItem = (item, index = 0) => {
     };
   }
 
+  const resolvedImageUrl = getImageTaskMediaUrl(item);
   const progress =
-    parseProgressValue(item?.progress) ?? (item?.url ? 100 : 0);
+    parseProgressValue(item?.progress) ?? (resolvedImageUrl ? 100 : 0);
+  const normalizedStatus =
+    item?.status || (resolvedImageUrl ? 'completed' : 'pending');
 
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
-    url: typeof item?.url === 'string' ? item.url : '',
-    status: item?.status || (item?.url ? 'completed' : 'pending'),
+    url: resolvedImageUrl,
+    status: resolvedImageUrl ? 'completed' : normalizedStatus,
     progress,
     error: item?.error || '',
-    resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
+    resultUrl:
+      typeof item?.resultUrl === 'string'
+        ? item.resultUrl
+        : (typeof item?.result_url === 'string' ? item.result_url : ''),
     requestId: typeof item?.requestId === 'string' ? item.requestId : '',
     submittedAt: parseTimestampValue(
       item?.submittedAt || item?.submitted_at,
@@ -1082,23 +1101,26 @@ const normalizeImageTaskItem = (item, index = 0) => {
     requestPollable:
       typeof item?.requestPollable === 'boolean'
         ? item.requestPollable
-        : !item?.url && !['completed', 'failed'].includes(item?.status || 'pending'),
+        : !resolvedImageUrl &&
+          !['completed', 'failed'].includes(normalizedStatus),
   };
 };
 
 const normalizeVideoTaskItem = (item, index = 0) => {
+  const resolvedVideoUrl = getVideoTaskMediaUrl(item);
   const normalizedStatus = normalizeVideoTaskStatus(
-    item?.status || (item?.url ? 'completed' : 'submitted'),
+    item?.status || (resolvedVideoUrl ? 'completed' : 'submitted'),
   );
   const progress =
     parseProgressValue(item?.progress) ??
-    ((item?.url || normalizedStatus === 'completed') ? 100 : 0);
+    ((resolvedVideoUrl || normalizedStatus === 'completed') ? 100 : 0);
+  const resolvedStatus = resolvedVideoUrl ? 'completed' : normalizedStatus;
 
   return {
     id: item?.id || createCreativeRecordId(`video-task-${index}`),
     taskId: item?.taskId || item?.task_id || item?.id || '',
-    status: normalizedStatus,
-    url: getVideoTaskMediaUrl(item),
+    status: resolvedStatus,
+    url: resolvedVideoUrl,
     content: item?.content || '',
     progress,
     error: item?.error || '',
@@ -1123,8 +1145,8 @@ const normalizeVideoTaskItem = (item, index = 0) => {
         : false,
     pollable:
       typeof item?.pollable === 'boolean'
-        ? item.pollable
-        : !item?.url && ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
+        ? (resolvedVideoUrl ? false : item.pollable)
+        : !resolvedVideoUrl && ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
   };
 };
 
@@ -1153,31 +1175,30 @@ const normalizeImageHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
   if (Array.isArray(payload?.entries)) {
-    return payload.entries.map((entry, index) => ({
+    return payload.entries.map((entry, index) => {
+      const images = Array.isArray(entry?.images)
+        ? entry.images
+            .filter(Boolean)
+            .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex))
+        : [];
+      const summary = summarizeImageTasks(images);
+
+      return {
       id: entry?.id || createCreativeRecordId(`image-history-${index}`),
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       group: entry?.group || snapshot?.group || '',
-      status: entry?.status || 'completed',
-      images: Array.isArray(entry?.images)
-        ? entry.images
-            .filter(Boolean)
-            .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex))
-        : [],
+      status: summary.status,
+      images,
       error: entry?.error || '',
-      total: Number(entry?.total) || (Array.isArray(entry?.images) ? entry.images.length : 0),
-      completedCount:
-        Number(entry?.completedCount) ||
-        Number(entry?.completed_count) ||
-        (Array.isArray(entry?.images) ? entry.images.length : 0),
-      successCount:
-        Number(entry?.successCount) ||
-        Number(entry?.success_count) ||
-        (Array.isArray(entry?.images) ? entry.images.length : 0),
+      total: Number(entry?.total) || images.length,
+      completedCount: summary.completedCount,
+      successCount: summary.successCount,
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
-    }));
+      };
+    });
   }
 
   if (Array.isArray(payload?.images) && payload.images.length > 0) {
@@ -1209,29 +1230,28 @@ const normalizeVideoHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
   if (Array.isArray(payload?.entries)) {
-    return payload.entries.map((entry, index) => ({
+    return payload.entries.map((entry, index) => {
+      const tasks = Array.isArray(entry?.tasks)
+        ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
+        : [];
+      const summary = summarizeVideoTasks(tasks);
+
+      return {
       id: entry?.id || createCreativeRecordId(`video-history-${index}`),
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       group: entry?.group || snapshot?.group || '',
-      status: entry?.status || 'completed',
-      tasks: Array.isArray(entry?.tasks)
-        ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
-        : [],
+      status: summary.status,
+      tasks,
       error: entry?.error || '',
-      total: Number(entry?.total) || (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
-      completedCount:
-        Number(entry?.completedCount) ||
-        Number(entry?.completed_count) ||
-        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
-      successCount:
-        Number(entry?.successCount) ||
-        Number(entry?.success_count) ||
-        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
+      total: Number(entry?.total) || tasks.length,
+      completedCount: summary.completedCount,
+      successCount: summary.successCount,
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
-    }));
+      };
+    });
   }
 
   if (Array.isArray(payload?.tasks) && payload.tasks.length > 0) {
