@@ -60,6 +60,7 @@ type GeneralOpenAIRequest struct {
 	ResponseFormat      *ResponseFormat   `json:"response_format,omitempty"`
 	EncodingFormat      json.RawMessage   `json:"encoding_format,omitempty"`
 	Seed                *float64          `json:"seed,omitempty"`
+	Seeds               []int             `json:"seeds,omitempty"`
 	ParallelTooCalls    *bool             `json:"parallel_tool_calls,omitempty"`
 	Tools               []ToolCallRequest `json:"tools,omitempty"`
 	ToolChoice          any               `json:"tool_choice,omitempty"`

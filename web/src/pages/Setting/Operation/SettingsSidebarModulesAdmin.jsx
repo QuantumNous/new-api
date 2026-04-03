@@ -33,42 +33,47 @@ import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
 
+const getDefaultSidebarModulesAdmin = () => ({
+  chat: {
+    enabled: true,
+    playground: true,
+    chat: true,
+  },
+  console: {
+    enabled: true,
+    detail: true,
+    token: true,
+    log: true,
+    midjourney: true,
+    asset: true,
+    task: true,
+  },
+  personal: {
+    enabled: true,
+    topup: true,
+    personal: true,
+  },
+  admin: {
+    enabled: true,
+    channel: true,
+    models: true,
+    deployment: true,
+    redemption: true,
+    user: true,
+    subscription: true,
+    setting: true,
+  },
+});
+
 export default function SettingsSidebarModulesAdmin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
 
   // 左侧边栏模块管理状态（管理员全局控制）
-  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState({
-    chat: {
-      enabled: true,
-      playground: true,
-      chat: true,
-    },
-    console: {
-      enabled: true,
-      detail: true,
-      token: true,
-      log: true,
-      midjourney: true,
-      task: true,
-    },
-    personal: {
-      enabled: true,
-      topup: true,
-      personal: true,
-    },
-    admin: {
-      enabled: true,
-      channel: true,
-      models: true,
-      deployment: true,
-      redemption: true,
-      user: true,
-      subscription: true,
-      setting: true,
-    },
-  });
+  const [sidebarModulesAdmin, setSidebarModulesAdmin] = useState(
+    getDefaultSidebarModulesAdmin(),
+  );
 
   // 处理区域级别开关变更
   function handleSectionChange(sectionKey) {
@@ -100,36 +105,7 @@ export default function SettingsSidebarModulesAdmin(props) {
 
   // 重置为默认配置
   function resetSidebarModules() {
-    const defaultModules = {
-      chat: {
-        enabled: true,
-        playground: true,
-        chat: true,
-      },
-      console: {
-        enabled: true,
-        detail: true,
-        token: true,
-        log: true,
-        midjourney: true,
-        task: true,
-      },
-      personal: {
-        enabled: true,
-        topup: true,
-        personal: true,
-      },
-      admin: {
-        enabled: true,
-        channel: true,
-        models: true,
-        deployment: true,
-        redemption: true,
-        user: true,
-        subscription: true,
-        setting: true,
-      },
-    };
+    const defaultModules = getDefaultSidebarModulesAdmin();
     setSidebarModulesAdmin(defaultModules);
     showSuccess(t('已重置为默认配置'));
   }
@@ -174,7 +150,26 @@ export default function SettingsSidebarModulesAdmin(props) {
     if (props.options && props.options.SidebarModulesAdmin) {
       try {
         const modules = JSON.parse(props.options.SidebarModulesAdmin);
-        setSidebarModulesAdmin(modules);
+        setSidebarModulesAdmin({
+          ...getDefaultSidebarModulesAdmin(),
+          ...modules,
+          chat: {
+            ...getDefaultSidebarModulesAdmin().chat,
+            ...(modules.chat || {}),
+          },
+          console: {
+            ...getDefaultSidebarModulesAdmin().console,
+            ...(modules.console || {}),
+          },
+          personal: {
+            ...getDefaultSidebarModulesAdmin().personal,
+            ...(modules.personal || {}),
+          },
+          admin: {
+            ...getDefaultSidebarModulesAdmin().admin,
+            ...(modules.admin || {}),
+          },
+        });
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -185,6 +180,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             token: true,
             log: true,
             midjourney: true,
+            asset: true,
             task: true,
           },
           personal: { enabled: true, topup: true, personal: true },
@@ -232,6 +228,7 @@ export default function SettingsSidebarModulesAdmin(props) {
           title: t('绘图日志'),
           description: t('绘图任务记录'),
         },
+        { key: 'asset', title: t('资产库'), description: t('创作中心图片和视频资产') },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
       ],
     },

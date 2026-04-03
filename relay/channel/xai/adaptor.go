@@ -55,12 +55,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	xaiRequest := ImageRequest{
-		Model:          request.Model,
-		Prompt:         request.Prompt,
-		N:              int(lo.FromPtrOr(request.N, uint(1))),
-		Image:          request.Image,
-		Size:           request.Size,
-		ResponseFormat: request.ResponseFormat,
+		Model:            request.Model,
+		Prompt:           request.Prompt,
+		N:                int(lo.FromPtrOr(request.N, uint(1))),
+		Image:            request.Image,
+		Size:             request.Size,
+		AspectRatio:      request.AspectRatio,
+		OutputResolution: request.OutputResolution,
+		Seed:             request.Seed,
+		Seeds:            request.Seeds,
+		ResponseFormat:   request.ResponseFormat,
 	}
 	return xaiRequest, nil
 }
@@ -180,11 +184,20 @@ func buildImageEditJSONRequest(request dto.ImageRequest) (map[string]any, error)
 	if request.N != nil && *request.N > 0 {
 		payload["n"] = *request.N
 	}
+	if request.Seed != nil {
+		payload["seed"] = *request.Seed
+	}
+	if len(request.Seeds) > 0 {
+		payload["seeds"] = request.Seeds
+	}
 	if strings.TrimSpace(request.ResponseFormat) != "" {
 		payload["response_format"] = request.ResponseFormat
 	}
 	if strings.TrimSpace(request.AspectRatio) != "" {
 		payload["aspect_ratio"] = request.AspectRatio
+	}
+	if strings.TrimSpace(request.OutputResolution) != "" {
+		payload["output_resolution"] = request.OutputResolution
 	}
 	return payload, nil
 }

@@ -412,9 +412,10 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
-				// unknown error format, log original response
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, response: %s", taskId, string(responseBody)))
-				taskResult = relaycommon.FailTaskInfo("upstream returned unrecognized message")
+				// Keep polling when the upstream response is temporarily unrecognized instead of
+				// flipping the task to failed and later correcting it back to success.
+				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, keep polling, response: %s", taskId, string(responseBody)))
+				return nil
 			}
 		}
 	}
@@ -496,6 +497,17 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 	if shouldRefund {
 		RefundTaskQuota(ctx, task, task.FailReason)
+	}
+	if isDone {
+		startAt := task.SubmitTime
+		if startAt <= 0 {
+			startAt = task.StartTime
+		}
+		if task.PrivateData.RequestId != "" && startAt > 0 && task.FinishTime > startAt {
+			if err := model.UpdateConsumeLogUseTimeByRequestId(task.PrivateData.RequestId, int(task.FinishTime-startAt)); err != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("failed to update consume log use_time for task %s: %s", task.TaskID, err.Error()))
+			}
+		}
 	}
 
 	return nil

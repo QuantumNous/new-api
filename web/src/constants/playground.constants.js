@@ -82,8 +82,11 @@ export const API_ENDPOINTS = {
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
   CREATIVE_CENTER_HISTORY: '/api/user/self/creative-center/history',
+  CREATIVE_CENTER_IMAGE_UPLOAD_CONFIG:
+    '/api/user/self/creative-center/image/upload-config',
   CREATIVE_CENTER_IMAGE_UPLOAD: '/api/user/self/creative-center/image/upload',
-  CREATIVE_CENTER_IMAGE_PROXY: '/api/user/self/creative-center/image/proxy',
+  CREATIVE_CENTER_IMAGE_PROXY: '/api/public/creative-center/image/proxy',
+  CREATIVE_CENTER_MEDIA_DOWNLOAD: '/api/public/creative-center/media/download',
 };
 
 // ========== 配置默认值 ==========

@@ -29,6 +29,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
 		apiRouter.GET("/public/creative-center/image/:filename", controller.GetCreativeCenterUploadedImage)
+		apiRouter.GET("/public/creative-center/image/proxy", controller.ProxyCreativeCenterRemoteImage)
+		apiRouter.GET("/public/creative-center/media/download", controller.DownloadCreativeCenterRemoteMedia)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
@@ -76,13 +78,17 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/creative-center/history", controller.GetCreativeCenterHistory)
 				selfRoute.PUT("/creative-center/history", controller.SaveCreativeCenterHistory)
 				selfRoute.DELETE("/creative-center/history/:tab", controller.DeleteCreativeCenterHistory)
+				selfRoute.GET("/creative-center/image/upload-config", controller.GetCreativeCenterImageUploadConfig)
 				selfRoute.POST("/creative-center/image/upload", middleware.UploadRateLimit(), controller.UploadCreativeCenterImage)
 				selfRoute.GET("/creative-center/image/proxy", controller.ProxyCreativeCenterRemoteImage)
+				selfRoute.GET("/creative-center/media/download", controller.DownloadCreativeCenterRemoteMedia)
 				selfRoute.GET("/self/creative-center/history", controller.GetCreativeCenterHistory)
 				selfRoute.PUT("/self/creative-center/history", controller.SaveCreativeCenterHistory)
 				selfRoute.DELETE("/self/creative-center/history/:tab", controller.DeleteCreativeCenterHistory)
+				selfRoute.GET("/self/creative-center/image/upload-config", controller.GetCreativeCenterImageUploadConfig)
 				selfRoute.POST("/self/creative-center/image/upload", middleware.UploadRateLimit(), controller.UploadCreativeCenterImage)
 				selfRoute.GET("/self/creative-center/image/proxy", controller.ProxyCreativeCenterRemoteImage)
+				selfRoute.GET("/self/creative-center/media/download", controller.DownloadCreativeCenterRemoteMedia)
 				selfRoute.PUT("/self", controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
 				selfRoute.GET("/token", controller.GenerateAccessToken)
@@ -331,7 +337,17 @@ func SetApiRouter(router *gin.Engine) {
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
+			taskRoute.GET("/self/stats", middleware.UserAuth(), controller.GetUserTaskStats)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("/stats", middleware.AdminAuth(), controller.GetAllTaskStats)
+		}
+
+		assetRoute := apiRouter.Group("/asset")
+		{
+			assetRoute.GET("/self", middleware.UserAuth(), controller.GetUserCreativeCenterAssets)
+			assetRoute.POST("/self/download", middleware.UserAuth(), controller.DownloadUserCreativeCenterAssets)
+			assetRoute.GET("/", middleware.AdminAuth(), controller.GetAllCreativeCenterAssets)
+			assetRoute.POST("/download", middleware.AdminAuth(), controller.DownloadAllCreativeCenterAssets)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")

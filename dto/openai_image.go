@@ -19,6 +19,7 @@ type ImageRequest struct {
 	AspectRatio       string          `json:"aspect_ratio,omitempty"`
 	OutputResolution  string          `json:"output_resolution,omitempty"`
 	Seed              *float64        `json:"seed,omitempty"`
+	Seeds             []int           `json:"seeds,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
@@ -179,7 +180,9 @@ type ImageResponse struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 type ImageData struct {
-	Url           string `json:"url"`
-	B64Json       string `json:"b64_json"`
-	RevisedPrompt string `json:"revised_prompt"`
+	Url              string `json:"url"`
+	PresignedURL     string `json:"presignedUrl"`
+	PresignedURLAlt  string `json:"presigned_url"`
+	B64Json          string `json:"b64_json"`
+	RevisedPrompt    string `json:"revised_prompt"`
 }

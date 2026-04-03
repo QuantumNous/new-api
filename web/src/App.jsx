@@ -54,6 +54,7 @@ const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const CreativeCenter = lazy(() => import('./pages/CreativeCenter'));
+const AssetLibrary = lazy(() => import('./pages/Asset'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -310,6 +311,16 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Midjourney />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/assets'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <AssetLibrary />
               </Suspense>
             </PrivateRoute>
           }

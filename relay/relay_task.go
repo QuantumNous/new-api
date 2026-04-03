@@ -23,12 +23,80 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func normalizeTaskTimestamp(ts int64) int64 {
+	if ts <= 0 {
+		return 0
+	}
+	if ts > 1000000000000 {
+		return ts / 1000
+	}
+	return ts
+}
+
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
 	Platform       constant.TaskPlatform
 	Quota          int
 	//PerCallPrice   types.PriceData
+}
+
+func extractTaskPromptFromContext(c *gin.Context) string {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(req.GetPrompt())
+}
+
+func upsertPendingRelayTaskRecord(c *gin.Context, info *relaycommon.RelayInfo, platform constant.TaskPlatform) {
+	if info == nil || info.PublicTaskID == "" || info.Action == "" || platform == "" {
+		return
+	}
+
+	task, exist, err := model.GetByOnlyTaskId(info.PublicTaskID)
+	if err != nil {
+		common.SysError("get pending task for upsert error: " + err.Error())
+		return
+	}
+	if !exist || task == nil {
+		task = model.InitTask(platform, info)
+	} else {
+		task.Platform = platform
+		task.UserId = info.UserId
+		task.Group = info.UsingGroup
+		task.ChannelId = info.ChannelId
+	}
+
+	task.Action = info.Action
+	task.Status = model.TaskStatusSubmitted
+	task.Progress = taskcommon.ProgressSubmitted
+	task.PrivateData.RequestId = info.RequestId
+	task.PrivateData.BillingSource = info.BillingSource
+	task.PrivateData.SubscriptionId = info.SubscriptionId
+	task.PrivateData.TokenId = info.TokenId
+	if prompt := extractTaskPromptFromContext(c); prompt != "" {
+		task.Properties.Input = prompt
+	}
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      info.PriceData.ModelPrice,
+		GroupRatio:      info.PriceData.GroupRatioInfo.GroupRatio,
+		ModelRatio:      info.PriceData.ModelRatio,
+		OtherRatios:     info.PriceData.OtherRatios,
+		OriginModelName: info.OriginModelName,
+		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, info.OriginModelName),
+	}
+
+	if exist {
+		if updateErr := task.Update(); updateErr != nil {
+			common.SysError("update pending task error: " + updateErr.Error())
+		}
+		return
+	}
+
+	if insertErr := task.Insert(); insertErr != nil {
+		common.SysError("insert pending task error: " + insertErr.Error())
+	}
 }
 
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
@@ -210,6 +278,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
+
+	upsertPendingRelayTaskRecord(c, info, platform)
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
@@ -539,6 +609,45 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
+	}
+	if len(body) > 0 {
+		task.Data = body
+	}
+	now := common.GetTimestamp()
+	createdAt := normalizeTaskTimestamp(ti.CreatedAt)
+	completedAt := normalizeTaskTimestamp(ti.CompletedAt)
+	switch task.Status {
+	case model.TaskStatusInProgress:
+		if task.StartTime == 0 {
+			if createdAt > 0 {
+				task.StartTime = createdAt
+			} else if task.SubmitTime > 0 {
+				task.StartTime = task.SubmitTime
+			} else {
+				task.StartTime = now
+			}
+		}
+	case model.TaskStatusSuccess:
+		if createdAt > 0 && (task.StartTime == 0 || task.StartTime > createdAt) {
+			task.StartTime = createdAt
+		}
+		if task.StartTime == 0 {
+			task.StartTime = task.SubmitTime
+		}
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+		if completedAt > 0 && completedAt > task.FinishTime {
+			task.FinishTime = completedAt
+		} else if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+	case model.TaskStatusFailure:
+		if completedAt > 0 && completedAt > task.FinishTime {
+			task.FinishTime = completedAt
+		} else if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
 	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL

@@ -75,6 +75,7 @@ const NotificationSettings = ({
       token: true,
       log: true,
       midjourney: true,
+      asset: true,
       task: true,
     },
     personal: {
@@ -163,6 +164,7 @@ const NotificationSettings = ({
         token: true,
         log: true,
         midjourney: true,
+        asset: true,
         task: true,
       },
       personal: { enabled: true, topup: true, personal: true },
@@ -270,6 +272,7 @@ const NotificationSettings = ({
           title: t('绘图日志'),
           description: t('绘图任务记录'),
         },
+        { key: 'asset', title: t('资产库'), description: t('创作中心图片和视频资产') },
         { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
       ],
     },

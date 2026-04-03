@@ -18,32 +18,28 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Avatar, Progress, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import {
-  Music,
-  FileText,
-  HelpCircle,
   CheckCircle,
-  Pause,
   Clock,
+  HelpCircle,
+  List,
+  Loader,
+  Pause,
   Play,
   XCircle,
-  Loader,
-  List,
-  Hash,
-  Video,
-  Sparkles,
 } from 'lucide-react';
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
   TASK_ACTION_GENERATE,
+  TASK_ACTION_IMAGE_EDIT,
+  TASK_ACTION_IMAGE_GENERATE,
   TASK_ACTION_REFERENCE_GENERATE,
-  TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
+  TASK_ACTION_TEXT_GENERATE,
 } from '../../../constants/common.constant';
 import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
-import { Avatar, Space } from '@douyinfe/semi-ui';
 
 const colors = [
   'amber',
@@ -63,89 +59,130 @@ const colors = [
   'yellow',
 ];
 
-// Render functions
 const renderTimestamp = (timestampInSeconds) => {
-  const date = new Date(timestampInSeconds * 1000); // 从秒转换为毫秒
-
-  const year = date.getFullYear(); // 获取年份
-  const month = ('0' + (date.getMonth() + 1)).slice(-2); // 获取月份，从0开始需要+1，并保证两位数
-  const day = ('0' + date.getDate()).slice(-2); // 获取日期，并保证两位数
-  const hours = ('0' + date.getHours()).slice(-2); // 获取小时，并保证两位数
-  const minutes = ('0' + date.getMinutes()).slice(-2); // 获取分钟，并保证两位数
-  const seconds = ('0' + date.getSeconds()).slice(-2); // 获取秒钟，并保证两位数
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`; // 格式化输出
+  const date = new Date(Number(timestampInSeconds) * 1000);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
-function renderDuration(submit_time, finishTime) {
-  if (!submit_time || !finishTime) return 'N/A';
-  const durationSec = finishTime - submit_time;
-  const color = durationSec > 60 ? 'red' : 'green';
+const normalizeUnixTimestamp = (timestamp) => {
+  const numericValue = Number(timestamp || 0);
+  if (!numericValue || Number.isNaN(numericValue)) {
+    return 0;
+  }
+  return numericValue > 1000000000000
+    ? Math.floor(numericValue / 1000)
+    : Math.floor(numericValue);
+};
 
-  // 返回带有样式的颜色标签
+const normalizeTaskStatus = (status) =>
+  String(status || '')
+    .trim()
+    .toUpperCase();
+
+const isProgressComplete = (progress) => {
+  const normalizedProgress = String(progress || '')
+    .trim()
+    .toUpperCase();
+  return ['100', '100%', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE'].includes(
+    normalizedProgress,
+  );
+};
+
+const isFinishedStatus = (status) => {
+  const normalizedStatus = normalizeTaskStatus(status);
+  return [
+    'SUCCESS',
+    'FAILURE',
+    'FAILED',
+    'CANCELED',
+    'CANCELLED',
+    'ERROR',
+    'COMPLETED',
+    'SUCCEEDED',
+    'DONE',
+  ].includes(normalizedStatus);
+};
+
+const renderDuration = (submitTime, finishTime, record) => {
+  const taskDataTimeFallbacks = getTaskDataTimeFallbacks(record);
+  const submitTimestamp = normalizeUnixTimestamp(
+    submitTime ||
+      record?.created_at ||
+      taskDataTimeFallbacks.createdTimestamp ||
+      0,
+  );
+  const completedRecord =
+    isFinishedStatus(record?.status) || isProgressComplete(record?.progress);
+  const fallbackFinishTimestamp =
+    completedRecord && !finishTime
+      ? record?.updated_at ||
+        taskDataTimeFallbacks.completedTimestamp ||
+        record?.created_at
+      : 0;
+  const finishTimestamp = normalizeUnixTimestamp(
+    finishTime || fallbackFinishTimestamp,
+  );
+  const startTimestamp = normalizeUnixTimestamp(
+    record?.start_time ||
+      submitTime ||
+      taskDataTimeFallbacks.createdTimestamp ||
+      record?.created_at ||
+      0,
+  );
+
+  const durationCandidates = [
+    calculateDurationSec(startTimestamp, finishTimestamp),
+    calculateDurationSec(submitTimestamp, finishTimestamp),
+    calculateDurationSec(
+      taskDataTimeFallbacks.createdTimestamp,
+      taskDataTimeFallbacks.completedTimestamp,
+    ),
+    calculateDurationSec(
+      submitTimestamp,
+      taskDataTimeFallbacks.completedTimestamp || finishTimestamp,
+    ),
+    calculateDurationSec(
+      taskDataTimeFallbacks.createdTimestamp || startTimestamp,
+      record?.updated_at || taskDataTimeFallbacks.completedTimestamp,
+    ),
+  ].filter((value) => value >= 0);
+
+  if (!durationCandidates.length) {
+    return '-';
+  }
+
+  const durationSec = Math.max(...durationCandidates);
+
+  const color = durationSec >= 60 ? 'red' : 'green';
+  let durationLabel = '0s';
+  if (durationSec >= 3600) {
+    const hours = Math.floor(durationSec / 3600);
+    const minutes = Math.floor((durationSec % 3600) / 60);
+    durationLabel = `${hours}h ${minutes}m`;
+  } else if (durationSec >= 60) {
+    const minutes = Math.floor(durationSec / 60);
+    const seconds = durationSec % 60;
+    durationLabel = seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  } else if (durationSec > 0) {
+    durationLabel = `${durationSec}s`;
+  }
+
   return (
     <Tag color={color} shape='circle'>
-      {durationSec} s
+      {durationLabel}
     </Tag>
   );
-}
-
-const renderType = (type, t) => {
-  switch (type) {
-    case 'MUSIC':
-      return (
-        <Tag color='grey' shape='circle' prefixIcon={<Music size={14} />}>
-          {t('生成音乐')}
-        </Tag>
-      );
-    case 'LYRICS':
-      return (
-        <Tag color='pink' shape='circle' prefixIcon={<FileText size={14} />}>
-          {t('生成歌词')}
-        </Tag>
-      );
-    case TASK_ACTION_GENERATE:
-      return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('图生视频')}
-        </Tag>
-      );
-    case TASK_ACTION_TEXT_GENERATE:
-      return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('文生视频')}
-        </Tag>
-      );
-    case TASK_ACTION_FIRST_TAIL_GENERATE:
-      return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('首尾生视频')}
-        </Tag>
-      );
-    case TASK_ACTION_REFERENCE_GENERATE:
-      return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('参照生视频')}
-        </Tag>
-      );
-    case TASK_ACTION_REMIX_GENERATE:
-      return (
-        <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
-          {t('视频Remix')}
-        </Tag>
-      );
-    default:
-      return (
-        <Tag color='white' shape='circle' prefixIcon={<HelpCircle size={14} />}>
-          {t('未知')}
-        </Tag>
-      );
-  }
 };
 
 const renderPlatform = (platform, t) => {
-  let option = CHANNEL_OPTIONS.find(
-    (opt) => String(opt.value) === String(platform),
+  const option = CHANNEL_OPTIONS.find(
+    (item) => String(item.value) === String(platform),
   );
   if (option) {
     return (
@@ -154,20 +191,182 @@ const renderPlatform = (platform, t) => {
       </Tag>
     );
   }
-  switch (platform) {
-    case 'suno':
-      return (
-        <Tag color='green' shape='circle'>
-          Suno
-        </Tag>
-      );
-    default:
-      return (
-        <Tag color='white' shape='circle'>
-          {t('未知')}
-        </Tag>
-      );
+
+  if (platform === 'suno') {
+    return (
+      <Tag color='green' shape='circle'>
+        Suno
+      </Tag>
+    );
   }
+
+  return (
+    <Tag color='white' shape='circle'>
+      {t('未知')}
+    </Tag>
+  );
+};
+
+const normalizeTaskData = (data) => {
+  if (!data) {
+    return null;
+  }
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof data === 'object') {
+    return data;
+  }
+  return null;
+};
+
+const getNestedValue = (source, path) => {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  return path.split('.').reduce((current, key) => {
+    if (current && typeof current === 'object') {
+      return current[key];
+    }
+    return undefined;
+  }, source);
+};
+
+const readTaskDataTimestamp = (data, paths) => {
+  for (const path of paths) {
+    const normalizedValue = normalizeUnixTimestamp(getNestedValue(data, path));
+    if (normalizedValue > 0) {
+      return normalizedValue;
+    }
+  }
+  return 0;
+};
+
+const calculateDurationSec = (startTimestamp, finishTimestamp) => {
+  const normalizedStart = normalizeUnixTimestamp(startTimestamp);
+  const normalizedFinish = normalizeUnixTimestamp(finishTimestamp);
+  if (!normalizedStart || !normalizedFinish) {
+    return -1;
+  }
+  const duration = normalizedFinish - normalizedStart;
+  if (duration < 0) {
+    return -1;
+  }
+  return duration;
+};
+
+const getTaskDataTimeFallbacks = (record) => {
+  const taskData = normalizeTaskData(record?.data);
+  if (!taskData) {
+    return { createdTimestamp: 0, completedTimestamp: 0 };
+  }
+
+  return {
+    createdTimestamp: readTaskDataTimestamp(taskData, [
+      'created_at',
+      'createdAt',
+      'response.created_at',
+      'response.createdAt',
+      'data.created_at',
+      'data.createdAt',
+    ]),
+    completedTimestamp: readTaskDataTimestamp(taskData, [
+      'completed_at',
+      'completedAt',
+      'updated_at',
+      'updatedAt',
+      'response.completed_at',
+      'response.completedAt',
+      'response.updated_at',
+      'response.updatedAt',
+      'data.completed_at',
+      'data.completedAt',
+      'data.updated_at',
+      'data.updatedAt',
+    ]),
+  };
+};
+
+const extractTextFromMessageContent = (content) => {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return '';
+      }
+      if (typeof item.text === 'string' && item.text.trim()) {
+        return item.text.trim();
+      }
+      if (typeof item.content === 'string' && item.content.trim()) {
+        return item.content.trim();
+      }
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+};
+
+const extractTaskPrompt = (record) => {
+  const properties = record?.properties;
+  if (properties && typeof properties === 'object') {
+    const inputPrompt = String(properties.input || '').trim();
+    if (inputPrompt) {
+      return inputPrompt;
+    }
+  }
+
+  const data = normalizeTaskData(record?.data);
+  if (!data) {
+    return '';
+  }
+
+  const directPrompt = String(
+    data.prompt || data.input || data.description || '',
+  ).trim();
+  if (directPrompt) {
+    return directPrompt;
+  }
+
+  const requestPrompt = String(
+    data?.request?.prompt ||
+      data?.request?.input ||
+      data?.task_result?.prompt ||
+      '',
+  ).trim();
+  if (requestPrompt) {
+    return requestPrompt;
+  }
+
+  if (Array.isArray(data?.messages)) {
+    const prompt = data.messages
+      .map((message) => extractTextFromMessageContent(message?.content))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+    if (prompt) {
+      return prompt;
+    }
+  }
+
+  const choicePrompt = extractTextFromMessageContent(
+    data?.choices?.[0]?.message?.content,
+  );
+  if (choicePrompt) {
+    return choicePrompt;
+  }
+
+  return '';
 };
 
 const extractModelName = (record) => {
@@ -181,34 +380,12 @@ const extractModelName = (record) => {
     }
   }
 
-  const data = record?.data;
-  if (data && typeof data === 'object') {
-    if (data.model) {
-      return data.model;
-    }
-    if (data.request?.model) {
-      return data.request.model;
-    }
-    if (data.task_result?.model) {
-      return data.task_result.model;
-    }
+  const data = normalizeTaskData(record?.data);
+  if (!data) {
+    return '';
   }
 
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data);
-      return (
-        parsed?.model ||
-        parsed?.request?.model ||
-        parsed?.task_result?.model ||
-        ''
-      );
-    } catch {
-      return '';
-    }
-  }
-
-  return '';
+  return data.model || data.request?.model || data.task_result?.model || '';
 };
 
 const renderModel = (record, t) => {
@@ -228,15 +405,11 @@ const renderModel = (record, t) => {
   );
 };
 
-const renderStatus = (type, t) => {
-  switch (type) {
+const renderStatus = (status, t) => {
+  switch (status) {
     case 'SUCCESS':
       return (
-        <Tag
-          color='green'
-          shape='circle'
-          prefixIcon={<CheckCircle size={14} />}
-        >
+        <Tag color='green' shape='circle' prefixIcon={<CheckCircle size={14} />}>
           {t('成功')}
         </Tag>
       );
@@ -298,6 +471,7 @@ export const getTaskLogsColumns = ({
   openContentModal,
   isAdminUser,
   openVideoModal,
+  openImageModal,
   openAudioModal,
 }) => {
   return [
@@ -305,35 +479,31 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.SUBMIT_TIME,
       title: t('提交时间'),
       dataIndex: 'submit_time',
-      render: (text, record, index) => {
-        return <div>{text ? renderTimestamp(text) : '-'}</div>;
-      },
+      render: (text) => <div>{text ? renderTimestamp(text) : '-'}</div>,
     },
     {
       key: COLUMN_KEYS.FINISH_TIME,
       title: t('结束时间'),
       dataIndex: 'finish_time',
-      render: (text, record, index) => {
-        return <div>{text ? renderTimestamp(text) : '-'}</div>;
-      },
+      render: (text) => <div>{text ? renderTimestamp(text) : '-'}</div>,
     },
     {
       key: COLUMN_KEYS.DURATION,
       title: t('花费时间'),
       dataIndex: 'finish_time',
-      render: (finish, record) => {
-        return <>{finish ? renderDuration(record.submit_time, finish) : '-'}</>;
-      },
+      render: (finish, record) => (
+        <>{renderDuration(record.submit_time, finish, record)}</>
+      ),
     },
     {
       key: COLUMN_KEYS.CHANNEL,
       title: t('渠道'),
       dataIndex: 'channel_id',
-      render: (text, record, index) => {
+      render: (text) => {
         return isAdminUser ? (
           <div>
             <Tag
-              color={colors[parseInt(text) % colors.length]}
+              color={colors[parseInt(text, 10) % colors.length]}
               size='large'
               shape='circle'
               onClick={() => {
@@ -352,22 +522,17 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.USERNAME,
       title: t('用户'),
       dataIndex: 'username',
-      render: (userId, record, index) => {
+      render: (userId, record) => {
         if (!isAdminUser) {
           return <></>;
         }
         const displayText = String(record.username || userId || '?');
         return (
           <Space>
-            <Avatar
-              size='extra-small'
-              color={stringToColor(displayText)}
-            >
+            <Avatar size='extra-small' color={stringToColor(displayText)}>
               {displayText.slice(0, 1)}
             </Avatar>
-            <Typography.Text>
-              {displayText}
-            </Typography.Text>
+            <Typography.Text>{displayText}</Typography.Text>
           </Space>
         );
       },
@@ -376,23 +541,36 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.PLATFORM,
       title: t('模型'),
       dataIndex: 'platform',
-      render: (text, record, index) => {
-        return <div>{renderModel(record, t)}</div>;
-      },
+      render: (text, record) => <div>{renderModel(record, t)}</div>,
     },
     {
       key: COLUMN_KEYS.TYPE,
-      title: t('类型'),
+      title: t('提示词'),
       dataIndex: 'action',
-      render: (text, record, index) => {
-        return <div>{renderType(text, t)}</div>;
+      render: (text, record) => {
+        const prompt = extractTaskPrompt(record);
+        if (!prompt) {
+          return t('无');
+        }
+
+        return (
+          <Typography.Text
+            ellipsis={{ showTooltip: true }}
+            style={{ width: 220, display: 'inline-block' }}
+            onClick={() => {
+              openContentModal(prompt);
+            }}
+          >
+            {prompt}
+          </Typography.Text>
+        );
       },
     },
     {
       key: COLUMN_KEYS.TASK_ID,
       title: t('任务ID'),
       dataIndex: 'task_id',
-      render: (text, record, index) => {
+      render: (text, record) => {
         return (
           <Typography.Text
             ellipsis={{ showTooltip: true }}
@@ -409,27 +587,21 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.TASK_STATUS,
       title: t('任务状态'),
       dataIndex: 'status',
-      render: (text, record, index) => {
-        return <div>{renderStatus(text, t)}</div>;
-      },
+      render: (text) => <div>{renderStatus(text, t)}</div>,
     },
     {
       key: COLUMN_KEYS.PROGRESS,
       title: t('进度'),
       dataIndex: 'progress',
-      render: (text, record, index) => {
+      render: (text, record) => {
         return (
           <div>
             {isNaN(text?.replace('%', '')) ? (
               text || '-'
             ) : (
               <Progress
-                stroke={
-                  record.status === 'FAILURE'
-                    ? 'var(--semi-color-warning)'
-                    : null
-                }
-                percent={text ? parseInt(text.replace('%', '')) : 0}
+                stroke={record.status === 'FAILURE' ? 'var(--semi-color-warning)' : null}
+                percent={text ? parseInt(text.replace('%', ''), 10) : 0}
                 showInfo={true}
                 aria-label='task progress'
                 style={{ minWidth: '160px' }}
@@ -444,13 +616,12 @@ export const getTaskLogsColumns = ({
       title: t('详情'),
       dataIndex: 'fail_reason',
       fixed: 'right',
-      render: (text, record, index) => {
-        // Suno audio preview
+      render: (text, record) => {
         const isSunoSuccess =
           record.platform === 'suno' &&
           record.status === 'SUCCESS' &&
           Array.isArray(record.data) &&
-          record.data.some((c) => c.audio_url);
+          record.data.some((clip) => clip.audio_url);
         if (isSunoSuccess) {
           return (
             <a
@@ -465,16 +636,20 @@ export const getTaskLogsColumns = ({
           );
         }
 
-        // 视频预览：优先使用 result_url，兼容旧数据 fail_reason 中的 URL
         const isVideoTask =
           record.action === TASK_ACTION_GENERATE ||
           record.action === TASK_ACTION_TEXT_GENERATE ||
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
+        const isImageTask =
+          record.action === TASK_ACTION_IMAGE_GENERATE ||
+          record.action === TASK_ACTION_IMAGE_EDIT;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^(https?:\/\/|data:)/.test(resultUrl);
+
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a
@@ -488,9 +663,25 @@ export const getTaskLogsColumns = ({
             </a>
           );
         }
+
+        if (isSuccess && isImageTask && hasResultUrl) {
+          return (
+            <a
+              href='#'
+              onClick={(e) => {
+                e.preventDefault();
+                openImageModal?.(resultUrl);
+              }}
+            >
+              {t('点击预览图片')}
+            </a>
+          );
+        }
+
         if (!text) {
           return t('无');
         }
+
         return (
           <Typography.Text
             ellipsis={{ showTooltip: true }}

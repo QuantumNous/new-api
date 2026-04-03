@@ -46,7 +46,7 @@ const About = () => {
       localStorage.setItem('about', aboutContent);
     } else {
       showError(message);
-      setAbout(t('加载关于内容失败...'));
+      setAbout(t('加载联系我们内容失败...'));
     }
     setAboutLoaded(true);
   };
@@ -61,7 +61,7 @@ const About = () => {
 
   const customDescription = (
     <div style={{ textAlign: 'center' }}>
-      <p>{t('可在设置页面设置关于内容，支持 HTML & Markdown')}</p>
+      <p>{t('可在设置页面设置联系我们内容，支持 HTML & Markdown')}</p>
       {t('New API项目仓库地址：')}
       <a
         href='https://github.com/QuantumNous/new-api'
@@ -80,7 +80,7 @@ const About = () => {
         >
           NewAPI
         </a>{' '}
-        {t('© {{currentYear}}', { currentYear })}{' '}
+        © {currentYear}{' '}
         <a
           href='https://github.com/QuantumNous'
           target='_blank'
@@ -145,7 +145,7 @@ const About = () => {
                 style={{ width: 150, height: 150 }}
               />
             }
-            description={t('管理员暂时未设置任何关于内容')}
+            description={t('管理员暂时未设置任何联系我们内容')}
             style={emptyStyle}
           >
             {customDescription}

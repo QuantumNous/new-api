@@ -198,6 +198,10 @@ export const buildApiPayload = (
     inputs.aspectRatio || (isAdobeVideoModel ? '16:9' : '1:1');
   const adobeAspectRatio =
     adobeAspectRatioRaw === 'auto' ? '' : adobeAspectRatioRaw;
+  const normalizedSeed =
+    payload.seed !== undefined && payload.seed !== null
+      ? Number(payload.seed)
+      : null;
   if (isGrokImagineImageModel) {
     payload.stream = false;
     if (!isGrokImagineImageEditModel && inputs.imageSize) {
@@ -215,6 +219,23 @@ export const buildApiPayload = (
     } else {
       payload.output_resolution = '2K';
     }
+    if (Number.isFinite(normalizedSeed)) {
+      payload.seeds = [Math.trunc(normalizedSeed)];
+    }
+    payload.extra_body = {
+      ...(payload.extra_body || {}),
+      google: {
+        ...((payload.extra_body && payload.extra_body.google) || {}),
+        image_config: {
+          ...(((payload.extra_body && payload.extra_body.google) || {})
+            .image_config || {}),
+          ...(adobeAspectRatio ? { aspect_ratio: adobeAspectRatio } : {}),
+          ...(payload.output_resolution
+            ? { image_size: payload.output_resolution }
+            : {}),
+        },
+      },
+    };
   }
   if (isVideoModel) {
     payload.stream = false;
@@ -254,8 +275,13 @@ export const buildApiPayload = (
     }
   }
   if (isAdobeVideoModel) {
-    payload.duration = Number(inputs.videoDuration || 4);
-    payload.aspect_ratio = adobeAspectRatio;
+    const forcedDuration = inputs.model === 'veo31-ref' ? 8 : Number(inputs.videoDuration || 4);
+    const forcedAspectRatio = inputs.model === 'veo31-ref' ? '16:9' : adobeAspectRatio;
+    payload.duration = forcedDuration;
+    payload.aspect_ratio = forcedAspectRatio;
+    if (Number.isFinite(normalizedSeed)) {
+      payload.seeds = [Math.trunc(normalizedSeed)];
+    }
     if (isAdobeVeoModel) {
       payload.resolution = inputs.videoResolution || '1080p';
     }

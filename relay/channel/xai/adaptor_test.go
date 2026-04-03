@@ -116,6 +116,40 @@ func TestConvertImageRequestPreservesSize(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestPreservesAspectRatioAndOutputResolution(t *testing.T) {
+	adaptor := &Adaptor{}
+
+	converted, err := adaptor.ConvertImageRequest(nil, nil, dto.ImageRequest{
+		Model:            "nano-banana-pro",
+		Prompt:           "draw a panoramic mountain range",
+		AspectRatio:      "21:9",
+		OutputResolution: "4K",
+		Seed:             lo.ToPtr(765897.0),
+		Seeds:            []int{765897},
+		ResponseFormat:   "url",
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	xaiReq, ok := converted.(ImageRequest)
+	if !ok {
+		t.Fatalf("expected xai.ImageRequest, got %T", converted)
+	}
+	if xaiReq.AspectRatio != "21:9" {
+		t.Fatalf("unexpected aspect ratio: %s", xaiReq.AspectRatio)
+	}
+	if xaiReq.OutputResolution != "4K" {
+		t.Fatalf("unexpected output resolution: %s", xaiReq.OutputResolution)
+	}
+	if xaiReq.Seed == nil || *xaiReq.Seed != 765897 {
+		t.Fatalf("unexpected seed: %#v", xaiReq.Seed)
+	}
+	if len(xaiReq.Seeds) != 1 || xaiReq.Seeds[0] != 765897 {
+		t.Fatalf("unexpected seeds: %#v", xaiReq.Seeds)
+	}
+}
+
 func TestResolveImagePayloadSupportsPlainURLObject(t *testing.T) {
 	filename, mimeType, content, err := resolveImagePayload([]byte(`{"url":"data:image/webp;base64,dGVzdA==","filename":"sample.webp"}`))
 	if err != nil {

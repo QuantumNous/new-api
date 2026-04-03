@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -61,11 +61,13 @@ const SettingsPanel = ({
     'grok-imagine-1.0-fast',
   ]);
   const grokImagineImageEditModels = new Set(['grok-imagine-1.0-edit']);
+  const restrictedImageUploadModels = new Set(['grok-imagine-1.0']);
   const adobeImageModels = new Set([
     'nano-banana',
     'nano-banana2',
     'nano-banana-pro',
   ]);
+  const chatAdobeImageModels = new Set(['nano-banana2', 'nano-banana-pro']);
   const adobeVideoModels = new Set([
     'sora2',
     'sora2-pro',
@@ -130,8 +132,15 @@ const SettingsPanel = ({
     { label: '480p', value: '480p' },
     { label: '720p', value: '720p' },
   ];
-  const adobeAspectRatioOptions = [
+  const defaultAdobeAspectRatioOptions = [
     { label: 'Auto', value: 'auto' },
+    { label: '1:1', value: '1:1' },
+    { label: '16:9', value: '16:9' },
+    { label: '9:16', value: '9:16' },
+    { label: '4:3', value: '4:3' },
+    { label: '3:4', value: '3:4' },
+  ];
+  const chatAdobeAspectRatioOptions = [
     { label: '1:1', value: '1:1' },
     { label: '16:9', value: '16:9' },
     { label: '9:16', value: '9:16' },
@@ -162,6 +171,27 @@ const SettingsPanel = ({
     label: `${v}s`,
     value: String(v),
   }));
+  const getAdobeVideoDurationOptions = (modelName) => {
+    if (modelName === 'veo31-ref') {
+      return adobeVeoDurationOptions.filter((option) => option.value === '8');
+    }
+    if (modelName === 'sora2' || modelName === 'sora2-pro') {
+      return adobeSoraDurationOptions;
+    }
+    return adobeVeoDurationOptions;
+  };
+  const getAdobeVideoAspectRatioOptions = (modelName) => {
+    if (modelName === 'veo31-ref') {
+      return adobeVideoAspectRatioOptions.filter(
+        (option) => option.value === '16:9',
+      );
+    }
+    return adobeVideoAspectRatioOptions;
+  };
+  const getAdobeVideoDefaultDuration = (modelName) =>
+    getAdobeVideoDurationOptions(modelName)[0]?.value || '4';
+  const getAdobeVideoDefaultAspectRatio = (modelName) =>
+    getAdobeVideoAspectRatioOptions(modelName)[0]?.value || '16:9';
   const adobeVideoResolutionOptions = [
     { label: '1080p', value: '1080p' },
     { label: '720p', value: '720p' },
@@ -170,6 +200,25 @@ const SettingsPanel = ({
     { label: 'Frame', value: 'frame' },
     { label: 'Image', value: 'image' },
   ];
+  const currentAdobeAspectRatioOptions = chatAdobeImageModels.has(inputs.model)
+    ? chatAdobeAspectRatioOptions
+    : defaultAdobeAspectRatioOptions;
+  const currentAdobeSupportsAutoImageSize = currentAdobeAspectRatioOptions.some(
+    (option) => option.value === 'auto',
+  );
+  const isImageUploadAllowed = !restrictedImageUploadModels.has(inputs.model);
+
+  useEffect(() => {
+    if (isImageUploadAllowed) {
+      return;
+    }
+    if (inputs.imageEnabled) {
+      onInputChange('imageEnabled', false);
+    }
+    if (Array.isArray(inputs.imageUrls) && inputs.imageUrls.some((url) => url)) {
+      onInputChange('imageUrls', ['']);
+    }
+  }, [inputs.imageEnabled, inputs.imageUrls, isImageUploadAllowed, onInputChange]);
 
   const currentConfig = {
     inputs,
@@ -178,6 +227,20 @@ const SettingsPanel = ({
     customRequestMode,
     customRequestBody,
   };
+  const currentAdobeVideoDurationOptions = getAdobeVideoDurationOptions(inputs.model);
+  const currentAdobeVideoAspectRatioOptions = getAdobeVideoAspectRatioOptions(
+    inputs.model,
+  );
+  const selectedAdobeVideoDuration = currentAdobeVideoDurationOptions.some(
+    (option) => option.value === inputs.videoDuration,
+  )
+    ? inputs.videoDuration
+    : getAdobeVideoDefaultDuration(inputs.model);
+  const selectedAdobeVideoAspectRatio = currentAdobeVideoAspectRatioOptions.some(
+    (option) => option.value === inputs.aspectRatio,
+  )
+    ? inputs.aspectRatio
+    : getAdobeVideoDefaultAspectRatio(inputs.model);
 
   return (
     <Card
@@ -301,15 +364,21 @@ const SettingsPanel = ({
 
         {/* 图片URL输入 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
-          <ImageUrlInput
-            imageUrls={inputs.imageUrls}
-            imageEnabled={inputs.imageEnabled}
-            onImageUrlsChange={(urls) => onInputChange('imageUrls', urls)}
-            onImageEnabledChange={(enabled) =>
-              onInputChange('imageEnabled', enabled)
-            }
-            disabled={customRequestMode}
-          />
+          {isImageUploadAllowed ? (
+            <ImageUrlInput
+              imageUrls={inputs.imageUrls}
+              imageEnabled={inputs.imageEnabled}
+              onImageUrlsChange={(urls) => onInputChange('imageUrls', urls)}
+              onImageEnabledChange={(enabled) =>
+                onInputChange('imageEnabled', enabled)
+              }
+              disabled={customRequestMode}
+            />
+          ) : (
+            <Typography.Text type='tertiary'>
+              {t('当前模型暂不支持上传图片。')}
+            </Typography.Text>
+          )}
         </div>
 
         {/* 参数控制组件 */}
@@ -357,13 +426,18 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={adobeAspectRatioOptions}
-                  value={inputs.aspectRatio || 'auto'}
+                  optionList={currentAdobeAspectRatioOptions}
+                  value={
+                    inputs.aspectRatio ||
+                    currentAdobeAspectRatioOptions[0]?.value ||
+                    '1:1'
+                  }
                   onChange={(value) => onInputChange('aspectRatio', value)}
                   disabled={customRequestMode}
                 />
               </div>
-              {(inputs.aspectRatio || 'auto') === 'auto' && (
+              {currentAdobeSupportsAutoImageSize &&
+                (inputs.aspectRatio || 'auto') === 'auto' && (
                 <div>
                   <Typography.Text strong className='text-sm'>
                     Auto Size
@@ -465,12 +539,8 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={
-                    isAdobeSoraModel
-                      ? adobeSoraDurationOptions
-                      : adobeVeoDurationOptions
-                  }
-                  value={inputs.videoDuration || '4'}
+                  optionList={currentAdobeVideoDurationOptions}
+                  value={selectedAdobeVideoDuration}
                   onChange={(value) => onInputChange('videoDuration', value)}
                   disabled={customRequestMode}
                 />
@@ -481,8 +551,8 @@ const SettingsPanel = ({
                 </Typography.Text>
                 <Select
                   className='!rounded-lg mt-2'
-                  optionList={adobeVideoAspectRatioOptions}
-                  value={inputs.aspectRatio || '16:9'}
+                  optionList={currentAdobeVideoAspectRatioOptions}
+                  value={selectedAdobeVideoAspectRatio}
                   onChange={(value) => onInputChange('aspectRatio', value)}
                   disabled={customRequestMode}
                 />

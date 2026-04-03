@@ -194,6 +194,7 @@ func isKnownTaskField(field string) bool {
 		"quality":         true,
 		"resolution_name": true,
 		"preset":          true,
+		"image_reference": true,
 		"input_reference": true, // Sora 特有字段
 	}
 	return knownFields[field]

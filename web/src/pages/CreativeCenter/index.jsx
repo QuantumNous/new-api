@@ -36,6 +36,7 @@ import {
 } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 import { UserContext } from '../../context/User';
+import { StatusContext } from '../../context/Status';
 
 const tabs = [
   { id: 'chat', label: '对话', icon: MessageSquare },
@@ -58,6 +59,10 @@ const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
 ]);
+const ADOBE_CHAT_IMAGE_MODELS = new Set([
+  'nano-banana2',
+  'nano-banana-pro',
+]);
 const ADOBE_VIDEO_MODELS = new Set([
   'sora2',
   'sora2-pro',
@@ -68,8 +73,8 @@ const ADOBE_VIDEO_MODELS = new Set([
 const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
   'grok-imagine-1.0-edit': 3,
   'grok-imagine-1.0-video': 7,
-  'nano-banana2': 14,
-  'nano-banana-pro': 14,
+  'nano-banana2': 6,
+  'nano-banana-pro': 6,
   'veo31-fast': 2,
   'veo31-ref': 3,
 };
@@ -81,8 +86,15 @@ const GROK_IMAGE_SIZE_OPTIONS = [
   { label: '9:16', value: '720x1280' },
   { label: '1:1', value: '1024x1024' },
 ];
-const ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
+const DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: 'Auto', value: 'auto' },
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+];
+const CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: '1:1', value: '1:1' },
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
@@ -129,6 +141,27 @@ const ADOBE_VIDEO_ASPECT_RATIO_OPTIONS = [
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
 ];
+const getAdobeVideoDurationOptions = (modelName) => {
+  if (modelName === 'veo31-ref') {
+    return ADOBE_VIDEO_DURATION_OPTIONS.veo.filter((option) => option.value === '8');
+  }
+  if (modelName === 'sora2' || modelName === 'sora2-pro') {
+    return ADOBE_VIDEO_DURATION_OPTIONS.sora;
+  }
+  return ADOBE_VIDEO_DURATION_OPTIONS.veo;
+};
+const getAdobeVideoAspectRatioOptions = (modelName) => {
+  if (modelName === 'veo31-ref') {
+    return ADOBE_VIDEO_ASPECT_RATIO_OPTIONS.filter(
+      (option) => option.value === '16:9',
+    );
+  }
+  return ADOBE_VIDEO_ASPECT_RATIO_OPTIONS;
+};
+const getAdobeVideoDefaultDuration = (modelName) =>
+  getAdobeVideoDurationOptions(modelName)[0]?.value || '4';
+const getAdobeVideoDefaultAspectRatio = (modelName) =>
+  getAdobeVideoAspectRatioOptions(modelName)[0]?.value || '16:9';
 const ADOBE_VIDEO_RESOLUTION_OPTIONS = [
   { label: '1080p', value: '1080p' },
   { label: '720p', value: '720p' },
@@ -161,6 +194,16 @@ const ACTIVE_VIDEO_POLL_STATUSES = new Set([
   'processing',
   'in_progress',
 ]);
+const UNIFORM_CREATIVE_VIDEO_CARD_MODELS = new Set([
+  'grok-imagine-1.0-video',
+  'veo31-fast',
+  'veo31-ref',
+]);
+const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE = 10;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -473,6 +516,35 @@ const extractImageUrlsFromMessage = (content) => {
   return [...new Set(matches.map((match) => match[1]).filter(Boolean))];
 };
 
+const extractImageUrlsFromCreativeResponse = (data) => {
+  const directUrls = Array.isArray(data?.data)
+    ? data.data
+        .map((item) => (typeof item?.url === 'string' ? item.url.trim() : ''))
+        .filter(Boolean)
+    : [];
+  if (directUrls.length > 0) {
+    return directUrls;
+  }
+
+  const messageContent = data?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string') {
+    return extractImageUrlsFromMessage(messageContent);
+  }
+
+  if (Array.isArray(messageContent)) {
+    return messageContent
+      .filter((item) => item?.type === 'image_url')
+      .map((item) =>
+        typeof item?.image_url === 'string'
+          ? item.image_url.trim()
+          : item?.image_url?.url?.trim?.() || '',
+      )
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 const buildCreativeCenterImageDisplayUrl = (url) => {
   if (typeof url !== 'string') {
     return '';
@@ -490,11 +562,78 @@ const buildCreativeCenterImageDisplayUrl = (url) => {
   return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
 };
 
+const buildCreativeCenterImageBedUploadUrl = (
+  uploadUrl,
+  returnType = 'full',
+  autoRetry = true,
+) => {
+  const trimmedUploadUrl = typeof uploadUrl === 'string' ? uploadUrl.trim() : '';
+  if (!trimmedUploadUrl) {
+    return '';
+  }
+
+  const requestUrl = new URL(`${trimmedUploadUrl.replace(/\/+$/, '')}/upload`);
+  requestUrl.searchParams.set('returnFormat', returnType || 'full');
+  if (autoRetry) {
+    requestUrl.searchParams.set('autoRetry', 'true');
+  }
+  return requestUrl.toString();
+};
+
+const normalizeCreativeCenterDirectImageUrl = (uploadUrl, src) => {
+  const trimmedSrc = typeof src === 'string' ? src.trim() : '';
+  if (!trimmedSrc) {
+    return '';
+  }
+
+  try {
+    return new URL(trimmedSrc, `${uploadUrl.replace(/\/+$/, '')}/upload`).toString();
+  } catch (error) {
+    console.error('Failed to normalize creative center direct image url:', error);
+    return '';
+  }
+};
+
+const parseCreativeCenterDirectUploadImageUrl = (uploadUrl, payload) => {
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : [];
+
+  const firstSrc = items[0]?.src;
+  return normalizeCreativeCenterDirectImageUrl(uploadUrl, firstSrc);
+};
+
+const getCreativeCenterFilenameFromUrl = (url) => {
+  if (typeof url !== 'string' || !url.trim()) {
+    return '';
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    const pathnameParts = parsedUrl.pathname.split('/').filter(Boolean);
+    return pathnameParts[pathnameParts.length - 1] || '';
+  } catch (error) {
+    return '';
+  }
+};
+
 const revokeCreativeCenterPreviewURL = (previewUrl) => {
   if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
     URL.revokeObjectURL(previewUrl);
   }
 };
+
+const getAdobeImageAspectRatioOptions = (modelName) =>
+  ADOBE_CHAT_IMAGE_MODELS.has(modelName)
+    ? CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS
+    : DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS;
+
+const supportsAdobeAutoImageSize = (modelName) =>
+  getAdobeImageAspectRatioOptions(modelName).some(
+    (option) => option.value === 'auto',
+  );
 
 const getCreativeCenterImageUploadLimit = (modelName) => {
   const normalizedModelName = typeof modelName === 'string' ? modelName.trim() : '';
@@ -504,14 +643,202 @@ const getCreativeCenterImageUploadLimit = (modelName) => {
   return CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS[normalizedModelName] ?? null;
 };
 
+const isCreativeCenterImageUploadEnabled = (tabKey, modelName) => {
+  if (tabKey === 'chat') {
+    return true;
+  }
+  return getCreativeCenterImageUploadLimit(modelName) !== null;
+};
+
+const resolveCreativeCenterDisplayCurrency = (quotaDisplayType = 'USD') =>
+  quotaDisplayType === 'CNY' || quotaDisplayType === 'CUSTOM'
+    ? quotaDisplayType
+    : 'USD';
+
+const getCreativeCenterCurrencySymbol = (
+  currency = 'USD',
+  customCurrencySymbol = '¤',
+) => {
+  if (currency === 'CNY') {
+    return '¥';
+  }
+  if (currency === 'CUSTOM') {
+    return customCurrencySymbol || '¤';
+  }
+  return '$';
+};
+
+const convertCreativeCenterUsdPrice = (
+  usdAmount,
+  currency = 'USD',
+  options = {},
+) => {
+  const safeAmount = Number(usdAmount);
+  if (!Number.isFinite(safeAmount)) {
+    return null;
+  }
+
+  if (currency === 'CNY') {
+    return safeAmount * Number(options.usdExchangeRate || 1);
+  }
+
+  if (currency === 'CUSTOM') {
+    return safeAmount * Number(options.customExchangeRate || 1);
+  }
+
+  return safeAmount;
+};
+
+const formatCreativeCenterPriceNumber = (amount) => {
+  const safeAmount = Number(amount);
+  if (!Number.isFinite(safeAmount)) {
+    return '';
+  }
+
+  const absAmount = Math.abs(safeAmount);
+  let maximumFractionDigits = 3;
+  if (absAmount >= 100) {
+    maximumFractionDigits = 2;
+  } else if (absAmount >= 1) {
+    maximumFractionDigits = 3;
+  } else if (absAmount >= 0.01) {
+    maximumFractionDigits = 4;
+  } else {
+    maximumFractionDigits = 6;
+  }
+
+  return safeAmount.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  });
+};
+
+const resolveCreativeCenterGroupRatio = (
+  pricingModel,
+  activeGroup,
+  groupRatioMap,
+) => {
+  const enableGroups = Array.isArray(pricingModel?.enable_groups)
+    ? pricingModel.enable_groups
+    : [];
+
+  if (
+    activeGroup &&
+    enableGroups.includes(activeGroup) &&
+    Number.isFinite(Number(groupRatioMap?.[activeGroup]))
+  ) {
+    return Number(groupRatioMap[activeGroup]);
+  }
+
+  let minRatio = Number.POSITIVE_INFINITY;
+  enableGroups.forEach((group) => {
+    const ratio = Number(groupRatioMap?.[group]);
+    if (Number.isFinite(ratio) && ratio < minRatio) {
+      minRatio = ratio;
+    }
+  });
+
+  return Number.isFinite(minRatio) ? minRatio : 1;
+};
+
+const buildCreativeCenterModelPriceLabel = (
+  pricingModel,
+  activeGroup,
+  groupRatioMap,
+  currencyOptions = {},
+) => {
+  if (!pricingModel || typeof pricingModel !== 'object') {
+    return '';
+  }
+
+  const displayCurrency = resolveCreativeCenterDisplayCurrency(
+    currencyOptions.quotaDisplayType,
+  );
+  const groupRatio = resolveCreativeCenterGroupRatio(
+    pricingModel,
+    activeGroup,
+    groupRatioMap,
+  );
+  const prices = [];
+  const appendPrice = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return;
+    }
+
+    const convertedValue = convertCreativeCenterUsdPrice(
+      numericValue,
+      displayCurrency,
+      currencyOptions,
+    );
+    if (Number.isFinite(convertedValue)) {
+      prices.push(convertedValue);
+    }
+  };
+
+  if (pricingModel.quota_type === 0) {
+    const inputPrice = Number(pricingModel.model_ratio) * 2 * groupRatio;
+    appendPrice(inputPrice);
+    appendPrice(inputPrice * Number(pricingModel.completion_ratio));
+    appendPrice(inputPrice * Number(pricingModel.cache_ratio));
+    appendPrice(inputPrice * Number(pricingModel.create_cache_ratio));
+    appendPrice(inputPrice * Number(pricingModel.image_ratio));
+    appendPrice(inputPrice * Number(pricingModel.audio_ratio));
+    appendPrice(
+      inputPrice *
+        Number(pricingModel.audio_ratio) *
+        Number(pricingModel.audio_completion_ratio),
+    );
+  } else if (pricingModel.quota_type === 1) {
+    appendPrice(Number(pricingModel.model_price) * groupRatio);
+  } else if (pricingModel.quota_type === 2) {
+    Object.values(pricingModel.model_price_by_seconds || {}).forEach((value) => {
+      appendPrice(Number(value) * groupRatio);
+    });
+  } else if (pricingModel.quota_type === 3) {
+    Object.values(pricingModel.model_price_by_resolution || {}).forEach(
+      (value) => {
+        appendPrice(Number(value) * groupRatio);
+      },
+    );
+  }
+
+  if (prices.length === 0) {
+    return '';
+  }
+
+  const sortedPrices = [...new Set(prices.map((value) => Number(value.toFixed(8))))].sort(
+    (left, right) => left - right,
+  );
+  const minPrice = sortedPrices[0];
+  const maxPrice = sortedPrices[sortedPrices.length - 1];
+  const symbol = getCreativeCenterCurrencySymbol(
+    displayCurrency,
+    currencyOptions.customCurrencySymbol,
+  );
+
+  if (!Number.isFinite(minPrice)) {
+    return '';
+  }
+
+  if (!Number.isFinite(maxPrice) || Math.abs(maxPrice - minPrice) < 0.000001) {
+    return `${symbol}${formatCreativeCenterPriceNumber(minPrice)}`;
+  }
+
+  return `${symbol}${formatCreativeCenterPriceNumber(minPrice)}~${symbol}${formatCreativeCenterPriceNumber(maxPrice)}`;
+};
+
 const triggerDownload = (url, filename) => {
   if (!url) {
     return;
   }
 
+  const trimmedURL = String(url).trim();
+  const downloadUrl = trimmedURL.startsWith('data:')
+    ? trimmedURL
+    : `${API_ENDPOINTS.CREATIVE_CENTER_MEDIA_DOWNLOAD}?url=${encodeURIComponent(trimmedURL)}&filename=${encodeURIComponent(filename || '')}`;
   const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
+  link.href = downloadUrl;
   link.rel = 'noopener noreferrer';
   link.download = filename;
   document.body.appendChild(link);
@@ -519,11 +846,178 @@ const triggerDownload = (url, filename) => {
   document.body.removeChild(link);
 };
 
-const openVideoPreviewInNewWindow = (url) => {
+const escapePreviewHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const openVideoPreviewInNewWindow = (
+  url,
+  title = '视频预览',
+  promptText = '',
+) => {
   if (!url) {
     return;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
+
+  const previewWindow = window.open('', '_blank');
+  if (!previewWindow) {
+    return;
+  }
+
+  const safeUrl = escapePreviewHtml(url);
+  const safeTitle = escapePreviewHtml(title);
+  const safePromptText = escapePreviewHtml(promptText || '未填写提示词');
+  previewWindow.opener = null;
+  previewWindow.document.open();
+  previewWindow.document.write(`<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeTitle}</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: radial-gradient(circle at top, #1e293b, #020617 58%);
+        color: #e2e8f0;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      .page {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        gap: 16px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .title {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+      .hint {
+        font-size: 13px;
+        color: #94a3b8;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .share-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .share-input {
+        flex: 1;
+        min-width: 280px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.78);
+        color: #e2e8f0;
+        padding: 12px 14px;
+        font-size: 13px;
+      }
+      .share-button {
+        border: 0;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .share-button:hover {
+        filter: brightness(1.06);
+      }
+      .player-shell {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 24px;
+        background: rgba(15, 23, 42, 0.86);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.45);
+        overflow: hidden;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        max-height: calc(100vh - 140px);
+        background: #020617;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="header">
+        <div>
+          <div class="title">${safeTitle}</div>
+          <div class="hint">${safePromptText}</div>
+        </div>
+      </div>
+      <div class="share-bar">
+        <input
+          id="video-url"
+          class="share-input"
+          type="text"
+          readonly
+          value="${safeUrl}"
+          title="${safeUrl}"
+        />
+        <button id="copy-url" class="share-button" type="button">复制视频链接</button>
+      </div>
+      <div class="player-shell">
+        <video src="${safeUrl}" controls autoplay playsinline></video>
+      </div>
+    </div>
+    <script>
+      const copyButton = document.getElementById('copy-url');
+      const urlInput = document.getElementById('video-url');
+      if (copyButton && urlInput) {
+        copyButton.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(urlInput.value);
+            copyButton.textContent = '已复制链接';
+            window.setTimeout(() => {
+              copyButton.textContent = '复制视频链接';
+            }, 1500);
+          } catch (error) {
+            urlInput.focus();
+            urlInput.select();
+            copyButton.textContent = '请手动复制';
+            window.setTimeout(() => {
+              copyButton.textContent = '复制视频链接';
+            }, 1500);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>`);
+  previewWindow.document.close();
 };
 
 const getVideoTaskMediaUrl = (task) => {
@@ -578,6 +1072,194 @@ const buildCreativePersistSignature = (records, taskType) =>
 const createCreativeRecordId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const getImageTaskMediaUrl = (item) => {
+  if (typeof item?.url === 'string' && item.url.trim()) {
+    return item.url.trim();
+  }
+  if (typeof item?.resultUrl === 'string' && item.resultUrl.trim()) {
+    return item.resultUrl.trim();
+  }
+  if (typeof item?.result_url === 'string' && item.result_url.trim()) {
+    return item.result_url.trim();
+  }
+  return '';
+};
+
+const getRecoverableVideoTaskId = (task) => {
+  const rawTaskId = String(task?.taskId || task?.task_id || '').trim();
+  if (rawTaskId.startsWith('task_')) {
+    return rawTaskId;
+  }
+
+  const fallbackId = String(task?.id || '').trim();
+  if (fallbackId.startsWith('task_')) {
+    return fallbackId;
+  }
+
+  return '';
+};
+
+const parseCreativeLogOtherPayload = (other) => {
+  if (!other) {
+    return null;
+  }
+
+  if (typeof other === 'object') {
+    return other;
+  }
+
+  if (typeof other !== 'string' || !other.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(other);
+  } catch (error) {
+    return null;
+  }
+};
+
+const getTaskIdFromCreativeLog = (log) => {
+  const logTaskId = String(
+    parseCreativeLogOtherPayload(log?.other)?.task_id || '',
+  ).trim();
+
+  if (logTaskId.startsWith('task_')) {
+    return logTaskId;
+  }
+
+  return '';
+};
+
+const normalizeCreativeTimestampToSeconds = (value) => {
+  const numericValue = Number(value) || 0;
+  if (numericValue <= 0) {
+    return 0;
+  }
+  return numericValue > 9999999999
+    ? Math.floor(numericValue / 1000)
+    : Math.floor(numericValue);
+};
+
+const getTaskDtoResultUrl = (task) => {
+  if (typeof task?.result_url === 'string' && task.result_url.trim()) {
+    return task.result_url.trim();
+  }
+  if (typeof task?.resultUrl === 'string' && task.resultUrl.trim()) {
+    return task.resultUrl.trim();
+  }
+  return '';
+};
+
+const getTaskDtoModelName = (task) => {
+  const properties = task?.properties;
+  if (properties && typeof properties === 'object') {
+    const candidate = String(
+      properties.origin_model_name ||
+        properties.originModelName ||
+        properties.upstream_model_name ||
+        properties.upstreamModelName ||
+        '',
+    ).trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  const data = task?.data;
+  if (data && typeof data === 'object') {
+    const candidate = String(data.model || '').trim();
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return '';
+};
+
+const normalizeTaskDtoDataPayload = (task) => {
+  const rawData = task?.data;
+  if (!rawData) {
+    return null;
+  }
+  if (typeof rawData === 'string') {
+    try {
+      return JSON.parse(rawData);
+    } catch (error) {
+      return null;
+    }
+  }
+  if (typeof rawData === 'object') {
+    return rawData;
+  }
+  return null;
+};
+
+const getTaskDtoImageUrls = (task) => {
+  const dataPayload = normalizeTaskDtoDataPayload(task);
+  const urls = [];
+  const appendUniqueUrl = (candidate) => {
+    if (typeof candidate !== 'string') {
+      return;
+    }
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate || urls.includes(trimmedCandidate)) {
+      return;
+    }
+    urls.push(trimmedCandidate);
+  };
+
+  appendUniqueUrl(getTaskDtoResultUrl(task));
+
+  const items = Array.isArray(dataPayload?.data)
+    ? dataPayload.data
+    : Array.isArray(dataPayload)
+      ? dataPayload
+      : [];
+
+  items.forEach((item) => {
+    if (typeof item?.url === 'string' && item.url.trim()) {
+      appendUniqueUrl(item.url.trim());
+    }
+    if (typeof item?.b64_json === 'string' && item.b64_json.trim()) {
+      appendUniqueUrl(`data:image/png;base64,${item.b64_json.trim()}`);
+    }
+    if (typeof item?.b64Json === 'string' && item.b64Json.trim()) {
+      appendUniqueUrl(`data:image/png;base64,${item.b64Json.trim()}`);
+    }
+  });
+
+  const messageContent = dataPayload?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string') {
+    extractImageUrlsFromMessage(messageContent).forEach(appendUniqueUrl);
+  } else if (Array.isArray(messageContent)) {
+    messageContent.forEach((item) => {
+      if (item?.type === 'image_url') {
+        if (typeof item?.image_url === 'string' && item.image_url.trim()) {
+          appendUniqueUrl(item.image_url.trim());
+        } else if (typeof item?.image_url?.url === 'string' && item.image_url.url.trim()) {
+          appendUniqueUrl(item.image_url.url.trim());
+        }
+        return;
+      }
+
+      const textContent =
+        typeof item?.text === 'string'
+          ? item.text
+          : (typeof item?.content === 'string' ? item.content : '');
+      extractImageUrlsFromMessage(textContent).forEach(appendUniqueUrl);
+    });
+  }
+
+  return urls;
+};
+
+const buildRecoverableVideoCandidateKey = (candidate) =>
+  `${candidate.sessionId}:${candidate.recordId}:${candidate.taskId}`;
+
+const buildRecoverableImageCandidateKey = (candidate) =>
+  `${candidate.sessionId}:${candidate.recordId}:${candidate.imageId}`;
+
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
     return {
@@ -589,16 +1271,22 @@ const normalizeImageTaskItem = (item, index = 0) => {
     };
   }
 
+  const resolvedImageUrl = getImageTaskMediaUrl(item);
   const progress =
-    parseProgressValue(item?.progress) ?? (item?.url ? 100 : 0);
+    parseProgressValue(item?.progress) ?? (resolvedImageUrl ? 100 : 0);
+  const normalizedStatus =
+    item?.status || (resolvedImageUrl ? 'completed' : 'pending');
 
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
-    url: typeof item?.url === 'string' ? item.url : '',
-    status: item?.status || (item?.url ? 'completed' : 'pending'),
+    url: resolvedImageUrl,
+    status: resolvedImageUrl ? 'completed' : normalizedStatus,
     progress,
     error: item?.error || '',
-    resultUrl: typeof item?.resultUrl === 'string' ? item.resultUrl : '',
+    resultUrl:
+      typeof item?.resultUrl === 'string'
+        ? item.resultUrl
+        : (typeof item?.result_url === 'string' ? item.result_url : ''),
     requestId: typeof item?.requestId === 'string' ? item.requestId : '',
     submittedAt: parseTimestampValue(
       item?.submittedAt || item?.submitted_at,
@@ -615,23 +1303,26 @@ const normalizeImageTaskItem = (item, index = 0) => {
     requestPollable:
       typeof item?.requestPollable === 'boolean'
         ? item.requestPollable
-        : !item?.url && !['completed', 'failed'].includes(item?.status || 'pending'),
+        : !resolvedImageUrl &&
+          !['completed', 'failed'].includes(normalizedStatus),
   };
 };
 
 const normalizeVideoTaskItem = (item, index = 0) => {
+  const resolvedVideoUrl = getVideoTaskMediaUrl(item);
   const normalizedStatus = normalizeVideoTaskStatus(
-    item?.status || (item?.url ? 'completed' : 'submitted'),
+    item?.status || (resolvedVideoUrl ? 'completed' : 'submitted'),
   );
   const progress =
     parseProgressValue(item?.progress) ??
-    ((item?.url || normalizedStatus === 'completed') ? 100 : 0);
+    ((resolvedVideoUrl || normalizedStatus === 'completed') ? 100 : 0);
+  const resolvedStatus = resolvedVideoUrl ? 'completed' : normalizedStatus;
 
   return {
     id: item?.id || createCreativeRecordId(`video-task-${index}`),
     taskId: item?.taskId || item?.task_id || item?.id || '',
-    status: normalizedStatus,
-    url: getVideoTaskMediaUrl(item),
+    status: resolvedStatus,
+    url: resolvedVideoUrl,
     content: item?.content || '',
     progress,
     error: item?.error || '',
@@ -656,8 +1347,8 @@ const normalizeVideoTaskItem = (item, index = 0) => {
         : false,
     pollable:
       typeof item?.pollable === 'boolean'
-        ? item.pollable
-        : !item?.url && ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
+        ? (resolvedVideoUrl ? false : item.pollable)
+        : !resolvedVideoUrl && ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
   };
 };
 
@@ -686,31 +1377,30 @@ const normalizeImageHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
   if (Array.isArray(payload?.entries)) {
-    return payload.entries.map((entry, index) => ({
+    return payload.entries.map((entry, index) => {
+      const images = Array.isArray(entry?.images)
+        ? entry.images
+            .filter(Boolean)
+            .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex))
+        : [];
+      const summary = summarizeImageTasks(images);
+
+      return {
       id: entry?.id || createCreativeRecordId(`image-history-${index}`),
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       group: entry?.group || snapshot?.group || '',
-      status: entry?.status || 'completed',
-      images: Array.isArray(entry?.images)
-        ? entry.images
-            .filter(Boolean)
-            .map((item, imageIndex) => normalizeImageTaskItem(item, imageIndex))
-        : [],
+      status: summary.status,
+      images,
       error: entry?.error || '',
-      total: Number(entry?.total) || (Array.isArray(entry?.images) ? entry.images.length : 0),
-      completedCount:
-        Number(entry?.completedCount) ||
-        Number(entry?.completed_count) ||
-        (Array.isArray(entry?.images) ? entry.images.length : 0),
-      successCount:
-        Number(entry?.successCount) ||
-        Number(entry?.success_count) ||
-        (Array.isArray(entry?.images) ? entry.images.length : 0),
+      total: Number(entry?.total) || images.length,
+      completedCount: summary.completedCount,
+      successCount: summary.successCount,
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
-    }));
+      };
+    });
   }
 
   if (Array.isArray(payload?.images) && payload.images.length > 0) {
@@ -742,29 +1432,28 @@ const normalizeVideoHistoryRecords = (snapshot) => {
   const payload = snapshot?.payload || {};
 
   if (Array.isArray(payload?.entries)) {
-    return payload.entries.map((entry, index) => ({
+    return payload.entries.map((entry, index) => {
+      const tasks = Array.isArray(entry?.tasks)
+        ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
+        : [];
+      const summary = summarizeVideoTasks(tasks);
+
+      return {
       id: entry?.id || createCreativeRecordId(`video-history-${index}`),
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
       group: entry?.group || snapshot?.group || '',
-      status: entry?.status || 'completed',
-      tasks: Array.isArray(entry?.tasks)
-        ? entry.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex))
-        : [],
+      status: summary.status,
+      tasks,
       error: entry?.error || '',
-      total: Number(entry?.total) || (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
-      completedCount:
-        Number(entry?.completedCount) ||
-        Number(entry?.completed_count) ||
-        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
-      successCount:
-        Number(entry?.successCount) ||
-        Number(entry?.success_count) ||
-        (Array.isArray(entry?.tasks) ? entry.tasks.length : 0),
+      total: Number(entry?.total) || tasks.length,
+      completedCount: summary.completedCount,
+      successCount: summary.successCount,
       createdAt: entry?.createdAt || entry?.created_at || snapshot?.updated_at || Date.now(),
       updatedAt: entry?.updatedAt || entry?.updated_at || snapshot?.updated_at || Date.now(),
-    }));
+      };
+    });
   }
 
   if (Array.isArray(payload?.tasks) && payload.tasks.length > 0) {
@@ -789,14 +1478,480 @@ const normalizeVideoHistoryRecords = (snapshot) => {
   return [];
 };
 
-const renderCreativeModelIcon = (channelType, iconName, fallbackTab) => {
+const applyVideoTaskPatchToRecords = (records, recordId, taskId, taskPatch) => {
+  let recordsChanged = false;
+
+  const nextRecords = (records || []).map((record) => {
+    if (record.id !== recordId) {
+      return record;
+    }
+
+    let hasChanged = false;
+    const nextTasks = record.tasks.map((task) => {
+      if (task.id !== taskId) {
+        return task;
+      }
+
+      hasChanged = true;
+      const nextTask = {
+        ...task,
+        ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
+      };
+      return {
+        ...nextTask,
+        status: normalizeVideoTaskStatus(nextTask.status),
+      };
+    });
+
+    if (!hasChanged) {
+      return record;
+    }
+
+    recordsChanged = true;
+    const summary = summarizeVideoTasks(nextTasks);
+    return {
+      ...record,
+      tasks: nextTasks,
+      ...summary,
+      error:
+        summary.completedCount === record.total && summary.successCount === 0
+          ? '全部视频任务都生成失败了，请稍后重试。'
+          : '',
+      updatedAt: Date.now(),
+    };
+  });
+
+  return {
+    nextRecords: recordsChanged ? nextRecords : records,
+    hasChanged: recordsChanged,
+  };
+};
+
+const applyImageTaskPatchToRecords = (records, recordId, imageId, taskPatch) => {
+  let recordsChanged = false;
+
+  const nextRecords = (records || []).map((record) => {
+    if (record.id !== recordId) {
+      return record;
+    }
+
+    let hasChanged = false;
+    const nextImages = record.images.map((image) => {
+      if (image.id !== imageId) {
+        return image;
+      }
+
+      hasChanged = true;
+      return {
+        ...image,
+        ...(typeof taskPatch === 'function' ? taskPatch(image) : taskPatch),
+      };
+    });
+
+    if (!hasChanged) {
+      return record;
+    }
+
+    recordsChanged = true;
+    const summary = summarizeImageTasks(nextImages);
+    return {
+      ...record,
+      images: nextImages,
+      ...summary,
+      error:
+        summary.completedCount === record.total && summary.successCount === 0
+          ? '全部图片任务都生成失败了，请稍后重试。'
+          : '',
+      updatedAt: Date.now(),
+    };
+  });
+
+  return {
+    nextRecords: recordsChanged ? nextRecords : records,
+    hasChanged: recordsChanged,
+  };
+};
+
+const collectRecoverableImageCandidatesFromSnapshot = (snapshot) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('image', snapshot);
+  const sessions = normalizedSnapshot?.payload?.sessions || [];
+
+  return sessions
+    .flatMap((session) => {
+      const records = normalizeImageHistoryRecords(session);
+      return records.flatMap((record) =>
+        record.images.map((image, imageIndex) => ({
+          sessionId: session.id,
+          recordId: record.id,
+          imageId: image.id,
+          itemIndex: imageIndex,
+          requestId: String(image?.requestId || '').trim(),
+          hasMedia: Boolean(getImageTaskMediaUrl(image)),
+          status: String(image?.status || '').trim().toLowerCase(),
+          recordModelName: String(record?.modelName || '').trim(),
+          recordCreatedAt: Number(record?.createdAt) || 0,
+          recordUpdatedAt: Number(record?.updatedAt) || 0,
+          sortTimestamp:
+            Number(image?.submittedAt) ||
+            Number(record?.updatedAt) ||
+            Number(record?.createdAt) ||
+            Number(session?.updated_at) ||
+            0,
+        })),
+      );
+    })
+    .filter(
+      (item) =>
+        !item.hasMedia &&
+        item.status !== 'failed' &&
+        Boolean(item.requestId),
+    )
+    .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
+};
+
+const patchImageTaskInHistorySnapshot = (snapshot, candidate, taskPatch) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('image', snapshot);
+  let snapshotChanged = false;
+
+  const nextSessions = normalizedSnapshot.payload.sessions.map((session) => {
+    if (session.id !== candidate.sessionId) {
+      return session;
+    }
+
+    const sessionRecords = normalizeImageHistoryRecords(session);
+    const { nextRecords, hasChanged } = applyImageTaskPatchToRecords(
+      sessionRecords,
+      candidate.recordId,
+      candidate.imageId,
+      taskPatch,
+    );
+
+    if (!hasChanged) {
+      return session;
+    }
+
+    snapshotChanged = true;
+    return {
+      ...session,
+      updated_at: Date.now(),
+      payload: {
+        ...buildCreativeSessionPayload('image', session.payload),
+        entries: nextRecords,
+      },
+    };
+  });
+
+  return {
+    snapshot: snapshotChanged
+      ? {
+          ...normalizedSnapshot,
+          updated_at: Date.now(),
+          payload: {
+            ...normalizedSnapshot.payload,
+            sessions: nextSessions,
+          },
+        }
+      : normalizedSnapshot,
+    hasChanged: snapshotChanged,
+  };
+};
+
+const collectRecoverableVideoCandidatesFromSnapshot = (snapshot) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('video', snapshot);
+  const sessions = normalizedSnapshot?.payload?.sessions || [];
+
+  return sessions
+    .flatMap((session) => {
+      const records = normalizeVideoHistoryRecords(session);
+      return records.flatMap((record) =>
+        record.tasks.map((task, taskIndex) => ({
+          sessionId: session.id,
+          recordId: record.id,
+          taskId: task.id,
+          itemIndex: taskIndex,
+          queryTaskId: getRecoverableVideoTaskId(task),
+          requestId: String(task?.requestId || '').trim(),
+          hasMedia: Boolean(getVideoTaskMediaUrl(task)),
+          status: normalizeVideoTaskStatus(task.status),
+          recordModelName: String(record?.modelName || '').trim(),
+          recordCreatedAt: Number(record?.createdAt) || 0,
+          recordUpdatedAt: Number(record?.updatedAt) || 0,
+          sortTimestamp:
+            Number(task?.submittedAt) ||
+            Number(record?.updatedAt) ||
+            Number(record?.createdAt) ||
+            Number(session?.updated_at) ||
+            0,
+        })),
+      );
+    })
+    .filter(
+      (task) =>
+        !task.hasMedia &&
+        task.status !== 'failed',
+    )
+    .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
+};
+
+const patchVideoTaskInHistorySnapshot = (snapshot, candidate, taskPatch) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('video', snapshot);
+  let snapshotChanged = false;
+
+  const nextSessions = normalizedSnapshot.payload.sessions.map((session) => {
+    if (session.id !== candidate.sessionId) {
+      return session;
+    }
+
+    const sessionRecords = normalizeVideoHistoryRecords(session);
+    const { nextRecords, hasChanged } = applyVideoTaskPatchToRecords(
+      sessionRecords,
+      candidate.recordId,
+      candidate.taskId,
+      taskPatch,
+    );
+
+    if (!hasChanged) {
+      return session;
+    }
+
+    snapshotChanged = true;
+    return {
+      ...session,
+      updated_at: Date.now(),
+      payload: {
+        ...buildCreativeSessionPayload('video', session.payload),
+        entries: nextRecords,
+      },
+    };
+  });
+
+  return {
+    snapshot: snapshotChanged
+      ? {
+          ...normalizedSnapshot,
+          updated_at: Date.now(),
+          payload: {
+            ...normalizedSnapshot.payload,
+            sessions: nextSessions,
+          },
+        }
+      : normalizedSnapshot,
+    hasChanged: snapshotChanged,
+  };
+};
+
+const getEmptyCreativeSessionPayload = (tabKey) => {
+  if (tabKey === 'chat') {
+    return { messages: [] };
+  }
+  return {
+    entries: [],
+    params: {},
+  };
+};
+
+const getDefaultCreativeSessionName = (tabKey, index = 1) => {
+  const tabLabelMap = {
+    chat: '对话',
+    image: '图片',
+    video: '视频',
+  };
+  return `${tabLabelMap[tabKey] || '创作'}会话 ${index}`;
+};
+
+const hasCreativeSessionContent = (tabKey, payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  if (tabKey === 'chat') {
+    return Array.isArray(payload.messages) && payload.messages.length > 0;
+  }
+
+  return Array.isArray(payload.entries) && payload.entries.length > 0;
+};
+
+const createCreativeSessionSnapshot = (tabKey, overrides = {}) => {
+  const now = Date.now();
+  return {
+    id: overrides.id || createCreativeRecordId(`${tabKey}-session`),
+    name: overrides.name || getDefaultCreativeSessionName(tabKey),
+    model_name: overrides.model_name || overrides.modelName || '',
+    group: overrides.group || '',
+    prompt: overrides.prompt || '',
+    payload:
+      overrides.payload && typeof overrides.payload === 'object'
+        ? overrides.payload
+        : getEmptyCreativeSessionPayload(tabKey),
+    created_at: overrides.created_at || overrides.createdAt || now,
+    updated_at: overrides.updated_at || overrides.updatedAt || now,
+  };
+};
+
+const normalizeCreativeSessionSnapshot = (
+  tabKey,
+  session,
+  fallbackSnapshot = null,
+  index = 0,
+) =>
+  createCreativeSessionSnapshot(tabKey, {
+    id: session?.id,
+    name:
+      session?.name ||
+      session?.title ||
+      getDefaultCreativeSessionName(tabKey, index + 1),
+    model_name:
+      session?.model_name ||
+      session?.modelName ||
+      fallbackSnapshot?.model_name ||
+      '',
+    group: session?.group || fallbackSnapshot?.group || '',
+    prompt: session?.prompt || fallbackSnapshot?.prompt || '',
+    payload:
+      session?.payload && typeof session.payload === 'object'
+        ? session.payload
+        : getEmptyCreativeSessionPayload(tabKey),
+    created_at:
+      session?.created_at ||
+      session?.createdAt ||
+      fallbackSnapshot?.created_at ||
+      fallbackSnapshot?.updated_at ||
+      Date.now(),
+    updated_at:
+      session?.updated_at ||
+      session?.updatedAt ||
+      fallbackSnapshot?.updated_at ||
+      Date.now(),
+  });
+
+const normalizeCreativeHistorySnapshot = (tabKey, snapshot) => {
+  const rawPayload =
+    snapshot?.payload && typeof snapshot.payload === 'object'
+      ? snapshot.payload
+      : {};
+
+  let sessions = Array.isArray(rawPayload?.sessions)
+    ? rawPayload.sessions
+        .filter(Boolean)
+        .map((session, index) =>
+          normalizeCreativeSessionSnapshot(tabKey, session, snapshot, index),
+        )
+    : [];
+
+  if (sessions.length === 0) {
+    const legacyPayload =
+      snapshot?.payload && typeof snapshot.payload === 'object'
+        ? snapshot.payload
+        : getEmptyCreativeSessionPayload(tabKey);
+
+    if (
+      snapshot ||
+      hasCreativeSessionContent(tabKey, legacyPayload) ||
+      snapshot?.model_name ||
+      snapshot?.prompt
+    ) {
+      sessions = [
+        normalizeCreativeSessionSnapshot(
+          tabKey,
+          {
+            name: getDefaultCreativeSessionName(tabKey, 1),
+            model_name: snapshot?.model_name || '',
+            group: snapshot?.group || '',
+            prompt: snapshot?.prompt || '',
+            payload: legacyPayload,
+            created_at: snapshot?.created_at,
+            updated_at: snapshot?.updated_at,
+          },
+          snapshot,
+          0,
+        ),
+      ];
+    }
+  }
+
+  if (sessions.length === 0) {
+    sessions = [createCreativeSessionSnapshot(tabKey, { name: getDefaultCreativeSessionName(tabKey, 1) })];
+  }
+
+  const requestedCurrentSessionId =
+    typeof rawPayload?.current_session_id === 'string'
+      ? rawPayload.current_session_id
+      : '';
+  const currentSessionId = sessions.some(
+    (session) => session.id === requestedCurrentSessionId,
+  )
+    ? requestedCurrentSessionId
+    : sessions[0]?.id || '';
+  const currentSession =
+    sessions.find((session) => session.id === currentSessionId) || sessions[0] || null;
+
+  return {
+    id: snapshot?.id || null,
+    tab: tabKey,
+    model_name: currentSession?.model_name || snapshot?.model_name || '',
+    group: currentSession?.group || snapshot?.group || '',
+    prompt: currentSession?.prompt || snapshot?.prompt || '',
+    payload: {
+      current_session_id: currentSessionId,
+      sessions,
+    },
+    created_at:
+      snapshot?.created_at || currentSession?.created_at || Date.now(),
+    updated_at:
+      snapshot?.updated_at || currentSession?.updated_at || Date.now(),
+  };
+};
+
+const getCreativeHistorySessions = (snapshot, tabKey) =>
+  normalizeCreativeHistorySnapshot(tabKey, snapshot)?.payload?.sessions || [];
+
+const getCreativeCurrentSessionSnapshot = (snapshot, tabKey) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot(tabKey, snapshot);
+  return (
+    normalizedSnapshot.payload.sessions.find(
+      (session) => session.id === normalizedSnapshot.payload.current_session_id,
+    ) ||
+    normalizedSnapshot.payload.sessions[0] ||
+    null
+  );
+};
+
+const buildCreativeSessionPayload = (tabKey, payload) =>
+  payload && typeof payload === 'object'
+    ? payload
+    : getEmptyCreativeSessionPayload(tabKey);
+
+const formatCreativeSessionMeta = (tabKey, session) => {
+  const payload = buildCreativeSessionPayload(tabKey, session?.payload);
+
+  if (tabKey === 'chat') {
+    const messageCount = Array.isArray(payload.messages) ? payload.messages.length : 0;
+    return `${messageCount} 条消息`;
+  }
+
+  const entryCount = Array.isArray(payload.entries) ? payload.entries.length : 0;
+  return `${entryCount} 条记录`;
+};
+
+const renderCreativeModelIcon = (
+  channelType,
+  iconName,
+  fallbackTab,
+  vendorIconName = '',
+) => {
+  if (iconName) {
+    return <div className='scale-[1.35]'>{getLobeHubIcon(iconName, 20)}</div>;
+  }
+
+  if (vendorIconName) {
+    return (
+      <div className='scale-[1.35]'>{getLobeHubIcon(vendorIconName, 20)}</div>
+    );
+  }
+
   const channelIcon = channelType ? getChannelIcon(channelType) : null;
   if (channelIcon) {
     return <div className='scale-[1.7] text-current'>{channelIcon}</div>;
-  }
-
-  if (iconName) {
-    return <div className='scale-[1.35]'>{getLobeHubIcon(iconName, 20)}</div>;
   }
 
   if (fallbackTab === 'image') {
@@ -885,8 +2040,10 @@ const DropSelectButton = ({
 
 export default function App() {
   const [userState] = useContext(UserContext);
+  const [statusState] = useContext(StatusContext);
   const [activeTab, setActiveTab] = useState('chat');
   const [activeModel, setActiveModel] = useState('chat1');
+  const [hoveredSidebarModelId, setHoveredSidebarModelId] = useState('');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -897,7 +2054,7 @@ export default function App() {
   const [params, setParams] = useState({
     generationCount: '1',
     imageSize: '1024x1024',
-    aspectRatio: 'auto',
+    aspectRatio: '1:1',
     autoImageSize: '1024x1024',
     outputResolution: '2K',
     videoSize: '1280x720',
@@ -913,16 +2070,24 @@ export default function App() {
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const videoPollersRef = useRef(new Map());
+  const chatMessagesRef = useRef([]);
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
   const uploadedImagesRef = useRef([]);
+  const creativeCenterUploadConfigRef = useRef(null);
   const historyHydratedRef = useRef(false);
   const lastPersistedImageSignatureRef = useRef('');
   const lastPersistedVideoSignatureRef = useRef('');
+  const startupImageRecoveryRunRef = useRef(false);
+  const startupVideoRecoveryRunRef = useRef(false);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadImageNotice, setUploadImageNotice] = useState('');
   const isUploadingImage = uploadedImages.some((item) => item?.status === 'uploading');
+
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
 
   useEffect(() => {
     imageRecordsRef.current = imageRecords;
@@ -932,9 +2097,31 @@ export default function App() {
     videoRecordsRef.current = videoRecords;
   }, [videoRecords]);
 
+  const syncImageRecordsState = (nextRecords) => {
+    imageRecordsRef.current = nextRecords;
+    setImageRecords(nextRecords);
+  };
+
+  const syncVideoRecordsState = (nextRecords) => {
+    videoRecordsRef.current = nextRecords;
+    setVideoRecords(nextRecords);
+  };
+
   useEffect(() => {
     uploadedImagesRef.current = uploadedImages;
   }, [uploadedImages]);
+
+  useEffect(() => {
+    creativeCenterUploadConfigRef.current = null;
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    startupImageRecoveryRunRef.current = false;
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    startupVideoRecoveryRunRef.current = false;
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -993,13 +2180,29 @@ export default function App() {
     image: [],
     video: [],
   });
+  const [pricingGroupRatio, setPricingGroupRatio] = useState({});
   const [historySnapshots, setHistorySnapshots] = useState(EMPTY_HISTORY_SNAPSHOTS);
+  const [isSessionPanelOpen, setIsSessionPanelOpen] = useState(false);
   const [collapsedImageRecordIds, setCollapsedImageRecordIds] = useState({});
   const [selectedImageTaskIds, setSelectedImageTaskIds] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
   const [collapsedVideoRecordIds, setCollapsedVideoRecordIds] = useState({});
   const [selectedVideoTaskIds, setSelectedVideoTaskIds] = useState({});
   const [progressClock, setProgressClock] = useState(() => Date.now());
+  const creativeCenterCurrencyOptions = useMemo(
+    () => ({
+      quotaDisplayType: statusState?.status?.quota_display_type || 'USD',
+      usdExchangeRate:
+        statusState?.status?.usd_exchange_rate ??
+        statusState?.status?.price ??
+        1,
+      customExchangeRate:
+        statusState?.status?.custom_currency_exchange_rate ?? 1,
+      customCurrencySymbol:
+        statusState?.status?.custom_currency_symbol ?? '¤',
+    }),
+    [statusState],
+  );
   const imagePersistSignature = useMemo(
     () => buildCreativePersistSignature(imageRecords, 'image'),
     [imageRecords],
@@ -1128,24 +2331,33 @@ export default function App() {
       return inferTabsFromModelName(modelName);
     };
 
-    const createModelCard = (model, tabKey, modelName) => {
+    const createModelCard = (model, tabKey, modelName, vendorMap) => {
       const tags = String(model?.tags || '')
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean);
       const resolvedModelName = model?.model_name || model?.name || modelName || '未命名模型';
+      const vendor =
+        model?.vendor_id && vendorMap[model.vendor_id]
+          ? vendorMap[model.vendor_id]
+          : null;
+      const resolvedDescription =
+        model?.description ||
+        vendor?.description ||
+        (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理');
 
       return {
         id: `${tabKey}:${resolvedModelName}`,
         value: resolvedModelName,
         name: resolvedModelName,
-        desc:
-          model?.description ||
-          (tags.length > 0 ? `标签：${tags.join('、')}` : '来自模型管理'),
+        desc: resolvedDescription,
+        fullDesc: resolvedDescription,
+        pricingModel: model,
         icon: renderCreativeModelIcon(
           Number(model?.channel_type || 0),
           model?.icon,
           tabKey,
+          vendor?.icon,
         ),
       };
     };
@@ -1169,6 +2381,12 @@ export default function App() {
                 ? pricingResult.value.data.data
                 : [])
             : [];
+        const pricingVendors =
+          pricingResult.status === 'fulfilled' && pricingResult.value?.data?.success
+            ? (Array.isArray(pricingResult.value.data.vendors)
+                ? pricingResult.value.data.vendors
+                : [])
+            : [];
 
         const userModels =
           userModelsResult.status === 'fulfilled' && userModelsResult.value?.data?.success
@@ -1184,6 +2402,13 @@ export default function App() {
             pricingModelMap.set(modelName, item);
           }
         });
+
+        const pricingVendorMap = pricingVendors.reduce((map, vendor) => {
+          if (vendor?.id) {
+            map[vendor.id] = vendor;
+          }
+          return map;
+        }, {});
 
         const visibleModelNames =
           isLoggedIn && userModels.length > 0
@@ -1203,6 +2428,7 @@ export default function App() {
                 pricingModel || { model_name: modelName },
                 tabKey,
                 modelName,
+                pricingVendorMap,
               ),
             );
           });
@@ -1246,6 +2472,14 @@ export default function App() {
 
         if (mounted) {
           setSyncedModels(dedupedModels);
+          setPricingGroupRatio(
+            pricingResult.status === 'fulfilled' &&
+              pricingResult.value?.data?.success &&
+              pricingResult.value?.data?.group_ratio &&
+              typeof pricingResult.value.data.group_ratio === 'object'
+              ? pricingResult.value.data.group_ratio
+              : {},
+          );
           setActiveGroup(resolvedGroup);
         }
       } catch (error) {
@@ -1262,15 +2496,70 @@ export default function App() {
 
   const modelPools = useMemo(
     () => ({
-      chat: syncedModels.chat.length > 0 ? syncedModels.chat : fallbackModels.chat,
-      image: syncedModels.image.length > 0 ? syncedModels.image : fallbackModels.image,
-      video: syncedModels.video.length > 0 ? syncedModels.video : fallbackModels.video,
+      chat:
+        syncedModels.chat.length > 0
+          ? syncedModels.chat.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.chat,
+      image:
+        syncedModels.image.length > 0
+          ? syncedModels.image.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.image,
+      video:
+        syncedModels.video.length > 0
+          ? syncedModels.video.map((model) => ({
+              ...model,
+              priceLabel: buildCreativeCenterModelPriceLabel(
+                model.pricingModel,
+                activeGroup,
+                pricingGroupRatio,
+                creativeCenterCurrencyOptions,
+              ),
+            }))
+          : fallbackModels.video,
     }),
-    [fallbackModels, syncedModels],
+    [
+      activeGroup,
+      creativeCenterCurrencyOptions,
+      fallbackModels,
+      pricingGroupRatio,
+      syncedModels,
+    ],
   );
 
   const currentDisplayModels = modelPools[activeTab] || [];
-  const activeHistorySnapshot = historySnapshots[activeTab];
+  const hoveredSidebarModel =
+    currentDisplayModels.find((model) => model.id === hoveredSidebarModelId) || null;
+  const currentTabHistorySnapshot = useMemo(
+    () =>
+      historySnapshots[activeTab]
+        ? normalizeCreativeHistorySnapshot(activeTab, historySnapshots[activeTab])
+        : null,
+    [activeTab, historySnapshots],
+  );
+  const currentTabSessions = currentTabHistorySnapshot?.payload?.sessions || [];
+  const activeHistorySnapshot = useMemo(
+    () =>
+      currentTabHistorySnapshot
+        ? getCreativeCurrentSessionSnapshot(currentTabHistorySnapshot, activeTab)
+        : null,
+    [activeTab, currentTabHistorySnapshot],
+  );
   const findModelCard = (tabKey, modelName) =>
     (modelPools[tabKey] || []).find(
       (model) => model.value === modelName || model.name === modelName,
@@ -1299,6 +2588,14 @@ export default function App() {
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
   const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
+  const currentAdobeImageAspectRatioOptions =
+    getAdobeImageAspectRatioOptions(currentModelName);
+  const currentAdobeSupportsAutoImageSize =
+    supportsAdobeAutoImageSize(currentModelName);
+  const isCurrentModelImageUploadEnabled = isCreativeCenterImageUploadEnabled(
+    activeTab,
+    currentModelName,
+  );
   useEffect(() => {
     if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
       return;
@@ -1317,6 +2614,20 @@ export default function App() {
     setUploadImageNotice(`当前模型最多上传 ${currentImageUploadLimit} 张图片，已自动保留前 ${currentImageUploadLimit} 张`);
     showWarning(`当前模型最多上传 ${currentImageUploadLimit} 张图片`);
   }, [currentImageUploadLimit, uploadedImages.length]);
+  useEffect(() => {
+    if (isCurrentModelImageUploadEnabled || uploadedImages.length === 0) {
+      return;
+    }
+
+    setUploadedImages((prev) => {
+      prev.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return [];
+    });
+    setUploadImageNotice('当前模型不支持上传图片，已清空已选图片');
+    showWarning('当前模型不支持上传图片');
+  }, [isCurrentModelImageUploadEnabled, uploadedImages.length]);
   const renderPendingTaskProgress = ({
     task,
     taskIndex,
@@ -1387,8 +2698,14 @@ export default function App() {
       }
 
       if (isCurrentAdobeImageModel) {
-        snapshot.aspectRatio = sourceParams.aspectRatio || 'auto';
-        if (snapshot.aspectRatio === 'auto') {
+        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(modelName);
+        const defaultAdobeAspectRatio =
+          adobeAspectRatioOptions[0]?.value || '1:1';
+        snapshot.aspectRatio = sourceParams.aspectRatio || defaultAdobeAspectRatio;
+        if (
+          supportsAdobeAutoImageSize(modelName) &&
+          snapshot.aspectRatio === 'auto'
+        ) {
           snapshot.autoImageSize = sourceParams.autoImageSize;
         }
         snapshot.outputResolution = sourceParams.outputResolution || '2K';
@@ -1407,9 +2724,9 @@ export default function App() {
 
       if (isCurrentAdobeVideoModel) {
         snapshot.videoDuration =
-          sourceParams.videoDuration ||
-          (isCurrentAdobeSoraModel ? '4' : '4');
-        snapshot.aspectRatio = sourceParams.aspectRatio || '16:9';
+          sourceParams.videoDuration || getAdobeVideoDefaultDuration(modelName);
+        snapshot.aspectRatio =
+          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(modelName);
         if (isCurrentAdobeVeoModel) {
           snapshot.videoResolution = sourceParams.videoResolution || '1080p';
         }
@@ -1474,10 +2791,10 @@ export default function App() {
     return summary.join(' · ');
   };
 
-  const resolveCreativeAspectRatio = (ratio, fallback = '3 / 4') => {
-    if (!ratio || ratio === 'auto' || typeof ratio !== 'string') {
-      return fallback;
-    }
+const resolveCreativeAspectRatio = (ratio, fallback = '3 / 4') => {
+  if (!ratio || ratio === 'auto' || typeof ratio !== 'string') {
+    return fallback;
+  }
     const normalized = ratio.trim();
     if (!normalized.includes(':')) {
       return fallback;
@@ -1485,15 +2802,37 @@ export default function App() {
     const [width, height] = normalized.split(':').map((item) => item.trim());
     if (!width || !height) {
       return fallback;
-    }
-    return `${width} / ${height}`;
-  };
+  }
+  return `${width} / ${height}`;
+};
+
+const getCreativeVideoCardAspectRatio = (record) => {
+  if (UNIFORM_CREATIVE_VIDEO_CARD_MODELS.has(record?.modelName || '')) {
+    return '9 / 16';
+  }
+  return resolveCreativeAspectRatio(record?.params?.aspectRatio, '9 / 16');
+};
+
+const getCreativeVideoCardObjectFitClass = (record) =>
+  UNIFORM_CREATIVE_VIDEO_CARD_MODELS.has(record?.modelName || '')
+    ? 'object-contain'
+    : 'object-cover';
 
   useEffect(() => {
     if (!currentDisplayModels.some((model) => model.id === activeModel)) {
       setActiveModel(currentDisplayModels[0]?.id || '');
     }
   }, [activeModel, currentDisplayModels]);
+
+  useEffect(() => {
+    if (!currentDisplayModels.some((model) => model.id === hoveredSidebarModelId)) {
+      setHoveredSidebarModelId('');
+    }
+  }, [currentDisplayModels, hoveredSidebarModelId]);
+
+  useEffect(() => {
+    setIsSessionPanelOpen(false);
+  }, [activeTab]);
 
   useEffect(() => {
     const savedModelName = activeHistorySnapshot?.model_name;
@@ -1533,14 +2872,19 @@ export default function App() {
       }
 
       if (isAdobeImageModel) {
+        const adobeAspectRatioOptions =
+          getAdobeImageAspectRatioOptions(currentModelName);
+        const defaultAdobeAspectRatio =
+          adobeAspectRatioOptions[0]?.value || '1:1';
         if (
-          !ADOBE_IMAGE_ASPECT_RATIO_OPTIONS.some(
+          !adobeAspectRatioOptions.some(
             (option) => option.value === next.aspectRatio,
           )
         ) {
-          next.aspectRatio = 'auto';
+          next.aspectRatio = defaultAdobeAspectRatio;
         }
         if (
+          supportsAdobeAutoImageSize(currentModelName) &&
           !ADOBE_AUTO_IMAGE_SIZE_OPTIONS.some(
             (option) => option.value === next.autoImageSize,
           )
@@ -1588,20 +2932,17 @@ export default function App() {
       }
 
       if (isAdobeVideoModel) {
-        const durationOptions = isAdobeSoraModel
-          ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-          : ADOBE_VIDEO_DURATION_OPTIONS.veo;
+        const durationOptions = getAdobeVideoDurationOptions(currentModelName);
+        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentModelName);
         if (
           !durationOptions.some((option) => option.value === next.videoDuration)
         ) {
-          next.videoDuration = durationOptions[0]?.value || '4';
+          next.videoDuration = getAdobeVideoDefaultDuration(currentModelName);
         }
         if (
-          !ADOBE_VIDEO_ASPECT_RATIO_OPTIONS.some(
-            (option) => option.value === next.aspectRatio,
-          )
+          !aspectRatioOptions.some((option) => option.value === next.aspectRatio)
         ) {
-          next.aspectRatio = '16:9';
+          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentModelName);
         }
         if (
           isAdobeVeoModel &&
@@ -1626,7 +2967,6 @@ export default function App() {
   }, [
     currentModelName,
     isAdobeImageModel,
-    isAdobeSoraModel,
     isAdobeVeoModel,
     isAdobeVideoModel,
     isGrokImagineImageModel,
@@ -1662,6 +3002,307 @@ export default function App() {
     };
   };
 
+  const applyCreativeSessionToView = (tabKey, sessionSnapshot) => {
+    clearUploadedImages();
+    setUploadImageNotice('');
+    setPrompt('');
+
+    if (tabKey === 'chat') {
+      setChatMessages(
+        Array.isArray(sessionSnapshot?.payload?.messages)
+          ? sessionSnapshot.payload.messages
+          : [],
+      );
+      return;
+    }
+
+    if (tabKey === 'image') {
+      const nextImageRecords = normalizeImageHistoryRecords(sessionSnapshot);
+      setImageRecords(nextImageRecords);
+      setCollapsedImageRecordIds(
+        Object.fromEntries(nextImageRecords.map((record) => [record.id, true])),
+      );
+      setSelectedImageTaskIds({});
+      lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
+        nextImageRecords,
+        'image',
+      );
+      return;
+    }
+
+    const nextVideoRecords = normalizeVideoHistoryRecords(sessionSnapshot);
+    setVideoRecords(nextVideoRecords);
+    setCollapsedVideoRecordIds(
+      Object.fromEntries(nextVideoRecords.map((record) => [record.id, true])),
+    );
+    setSelectedVideoTaskIds({});
+    lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(
+      nextVideoRecords,
+      'video',
+    );
+  };
+
+  const commitCreativeHistorySnapshot = (tabKey, nextSnapshot, options = {}) => {
+    const normalizedSnapshot = normalizeCreativeHistorySnapshot(tabKey, nextSnapshot);
+    const activeSession = getCreativeCurrentSessionSnapshot(
+      normalizedSnapshot,
+      tabKey,
+    );
+
+    setHistorySnapshots((prev) => ({
+      ...prev,
+      [tabKey]: normalizedSnapshot,
+    }));
+
+    if (options.applySessionState) {
+      applyCreativeSessionToView(tabKey, activeSession);
+    }
+
+    return {
+      normalizedSnapshot,
+      activeSession,
+    };
+  };
+
+  const persistCreativeHistorySnapshot = async (tabKey, nextSnapshot, options = {}) => {
+    const { normalizedSnapshot, activeSession } = commitCreativeHistorySnapshot(
+      tabKey,
+      nextSnapshot,
+      options,
+    );
+
+    if (!isLoggedIn) {
+      return normalizedSnapshot;
+    }
+
+    try {
+      await API.put(
+        API_ENDPOINTS.CREATIVE_CENTER_HISTORY,
+        {
+          tab: tabKey,
+          model_name: activeSession?.model_name || '',
+          group: activeSession?.group || '',
+          prompt: activeSession?.prompt || '',
+          payload: normalizedSnapshot.payload,
+        },
+        {
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+    } catch (error) {
+      console.error('Failed to save creative center history:', error);
+    }
+
+    return normalizedSnapshot;
+  };
+
+  const buildNextSessionName = (tabKey, sessions) => {
+    const existingNames = new Set(
+      (sessions || []).map((session) => String(session?.name || '').trim()).filter(Boolean),
+    );
+    let nextIndex = (sessions || []).length + 1;
+    let nextName = getDefaultCreativeSessionName(tabKey, nextIndex);
+
+    while (existingNames.has(nextName)) {
+      nextIndex += 1;
+      nextName = getDefaultCreativeSessionName(tabKey, nextIndex);
+    }
+
+    return nextName;
+  };
+
+  const createNextBlankSessionSnapshot = (tabKey, baseSnapshot = null) => {
+    const normalizedBaseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      baseSnapshot || historySnapshots[tabKey],
+    );
+    return createCreativeSessionSnapshot(tabKey, {
+      name: buildNextSessionName(
+        tabKey,
+        normalizedBaseSnapshot?.payload?.sessions || [],
+      ),
+      model_name: currentModelName,
+      group: activeGroup,
+      payload: getEmptyCreativeSessionPayload(tabKey),
+    });
+  };
+
+  const openCreativeSession = async (tabKey, sessionId) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    if (!baseSnapshot.payload.sessions.some((session) => session.id === sessionId)) {
+      return;
+    }
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      payload: {
+        ...baseSnapshot.payload,
+        current_session_id: sessionId,
+      },
+      updated_at: Date.now(),
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: true,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const createCreativeSession = async (tabKey) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const newSession = createNextBlankSessionSnapshot(tabKey, baseSnapshot);
+    const nextSnapshot = {
+      ...baseSnapshot,
+      model_name: newSession.model_name,
+      group: newSession.group,
+      prompt: '',
+      updated_at: newSession.updated_at,
+      payload: {
+        current_session_id: newSession.id,
+        sessions: [...baseSnapshot.payload.sessions, newSession],
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: true,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const renameCreativeSession = async (tabKey, sessionId) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const targetSession = baseSnapshot.payload.sessions.find(
+      (session) => session.id === sessionId,
+    );
+    if (!targetSession) {
+      return;
+    }
+
+    const nextName = window.prompt('重命名会话', targetSession.name || '');
+    if (nextName === null) {
+      return;
+    }
+
+    const trimmedName = nextName.trim();
+    if (!trimmedName) {
+      showWarning('会话名称不能为空');
+      return;
+    }
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      updated_at: Date.now(),
+      payload: {
+        ...baseSnapshot.payload,
+        sessions: baseSnapshot.payload.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                name: trimmedName,
+                updated_at: Date.now(),
+              }
+            : session,
+        ),
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot);
+  };
+
+  const deleteCreativeSession = async (
+    tabKey,
+    sessionId,
+    options = { createFallback: true },
+  ) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const targetSession = baseSnapshot.payload.sessions.find(
+      (session) => session.id === sessionId,
+    );
+    if (!targetSession) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `确认删除“${targetSession.name || '当前会话'}”吗？只删除会话，图片视频资源仍保留。`,
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    let nextSessions = baseSnapshot.payload.sessions.filter(
+      (session) => session.id !== sessionId,
+    );
+    if (nextSessions.length === 0 && options.createFallback !== false) {
+      nextSessions = [createNextBlankSessionSnapshot(tabKey, baseSnapshot)];
+    }
+
+    const nextCurrentSessionId =
+      baseSnapshot.payload.current_session_id === sessionId
+        ? nextSessions[0]?.id || ''
+        : baseSnapshot.payload.current_session_id;
+
+    const nextSnapshot = {
+      ...baseSnapshot,
+      updated_at: Date.now(),
+      payload: {
+        current_session_id: nextCurrentSessionId,
+        sessions: nextSessions,
+      },
+    };
+
+    await persistCreativeHistorySnapshot(tabKey, nextSnapshot, {
+      applySessionState: baseSnapshot.payload.current_session_id === sessionId,
+    });
+    setIsSessionPanelOpen(false);
+  };
+
+  const updateCurrentCreativeSessionSnapshot = (tabKey, sessionPatch) => {
+    const baseSnapshot = normalizeCreativeHistorySnapshot(
+      tabKey,
+      historySnapshots[tabKey],
+    );
+    const currentSessionId = baseSnapshot.payload.current_session_id;
+    const nextSessions = baseSnapshot.payload.sessions.map((session) =>
+      session.id === currentSessionId
+        ? {
+            ...session,
+            ...sessionPatch,
+            payload: buildCreativeSessionPayload(
+              tabKey,
+              sessionPatch?.payload ?? session.payload,
+            ),
+            updated_at: sessionPatch?.updated_at || Date.now(),
+          }
+        : session,
+    );
+
+    return {
+      ...baseSnapshot,
+      model_name: sessionPatch?.model_name ?? baseSnapshot.model_name,
+      group: sessionPatch?.group ?? baseSnapshot.group,
+      prompt: sessionPatch?.prompt ?? baseSnapshot.prompt,
+      updated_at: sessionPatch?.updated_at || Date.now(),
+      payload: {
+        ...baseSnapshot.payload,
+        sessions: nextSessions,
+      },
+    };
+  };
+
   const saveCreativeHistory = async (
     tabKey,
     payload,
@@ -1686,16 +3327,17 @@ export default function App() {
         },
       });
 
+      const nextSnapshot = normalizeCreativeHistorySnapshot(tabKey, {
+        ...(historySnapshots[tabKey] || {}),
+        tab: tabKey,
+        model_name: requestBody.model_name,
+        group: requestBody.group,
+        prompt: requestBody.prompt,
+        payload,
+      });
       setHistorySnapshots((prev) => ({
         ...prev,
-        [tabKey]: {
-          ...(prev[tabKey] || {}),
-          tab: tabKey,
-          model_name: requestBody.model_name,
-          group: requestBody.group,
-          prompt: requestBody.prompt,
-          payload,
-        },
+        [tabKey]: nextSnapshot,
       }));
     } catch (error) {
       console.error('Failed to save creative center history:', error);
@@ -1716,7 +3358,7 @@ export default function App() {
 
       setHistorySnapshots((prev) => ({
         ...prev,
-        [tabKey]: null,
+        [tabKey]: normalizeCreativeHistorySnapshot(tabKey, null),
       }));
     } catch (error) {
       console.error('Failed to delete creative center history:', error);
@@ -1754,47 +3396,35 @@ export default function App() {
   };
 
   const persistImageRecords = async (records, options = {}) => {
-    if (records.length === 0) {
-      await deleteCreativeHistory('image');
-      lastPersistedImageSignatureRef.current = '';
-      return;
-    }
-
     lastPersistedImageSignatureRef.current = buildCreativePersistSignature(records, 'image');
-    await saveCreativeHistory(
-      'image',
-      {
+    const nextSnapshot = updateCurrentCreativeSessionSnapshot('image', {
+      model_name:
+        options.modelName || records[records.length - 1]?.modelName || currentModelName,
+      group: options.group ?? activeGroup,
+      prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      payload: {
         entries: records,
         params: options.params || records[records.length - 1]?.params || params,
       },
-      {
-        modelName:
-          options.modelName || records[records.length - 1]?.modelName || currentModelName,
-        prompt: options.prompt || records[records.length - 1]?.prompt || '',
-      },
-    );
+      updated_at: Date.now(),
+    });
+    await persistCreativeHistorySnapshot('image', nextSnapshot);
   };
 
   const persistVideoRecords = async (records, options = {}) => {
-    if (records.length === 0) {
-      await deleteCreativeHistory('video');
-      lastPersistedVideoSignatureRef.current = '';
-      return;
-    }
-
     lastPersistedVideoSignatureRef.current = buildCreativePersistSignature(records, 'video');
-    await saveCreativeHistory(
-      'video',
-      {
+    const nextSnapshot = updateCurrentCreativeSessionSnapshot('video', {
+      model_name:
+        options.modelName || records[records.length - 1]?.modelName || currentModelName,
+      group: options.group ?? activeGroup,
+      prompt: options.prompt || records[records.length - 1]?.prompt || '',
+      payload: {
         entries: records,
         params: options.params || records[records.length - 1]?.params || params,
       },
-      {
-        modelName:
-          options.modelName || records[records.length - 1]?.modelName || currentModelName,
-        prompt: options.prompt || records[records.length - 1]?.prompt || '',
-      },
-    );
+      updated_at: Date.now(),
+    });
+    await persistCreativeHistorySnapshot('video', nextSnapshot);
   };
 
   const buildImageDownloadFilename = (record, recordIndex, imageIndex) =>
@@ -1950,85 +3580,33 @@ export default function App() {
   };
 
   const patchImageTask = (recordId, taskId, taskPatch) => {
-    setImageRecords((prev) =>
-      prev.map((record) => {
-        if (record.id !== recordId) {
-          return record;
-        }
-
-        let hasChanged = false;
-        const nextImages = record.images.map((task) => {
-          if (task.id !== taskId) {
-            return task;
-          }
-
-          hasChanged = true;
-          return {
-            ...task,
-            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
-          };
-        });
-
-        if (!hasChanged) {
-          return record;
-        }
-
-        const summary = summarizeImageTasks(nextImages);
-        return {
-          ...record,
-          images: nextImages,
-          ...summary,
-          error:
-            summary.completedCount === record.total && summary.successCount === 0
-              ? '全部图片任务都生成失败了，请稍后重试。'
-              : '',
-          updatedAt: Date.now(),
-        };
-      }),
+    const { nextRecords, hasChanged } = applyImageTaskPatchToRecords(
+      imageRecordsRef.current,
+      recordId,
+      taskId,
+      taskPatch,
     );
+
+    if (!hasChanged) {
+      return;
+    }
+
+    syncImageRecordsState(nextRecords);
   };
 
   const patchVideoTask = (recordId, taskId, taskPatch) => {
-    setVideoRecords((prev) =>
-      prev.map((record) => {
-        if (record.id !== recordId) {
-          return record;
-        }
-
-        let hasChanged = false;
-        const nextTasks = record.tasks.map((task) => {
-          if (task.id !== taskId) {
-            return task;
-          }
-
-          hasChanged = true;
-          const nextTask = {
-            ...task,
-            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
-          };
-          return {
-            ...nextTask,
-            status: normalizeVideoTaskStatus(nextTask.status),
-          };
-        });
-
-        if (!hasChanged) {
-          return record;
-        }
-
-        const summary = summarizeVideoTasks(nextTasks);
-        return {
-          ...record,
-          tasks: nextTasks,
-          ...summary,
-          error:
-            summary.completedCount === record.total && summary.successCount === 0
-              ? '全部视频任务都生成失败了，请稍后重试。'
-              : '',
-          updatedAt: Date.now(),
-        };
-      }),
+    const { nextRecords, hasChanged } = applyVideoTaskPatchToRecords(
+      videoRecordsRef.current,
+      recordId,
+      taskId,
+      taskPatch,
     );
+
+    if (!hasChanged) {
+      return;
+    }
+
+    syncVideoRecordsState(nextRecords);
   };
 
   const parseVideoFetchPayload = (rawResponse) => {
@@ -2143,10 +3721,48 @@ export default function App() {
   };
 
   const handleUploadButtonClick = () => {
+    if (!isCurrentModelImageUploadEnabled) {
+      setUploadImageNotice('当前模型不支持上传图片');
+      showWarning('当前模型不支持上传图片');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
-  const uploadCreativeCenterImage = async (file) => {
+  const getCreativeCenterImageUploadConfig = async () => {
+    if (creativeCenterUploadConfigRef.current) {
+      return creativeCenterUploadConfigRef.current;
+    }
+
+    try {
+      const response = await API.get(
+        API_ENDPOINTS.CREATIVE_CENTER_IMAGE_UPLOAD_CONFIG,
+        {
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        },
+      );
+
+      const { success, data, message } = response?.data || {};
+      if (!success) {
+        throw new Error(message || '获取图片上传配置失败');
+      }
+
+      const nextConfig =
+        data?.mode === 'direct' && data?.upload_url && data?.api_key
+          ? data
+          : { mode: 'backend' };
+      creativeCenterUploadConfigRef.current = nextConfig;
+      return nextConfig;
+    } catch (error) {
+      creativeCenterUploadConfigRef.current = { mode: 'backend' };
+      return creativeCenterUploadConfigRef.current;
+    }
+  };
+
+  const uploadCreativeCenterImageViaBackend = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -2170,6 +3786,78 @@ export default function App() {
     return data;
   };
 
+  const uploadCreativeCenterImageDirectly = async (file, uploadConfig) => {
+    const requestUrl = buildCreativeCenterImageBedUploadUrl(
+      uploadConfig?.upload_url,
+      uploadConfig?.return_type,
+      uploadConfig?.auto_retry !== false,
+    );
+    if (!requestUrl) {
+      throw new Error('图床配置无效，请检查系统设置');
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    let response;
+    try {
+      response = await window.fetch(requestUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${uploadConfig.api_key}`,
+        },
+        body: formData,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      throw new Error('浏览器直连图床失败，请检查图床 CORS 配置或网络状态');
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        creativeCenterUploadConfigRef.current = null;
+      }
+      throw new Error(
+        `图床上传失败，状态码 ${response.status}${
+          responseText.trim() ? `：${responseText.trim()}` : ''
+        }`,
+      );
+    }
+
+    let payload = null;
+    if (responseText.trim()) {
+      try {
+        payload = JSON.parse(responseText);
+      } catch (error) {
+        throw new Error('图床上传成功，但返回内容不是有效 JSON');
+      }
+    }
+
+    const imageUrl = parseCreativeCenterDirectUploadImageUrl(
+      uploadConfig.upload_url,
+      payload,
+    );
+    if (!imageUrl) {
+      throw new Error('图床上传成功但未返回可用图片链接');
+    }
+
+    return {
+      url: imageUrl,
+      name: file.name,
+      filename: getCreativeCenterFilenameFromUrl(imageUrl),
+      size: file.size,
+    };
+  };
+
+  const uploadCreativeCenterImage = async (file) => {
+    const uploadConfig = await getCreativeCenterImageUploadConfig();
+    if (uploadConfig?.mode === 'direct') {
+      return uploadCreativeCenterImageDirectly(file, uploadConfig);
+    }
+    return uploadCreativeCenterImageViaBackend(file);
+  };
+
   const handleImageFileChange = async (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
@@ -2178,16 +3866,33 @@ export default function App() {
       return;
     }
 
+    if (!isCurrentModelImageUploadEnabled) {
+      setUploadImageNotice('当前模型不支持上传图片');
+      showWarning('当前模型不支持上传图片');
+      return;
+    }
+
     if (!isLoggedIn) {
       showWarning('请先登录后再上传图片');
       return;
     }
 
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length !== files.length) {
+    const rawImageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (rawImageFiles.length !== files.length) {
       showWarning('请上传图片文件');
     }
+    if (rawImageFiles.length === 0) {
+      return;
+    }
+
+    const imageFiles = rawImageFiles.filter(
+      (file) => file.size <= CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES,
+    );
+    if (imageFiles.length !== rawImageFiles.length) {
+      showWarning('图片大小不能超过 10MB');
+    }
     if (imageFiles.length === 0) {
+      setUploadImageNotice('上传失败，请重新上传不大于 10MB 的图片');
       return;
     }
 
@@ -2225,34 +3930,47 @@ export default function App() {
 
     setUploadedImages((prev) => [...prev, ...pendingItems]);
 
-    await Promise.all(
-      acceptedFiles.map(async (file, index) => {
-        const pendingItem = pendingItems[index];
-        try {
-          const uploaded = await uploadCreativeCenterImage(file);
-          setUploadedImages((prev) =>
-            prev.map((item) =>
-              item.id === pendingItem.id
-                ? {
-                    ...item,
-                    name: uploaded.name || file.name,
-                    url: uploaded.url,
-                    fileName: uploaded.filename || '',
-                    status: 'uploaded',
-                  }
-                : item,
-            ),
-          );
-        } catch (error) {
-          console.error('Failed to upload creative center image:', error);
-          revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
-          setUploadedImages((prev) =>
-            prev.filter((item) => item.id !== pendingItem.id),
-          );
-          setUploadImageNotice('上传失败，请重新上传');
-        }
-      }),
-    );
+    for (
+      let batchStartIndex = 0;
+      batchStartIndex < acceptedFiles.length;
+      batchStartIndex += CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY
+    ) {
+      const fileBatch = acceptedFiles.slice(
+        batchStartIndex,
+        batchStartIndex + CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY,
+      );
+
+      await Promise.all(
+        fileBatch.map(async (file, offset) => {
+          const index = batchStartIndex + offset;
+          const pendingItem = pendingItems[index];
+
+          try {
+            const uploaded = await uploadCreativeCenterImage(file);
+            setUploadedImages((prev) =>
+              prev.map((item) =>
+                item.id === pendingItem.id
+                  ? {
+                      ...item,
+                      name: uploaded.name || file.name,
+                      url: uploaded.url,
+                      fileName: uploaded.filename || '',
+                      status: 'uploaded',
+                    }
+                  : item,
+              ),
+            );
+          } catch (error) {
+            console.error('Failed to upload creative center image:', error);
+            revokeCreativeCenterPreviewURL(pendingItem.previewUrl);
+            setUploadedImages((prev) =>
+              prev.filter((item) => item.id !== pendingItem.id),
+            );
+            setUploadImageNotice('上传失败，请重新上传');
+          }
+        }),
+      );
+    }
   };
 
   useEffect(() => {
@@ -2403,10 +4121,14 @@ export default function App() {
     textareaRef.current?.focus();
   };
 
-  const handleClearImageResults = async () => {
-    setImageRecords([]);
-    setCollapsedImageRecordIds({});
-    await deleteCreativeHistory('image');
+  const handleClearCurrentSession = async () => {
+    const activeSessionId = currentTabHistorySnapshot?.payload?.current_session_id;
+    if (!activeSessionId) {
+      return;
+    }
+    await deleteCreativeSession(activeTab, activeSessionId, {
+      createFallback: true,
+    });
   };
 
   const handleRemoveImageRecord = async (recordId) => {
@@ -2418,12 +4140,6 @@ export default function App() {
       return next;
     });
     await persistImageRecords(nextRecords);
-  };
-
-  const handleClearVideoResults = async () => {
-    setVideoRecords([]);
-    setCollapsedVideoRecordIds({});
-    await deleteCreativeHistory('video');
   };
 
   const handleRemoveVideoRecord = async (recordId) => {
@@ -2460,12 +4176,19 @@ export default function App() {
           return;
         }
         historyHydratedRef.current = true;
-        setHistorySnapshots(EMPTY_HISTORY_SNAPSHOTS);
+        const emptySnapshots = {
+          chat: normalizeCreativeHistorySnapshot('chat', null),
+          image: normalizeCreativeHistorySnapshot('image', null),
+          video: normalizeCreativeHistorySnapshot('video', null),
+        };
+        setHistorySnapshots(emptySnapshots);
         setChatMessages([]);
         setImageRecords([]);
         setVideoRecords([]);
         setCollapsedImageRecordIds({});
         setCollapsedVideoRecordIds({});
+        setSelectedImageTaskIds({});
+        setSelectedVideoTaskIds({});
         return;
       }
 
@@ -2481,16 +4204,25 @@ export default function App() {
         }
 
         const nextSnapshots = {
-          chat: response.data.data?.chat || null,
-          image: response.data.data?.image || null,
-          video: response.data.data?.video || null,
+          chat: normalizeCreativeHistorySnapshot('chat', response.data.data?.chat || null),
+          image: normalizeCreativeHistorySnapshot('image', response.data.data?.image || null),
+          video: normalizeCreativeHistorySnapshot('video', response.data.data?.video || null),
         };
-        const nextImageRecords = normalizeImageHistoryRecords(nextSnapshots.image);
-        const nextVideoRecords = normalizeVideoHistoryRecords(nextSnapshots.video);
+        const nextChatSession = getCreativeCurrentSessionSnapshot(nextSnapshots.chat, 'chat');
+        const nextImageSession = getCreativeCurrentSessionSnapshot(
+          nextSnapshots.image,
+          'image',
+        );
+        const nextVideoSession = getCreativeCurrentSessionSnapshot(
+          nextSnapshots.video,
+          'video',
+        );
+        const nextImageRecords = normalizeImageHistoryRecords(nextImageSession);
+        const nextVideoRecords = normalizeVideoHistoryRecords(nextVideoSession);
         setHistorySnapshots(nextSnapshots);
         setChatMessages(
-          Array.isArray(nextSnapshots.chat?.payload?.messages)
-            ? nextSnapshots.chat.payload.messages
+          Array.isArray(nextChatSession?.payload?.messages)
+            ? nextChatSession.payload.messages
             : [],
         );
         setImageRecords(nextImageRecords);
@@ -2501,6 +4233,8 @@ export default function App() {
         setCollapsedVideoRecordIds(
           Object.fromEntries(nextVideoRecords.map((record) => [record.id, true])),
         );
+        setSelectedImageTaskIds({});
+        setSelectedVideoTaskIds({});
         lastPersistedImageSignatureRef.current = buildCreativePersistSignature(
           nextImageRecords,
           'image',
@@ -2557,6 +4291,565 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [videoPersistSignature, isLoggedIn]);
 
+  useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current || startupImageRecoveryRunRef.current) {
+      return undefined;
+    }
+
+    startupImageRecoveryRunRef.current = true;
+
+    const candidates = collectRecoverableImageCandidatesFromSnapshot(
+      historySnapshots.image,
+    );
+    const limitedCandidates = candidates.slice(
+      0,
+      CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS,
+    );
+
+    if (limitedCandidates.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const fetchCompletedImageTasksForRecord = async (recordCandidates) => {
+      if (!Array.isArray(recordCandidates) || recordCandidates.length === 0) {
+        return [];
+      }
+
+      const modelName = String(recordCandidates[0]?.recordModelName || '').trim().toLowerCase();
+      const candidateTimes = recordCandidates
+        .map((candidate) =>
+          normalizeCreativeTimestampToSeconds(
+            candidate.sortTimestamp ||
+              candidate.recordUpdatedAt ||
+              candidate.recordCreatedAt,
+          ),
+        )
+        .filter((value) => value > 0);
+      const baseStartTimestamp =
+        candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
+      const baseEndTimestamp =
+        candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
+      const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+      const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+      try {
+        const response = await API.get('/api/task/self', {
+          params: {
+            p: 1,
+            page_size: 100,
+            status: 'SUCCESS',
+            start_timestamp: startTimestamp,
+            end_timestamp: endTimestamp,
+          },
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        });
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+
+        return items
+          .filter((item) => {
+            const action = String(item?.action || '').trim();
+            if (
+              action !== 'imageGenerate' &&
+              action !== 'imageEdit'
+            ) {
+              return false;
+            }
+
+            const imageUrls = getTaskDtoImageUrls(item);
+            if (imageUrls.length === 0) {
+              return false;
+            }
+
+            const taskModelName = getTaskDtoModelName(item).toLowerCase();
+            if (modelName && taskModelName && taskModelName !== modelName) {
+              return false;
+            }
+
+            const submitTime = normalizeCreativeTimestampToSeconds(item?.submit_time);
+            if (submitTime > 0 && (submitTime < startTimestamp || submitTime > endTimestamp)) {
+              return false;
+            }
+
+            return true;
+          })
+          .sort(
+            (left, right) =>
+              normalizeCreativeTimestampToSeconds(left?.submit_time) -
+              normalizeCreativeTimestampToSeconds(right?.submit_time),
+          );
+      } catch (error) {
+        console.error('Failed to recover creative center image tasks from task list:', error);
+        return [];
+      }
+    };
+
+    const buildFallbackImageMatchMap = async (recordCandidateGroups) => {
+      const fallbackMatches = new Map();
+
+      for (const group of recordCandidateGroups) {
+        if (cancelled || group.length === 0) {
+          break;
+        }
+
+        const matchedTasks = await fetchCompletedImageTasksForRecord(group);
+        if (matchedTasks.length === 0) {
+          continue;
+        }
+
+        const sortedCandidates = [...group].sort(
+          (left, right) =>
+            normalizeCreativeTimestampToSeconds(left.sortTimestamp) -
+            normalizeCreativeTimestampToSeconds(right.sortTimestamp),
+        );
+
+        sortedCandidates.forEach((candidate, index) => {
+          const matchedTask = matchedTasks[index];
+          if (!matchedTask) {
+            return;
+          }
+          fallbackMatches.set(
+            buildRecoverableImageCandidateKey(candidate),
+            matchedTask,
+          );
+        });
+      }
+
+      return fallbackMatches;
+    };
+
+    const recoverStartupImageTasks = async () => {
+      let recoveredSnapshot = normalizeCreativeHistorySnapshot(
+        'image',
+        historySnapshots.image,
+      );
+      let hasRecoveredChanges = false;
+
+      try {
+        const groupedCandidates = Array.from(
+          limitedCandidates.reduce((map, candidate) => {
+            const key = `${candidate.sessionId}:${candidate.recordId}`;
+            if (!map.has(key)) {
+              map.set(key, []);
+            }
+            map.get(key).push(candidate);
+            return map;
+          }, new Map()),
+        ).map(([, group]) => group);
+        const fallbackTaskMatches = await buildFallbackImageMatchMap(groupedCandidates);
+
+        for (
+          let startIndex = 0;
+          startIndex < limitedCandidates.length && !cancelled;
+          startIndex += CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY
+        ) {
+          const currentBatch = limitedCandidates.slice(
+            startIndex,
+            startIndex + CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY,
+          );
+
+          currentBatch.forEach((candidate) => {
+            const matchedTask = fallbackTaskMatches.get(
+              buildRecoverableImageCandidateKey(candidate),
+            );
+            if (!matchedTask || cancelled) {
+              return;
+            }
+
+            const imageUrls = getTaskDtoImageUrls(matchedTask);
+            const primaryImageUrl = imageUrls[0] || '';
+            if (!primaryImageUrl) {
+              return;
+            }
+
+            const taskPatch = patchImageTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              {
+                url: primaryImageUrl,
+                resultUrl: primaryImageUrl,
+                status: 'completed',
+                progress: 100,
+                error: '',
+                finalizingAt: 0,
+                progressUnavailable: false,
+                requestPollable: false,
+              },
+            );
+            if (taskPatch.hasChanged) {
+              recoveredSnapshot = taskPatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+          });
+        }
+
+        if (!cancelled && hasRecoveredChanges) {
+          await persistCreativeHistorySnapshot('image', recoveredSnapshot, {
+            applySessionState: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to finish startup recovery for creative center image tasks:', error);
+      }
+    };
+
+    recoverStartupImageTasks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historySnapshots.image, isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current || startupVideoRecoveryRunRef.current) {
+      return undefined;
+    }
+
+    startupVideoRecoveryRunRef.current = true;
+
+    const candidates = collectRecoverableVideoCandidatesFromSnapshot(
+      historySnapshots.video,
+    );
+    const limitedCandidates = candidates.slice(
+      0,
+      CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS,
+    );
+
+    if (limitedCandidates.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const resolveVideoTaskIdByRequestId = async (requestId) => {
+      if (!requestId) {
+        return '';
+      }
+
+      try {
+        const response = await API.get(
+          `/api/log/self/?p=0&page_size=${CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE}&type=0&request_id=${encodeURIComponent(requestId)}`,
+          {
+            skipErrorHandler: true,
+            headers: {
+              'New-API-User': getUserIdFromLocalStorage(),
+            },
+          },
+        );
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+
+        for (const item of items) {
+          const recoveredTaskId = getTaskIdFromCreativeLog(item);
+          if (recoveredTaskId) {
+            return recoveredTaskId;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve creative center video task id from usage log:', error);
+      }
+
+      return '';
+    };
+
+    const fetchCompletedTasksForRecord = async (recordCandidates) => {
+      if (!Array.isArray(recordCandidates) || recordCandidates.length === 0) {
+        return [];
+      }
+
+      const modelName = String(recordCandidates[0]?.recordModelName || '').trim().toLowerCase();
+      const candidateTimes = recordCandidates
+        .map((candidate) =>
+          normalizeCreativeTimestampToSeconds(
+            candidate.sortTimestamp ||
+              candidate.recordUpdatedAt ||
+              candidate.recordCreatedAt,
+          ),
+        )
+        .filter((value) => value > 0);
+      const baseStartTimestamp =
+        candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
+      const baseEndTimestamp =
+        candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
+      const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+      const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+      try {
+        const response = await API.get('/api/task/self', {
+          params: {
+            p: 1,
+            page_size: 100,
+            status: 'SUCCESS',
+            start_timestamp: startTimestamp,
+            end_timestamp: endTimestamp,
+          },
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        });
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+        const usedTaskIds = new Set(
+          recordCandidates
+            .map((candidate) => String(candidate.queryTaskId || '').trim())
+            .filter(Boolean),
+        );
+
+        return items
+          .filter((item) => {
+            const taskId = String(item?.task_id || '').trim();
+            const resultUrl = getTaskDtoResultUrl(item);
+            if (!taskId || !resultUrl || usedTaskIds.has(taskId)) {
+              return false;
+            }
+
+            const taskModelName = getTaskDtoModelName(item).toLowerCase();
+            if (modelName && taskModelName && taskModelName !== modelName) {
+              return false;
+            }
+
+            const submitTime = normalizeCreativeTimestampToSeconds(item?.submit_time);
+            if (submitTime > 0 && (submitTime < startTimestamp || submitTime > endTimestamp)) {
+              return false;
+            }
+
+            return true;
+          })
+          .sort(
+            (left, right) =>
+              normalizeCreativeTimestampToSeconds(left?.submit_time) -
+              normalizeCreativeTimestampToSeconds(right?.submit_time),
+          );
+      } catch (error) {
+        console.error('Failed to recover creative center video tasks from task list:', error);
+        return [];
+      }
+    };
+
+    const buildFallbackTaskMatchMap = async (recordCandidateGroups) => {
+      const fallbackMatches = new Map();
+
+      for (const group of recordCandidateGroups) {
+        if (cancelled || group.length === 0) {
+          break;
+        }
+
+        const missingTaskIdCandidates = group.filter(
+          (candidate) => !candidate.queryTaskId,
+        );
+        if (missingTaskIdCandidates.length === 0) {
+          continue;
+        }
+
+        const matchedTasks = await fetchCompletedTasksForRecord(group);
+        if (matchedTasks.length === 0) {
+          continue;
+        }
+
+        const sortedCandidates = [...missingTaskIdCandidates].sort(
+          (left, right) =>
+            normalizeCreativeTimestampToSeconds(left.sortTimestamp) -
+            normalizeCreativeTimestampToSeconds(right.sortTimestamp),
+        );
+
+        sortedCandidates.forEach((candidate, index) => {
+          const matchedTask = matchedTasks[index];
+          if (!matchedTask) {
+            return;
+          }
+          fallbackMatches.set(
+            buildRecoverableVideoCandidateKey(candidate),
+            matchedTask,
+          );
+        });
+      }
+
+      return fallbackMatches;
+    };
+
+    const recoverStartupVideoTasks = async () => {
+      let recoveredSnapshot = normalizeCreativeHistorySnapshot(
+        'video',
+        historySnapshots.video,
+      );
+      let hasRecoveredChanges = false;
+
+      try {
+        const groupedCandidates = Array.from(
+          limitedCandidates.reduce((map, candidate) => {
+            const key = `${candidate.sessionId}:${candidate.recordId}`;
+            if (!map.has(key)) {
+              map.set(key, []);
+            }
+            map.get(key).push(candidate);
+            return map;
+          }, new Map()),
+        ).map(([, group]) => group);
+        const fallbackTaskMatches = await buildFallbackTaskMatchMap(groupedCandidates);
+
+        for (
+          let startIndex = 0;
+          startIndex < limitedCandidates.length && !cancelled;
+          startIndex += CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY
+        ) {
+          const currentBatch = limitedCandidates.slice(
+            startIndex,
+            startIndex + CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY,
+          );
+
+          const batchResults = await Promise.allSettled(
+            currentBatch.map(async (candidate) => {
+              let queryTaskId = candidate.queryTaskId;
+              const fallbackTask = fallbackTaskMatches.get(
+                buildRecoverableVideoCandidateKey(candidate),
+              );
+
+              if (!queryTaskId && fallbackTask) {
+                return {
+                  candidate,
+                  queryTaskId: String(fallbackTask.task_id || '').trim(),
+                  nextTaskState: {
+                    status: 'completed',
+                    progress: 100,
+                    url: getTaskDtoResultUrl(fallbackTask),
+                    content: '',
+                    error: '',
+                  },
+                };
+              }
+
+              if (!queryTaskId) {
+                queryTaskId = await resolveVideoTaskIdByRequestId(candidate.requestId);
+              }
+
+              if (!queryTaskId || cancelled) {
+                return null;
+              }
+
+              try {
+                const response = await API.get(
+                  `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+                  {
+                    skipErrorHandler: true,
+                    headers: {
+                      'New-API-User': getUserIdFromLocalStorage(),
+                    },
+                  },
+                );
+
+                if (cancelled) {
+                  return null;
+                }
+
+                return {
+                  candidate,
+                  queryTaskId,
+                  nextTaskState: parseVideoFetchPayload(response),
+                };
+              } catch (error) {
+                console.error('Failed to recover creative center video task from history:', error);
+                return {
+                  candidate,
+                  queryTaskId,
+                  nextTaskState: null,
+                };
+              }
+            }),
+          );
+
+          batchResults.forEach((result) => {
+            if (result.status !== 'fulfilled' || !result.value || cancelled) {
+              return;
+            }
+
+            const { candidate, queryTaskId, nextTaskState } = result.value;
+            if (!queryTaskId) {
+              return;
+            }
+
+            const taskIdPatch = patchVideoTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              (currentTask) => ({
+                taskId: queryTaskId,
+                pollable:
+                  currentTask.pollable !== false &&
+                  !getVideoTaskMediaUrl(currentTask) &&
+                  normalizeVideoTaskStatus(currentTask.status) !== 'failed',
+              }),
+            );
+            if (taskIdPatch.hasChanged) {
+              recoveredSnapshot = taskIdPatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+
+            if (!nextTaskState) {
+              return;
+            }
+
+            const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
+            const resolvedURL = nextTaskState.url || '';
+            const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
+            const isFailed = nextStatus === 'failed';
+            const taskStatePatch = patchVideoTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              (currentTask) => ({
+                taskId: queryTaskId,
+                status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
+                progress: isCompleted
+                  ? 100
+                  : nextTaskState.progress ?? currentTask.progress ?? 0,
+                url: isCompleted
+                  ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                  : currentTask.url,
+                content: nextTaskState.content || currentTask.content,
+                error: isFailed
+                  ? (nextTaskState.error || currentTask.error || '任务生成失败')
+                  : '',
+                resultUrl: isCompleted
+                  ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                  : (currentTask.resultUrl || resolvedURL),
+                finalizingAt: 0,
+                pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
+              }),
+            );
+            if (taskStatePatch.hasChanged) {
+              recoveredSnapshot = taskStatePatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+          });
+        }
+
+        if (!cancelled && hasRecoveredChanges) {
+          await persistCreativeHistorySnapshot('video', recoveredSnapshot, {
+            applySessionState: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to finish startup recovery for creative center video tasks:', error);
+      }
+    };
+
+    recoverStartupVideoTasks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historySnapshots.video, isLoggedIn]);
+
   const handleSubmit = async () => {
     const uploadedImageUrls = uploadedImages
       .filter((item) => item?.status === 'uploaded' && item?.url)
@@ -2587,14 +4880,17 @@ export default function App() {
         ),
         id: Date.now(),
       };
-      setChatMessages(prev => [...prev, userMsg]);
+      const currentChatHistory = Array.isArray(chatMessagesRef.current)
+        ? chatMessagesRef.current
+        : [];
+      const nextUserMessages = [...currentChatHistory, userMsg];
+      setChatMessages(nextUserMessages);
       try {
-        const payload = createBasePayload(
-          currentPrompt,
-          params,
-          currentModelName,
-          'chat',
-          currentUploadedImageUrls,
+        const payload = buildApiPayload(
+          nextUserMessages,
+          '',
+          createCreativeInputs(params, currentModelName, 'chat'),
+          PARAMETER_TOGGLES_DISABLED,
         );
         const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
         const choice = data?.choices?.[0];
@@ -2610,17 +4906,19 @@ export default function App() {
           content,
           id: Date.now() + 1,
         };
-        const nextMessages = [...chatMessages, userMsg, assistantMsg];
+        const nextMessages = [...nextUserMessages, assistantMsg];
         setChatMessages(nextMessages);
-        await saveCreativeHistory(
+        await persistCreativeHistorySnapshot(
           'chat',
-          {
-            messages: nextMessages,
-          },
-          {
-            modelName: currentModelName,
+          updateCurrentCreativeSessionSnapshot('chat', {
+            model_name: currentModelName,
+            group: activeGroup,
             prompt: currentPrompt,
-          },
+            payload: {
+              messages: nextMessages,
+            },
+            updated_at: Date.now(),
+          }),
         );
       } catch (error) {
         console.error('Creative center chat error:', error);
@@ -2629,17 +4927,19 @@ export default function App() {
           content: `请求失败：${error.message || '请稍后再试。'}`,
           id: Date.now() + 1,
         };
-        const nextMessages = [...chatMessages, userMsg, errorMsg];
+        const nextMessages = [...nextUserMessages, errorMsg];
         setChatMessages(nextMessages);
-        await saveCreativeHistory(
+        await persistCreativeHistorySnapshot(
           'chat',
-          {
-            messages: nextMessages,
-          },
-          {
-            modelName: currentModelName,
+          updateCurrentCreativeSessionSnapshot('chat', {
+            model_name: currentModelName,
+            group: activeGroup,
             prompt: currentPrompt,
-          },
+            payload: {
+              messages: nextMessages,
+            },
+            updated_at: Date.now(),
+          }),
         );
       }
     } else if (activeTab === 'image') {
@@ -2651,6 +4951,12 @@ export default function App() {
       const useEstimatedImageProgress =
         shouldUseEstimatedImageProgress(currentModelName);
       const generationCount = Number(params.generationCount) || 1;
+      const batchSeedBase = createBatchSeedBase();
+      const taskRequestMetas = Array.from({ length: generationCount }, (_, index) => ({
+        requestSeed: createTaskSeed(batchSeedBase, index),
+        requestUser: createTaskRequestUser(batchSeedBase, index),
+        requestId: createTaskRequestId(batchSeedBase, index),
+      }));
       const recordId = createCreativeRecordId('image');
       const pendingRecord = {
         id: recordId,
@@ -2665,7 +4971,7 @@ export default function App() {
           progress: useEstimatedImageProgress ? 3 : 0,
           error: '',
           resultUrl: '',
-          requestId: '',
+          requestId: taskRequestMetas[index]?.requestId || '',
           submittedAt: 0,
           estimateStartAt: 0,
           finalizingAt: 0,
@@ -2680,21 +4986,27 @@ export default function App() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      const pendingRecords = [...imageRecords, pendingRecord];
-      setImageRecords(pendingRecords);
+      const pendingRecords = [...imageRecordsRef.current, pendingRecord];
+      syncImageRecordsState(pendingRecords);
       setCollapsedImageRecordIds((prev) => ({
         ...prev,
         [recordId]: false,
       }));
+      persistImageRecords(pendingRecords, {
+        modelName: currentModelName,
+        prompt: currentPrompt,
+        params: pendingRecord.params,
+      }).catch((error) => {
+        console.error('Failed to persist initial creative center image record:', error);
+      });
 
       try {
-        const batchSeedBase = createBatchSeedBase();
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const taskId = pendingRecord.images[index].id;
-            const requestSeed = createTaskSeed(batchSeedBase, index);
-            const requestUser = createTaskRequestUser(batchSeedBase, index);
-            const requestId = createTaskRequestId(batchSeedBase, index);
+            const requestSeed = taskRequestMetas[index]?.requestSeed;
+            const requestUser = taskRequestMetas[index]?.requestUser;
+            const requestId = taskRequestMetas[index]?.requestId;
             const submittedAt = Date.now();
             const estimateStartAt = submittedAt + index * CREATIVE_BATCH_REQUEST_SPACING_MS;
             const basePayload = createBasePayload(
@@ -2704,28 +5016,43 @@ export default function App() {
               'image',
               currentUploadedImageUrls,
             );
-            const payload = isGrokImageEditModel
+            const useAdobeChatImageRequest =
+              ADOBE_CHAT_IMAGE_MODELS.has(currentModelName);
+            const payload = useAdobeChatImageRequest
               ? {
                   model: currentModelName,
                   group: activeGroup,
-                  prompt: currentPrompt || 'Edit the provided media.',
-                  n: 1,
-                  response_format: 'url',
-                  request_id: requestId,
+                  stream: false,
+                  messages: basePayload.messages,
                   seed: requestSeed,
+                  seeds: [requestSeed],
                   user: requestUser,
+                  request_id: requestId,
                 }
-              : {
-                  model: currentModelName,
-                  group: activeGroup,
-                  prompt: currentPrompt,
-                  n: 1,
-                  response_format: 'url',
-                  request_id: requestId,
-                  seed: requestSeed,
-                  user: requestUser,
-                };
-            if (!isGrokImageEditModel && basePayload.size) {
+              : isGrokImageEditModel
+                ? {
+                    model: currentModelName,
+                    group: activeGroup,
+                    prompt: currentPrompt || 'Edit the provided media.',
+                    n: 1,
+                    response_format: 'url',
+                    request_id: requestId,
+                    seed: requestSeed,
+                    seeds: [requestSeed],
+                    user: requestUser,
+                  }
+                : {
+                    model: currentModelName,
+                    group: activeGroup,
+                    prompt: currentPrompt,
+                    n: 1,
+                    response_format: 'url',
+                    request_id: requestId,
+                    seed: requestSeed,
+                    seeds: [requestSeed],
+                    user: requestUser,
+                  };
+            if (!isGrokImageEditModel && !useAdobeChatImageRequest && basePayload.size) {
               payload.size = basePayload.size;
             }
             if (isGrokImageEditModel) {
@@ -2733,6 +5060,16 @@ export default function App() {
                 payload.image = currentUploadedImageUrls[0];
               } else if (currentUploadedImageUrls.length > 1) {
                 payload.image = currentUploadedImageUrls;
+              }
+            } else if (useAdobeChatImageRequest) {
+              if (basePayload.extra_body) {
+                payload.extra_body = basePayload.extra_body;
+              }
+              if (basePayload.aspect_ratio) {
+                payload.aspect_ratio = basePayload.aspect_ratio;
+              }
+              if (basePayload.output_resolution) {
+                payload.output_resolution = basePayload.output_resolution;
               }
             } else {
               if (basePayload.aspect_ratio) {
@@ -2748,7 +5085,9 @@ export default function App() {
 
             patchImageTask(recordId, taskId, {
               requestId,
-              requestPollable: ADOBE_IMAGE_MODELS.has(currentModelName),
+              requestPollable:
+                ADOBE_IMAGE_MODELS.has(currentModelName) &&
+                !useAdobeChatImageRequest,
               submittedAt,
               estimateStartAt,
               finalizingAt: 0,
@@ -2765,19 +5104,15 @@ export default function App() {
             const data = await postCreativeRequest(
               isGrokImageEditModel
                 ? API_ENDPOINTS.IMAGE_EDITS
-                : API_ENDPOINTS.IMAGE_GENERATIONS,
+                : useAdobeChatImageRequest
+                  ? API_ENDPOINTS.CHAT_COMPLETIONS
+                  : API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
               {
                 'X-Request-Id': requestId,
               },
             );
-            const imageUrls = Array.isArray(data?.data)
-              ? data.data
-                  .map((item) =>
-                    typeof item?.url === 'string' ? item.url.trim() : '',
-                  )
-                  .filter(Boolean)
-              : [];
+            const imageUrls = extractImageUrlsFromCreativeResponse(data);
 
             if (useEstimatedImageProgress && imageUrls[0]) {
               patchImageTask(recordId, taskId, {
@@ -2846,6 +5181,12 @@ export default function App() {
       const useEstimatedVideoProgress =
         shouldUseEstimatedVideoProgress(currentModelName);
       const generationCount = Number(params.generationCount) || 1;
+      const batchSeedBase = createBatchSeedBase();
+      const taskRequestMetas = Array.from({ length: generationCount }, (_, index) => ({
+        requestSeed: createTaskSeed(batchSeedBase, index),
+        requestUser: createTaskRequestUser(batchSeedBase, index),
+        requestId: createTaskRequestId(batchSeedBase, index),
+      }));
       const recordId = createCreativeRecordId('video');
       const pendingRecord = {
         id: recordId,
@@ -2863,7 +5204,7 @@ export default function App() {
           error: '',
           resultUrl: '',
           resultContent: '',
-          requestId: '',
+          requestId: taskRequestMetas[index]?.requestId || '',
           submittedAt: 0,
           estimateStartAt: 0,
           finalizingAt: 0,
@@ -2879,21 +5220,27 @@ export default function App() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      const pendingRecords = [...videoRecords, pendingRecord];
-      setVideoRecords(pendingRecords);
+      const pendingRecords = [...videoRecordsRef.current, pendingRecord];
+      syncVideoRecordsState(pendingRecords);
       setCollapsedVideoRecordIds((prev) => ({
         ...prev,
         [recordId]: false,
       }));
+      persistVideoRecords(pendingRecords, {
+        modelName: currentModelName,
+        prompt: currentPrompt,
+        params: pendingRecord.params,
+      }).catch((error) => {
+        console.error('Failed to persist initial creative center video record:', error);
+      });
 
       try {
-        const batchSeedBase = createBatchSeedBase();
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
-            const requestSeed = createTaskSeed(batchSeedBase, index);
-            const requestUser = createTaskRequestUser(batchSeedBase, index);
-            const requestId = createTaskRequestId(batchSeedBase, index);
+            const requestSeed = taskRequestMetas[index]?.requestSeed;
+            const requestUser = taskRequestMetas[index]?.requestUser;
+            const requestId = taskRequestMetas[index]?.requestId;
             const submittedAt = Date.now();
             const estimateStartAt = submittedAt + index * CREATIVE_BATCH_REQUEST_SPACING_MS;
             const basePayload = createBasePayload(
@@ -2907,6 +5254,7 @@ export default function App() {
 
             if (isAdobeVideoModel) {
               basePayload.seed = requestSeed;
+              basePayload.seeds = [requestSeed];
               basePayload.user = requestUser;
               basePayload.request_id = requestId;
               basePayload.metadata = {
@@ -2980,6 +5328,7 @@ export default function App() {
               prompt: currentPrompt,
               request_id: requestId,
               seed: requestSeed,
+              seeds: [requestSeed],
               user: requestUser,
               metadata: {
                 creative_request_id: requestUser,
@@ -3003,7 +5352,12 @@ export default function App() {
                 payload[key] = basePayload[key];
               }
             });
-            if (currentUploadedImageUrls[0]) {
+            if (
+              currentModelName === 'grok-imagine-1.0-video' &&
+              currentUploadedImageUrls.length > 0
+            ) {
+              payload.image_reference = currentUploadedImageUrls;
+            } else if (currentUploadedImageUrls[0]) {
               payload.image = currentUploadedImageUrls[0];
             }
             patchVideoTask(recordId, localTaskId, {
@@ -3121,7 +5475,7 @@ export default function App() {
 
   return (
     <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-slate-50 text-slate-800 font-sans'>
-      <aside className='flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
+      <aside className='relative z-10 flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
         <div className='p-6'>
           <div className='flex items-center gap-2'>
             <div className='h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200'>
@@ -3155,32 +5509,168 @@ export default function App() {
           })}
         </nav>
 
-        <div className='flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
+        <div className='border-b border-slate-100 px-4 py-4'>
+          <div className='relative flex flex-wrap items-center gap-3'>
+            <button
+              type='button'
+              onClick={() => setIsSessionPanelOpen((prev) => !prev)}
+              disabled={isSubmitPending}
+              className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+            >
+              <History size={16} />
+              历史会话
+            </button>
+            <button
+              type='button'
+              onClick={() => createCreativeSession(activeTab)}
+              disabled={isSubmitPending}
+              className='inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+            >
+              <Plus size={16} />
+              新建会话
+            </button>
+
+            {isSessionPanelOpen && (
+              <div className='absolute left-0 right-0 top-14 z-30 rounded-[1.75rem] border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-200/80'>
+                <div className='mb-3 px-2'>
+                  <div className='text-sm font-bold text-slate-800'>历史会话</div>
+                  <div className='text-xs text-slate-400'>仅删除会话，图片视频资源仍保留</div>
+                </div>
+                <div className='max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
+                  {currentTabSessions
+                    .slice()
+                    .sort(
+                      (left, right) =>
+                        Number(right?.updated_at || 0) - Number(left?.updated_at || 0),
+                    )
+                    .map((session) => {
+                      const isCurrentSession =
+                        session.id === currentTabHistorySnapshot?.payload?.current_session_id;
+                      const sessionTime = formatCreativeRecordTime(session.updated_at);
+                      return (
+                        <div
+                          key={session.id}
+                          className={`rounded-2xl border px-3 py-3 transition ${
+                            isCurrentSession
+                              ? 'border-blue-200 bg-blue-50/80'
+                              : 'border-slate-200 bg-slate-50/70 hover:bg-white'
+                          }`}
+                        >
+                          <button
+                            type='button'
+                            onClick={() => openCreativeSession(activeTab, session.id)}
+                            disabled={isSubmitPending}
+                            className='min-w-0 w-full text-left disabled:cursor-not-allowed'
+                          >
+                            <div className='truncate text-sm font-semibold text-slate-700'>
+                              {session.name || '未命名会话'}
+                            </div>
+                            <div className='mt-1 truncate text-xs text-slate-400'>
+                              {formatCreativeSessionMeta(activeTab, session)}
+                              {sessionTime ? ` · ${sessionTime}` : ''}
+                            </div>
+                          </button>
+                          <div className='mt-3 flex items-center justify-end gap-2'>
+                            <button
+                              type='button'
+                              onClick={() => renameCreativeSession(activeTab, session.id)}
+                              disabled={isSubmitPending}
+                              className='rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+                            >
+                              重命名
+                            </button>
+                            <button
+                              type='button'
+                              onClick={() => deleteCreativeSession(activeTab, session.id)}
+                              disabled={isSubmitPending}
+                              className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500'
+                              title='只删除会话，图片视频资源仍保留'
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        <div className='relative flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
           <div className='text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-2'>核心创作模型</div>
           {currentDisplayModels.map((model) => (
             <button
               key={model.id}
               onClick={() => setActiveModel(model.id)}
-              className={`w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
+              onMouseEnter={() => setHoveredSidebarModelId(model.id)}
+              onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
+              title={model.fullDesc || model.desc || model.name}
+              className={`relative w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
                 activeModel === model.id ? 'border-blue-200 bg-blue-50 shadow-sm' : 'border-transparent hover:bg-slate-50'
               }`}
             >
+              {model.priceLabel ? (
+                <div
+                  className={`absolute right-3 top-3 max-w-[118px] truncate rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm ${
+                    activeModel === model.id
+                      ? 'bg-white text-blue-700'
+                      : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700'
+                  }`}
+                >
+                  {model.priceLabel}
+                </div>
+              ) : null}
               <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${activeModel === model.id ? 'bg-white shadow-sm text-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
                 {model.icon}
               </div>
-              <div className='min-w-0'>
+              <div className='min-w-0 flex-1 pr-20'>
                 <div className={`text-sm font-bold truncate ${activeModel === model.id ? 'text-blue-900' : 'text-slate-700'}`}>{model.name}</div>
                 <p className='mt-1 text-[11px] leading-relaxed text-slate-500 line-clamp-2'>{model.desc}</p>
               </div>
             </button>
           ))}
+          {hoveredSidebarModel ? (
+            <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[320px] lg:block'>
+              <div className='relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-slate-200/70 backdrop-blur-sm'>
+                <div className='absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_60%)]' />
+                <div className='relative'>
+                  <div className='mb-3 flex items-start justify-between gap-3'>
+                    <div className='flex min-w-0 items-center gap-3'>
+                      <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-sm'>
+                        {hoveredSidebarModel.icon}
+                      </div>
+                      <div className='min-w-0'>
+                        <div className='truncate text-sm font-black tracking-tight text-slate-900'>
+                          {hoveredSidebarModel.name}
+                        </div>
+                        <div className='mt-1 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400'>
+                          模型简介
+                        </div>
+                      </div>
+                    </div>
+                    {hoveredSidebarModel.priceLabel ? (
+                      <div className='shrink-0 rounded-full bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700'>
+                        {hoveredSidebarModel.priceLabel}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className='rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-sm leading-7 text-slate-600'>
+                    {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无简介'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </aside>
 
-      <main className='relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden bg-white/40 backdrop-blur-md'>
+      <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
-            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 py-10 space-y-6 custom-scrollbar'>
+            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
                   <div className='max-w-xl rounded-[2.5rem] border border-slate-200 bg-white/80 px-10 py-12 text-center shadow-[0_20px_80px_rgba(59,130,246,0.08)] backdrop-blur-sm'>
@@ -3239,7 +5729,7 @@ export default function App() {
         )}
 
         {activeTab !== 'chat' && (
-          <div ref={scrollRef} className='relative flex-1 overflow-y-auto p-10 custom-scrollbar'>
+          <div ref={scrollRef} className='relative flex-1 overflow-y-auto px-10 pb-10 pt-4 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='space-y-10'>
@@ -3567,10 +6057,8 @@ export default function App() {
                     const recordTime = formatCreativeRecordTime(
                       record.updatedAt || record.createdAt,
                     );
-                    const videoCardAspectRatio = resolveCreativeAspectRatio(
-                      record?.params?.aspectRatio,
-                      '9 / 16',
-                    );
+                    const videoCardAspectRatio = getCreativeVideoCardAspectRatio(record);
+                    const videoCardObjectFitClass = getCreativeVideoCardObjectFitClass(record);
 
                     return (
                       <article
@@ -3656,13 +6144,15 @@ export default function App() {
                                               muted
                                               playsInline
                                               preload='metadata'
-                                              className='absolute inset-0 z-0 h-full w-full object-cover'
+                                              className={`absolute inset-0 z-0 h-full w-full ${videoCardObjectFitClass}`}
                                               src={getVideoTaskMediaUrl(task)}
                                             />
                                             <button
                                               onClick={() =>
                                                 openVideoPreviewInNewWindow(
                                                   getVideoTaskMediaUrl(task),
+                                                  `${record.modelName || '视频'} ${taskIndex + 1}`,
+                                                  record.prompt || '',
                                                 )
                                               }
                                               className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
@@ -3776,13 +6266,15 @@ export default function App() {
                                           muted
                                           playsInline
                                           preload='metadata'
-                                          className='absolute inset-0 z-0 h-full w-full object-cover'
+                                          className={`absolute inset-0 z-0 h-full w-full ${videoCardObjectFitClass}`}
                                           src={getVideoTaskMediaUrl(task)}
                                         />
                                         <button
                                           onClick={() =>
                                             openVideoPreviewInNewWindow(
                                               getVideoTaskMediaUrl(task),
+                                              `${record.modelName || '视频'} ${taskIndex + 1}`,
+                                              record.prompt || '',
                                             )
                                           }
                                           className='absolute inset-0 z-10 flex h-full w-full items-start justify-start bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(2,6,23,0.28))] p-4 text-left text-white transition hover:scale-[1.01]'
@@ -3958,24 +6450,26 @@ export default function App() {
                 onChange={handleImageFileChange}
               />
               <div className='flex items-end gap-4 px-2'>
-                <div className='shrink-0'>
-                  <button
-                    type='button'
-                    onClick={handleUploadButtonClick}
-                    className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
-                  >
-                    <div className='flex flex-col items-center gap-2'>
-                      {isUploadingImage ? (
-                        <Loader2 size={20} className='animate-spin' />
-                      ) : (
-                        <ImagePlus size={20} />
-                      )}
-                      <span className='text-[11px] font-semibold'>
-                        {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
-                      </span>
-                    </div>
-                  </button>
-                </div>
+                {isCurrentModelImageUploadEnabled ? (
+                  <div className='shrink-0'>
+                    <button
+                      type='button'
+                      onClick={handleUploadButtonClick}
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
+                    >
+                      <div className='flex flex-col items-center gap-2'>
+                        {isUploadingImage ? (
+                          <Loader2 size={20} className='animate-spin' />
+                        ) : (
+                          <ImagePlus size={20} />
+                        )}
+                        <span className='text-[11px] font-semibold'>
+                          {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                ) : null}
                 <textarea
                   ref={textareaRef}
                   value={prompt}
@@ -4025,7 +6519,11 @@ export default function App() {
               ) : null}
               {currentImageUploadLimit ? (
                 <div className='mt-2 px-2 text-[11px] text-slate-400'>
-                  当前模型最多可上传 {currentImageUploadLimit} 张图片
+                  当前模型最多可上传 {currentImageUploadLimit} 张图片（建议不大于5M/张）
+                </div>
+              ) : !isCurrentModelImageUploadEnabled ? (
+                <div className='mt-2 px-2 text-[11px] text-slate-400'>
+                  当前模型暂不支持上传图片
                 </div>
               ) : null}
 
@@ -4089,11 +6587,11 @@ export default function App() {
                         menuKey='aspectRatio'
                         icon={<Copy size={14} />}
                         label={`比例 ${getOptionLabel(
-                          ADOBE_IMAGE_ASPECT_RATIO_OPTIONS,
+                          currentAdobeImageAspectRatioOptions,
                           params.aspectRatio,
                         )}`}
                         value={params.aspectRatio}
-                        options={ADOBE_IMAGE_ASPECT_RATIO_OPTIONS}
+                        options={currentAdobeImageAspectRatioOptions}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -4196,17 +6694,11 @@ export default function App() {
                         menuKey='videoDuration'
                         icon={<Clock size={14} />}
                         label={`时长 ${getOptionLabel(
-                          isAdobeSoraModel
-                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-                            : ADOBE_VIDEO_DURATION_OPTIONS.veo,
+                          getAdobeVideoDurationOptions(currentModelName),
                           params.videoDuration,
                         )}`}
                         value={params.videoDuration}
-                        options={
-                          isAdobeSoraModel
-                            ? ADOBE_VIDEO_DURATION_OPTIONS.sora
-                            : ADOBE_VIDEO_DURATION_OPTIONS.veo
-                        }
+                        options={getAdobeVideoDurationOptions(currentModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -4220,7 +6712,7 @@ export default function App() {
                         icon={<Copy size={14} />}
                         label={`比例 ${params.aspectRatio}`}
                         value={params.aspectRatio}
-                        options={ADOBE_VIDEO_ASPECT_RATIO_OPTIONS}
+                        options={getAdobeVideoAspectRatioOptions(currentModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -4274,6 +6766,18 @@ export default function App() {
               )}
             </div>
           </div>
+        </div>
+        <div className='pointer-events-none absolute bottom-8 right-8 z-20'>
+          <button
+            type='button'
+            onClick={handleClearCurrentSession}
+            disabled={isSubmitPending}
+            title='只删除会话，图片视频资源仍保留'
+            className='pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-500 shadow-lg shadow-slate-200/60 backdrop-blur-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+          >
+            <Trash2 size={14} />
+            清除会话
+          </button>
         </div>
       </main>
 

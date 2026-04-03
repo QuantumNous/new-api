@@ -11,6 +11,8 @@ const (
 	SunoActionMusic  = "MUSIC"
 	SunoActionLyrics = "LYRICS"
 
+	TaskActionImageGenerate     = "imageGenerate"
+	TaskActionImageEdit         = "imageEdit"
 	TaskActionGenerate          = "generate"
 	TaskActionTextGenerate      = "textGenerate"
 	TaskActionFirstTailGenerate = "firstTailGenerate"
