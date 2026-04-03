@@ -356,7 +356,6 @@ export default function SettingsPerformance(props) {
                   label={t('CPU 阈值 (%)')}
                   extraText={t('CPU 使用率超过此值时拒绝请求')}
                   min={0}
-                  max={100}
                   onChange={handleFieldChange(
                     'performance_setting.monitor_cpu_threshold',
                   )}

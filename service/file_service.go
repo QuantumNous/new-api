@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -275,6 +276,11 @@ func smartDetectMimeType(resp *http.Response, url string, fileBytes []byte) stri
 			}
 			return sniffed
 		}
+
+		// 4.5 尝试 HEIF/HEIC 检测（Go 标准库不识别）
+		if heifMime := detectHEIF(fileBytes); heifMime != "" {
+			return heifMime
+		}
 	}
 
 	// 5. 尝试作为图片解码获取格式
@@ -449,7 +455,116 @@ func decodeImageConfig(data []byte) (image.Config, string, error) {
 		return config, "webp", nil
 	}
 
+	// Try HEIF/HEIC: parse ISOBMFF ispe box for dimensions
+	if heifMime := detectHEIF(data); heifMime != "" {
+		formatName := "heif"
+		if heifMime == "image/heic" {
+			formatName = "heic"
+		}
+		if w, h, ok := parseHEIFDimensions(data); ok {
+			return image.Config{Width: w, Height: h}, formatName, nil
+		}
+		return image.Config{}, "", fmt.Errorf("failed to decode HEIF/HEIC image dimensions")
+	}
+
 	return image.Config{}, "", fmt.Errorf("failed to decode image config: unsupported format")
+}
+
+// detectHEIF checks ISOBMFF magic bytes to detect HEIC/HEIF files.
+// Returns "image/heic", "image/heif", or "" if not recognized.
+func detectHEIF(data []byte) string {
+	if len(data) < 12 {
+		return ""
+	}
+	// ISOBMFF: bytes[4:8] must be "ftyp"
+	if string(data[4:8]) != "ftyp" {
+		return ""
+	}
+	brand := string(data[8:12])
+	switch brand {
+	case "heic", "heix", "hevc", "hevx", "heim", "heis":
+		return "image/heic"
+	case "mif1", "msf1":
+		return "image/heif"
+	default:
+		return ""
+	}
+}
+
+// parseHEIFDimensions parses ISOBMFF box tree to find the ispe box
+// and extract image width/height. Returns (width, height, ok).
+func parseHEIFDimensions(data []byte) (int, int, bool) {
+	size := len(data)
+	if size < 12 {
+		return 0, 0, false
+	}
+
+	// Walk top-level boxes to find "meta"
+	offset := 0
+	for offset+8 <= size {
+		boxSize := int(binary.BigEndian.Uint32(data[offset : offset+4]))
+		boxType := string(data[offset+4 : offset+8])
+		headerLen := 8
+
+		if boxSize == 1 {
+			// 64-bit extended size
+			if offset+16 > size {
+				break
+			}
+			boxSize = int(binary.BigEndian.Uint64(data[offset+8 : offset+16]))
+			headerLen = 16
+		} else if boxSize == 0 {
+			// box extends to end of data
+			boxSize = size - offset
+		}
+
+		if boxSize < headerLen || offset+boxSize > size {
+			break
+		}
+
+		if boxType == "meta" {
+			// meta is a full box: 4 bytes version/flags after header
+			metaData := data[offset+headerLen : offset+boxSize]
+			if len(metaData) < 4 {
+				return 0, 0, false
+			}
+			return findISPE(metaData[4:])
+		}
+		offset += boxSize
+	}
+	return 0, 0, false
+}
+
+// findISPE recursively searches for the ispe box within container boxes.
+// Path: meta -> iprp -> ipco -> ispe
+func findISPE(data []byte) (int, int, bool) {
+	offset := 0
+	size := len(data)
+	for offset+8 <= size {
+		boxSize := int(binary.BigEndian.Uint32(data[offset : offset+4]))
+		boxType := string(data[offset+4 : offset+8])
+		if boxSize < 8 || offset+boxSize > size {
+			break
+		}
+		content := data[offset+8 : offset+boxSize]
+		switch boxType {
+		case "iprp", "ipco":
+			if w, h, ok := findISPE(content); ok {
+				return w, h, true
+			}
+		case "ispe":
+			// ispe is a full box: 4 bytes version/flags, then 4 bytes width, 4 bytes height
+			if len(content) >= 12 {
+				w := int(binary.BigEndian.Uint32(content[4:8]))
+				h := int(binary.BigEndian.Uint32(content[8:12]))
+				if w > 0 && h > 0 {
+					return w, h, true
+				}
+			}
+		}
+		offset += boxSize
+	}
+	return 0, 0, false
 }
 
 // guessMimeTypeFromURL 从 URL 猜测 MIME 类型
