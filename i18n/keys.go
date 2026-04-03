@@ -103,6 +103,11 @@ const (
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 )
 
+// OAuth related messages
+const (
+	MsgOAuthAutoRegisterDisabled = "oauth.auto_register_disabled"
+)
+
 // Quota related messages
 const (
 	MsgQuotaNegative        = "quota.negative"

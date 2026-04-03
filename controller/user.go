@@ -947,8 +947,8 @@ type emailBindRequest struct {
 }
 
 func EmailBind(c *gin.Context) {
-	var req emailBindRequest
-	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+	req, err := readEmailBindRequest(c)
+	if err != nil {
 		common.ApiError(c, errors.New("invalid request body"))
 		return
 	}
@@ -963,7 +963,7 @@ func EmailBind(c *gin.Context) {
 	user := model.User{
 		Id: id.(int),
 	}
-	err := user.FillUserById()
+	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return

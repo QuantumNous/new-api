@@ -208,6 +208,7 @@ const TICKET_VALIDATE_SUGGESTED_FIELDS = {
 
 const enabledSwitchId = 'custom-oauth-provider-enabled-switch';
 const enabledSwitchLabelId = 'custom-oauth-provider-enabled-label';
+const standaloneCustomOAuthKinds = new Set(['oauth_code', 'cas']);
 
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
@@ -440,10 +441,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   };
 
   const handleEdit = (provider) => {
+    const editableKind = provider.kind || 'oauth_code';
+    if (!standaloneCustomOAuthKinds.has(editableKind)) {
+      showError(t('当前独立分支仅支持编辑 OAuth 授权码与 CAS 类型的提供商'));
+      return;
+    }
     setEditingProvider(provider);
     setFormValues({
       ...provider,
-      kind: provider.kind || 'oauth_code',
+      kind: editableKind,
       jwt_source: provider.jwt_source || 'query',
       jwt_header: provider.jwt_header || 'Authorization',
       jwt_identity_mode: provider.jwt_identity_mode || 'claims',
@@ -507,6 +513,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const handleSubmit = async () => {
     const currentValues = getLatestFormValues();
     const providerKind = currentValues.kind || 'oauth_code';
+    if (!standaloneCustomOAuthKinds.has(providerKind)) {
+      showError(t('当前独立分支仅支持 OAuth 授权码与 CAS 接入类型'));
+      return;
+    }
     const requiresNewOAuthClientSecret =
       providerKind === 'oauth_code' &&
       (!editingProvider ||

@@ -134,16 +134,15 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	var req wechatBindRequest
-	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+	req, err := readWeChatBindRequest(c)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的请求",
 		})
 		return
 	}
-	code := req.Code
-	wechatId, err := getWeChatIdByCode(code)
+	wechatId, err := getWeChatIdByCode(req.Code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"message": err.Error(),

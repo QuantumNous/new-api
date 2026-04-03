@@ -128,7 +128,7 @@ func HandleOAuth(c *gin.Context) {
 	}
 	if resolvedUser.BindAfterStatusCheck {
 		if err := bindOAuthIdentityToUser(resolvedUser.User, provider, oauthUser.ProviderUserID); err != nil {
-			common.ApiError(c, err)
+			handleOAuthUserError(c, err)
 			return
 		}
 	}
@@ -214,6 +214,9 @@ func bindOAuthIdentityToCurrentUser(c *gin.Context, provider oauth.Provider, oau
 		}
 	} else {
 		// Built-in provider: update user record directly
+		if err := ensureBuiltInProviderBindingAvailable(&user, provider, oauthUser); err != nil {
+			return err
+		}
 		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
 		err = user.Update(false)
 		if err != nil {
@@ -303,7 +306,7 @@ func findOrCreateOAuthUserWithOptions(c *gin.Context, provider oauth.Provider, o
 
 	// User doesn't exist, create new user if registration is enabled
 	if !options.AllowAutoRegister {
-		return nil, &OAuthAutoRegisterDisabledError{}
+		return nil, &OAuthAutoRegisterDisabledError{Provider: provider.GetName()}
 	}
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
@@ -444,8 +447,65 @@ func bindOAuthIdentityToUser(user *model.User, provider oauth.Provider, provider
 	if customBindingProvider, ok := provider.(oauth.CustomBindingProvider); ok {
 		return model.UpdateUserOAuthBinding(user.Id, customBindingProvider.GetProviderId(), providerUserID)
 	}
+	if err := ensureBuiltInProviderBindingAvailable(user, provider, &oauth.OAuthUser{ProviderUserID: providerUserID}); err != nil {
+		return err
+	}
 	provider.SetProviderUserID(user, providerUserID)
 	return user.Update(false)
+}
+
+func ensureBuiltInProviderBindingAvailable(user *model.User, provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
+	if user == nil || oauthUser == nil {
+		return nil
+	}
+	currentProviderUserID := getBuiltInProviderUserID(user, provider)
+	if currentProviderUserID == "" {
+		return nil
+	}
+	if isEquivalentBuiltInProviderUserID(provider, currentProviderUserID, oauthUser) {
+		return nil
+	}
+	return &OAuthAlreadyBoundError{Provider: provider.GetName()}
+}
+
+func getBuiltInProviderUserID(user *model.User, provider oauth.Provider) string {
+	if user == nil {
+		return ""
+	}
+	switch provider.(type) {
+	case *oauth.GitHubProvider:
+		return strings.TrimSpace(user.GitHubId)
+	case *oauth.DiscordProvider:
+		return strings.TrimSpace(user.DiscordId)
+	case *oauth.OIDCProvider:
+		return strings.TrimSpace(user.OidcId)
+	case *oauth.LinuxDOProvider:
+		return strings.TrimSpace(user.LinuxDOId)
+	default:
+		return ""
+	}
+}
+
+func isEquivalentBuiltInProviderUserID(provider oauth.Provider, currentProviderUserID string, oauthUser *oauth.OAuthUser) bool {
+	currentProviderUserID = strings.TrimSpace(currentProviderUserID)
+	if currentProviderUserID == "" || oauthUser == nil {
+		return false
+	}
+	if currentProviderUserID == strings.TrimSpace(oauthUser.ProviderUserID) {
+		return true
+	}
+	legacyID, ok := oauthUser.Extra["legacy_id"].(string)
+	if !ok {
+		return false
+	}
+	legacyID = strings.TrimSpace(legacyID)
+	if legacyID == "" {
+		return false
+	}
+	if _, ok := provider.(*oauth.GitHubProvider); ok {
+		return currentProviderUserID == legacyID
+	}
+	return false
 }
 
 func normalizeOAuthInitialRole(role int) int {
@@ -701,18 +761,24 @@ func (e *OAuthRegistrationDisabledError) Error() string {
 	return "registration is disabled"
 }
 
-type OAuthAutoRegisterDisabledError struct{}
+type OAuthAutoRegisterDisabledError struct {
+	Provider string
+}
 
 func (e *OAuthAutoRegisterDisabledError) Error() string {
 	return "provider auto registration is disabled"
 }
 
 func handleOAuthUserError(c *gin.Context, err error) {
-	switch err.(type) {
+	switch e := err.(type) {
+	case *OAuthAlreadyBoundError:
+		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(e.Provider))
 	case *OAuthUserDeletedError:
 		common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
-	case *OAuthRegistrationDisabledError, *OAuthAutoRegisterDisabledError:
+	case *OAuthRegistrationDisabledError:
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+	case *OAuthAutoRegisterDisabledError:
+		common.ApiErrorI18n(c, i18n.MsgOAuthAutoRegisterDisabled, providerParams(e.Provider))
 	default:
 		common.ApiError(c, err)
 	}
