@@ -196,6 +196,7 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE = 10;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -1074,6 +1075,38 @@ const getRecoverableVideoTaskId = (task) => {
   return '';
 };
 
+const parseCreativeLogOtherPayload = (other) => {
+  if (!other) {
+    return null;
+  }
+
+  if (typeof other === 'object') {
+    return other;
+  }
+
+  if (typeof other !== 'string' || !other.trim()) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(other);
+  } catch (error) {
+    return null;
+  }
+};
+
+const getTaskIdFromCreativeLog = (log) => {
+  const logTaskId = String(
+    parseCreativeLogOtherPayload(log?.other)?.task_id || '',
+  ).trim();
+
+  if (logTaskId.startsWith('task_')) {
+    return logTaskId;
+  }
+
+  return '';
+};
+
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
     return {
@@ -1290,6 +1323,136 @@ const normalizeVideoHistoryRecords = (snapshot) => {
   }
 
   return [];
+};
+
+const applyVideoTaskPatchToRecords = (records, recordId, taskId, taskPatch) => {
+  let recordsChanged = false;
+
+  const nextRecords = (records || []).map((record) => {
+    if (record.id !== recordId) {
+      return record;
+    }
+
+    let hasChanged = false;
+    const nextTasks = record.tasks.map((task) => {
+      if (task.id !== taskId) {
+        return task;
+      }
+
+      hasChanged = true;
+      const nextTask = {
+        ...task,
+        ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
+      };
+      return {
+        ...nextTask,
+        status: normalizeVideoTaskStatus(nextTask.status),
+      };
+    });
+
+    if (!hasChanged) {
+      return record;
+    }
+
+    recordsChanged = true;
+    const summary = summarizeVideoTasks(nextTasks);
+    return {
+      ...record,
+      tasks: nextTasks,
+      ...summary,
+      error:
+        summary.completedCount === record.total && summary.successCount === 0
+          ? '全部视频任务都生成失败了，请稍后重试。'
+          : '',
+      updatedAt: Date.now(),
+    };
+  });
+
+  return {
+    nextRecords: recordsChanged ? nextRecords : records,
+    hasChanged: recordsChanged,
+  };
+};
+
+const collectRecoverableVideoCandidatesFromSnapshot = (snapshot) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('video', snapshot);
+  const sessions = normalizedSnapshot?.payload?.sessions || [];
+
+  return sessions
+    .flatMap((session) => {
+      const records = normalizeVideoHistoryRecords(session);
+      return records.flatMap((record) =>
+        record.tasks.map((task) => ({
+          sessionId: session.id,
+          recordId: record.id,
+          taskId: task.id,
+          queryTaskId: getRecoverableVideoTaskId(task),
+          requestId: String(task?.requestId || '').trim(),
+          hasMedia: Boolean(getVideoTaskMediaUrl(task)),
+          status: normalizeVideoTaskStatus(task.status),
+          sortTimestamp:
+            Number(task?.submittedAt) ||
+            Number(record?.updatedAt) ||
+            Number(record?.createdAt) ||
+            Number(session?.updated_at) ||
+            0,
+        })),
+      );
+    })
+    .filter(
+      (task) =>
+        !task.hasMedia &&
+        task.status !== 'failed' &&
+        (Boolean(task.queryTaskId) || Boolean(task.requestId)),
+    )
+    .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
+};
+
+const patchVideoTaskInHistorySnapshot = (snapshot, candidate, taskPatch) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('video', snapshot);
+  let snapshotChanged = false;
+
+  const nextSessions = normalizedSnapshot.payload.sessions.map((session) => {
+    if (session.id !== candidate.sessionId) {
+      return session;
+    }
+
+    const sessionRecords = normalizeVideoHistoryRecords(session);
+    const { nextRecords, hasChanged } = applyVideoTaskPatchToRecords(
+      sessionRecords,
+      candidate.recordId,
+      candidate.taskId,
+      taskPatch,
+    );
+
+    if (!hasChanged) {
+      return session;
+    }
+
+    snapshotChanged = true;
+    return {
+      ...session,
+      updated_at: Date.now(),
+      payload: {
+        ...buildCreativeSessionPayload('video', session.payload),
+        entries: nextRecords,
+      },
+    };
+  });
+
+  return {
+    snapshot: snapshotChanged
+      ? {
+          ...normalizedSnapshot,
+          updated_at: Date.now(),
+          payload: {
+            ...normalizedSnapshot.payload,
+            sessions: nextSessions,
+          },
+        }
+      : normalizedSnapshot,
+    hasChanged: snapshotChanged,
+  };
 };
 
 const getEmptyCreativeSessionPayload = (tabKey) => {
@@ -1647,6 +1810,11 @@ export default function App() {
   useEffect(() => {
     videoRecordsRef.current = videoRecords;
   }, [videoRecords]);
+
+  const syncVideoRecordsState = (nextRecords) => {
+    videoRecordsRef.current = nextRecords;
+    setVideoRecords(nextRecords);
+  };
 
   useEffect(() => {
     uploadedImagesRef.current = uploadedImages;
@@ -3123,46 +3291,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   const patchVideoTask = (recordId, taskId, taskPatch) => {
-    setVideoRecords((prev) =>
-      prev.map((record) => {
-        if (record.id !== recordId) {
-          return record;
-        }
-
-        let hasChanged = false;
-        const nextTasks = record.tasks.map((task) => {
-          if (task.id !== taskId) {
-            return task;
-          }
-
-          hasChanged = true;
-          const nextTask = {
-            ...task,
-            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
-          };
-          return {
-            ...nextTask,
-            status: normalizeVideoTaskStatus(nextTask.status),
-          };
-        });
-
-        if (!hasChanged) {
-          return record;
-        }
-
-        const summary = summarizeVideoTasks(nextTasks);
-        return {
-          ...record,
-          tasks: nextTasks,
-          ...summary,
-          error:
-            summary.completedCount === record.total && summary.successCount === 0
-              ? '全部视频任务都生成失败了，请稍后重试。'
-              : '',
-          updatedAt: Date.now(),
-        };
-      }),
+    const { nextRecords, hasChanged } = applyVideoTaskPatchToRecords(
+      videoRecordsRef.current,
+      recordId,
+      taskId,
+      taskPatch,
     );
+
+    if (!hasChanged) {
+      return;
+    }
+
+    syncVideoRecordsState(nextRecords);
   };
 
   const parseVideoFetchPayload = (rawResponse) => {
@@ -3843,21 +3983,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     startupVideoRecoveryRunRef.current = true;
 
-    const candidates = videoRecords.flatMap((record) =>
-      record.tasks
-        .map((task) => ({
-          recordId: record.id,
-          taskId: task.id,
-          queryTaskId: getRecoverableVideoTaskId(task),
-          hasMedia: Boolean(getVideoTaskMediaUrl(task)),
-          status: normalizeVideoTaskStatus(task.status),
-        }))
-        .filter(
-          (task) =>
-            Boolean(task.queryTaskId) &&
-            !task.hasMedia &&
-            task.status !== 'failed',
-        ),
+    const candidates = collectRecoverableVideoCandidatesFromSnapshot(
+      historySnapshots.video,
     );
     const limitedCandidates = candidates.slice(
       0,
@@ -3870,7 +3997,46 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     let cancelled = false;
 
+    const resolveVideoTaskIdByRequestId = async (requestId) => {
+      if (!requestId) {
+        return '';
+      }
+
+      try {
+        const response = await API.get(
+          `/api/log/self/?p=0&page_size=${CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE}&type=0&request_id=${encodeURIComponent(requestId)}`,
+          {
+            skipErrorHandler: true,
+            headers: {
+              'New-API-User': getUserIdFromLocalStorage(),
+            },
+          },
+        );
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+
+        for (const item of items) {
+          const recoveredTaskId = getTaskIdFromCreativeLog(item);
+          if (recoveredTaskId) {
+            return recoveredTaskId;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve creative center video task id from usage log:', error);
+      }
+
+      return '';
+    };
+
     const recoverStartupVideoTasks = async () => {
+      let recoveredSnapshot = normalizeCreativeHistorySnapshot(
+        'video',
+        historySnapshots.video,
+      );
+      let hasRecoveredChanges = false;
+
       try {
         for (
           let startIndex = 0;
@@ -3882,8 +4048,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             startIndex + CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY,
           );
 
-          await Promise.allSettled(
-            currentBatch.map(async ({ recordId, taskId, queryTaskId }) => {
+          const batchResults = await Promise.allSettled(
+            currentBatch.map(async (candidate) => {
+              let queryTaskId = candidate.queryTaskId;
+              if (!queryTaskId) {
+                queryTaskId = await resolveVideoTaskIdByRequestId(candidate.requestId);
+              }
+
+              if (!queryTaskId || cancelled) {
+                return null;
+              }
+
               try {
                 const response = await API.get(
                   `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
@@ -3896,38 +4071,93 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 );
 
                 if (cancelled) {
-                  return;
+                  return null;
                 }
 
-                const nextTaskState = parseVideoFetchPayload(response);
-                const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
-                const resolvedURL = nextTaskState.url || '';
-                const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
-                const isFailed = nextStatus === 'failed';
-
-                patchVideoTask(recordId, taskId, (currentTask) => ({
-                  status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
-                  progress: isCompleted
-                    ? 100
-                    : nextTaskState.progress ?? currentTask.progress ?? 0,
-                  url: isCompleted
-                    ? (resolvedURL || currentTask.resultUrl || currentTask.url)
-                    : currentTask.url,
-                  content: nextTaskState.content || currentTask.content,
-                  error: isFailed
-                    ? (nextTaskState.error || currentTask.error || '任务生成失败')
-                    : '',
-                  resultUrl: isCompleted
-                    ? (resolvedURL || currentTask.resultUrl || currentTask.url)
-                    : (currentTask.resultUrl || resolvedURL),
-                  finalizingAt: 0,
-                  pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
-                }));
+                return {
+                  candidate,
+                  queryTaskId,
+                  nextTaskState: parseVideoFetchPayload(response),
+                };
               } catch (error) {
                 console.error('Failed to recover creative center video task from history:', error);
+                return {
+                  candidate,
+                  queryTaskId,
+                  nextTaskState: null,
+                };
               }
             }),
           );
+
+          batchResults.forEach((result) => {
+            if (result.status !== 'fulfilled' || !result.value || cancelled) {
+              return;
+            }
+
+            const { candidate, queryTaskId, nextTaskState } = result.value;
+            if (!queryTaskId) {
+              return;
+            }
+
+            const taskIdPatch = patchVideoTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              (currentTask) => ({
+                taskId: queryTaskId,
+                pollable:
+                  currentTask.pollable !== false &&
+                  !getVideoTaskMediaUrl(currentTask) &&
+                  normalizeVideoTaskStatus(currentTask.status) !== 'failed',
+              }),
+            );
+            if (taskIdPatch.hasChanged) {
+              recoveredSnapshot = taskIdPatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+
+            if (!nextTaskState) {
+              return;
+            }
+
+            const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
+            const resolvedURL = nextTaskState.url || '';
+            const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
+            const isFailed = nextStatus === 'failed';
+            const taskStatePatch = patchVideoTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              (currentTask) => ({
+                taskId: queryTaskId,
+                status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
+                progress: isCompleted
+                  ? 100
+                  : nextTaskState.progress ?? currentTask.progress ?? 0,
+                url: isCompleted
+                  ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                  : currentTask.url,
+                content: nextTaskState.content || currentTask.content,
+                error: isFailed
+                  ? (nextTaskState.error || currentTask.error || '任务生成失败')
+                  : '',
+                resultUrl: isCompleted
+                  ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                  : (currentTask.resultUrl || resolvedURL),
+                finalizingAt: 0,
+                pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
+              }),
+            );
+            if (taskStatePatch.hasChanged) {
+              recoveredSnapshot = taskStatePatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+          });
+        }
+
+        if (!cancelled && hasRecoveredChanges) {
+          await persistCreativeHistorySnapshot('video', recoveredSnapshot, {
+            applySessionState: true,
+          });
         }
       } catch (error) {
         console.error('Failed to finish startup recovery for creative center video tasks:', error);
@@ -3939,7 +4169,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn, videoRecords]);
+  }, [historySnapshots.video, isLoggedIn]);
 
   const handleSubmit = async () => {
     const uploadedImageUrls = uploadedImages
@@ -4252,6 +4482,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const useEstimatedVideoProgress =
         shouldUseEstimatedVideoProgress(currentModelName);
       const generationCount = Number(params.generationCount) || 1;
+      const batchSeedBase = createBatchSeedBase();
+      const taskRequestMetas = Array.from({ length: generationCount }, (_, index) => ({
+        requestSeed: createTaskSeed(batchSeedBase, index),
+        requestUser: createTaskRequestUser(batchSeedBase, index),
+        requestId: createTaskRequestId(batchSeedBase, index),
+      }));
       const recordId = createCreativeRecordId('video');
       const pendingRecord = {
         id: recordId,
@@ -4269,7 +4505,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           error: '',
           resultUrl: '',
           resultContent: '',
-          requestId: '',
+          requestId: taskRequestMetas[index]?.requestId || '',
           submittedAt: 0,
           estimateStartAt: 0,
           finalizingAt: 0,
@@ -4285,21 +4521,27 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      const pendingRecords = [...videoRecords, pendingRecord];
-      setVideoRecords(pendingRecords);
+      const pendingRecords = [...videoRecordsRef.current, pendingRecord];
+      syncVideoRecordsState(pendingRecords);
       setCollapsedVideoRecordIds((prev) => ({
         ...prev,
         [recordId]: false,
       }));
+      persistVideoRecords(pendingRecords, {
+        modelName: currentModelName,
+        prompt: currentPrompt,
+        params: pendingRecord.params,
+      }).catch((error) => {
+        console.error('Failed to persist initial creative center video record:', error);
+      });
 
       try {
-        const batchSeedBase = createBatchSeedBase();
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
-            const requestSeed = createTaskSeed(batchSeedBase, index);
-            const requestUser = createTaskRequestUser(batchSeedBase, index);
-            const requestId = createTaskRequestId(batchSeedBase, index);
+            const requestSeed = taskRequestMetas[index]?.requestSeed;
+            const requestUser = taskRequestMetas[index]?.requestUser;
+            const requestId = taskRequestMetas[index]?.requestId;
             const submittedAt = Date.now();
             const estimateStartAt = submittedAt + index * CREATIVE_BATCH_REQUEST_SPACING_MS;
             const basePayload = createBasePayload(
