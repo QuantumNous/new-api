@@ -33,6 +33,8 @@ type taskStatsRecord struct {
 	Action     string
 	Status     TaskStatus
 	SubmitTime int64
+	Progress   string
+	FailReason string
 }
 
 func normalizeTaskStatus(status TaskStatus) TaskStatus {
@@ -107,6 +109,44 @@ func isRunningTaskStatus(status TaskStatus) bool {
 	}
 }
 
+func resolveTaskStatsBreakdown(status TaskStatus, progress string, failReason string) string {
+	normalizedStatus := normalizeTaskStatus(status)
+	normalizedProgress := strings.TrimSpace(progress)
+	normalizedFailReason := strings.TrimSpace(failReason)
+
+	switch {
+	case normalizedStatus == TaskStatusFailure:
+		return "failure"
+	case normalizedStatus == TaskStatusSuccess:
+		return "success"
+	case isRunningTaskStatus(normalizedStatus):
+		return "running"
+	case normalizedFailReason != "":
+		return "failure"
+	}
+
+	if normalizedProgress == "" {
+		return ""
+	}
+
+	switch strings.ToUpper(normalizedProgress) {
+	case "100", "100%", "SUCCESS", "SUCCEEDED", "COMPLETED", "DONE":
+		return "success"
+	case "FAILED", "FAILURE", "ERROR", "CANCELED", "CANCELLED":
+		return "failure"
+	}
+
+	if strings.HasSuffix(normalizedProgress, "%") {
+		trimmedProgress := strings.TrimSuffix(normalizedProgress, "%")
+		if trimmedProgress != "100" {
+			return "running"
+		}
+		return "success"
+	}
+
+	return "running"
+}
+
 func applySyncTaskQueryFilters(query *gorm.DB, queryParams SyncTaskQueryParams) *gorm.DB {
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
@@ -152,12 +192,11 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		if mediaType == "" {
 			continue
 		}
-		normalizedStatus := normalizeTaskStatus(record.Status)
-
 		submitDate := time.Unix(record.SubmitTime, 0).In(time.Local).Format("2006-01-02")
 		dailyTotals[submitDate]++
+		breakdown := resolveTaskStatsBreakdown(record.Status, record.Progress, record.FailReason)
 
-		if isRunningTaskStatus(normalizedStatus) {
+		if breakdown == "running" {
 			response.RunningCount++
 			response.TotalStats.Running++
 		}
@@ -167,13 +206,13 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 			target = &response.VideoStats
 		}
 
-		switch {
-		case isRunningTaskStatus(normalizedStatus):
+		switch breakdown {
+		case "running":
 			target.Running++
-		case normalizedStatus == TaskStatusSuccess:
+		case "success":
 			response.TotalStats.Success++
 			target.Success++
-		case normalizedStatus == TaskStatusFailure:
+		case "failure":
 			response.TotalStats.Failure++
 			target.Failure++
 		}
@@ -226,7 +265,7 @@ func buildTaskStatsDateBuckets(startTimestamp int64, endTimestamp int64) []strin
 func TaskGetStatsTasks(queryParams SyncTaskQueryParams) []taskStatsRecord {
 	var records []taskStatsRecord
 	query := applySyncTaskQueryFilters(DB.Model(&Task{}), queryParams)
-	err := query.Select("action", "status", "submit_time").Find(&records).Error
+	err := query.Select("action", "status", "submit_time", "progress", "fail_reason").Find(&records).Error
 	if err != nil {
 		return nil
 	}
@@ -236,7 +275,7 @@ func TaskGetStatsTasks(queryParams SyncTaskQueryParams) []taskStatsRecord {
 func TaskGetUserStatsTasks(userId int, queryParams SyncTaskQueryParams) []taskStatsRecord {
 	var records []taskStatsRecord
 	query := applySyncTaskQueryFilters(DB.Model(&Task{}).Where("user_id = ?", userId), queryParams)
-	err := query.Select("action", "status", "submit_time").Find(&records).Error
+	err := query.Select("action", "status", "submit_time", "progress", "fail_reason").Find(&records).Error
 	if err != nil {
 		return nil
 	}

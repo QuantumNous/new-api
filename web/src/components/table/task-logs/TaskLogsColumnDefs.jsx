@@ -85,6 +85,15 @@ const normalizeTaskStatus = (status) =>
     .trim()
     .toUpperCase();
 
+const isProgressComplete = (progress) => {
+  const normalizedProgress = String(progress || '')
+    .trim()
+    .toUpperCase();
+  return ['100', '100%', 'SUCCESS', 'SUCCEEDED', 'COMPLETED', 'DONE'].includes(
+    normalizedProgress,
+  );
+};
+
 const isFinishedStatus = (status) => {
   const normalizedStatus = normalizeTaskStatus(status);
   return [
@@ -101,15 +110,21 @@ const isFinishedStatus = (status) => {
 };
 
 const renderDuration = (submitTime, finishTime, record) => {
-  const submitTimestamp = normalizeUnixTimestamp(submitTime);
+  const submitTimestamp = normalizeUnixTimestamp(
+    submitTime || record?.created_at || 0,
+  );
+  const completedRecord =
+    isFinishedStatus(record?.status) || isProgressComplete(record?.progress);
   const fallbackFinishTimestamp =
-    isFinishedStatus(record?.status) && !finishTime
-      ? record?.updated_at
+    completedRecord && !finishTime
+      ? record?.updated_at || record?.created_at
       : 0;
   const finishTimestamp = normalizeUnixTimestamp(
     finishTime || fallbackFinishTimestamp,
   );
-  const startTimestamp = normalizeUnixTimestamp(record?.start_time || 0);
+  const startTimestamp = normalizeUnixTimestamp(
+    record?.start_time || submitTime || record?.created_at || 0,
+  );
 
   let durationSec = 0;
   if (startTimestamp > 0 && finishTimestamp > 0) {

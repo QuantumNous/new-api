@@ -9,8 +9,8 @@ func TestBuildTaskStatsResponse(t *testing.T) {
 	stats := BuildTaskStatsResponse(
 		[]taskStatsRecord{
 			{Action: "imageGenerate", Status: TaskStatusSuccess, SubmitTime: 1711933200},
-			{Action: "imageEdit", Status: TaskStatus("FAILED"), SubmitTime: 1711936800},
-			{Action: "generate", Status: TaskStatus("PROCESSING"), SubmitTime: 1712019600},
+			{Action: "imageEdit", Status: TaskStatus("UNKNOWN"), FailReason: "upstream failed", SubmitTime: 1711936800},
+			{Action: "generate", Status: TaskStatus("UNKNOWN"), Progress: "85%", SubmitTime: 1712019600},
 			{Action: "textGenerate", Status: TaskStatus("PENDING"), SubmitTime: 1712023200},
 			{Action: "remixGenerate", Status: TaskStatusSuccess, SubmitTime: 1712026800},
 			{Action: "speech", Status: TaskStatusSuccess, SubmitTime: 1712026800},
