@@ -540,6 +540,27 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
 	}
+	now := common.GetTimestamp()
+	switch task.Status {
+	case model.TaskStatusInProgress:
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
+	case model.TaskStatusSuccess:
+		if task.StartTime == 0 {
+			task.StartTime = task.SubmitTime
+			if task.StartTime == 0 {
+				task.StartTime = now
+			}
+		}
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+	case model.TaskStatusFailure:
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {

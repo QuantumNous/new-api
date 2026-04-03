@@ -110,20 +110,30 @@ const isFinishedStatus = (status) => {
 };
 
 const renderDuration = (submitTime, finishTime, record) => {
+  const taskDataTimeFallbacks = getTaskDataTimeFallbacks(record);
   const submitTimestamp = normalizeUnixTimestamp(
-    submitTime || record?.created_at || 0,
+    submitTime ||
+      record?.created_at ||
+      taskDataTimeFallbacks.createdTimestamp ||
+      0,
   );
   const completedRecord =
     isFinishedStatus(record?.status) || isProgressComplete(record?.progress);
   const fallbackFinishTimestamp =
     completedRecord && !finishTime
-      ? record?.updated_at || record?.created_at
+      ? record?.updated_at ||
+        taskDataTimeFallbacks.completedTimestamp ||
+        record?.created_at
       : 0;
   const finishTimestamp = normalizeUnixTimestamp(
     finishTime || fallbackFinishTimestamp,
   );
   const startTimestamp = normalizeUnixTimestamp(
-    record?.start_time || submitTime || record?.created_at || 0,
+    record?.start_time ||
+      submitTime ||
+      taskDataTimeFallbacks.createdTimestamp ||
+      record?.created_at ||
+      0,
   );
 
   let durationSec = 0;
@@ -202,6 +212,60 @@ const normalizeTaskData = (data) => {
     return data;
   }
   return null;
+};
+
+const getNestedValue = (source, path) => {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  return path.split('.').reduce((current, key) => {
+    if (current && typeof current === 'object') {
+      return current[key];
+    }
+    return undefined;
+  }, source);
+};
+
+const readTaskDataTimestamp = (data, paths) => {
+  for (const path of paths) {
+    const normalizedValue = normalizeUnixTimestamp(getNestedValue(data, path));
+    if (normalizedValue > 0) {
+      return normalizedValue;
+    }
+  }
+  return 0;
+};
+
+const getTaskDataTimeFallbacks = (record) => {
+  const taskData = normalizeTaskData(record?.data);
+  if (!taskData) {
+    return { createdTimestamp: 0, completedTimestamp: 0 };
+  }
+
+  return {
+    createdTimestamp: readTaskDataTimestamp(taskData, [
+      'created_at',
+      'createdAt',
+      'response.created_at',
+      'response.createdAt',
+      'data.created_at',
+      'data.createdAt',
+    ]),
+    completedTimestamp: readTaskDataTimestamp(taskData, [
+      'completed_at',
+      'completedAt',
+      'updated_at',
+      'updatedAt',
+      'response.completed_at',
+      'response.completedAt',
+      'response.updated_at',
+      'response.updatedAt',
+      'data.completed_at',
+      'data.completedAt',
+      'data.updated_at',
+      'data.updatedAt',
+    ]),
+  };
 };
 
 const extractTextFromMessageContent = (content) => {
