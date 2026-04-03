@@ -124,6 +124,8 @@ func TestConvertImageRequestPreservesAspectRatioAndOutputResolution(t *testing.T
 		Prompt:           "draw a panoramic mountain range",
 		AspectRatio:      "21:9",
 		OutputResolution: "4K",
+		Seed:             lo.ToPtr(765897.0),
+		Seeds:            []int{765897},
 		ResponseFormat:   "url",
 	})
 	if err != nil {
@@ -139,6 +141,12 @@ func TestConvertImageRequestPreservesAspectRatioAndOutputResolution(t *testing.T
 	}
 	if xaiReq.OutputResolution != "4K" {
 		t.Fatalf("unexpected output resolution: %s", xaiReq.OutputResolution)
+	}
+	if xaiReq.Seed == nil || *xaiReq.Seed != 765897 {
+		t.Fatalf("unexpected seed: %#v", xaiReq.Seed)
+	}
+	if len(xaiReq.Seeds) != 1 || xaiReq.Seeds[0] != 765897 {
+		t.Fatalf("unexpected seeds: %#v", xaiReq.Seeds)
 	}
 }
 

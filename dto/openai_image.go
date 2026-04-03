@@ -19,6 +19,7 @@ type ImageRequest struct {
 	AspectRatio       string          `json:"aspect_ratio,omitempty"`
 	OutputResolution  string          `json:"output_resolution,omitempty"`
 	Seed              *float64        `json:"seed,omitempty"`
+	Seeds             []int           `json:"seeds,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`

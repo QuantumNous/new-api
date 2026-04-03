@@ -5038,6 +5038,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   group: activeGroup,
                   stream: false,
                   messages: basePayload.messages,
+                  seed: requestSeed,
+                  seeds: [requestSeed],
+                  user: requestUser,
+                  request_id: requestId,
                 }
               : isGrokImageEditModel
                 ? {
@@ -5048,6 +5052,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     response_format: 'url',
                     request_id: requestId,
                     seed: requestSeed,
+                    seeds: [requestSeed],
                     user: requestUser,
                   }
                 : {
@@ -5058,6 +5063,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     response_format: 'url',
                     request_id: requestId,
                     seed: requestSeed,
+                    seeds: [requestSeed],
                     user: requestUser,
                   };
             if (!isGrokImageEditModel && !useAdobeChatImageEditRequest && basePayload.size) {
@@ -5070,6 +5076,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 payload.image = currentUploadedImageUrls;
               }
             } else if (useAdobeChatImageEditRequest) {
+              if (basePayload.extra_body) {
+                payload.extra_body = basePayload.extra_body;
+              }
               if (basePayload.aspect_ratio) {
                 payload.aspect_ratio = basePayload.aspect_ratio;
               }
@@ -5259,6 +5268,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
             if (isAdobeVideoModel) {
               basePayload.seed = requestSeed;
+              basePayload.seeds = [requestSeed];
               basePayload.user = requestUser;
               basePayload.request_id = requestId;
               basePayload.metadata = {
@@ -5332,6 +5342,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               prompt: currentPrompt,
               request_id: requestId,
               seed: requestSeed,
+              seeds: [requestSeed],
               user: requestUser,
               metadata: {
                 creative_request_id: requestUser,
