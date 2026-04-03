@@ -21,8 +21,8 @@ import React from 'react';
 import { Layout } from '@douyinfe/semi-ui';
 import CardPro from '../../common/ui/CardPro';
 import TaskLogsTable from './TaskLogsTable';
-import TaskLogsActions from './TaskLogsActions';
 import TaskLogsFilters from './TaskLogsFilters';
+import TaskLogsDashboard from './TaskLogsDashboard';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
 import ContentModal from './modals/ContentModal';
 import AudioPreviewModal from './modals/AudioPreviewModal';
@@ -60,7 +60,7 @@ const TaskLogsPage = () => {
       <Layout>
         <CardPro
           type='type2'
-          statsArea={<TaskLogsActions {...taskLogsData} />}
+          statsArea={<TaskLogsDashboard {...taskLogsData} />}
           searchArea={<TaskLogsFilters {...taskLogsData} />}
           paginationArea={createCardProPagination({
             currentPage: taskLogsData.activePage,
