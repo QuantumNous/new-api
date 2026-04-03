@@ -3884,22 +3884,14 @@
     "连接信息已填入": "Đã áp dụng thông tin kết nối",
     "无法读取剪贴板": "Không thể đọc bộ nhớ tạm",
     "在新标签页打开": "Mở trong tab mới",
-    "在最前面": "Ở đầu",
-    "在最后面": "Ở cuối",
-    "控制台之后": "Sau Bảng điều khiển",
-    "显示位置": "Vị trí hiển thị",
     "添加导航项": "Thêm mục điều hướng",
     "编辑导航项": "Chỉnh sửa mục điều hướng",
-    "自定义导航项": "Mục điều hướng tùy chỉnh",
-    "首页之后": "Sau Trang chủ",
-    "关于之后": "Sau Giới thiệu",
     "内部路径": "Đường dẫn nội bộ",
     "外部链接": "Liên kết ngoài",
-    "文档之后": "Sau Tài liệu",
-    "暂无自定义导航项": "Chưa có mục điều hướng tùy chỉnh",
     "最多添加 {{max}} 个自定义导航项": "Tối đa {{max}} mục điều hướng tùy chỉnh",
-    "模型广场之后": "Sau Thị trường mô hình",
     "请填写完整信息": "Vui lòng điền đầy đủ thông tin",
-    "链接示例: https://example.com 或 /path": "VD: https://example.com hoặc /path"
+    "链接示例: https://example.com 或 /path": "VD: https://example.com hoặc /path",
+    "拖拽可调整顺序": "Kéo để sắp xếp lại",
+    "内置": "Tích hợp"
   }
 }

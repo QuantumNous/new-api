@@ -72,19 +72,25 @@ function App() {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
 
-        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
-        if (typeof modules.pricing === 'boolean') {
-          return false; // 默认不需要登录鉴权
+        // New format: {items: [...]}
+        if (Array.isArray(modules.items)) {
+          const pricing = modules.items.find((it) => it.key === 'pricing');
+          return pricing?.requireAuth === true;
         }
 
-        // 如果是对象格式，使用requireAuth配置
+        // Old format: {pricing: boolean} — default no auth
+        if (typeof modules.pricing === 'boolean') {
+          return false;
+        }
+
+        // Old format: {pricing: {requireAuth: true}}
         return modules.pricing?.requireAuth === true;
       } catch (error) {
         console.error('解析顶栏模块配置失败:', error);
-        return false; // 默认不需要登录
+        return false;
       }
     }
-    return false; // 默认不需要登录
+    return false;
   }, [statusState?.status?.HeaderNavModules]);
 
   return (

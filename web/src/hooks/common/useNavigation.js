@@ -18,93 +18,75 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useMemo } from 'react';
+import { migrateOldFormatToItems } from '../../helpers/navMigration';
+
+const BUILT_IN_KEYS = ['home', 'console', 'pricing', 'docs', 'about'];
+
+function resolveItems(headerNavModules) {
+  if (!headerNavModules) return null;
+  if (Array.isArray(headerNavModules.items)) {
+    return headerNavModules.items;
+  }
+  return migrateOldFormatToItems(headerNavModules);
+}
 
 export const useNavigation = (t, docsLink, headerNavModules) => {
   const mainNavLinks = useMemo(() => {
-    // 默认配置，如果没有传入配置则显示所有模块
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: true,
-      docs: true,
-      about: true,
+    const items = resolveItems(headerNavModules);
+    if (!items) {
+      // fallback: show all built-in items
+      const links = [
+        { text: t('首页'), itemKey: 'home', to: '/' },
+        { text: t('控制台'), itemKey: 'console', to: '/console' },
+        { text: t('模型广场'), itemKey: 'pricing', to: '/pricing' },
+      ];
+      if (docsLink) {
+        links.push({
+          text: t('文档'),
+          itemKey: 'docs',
+          isExternal: true,
+          externalLink: docsLink,
+        });
+      }
+      links.push({ text: t('关于'), itemKey: 'about', to: '/about' });
+      return links;
+    }
+
+    const builtInLinkMap = {
+      home: { text: t('首页'), itemKey: 'home', to: '/' },
+      console: { text: t('控制台'), itemKey: 'console', to: '/console' },
+      pricing: { text: t('模型广场'), itemKey: 'pricing', to: '/pricing' },
+      docs: docsLink
+        ? {
+            text: t('文档'),
+            itemKey: 'docs',
+            isExternal: true,
+            externalLink: docsLink,
+          }
+        : null,
+      about: { text: t('关于'), itemKey: 'about', to: '/about' },
     };
 
-    // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
-
-    // 固定位置值与设置UI的语义插槽对应:
-    // 0=在最前面, 1=首页之后, 2=控制台之后, 3=模型广场之后, 4=文档之后, 5=关于之后
-    // 内置项使用 .5 值，确保自定义项能准确插入到指定位置
-    const allLinks = [
-      {
-        text: t('首页'),
-        itemKey: 'home',
-        to: '/',
-        _position: 0.5,
-      },
-      {
-        text: t('控制台'),
-        itemKey: 'console',
-        to: '/console',
-        _position: 1.5,
-      },
-      {
-        text: t('模型广场'),
-        itemKey: 'pricing',
-        to: '/pricing',
-        _position: 2.5,
-      },
-      ...(docsLink
-        ? [
-            {
-              text: t('文档'),
-              itemKey: 'docs',
-              isExternal: true,
-              externalLink: docsLink,
-              _position: 3.5,
-            },
-          ]
-        : []),
-      {
-        text: t('关于'),
-        itemKey: 'about',
-        to: '/about',
-        _position: 4.5,
-      },
-    ];
-
-    // 根据配置过滤导航链接
-    const builtInLinks = allLinks.filter((link) => {
-      if (link.itemKey === 'docs') {
-        return docsLink && modules.docs;
+    const links = [];
+    for (const item of items) {
+      if (item.key && BUILT_IN_KEYS.includes(item.key)) {
+        if (item.enabled === false) continue;
+        if (item.key === 'docs' && !docsLink) continue;
+        const link = builtInLinkMap[item.key];
+        if (link) links.push(link);
+      } else if (item.id) {
+        links.push({
+          text: item.label,
+          itemKey: item.id,
+          to: item.isExternal ? undefined : item.url,
+          isExternal: item.isExternal,
+          externalLink: item.isExternal ? item.url : undefined,
+          openInNewTab: item.openInNewTab,
+        });
       }
-      if (link.itemKey === 'pricing') {
-        // 支持新的pricing配置格式
-        return typeof modules.pricing === 'object'
-          ? modules.pricing.enabled
-          : modules.pricing;
-      }
-      return modules[link.itemKey] === true;
-    });
+    }
 
-    // 合并自定义导航项
-    const customItems = Array.isArray(modules.customItems)
-      ? modules.customItems
-      : [];
-    const customLinks = customItems.map((item) => ({
-      text: item.label,
-      itemKey: item.id,
-      to: item.isExternal ? undefined : item.url,
-      isExternal: item.isExternal,
-      externalLink: item.isExternal ? item.url : undefined,
-      openInNewTab: item.openInNewTab,
-      _position: item.position ?? 99,
-    }));
-
-    return [...builtInLinks, ...customLinks].sort(
-      (a, b) => a._position - b._position,
-    );
+    return links;
   }, [t, docsLink, headerNavModules]);
 
   return {

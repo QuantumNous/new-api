@@ -17,18 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import {
   Button,
   Card,
-  Col,
   Form,
   Input,
   Modal,
-  Row,
-  Select,
   Switch,
-  Table,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -36,78 +32,302 @@ import {
   IconPlus,
   IconEdit,
   IconDelete,
+  IconHandle,
 } from '@douyinfe/semi-icons';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { API, showError, showSuccess } from '../../../helpers';
+import { migrateOldFormatToItems } from '../../../helpers/navMigration';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
 const MAX_CUSTOM_ITEMS = 10;
 
+const DEFAULT_ITEMS = [
+  { key: 'home', enabled: true },
+  { key: 'console', enabled: true },
+  { key: 'pricing', enabled: true, requireAuth: false },
+  { key: 'docs', enabled: true },
+  { key: 'about', enabled: true },
+];
+
+function getBuiltInMeta(key, t) {
+  const meta = {
+    home: { title: t('首页'), description: t('用户主页，展示系统信息') },
+    console: {
+      title: t('控制台'),
+      description: t('用户控制面板，管理账户'),
+    },
+    pricing: {
+      title: t('模型广场'),
+      description: t('模型定价，需要登录访问'),
+    },
+    docs: { title: t('文档'), description: t('系统文档和帮助信息') },
+    about: { title: t('关于'), description: t('关于系统的详细信息') },
+  };
+  return meta[key] || { title: key, description: '' };
+}
+
+function getItemId(item) {
+  return item.key || item.id;
+}
+
+function SortableItem({ item, t, onToggle, onTogglePricingAuth, onEdit, onDelete }) {
+  const isBuiltIn = !!item.key;
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: getItemId(item) });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    borderRadius: '8px',
+    border: '1px solid var(--semi-color-border)',
+    background: 'var(--semi-color-bg-1)',
+    marginBottom: '8px',
+    padding: '12px 16px',
+  };
+
+  const meta = isBuiltIn ? getBuiltInMeta(item.key, t) : null;
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}
+      >
+        <div
+          {...attributes}
+          {...listeners}
+          style={{
+            cursor: 'grab',
+            touchAction: 'none',
+            color: 'var(--semi-color-text-2)',
+            display: 'flex',
+            alignItems: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <IconHandle size='large' />
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span
+              style={{
+                fontWeight: '600',
+                fontSize: '14px',
+                color: 'var(--semi-color-text-0)',
+              }}
+            >
+              {isBuiltIn ? meta.title : item.label}
+            </span>
+            {isBuiltIn ? (
+              <Tag size='small' color='light-blue'>
+                {t('内置')}
+              </Tag>
+            ) : (
+              <Tag size='small' color={item.isExternal ? 'blue' : 'green'}>
+                {item.isExternal ? t('外部链接') : t('内部路径')}
+              </Tag>
+            )}
+          </div>
+          <Text
+            type='tertiary'
+            size='small'
+            style={{
+              fontSize: '12px',
+              lineHeight: '1.4',
+              display: 'block',
+              marginTop: '2px',
+            }}
+            ellipsis={{ showTooltip: true }}
+          >
+            {isBuiltIn ? meta.description : item.url}
+          </Text>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexShrink: 0,
+          }}
+        >
+          {isBuiltIn ? (
+            <Switch
+              checked={item.enabled}
+              onChange={(checked) => onToggle(getItemId(item), checked)}
+              size='default'
+            />
+          ) : (
+            <>
+              <Button
+                icon={<IconEdit />}
+                size='small'
+                type='tertiary'
+                aria-label={t('编辑') + ' ' + (item.label || '')}
+                onClick={() => onEdit(item)}
+              />
+              <Button
+                icon={<IconDelete />}
+                size='small'
+                type='danger'
+                aria-label={t('删除') + ' ' + (item.label || '')}
+                onClick={() => onDelete(item.id)}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {item.key === 'pricing' && item.enabled && (
+        <div
+          style={{
+            borderTop: '1px solid var(--semi-color-border)',
+            marginTop: '10px',
+            paddingTop: '10px',
+            marginLeft: '36px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div style={{ flex: 1, textAlign: 'left' }}>
+              <div
+                style={{
+                  fontWeight: '500',
+                  fontSize: '12px',
+                  color: 'var(--semi-color-text-1)',
+                  marginBottom: '2px',
+                }}
+              >
+                {t('需要登录访问')}
+              </div>
+              <Text
+                type='secondary'
+                size='small'
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--semi-color-text-2)',
+                  lineHeight: '1.4',
+                  display: 'block',
+                }}
+              >
+                {t('开启后未登录用户无法访问模型广场')}
+              </Text>
+            </div>
+            <Switch
+              checked={item.requireAuth || false}
+              onChange={(checked) => onTogglePricingAuth(checked)}
+              size='default'
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
+  const [items, setItems] = useState(DEFAULT_ITEMS);
 
-  // 顶栏模块管理状态
-  const [headerNavModules, setHeaderNavModules] = useState({
-    home: true,
-    console: true,
-    pricing: {
-      enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
-    },
-    docs: true,
-    about: true,
-  });
-
-  // 自定义导航项状态
-  const [customItems, setCustomItems] = useState([]);
+  // Modal state for custom item editing
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formLabel, setFormLabel] = useState('');
   const [formUrl, setFormUrl] = useState('');
   const [formOpenInNewTab, setFormOpenInNewTab] = useState(true);
-  const [formPosition, setFormPosition] = useState(99);
 
-  // 处理顶栏模块配置变更
-  function handleHeaderNavModuleChange(moduleKey) {
-    return (checked) => {
-      const newModules = { ...headerNavModules };
-      if (moduleKey === 'pricing') {
-        // 对于pricing模块，只更新enabled属性
-        newModules[moduleKey] = {
-          ...newModules[moduleKey],
-          enabled: checked,
-        };
-      } else {
-        newModules[moduleKey] = checked;
-      }
-      setHeaderNavModules(newModules);
-    };
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const customItemCount = items.filter((it) => !it.key).length;
+
+  const handleToggle = useCallback((id, checked) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        getItemId(it) === id ? { ...it, enabled: checked } : it,
+      ),
+    );
+  }, []);
+
+  const handleTogglePricingAuth = useCallback((checked) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.key === 'pricing' ? { ...it, requireAuth: checked } : it,
+      ),
+    );
+  }, []);
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setItems((prev) => {
+        const oldIndex = prev.findIndex((it) => getItemId(it) === active.id);
+        const newIndex = prev.findIndex((it) => getItemId(it) === over.id);
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+    }
   }
 
-  // 处理模型广场权限控制变更
-  function handlePricingAuthChange(checked) {
-    const newModules = { ...headerNavModules };
-    newModules.pricing = {
-      ...newModules.pricing,
-      requireAuth: checked,
-    };
-    setHeaderNavModules(newModules);
-  }
-
-  // 自定义导航项操作
   function resetCustomItemForm() {
     setFormLabel('');
     setFormUrl('');
     setFormOpenInNewTab(true);
-    setFormPosition(99);
     setEditingItem(null);
   }
 
   function openAddModal() {
-    if (customItems.length >= MAX_CUSTOM_ITEMS) {
+    if (customItemCount >= MAX_CUSTOM_ITEMS) {
       showError(
         t('最多添加 {{max}} 个自定义导航项', { max: MAX_CUSTOM_ITEMS }),
       );
@@ -122,7 +342,6 @@ export default function SettingsHeaderNavModules(props) {
     setFormLabel(item.label);
     setFormUrl(item.url);
     setFormOpenInNewTab(item.openInNewTab);
-    setFormPosition(item.position);
     setModalVisible(true);
   }
 
@@ -131,23 +350,26 @@ export default function SettingsHeaderNavModules(props) {
       showError(t('请填写完整信息'));
       return;
     }
-    const normalizedUrl = formUrl.trim();
+    let normalizedUrl = formUrl.trim();
     const isExternal =
-      normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://');
+      normalizedUrl.startsWith('http://') ||
+      normalizedUrl.startsWith('https://');
+    if (!isExternal && !normalizedUrl.startsWith('/')) {
+      normalizedUrl = '/' + normalizedUrl;
+    }
 
     if (editingItem) {
-      setCustomItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === editingItem.id
             ? {
-                ...item,
+                ...it,
                 label: formLabel.trim(),
                 url: normalizedUrl,
                 isExternal,
                 openInNewTab: isExternal ? formOpenInNewTab : false,
-                position: formPosition,
               }
-            : item,
+            : it,
         ),
       );
     } else {
@@ -157,45 +379,26 @@ export default function SettingsHeaderNavModules(props) {
         url: normalizedUrl,
         isExternal,
         openInNewTab: isExternal ? formOpenInNewTab : false,
-        position: formPosition,
       };
-      setCustomItems((prev) => [...prev, newItem]);
+      setItems((prev) => [...prev, newItem]);
     }
     setModalVisible(false);
     resetCustomItemForm();
   }
 
   function deleteCustomItem(id) {
-    setCustomItems((prev) => prev.filter((item) => item.id !== id));
+    setItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  // 重置顶栏模块为默认配置
-  function resetHeaderNavModules() {
-    const defaultModules = {
-      home: true,
-      console: true,
-      pricing: {
-        enabled: true,
-        requireAuth: false,
-      },
-      docs: true,
-      about: true,
-    };
-    setHeaderNavModules(defaultModules);
-    setCustomItems([]);
+  function resetToDefault() {
+    setItems(DEFAULT_ITEMS);
     showSuccess(t('已重置为默认配置'));
   }
 
-  // 保存配置
   async function onSubmit() {
     setLoading(true);
     try {
-      const configToSave = { ...headerNavModules };
-      if (customItems.length > 0) {
-        configToSave.customItems = customItems;
-      } else {
-        delete configToSave.customItems;
-      }
+      const configToSave = { items };
       const res = await API.put('/api/option/', {
         key: 'HeaderNavModules',
         value: JSON.stringify(configToSave),
@@ -203,8 +406,6 @@ export default function SettingsHeaderNavModules(props) {
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('保存成功'));
-
-        // 立即更新StatusContext中的状态
         statusDispatch({
           type: 'set',
           payload: {
@@ -212,8 +413,6 @@ export default function SettingsHeaderNavModules(props) {
             HeaderNavModules: JSON.stringify(configToSave),
           },
         });
-
-        // 刷新父组件状态
         if (props.refresh) {
           await props.refresh();
         }
@@ -228,313 +427,66 @@ export default function SettingsHeaderNavModules(props) {
   }
 
   useEffect(() => {
-    // 从 props.options 中获取配置
     if (props.options && props.options.HeaderNavModules) {
       try {
-        const modules = JSON.parse(props.options.HeaderNavModules);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
+        const parsed = JSON.parse(props.options.HeaderNavModules);
+        if (Array.isArray(parsed.items)) {
+          setItems(parsed.items);
+        } else {
+          setItems(migrateOldFormatToItems(parsed));
         }
-
-        // 提取customItems并从模块配置中移除
-        const { customItems: loadedCustomItems, ...restModules } = modules;
-        setCustomItems(Array.isArray(loadedCustomItems) ? loadedCustomItems : []);
-        setHeaderNavModules(restModules);
       } catch (error) {
-        // 使用默认配置
-        const defaultModules = {
-          home: true,
-          console: true,
-          pricing: {
-            enabled: true,
-            requireAuth: false,
-          },
-          docs: true,
-          about: true,
-        };
-        setHeaderNavModules(defaultModules);
-        setCustomItems([]);
+        setItems(DEFAULT_ITEMS);
       }
     }
   }, [props.options]);
-
-  // 模块配置数据
-  const moduleConfigs = [
-    {
-      key: 'home',
-      title: t('首页'),
-      description: t('用户主页，展示系统信息'),
-    },
-    {
-      key: 'console',
-      title: t('控制台'),
-      description: t('用户控制面板，管理账户'),
-    },
-    {
-      key: 'pricing',
-      title: t('模型广场'),
-      description: t('模型定价，需要登录访问'),
-      hasSubConfig: true, // 标识该模块有子配置
-    },
-    {
-      key: 'docs',
-      title: t('文档'),
-      description: t('系统文档和帮助信息'),
-    },
-    {
-      key: 'about',
-      title: t('关于'),
-      description: t('关于系统的详细信息'),
-    },
-  ];
 
   return (
     <Card>
       <Form.Section
         text={t('顶栏管理')}
-        extraText={t('控制顶栏模块显示状态，全局生效')}
+        extraText={t('控制顶栏导航项的显示和排序，全局生效')}
       >
-        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-          {moduleConfigs.map((module) => (
-            <Col key={module.key} xs={24} sm={12} md={6} lg={6} xl={6}>
-              <Card
-                style={{
-                  borderRadius: '8px',
-                  border: '1px solid var(--semi-color-border)',
-                  transition: 'all 0.2s ease',
-                  background: 'var(--semi-color-bg-1)',
-                  minHeight: '80px',
-                }}
-                bodyStyle={{ padding: '16px' }}
-                hoverable
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    height: '100%',
-                  }}
-                >
-                  <div style={{ flex: 1, textAlign: 'left' }}>
-                    <div
-                      style={{
-                        fontWeight: '600',
-                        fontSize: '14px',
-                        color: 'var(--semi-color-text-0)',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      {module.title}
-                    </div>
-                    <Text
-                      type='secondary'
-                      size='small'
-                      style={{
-                        fontSize: '12px',
-                        color: 'var(--semi-color-text-2)',
-                        lineHeight: '1.4',
-                        display: 'block',
-                      }}
-                    >
-                      {module.description}
-                    </Text>
-                  </div>
-                  <div style={{ marginLeft: '16px' }}>
-                    <Switch
-                      checked={
-                        module.key === 'pricing'
-                          ? headerNavModules[module.key]?.enabled
-                          : headerNavModules[module.key]
-                      }
-                      onChange={handleHeaderNavModuleChange(module.key)}
-                      size='default'
-                    />
-                  </div>
-                </div>
-
-                {/* 为模型广场添加权限控制子开关 */}
-                {module.key === 'pricing' &&
-                  (module.key === 'pricing'
-                    ? headerNavModules[module.key]?.enabled
-                    : headerNavModules[module.key]) && (
-                    <div
-                      style={{
-                        borderTop: '1px solid var(--semi-color-border)',
-                        marginTop: '12px',
-                        paddingTop: '12px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div style={{ flex: 1, textAlign: 'left' }}>
-                          <div
-                            style={{
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              color: 'var(--semi-color-text-1)',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            {t('需要登录访问')}
-                          </div>
-                          <Text
-                            type='secondary'
-                            size='small'
-                            style={{
-                              fontSize: '11px',
-                              color: 'var(--semi-color-text-2)',
-                              lineHeight: '1.4',
-                              display: 'block',
-                            }}
-                          >
-                            {t('开启后未登录用户无法访问模型广场')}
-                          </Text>
-                        </div>
-                        <div style={{ marginLeft: '16px' }}>
-                          <Switch
-                            checked={
-                              headerNavModules.pricing?.requireAuth || false
-                            }
-                            onChange={handlePricingAuthChange}
-                            size='default'
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-              </Card>
-            </Col>
-          ))}
-        </Row>
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-start',
-            alignItems: 'center',
-            paddingTop: '8px',
-            borderTop: '1px solid var(--semi-color-border)',
-          }}
-        >
-          <Button
-            size='default'
-            type='tertiary'
-            onClick={resetHeaderNavModules}
-            style={{
-              borderRadius: '6px',
-              fontWeight: '500',
-            }}
-          >
-            {t('重置为默认')}
-          </Button>
-        </div>
-      </Form.Section>
-
-      <Form.Section
-        text={t('自定义导航项')}
-        style={{ marginTop: '24px' }}
-      >
-        <Table
-          dataSource={customItems}
-          rowKey='id'
+        <Text
+          type='tertiary'
           size='small'
-          pagination={false}
-          empty={
-            <Text type='tertiary'>{t('暂无自定义导航项')}</Text>
-          }
-          columns={[
-            {
-              title: t('名称'),
-              dataIndex: 'label',
-              key: 'label',
-            },
-            {
-              title: t('链接地址'),
-              dataIndex: 'url',
-              key: 'url',
-              render: (text) => (
-                <Text
-                  copyable
-                  ellipsis={{ showTooltip: true }}
-                  style={{ maxWidth: 200 }}
-                >
-                  {text}
-                </Text>
-              ),
-            },
-            {
-              title: t('类型'),
-              dataIndex: 'isExternal',
-              key: 'type',
-              render: (isExternal) =>
-                isExternal ? (
-                  <Tag color='blue'>{t('外部链接')}</Tag>
-                ) : (
-                  <Tag color='green'>{t('内部路径')}</Tag>
-                ),
-            },
-            {
-              title: t('显示位置'),
-              dataIndex: 'position',
-              key: 'position',
-              render: (pos) => {
-                const posLabels = {
-                  0: t('在最前面'),
-                  1: t('首页之后'),
-                  2: t('控制台之后'),
-                  3: t('模型广场之后'),
-                  4: t('文档之后'),
-                  5: t('关于之后'),
-                  99: t('在最后面'),
-                };
-                return posLabels[pos] || pos;
-              },
-            },
-            {
-              title: t('操作'),
-              key: 'actions',
-              render: (_, record) => (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    icon={<IconEdit />}
-                    size='small'
-                    type='tertiary'
-                    aria-label={t('编辑') + ' ' + (record.label || '')}
-                    onClick={() => openEditModal(record)}
-                  />
-                  <Button
-                    icon={<IconDelete />}
-                    size='small'
-                    type='danger'
-                    aria-label={t('删除') + ' ' + (record.label || '')}
-                    onClick={() => deleteCustomItem(record.id)}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
+          style={{ display: 'block', marginBottom: '12px' }}
+        >
+          {t('拖拽可调整顺序')}
+        </Text>
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={items.map(getItemId)}
+            strategy={verticalListSortingStrategy}
+          >
+            {items.map((item) => (
+              <SortableItem
+                key={getItemId(item)}
+                item={item}
+                t={t}
+                onToggle={handleToggle}
+                onTogglePricingAuth={handleTogglePricingAuth}
+                onEdit={openEditModal}
+                onDelete={deleteCustomItem}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+
         <Button
           icon={<IconPlus />}
           onClick={openAddModal}
-          style={{ marginTop: '12px' }}
-          disabled={customItems.length >= MAX_CUSTOM_ITEMS}
+          style={{ marginTop: '4px' }}
+          disabled={customItemCount >= MAX_CUSTOM_ITEMS}
         >
           {t('添加导航项')}
         </Button>
-        {customItems.length >= MAX_CUSTOM_ITEMS && (
+        {customItemCount >= MAX_CUSTOM_ITEMS && (
           <Text
             type='tertiary'
             size='small'
@@ -545,15 +497,29 @@ export default function SettingsHeaderNavModules(props) {
             })}
           </Text>
         )}
+
         <div
           style={{
             display: 'flex',
+            gap: '12px',
             justifyContent: 'flex-start',
+            alignItems: 'center',
             paddingTop: '16px',
             marginTop: '16px',
             borderTop: '1px solid var(--semi-color-border)',
           }}
         >
+          <Button
+            size='default'
+            type='tertiary'
+            onClick={resetToDefault}
+            style={{
+              borderRadius: '6px',
+              fontWeight: '500',
+            }}
+          >
+            {t('重置为默认')}
+          </Button>
           <Button
             size='default'
             type='primary'
@@ -604,35 +570,6 @@ export default function SettingsHeaderNavModules(props) {
               />
             </Form.Slot>
           )}
-          <Form.Slot label={t('显示位置')}>
-            <Select
-              value={formPosition}
-              onChange={setFormPosition}
-              style={{ width: '100%' }}
-            >
-              <Select.Option value={0}>
-                {t('在最前面')}
-              </Select.Option>
-              <Select.Option value={1}>
-                {t('首页之后')}
-              </Select.Option>
-              <Select.Option value={2}>
-                {t('控制台之后')}
-              </Select.Option>
-              <Select.Option value={3}>
-                {t('模型广场之后')}
-              </Select.Option>
-              <Select.Option value={4}>
-                {t('文档之后')}
-              </Select.Option>
-              <Select.Option value={5}>
-                {t('关于之后')}
-              </Select.Option>
-              <Select.Option value={99}>
-                {t('在最后面')}
-              </Select.Option>
-            </Select>
-          </Form.Slot>
         </Form>
       </Modal>
     </Card>

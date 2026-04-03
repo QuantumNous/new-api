@@ -3378,23 +3378,15 @@
     "连接信息已填入": "Connection info applied",
     "无法读取剪贴板": "Cannot read clipboard",
     "在新标签页打开": "Open in New Tab",
-    "在最前面": "At Beginning",
-    "在最后面": "At End",
-    "控制台之后": "After Console",
-    "显示位置": "Display Position",
     "添加导航项": "Add Navigation Item",
     "编辑导航项": "Edit Navigation Item",
-    "自定义导航项": "Custom Navigation Items",
     "链接地址": "Link URL",
-    "首页之后": "After Home",
-    "关于之后": "After About",
     "内部路径": "Internal Path",
     "外部链接": "External Link",
-    "文档之后": "After Docs",
-    "暂无自定义导航项": "No custom navigation items",
     "最多添加 {{max}} 个自定义导航项": "Maximum {{max}} custom navigation items",
-    "模型广场之后": "After Model Marketplace",
     "请填写完整信息": "Please fill in complete information",
-    "链接示例: https://example.com 或 /path": "e.g. https://example.com or /path"
+    "链接示例: https://example.com 或 /path": "e.g. https://example.com or /path",
+    "拖拽可调整顺序": "Drag to reorder",
+    "内置": "Built-in"
   }
 }
