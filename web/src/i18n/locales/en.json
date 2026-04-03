@@ -3393,7 +3393,8 @@
     "文档之后": "After Docs",
     "暂无自定义导航项": "No custom navigation items",
     "最多添加 {{max}} 个自定义导航项": "Maximum {{max}} custom navigation items",
-    "模型广场之后": "After Pricing",
-    "请填写完整信息": "Please fill in complete information"
+    "模型广场之后": "After Model Marketplace",
+    "请填写完整信息": "Please fill in complete information",
+    "链接示例: https://example.com 或 /path": "e.g. https://example.com or /path"
   }
 }

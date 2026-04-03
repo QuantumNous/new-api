@@ -131,8 +131,9 @@ export default function SettingsHeaderNavModules(props) {
       showError(t('请填写完整信息'));
       return;
     }
+    const normalizedUrl = formUrl.trim();
     const isExternal =
-      formUrl.startsWith('http://') || formUrl.startsWith('https://');
+      normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://');
 
     if (editingItem) {
       setCustomItems((prev) =>
@@ -141,7 +142,7 @@ export default function SettingsHeaderNavModules(props) {
             ? {
                 ...item,
                 label: formLabel.trim(),
-                url: formUrl.trim(),
+                url: normalizedUrl,
                 isExternal,
                 openInNewTab: isExternal ? formOpenInNewTab : false,
                 position: formPosition,
@@ -153,7 +154,7 @@ export default function SettingsHeaderNavModules(props) {
       const newItem = {
         id: 'custom-' + Date.now(),
         label: formLabel.trim(),
-        url: formUrl.trim(),
+        url: normalizedUrl,
         isExternal,
         openInNewTab: isExternal ? formOpenInNewTab : false,
         position: formPosition,
@@ -589,11 +590,11 @@ export default function SettingsHeaderNavModules(props) {
             <Input
               value={formUrl}
               onChange={setFormUrl}
-              placeholder='https://example.com or /path'
+              placeholder={t('链接示例: https://example.com 或 /path')}
             />
           </Form.Slot>
-          {(formUrl.startsWith('http://') ||
-            formUrl.startsWith('https://')) && (
+          {(formUrl.trim().startsWith('http://') ||
+            formUrl.trim().startsWith('https://')) && (
             <Form.Slot label={t('在新标签页打开')}>
               <Switch
                 checked={formOpenInNewTab}

@@ -3898,7 +3898,8 @@
     "文档之后": "Sau Tài liệu",
     "暂无自定义导航项": "Chưa có mục điều hướng tùy chỉnh",
     "最多添加 {{max}} 个自定义导航项": "Tối đa {{max}} mục điều hướng tùy chỉnh",
-    "模型广场之后": "Sau Bảng giá",
-    "请填写完整信息": "Vui lòng điền đầy đủ thông tin"
+    "模型广场之后": "Sau Thị trường mô hình",
+    "请填写完整信息": "Vui lòng điền đầy đủ thông tin",
+    "链接示例: https://example.com 或 /path": "VD: https://example.com hoặc /path"
   }
 }

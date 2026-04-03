@@ -3349,7 +3349,8 @@
     "文档之后": "Après Documentation",
     "暂无自定义导航项": "Aucun élément de navigation personnalisé",
     "最多添加 {{max}} 个自定义导航项": "Maximum {{max}} éléments de navigation personnalisés",
-    "模型广场之后": "Après Tarification",
-    "请填写完整信息": "Veuillez remplir toutes les informations"
+    "模型广场之后": "Après Marché des modèles",
+    "请填写完整信息": "Veuillez remplir toutes les informations",
+    "链接示例: https://example.com 或 /path": "ex. https://example.com ou /path"
   }
 }
