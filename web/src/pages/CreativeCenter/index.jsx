@@ -1,4 +1,4 @@
-﻿import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
+import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ArrowUp,
   Check,
@@ -5515,19 +5515,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   return (
-    <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-slate-50 text-slate-800 font-sans'>
-      <aside className='relative z-10 flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white'>
+    <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-100/50 text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900'>
+      <aside className='relative z-10 flex w-72 shrink-0 flex-col border-r border-white/60 bg-white/50 backdrop-blur-2xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.1)]'>
         <div className='p-6'>
           <div className='flex items-center gap-2'>
-            <div className='h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-200'>
-              <Sparkles size={20} />
+            <div className='h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200/50 ring-1 ring-blue-500/20'>
+              <Sparkles size={18} />
             </div>
-            <h1 className='text-xl font-black tracking-tight text-slate-900'>创作中心</h1>
+            <h1 className='text-xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600'>创作中心</h1>
           </div>
-          <p className='mt-1.5 text-xs font-medium text-slate-400'>释放你的灵感与创意</p>
+          <p className='mt-1.5 text-[11px] font-bold text-slate-400/80 uppercase tracking-widest'>释放你的灵感与创意</p>
         </div>
 
-        <nav className='flex justify-around border-b border-slate-100 pb-4 px-2'>
+        <nav className='flex justify-around border-b border-white/60 pb-4 px-2'>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -5538,9 +5538,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   setActiveTab(tab.id);
                   setOpenMenu(null);
                 }}
-                className={`relative flex flex-col items-center gap-1.5 transition-all ${active ? 'text-blue-600 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`group relative flex flex-col items-center gap-2 transition-all duration-300 ${active ? 'text-blue-700 scale-105' : 'text-slate-400 hover:text-slate-600'}`}
               >
-                <div className={`p-2.5 rounded-2xl transition-colors ${active ? 'bg-blue-50' : 'bg-transparent'}`}>
+                <div className={`p-2.5 rounded-[1rem] transition-all duration-300 ${active ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_8px_20px_-6px_rgba(59,130,246,0.5)] ring-1 ring-white/50' : 'bg-transparent text-slate-400 group-hover:bg-white/60'}`}>
                   <Icon size={22} strokeWidth={2.5} />
                 </div>
                 <span className='text-[12px] font-bold'>{tab.label}</span>
@@ -5640,8 +5640,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
 
-        <div className='relative flex-1 overflow-y-auto px-4 py-6 space-y-4 custom-scrollbar'>
-          <div className='text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 px-2'>核心创作模型</div>
+        <div className='relative flex-1 overflow-y-auto px-4 py-6 space-y-3 custom-scrollbar'>
+          <div className='text-[10px] font-bold text-slate-400/80 uppercase tracking-[0.2em] mb-3 px-2'>核心创作模型</div>
           {currentDisplayModels.map((model) => (
             <button
               key={model.id}
@@ -5649,22 +5649,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               onMouseEnter={() => setHoveredSidebarModelId(model.id)}
               onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
               title={model.fullDesc || model.desc || model.name}
-              className={`relative w-full group flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all ${
-                activeModel === model.id ? 'border-blue-200 bg-blue-50 shadow-sm' : 'border-transparent hover:bg-slate-50'
+              className={`relative w-full group flex items-start gap-3 rounded-[1.25rem] border p-3.5 text-left transition-all duration-300 ${
+                activeModel === model.id ? 'border-blue-200/60 bg-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] ring-4 ring-blue-500/5' : 'border-transparent hover:bg-white/50 hover:shadow-sm'
               }`}
             >
               {model.priceLabel ? (
                 <div
-                  className={`absolute right-3 top-3 max-w-[118px] truncate rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm ${
+                  className={`absolute right-3 top-3 max-w-[118px] truncate rounded-full px-2.5 py-1 text-[10px] font-bold transition-all ${
                     activeModel === model.id
-                      ? 'bg-white text-blue-700'
-                      : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700'
+                      ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                      : 'bg-slate-100/50 text-slate-500 group-hover:bg-white group-hover:text-slate-700 group-hover:shadow-sm'
                   }`}
                 >
                   {model.priceLabel}
                 </div>
               ) : null}
-              <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${activeModel === model.id ? 'bg-white shadow-sm text-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'}`}>
+              <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${activeModel === model.id ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/20 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-blue-500 group-hover:shadow-sm'}`}>
                 {model.icon}
               </div>
               <div className='min-w-0 flex-1 pr-20'>
@@ -5708,7 +5708,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         </div>
       </aside>
 
-      <main className='relative flex flex-1 flex-col overflow-hidden bg-white/40 backdrop-blur-md'>
+      <main className='relative flex flex-1 flex-col overflow-hidden bg-white/20 backdrop-blur-xl'>
         {activeTab === 'chat' && (
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
@@ -6479,9 +6479,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </div>
         )}
 
-        <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent'>
+        <div className='p-8 bg-gradient-to-t from-white/80 via-white/40 to-transparent backdrop-blur-sm'>
           <div className='mx-auto max-w-4xl'>
-            <div className='relative flex flex-col rounded-[2.5rem] bg-white p-5 shadow-2xl shadow-blue-900/5 ring-1 ring-slate-200/80 focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-400 transition-all'>
+            <div className='relative flex flex-col rounded-[2.5rem] bg-white/70 backdrop-blur-xl p-5 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] ring-1 ring-white/60 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white transition-all duration-500'>
               <input
                 ref={fileInputRef}
                 type='file'
@@ -6522,9 +6522,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitPending || (!prompt.trim() && uploadedImages.every((item) => !(item?.status === 'uploaded' && item?.url)))}
-                  className='flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xl shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-110 active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none'
+                  className='group flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-[0_8px_20px_-6px_rgba(59,130,246,0.5)] transition-all duration-300 hover:shadow-[0_12px_24px_-8px_rgba(59,130,246,0.6)] hover:scale-105 active:scale-95 disabled:from-slate-100 disabled:to-slate-100 disabled:text-slate-300 disabled:shadow-none disabled:transform-none'
                 >
-                  {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={32} strokeWidth={3} />}
+                  {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={30} strokeWidth={3} className='transition-transform group-hover:-translate-y-1' />}
                 </button>
               </div>
 
@@ -6814,7 +6814,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             onClick={handleClearCurrentSession}
             disabled={isSubmitPending}
             title='只删除会话，图片视频资源仍保留'
-            className='pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-sm font-semibold text-slate-500 shadow-lg shadow-slate-200/60 backdrop-blur-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
+            className='pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-200/50 bg-white/60 px-4 py-2 text-sm font-semibold text-slate-500 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:border-red-200 hover:bg-white hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:transform-none'
           >
             <Trash2 size={14} />
             清除会话
