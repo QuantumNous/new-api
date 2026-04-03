@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
+
 const getDefaultHeaderNavModules = () => ({
   home: true,
   creativeCenter: true,
@@ -48,18 +49,14 @@ export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [statusState, statusDispatch] = useContext(StatusContext);
-
-  // 顶栏模块管理状态
   const [headerNavModules, setHeaderNavModules] = useState(
     getDefaultHeaderNavModules(),
   );
 
-  // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
     return (checked) => {
       const newModules = { ...headerNavModules };
       if (moduleKey === 'pricing') {
-        // 对于pricing模块，只更新enabled属性
         newModules[moduleKey] = {
           ...newModules[moduleKey],
           enabled: checked,
@@ -71,7 +68,6 @@ export default function SettingsHeaderNavModules(props) {
     };
   }
 
-  // 处理模型广场权限控制变更
   function handlePricingAuthChange(checked) {
     const newModules = { ...headerNavModules };
     newModules.pricing = {
@@ -81,14 +77,12 @@ export default function SettingsHeaderNavModules(props) {
     setHeaderNavModules(newModules);
   }
 
-  // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
     const defaultModules = getDefaultHeaderNavModules();
     setHeaderNavModules(defaultModules);
     showSuccess(t('已重置为默认配置'));
   }
 
-  // 保存配置
   async function onSubmit() {
     setLoading(true);
     try {
@@ -99,8 +93,6 @@ export default function SettingsHeaderNavModules(props) {
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('保存成功'));
-
-        // 立即更新StatusContext中的状态
         statusDispatch({
           type: 'set',
           payload: {
@@ -109,7 +101,6 @@ export default function SettingsHeaderNavModules(props) {
           },
         });
 
-        // 刷新父组件状态
         if (props.refresh) {
           await props.refresh();
         }
@@ -124,16 +115,13 @@ export default function SettingsHeaderNavModules(props) {
   }
 
   useEffect(() => {
-    // 从 props.options 中获取配置
     if (props.options && props.options.HeaderNavModules) {
       try {
         const modules = JSON.parse(props.options.HeaderNavModules);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
         if (typeof modules.pricing === 'boolean') {
           modules.pricing = {
             enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
+            requireAuth: false,
           };
         }
 
@@ -146,18 +134,16 @@ export default function SettingsHeaderNavModules(props) {
           },
         });
       } catch (error) {
-        // 使用默认配置
         setHeaderNavModules(getDefaultHeaderNavModules());
       }
     }
   }, [props.options]);
 
-  // 模块配置数据
   const moduleConfigs = [
     {
       key: 'home',
       title: t('首页'),
-      description: t('用户主页，展示系统信息'),
+      description: t('用户首页，展示系统信息'),
     },
     {
       key: 'creativeCenter',
@@ -172,8 +158,7 @@ export default function SettingsHeaderNavModules(props) {
     {
       key: 'pricing',
       title: t('模型广场'),
-      description: t('模型定价，需要登录访问'),
-      hasSubConfig: true, // 标识该模块有子配置
+      description: t('模型定价，可设置是否需要登录访问'),
     },
     {
       key: 'docs',
@@ -182,8 +167,8 @@ export default function SettingsHeaderNavModules(props) {
     },
     {
       key: 'about',
-      title: t('关于'),
-      description: t('关于系统的详细信息'),
+      title: t('联系我们'),
+      description: t('联系我们页面的详细信息'),
     },
   ];
 
@@ -252,61 +237,55 @@ export default function SettingsHeaderNavModules(props) {
                   </div>
                 </div>
 
-                {/* 为模型广场添加权限控制子开关 */}
-                {module.key === 'pricing' &&
-                  (module.key === 'pricing'
-                    ? headerNavModules[module.key]?.enabled
-                    : headerNavModules[module.key]) && (
+                {module.key === 'pricing' && headerNavModules.pricing?.enabled && (
+                  <div
+                    style={{
+                      borderTop: '1px solid var(--semi-color-border)',
+                      marginTop: '12px',
+                      paddingTop: '12px',
+                    }}
+                  >
                     <div
                       style={{
-                        borderTop: '1px solid var(--semi-color-border)',
-                        marginTop: '12px',
-                        paddingTop: '12px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
                       }}
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div style={{ flex: 1, textAlign: 'left' }}>
-                          <div
-                            style={{
-                              fontWeight: '500',
-                              fontSize: '12px',
-                              color: 'var(--semi-color-text-1)',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            {t('需要登录访问')}
-                          </div>
-                          <Text
-                            type='secondary'
-                            size='small'
-                            style={{
-                              fontSize: '11px',
-                              color: 'var(--semi-color-text-2)',
-                              lineHeight: '1.4',
-                              display: 'block',
-                            }}
-                          >
-                            {t('开启后未登录用户无法访问模型广场')}
-                          </Text>
+                      <div style={{ flex: 1, textAlign: 'left' }}>
+                        <div
+                          style={{
+                            fontWeight: '500',
+                            fontSize: '12px',
+                            color: 'var(--semi-color-text-1)',
+                            marginBottom: '2px',
+                          }}
+                        >
+                          {t('需要登录访问')}
                         </div>
-                        <div style={{ marginLeft: '16px' }}>
-                          <Switch
-                            checked={
-                              headerNavModules.pricing?.requireAuth || false
-                            }
-                            onChange={handlePricingAuthChange}
-                            size='default'
-                          />
-                        </div>
+                        <Text
+                          type='secondary'
+                          size='small'
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--semi-color-text-2)',
+                            lineHeight: '1.4',
+                            display: 'block',
+                          }}
+                        >
+                          {t('开启后未登录用户无法访问模型广场')}
+                        </Text>
+                      </div>
+                      <div style={{ marginLeft: '16px' }}>
+                        <Switch
+                          checked={headerNavModules.pricing?.requireAuth || false}
+                          onChange={handlePricingAuthChange}
+                          size='default'
+                        />
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
               </Card>
             </Col>
           ))}

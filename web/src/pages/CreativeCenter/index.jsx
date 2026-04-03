@@ -59,6 +59,10 @@ const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
 ]);
+const ADVANCED_ADOBE_IMAGE_MODELS = new Set([
+  'nano-banana2',
+  'nano-banana-pro',
+]);
 const ADOBE_CHAT_IMAGE_EDIT_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
@@ -86,13 +90,29 @@ const GROK_IMAGE_SIZE_OPTIONS = [
   { label: '9:16', value: '720x1280' },
   { label: '1:1', value: '1024x1024' },
 ];
-const ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
+const DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: 'Auto', value: 'auto' },
   { label: '1:1', value: '1:1' },
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
   { label: '4:3', value: '4:3' },
   { label: '3:4', value: '3:4' },
+];
+const ADVANCED_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' },
+  { label: '8:1', value: '8:1' },
+  { label: '4:1', value: '4:1' },
+  { label: '21:9', value: '21:9' },
+  { label: '5:4', value: '5:4' },
+  { label: '3:2', value: '3:2' },
+  { label: '4:5', value: '4:5' },
+  { label: '2:3', value: '2:3' },
+  { label: '1:4', value: '1:4' },
+  { label: '1:8', value: '1:8' },
 ];
 const ADOBE_AUTO_IMAGE_SIZE_OPTIONS = [
   { label: '1024x1024', value: '1024x1024' },
@@ -618,12 +638,29 @@ const revokeCreativeCenterPreviewURL = (previewUrl) => {
   }
 };
 
+const getAdobeImageAspectRatioOptions = (modelName) =>
+  ADVANCED_ADOBE_IMAGE_MODELS.has(modelName)
+    ? ADVANCED_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS
+    : DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS;
+
+const supportsAdobeAutoImageSize = (modelName) =>
+  getAdobeImageAspectRatioOptions(modelName).some(
+    (option) => option.value === 'auto',
+  );
+
 const getCreativeCenterImageUploadLimit = (modelName) => {
   const normalizedModelName = typeof modelName === 'string' ? modelName.trim() : '';
   if (!normalizedModelName) {
     return null;
   }
   return CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS[normalizedModelName] ?? null;
+};
+
+const isCreativeCenterImageUploadEnabled = (tabKey, modelName) => {
+  if (tabKey === 'chat') {
+    return true;
+  }
+  return getCreativeCenterImageUploadLimit(modelName) !== null;
 };
 
 const resolveCreativeCenterDisplayCurrency = (quotaDisplayType = 'USD') =>
@@ -2030,7 +2067,7 @@ export default function App() {
   const [params, setParams] = useState({
     generationCount: '1',
     imageSize: '1024x1024',
-    aspectRatio: 'auto',
+    aspectRatio: '1:1',
     autoImageSize: '1024x1024',
     outputResolution: '2K',
     videoSize: '1280x720',
@@ -2564,6 +2601,14 @@ export default function App() {
     typeof currentModelName === 'string' && currentModelName.includes('video');
   const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
   const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
+  const currentAdobeImageAspectRatioOptions =
+    getAdobeImageAspectRatioOptions(currentModelName);
+  const currentAdobeSupportsAutoImageSize =
+    supportsAdobeAutoImageSize(currentModelName);
+  const isCurrentModelImageUploadEnabled = isCreativeCenterImageUploadEnabled(
+    activeTab,
+    currentModelName,
+  );
   useEffect(() => {
     if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
       return;
@@ -2582,6 +2627,20 @@ export default function App() {
     setUploadImageNotice(`当前模型最多上传 ${currentImageUploadLimit} 张图片，已自动保留前 ${currentImageUploadLimit} 张`);
     showWarning(`当前模型最多上传 ${currentImageUploadLimit} 张图片`);
   }, [currentImageUploadLimit, uploadedImages.length]);
+  useEffect(() => {
+    if (isCurrentModelImageUploadEnabled || uploadedImages.length === 0) {
+      return;
+    }
+
+    setUploadedImages((prev) => {
+      prev.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return [];
+    });
+    setUploadImageNotice('当前模型不支持上传图片，已清空已选图片');
+    showWarning('当前模型不支持上传图片');
+  }, [isCurrentModelImageUploadEnabled, uploadedImages.length]);
   const renderPendingTaskProgress = ({
     task,
     taskIndex,
@@ -2652,8 +2711,14 @@ export default function App() {
       }
 
       if (isCurrentAdobeImageModel) {
-        snapshot.aspectRatio = sourceParams.aspectRatio || 'auto';
-        if (snapshot.aspectRatio === 'auto') {
+        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(modelName);
+        const defaultAdobeAspectRatio =
+          adobeAspectRatioOptions[0]?.value || '1:1';
+        snapshot.aspectRatio = sourceParams.aspectRatio || defaultAdobeAspectRatio;
+        if (
+          supportsAdobeAutoImageSize(modelName) &&
+          snapshot.aspectRatio === 'auto'
+        ) {
           snapshot.autoImageSize = sourceParams.autoImageSize;
         }
         snapshot.outputResolution = sourceParams.outputResolution || '2K';
@@ -2820,14 +2885,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       }
 
       if (isAdobeImageModel) {
+        const adobeAspectRatioOptions =
+          getAdobeImageAspectRatioOptions(currentModelName);
+        const defaultAdobeAspectRatio =
+          adobeAspectRatioOptions[0]?.value || '1:1';
         if (
-          !ADOBE_IMAGE_ASPECT_RATIO_OPTIONS.some(
+          !adobeAspectRatioOptions.some(
             (option) => option.value === next.aspectRatio,
           )
         ) {
-          next.aspectRatio = 'auto';
+          next.aspectRatio = defaultAdobeAspectRatio;
         }
         if (
+          supportsAdobeAutoImageSize(currentModelName) &&
           !ADOBE_AUTO_IMAGE_SIZE_OPTIONS.some(
             (option) => option.value === next.autoImageSize,
           )
@@ -3664,6 +3734,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   const handleUploadButtonClick = () => {
+    if (!isCurrentModelImageUploadEnabled) {
+      setUploadImageNotice('当前模型不支持上传图片');
+      showWarning('当前模型不支持上传图片');
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -3801,6 +3876,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     event.target.value = '';
 
     if (files.length === 0) {
+      return;
+    }
+
+    if (!isCurrentModelImageUploadEnabled) {
+      setUploadImageNotice('当前模型不支持上传图片');
+      showWarning('当前模型不支持上传图片');
       return;
     }
 
@@ -6372,24 +6453,26 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 onChange={handleImageFileChange}
               />
               <div className='flex items-end gap-4 px-2'>
-                <div className='shrink-0'>
-                  <button
-                    type='button'
-                    onClick={handleUploadButtonClick}
-                    className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
-                  >
-                    <div className='flex flex-col items-center gap-2'>
-                      {isUploadingImage ? (
-                        <Loader2 size={20} className='animate-spin' />
-                      ) : (
-                        <ImagePlus size={20} />
-                      )}
-                      <span className='text-[11px] font-semibold'>
-                        {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
-                      </span>
-                    </div>
-                  </button>
-                </div>
+                {isCurrentModelImageUploadEnabled ? (
+                  <div className='shrink-0'>
+                    <button
+                      type='button'
+                      onClick={handleUploadButtonClick}
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600'
+                    >
+                      <div className='flex flex-col items-center gap-2'>
+                        {isUploadingImage ? (
+                          <Loader2 size={20} className='animate-spin' />
+                        ) : (
+                          <ImagePlus size={20} />
+                        )}
+                        <span className='text-[11px] font-semibold'>
+                          {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                ) : null}
                 <textarea
                   ref={textareaRef}
                   value={prompt}
@@ -6440,6 +6523,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               {currentImageUploadLimit ? (
                 <div className='mt-2 px-2 text-[11px] text-slate-400'>
                   当前模型最多可上传 {currentImageUploadLimit} 张图片（建议不大于5M/张）
+                </div>
+              ) : !isCurrentModelImageUploadEnabled ? (
+                <div className='mt-2 px-2 text-[11px] text-slate-400'>
+                  当前模型暂不支持上传图片
                 </div>
               ) : null}
 
@@ -6503,11 +6590,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         menuKey='aspectRatio'
                         icon={<Copy size={14} />}
                         label={`比例 ${getOptionLabel(
-                          ADOBE_IMAGE_ASPECT_RATIO_OPTIONS,
+                          currentAdobeImageAspectRatioOptions,
                           params.aspectRatio,
                         )}`}
                         value={params.aspectRatio}
-                        options={ADOBE_IMAGE_ASPECT_RATIO_OPTIONS}
+                        options={currentAdobeImageAspectRatioOptions}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
