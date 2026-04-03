@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
-import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
+import { IconCopy, IconExternalOpen } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API_ENDPOINTS } from '../../../../constants/playground.constants';
 
@@ -51,6 +51,7 @@ const ContentModal = ({
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
   const imagePreviewUrl = useMemo(
     () => buildImagePreviewUrl(modalImageUrl),
     [modalImageUrl],
@@ -80,18 +81,17 @@ const ContentModal = ({
     window.open(modalContent, '_blank');
   };
 
-  const handleOpenImageInNewTab = () => {
+  const handleDownloadImage = () => {
     if (!imagePreviewUrl) {
       return;
     }
-    window.open(imagePreviewUrl, '_blank');
-  };
-
-  const handleCopyImageUrl = () => {
-    if (!modalImageUrl) {
-      return;
-    }
-    navigator.clipboard.writeText(modalImageUrl);
+    const link = document.createElement('a');
+    link.href = imagePreviewUrl;
+    link.rel = 'noreferrer';
+    link.download = 'task-preview-image';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const renderVideoContent = () => {
@@ -108,19 +108,19 @@ const ContentModal = ({
             type='tertiary'
             style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
           >
-            {t('• 视频服务商的跨域限制')}
+            {t('视频服务商的跨域限制')}
           </Text>
           <Text
             type='tertiary'
             style={{ display: 'block', marginBottom: '8px', fontSize: '12px' }}
           >
-            {t('• 需要特定的请求头或认证')}
+            {t('需要特定的请求头或认证')}
           </Text>
           <Text
             type='tertiary'
             style={{ display: 'block', marginBottom: '16px', fontSize: '12px' }}
           >
-            {t('• 防盗链保护机制')}
+            {t('防盗链保护机制')}
           </Text>
 
           <div style={{ marginTop: '20px' }}>
@@ -210,6 +210,7 @@ const ContentModal = ({
           <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
         )}
       </Modal>
+
       <Modal
         visible={Boolean(isModalOpenurl)}
         onCancel={() => setIsModalOpenurl?.(false)}
@@ -237,13 +238,11 @@ const ContentModal = ({
               gap: 8,
             }}
           >
-            <Button icon={<IconExternalOpen />} onClick={handleOpenImageInNewTab}>
-              {t('在新标签页中打开')}
-            </Button>
-            <Button icon={<IconCopy />} onClick={handleCopyImageUrl}>
-              {t('复制链接')}
+            <Button icon={<IconCopy />} onClick={handleDownloadImage}>
+              {t('下载')}
             </Button>
           </div>
+
           <div
             style={{
               display: 'flex',
