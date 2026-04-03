@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	CustomOAuthProviderKindOAuthCode     = "oauth_code"
-	CustomOAuthProviderKindCAS           = "cas"
+	CustomOAuthProviderKindOAuthCode = "oauth_code"
+	CustomOAuthProviderKindCAS       = "cas"
 )
 
 const (
@@ -308,17 +308,30 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	normalizeCustomOAuthProviderForKind(provider)
 
 	if provider.IsOAuthCode() {
+		provider.ClientId = strings.TrimSpace(provider.ClientId)
+		provider.AuthorizationEndpoint = strings.TrimSpace(provider.AuthorizationEndpoint)
+		provider.TokenEndpoint = strings.TrimSpace(provider.TokenEndpoint)
+		provider.UserInfoEndpoint = strings.TrimSpace(provider.UserInfoEndpoint)
 		if provider.ClientId == "" {
 			return errors.New("client ID is required")
 		}
 		if provider.AuthorizationEndpoint == "" {
 			return errors.New("authorization endpoint is required")
 		}
+		if !isValidAbsoluteHTTPURL(provider.AuthorizationEndpoint) {
+			return errors.New("authorization endpoint must be a valid absolute http or https URL")
+		}
 		if provider.TokenEndpoint == "" {
 			return errors.New("token endpoint is required")
 		}
+		if !isValidAbsoluteHTTPURL(provider.TokenEndpoint) {
+			return errors.New("token endpoint must be a valid absolute http or https URL")
+		}
 		if provider.UserInfoEndpoint == "" {
 			return errors.New("user info endpoint is required")
+		}
+		if !isValidAbsoluteHTTPURL(provider.UserInfoEndpoint) {
+			return errors.New("user info endpoint must be a valid absolute http or https URL")
 		}
 	} else {
 		if err := validateCASProvider(provider); err != nil {

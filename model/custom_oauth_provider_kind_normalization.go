@@ -11,6 +11,9 @@ func normalizeCustomOAuthProviderForKind(provider *CustomOAuthProvider) {
 		clearJWTDirectOnlyProviderFields(provider)
 	case CustomOAuthProviderKindCAS:
 		clearCASUnrelatedProviderFields(provider)
+	default:
+		clearCASProviderFields(provider)
+		clearCASUnrelatedProviderFields(provider)
 	}
 }
 

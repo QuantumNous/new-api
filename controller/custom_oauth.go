@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -187,6 +188,19 @@ func isStandaloneCustomOAuthProviderSupported(provider *model.CustomOAuthProvide
 		return false
 	}
 	return provider.IsOAuthCode() || provider.IsCAS()
+}
+
+func normalizeStandaloneCustomOAuthProviderKind(kind string) (string, error) {
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return model.CustomOAuthProviderKindOAuthCode, nil
+	}
+	switch kind {
+	case model.CustomOAuthProviderKindOAuthCode, model.CustomOAuthProviderKindCAS:
+		return kind, nil
+	default:
+		return "", fmt.Errorf("当前独立分支仅支持 OAuth 授权码与 CAS 接入类型")
+	}
 }
 
 // GetCustomOAuthProviders returns all custom OAuth providers
@@ -387,6 +401,11 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "无效的请求参数: "+err.Error())
 		return
 	}
+	kind, kindErr := normalizeStandaloneCustomOAuthProviderKind(req.Kind)
+	if kindErr != nil {
+		common.ApiError(c, kindErr)
+		return
+	}
 
 	// Check if slug is already taken
 	if model.IsSlugTaken(req.Slug, 0) {
@@ -404,7 +423,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		Name:                       req.Name,
 		Slug:                       req.Slug,
 		Icon:                       req.Icon,
-		Kind:                       req.Kind,
+		Kind:                       kind,
 		Enabled:                    req.Enabled,
 		ClientId:                   req.ClientId,
 		ClientSecret:               req.ClientSecret,
@@ -596,7 +615,12 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 		provider.Enabled = *req.Enabled
 	}
 	if req.Kind != nil {
-		provider.Kind = *req.Kind
+		kind, kindErr := normalizeStandaloneCustomOAuthProviderKind(*req.Kind)
+		if kindErr != nil {
+			common.ApiError(c, kindErr)
+			return
+		}
+		provider.Kind = kind
 	}
 	if req.ClientId != nil {
 		provider.ClientId = *req.ClientId

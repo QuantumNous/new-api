@@ -1,16 +1,21 @@
 package setting
 
 import (
+	"sync"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
 var autoGroups = []string{
 	"default",
 }
+var autoGroupsRWMutex sync.RWMutex
 
 var DefaultUseAutoGroup = false
 
 func ContainsAutoGroup(group string) bool {
+	autoGroupsRWMutex.RLock()
+	defer autoGroupsRWMutex.RUnlock()
 	for _, autoGroup := range autoGroups {
 		if autoGroup == group {
 			return true
@@ -20,11 +25,19 @@ func ContainsAutoGroup(group string) bool {
 }
 
 func UpdateAutoGroupsByJsonString(jsonString string) error {
-	autoGroups = make([]string, 0)
-	return common.Unmarshal([]byte(jsonString), &autoGroups)
+	nextGroups := make([]string, 0)
+	if err := common.Unmarshal([]byte(jsonString), &nextGroups); err != nil {
+		return err
+	}
+	autoGroupsRWMutex.Lock()
+	autoGroups = nextGroups
+	autoGroupsRWMutex.Unlock()
+	return nil
 }
 
 func AutoGroups2JsonString() string {
+	autoGroupsRWMutex.RLock()
+	defer autoGroupsRWMutex.RUnlock()
 	jsonBytes, err := common.Marshal(autoGroups)
 	if err != nil {
 		return "[]"
@@ -33,5 +46,9 @@ func AutoGroups2JsonString() string {
 }
 
 func GetAutoGroups() []string {
-	return autoGroups
+	autoGroupsRWMutex.RLock()
+	defer autoGroupsRWMutex.RUnlock()
+	copied := make([]string, len(autoGroups))
+	copy(copied, autoGroups)
+	return copied
 }

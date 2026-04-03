@@ -15,6 +15,7 @@ import (
 // X-Forwarded-* headers; operators should keep ServerAddress configured for public deployments
 // and only enable header-derived fallback behind a trusted private or loopback reverse proxy.
 const customOAuthTrustForwardedHeadersOption = "CustomOAuthTrustForwardedHeaders"
+const customOAuthTrustedProxyCIDRsOption = "CustomOAuthTrustedProxyCIDRs"
 
 func buildCustomOAuthBrowserCallbackURL(r *http.Request, providerSlug string, state string) (string, error) {
 	baseURL := resolveCustomOAuthBrowserBaseURL(r)
@@ -110,7 +111,11 @@ func shouldUseCustomOAuthForwardedHeaders(r *http.Request) bool {
 	if err != nil || peerIP == nil {
 		return false
 	}
-	return peerIP.IsLoopback() || peerIP.IsPrivate()
+	trustedCIDRs := loadCustomOAuthTrustedProxyCIDRs()
+	if len(trustedCIDRs) == 0 {
+		return false
+	}
+	return common.IsIpInCIDRList(peerIP, trustedCIDRs)
 }
 
 func isCustomOAuthForwardedHeadersEnabled() bool {
@@ -118,13 +123,42 @@ func isCustomOAuthForwardedHeadersEnabled() bool {
 	defer common.OptionMapRWMutex.RUnlock()
 	raw := strings.TrimSpace(common.OptionMap[customOAuthTrustForwardedHeadersOption])
 	if raw == "" {
-		return true
+		return false
 	}
 	enabled, err := strconv.ParseBool(raw)
 	if err != nil {
 		return false
 	}
 	return enabled
+}
+
+func loadCustomOAuthTrustedProxyCIDRs() []string {
+	common.OptionMapRWMutex.RLock()
+	raw := strings.TrimSpace(common.OptionMap[customOAuthTrustedProxyCIDRsOption])
+	common.OptionMapRWMutex.RUnlock()
+	if raw == "" {
+		return nil
+	}
+
+	var cidrs []string
+	if strings.HasPrefix(raw, "[") {
+		if err := common.UnmarshalJsonStr(raw, &cidrs); err == nil {
+			return normalizeCustomOAuthTrustedProxyCIDRs(cidrs)
+		}
+	}
+	return normalizeCustomOAuthTrustedProxyCIDRs(strings.Split(raw, ","))
+}
+
+func normalizeCustomOAuthTrustedProxyCIDRs(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		normalized = append(normalized, value)
+	}
+	return normalized
 }
 
 func firstForwardedValue(raw string) string {

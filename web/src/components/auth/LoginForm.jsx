@@ -388,14 +388,16 @@ const LoginForm = () => {
   };
 
   // 包装的自定义OAuth登录点击处理
-  const handleCustomOAuthClick = (provider) => {
+  const handleCustomOAuthClick = async (provider) => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
-      onCustomOAuthClicked(provider, { shouldLogout: true });
+      await onCustomOAuthClicked(provider, { shouldLogout: true });
+    } catch (error) {
+      showError(error?.message || t('发起登录失败'));
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => {
@@ -958,8 +960,7 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+        {showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

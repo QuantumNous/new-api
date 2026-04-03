@@ -674,6 +674,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         delete payload.validate_url;
         delete payload.renew;
         delete payload.gateway;
+      } else {
+        delete payload.client_id;
+        delete payload.client_secret;
+        delete payload.authorization_endpoint;
+        delete payload.token_endpoint;
+        delete payload.user_info_endpoint;
+        delete payload.scopes;
+        delete payload.well_known;
+        delete payload.auth_style;
       }
       if (providerKind !== 'trusted_header') {
         delete payload.trusted_proxy_cidrs;

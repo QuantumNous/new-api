@@ -17,7 +17,6 @@ func resolveMappedGroupCandidates(candidates []string, config *model.CustomOAuth
 			if isExistingGroup(mapped) {
 				return mapped
 			}
-			continue
 		}
 		if isMappingFirstMode(config.GroupMappingMode) && isExistingGroup(candidate) {
 			return candidate
@@ -36,7 +35,6 @@ func resolveMappedRoleCandidates(candidates []string, config *model.CustomOAuthP
 			if role := parseRoleValue(mapped); role != 0 {
 				return role
 			}
-			continue
 		}
 		if isMappingFirstMode(config.RoleMappingMode) {
 			if role := parseRoleValue(candidate); role != 0 {

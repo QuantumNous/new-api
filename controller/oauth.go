@@ -421,7 +421,7 @@ func findOAuthMergeCandidateByEmail(email string) (*model.User, error) {
 		return nil, nil
 	}
 	if len(users) > 1 {
-		return nil, fmt.Errorf("multiple users matched email %s, auto merge is not allowed", email)
+		return nil, fmt.Errorf("multiple users matched the same email, auto merge is not allowed")
 	}
 	if users[0].DeletedAt.Valid {
 		return nil, &OAuthUserDeletedError{}
@@ -497,9 +497,9 @@ func syncOAuthUserLoginAttributes(user *model.User, oauthUser *oauth.OAuthUser, 
 				return err
 			}
 			if !available {
-				skips = append(skips, fmt.Sprintf("username %s 已被占用", safeOAuthAuditValue(nextUsername)))
+				skips = append(skips, fmt.Sprintf("username %s 已被占用", redactSensitiveLogValue(nextUsername)))
 			} else {
-				changes = append(changes, fmt.Sprintf("username %s -> %s", safeOAuthAuditValue(user.Username), safeOAuthAuditValue(nextUsername)))
+				changes = append(changes, fmt.Sprintf("username %s -> %s", redactSensitiveLogValue(user.Username), redactSensitiveLogValue(nextUsername)))
 				user.Username = nextUsername
 			}
 		}
@@ -513,7 +513,7 @@ func syncOAuthUserLoginAttributes(user *model.User, oauthUser *oauth.OAuthUser, 
 			skips = append(skips, fmt.Sprintf("display_name 超过 %d 个字符", oauthSyncDisplayNameMaxLength))
 		case nextDisplayName == user.DisplayName:
 		default:
-			changes = append(changes, fmt.Sprintf("display_name %s -> %s", safeOAuthAuditValue(user.DisplayName), safeOAuthAuditValue(nextDisplayName)))
+			changes = append(changes, fmt.Sprintf("display_name %s -> %s", redactSensitiveLogValue(user.DisplayName), redactSensitiveLogValue(nextDisplayName)))
 			user.DisplayName = nextDisplayName
 		}
 	}
@@ -531,9 +531,9 @@ func syncOAuthUserLoginAttributes(user *model.User, oauthUser *oauth.OAuthUser, 
 				return err
 			}
 			if !available {
-				skips = append(skips, fmt.Sprintf("email %s 已被其他用户占用", safeOAuthAuditValue(nextEmail)))
+				skips = append(skips, fmt.Sprintf("email %s 已被其他用户占用", redactSensitiveLogValue(nextEmail)))
 			} else {
-				changes = append(changes, fmt.Sprintf("email %s -> %s", safeOAuthAuditValue(user.Email), safeOAuthAuditValue(nextEmail)))
+				changes = append(changes, fmt.Sprintf("email %s -> %s", redactSensitiveLogValue(user.Email), redactSensitiveLogValue(nextEmail)))
 				user.Email = nextEmail
 			}
 		}
@@ -592,22 +592,7 @@ func isOAuthSyncFieldAvailable(field string, value string, userID int) (bool, er
 }
 
 func ensureOAuthSidebarForRoleChange(user *model.User, oldRole int, newRole int) error {
-	if user == nil || oldRole == newRole || newRole != common.RoleAdminUser {
-		return nil
-	}
-
-	defaultConfig := generateDefaultSidebarConfig(newRole)
-	if defaultConfig == "" {
-		return nil
-	}
-
-	defaultSidebar := make(map[string]any)
-	if err := common.UnmarshalJsonStr(defaultConfig, &defaultSidebar); err != nil {
-		return err
-	}
-
-	adminSection, ok := defaultSidebar["admin"]
-	if !ok {
+	if user == nil || oldRole == newRole {
 		return nil
 	}
 
@@ -618,11 +603,28 @@ func ensureOAuthSidebarForRoleChange(user *model.User, oldRole int, newRole int)
 			return err
 		}
 	}
-	if _, exists := sidebar["admin"]; exists {
-		return nil
-	}
 
-	sidebar["admin"] = adminSection
+	if newRole == common.RoleAdminUser {
+		defaultConfig := generateDefaultSidebarConfig(newRole)
+		if defaultConfig == "" {
+			return nil
+		}
+
+		defaultSidebar := make(map[string]any)
+		if err := common.UnmarshalJsonStr(defaultConfig, &defaultSidebar); err != nil {
+			return err
+		}
+
+		adminSection, ok := defaultSidebar["admin"]
+		if !ok {
+			return nil
+		}
+		if _, exists := sidebar["admin"]; !exists {
+			sidebar["admin"] = adminSection
+		}
+	} else {
+		delete(sidebar, "admin")
+	}
 	setting.SidebarModules = common.MapToJsonStr(sidebar)
 	user.SetSetting(setting)
 	return nil
@@ -654,10 +656,28 @@ func oauthRoleLabel(role int) string {
 
 func safeOAuthAuditValue(value string) string {
 	value = strings.TrimSpace(value)
+	value = sanitizeOAuthLogValue(value)
 	if value == "" {
 		return "(empty)"
 	}
 	return value
+}
+
+func sanitizeOAuthLogValue(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, value)
+}
+
+func redactSensitiveLogValue(value string) string {
+	value = strings.TrimSpace(sanitizeOAuthLogValue(value))
+	if value == "" {
+		return "(empty)"
+	}
+	return "hmac_sha256:" + common.GenerateHMAC(value)
 }
 
 // Error types for OAuth

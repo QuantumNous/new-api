@@ -29,6 +29,8 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+const loginSetupSucceededContextKey = "login_setup_succeeded"
+
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -86,6 +88,7 @@ func Login(c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	c.Set(loginSetupSucceededContextKey, false)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
@@ -97,6 +100,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	c.Set(loginSetupSucceededContextKey, true)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -109,6 +113,18 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"group":        user.Group,
 		},
 	})
+}
+
+func wasLoginSetupSuccessful(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	success, ok := c.Get(loginSetupSucceededContextKey)
+	if !ok {
+		return false
+	}
+	typed, ok := success.(bool)
+	return ok && typed
 }
 
 func Logout(c *gin.Context) {
