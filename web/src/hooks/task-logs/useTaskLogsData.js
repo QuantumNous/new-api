@@ -33,7 +33,7 @@ import { ITEMS_PER_PAGE } from '../../constants/common.constant';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
 const DEFAULT_MEDIA_TYPE = 'all';
-const DEFAULT_RANGE_PRESET = 'last7';
+const DEFAULT_RANGE_PRESET = 'today';
 
 const TASK_STATS_RANGE_PRESETS = [
   {
@@ -106,6 +106,10 @@ const normalizeStatsData = (statsData, startTimestamp, endTimestamp) => {
   return {
     running_count: Number(statsData?.running_count || 0),
     daily_counts: dailyCounts.length > 0 ? dailyCounts : emptyDailyCounts,
+    total_stats: {
+      ...createStatsBreakdown(),
+      ...(statsData?.total_stats || {}),
+    },
     image_stats: {
       ...createStatsBreakdown(),
       ...(statsData?.image_stats || {}),

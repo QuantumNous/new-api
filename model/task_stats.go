@@ -137,6 +137,7 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 
 		if isRunningTaskStatus(record.Status) {
 			response.RunningCount++
+			response.TotalStats.Running++
 		}
 
 		target := &response.ImageStats
@@ -148,8 +149,10 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		case isRunningTaskStatus(record.Status):
 			target.Running++
 		case record.Status == TaskStatusSuccess:
+			response.TotalStats.Success++
 			target.Success++
 		case record.Status == TaskStatusFailure:
+			response.TotalStats.Failure++
 			target.Failure++
 		}
 	}

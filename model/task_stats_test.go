@@ -23,6 +23,10 @@ func TestBuildTaskStatsResponse(t *testing.T) {
 		t.Fatalf("expected running_count=2, got %d", stats.RunningCount)
 	}
 
+	if stats.TotalStats.Success != 2 || stats.TotalStats.Failure != 1 || stats.TotalStats.Running != 2 {
+		t.Fatalf("unexpected total stats: %+v", stats.TotalStats)
+	}
+
 	if stats.ImageStats.Success != 1 || stats.ImageStats.Failure != 1 || stats.ImageStats.Running != 0 {
 		t.Fatalf("unexpected image stats: %+v", stats.ImageStats)
 	}

@@ -70,10 +70,29 @@ const renderTimestamp = (timestampInSeconds) => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 };
 
+const normalizeUnixTimestamp = (timestamp) => {
+  const numericValue = Number(timestamp || 0);
+  if (!numericValue || Number.isNaN(numericValue)) {
+    return 0;
+  }
+  return numericValue > 1000000000000
+    ? Math.floor(numericValue / 1000)
+    : Math.floor(numericValue);
+};
+
+const isFinishedStatus = (status) =>
+  status === 'SUCCESS' || status === 'FAILURE';
+
 const renderDuration = (submitTime, finishTime, record) => {
-  const submitTimestamp = Number(submitTime || 0);
-  const finishTimestamp = Number(finishTime || 0);
-  const startTimestamp = Number(record?.start_time || 0);
+  const submitTimestamp = normalizeUnixTimestamp(submitTime);
+  const fallbackFinishTimestamp =
+    isFinishedStatus(record?.status) && !finishTime
+      ? record?.updated_at
+      : 0;
+  const finishTimestamp = normalizeUnixTimestamp(
+    finishTime || fallbackFinishTimestamp,
+  );
+  const startTimestamp = normalizeUnixTimestamp(record?.start_time || 0);
 
   let durationSec = 0;
   if (startTimestamp > 0 && finishTimestamp > 0) {
