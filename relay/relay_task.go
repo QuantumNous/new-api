@@ -41,6 +41,52 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
+func upsertPendingRelayTaskRecord(info *relaycommon.RelayInfo, platform constant.TaskPlatform) {
+	if info == nil || info.PublicTaskID == "" || info.Action == "" || platform == "" {
+		return
+	}
+
+	task, exist, err := model.GetByOnlyTaskId(info.PublicTaskID)
+	if err != nil {
+		common.SysError("get pending task for upsert error: " + err.Error())
+		return
+	}
+	if !exist || task == nil {
+		task = model.InitTask(platform, info)
+	} else {
+		task.Platform = platform
+		task.UserId = info.UserId
+		task.Group = info.UsingGroup
+		task.ChannelId = info.ChannelId
+	}
+
+	task.Action = info.Action
+	task.Status = model.TaskStatusSubmitted
+	task.Progress = taskcommon.ProgressSubmitted
+	task.PrivateData.BillingSource = info.BillingSource
+	task.PrivateData.SubscriptionId = info.SubscriptionId
+	task.PrivateData.TokenId = info.TokenId
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		ModelPrice:      info.PriceData.ModelPrice,
+		GroupRatio:      info.PriceData.GroupRatioInfo.GroupRatio,
+		ModelRatio:      info.PriceData.ModelRatio,
+		OtherRatios:     info.PriceData.OtherRatios,
+		OriginModelName: info.OriginModelName,
+		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, info.OriginModelName),
+	}
+
+	if exist {
+		if updateErr := task.Update(); updateErr != nil {
+			common.SysError("update pending task error: " + updateErr.Error())
+		}
+		return
+	}
+
+	if insertErr := task.Insert(); insertErr != nil {
+		common.SysError("insert pending task error: " + insertErr.Error())
+	}
+}
+
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
 // 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
 // （通过 info.LockedChannel，重试时复用同一渠道并轮换 key），
@@ -220,6 +266,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
+
+	upsertPendingRelayTaskRecord(info, platform)
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
