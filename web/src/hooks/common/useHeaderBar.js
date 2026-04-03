@@ -83,12 +83,12 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     // New format: {items: [...]}
     if (Array.isArray(headerNavModules?.items)) {
       const pricing = headerNavModules.items.find((it) => it.key === 'pricing');
-      return pricing?.requireAuth || false;
+      return pricing?.requireAuth === true;
     }
     // Old format: {pricing: {enabled, requireAuth}}
     if (headerNavModules?.pricing) {
       return typeof headerNavModules.pricing === 'object'
-        ? headerNavModules.pricing.requireAuth || false
+        ? headerNavModules.pricing.requireAuth === true
         : false;
     }
     return false;

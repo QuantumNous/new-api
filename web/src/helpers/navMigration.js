@@ -42,20 +42,25 @@ export function migrateOldFormatToItems(modules) {
     (a, b) => (a.position ?? 99) - (b.position ?? 99),
   );
 
+  const cursors = new Map();
   for (const ci of sorted) {
     const pos = ci.position ?? 99;
     const { position: _, ...rest } = ci;
     const customItem = { ...rest };
 
     if (pos === 0) {
-      items.splice(0, 0, customItem);
+      const cursor = cursors.get('start') ?? 0;
+      items.splice(cursor, 0, customItem);
+      cursors.set('start', cursor + 1);
     } else if (pos === 99) {
       items.push(customItem);
     } else {
-      const builtInKey = BUILT_IN_ORDER[pos - 1];
-      const idx = items.findIndex((it) => it.key === builtInKey);
-      if (idx >= 0) {
-        items.splice(idx + 1, 0, customItem);
+      const anchorKey = BUILT_IN_ORDER[pos - 1];
+      const anchorIdx = items.findIndex((it) => it.key === anchorKey);
+      if (anchorIdx >= 0) {
+        const cursor = cursors.get(anchorKey) ?? anchorIdx + 1;
+        items.splice(cursor, 0, customItem);
+        cursors.set(anchorKey, cursor + 1);
       } else {
         items.push(customItem);
       }
