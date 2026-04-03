@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -106,7 +105,7 @@ func TestFirstNonEmptyRequestValueTrimsWhitespace(t *testing.T) {
 		"email=%20form@example.com%20",
 	)
 	value := firstNonEmptyRequestValue(ctx, "email")
-	if strings.TrimSpace(value) != "form@example.com" {
+	if value != "form@example.com" {
 		t.Fatalf("expected trimmed value, got %q", value)
 	}
 }
