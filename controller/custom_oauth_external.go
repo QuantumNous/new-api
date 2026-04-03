@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -157,22 +158,35 @@ func oauthAuditFailureReason(err error) string {
 		return ""
 	}
 
-	switch e := err.(type) {
-	case *oauth.OAuthError:
-		return "oauth_error:" + safeOAuthAuditValue(e.MsgKey)
-	case *oauth.AccessDeniedError:
-		return "access_denied"
-	case *oauth.TrustLevelError:
-		return "trust_level_denied"
-	case *OAuthAlreadyBoundError:
-		return "oauth_already_bound"
-	case *OAuthUserDeletedError:
-		return "oauth_user_deleted"
-	case *OAuthRegistrationDisabledError, *OAuthAutoRegisterDisabledError:
-		return "registration_disabled"
-	default:
-		return "internal_error"
+	var oauthErr *oauth.OAuthError
+	if errors.As(err, &oauthErr) {
+		return "oauth_error:" + safeOAuthAuditValue(oauthErr.MsgKey)
 	}
+	var accessDeniedErr *oauth.AccessDeniedError
+	if errors.As(err, &accessDeniedErr) {
+		return "access_denied"
+	}
+	var trustLevelErr *oauth.TrustLevelError
+	if errors.As(err, &trustLevelErr) {
+		return "trust_level_denied"
+	}
+	var alreadyBoundErr *OAuthAlreadyBoundError
+	if errors.As(err, &alreadyBoundErr) {
+		return "oauth_already_bound"
+	}
+	var deletedErr *OAuthUserDeletedError
+	if errors.As(err, &deletedErr) {
+		return "oauth_user_deleted"
+	}
+	var registrationDisabledErr *OAuthRegistrationDisabledError
+	if errors.As(err, &registrationDisabledErr) {
+		return "registration_disabled"
+	}
+	var autoRegisterDisabledErr *OAuthAutoRegisterDisabledError
+	if errors.As(err, &autoRegisterDisabledErr) {
+		return "registration_disabled"
+	}
+	return "internal_error"
 }
 
 func newCustomOAuthJWTAuditInfo(providerConfig *model.CustomOAuthProvider) *customOAuthJWTAuditInfo {
