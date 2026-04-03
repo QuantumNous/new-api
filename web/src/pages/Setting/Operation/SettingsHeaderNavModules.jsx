@@ -511,12 +511,14 @@ export default function SettingsHeaderNavModules(props) {
                     icon={<IconEdit />}
                     size='small'
                     type='tertiary'
+                    aria-label={t('编辑') + ' ' + (record.label || '')}
                     onClick={() => openEditModal(record)}
                   />
                   <Button
                     icon={<IconDelete />}
                     size='small'
                     type='danger'
+                    aria-label={t('删除') + ' ' + (record.label || '')}
                     onClick={() => deleteCustomItem(record.id)}
                   />
                 </div>
