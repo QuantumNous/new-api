@@ -98,12 +98,17 @@ function ensureAbsoluteOAuthURL(url) {
   if (typeof url !== 'string' || url.trim() === '') {
     throw new Error(i18n.t('缺少授权端点 URL'));
   }
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+  const trimmedURL = url.trim();
+  const normalizedSchemeURL = trimmedURL.toLowerCase();
+  if (
+    !normalizedSchemeURL.startsWith('http://') &&
+    !normalizedSchemeURL.startsWith('https://')
+  ) {
     throw new Error(
       i18n.t('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'),
     );
   }
-  return new URL(url);
+  return new URL(trimmedURL);
 }
 
 function patchAPIInstance(instance) {

@@ -41,11 +41,7 @@ func decodeOptionalJSONBody(c *gin.Context, req any) error {
 		return nil
 	}
 	contentType := strings.ToLower(strings.TrimSpace(c.ContentType()))
-	if contentType == "" {
-		if c.Request.ContentLength == 0 {
-			return nil
-		}
-	} else if !strings.Contains(contentType, "json") {
+	if !strings.Contains(contentType, "json") {
 		return nil
 	}
 	return common.DecodeJson(c.Request.Body, req)
