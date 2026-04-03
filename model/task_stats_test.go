@@ -1,6 +1,9 @@
 package model
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestBuildTaskStatsResponse(t *testing.T) {
 	startTimestamp := int64(1711929600) // 2024-04-01 00:00:00 +0800
@@ -62,5 +65,40 @@ func TestGetTaskActionsForMediaType(t *testing.T) {
 	videoActions := getTaskActionsForMediaType(TaskMediaTypeVideo)
 	if len(videoActions) != 5 {
 		t.Fatalf("expected 5 video actions, got %d", len(videoActions))
+	}
+}
+
+func TestBuildTaskStatsResponseTodayUsesHourlyBuckets(t *testing.T) {
+	now := time.Now().In(time.Local)
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+
+	stats := BuildTaskStatsResponse(
+		[]taskStatsRecord{
+			{
+				Action:     "generate",
+				Status:     TaskStatusSuccess,
+				SubmitTime: start.Add(2 * time.Hour).Unix(),
+			},
+			{
+				Action:     "imageGenerate",
+				Status:     TaskStatusSuccess,
+				SubmitTime: start.Add(15 * time.Hour).Unix(),
+			},
+		},
+		start.Unix(),
+		end.Unix(),
+	)
+
+	if len(stats.DailyCounts) != 24 {
+		t.Fatalf("expected 24 hourly buckets, got %d", len(stats.DailyCounts))
+	}
+
+	if stats.DailyCounts[2].Date != "02:00" || stats.DailyCounts[2].Total != 1 {
+		t.Fatalf("unexpected 02:00 bucket: %+v", stats.DailyCounts[2])
+	}
+
+	if stats.DailyCounts[15].Date != "15:00" || stats.DailyCounts[15].Total != 1 {
+		t.Fatalf("unexpected 15:00 bucket: %+v", stats.DailyCounts[15])
 	}
 }

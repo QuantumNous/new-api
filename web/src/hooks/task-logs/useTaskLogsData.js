@@ -78,16 +78,48 @@ const createStatsBreakdown = () => ({
   failure: 0,
 });
 
+const shouldUseHourlyStatsBuckets = (startTimestamp, endTimestamp) => {
+  if (!startTimestamp || !endTimestamp) {
+    return false;
+  }
+
+  const start = dayjs.unix(Math.min(startTimestamp, endTimestamp));
+  const end = dayjs.unix(Math.max(startTimestamp, endTimestamp));
+  const now = dayjs();
+
+  return start.isSame(now, 'day') && end.isSame(now, 'day');
+};
+
 const buildDailyCountBuckets = (startTimestamp, endTimestamp) => {
   if (!startTimestamp || !endTimestamp) {
     return [];
   }
 
-  const start = dayjs.unix(Math.min(startTimestamp, endTimestamp)).startOf('day');
-  const end = dayjs.unix(Math.max(startTimestamp, endTimestamp)).startOf('day');
+  const start = dayjs.unix(Math.min(startTimestamp, endTimestamp));
+  const end = dayjs.unix(Math.max(startTimestamp, endTimestamp));
   const buckets = [];
+  const useHourlyBuckets = shouldUseHourlyStatsBuckets(startTimestamp, endTimestamp);
 
-  for (let cursor = start; !cursor.isAfter(end, 'day'); cursor = cursor.add(1, 'day')) {
+  if (useHourlyBuckets) {
+    for (
+      let cursor = start.startOf('hour');
+      !cursor.isAfter(end.startOf('hour'));
+      cursor = cursor.add(1, 'hour')
+    ) {
+      buckets.push({
+        date: cursor.format('HH:00'),
+        total: 0,
+      });
+    }
+
+    return buckets;
+  }
+
+  for (
+    let cursor = start.startOf('day');
+    !cursor.isAfter(end.startOf('day'));
+    cursor = cursor.add(1, 'day')
+  ) {
     buckets.push({
       date: cursor.format('YYYY-MM-DD'),
       total: 0,

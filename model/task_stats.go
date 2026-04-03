@@ -37,6 +37,13 @@ type taskStatsRecord struct {
 	FailReason string
 }
 
+type taskStatsBucketMode string
+
+const (
+	taskStatsBucketModeDay  taskStatsBucketMode = "day"
+	taskStatsBucketModeHour taskStatsBucketMode = "hour"
+)
+
 func normalizeTaskStatus(status TaskStatus) TaskStatus {
 	normalizedStatus := strings.ToUpper(strings.TrimSpace(string(status)))
 	switch normalizedStatus {
@@ -186,13 +193,14 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		DailyCounts: make([]dto.TaskDailyCount, 0),
 	}
 
+	bucketMode := resolveTaskStatsBucketMode(startTimestamp, endTimestamp)
 	dailyTotals := make(map[string]int64)
 	for _, record := range records {
 		mediaType := detectTaskMediaType(record.Action)
 		if mediaType == "" {
 			continue
 		}
-		submitDate := time.Unix(record.SubmitTime, 0).In(time.Local).Format("2006-01-02")
+		submitDate := formatTaskStatsBucketKey(time.Unix(record.SubmitTime, 0).In(time.Local), bucketMode)
 		dailyTotals[submitDate]++
 		breakdown := resolveTaskStatsBreakdown(record.Status, record.Progress, record.FailReason)
 
@@ -218,7 +226,7 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		}
 	}
 
-	bucketDates := buildTaskStatsDateBuckets(startTimestamp, endTimestamp)
+	bucketDates := buildTaskStatsDateBuckets(startTimestamp, endTimestamp, bucketMode)
 	if len(bucketDates) == 0 {
 		dates := make([]string, 0, len(dailyTotals))
 		for date := range dailyTotals {
@@ -244,20 +252,60 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 	return response
 }
 
-func buildTaskStatsDateBuckets(startTimestamp int64, endTimestamp int64) []string {
+func resolveTaskStatsBucketMode(startTimestamp int64, endTimestamp int64) taskStatsBucketMode {
+	if startTimestamp <= 0 || endTimestamp <= 0 {
+		return taskStatsBucketModeDay
+	}
+
+	start := time.Unix(startTimestamp, 0).In(time.Local)
+	end := time.Unix(endTimestamp, 0).In(time.Local)
+	if end.Before(start) {
+		start, end = end, start
+	}
+
+	now := time.Now().In(time.Local)
+	if start.Format("2006-01-02") == now.Format("2006-01-02") &&
+		end.Format("2006-01-02") == now.Format("2006-01-02") {
+		return taskStatsBucketModeHour
+	}
+
+	return taskStatsBucketModeDay
+}
+
+func formatTaskStatsBucketKey(t time.Time, mode taskStatsBucketMode) string {
+	switch mode {
+	case taskStatsBucketModeHour:
+		return t.Format("15:00")
+	default:
+		return t.Format("2006-01-02")
+	}
+}
+
+func buildTaskStatsDateBuckets(startTimestamp int64, endTimestamp int64, mode taskStatsBucketMode) []string {
 	if startTimestamp <= 0 || endTimestamp <= 0 {
 		return nil
 	}
 
-	start := time.Unix(startTimestamp, 0).In(time.Local).Truncate(24 * time.Hour)
-	end := time.Unix(endTimestamp, 0).In(time.Local).Truncate(24 * time.Hour)
+	start := time.Unix(startTimestamp, 0).In(time.Local)
+	end := time.Unix(endTimestamp, 0).In(time.Local)
 	if end.Before(start) {
 		start, end = end, start
 	}
 
 	dates := make([]string, 0)
-	for current := start; !current.After(end); current = current.AddDate(0, 0, 1) {
-		dates = append(dates, current.Format("2006-01-02"))
+	switch mode {
+	case taskStatsBucketModeHour:
+		startHour := start.Truncate(time.Hour)
+		endHour := end.Truncate(time.Hour)
+		for current := startHour; !current.After(endHour); current = current.Add(time.Hour) {
+			dates = append(dates, current.Format("15:00"))
+		}
+	default:
+		startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+		endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
+		for current := startDay; !current.After(endDay); current = current.AddDate(0, 0, 1) {
+			dates = append(dates, current.Format("2006-01-02"))
+		}
 	}
 	return dates
 }
