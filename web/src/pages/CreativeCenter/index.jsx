@@ -59,11 +59,7 @@ const ADOBE_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
 ]);
-const ADVANCED_ADOBE_IMAGE_MODELS = new Set([
-  'nano-banana2',
-  'nano-banana-pro',
-]);
-const ADOBE_CHAT_IMAGE_EDIT_MODELS = new Set([
+const ADOBE_CHAT_IMAGE_MODELS = new Set([
   'nano-banana2',
   'nano-banana-pro',
 ]);
@@ -98,21 +94,12 @@ const DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: '4:3', value: '4:3' },
   { label: '3:4', value: '3:4' },
 ];
-const ADVANCED_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
+const CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS = [
   { label: '1:1', value: '1:1' },
   { label: '16:9', value: '16:9' },
   { label: '9:16', value: '9:16' },
   { label: '4:3', value: '4:3' },
   { label: '3:4', value: '3:4' },
-  { label: '8:1', value: '8:1' },
-  { label: '4:1', value: '4:1' },
-  { label: '21:9', value: '21:9' },
-  { label: '5:4', value: '5:4' },
-  { label: '3:2', value: '3:2' },
-  { label: '4:5', value: '4:5' },
-  { label: '2:3', value: '2:3' },
-  { label: '1:4', value: '1:4' },
-  { label: '1:8', value: '1:8' },
 ];
 const ADOBE_AUTO_IMAGE_SIZE_OPTIONS = [
   { label: '1024x1024', value: '1024x1024' },
@@ -639,8 +626,8 @@ const revokeCreativeCenterPreviewURL = (previewUrl) => {
 };
 
 const getAdobeImageAspectRatioOptions = (modelName) =>
-  ADVANCED_ADOBE_IMAGE_MODELS.has(modelName)
-    ? ADVANCED_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS
+  ADOBE_CHAT_IMAGE_MODELS.has(modelName)
+    ? CHAT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS
     : DEFAULT_ADOBE_IMAGE_ASPECT_RATIO_OPTIONS;
 
 const supportsAdobeAutoImageSize = (modelName) =>
@@ -5029,10 +5016,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               'image',
               currentUploadedImageUrls,
             );
-            const useAdobeChatImageEditRequest =
-              ADOBE_CHAT_IMAGE_EDIT_MODELS.has(currentModelName) &&
-              currentUploadedImageUrls.length > 0;
-            const payload = useAdobeChatImageEditRequest
+            const useAdobeChatImageRequest =
+              ADOBE_CHAT_IMAGE_MODELS.has(currentModelName);
+            const payload = useAdobeChatImageRequest
               ? {
                   model: currentModelName,
                   group: activeGroup,
@@ -5066,7 +5052,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     seeds: [requestSeed],
                     user: requestUser,
                   };
-            if (!isGrokImageEditModel && !useAdobeChatImageEditRequest && basePayload.size) {
+            if (!isGrokImageEditModel && !useAdobeChatImageRequest && basePayload.size) {
               payload.size = basePayload.size;
             }
             if (isGrokImageEditModel) {
@@ -5075,7 +5061,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               } else if (currentUploadedImageUrls.length > 1) {
                 payload.image = currentUploadedImageUrls;
               }
-            } else if (useAdobeChatImageEditRequest) {
+            } else if (useAdobeChatImageRequest) {
               if (basePayload.extra_body) {
                 payload.extra_body = basePayload.extra_body;
               }
@@ -5101,7 +5087,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               requestId,
               requestPollable:
                 ADOBE_IMAGE_MODELS.has(currentModelName) &&
-                !useAdobeChatImageEditRequest,
+                !useAdobeChatImageRequest,
               submittedAt,
               estimateStartAt,
               finalizingAt: 0,
@@ -5118,7 +5104,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             const data = await postCreativeRequest(
               isGrokImageEditModel
                 ? API_ENDPOINTS.IMAGE_EDITS
-                : useAdobeChatImageEditRequest
+                : useAdobeChatImageRequest
                   ? API_ENDPOINTS.CHAT_COMPLETIONS
                   : API_ENDPOINTS.IMAGE_GENERATIONS,
               payload,
