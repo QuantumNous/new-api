@@ -620,7 +620,7 @@ export const getChannelsColumns = ({
                       return;
                     }
                     submitTagEdit('priority', {
-                      tag: record.key,
+                      tag: record.tag ?? record.key,
                       priority: e.target.value,
                     });
                   },
@@ -675,7 +675,7 @@ export const getChannelsColumns = ({
                       return;
                     }
                     submitTagEdit('weight', {
-                      tag: record.key,
+                      tag: record.tag ?? record.key,
                       weight: e.target.value,
                     });
                   },
@@ -884,14 +884,14 @@ export const getChannelsColumns = ({
               <Button
                 type='tertiary'
                 size='small'
-                onClick={() => manageTag(record.key, 'enable')}
+                onClick={() => manageTag(record.tag ?? record.key, 'enable')}
               >
                 {t('启用全部')}
               </Button>
               <Button
                 type='tertiary'
                 size='small'
-                onClick={() => manageTag(record.key, 'disable')}
+                onClick={() => manageTag(record.tag ?? record.key, 'disable')}
               >
                 {t('禁用全部')}
               </Button>
@@ -900,7 +900,7 @@ export const getChannelsColumns = ({
                 size='small'
                 onClick={() => {
                   setShowEditTag(true);
-                  setEditingTag(record.key);
+                  setEditingTag(record.tag ?? record.key);
                 }}
               >
                 {t('编辑')}

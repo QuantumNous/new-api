@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -40,6 +40,53 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
+const UNGROUPED_TAG_KEY = '__untagged__';
+const INTERACTIVE_SELECTION_EXCLUDE_SELECTOR = [
+  'button',
+  'a',
+  'input',
+  'textarea',
+  'select',
+  'label',
+  '[role="button"]',
+  '.semi-button',
+  '.semi-switch',
+  '.semi-select',
+  '.semi-dropdown',
+  '.semi-popover',
+  '.semi-modal',
+  '.semi-tag',
+  '.semi-table-row-expand-icon',
+].join(', ');
+
+const toChannelRecordKey = (record) => {
+  if (!record) return '';
+  const rawKey = record.key ?? record.id;
+  if (rawKey === undefined || rawKey === null) return '';
+  return String(rawKey);
+};
+
+const flattenChannelRecords = (records = []) => {
+  const flattened = [];
+  records.forEach((record) => {
+    flattened.push(record);
+    if (Array.isArray(record?.children) && record.children.length > 0) {
+      flattened.push(...flattenChannelRecords(record.children));
+    }
+  });
+  return flattened;
+};
+
+const normalizeChannelId = (id) => {
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return id;
+  }
+  if (typeof id === 'string' && /^\d+$/.test(id)) {
+    return Number(id);
+  }
+  return null;
+};
+
 export const useChannelsData = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
@@ -61,6 +108,8 @@ export const useChannelsData = () => {
   const [showEditTag, setShowEditTag] = useState(false);
   const [editingTag, setEditingTag] = useState('');
   const [selectedChannels, setSelectedChannels] = useState([]);
+  const [selectedChannelRowKeys, setSelectedChannelRowKeys] = useState([]);
+  const [lastSelectedRowKey, setLastSelectedRowKey] = useState('');
   const [enableTagMode, setEnableTagMode] = useState(false);
   const [showBatchSetTag, setShowBatchSetTag] = useState(false);
   const [batchSetTagValue, setBatchSetTagValue] = useState('');
@@ -121,6 +170,8 @@ export const useChannelsData = () => {
   // Refs
   const requestCounter = useRef(0);
   const allSelectingRef = useRef(false);
+  const skipNextSelectionChangeRef = useRef(false);
+  const shiftKeyPressedRef = useRef(false);
   const [formApi, setFormApi] = useState(null);
 
   const formInitValues = {
@@ -244,17 +295,20 @@ export const useChannelsData = () => {
       if (!enableTagMode) {
         channelDates.push(channels[i]);
       } else {
-        let tag = channels[i].tag ? channels[i].tag : '';
-        let tagIndex = channelTags[tag];
+        const rawTag =
+          typeof channels[i].tag === 'string' ? channels[i].tag.trim() : '';
+        const normalizedTagKey =
+          rawTag === '' ? UNGROUPED_TAG_KEY : String(rawTag);
+        let tagIndex = channelTags[normalizedTagKey];
         let tagChannelDates = undefined;
 
         if (tagIndex === undefined) {
-          channelTags[tag] = 1;
+          channelTags[normalizedTagKey] = 1;
           tagChannelDates = {
-            key: tag,
-            id: tag,
-            tag: tag,
-            name: t('标签：{{tag}}', { tag }),
+            key: normalizedTagKey,
+            id: normalizedTagKey,
+            tag: rawTag,
+            name: t('标签：{{tag}}', { tag: rawTag === '' ? t('其他') : rawTag }),
             group: '',
             used_quota: 0,
             response_time: 0,
@@ -264,7 +318,9 @@ export const useChannelsData = () => {
           tagChannelDates.children = [];
           channelDates.push(tagChannelDates);
         } else {
-          tagChannelDates = channelDates.find((item) => item.key === tag);
+          tagChannelDates = channelDates.find(
+            (item) => item.key === normalizedTagKey,
+          );
         }
 
         if (tagChannelDates.priority === -1) {
@@ -305,6 +361,221 @@ export const useChannelsData = () => {
     }
     setChannels(channelDates);
   };
+
+  const flattenedChannels = useMemo(
+    () => flattenChannelRecords(channels),
+    [channels],
+  );
+
+  const channelRecordMap = useMemo(() => {
+    const map = new Map();
+    flattenedChannels.forEach((record) => {
+      const key = toChannelRecordKey(record);
+      if (!key) return;
+      map.set(key, record);
+    });
+    return map;
+  }, [flattenedChannels]);
+
+  const channelSelectionOrderKeys = useMemo(
+    () =>
+      flattenedChannels
+        .map((record) => toChannelRecordKey(record))
+        .filter((key) => key !== ''),
+    [flattenedChannels],
+  );
+
+  const allChannelSelectableKeys = useMemo(() => {
+    const allKeys = [];
+    channels.forEach((channel) => {
+      const parentKey = toChannelRecordKey(channel);
+      if (parentKey) {
+        allKeys.push(parentKey);
+      }
+      if (Array.isArray(channel?.children) && channel.children.length > 0) {
+        channel.children.forEach((child) => {
+          const childKey = toChannelRecordKey(child);
+          if (childKey) {
+            allKeys.push(childKey);
+          }
+        });
+      }
+    });
+    return allKeys;
+  }, [channels]);
+
+  const normalizeChannelSelectionKeys = useCallback(
+    (rawSelectedKeys = [], previousSelectedKeys = []) => {
+      const normalizedSet = new Set();
+      const previousSet = new Set(previousSelectedKeys.map((key) => String(key)));
+      const rawSet = new Set();
+
+      rawSelectedKeys.forEach((rawKey) => {
+        const key = String(rawKey ?? '');
+        if (!key || !channelRecordMap.has(key)) {
+          return;
+        }
+        rawSet.add(key);
+        normalizedSet.add(key);
+      });
+
+      const addedSet = new Set(
+        [...rawSet].filter((key) => !previousSet.has(key)),
+      );
+      const removedSet = new Set(
+        [...previousSet].filter((key) => !rawSet.has(key)),
+      );
+
+      // When parent rows are toggled directly, mirror that intent to all children.
+      channels.forEach((channel) => {
+        if (!Array.isArray(channel?.children) || channel.children.length === 0) {
+          return;
+        }
+        const parentKey = toChannelRecordKey(channel);
+        if (!parentKey) {
+          return;
+        }
+        const childKeys = channel.children
+          .map((child) => toChannelRecordKey(child))
+          .filter((key) => key !== '');
+        if (childKeys.length === 0) {
+          return;
+        }
+
+        if (addedSet.has(parentKey)) {
+          childKeys.forEach((childKey) => normalizedSet.add(childKey));
+        }
+        if (removedSet.has(parentKey)) {
+          childKeys.forEach((childKey) => normalizedSet.delete(childKey));
+        }
+      });
+
+      // Keep parent row selected only when all children are selected.
+      channels.forEach((channel) => {
+        if (!Array.isArray(channel?.children) || channel.children.length === 0) {
+          return;
+        }
+        const parentKey = toChannelRecordKey(channel);
+        if (!parentKey) {
+          return;
+        }
+        const childKeys = channel.children
+          .map((child) => toChannelRecordKey(child))
+          .filter((key) => key !== '');
+        if (childKeys.length === 0) {
+          return;
+        }
+
+        const selectedChildCount = childKeys.filter((childKey) =>
+          normalizedSet.has(childKey),
+        ).length;
+        if (selectedChildCount === childKeys.length) {
+          normalizedSet.add(parentKey);
+        } else {
+          normalizedSet.delete(parentKey);
+        }
+      });
+
+      return channelSelectionOrderKeys.filter((key) => normalizedSet.has(key));
+    },
+    [channelRecordMap, channelSelectionOrderKeys, channels],
+  );
+
+  const applySelectionByRowKeys = useCallback(
+    (rawSelectedKeys = [], previousSelectedKeys = selectedChannelRowKeys) => {
+      const normalizedRowKeys = normalizeChannelSelectionKeys(
+        rawSelectedKeys,
+        previousSelectedKeys,
+      );
+      const selectedLeafChannelMap = new Map();
+
+      normalizedRowKeys.forEach((key) => {
+        const record = channelRecordMap.get(key);
+        if (!record || Array.isArray(record?.children)) {
+          return;
+        }
+        const normalizedId = normalizeChannelId(record?.id);
+        if (normalizedId !== null) {
+          selectedLeafChannelMap.set(normalizedId, record);
+        }
+      });
+
+      setSelectedChannelRowKeys(normalizedRowKeys);
+      setSelectedChannels(Array.from(selectedLeafChannelMap.values()));
+      return normalizedRowKeys;
+    },
+    [channelRecordMap, normalizeChannelSelectionKeys, selectedChannelRowKeys],
+  );
+
+  const handleChannelRowSelectionChange = useCallback(
+    (rawSelectedKeys) => {
+      if (skipNextSelectionChangeRef.current) {
+        skipNextSelectionChangeRef.current = false;
+        return;
+      }
+
+      const rawKeyStrings = Array.isArray(rawSelectedKeys)
+        ? rawSelectedKeys.map((key) => String(key))
+        : [];
+      const previousKeyStrings = selectedChannelRowKeys.map((key) => String(key));
+      const rawSet = new Set(rawKeyStrings);
+      const previousSet = new Set(previousKeyStrings);
+      const addedKeys = rawKeyStrings.filter((key) => !previousSet.has(key));
+      const removedKeys = previousKeyStrings.filter((key) => !rawSet.has(key));
+      const changedKey =
+        addedKeys[addedKeys.length - 1] || removedKeys[removedKeys.length - 1] || '';
+
+      if (shiftKeyPressedRef.current && lastSelectedRowKey) {
+        if (changedKey) {
+          const startIndex = channelSelectionOrderKeys.indexOf(lastSelectedRowKey);
+          const endIndex = channelSelectionOrderKeys.indexOf(changedKey);
+          if (startIndex !== -1 && endIndex !== -1) {
+            const [start, end] =
+              startIndex < endIndex
+                ? [startIndex, endIndex]
+                : [endIndex, startIndex];
+            const rangeKeys = channelSelectionOrderKeys.slice(start, end + 1);
+
+            let nextRowKeys = rangeKeys;
+            if (removedKeys.includes(changedKey)) {
+              const nextSet = new Set(previousKeyStrings);
+              rangeKeys.forEach((key) => nextSet.delete(key));
+              nextRowKeys = channelSelectionOrderKeys.filter((key) =>
+                nextSet.has(key),
+              );
+            }
+
+            const normalizedRowKeys = applySelectionByRowKeys(
+              nextRowKeys,
+              selectedChannelRowKeys,
+            );
+            if (normalizedRowKeys.length === 0) {
+              setLastSelectedRowKey('');
+            } else {
+              setLastSelectedRowKey(String(changedKey));
+            }
+            return;
+          }
+        }
+      }
+
+      const normalizedRowKeys = applySelectionByRowKeys(
+        rawSelectedKeys,
+        selectedChannelRowKeys,
+      );
+      if (!Array.isArray(normalizedRowKeys) || normalizedRowKeys.length === 0) {
+        setLastSelectedRowKey('');
+        return;
+      }
+      setLastSelectedRowKey(changedKey || String(normalizedRowKeys[normalizedRowKeys.length - 1]));
+    },
+    [
+      applySelectionByRowKeys,
+      selectedChannelRowKeys,
+      lastSelectedRowKey,
+      channelSelectionOrderKeys,
+    ],
+  );
 
   // Get form values helper
   const getFormValues = () => {
@@ -438,6 +709,130 @@ export const useChannelsData = () => {
   };
 
   const upstreamUpdates = useChannelUpstreamUpdates({ t, refresh });
+
+  const isChannelEditModeOpen =
+    showEdit ||
+    showEditTag ||
+    showBatchSetTag ||
+    showModelTestModal ||
+    showMultiKeyManageModal ||
+    upstreamUpdates.showUpstreamUpdateModal;
+
+  useEffect(() => {
+    if (!enableBatchDelete) {
+      setSelectedChannels([]);
+      setSelectedChannelRowKeys([]);
+      setLastSelectedRowKey('');
+    }
+  }, [enableBatchDelete]);
+
+  useEffect(() => {
+    setSelectedChannels([]);
+    setSelectedChannelRowKeys([]);
+    setLastSelectedRowKey('');
+  }, [enableTagMode]);
+
+  useEffect(() => {
+    if (selectedChannelRowKeys.length === 0) {
+      return;
+    }
+    applySelectionByRowKeys(selectedChannelRowKeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
+
+  useEffect(() => {
+    if (!enableBatchDelete || isMobile) {
+      return;
+    }
+    const handleSelectAllByShortcut = (event) => {
+      const key = String(event.key || '').toLowerCase();
+      const selectAllPressed =
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        key === 'a';
+      if (!selectAllPressed || isChannelEditModeOpen) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const selectedKeySet = new Set(
+        selectedChannelRowKeys.map((rowKey) => String(rowKey)),
+      );
+      const allSelected =
+        allChannelSelectableKeys.length > 0 &&
+        allChannelSelectableKeys.every((rowKey) =>
+          selectedKeySet.has(String(rowKey)),
+        );
+
+      if (allSelected) {
+        applySelectionByRowKeys([]);
+        setLastSelectedRowKey('');
+        return;
+      }
+
+      const normalizedRowKeys = applySelectionByRowKeys(
+        allChannelSelectableKeys,
+        selectedChannelRowKeys,
+      );
+      if (normalizedRowKeys.length > 0) {
+        setLastSelectedRowKey(
+          String(normalizedRowKeys[normalizedRowKeys.length - 1]),
+        );
+      }
+    };
+
+    document.addEventListener('keydown', handleSelectAllByShortcut, true);
+    return () => {
+      document.removeEventListener('keydown', handleSelectAllByShortcut, true);
+    };
+  }, [
+    enableBatchDelete,
+    isMobile,
+    isChannelEditModeOpen,
+    allChannelSelectableKeys,
+    selectedChannelRowKeys,
+    applySelectionByRowKeys,
+  ]);
+
+  useEffect(() => {
+    if (!enableBatchDelete || isMobile) {
+      shiftKeyPressedRef.current = false;
+      return;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Shift') {
+        shiftKeyPressedRef.current = true;
+      }
+    };
+    const handleKeyUp = (event) => {
+      if (event.key === 'Shift') {
+        shiftKeyPressedRef.current = false;
+      }
+    };
+    const handleWindowBlur = () => {
+      shiftKeyPressedRef.current = false;
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('keyup', handleKeyUp, true);
+    window.addEventListener('blur', handleWindowBlur);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('keyup', handleKeyUp, true);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [enableBatchDelete, isMobile]);
 
   // Channel management
   const manageChannel = async (id, action, record, value) => {
@@ -656,20 +1051,96 @@ export const useChannelsData = () => {
 
   // Row style
   const handleRow = (record, index) => {
-    if (record.status !== 1) {
-      return {
-        style: {
-          background: 'var(--semi-color-disabled-border)',
-        },
-      };
-    } else {
-      return {};
-    }
+    const rowStyle =
+      record.status !== 1
+        ? {
+            background: 'var(--semi-color-disabled-border)',
+          }
+        : undefined;
+
+    return {
+      ...(rowStyle ? { style: rowStyle } : {}),
+      onClick: (event) => {
+        if (!enableBatchDelete) {
+          return;
+        }
+        const metaPressed = event.metaKey || event.ctrlKey;
+        const shiftPressed = event.shiftKey;
+        if (!metaPressed && !shiftPressed) {
+          return;
+        }
+        const target = event.target;
+        const clickedFromCheckbox =
+          target instanceof HTMLElement && Boolean(target.closest('.semi-checkbox'));
+        if (
+          target instanceof HTMLElement &&
+          !clickedFromCheckbox &&
+          target.closest(INTERACTIVE_SELECTION_EXCLUDE_SELECTOR)
+        ) {
+          return;
+        }
+
+        const clickedRowKey = toChannelRecordKey(record);
+        if (!clickedRowKey) {
+          return;
+        }
+
+        let nextRowKeys = [];
+
+        if (shiftPressed && lastSelectedRowKey) {
+          const startIndex = channelSelectionOrderKeys.indexOf(lastSelectedRowKey);
+          const endIndex = channelSelectionOrderKeys.indexOf(clickedRowKey);
+          if (startIndex !== -1 && endIndex !== -1) {
+            const [start, end] =
+              startIndex < endIndex
+                ? [startIndex, endIndex]
+                : [endIndex, startIndex];
+            const rangeKeys = channelSelectionOrderKeys.slice(start, end + 1);
+            nextRowKeys = metaPressed
+              ? Array.from(new Set([...selectedChannelRowKeys, ...rangeKeys]))
+              : rangeKeys;
+          }
+        }
+
+        if (nextRowKeys.length === 0) {
+          if (metaPressed) {
+            nextRowKeys = selectedChannelRowKeys.includes(clickedRowKey)
+              ? selectedChannelRowKeys.filter((key) => key !== clickedRowKey)
+              : [...selectedChannelRowKeys, clickedRowKey];
+          } else {
+            nextRowKeys = [clickedRowKey];
+          }
+        }
+
+        skipNextSelectionChangeRef.current = true;
+        const normalizedRowKeys = applySelectionByRowKeys(
+          nextRowKeys,
+          selectedChannelRowKeys,
+        );
+        if (normalizedRowKeys.length === 0) {
+          setLastSelectedRowKey('');
+        } else {
+          setLastSelectedRowKey(clickedRowKey);
+        }
+      },
+    };
   };
+
+  const getSelectedChannelIds = useCallback(() => {
+    const idSet = new Set();
+    selectedChannels.forEach((channel) => {
+      const normalizedId = normalizeChannelId(channel?.id);
+      if (normalizedId !== null) {
+        idSet.add(normalizedId);
+      }
+    });
+    return Array.from(idSet);
+  }, [selectedChannels]);
 
   // Batch operations
   const batchSetChannelTag = async () => {
-    if (selectedChannels.length === 0) {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
       showError(t('请先选择要设置标签的渠道！'));
       return;
     }
@@ -677,7 +1148,6 @@ export const useChannelsData = () => {
       showError(t('标签不能为空！'));
       return;
     }
-    let ids = selectedChannels.map((channel) => channel.id);
     const res = await API.post('/api/channel/batch/tag', {
       ids: ids,
       tag: batchSetTagValue === '' ? null : batchSetTagValue,
@@ -688,26 +1158,29 @@ export const useChannelsData = () => {
       );
       await refresh();
       setShowBatchSetTag(false);
+      setSelectedChannels([]);
+      setSelectedChannelRowKeys([]);
+      setLastSelectedRowKey('');
     } else {
       showError(res.data.message, { apiMessage: true });
     }
   };
 
   const batchDeleteChannels = async () => {
-    if (selectedChannels.length === 0) {
+    const ids = getSelectedChannelIds();
+    if (ids.length === 0) {
       showError(t('请先选择要删除的通道！'));
       return;
     }
     setLoading(true);
-    let ids = [];
-    selectedChannels.forEach((channel) => {
-      ids.push(channel.id);
-    });
     const res = await API.post(`/api/channel/batch`, { ids: ids });
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
       await refresh();
+      setSelectedChannels([]);
+      setSelectedChannelRowKeys([]);
+      setLastSelectedRowKey('');
       setTimeout(() => {
         if (channels.length === 0 && activePage > 1) {
           refresh(activePage - 1);
@@ -1157,6 +1630,7 @@ export const useChannelsData = () => {
     editingTag,
     setEditingTag,
     selectedChannels,
+    selectedChannelRowKeys,
     setSelectedChannels,
     showBatchSetTag,
     setShowBatchSetTag,
@@ -1225,6 +1699,7 @@ export const useChannelsData = () => {
     submitTagEdit,
     closeEdit,
     handleRow,
+    handleChannelRowSelectionChange,
     batchSetChannelTag,
     batchDeleteChannels,
     testAllChannels,
