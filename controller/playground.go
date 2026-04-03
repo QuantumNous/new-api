@@ -150,6 +150,10 @@ func insertPlaygroundMediaTask(c *gin.Context, action string, modelName string, 
 		resolvedModelName = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 	}
 	now := time.Now().Unix()
+	startTime := now
+	if requestStartTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime); !requestStartTime.IsZero() {
+		startTime = requestStartTime.Unix()
+	}
 	task := &model.Task{
 		TaskID:     model.GenerateTaskID(),
 		UserId:     c.GetInt(string(constant.ContextKeyUserId)),
@@ -157,8 +161,8 @@ func insertPlaygroundMediaTask(c *gin.Context, action string, modelName string, 
 		ChannelId:  common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		Action:     action,
 		Status:     model.TaskStatusSuccess,
-		SubmitTime: now,
-		StartTime:  now,
+		SubmitTime: startTime,
+		StartTime:  startTime,
 		FinishTime: now,
 		Progress:   "100%",
 		Properties: model.Properties{

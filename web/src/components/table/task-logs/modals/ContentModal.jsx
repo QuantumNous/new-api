@@ -17,12 +17,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect } from 'react';
-import { Modal, Button, Typography, Spin, ImagePreview } from '@douyinfe/semi-ui';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Modal, Button, Typography, Spin } from '@douyinfe/semi-ui';
 import { IconExternalOpen, IconCopy } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
+import { API_ENDPOINTS } from '../../../../constants/playground.constants';
 
 const { Text } = Typography;
+
+const buildImagePreviewUrl = (url) => {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  const trimmedURL = url.trim();
+  if (!trimmedURL) {
+    return '';
+  }
+  if (trimmedURL.startsWith('data:') || !/^https?:\/\//i.test(trimmedURL)) {
+    return trimmedURL;
+  }
+  return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
+};
 
 const ContentModal = ({
   isModalOpen,
@@ -36,6 +51,10 @@ const ContentModal = ({
   const { t } = useTranslation();
   const [videoError, setVideoError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const imagePreviewUrl = useMemo(
+    () => buildImagePreviewUrl(modalImageUrl),
+    [modalImageUrl],
+  );
 
   useEffect(() => {
     if (isModalOpen && isVideo) {
@@ -59,6 +78,20 @@ const ContentModal = ({
 
   const handleOpenInNewTab = () => {
     window.open(modalContent, '_blank');
+  };
+
+  const handleOpenImageInNewTab = () => {
+    if (!imagePreviewUrl) {
+      return;
+    }
+    window.open(imagePreviewUrl, '_blank');
+  };
+
+  const handleCopyImageUrl = () => {
+    if (!modalImageUrl) {
+      return;
+    }
+    navigator.clipboard.writeText(modalImageUrl);
   };
 
   const renderVideoContent = () => {
@@ -177,11 +210,71 @@ const ContentModal = ({
           <p style={{ whiteSpace: 'pre-line' }}>{modalContent}</p>
         )}
       </Modal>
-      <ImagePreview
-        src={modalImageUrl}
+      <Modal
         visible={Boolean(isModalOpenurl)}
-        onVisibleChange={(visible) => setIsModalOpenurl?.(visible)}
-      />
+        onCancel={() => setIsModalOpenurl?.(false)}
+        onOk={() => setIsModalOpenurl?.(false)}
+        closable={null}
+        title={t('图片预览')}
+        width='90vw'
+        style={{ maxWidth: 960 }}
+        bodyStyle={{
+          padding: 20,
+          background: '#0f172a',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
+            <Button icon={<IconExternalOpen />} onClick={handleOpenImageInNewTab}>
+              {t('在新标签页中打开')}
+            </Button>
+            <Button icon={<IconCopy />} onClick={handleCopyImageUrl}>
+              {t('复制链接')}
+            </Button>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              minHeight: '60vh',
+              maxHeight: '70vh',
+              overflow: 'auto',
+              background: 'rgba(15, 23, 42, 0.92)',
+              borderRadius: 12,
+              padding: 12,
+            }}
+          >
+            {imagePreviewUrl ? (
+              <img
+                src={imagePreviewUrl}
+                alt='task preview'
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '66vh',
+                  objectFit: 'contain',
+                  borderRadius: 10,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.35)',
+                }}
+              />
+            ) : (
+              <Text type='tertiary'>{t('暂无可预览的图片')}</Text>
+            )}
+          </div>
+        </div>
+      </Modal>
     </>
   );
 };

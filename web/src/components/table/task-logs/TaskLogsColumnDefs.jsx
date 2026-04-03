@@ -76,10 +76,10 @@ const renderDuration = (submitTime, finishTime, record) => {
   const startTimestamp = Number(record?.start_time || 0);
 
   let durationSec = 0;
-  if (submitTimestamp > 0 && finishTimestamp > 0) {
-    durationSec = finishTimestamp - submitTimestamp;
-  } else if (startTimestamp > 0 && finishTimestamp > 0) {
+  if (startTimestamp > 0 && finishTimestamp > 0) {
     durationSec = finishTimestamp - startTimestamp;
+  } else if (submitTimestamp > 0 && finishTimestamp > 0) {
+    durationSec = finishTimestamp - submitTimestamp;
   } else {
     return '-';
   }
@@ -89,7 +89,7 @@ const renderDuration = (submitTime, finishTime, record) => {
   }
 
   const color = durationSec >= 60 ? 'red' : 'green';
-  let durationLabel = '<1s';
+  let durationLabel = '0s';
   if (durationSec >= 3600) {
     const hours = Math.floor(durationSec / 3600);
     const minutes = Math.floor((durationSec % 3600) / 60);
