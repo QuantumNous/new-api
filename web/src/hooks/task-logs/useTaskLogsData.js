@@ -78,66 +78,9 @@ const createStatsBreakdown = () => ({
   failure: 0,
 });
 
-const shouldUseHourlyStatsBuckets = (startTimestamp, endTimestamp) => {
-  if (!startTimestamp || !endTimestamp) {
-    return false;
-  }
-
-  const start = dayjs.unix(Math.min(startTimestamp, endTimestamp));
-  const end = dayjs.unix(Math.max(startTimestamp, endTimestamp));
-  const now = dayjs();
-
-  return start.isSame(now, 'day') && end.isSame(now, 'day');
-};
-
-const buildDailyCountBuckets = (startTimestamp, endTimestamp) => {
-  if (!startTimestamp || !endTimestamp) {
-    return [];
-  }
-
-  const start = dayjs.unix(Math.min(startTimestamp, endTimestamp));
-  const end = dayjs.unix(Math.max(startTimestamp, endTimestamp));
-  const buckets = [];
-  const useHourlyBuckets = shouldUseHourlyStatsBuckets(startTimestamp, endTimestamp);
-
-  if (useHourlyBuckets) {
-    for (
-      let cursor = start.startOf('hour');
-      !cursor.isAfter(end.startOf('hour'));
-      cursor = cursor.add(1, 'hour')
-    ) {
-      buckets.push({
-        date: cursor.format('HH:00'),
-        total: 0,
-      });
-    }
-
-    return buckets;
-  }
-
-  for (
-    let cursor = start.startOf('day');
-    !cursor.isAfter(end.startOf('day'));
-    cursor = cursor.add(1, 'day')
-  ) {
-    buckets.push({
-      date: cursor.format('YYYY-MM-DD'),
-      total: 0,
-    });
-  }
-
-  return buckets;
-};
-
-const normalizeStatsData = (statsData, startTimestamp, endTimestamp) => {
-  const emptyDailyCounts = buildDailyCountBuckets(startTimestamp, endTimestamp);
-  const dailyCounts = Array.isArray(statsData?.daily_counts)
-    ? statsData.daily_counts
-    : emptyDailyCounts;
-
+const normalizeStatsData = (statsData) => {
   return {
     running_count: Number(statsData?.running_count || 0),
-    daily_counts: dailyCounts.length > 0 ? dailyCounts : emptyDailyCounts,
     total_stats: {
       ...createStatsBreakdown(),
       ...(statsData?.total_stats || {}),
@@ -253,9 +196,7 @@ export const useTaskLogsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [mediaType, setMediaType] = useState(DEFAULT_MEDIA_TYPE);
   const [statsRangePreset, setStatsRangePreset] = useState(DEFAULT_RANGE_PRESET);
-  const [statsData, setStatsData] = useState(() =>
-    normalizeStatsData(null, normalizeDateValueToTimestamp(initialDateRange[0], 0), normalizeDateValueToTimestamp(initialDateRange[1], 0)),
-  );
+  const [statsData, setStatsData] = useState(() => normalizeStatsData(null));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState('');
@@ -441,14 +382,14 @@ export const useTaskLogsData = () => {
         const res = await API.get(buildStatsUrl(filters, nextMediaType));
         const { success, message, data } = res.data;
         if (success) {
-          setStatsData(normalizeStatsData(data, filters.start_timestamp, filters.end_timestamp));
+          setStatsData(normalizeStatsData(data));
         } else {
           showError(message);
-          setStatsData(normalizeStatsData(null, filters.start_timestamp, filters.end_timestamp));
+          setStatsData(normalizeStatsData(null));
         }
       } catch (error) {
         showError(error?.message || t('加载任务统计失败'));
-        setStatsData(normalizeStatsData(null, filters.start_timestamp, filters.end_timestamp));
+        setStatsData(normalizeStatsData(null));
       } finally {
         setStatsLoading(false);
       }
