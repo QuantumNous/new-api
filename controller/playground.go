@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 
@@ -140,54 +141,139 @@ func readPlaygroundRequestPrompt(c *gin.Context) string {
 	return ""
 }
 
-func insertPlaygroundMediaTask(c *gin.Context, action string, modelName string, responseBody []byte, resultURL string) {
-	if action == "" || len(responseBody) == 0 || strings.TrimSpace(resultURL) == "" {
-		return
-	}
-
+func buildPlaygroundMediaTaskModelName(c *gin.Context, modelName string) string {
 	resolvedModelName := strings.TrimSpace(modelName)
 	if resolvedModelName == "" {
 		resolvedModelName = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 	}
-	now := time.Now().Unix()
-	startTime := now
+	return resolvedModelName
+}
+
+func getPlaygroundMediaTaskStartTime(c *gin.Context) int64 {
+	startTime := time.Now().Unix()
 	if requestStartTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime); !requestStartTime.IsZero() {
 		startTime = requestStartTime.Unix()
 	}
+	return startTime
+}
+
+func createPendingPlaygroundMediaTask(c *gin.Context, action string, modelName string) string {
+	if action == "" {
+		return ""
+	}
+
+	resolvedModelName := buildPlaygroundMediaTaskModelName(c, modelName)
+	startTime := getPlaygroundMediaTaskStartTime(c)
 	task := &model.Task{
 		TaskID:     model.GenerateTaskID(),
 		UserId:     c.GetInt(string(constant.ContextKeyUserId)),
 		Group:      common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		ChannelId:  common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		Action:     action,
-		Status:     model.TaskStatusSuccess,
+		Status:     model.TaskStatusSubmitted,
 		SubmitTime: startTime,
-		StartTime:  startTime,
-		FinishTime: now,
-		Progress:   "100%",
+		Progress:   taskcommon.ProgressSubmitted,
 		Properties: model.Properties{
 			OriginModelName:   resolvedModelName,
 			UpstreamModelName: resolvedModelName,
 			Input:             readPlaygroundRequestPrompt(c),
 		},
-		Data: json.RawMessage(responseBody),
 	}
-	task.PrivateData.ResultURL = strings.TrimSpace(resultURL)
 	if err := task.Insert(); err != nil {
 		common.SysError("insert playground media task error: " + err.Error())
+		return ""
+	}
+	return task.TaskID
+}
+
+func updatePlaygroundMediaTask(c *gin.Context, taskID string, action string, modelName string, responseBody []byte, resultURL string, failReason string) {
+	if strings.TrimSpace(taskID) == "" || action == "" {
+		return
+	}
+
+	task, exist, err := model.GetByOnlyTaskId(strings.TrimSpace(taskID))
+	if err != nil {
+		common.SysError("get playground media task error: " + err.Error())
+		return
+	}
+	if !exist || task == nil {
+		return
+	}
+
+	task.Action = action
+	task.Properties.OriginModelName = buildPlaygroundMediaTaskModelName(c, modelName)
+	task.Properties.UpstreamModelName = task.Properties.OriginModelName
+	if task.Properties.Input == "" {
+		task.Properties.Input = readPlaygroundRequestPrompt(c)
+	}
+	if len(responseBody) > 0 {
+		task.Data = json.RawMessage(responseBody)
+	}
+
+	now := time.Now().Unix()
+	startTime := getPlaygroundMediaTaskStartTime(c)
+	if task.SubmitTime == 0 {
+		task.SubmitTime = startTime
+	}
+	if task.StartTime == 0 {
+		task.StartTime = startTime
+	}
+
+	if strings.TrimSpace(failReason) != "" {
+		task.Status = model.TaskStatusFailure
+		task.Progress = taskcommon.ProgressComplete
+		task.FinishTime = now
+		task.FailReason = strings.TrimSpace(failReason)
+		task.PrivateData.ResultURL = ""
+	} else if strings.TrimSpace(resultURL) != "" {
+		task.Status = model.TaskStatusSuccess
+		task.Progress = taskcommon.ProgressComplete
+		task.FinishTime = now
+		task.FailReason = ""
+		task.PrivateData.ResultURL = strings.TrimSpace(resultURL)
+	} else {
+		task.Status = model.TaskStatusSubmitted
+		task.Progress = taskcommon.ProgressSubmitted
+	}
+
+	if updateErr := task.Update(); updateErr != nil {
+		common.SysError("update playground media task error: " + updateErr.Error())
 	}
 }
 
-func recordPlaygroundImageTask(c *gin.Context, action string, responseBody []byte) {
+func extractPlaygroundTaskErrorMessage(responseBody []byte, fallback string) string {
+	message := strings.TrimSpace(fallback)
 	if len(responseBody) == 0 {
+		return message
+	}
+
+	var errorResponse dto.GeneralErrorResponse
+	if err := common.Unmarshal(responseBody, &errorResponse); err == nil {
+		if parsed := strings.TrimSpace(errorResponse.ToMessage()); parsed != "" {
+			return parsed
+		}
+	}
+
+	bodyMessage := strings.TrimSpace(string(responseBody))
+	if bodyMessage != "" {
+		return bodyMessage
+	}
+	return message
+}
+
+func recordPlaygroundImageTask(c *gin.Context, taskID string, action string, responseBody []byte) {
+	if len(responseBody) == 0 {
+		updatePlaygroundMediaTask(c, taskID, action, common.GetContextKeyString(c, constant.ContextKeyOriginalModel), nil, "", "未获取到图片结果")
 		return
 	}
 
 	var imageResponse dto.ImageResponse
 	if err := common.Unmarshal(responseBody, &imageResponse); err != nil {
+		updatePlaygroundMediaTask(c, taskID, action, common.GetContextKeyString(c, constant.ContextKeyOriginalModel), responseBody, "", "图片结果解析失败")
 		return
 	}
 	if len(imageResponse.Data) == 0 {
+		updatePlaygroundMediaTask(c, taskID, action, common.GetContextKeyString(c, constant.ContextKeyOriginalModel), responseBody, "", "未获取到图片结果")
 		return
 	}
 
@@ -199,15 +285,18 @@ func recordPlaygroundImageTask(c *gin.Context, action string, responseBody []byt
 		}
 	}
 	if resultURL == "" {
+		updatePlaygroundMediaTask(c, taskID, action, common.GetContextKeyString(c, constant.ContextKeyOriginalModel), responseBody, "", "未获取到图片结果")
 		return
 	}
 
-	insertPlaygroundMediaTask(
+	updatePlaygroundMediaTask(
 		c,
+		taskID,
 		action,
 		common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		responseBody,
 		resultURL,
+		"",
 	)
 }
 
@@ -463,13 +552,20 @@ func inferPlaygroundChatTaskAction(meta playgroundChatRequestMeta, imageURLs []s
 	return ""
 }
 
-func recordPlaygroundChatMediaTask(c *gin.Context, meta playgroundChatRequestMeta, responseBody []byte) {
+func inferPlaygroundChatRequestAction(meta playgroundChatRequestMeta) string {
+	return inferPlaygroundChatTaskAction(meta, nil, nil)
+}
+
+func recordPlaygroundChatMediaTask(c *gin.Context, taskID string, meta playgroundChatRequestMeta, responseBody []byte) {
 	if meta.IsStream || len(responseBody) == 0 {
 		return
 	}
 
 	imageURLs, videoURLs := extractPlaygroundChatMediaURLs(responseBody)
 	action := inferPlaygroundChatTaskAction(meta, imageURLs, videoURLs)
+	if action == "" {
+		action = inferPlaygroundChatRequestAction(meta)
+	}
 	if action == "" {
 		return
 	}
@@ -488,10 +584,11 @@ func recordPlaygroundChatMediaTask(c *gin.Context, meta playgroundChatRequestMet
 		}
 	}
 	if resultURL == "" {
+		updatePlaygroundMediaTask(c, taskID, action, meta.ModelName, responseBody, "", "未获取到媒体结果")
 		return
 	}
 
-	insertPlaygroundMediaTask(c, action, meta.ModelName, responseBody, resultURL)
+	updatePlaygroundMediaTask(c, taskID, action, meta.ModelName, responseBody, resultURL, "")
 }
 
 func relayPlaygroundImage(c *gin.Context, tokenName string, action string) *types.NewAPIError {
@@ -501,10 +598,25 @@ func relayPlaygroundImage(c *gin.Context, tokenName string, action string) *type
 
 	bodyCaptureWriter := &playgroundBodyCaptureWriter{ResponseWriter: c.Writer}
 	c.Writer = bodyCaptureWriter
+	pendingTaskID := createPendingPlaygroundMediaTask(
+		c,
+		action,
+		common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+	)
 	Relay(c, types.RelayFormatOpenAIImage)
 
 	if bodyCaptureWriter.Status() >= 200 && bodyCaptureWriter.Status() < 300 {
-		recordPlaygroundImageTask(c, action, bodyCaptureWriter.body.Bytes())
+		recordPlaygroundImageTask(c, pendingTaskID, action, bodyCaptureWriter.body.Bytes())
+	} else if pendingTaskID != "" {
+		updatePlaygroundMediaTask(
+			c,
+			pendingTaskID,
+			action,
+			common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+			bodyCaptureWriter.body.Bytes(),
+			"",
+			extractPlaygroundTaskErrorMessage(bodyCaptureWriter.body.Bytes(), "playground image request failed"),
+		)
 	}
 
 	return nil
@@ -545,9 +657,21 @@ func Playground(c *gin.Context) {
 
 	bodyCaptureWriter := &playgroundBodyCaptureWriter{ResponseWriter: c.Writer}
 	c.Writer = bodyCaptureWriter
+	pendingAction := inferPlaygroundChatRequestAction(requestMeta)
+	pendingTaskID := createPendingPlaygroundMediaTask(c, pendingAction, requestMeta.ModelName)
 	Relay(c, types.RelayFormatOpenAI)
 	if bodyCaptureWriter.Status() >= 200 && bodyCaptureWriter.Status() < 300 {
-		recordPlaygroundChatMediaTask(c, requestMeta, bodyCaptureWriter.body.Bytes())
+		recordPlaygroundChatMediaTask(c, pendingTaskID, requestMeta, bodyCaptureWriter.body.Bytes())
+	} else if pendingTaskID != "" {
+		updatePlaygroundMediaTask(
+			c,
+			pendingTaskID,
+			pendingAction,
+			requestMeta.ModelName,
+			bodyCaptureWriter.body.Bytes(),
+			"",
+			extractPlaygroundTaskErrorMessage(bodyCaptureWriter.body.Bytes(), "playground media request failed"),
+		)
 	}
 }
 
