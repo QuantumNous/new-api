@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/metrics"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -640,10 +642,28 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {
-	if info.isFirstResponse {
-		info.FirstResponseTime = time.Now()
-		info.isFirstResponse = false
+	if info == nil || !info.isFirstResponse {
+		return
 	}
+
+	info.FirstResponseTime = time.Now()
+	info.isFirstResponse = false
+
+	if !info.IsStream || info.StartTime.IsZero() {
+		return
+	}
+
+	// Check if relay metrics are enabled
+	if !metrics.RelayMetricsEnabled {
+		return
+	}
+
+	channelID := ""
+	if info.ChannelMeta != nil {
+		channelID = strconv.Itoa(info.ChannelId)
+	}
+
+	metrics.RelayFirstTokenDuration.WithLabelValues(info.OriginModelName, channelID).Observe(info.FirstResponseTime.Sub(info.StartTime).Seconds())
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

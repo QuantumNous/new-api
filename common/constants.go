@@ -72,6 +72,8 @@ var EmailLoginAuthServerList = []string{
 var DebugEnabled bool
 var MemoryCacheEnabled bool
 
+var MetricsEnabled bool
+
 var LogConsumeEnabled = true
 
 var TLSInsecureSkipVerify bool

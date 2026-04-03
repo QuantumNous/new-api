@@ -9,11 +9,15 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetRouter(router *gin.Engine, buildFS embed.FS, indexPage []byte) {
+	if common.MetricsEnabled {
+		router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	}
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
