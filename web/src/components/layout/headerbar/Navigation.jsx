@@ -40,12 +40,14 @@ const Navigation = ({
       const linkContent = <span>{link.text}</span>;
 
       if (link.isExternal) {
+        const target =
+          link.openInNewTab !== false ? '_blank' : '_self';
         return (
           <a
             key={link.itemKey}
             href={link.externalLink}
-            target='_blank'
-            rel='noopener noreferrer'
+            target={target}
+            rel={target === '_blank' ? 'noopener noreferrer' : undefined}
             className={commonLinkClasses}
           >
             {linkContent}

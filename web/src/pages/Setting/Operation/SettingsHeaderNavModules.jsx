@@ -23,15 +23,26 @@ import {
   Card,
   Col,
   Form,
+  Input,
+  Modal,
   Row,
+  Select,
   Switch,
+  Table,
+  Tag,
   Typography,
 } from '@douyinfe/semi-ui';
+import {
+  IconPlus,
+  IconEdit,
+  IconDelete,
+} from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
 
 const { Text } = Typography;
+const MAX_CUSTOM_ITEMS = 10;
 
 export default function SettingsHeaderNavModules(props) {
   const { t } = useTranslation();
@@ -49,6 +60,15 @@ export default function SettingsHeaderNavModules(props) {
     docs: true,
     about: true,
   });
+
+  // 自定义导航项状态
+  const [customItems, setCustomItems] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [formLabel, setFormLabel] = useState('');
+  const [formUrl, setFormUrl] = useState('');
+  const [formOpenInNewTab, setFormOpenInNewTab] = useState(true);
+  const [formPosition, setFormPosition] = useState(99);
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -77,6 +97,77 @@ export default function SettingsHeaderNavModules(props) {
     setHeaderNavModules(newModules);
   }
 
+  // 自定义导航项操作
+  function resetCustomItemForm() {
+    setFormLabel('');
+    setFormUrl('');
+    setFormOpenInNewTab(true);
+    setFormPosition(99);
+    setEditingItem(null);
+  }
+
+  function openAddModal() {
+    if (customItems.length >= MAX_CUSTOM_ITEMS) {
+      showError(
+        t('最多添加 {{max}} 个自定义导航项', { max: MAX_CUSTOM_ITEMS }),
+      );
+      return;
+    }
+    resetCustomItemForm();
+    setModalVisible(true);
+  }
+
+  function openEditModal(item) {
+    setEditingItem(item);
+    setFormLabel(item.label);
+    setFormUrl(item.url);
+    setFormOpenInNewTab(item.openInNewTab);
+    setFormPosition(item.position);
+    setModalVisible(true);
+  }
+
+  function handleModalOk() {
+    if (!formLabel.trim() || !formUrl.trim()) {
+      showError(t('请填写完整信息'));
+      return;
+    }
+    const isExternal =
+      formUrl.startsWith('http://') || formUrl.startsWith('https://');
+
+    if (editingItem) {
+      setCustomItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id
+            ? {
+                ...item,
+                label: formLabel.trim(),
+                url: formUrl.trim(),
+                isExternal,
+                openInNewTab: isExternal ? formOpenInNewTab : false,
+                position: formPosition,
+              }
+            : item,
+        ),
+      );
+    } else {
+      const newItem = {
+        id: 'custom-' + Date.now(),
+        label: formLabel.trim(),
+        url: formUrl.trim(),
+        isExternal,
+        openInNewTab: isExternal ? formOpenInNewTab : false,
+        position: formPosition,
+      };
+      setCustomItems((prev) => [...prev, newItem]);
+    }
+    setModalVisible(false);
+    resetCustomItemForm();
+  }
+
+  function deleteCustomItem(id) {
+    setCustomItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
     const defaultModules = {
@@ -90,6 +181,7 @@ export default function SettingsHeaderNavModules(props) {
       about: true,
     };
     setHeaderNavModules(defaultModules);
+    setCustomItems([]);
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -97,9 +189,15 @@ export default function SettingsHeaderNavModules(props) {
   async function onSubmit() {
     setLoading(true);
     try {
+      const configToSave = { ...headerNavModules };
+      if (customItems.length > 0) {
+        configToSave.customItems = customItems;
+      } else {
+        delete configToSave.customItems;
+      }
       const res = await API.put('/api/option/', {
         key: 'HeaderNavModules',
-        value: JSON.stringify(headerNavModules),
+        value: JSON.stringify(configToSave),
       });
       const { success, message } = res.data;
       if (success) {
@@ -110,7 +208,7 @@ export default function SettingsHeaderNavModules(props) {
           type: 'set',
           payload: {
             ...statusState.status,
-            HeaderNavModules: JSON.stringify(headerNavModules),
+            HeaderNavModules: JSON.stringify(configToSave),
           },
         });
 
@@ -142,7 +240,10 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
+        // 提取customItems并从模块配置中移除
+        const { customItems: loadedCustomItems, ...restModules } = modules;
+        setCustomItems(Array.isArray(loadedCustomItems) ? loadedCustomItems : []);
+        setHeaderNavModules(restModules);
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -156,6 +257,7 @@ export default function SettingsHeaderNavModules(props) {
           about: true,
         };
         setHeaderNavModules(defaultModules);
+        setCustomItems([]);
       }
     }
   }, [props.options]);
@@ -336,6 +438,119 @@ export default function SettingsHeaderNavModules(props) {
           >
             {t('重置为默认')}
           </Button>
+        </div>
+      </Form.Section>
+
+      <Form.Section
+        text={t('自定义导航项')}
+        style={{ marginTop: '24px' }}
+      >
+        <Table
+          dataSource={customItems}
+          rowKey='id'
+          size='small'
+          pagination={false}
+          empty={
+            <Text type='tertiary'>{t('暂无自定义导航项')}</Text>
+          }
+          columns={[
+            {
+              title: t('名称'),
+              dataIndex: 'label',
+              key: 'label',
+            },
+            {
+              title: t('链接地址'),
+              dataIndex: 'url',
+              key: 'url',
+              render: (text) => (
+                <Text
+                  copyable
+                  ellipsis={{ showTooltip: true }}
+                  style={{ maxWidth: 200 }}
+                >
+                  {text}
+                </Text>
+              ),
+            },
+            {
+              title: t('类型'),
+              dataIndex: 'isExternal',
+              key: 'type',
+              render: (isExternal) =>
+                isExternal ? (
+                  <Tag color='blue'>{t('外部链接')}</Tag>
+                ) : (
+                  <Tag color='green'>{t('内部路径')}</Tag>
+                ),
+            },
+            {
+              title: t('显示位置'),
+              dataIndex: 'position',
+              key: 'position',
+              render: (pos) => {
+                const posLabels = {
+                  0: t('在最前面'),
+                  1: t('首页之后'),
+                  2: t('控制台之后'),
+                  3: t('模型广场之后'),
+                  4: t('文档之后'),
+                  5: t('关于之后'),
+                  99: t('在最后面'),
+                };
+                return posLabels[pos] || pos;
+              },
+            },
+            {
+              title: t('操作'),
+              key: 'actions',
+              render: (_, record) => (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    icon={<IconEdit />}
+                    size='small'
+                    type='tertiary'
+                    onClick={() => openEditModal(record)}
+                  />
+                  <Button
+                    icon={<IconDelete />}
+                    size='small'
+                    type='danger'
+                    onClick={() => deleteCustomItem(record.id)}
+                  />
+                </div>
+              ),
+            },
+          ]}
+        />
+        <Button
+          icon={<IconPlus />}
+          onClick={openAddModal}
+          style={{ marginTop: '12px' }}
+          disabled={customItems.length >= MAX_CUSTOM_ITEMS}
+        >
+          {t('添加导航项')}
+        </Button>
+        {customItems.length >= MAX_CUSTOM_ITEMS && (
+          <Text
+            type='tertiary'
+            size='small'
+            style={{ marginLeft: '12px' }}
+          >
+            {t('最多添加 {{max}} 个自定义导航项', {
+              max: MAX_CUSTOM_ITEMS,
+            })}
+          </Text>
+        )}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            paddingTop: '16px',
+            marginTop: '16px',
+            borderTop: '1px solid var(--semi-color-border)',
+          }}
+        >
           <Button
             size='default'
             type='primary'
@@ -351,6 +566,72 @@ export default function SettingsHeaderNavModules(props) {
           </Button>
         </div>
       </Form.Section>
+
+      <Modal
+        title={editingItem ? t('编辑导航项') : t('添加导航项')}
+        visible={modalVisible}
+        onOk={handleModalOk}
+        onCancel={() => {
+          setModalVisible(false);
+          resetCustomItemForm();
+        }}
+        maskClosable={false}
+      >
+        <Form layout='vertical'>
+          <Form.Slot label={t('名称')}>
+            <Input
+              value={formLabel}
+              onChange={setFormLabel}
+              placeholder={t('名称')}
+            />
+          </Form.Slot>
+          <Form.Slot label={t('链接地址')}>
+            <Input
+              value={formUrl}
+              onChange={setFormUrl}
+              placeholder='https://example.com or /path'
+            />
+          </Form.Slot>
+          {(formUrl.startsWith('http://') ||
+            formUrl.startsWith('https://')) && (
+            <Form.Slot label={t('在新标签页打开')}>
+              <Switch
+                checked={formOpenInNewTab}
+                onChange={setFormOpenInNewTab}
+              />
+            </Form.Slot>
+          )}
+          <Form.Slot label={t('显示位置')}>
+            <Select
+              value={formPosition}
+              onChange={setFormPosition}
+              style={{ width: '100%' }}
+            >
+              <Select.Option value={0}>
+                {t('在最前面')}
+              </Select.Option>
+              <Select.Option value={1}>
+                {t('首页之后')}
+              </Select.Option>
+              <Select.Option value={2}>
+                {t('控制台之后')}
+              </Select.Option>
+              <Select.Option value={3}>
+                {t('模型广场之后')}
+              </Select.Option>
+              <Select.Option value={4}>
+                {t('文档之后')}
+              </Select.Option>
+              <Select.Option value={5}>
+                {t('关于之后')}
+              </Select.Option>
+              <Select.Option value={99}>
+                {t('在最后面')}
+              </Select.Option>
+            </Select>
+          </Form.Slot>
+        </Form>
+      </Modal>
     </Card>
   );
 }

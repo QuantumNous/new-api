@@ -3332,6 +3332,24 @@
     "从剪贴板粘贴配置": "Coller la config",
     "剪贴板中未检测到连接信息": "Aucune info de connexion trouvée dans le presse-papiers",
     "连接信息已填入": "Informations de connexion appliquées",
-    "无法读取剪贴板": "Impossible de lire le presse-papiers"
+    "无法读取剪贴板": "Impossible de lire le presse-papiers",
+    "在新标签页打开": "Ouvrir dans un nouvel onglet",
+    "在最前面": "Au début",
+    "在最后面": "À la fin",
+    "控制台之后": "Après Console",
+    "显示位置": "Position d'affichage",
+    "添加导航项": "Ajouter un élément de navigation",
+    "编辑导航项": "Modifier l'élément de navigation",
+    "自定义导航项": "Éléments de navigation personnalisés",
+    "链接地址": "Adresse du lien",
+    "首页之后": "Après Accueil",
+    "关于之后": "Après À propos",
+    "内部路径": "Chemin interne",
+    "外部链接": "Lien externe",
+    "文档之后": "Après Documentation",
+    "暂无自定义导航项": "Aucun élément de navigation personnalisé",
+    "最多添加 {{max}} 个自定义导航项": "Maximum {{max}} éléments de navigation personnalisés",
+    "模型广场之后": "Après Tarification",
+    "请填写完整信息": "Veuillez remplir toutes les informations"
   }
 }
