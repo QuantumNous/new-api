@@ -35,6 +35,26 @@ type taskStatsRecord struct {
 	SubmitTime int64
 }
 
+func normalizeTaskStatus(status TaskStatus) TaskStatus {
+	normalizedStatus := strings.ToUpper(strings.TrimSpace(string(status)))
+	switch normalizedStatus {
+	case string(TaskStatusNotStart):
+		return TaskStatusNotStart
+	case string(TaskStatusSubmitted):
+		return TaskStatusSubmitted
+	case string(TaskStatusQueued), "PENDING":
+		return TaskStatusQueued
+	case string(TaskStatusInProgress), "PROCESSING", "RUNNING":
+		return TaskStatusInProgress
+	case string(TaskStatusSuccess), "SUCCEEDED", "COMPLETED", "DONE":
+		return TaskStatusSuccess
+	case string(TaskStatusFailure), "FAILED", "ERROR", "CANCELED", "CANCELLED":
+		return TaskStatusFailure
+	default:
+		return status
+	}
+}
+
 func normalizeTaskMediaType(mediaType string) string {
 	switch strings.ToLower(strings.TrimSpace(mediaType)) {
 	case TaskMediaTypeImage:
@@ -78,6 +98,7 @@ func detectTaskMediaType(action string) string {
 }
 
 func isRunningTaskStatus(status TaskStatus) bool {
+	status = normalizeTaskStatus(status)
 	switch status {
 	case TaskStatusNotStart, TaskStatusSubmitted, TaskStatusQueued, TaskStatusInProgress:
 		return true
@@ -131,11 +152,12 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		if mediaType == "" {
 			continue
 		}
+		normalizedStatus := normalizeTaskStatus(record.Status)
 
 		submitDate := time.Unix(record.SubmitTime, 0).In(time.Local).Format("2006-01-02")
 		dailyTotals[submitDate]++
 
-		if isRunningTaskStatus(record.Status) {
+		if isRunningTaskStatus(normalizedStatus) {
 			response.RunningCount++
 			response.TotalStats.Running++
 		}
@@ -146,12 +168,12 @@ func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, end
 		}
 
 		switch {
-		case isRunningTaskStatus(record.Status):
+		case isRunningTaskStatus(normalizedStatus):
 			target.Running++
-		case record.Status == TaskStatusSuccess:
+		case normalizedStatus == TaskStatusSuccess:
 			response.TotalStats.Success++
 			target.Success++
-		case record.Status == TaskStatusFailure:
+		case normalizedStatus == TaskStatusFailure:
 			response.TotalStats.Failure++
 			target.Failure++
 		}

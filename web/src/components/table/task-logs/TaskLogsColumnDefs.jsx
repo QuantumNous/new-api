@@ -80,8 +80,25 @@ const normalizeUnixTimestamp = (timestamp) => {
     : Math.floor(numericValue);
 };
 
-const isFinishedStatus = (status) =>
-  status === 'SUCCESS' || status === 'FAILURE';
+const normalizeTaskStatus = (status) =>
+  String(status || '')
+    .trim()
+    .toUpperCase();
+
+const isFinishedStatus = (status) => {
+  const normalizedStatus = normalizeTaskStatus(status);
+  return [
+    'SUCCESS',
+    'FAILURE',
+    'FAILED',
+    'CANCELED',
+    'CANCELLED',
+    'ERROR',
+    'COMPLETED',
+    'SUCCEEDED',
+    'DONE',
+  ].includes(normalizedStatus);
+};
 
 const renderDuration = (submitTime, finishTime, record) => {
   const submitTimestamp = normalizeUnixTimestamp(submitTime);
@@ -372,7 +389,9 @@ export const getTaskLogsColumns = ({
       key: COLUMN_KEYS.DURATION,
       title: t('花费时间'),
       dataIndex: 'finish_time',
-      render: (finish, record) => <>{finish ? renderDuration(record.submit_time, finish, record) : '-'}</>,
+      render: (finish, record) => (
+        <>{renderDuration(record.submit_time, finish, record)}</>
+      ),
     },
     {
       key: COLUMN_KEYS.CHANNEL,
