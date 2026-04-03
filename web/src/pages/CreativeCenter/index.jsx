@@ -73,8 +73,8 @@ const ADOBE_VIDEO_MODELS = new Set([
 const CREATIVE_CENTER_IMAGE_UPLOAD_LIMITS = {
   'grok-imagine-1.0-edit': 3,
   'grok-imagine-1.0-video': 7,
-  'nano-banana2': 14,
-  'nano-banana-pro': 14,
+  'nano-banana2': 6,
+  'nano-banana-pro': 6,
   'veo31-fast': 2,
   'veo31-ref': 3,
 };
@@ -1153,8 +1153,53 @@ const getTaskDtoModelName = (task) => {
   return '';
 };
 
+const normalizeTaskDtoDataPayload = (task) => {
+  const rawData = task?.data;
+  if (!rawData) {
+    return null;
+  }
+  if (typeof rawData === 'string') {
+    try {
+      return JSON.parse(rawData);
+    } catch (error) {
+      return null;
+    }
+  }
+  if (typeof rawData === 'object') {
+    return rawData;
+  }
+  return null;
+};
+
+const getTaskDtoImageUrls = (task) => {
+  const dataPayload = normalizeTaskDtoDataPayload(task);
+  const items = Array.isArray(dataPayload?.data)
+    ? dataPayload.data
+    : Array.isArray(dataPayload)
+      ? dataPayload
+      : [];
+
+  return items
+    .map((item) => {
+      if (typeof item?.url === 'string' && item.url.trim()) {
+        return item.url.trim();
+      }
+      if (typeof item?.b64_json === 'string' && item.b64_json.trim()) {
+        return `data:image/png;base64,${item.b64_json.trim()}`;
+      }
+      if (typeof item?.b64Json === 'string' && item.b64Json.trim()) {
+        return `data:image/png;base64,${item.b64Json.trim()}`;
+      }
+      return '';
+    })
+    .filter(Boolean);
+};
+
 const buildRecoverableVideoCandidateKey = (candidate) =>
   `${candidate.sessionId}:${candidate.recordId}:${candidate.taskId}`;
+
+const buildRecoverableImageCandidateKey = (candidate) =>
+  `${candidate.sessionId}:${candidate.recordId}:${candidate.imageId}`;
 
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
@@ -1420,6 +1465,135 @@ const applyVideoTaskPatchToRecords = (records, recordId, taskId, taskPatch) => {
   return {
     nextRecords: recordsChanged ? nextRecords : records,
     hasChanged: recordsChanged,
+  };
+};
+
+const applyImageTaskPatchToRecords = (records, recordId, imageId, taskPatch) => {
+  let recordsChanged = false;
+
+  const nextRecords = (records || []).map((record) => {
+    if (record.id !== recordId) {
+      return record;
+    }
+
+    let hasChanged = false;
+    const nextImages = record.images.map((image) => {
+      if (image.id !== imageId) {
+        return image;
+      }
+
+      hasChanged = true;
+      return {
+        ...image,
+        ...(typeof taskPatch === 'function' ? taskPatch(image) : taskPatch),
+      };
+    });
+
+    if (!hasChanged) {
+      return record;
+    }
+
+    recordsChanged = true;
+    const summary = summarizeImageTasks(nextImages);
+    return {
+      ...record,
+      images: nextImages,
+      ...summary,
+      error:
+        summary.completedCount === record.total && summary.successCount === 0
+          ? '全部图片任务都生成失败了，请稍后重试。'
+          : '',
+      updatedAt: Date.now(),
+    };
+  });
+
+  return {
+    nextRecords: recordsChanged ? nextRecords : records,
+    hasChanged: recordsChanged,
+  };
+};
+
+const collectRecoverableImageCandidatesFromSnapshot = (snapshot) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('image', snapshot);
+  const sessions = normalizedSnapshot?.payload?.sessions || [];
+
+  return sessions
+    .flatMap((session) => {
+      const records = normalizeImageHistoryRecords(session);
+      return records.flatMap((record) =>
+        record.images.map((image, imageIndex) => ({
+          sessionId: session.id,
+          recordId: record.id,
+          imageId: image.id,
+          itemIndex: imageIndex,
+          requestId: String(image?.requestId || '').trim(),
+          hasMedia: Boolean(getImageTaskMediaUrl(image)),
+          status: String(image?.status || '').trim().toLowerCase(),
+          recordModelName: String(record?.modelName || '').trim(),
+          recordCreatedAt: Number(record?.createdAt) || 0,
+          recordUpdatedAt: Number(record?.updatedAt) || 0,
+          sortTimestamp:
+            Number(image?.submittedAt) ||
+            Number(record?.updatedAt) ||
+            Number(record?.createdAt) ||
+            Number(session?.updated_at) ||
+            0,
+        })),
+      );
+    })
+    .filter(
+      (item) =>
+        !item.hasMedia &&
+        item.status !== 'failed' &&
+        Boolean(item.requestId),
+    )
+    .sort((left, right) => right.sortTimestamp - left.sortTimestamp);
+};
+
+const patchImageTaskInHistorySnapshot = (snapshot, candidate, taskPatch) => {
+  const normalizedSnapshot = normalizeCreativeHistorySnapshot('image', snapshot);
+  let snapshotChanged = false;
+
+  const nextSessions = normalizedSnapshot.payload.sessions.map((session) => {
+    if (session.id !== candidate.sessionId) {
+      return session;
+    }
+
+    const sessionRecords = normalizeImageHistoryRecords(session);
+    const { nextRecords, hasChanged } = applyImageTaskPatchToRecords(
+      sessionRecords,
+      candidate.recordId,
+      candidate.imageId,
+      taskPatch,
+    );
+
+    if (!hasChanged) {
+      return session;
+    }
+
+    snapshotChanged = true;
+    return {
+      ...session,
+      updated_at: Date.now(),
+      payload: {
+        ...buildCreativeSessionPayload('image', session.payload),
+        entries: nextRecords,
+      },
+    };
+  });
+
+  return {
+    snapshot: snapshotChanged
+      ? {
+          ...normalizedSnapshot,
+          updated_at: Date.now(),
+          payload: {
+            ...normalizedSnapshot.payload,
+            sessions: nextSessions,
+          },
+        }
+      : normalizedSnapshot,
+    hasChanged: snapshotChanged,
   };
 };
 
@@ -1845,6 +2019,7 @@ export default function App() {
   const historyHydratedRef = useRef(false);
   const lastPersistedImageSignatureRef = useRef('');
   const lastPersistedVideoSignatureRef = useRef('');
+  const startupImageRecoveryRunRef = useRef(false);
   const startupVideoRecoveryRunRef = useRef(false);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -1863,6 +2038,11 @@ export default function App() {
     videoRecordsRef.current = videoRecords;
   }, [videoRecords]);
 
+  const syncImageRecordsState = (nextRecords) => {
+    imageRecordsRef.current = nextRecords;
+    setImageRecords(nextRecords);
+  };
+
   const syncVideoRecordsState = (nextRecords) => {
     videoRecordsRef.current = nextRecords;
     setVideoRecords(nextRecords);
@@ -1874,6 +2054,10 @@ export default function App() {
 
   useEffect(() => {
     creativeCenterUploadConfigRef.current = null;
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    startupImageRecoveryRunRef.current = false;
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -3304,42 +3488,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   const patchImageTask = (recordId, taskId, taskPatch) => {
-    setImageRecords((prev) =>
-      prev.map((record) => {
-        if (record.id !== recordId) {
-          return record;
-        }
-
-        let hasChanged = false;
-        const nextImages = record.images.map((task) => {
-          if (task.id !== taskId) {
-            return task;
-          }
-
-          hasChanged = true;
-          return {
-            ...task,
-            ...(typeof taskPatch === 'function' ? taskPatch(task) : taskPatch),
-          };
-        });
-
-        if (!hasChanged) {
-          return record;
-        }
-
-        const summary = summarizeImageTasks(nextImages);
-        return {
-          ...record,
-          images: nextImages,
-          ...summary,
-          error:
-            summary.completedCount === record.total && summary.successCount === 0
-              ? '全部图片任务都生成失败了，请稍后重试。'
-              : '',
-          updatedAt: Date.now(),
-        };
-      }),
+    const { nextRecords, hasChanged } = applyImageTaskPatchToRecords(
+      imageRecordsRef.current,
+      recordId,
+      taskId,
+      taskPatch,
     );
+
+    if (!hasChanged) {
+      return;
+    }
+
+    syncImageRecordsState(nextRecords);
   };
 
   const patchVideoTask = (recordId, taskId, taskPatch) => {
@@ -4029,6 +4189,222 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   }, [videoPersistSignature, isLoggedIn]);
 
   useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current || startupImageRecoveryRunRef.current) {
+      return undefined;
+    }
+
+    startupImageRecoveryRunRef.current = true;
+
+    const candidates = collectRecoverableImageCandidatesFromSnapshot(
+      historySnapshots.image,
+    );
+    const limitedCandidates = candidates.slice(
+      0,
+      CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS,
+    );
+
+    if (limitedCandidates.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const fetchCompletedImageTasksForRecord = async (recordCandidates) => {
+      if (!Array.isArray(recordCandidates) || recordCandidates.length === 0) {
+        return [];
+      }
+
+      const modelName = String(recordCandidates[0]?.recordModelName || '').trim().toLowerCase();
+      const candidateTimes = recordCandidates
+        .map((candidate) =>
+          normalizeCreativeTimestampToSeconds(
+            candidate.sortTimestamp ||
+              candidate.recordUpdatedAt ||
+              candidate.recordCreatedAt,
+          ),
+        )
+        .filter((value) => value > 0);
+      const baseStartTimestamp =
+        candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
+      const baseEndTimestamp =
+        candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
+      const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+      const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+      try {
+        const response = await API.get('/api/task/self', {
+          params: {
+            p: 1,
+            page_size: 100,
+            status: 'SUCCESS',
+            start_timestamp: startTimestamp,
+            end_timestamp: endTimestamp,
+          },
+          skipErrorHandler: true,
+          headers: {
+            'New-API-User': getUserIdFromLocalStorage(),
+          },
+        });
+
+        const items = Array.isArray(response?.data?.data?.items)
+          ? response.data.data.items
+          : [];
+
+        return items
+          .filter((item) => {
+            const action = String(item?.action || '').trim();
+            if (
+              action !== 'imageGenerate' &&
+              action !== 'imageEdit'
+            ) {
+              return false;
+            }
+
+            const imageUrls = getTaskDtoImageUrls(item);
+            if (imageUrls.length === 0) {
+              return false;
+            }
+
+            const taskModelName = getTaskDtoModelName(item).toLowerCase();
+            if (modelName && taskModelName && taskModelName !== modelName) {
+              return false;
+            }
+
+            const submitTime = normalizeCreativeTimestampToSeconds(item?.submit_time);
+            if (submitTime > 0 && (submitTime < startTimestamp || submitTime > endTimestamp)) {
+              return false;
+            }
+
+            return true;
+          })
+          .sort(
+            (left, right) =>
+              normalizeCreativeTimestampToSeconds(left?.submit_time) -
+              normalizeCreativeTimestampToSeconds(right?.submit_time),
+          );
+      } catch (error) {
+        console.error('Failed to recover creative center image tasks from task list:', error);
+        return [];
+      }
+    };
+
+    const buildFallbackImageMatchMap = async (recordCandidateGroups) => {
+      const fallbackMatches = new Map();
+
+      for (const group of recordCandidateGroups) {
+        if (cancelled || group.length === 0) {
+          break;
+        }
+
+        const matchedTasks = await fetchCompletedImageTasksForRecord(group);
+        if (matchedTasks.length === 0) {
+          continue;
+        }
+
+        const sortedCandidates = [...group].sort(
+          (left, right) =>
+            normalizeCreativeTimestampToSeconds(left.sortTimestamp) -
+            normalizeCreativeTimestampToSeconds(right.sortTimestamp),
+        );
+
+        sortedCandidates.forEach((candidate, index) => {
+          const matchedTask = matchedTasks[index];
+          if (!matchedTask) {
+            return;
+          }
+          fallbackMatches.set(
+            buildRecoverableImageCandidateKey(candidate),
+            matchedTask,
+          );
+        });
+      }
+
+      return fallbackMatches;
+    };
+
+    const recoverStartupImageTasks = async () => {
+      let recoveredSnapshot = normalizeCreativeHistorySnapshot(
+        'image',
+        historySnapshots.image,
+      );
+      let hasRecoveredChanges = false;
+
+      try {
+        const groupedCandidates = Array.from(
+          limitedCandidates.reduce((map, candidate) => {
+            const key = `${candidate.sessionId}:${candidate.recordId}`;
+            if (!map.has(key)) {
+              map.set(key, []);
+            }
+            map.get(key).push(candidate);
+            return map;
+          }, new Map()),
+        ).map(([, group]) => group);
+        const fallbackTaskMatches = await buildFallbackImageMatchMap(groupedCandidates);
+
+        for (
+          let startIndex = 0;
+          startIndex < limitedCandidates.length && !cancelled;
+          startIndex += CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY
+        ) {
+          const currentBatch = limitedCandidates.slice(
+            startIndex,
+            startIndex + CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY,
+          );
+
+          currentBatch.forEach((candidate) => {
+            const matchedTask = fallbackTaskMatches.get(
+              buildRecoverableImageCandidateKey(candidate),
+            );
+            if (!matchedTask || cancelled) {
+              return;
+            }
+
+            const imageUrls = getTaskDtoImageUrls(matchedTask);
+            const primaryImageUrl = imageUrls[0] || '';
+            if (!primaryImageUrl) {
+              return;
+            }
+
+            const taskPatch = patchImageTaskInHistorySnapshot(
+              recoveredSnapshot,
+              candidate,
+              {
+                url: primaryImageUrl,
+                resultUrl: primaryImageUrl,
+                status: 'completed',
+                progress: 100,
+                error: '',
+                finalizingAt: 0,
+                progressUnavailable: false,
+                requestPollable: false,
+              },
+            );
+            if (taskPatch.hasChanged) {
+              recoveredSnapshot = taskPatch.snapshot;
+              hasRecoveredChanges = true;
+            }
+          });
+        }
+
+        if (!cancelled && hasRecoveredChanges) {
+          await persistCreativeHistorySnapshot('image', recoveredSnapshot, {
+            applySessionState: true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to finish startup recovery for creative center image tasks:', error);
+      }
+    };
+
+    recoverStartupImageTasks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historySnapshots.image, isLoggedIn]);
+
+  useEffect(() => {
     if (!isLoggedIn || !historyHydratedRef.current || startupVideoRecoveryRunRef.current) {
       return undefined;
     }
@@ -4472,6 +4848,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const useEstimatedImageProgress =
         shouldUseEstimatedImageProgress(currentModelName);
       const generationCount = Number(params.generationCount) || 1;
+      const batchSeedBase = createBatchSeedBase();
+      const taskRequestMetas = Array.from({ length: generationCount }, (_, index) => ({
+        requestSeed: createTaskSeed(batchSeedBase, index),
+        requestUser: createTaskRequestUser(batchSeedBase, index),
+        requestId: createTaskRequestId(batchSeedBase, index),
+      }));
       const recordId = createCreativeRecordId('image');
       const pendingRecord = {
         id: recordId,
@@ -4486,7 +4868,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           progress: useEstimatedImageProgress ? 3 : 0,
           error: '',
           resultUrl: '',
-          requestId: '',
+          requestId: taskRequestMetas[index]?.requestId || '',
           submittedAt: 0,
           estimateStartAt: 0,
           finalizingAt: 0,
@@ -4501,21 +4883,27 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      const pendingRecords = [...imageRecords, pendingRecord];
-      setImageRecords(pendingRecords);
+      const pendingRecords = [...imageRecordsRef.current, pendingRecord];
+      syncImageRecordsState(pendingRecords);
       setCollapsedImageRecordIds((prev) => ({
         ...prev,
         [recordId]: false,
       }));
+      persistImageRecords(pendingRecords, {
+        modelName: currentModelName,
+        prompt: currentPrompt,
+        params: pendingRecord.params,
+      }).catch((error) => {
+        console.error('Failed to persist initial creative center image record:', error);
+      });
 
       try {
-        const batchSeedBase = createBatchSeedBase();
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const taskId = pendingRecord.images[index].id;
-            const requestSeed = createTaskSeed(batchSeedBase, index);
-            const requestUser = createTaskRequestUser(batchSeedBase, index);
-            const requestId = createTaskRequestId(batchSeedBase, index);
+            const requestSeed = taskRequestMetas[index]?.requestSeed;
+            const requestUser = taskRequestMetas[index]?.requestUser;
+            const requestId = taskRequestMetas[index]?.requestId;
             const submittedAt = Date.now();
             const estimateStartAt = submittedAt + index * CREATIVE_BATCH_REQUEST_SPACING_MS;
             const basePayload = createBasePayload(
