@@ -98,7 +98,7 @@ func TestFlattenCreativeCenterHistoryAssetsVideoLegacyPayload(t *testing.T) {
 				{
 					"id": "task-2",
 					"resultUrl": "https://example.com/video-b.mp4",
-					"status": "success"
+					"status": "submitted"
 				},
 				{
 					"id": "task-3",
@@ -109,21 +109,35 @@ func TestFlattenCreativeCenterHistoryAssetsVideoLegacyPayload(t *testing.T) {
 	}
 
 	assets := flattenCreativeCenterHistoryAssets(history, "bob")
-	if len(assets) != 1 {
-		t.Fatalf("expected 1 completed asset, got %d", len(assets))
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 completed assets, got %d", len(assets))
 	}
 
 	first := assets[0]
-	if first.AssetID != "cc:video:21:session-0:record-0:1" {
-		t.Fatalf("unexpected asset id: %s", first.AssetID)
+	if first.AssetID != "cc:video:21:session-0:record-0:0" {
+		t.Fatalf("unexpected first asset id: %s", first.AssetID)
 	}
-	if first.AssetType != "video" {
-		t.Fatalf("unexpected asset type: %s", first.AssetType)
+	if first.MediaURL != "https://example.com/video-a.mp4" {
+		t.Fatalf("unexpected media url: %s", first.MediaURL)
 	}
-	if first.MediaURL != "https://example.com/video-b.mp4" {
-		t.Fatalf("unexpected result url fallback: %s", first.MediaURL)
+	if first.ThumbnailURL != "https://example.com/video-a.jpg" {
+		t.Fatalf("unexpected thumbnail url: %s", first.ThumbnailURL)
 	}
 	if first.Status != "completed" {
 		t.Fatalf("expected completed status, got %s", first.Status)
+	}
+
+	second := assets[1]
+	if second.AssetID != "cc:video:21:session-0:record-0:1" {
+		t.Fatalf("unexpected asset id: %s", second.AssetID)
+	}
+	if second.AssetType != "video" {
+		t.Fatalf("unexpected asset type: %s", second.AssetType)
+	}
+	if second.MediaURL != "https://example.com/video-b.mp4" {
+		t.Fatalf("unexpected result url fallback: %s", second.MediaURL)
+	}
+	if second.Status != "completed" {
+		t.Fatalf("expected completed status, got %s", second.Status)
 	}
 }

@@ -806,9 +806,12 @@ const triggerDownload = (url, filename) => {
     return;
   }
 
+  const trimmedURL = String(url).trim();
+  const downloadUrl = trimmedURL.startsWith('data:')
+    ? trimmedURL
+    : `${API_ENDPOINTS.CREATIVE_CENTER_MEDIA_DOWNLOAD}?url=${encodeURIComponent(trimmedURL)}&filename=${encodeURIComponent(filename || '')}`;
   const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
+  link.href = downloadUrl;
   link.rel = 'noopener noreferrer';
   link.download = filename;
   document.body.appendChild(link);

@@ -194,6 +194,9 @@ func flattenCreativeCenterSessionAssets(history *CreativeCenterHistory, username
 			}
 
 			itemStatus := normalizeAssetStatus(fallbackString(stringValue(itemMap, "status"), status))
+			if mediaURL != "" && !isFailedAssetStatus(itemStatus) {
+				itemStatus = "completed"
+			}
 			if !isCompletedAssetStatus(itemStatus) {
 				continue
 			}
@@ -288,6 +291,10 @@ func normalizeAssetStatus(status string) string {
 
 func isCompletedAssetStatus(status string) bool {
 	return normalizeAssetStatus(status) == "completed"
+}
+
+func isFailedAssetStatus(status string) bool {
+	return normalizeAssetStatus(status) == "failed"
 }
 
 func normalizeAssetTimestamp(timestamp int64) int64 {

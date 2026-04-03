@@ -80,6 +80,20 @@ const buildCreativeCenterImageDisplayUrl = (url) => {
   return `${API_ENDPOINTS.CREATIVE_CENTER_IMAGE_PROXY}?url=${encodeURIComponent(trimmedURL)}`;
 };
 
+const buildCreativeCenterMediaDownloadUrl = (url, filename) => {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  const trimmedURL = url.trim();
+  if (!trimmedURL) {
+    return '';
+  }
+  if (trimmedURL.startsWith('data:')) {
+    return trimmedURL;
+  }
+  return `${API_ENDPOINTS.CREATIVE_CENTER_MEDIA_DOWNLOAD}?url=${encodeURIComponent(trimmedURL)}&filename=${encodeURIComponent(filename || '')}`;
+};
+
 const formatAssetTime = (timestamp) => {
   if (!timestamp) {
     return '-';
@@ -164,14 +178,16 @@ const getAssetDownloadName = (asset, index = 0) => {
 };
 
 const downloadAssetByUrl = (asset, index = 0) => {
+  const fileName = getAssetDownloadName(asset, index);
+  const downloadUrl = buildCreativeCenterMediaDownloadUrl(asset?.media_url || '', fileName);
+  if (!downloadUrl) {
+    showError('暂无可下载的资源');
+    return;
+  }
   const link = document.createElement('a');
   link.rel = 'noreferrer';
-  link.target = '_blank';
-  link.href =
-    asset?.asset_type === 'image'
-      ? buildCreativeCenterImageDisplayUrl(asset?.media_url || '')
-      : asset?.media_url || '';
-  link.download = getAssetDownloadName(asset, index);
+  link.href = downloadUrl;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

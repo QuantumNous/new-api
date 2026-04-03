@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	neturl "net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -231,6 +234,102 @@ func ProxyCreativeCenterRemoteImage(c *gin.Context) {
 	)
 }
 
+func DownloadCreativeCenterRemoteMedia(c *gin.Context) {
+	targetURL := strings.TrimSpace(c.Query("url"))
+	if targetURL == "" {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	if !strings.HasPrefix(targetURL, "https://") && !strings.HasPrefix(targetURL, "http://") {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	resp, err := service.DoDownloadRequest(targetURL, "creative center media download")
+	if err != nil {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		c.Status(http.StatusBadGateway)
+		return
+	}
+
+	fileName := resolveCreativeCenterDownloadFilename(targetURL, strings.TrimSpace(c.Query("filename")))
+	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", neturl.QueryEscape(fileName)))
+	c.DataFromReader(
+		http.StatusOK,
+		resp.ContentLength,
+		contentType,
+		resp.Body,
+		nil,
+	)
+}
+
+func resolveCreativeCenterDownloadFilename(targetURL string, candidate string) string {
+	fileName := sanitizeCreativeCenterDownloadFilename(candidate)
+	if fileName != "" {
+		return fileName
+	}
+
+	parsedURL, err := neturl.Parse(targetURL)
+	if err == nil {
+		fileName = sanitizeCreativeCenterDownloadFilename(path.Base(parsedURL.Path))
+		if fileName != "" && fileName != "." {
+			return fileName
+		}
+	}
+
+	return "creative-center-asset.bin"
+}
+
+func sanitizeCreativeCenterDownloadFilename(candidate string) string {
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
+		return ""
+	}
+
+	trimmed = strings.ReplaceAll(trimmed, "\\", "/")
+	trimmed = path.Base(trimmed)
+	trimmed = strings.Map(func(r rune) rune {
+		switch r {
+		case '\r', '\n', 0:
+			return -1
+		default:
+			return r
+		}
+	}, trimmed)
+	trimmed = strings.TrimSpace(trimmed)
+	if trimmed == "" || trimmed == "." {
+		return ""
+	}
+
+	ext := strings.TrimSpace(path.Ext(trimmed))
+	name := strings.TrimSpace(strings.TrimSuffix(trimmed, ext))
+	if ext != "" {
+		normalizedExt := mime.TypeByExtension(ext)
+		if normalizedExt == "" {
+			ext = ""
+		}
+	}
+
+	if name == "" {
+		name = "creative-center-asset"
+	}
+	if ext == "" {
+		return name
+	}
+	return name + ext
+}
+
 func creativeCenterImageUploadDir() string {
 	return filepath.Join("data", "uploads", "creative-center")
 }
@@ -388,4 +487,3 @@ func normalizeCreativeCenterExternalImageURL(uploadURL string, items []creativeC
 	}
 	return baseURL + "/" + src
 }
-

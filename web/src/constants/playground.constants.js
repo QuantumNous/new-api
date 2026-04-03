@@ -86,6 +86,7 @@ export const API_ENDPOINTS = {
     '/api/user/self/creative-center/image/upload-config',
   CREATIVE_CENTER_IMAGE_UPLOAD: '/api/user/self/creative-center/image/upload',
   CREATIVE_CENTER_IMAGE_PROXY: '/api/public/creative-center/image/proxy',
+  CREATIVE_CENTER_MEDIA_DOWNLOAD: '/api/public/creative-center/media/download',
 };
 
 // ========== 配置默认值 ==========
