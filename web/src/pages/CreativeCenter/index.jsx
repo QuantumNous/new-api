@@ -204,6 +204,8 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE = 10;
+const CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS = 3000;
+const CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY = 4;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -2069,7 +2071,8 @@ export default function App() {
   const textareaRef = useRef(null);
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
-  const videoPollersRef = useRef(new Map());
+  const videoPollingTimerRef = useRef(null);
+  const videoPollingInFlightRef = useRef(new Set());
   const chatMessagesRef = useRef([]);
   const imageRecordsRef = useRef([]);
   const videoRecordsRef = useRef([]);
@@ -2131,13 +2134,11 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      videoPollersRef.current.forEach((controller) => {
-        controller.active = false;
-        if (controller.timer) {
-          window.clearTimeout(controller.timer);
-        }
-      });
-      videoPollersRef.current.clear();
+      if (videoPollingTimerRef.current) {
+        window.clearTimeout(videoPollingTimerRef.current);
+      }
+      videoPollingTimerRef.current = null;
+      videoPollingInFlightRef.current.clear();
       uploadedImagesRef.current.forEach((item) => {
         if (item?.previewUrl?.startsWith('blob:')) {
           URL.revokeObjectURL(item.previewUrl);
@@ -3637,13 +3638,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       parseProgressValue(rootPayload?.progress);
     const url =
       dataPayload.url ||
+      dataPayload.presignedUrl ||
+      dataPayload.presigned_url ||
       dataPayload.result_url ||
+      dataPayload.resultUrl ||
       dataPayload.video_url ||
       dataPayload.output_url ||
       dataPayload?.metadata?.url ||
       dataPayload?.metadata?.remote_url ||
       rootPayload?.url ||
+      rootPayload?.presignedUrl ||
+      rootPayload?.presigned_url ||
       rootPayload?.result_url ||
+      rootPayload?.resultUrl ||
       rootPayload?.video_url ||
       rootPayload?.output_url ||
       rootPayload?.metadata?.url ||
@@ -3974,112 +3981,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   useEffect(() => {
-    videoRecords.forEach((record) => {
-      record.tasks.forEach((task) => {
-        const queryTaskId = task.taskId || task.id;
-        const shouldPoll =
-          Boolean(queryTaskId) &&
-          task.pollable !== false &&
-          ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status));
-
-        if (!shouldPoll || videoPollersRef.current.has(task.id)) {
-          return;
-        }
-
-        const controller = {
-          active: true,
-          timer: null,
-        };
-        videoPollersRef.current.set(task.id, controller);
-
-        const pollTask = async () => {
-          if (!controller.active) {
-            return;
-          }
-
-          try {
-            const response = await API.get(
-              `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
-              {
-                skipErrorHandler: true,
-                headers: {
-                  'New-API-User': getUserIdFromLocalStorage(),
-                },
-              },
-            );
-
-            if (!controller.active) {
-              return;
-            }
-
-            const nextTaskState = parseVideoFetchPayload(response);
-            const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
-            const isCompleted = nextStatus === 'completed' || Boolean(nextTaskState.url);
-            const isFailed = nextStatus === 'failed';
-
-            if (isCompleted && shouldUseEstimatedVideoProgress(record.modelName)) {
-              patchVideoTask(record.id, task.id, (currentTask) => ({
-                status: 'finalizing',
-                progress: 96,
-                url: '',
-                resultUrl: nextTaskState.url || currentTask.resultUrl || currentTask.url,
-                content: nextTaskState.content || currentTask.content,
-                error: '',
-                finalizingAt: Date.now(),
-                pollable: false,
-              }));
-              window.setTimeout(() => {
-                patchVideoTask(record.id, task.id, (currentTask) => ({
-                  status: 'completed',
-                  progress: 100,
-                  url:
-                    nextTaskState.url ||
-                    currentTask.resultUrl ||
-                    currentTask.url,
-                  content: nextTaskState.content || currentTask.content,
-                  error: '',
-                  finalizingAt: 0,
-                  pollable: false,
-                }));
-              }, 180);
-            } else {
-              patchVideoTask(record.id, task.id, (currentTask) => ({
-                status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
-                progress: isCompleted
-                  ? 100
-                  : nextTaskState.progress ?? currentTask.progress ?? 0,
-                url: isCompleted ? (nextTaskState.url || currentTask.url) : currentTask.url,
-                content: nextTaskState.content || currentTask.content,
-                error: isFailed ? (nextTaskState.error || currentTask.error || '任务生成失败') : '',
-                finalizingAt: 0,
-                pollable: !(isCompleted || isFailed),
-              }));
-            }
-
-            if (isCompleted || isFailed) {
-              controller.active = false;
-              if (controller.timer) {
-                window.clearTimeout(controller.timer);
-              }
-              videoPollersRef.current.delete(task.id);
-              return;
-            }
-          } catch (error) {
-            if (!controller.active) {
-              return;
-            }
-            console.error('Failed to poll creative center video task:', error);
-          }
-
-          controller.timer = window.setTimeout(pollTask, 2000);
-        };
-
-        pollTask();
-      });
-    });
-
-    const activeTaskIds = new Set(
-      videoRecords.flatMap((record) =>
+    const collectPendingVideoTasks = () =>
+      videoRecordsRef.current.flatMap((record) =>
         record.tasks
           .filter((task) => {
             const queryTaskId = task.taskId || task.id;
@@ -4089,19 +3992,157 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status))
             );
           })
-          .map((task) => task.id),
-      ),
-    );
+          .map((task) => ({
+            recordId: record.id,
+            modelName: record.modelName,
+            localTaskId: task.id,
+            queryTaskId: task.taskId || task.id,
+          })),
+      );
 
-    videoPollersRef.current.forEach((controller, taskId) => {
-      if (!activeTaskIds.has(taskId)) {
-        controller.active = false;
-        if (controller.timer) {
-          window.clearTimeout(controller.timer);
+    const clearVideoPollingTimer = () => {
+      if (videoPollingTimerRef.current) {
+        window.clearTimeout(videoPollingTimerRef.current);
+        videoPollingTimerRef.current = null;
+      }
+    };
+
+    const scheduleVideoPollingCycle = (delay = 0) => {
+      if (videoPollingTimerRef.current) {
+        return;
+      }
+
+      videoPollingTimerRef.current = window.setTimeout(async () => {
+        videoPollingTimerRef.current = null;
+
+        const pendingTasks = collectPendingVideoTasks();
+        if (pendingTasks.length === 0) {
+          videoPollingInFlightRef.current.clear();
+          return;
         }
-        videoPollersRef.current.delete(taskId);
+
+        const activeTaskIds = new Set(
+          pendingTasks.map((task) => task.localTaskId),
+        );
+        videoPollingInFlightRef.current.forEach((taskId) => {
+          if (!activeTaskIds.has(taskId)) {
+            videoPollingInFlightRef.current.delete(taskId);
+          }
+        });
+
+        const tasksToPoll = pendingTasks
+          .filter(
+            (task) => !videoPollingInFlightRef.current.has(task.localTaskId),
+          )
+          .slice(0, CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY);
+
+        if (tasksToPoll.length === 0) {
+          scheduleVideoPollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+          return;
+        }
+
+        await Promise.all(
+          tasksToPoll.map(async (task) => {
+            videoPollingInFlightRef.current.add(task.localTaskId);
+            try {
+              const response = await API.get(
+                `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(task.queryTaskId)}`,
+                {
+                  skipErrorHandler: true,
+                  headers: {
+                    'New-API-User': getUserIdFromLocalStorage(),
+                  },
+                },
+              );
+
+              const nextTaskState = parseVideoFetchPayload(response);
+              const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
+              const isCompleted =
+                nextStatus === 'completed' || Boolean(nextTaskState.url);
+              const isFailed = nextStatus === 'failed';
+
+              if (
+                isCompleted &&
+                shouldUseEstimatedVideoProgress(task.modelName)
+              ) {
+                patchVideoTask(task.recordId, task.localTaskId, (currentTask) => ({
+                  status: 'finalizing',
+                  progress: 96,
+                  url: '',
+                  resultUrl:
+                    nextTaskState.url ||
+                    currentTask.resultUrl ||
+                    currentTask.url,
+                  content: nextTaskState.content || currentTask.content,
+                  error: '',
+                  finalizingAt: Date.now(),
+                  pollable: false,
+                }));
+                window.setTimeout(() => {
+                  patchVideoTask(task.recordId, task.localTaskId, (currentTask) => ({
+                    status: 'completed',
+                    progress: 100,
+                    url:
+                      nextTaskState.url ||
+                      currentTask.resultUrl ||
+                      currentTask.url,
+                    content: nextTaskState.content || currentTask.content,
+                    error: '',
+                    finalizingAt: 0,
+                    pollable: false,
+                  }));
+                }, 180);
+              } else {
+                patchVideoTask(task.recordId, task.localTaskId, (currentTask) => ({
+                  status: isCompleted
+                    ? 'completed'
+                    : isFailed
+                      ? 'failed'
+                      : nextStatus,
+                  progress: isCompleted
+                    ? 100
+                    : nextTaskState.progress ?? currentTask.progress ?? 0,
+                  url: isCompleted
+                    ? nextTaskState.url || currentTask.url
+                    : currentTask.url,
+                  content: nextTaskState.content || currentTask.content,
+                  error: isFailed
+                    ? nextTaskState.error ||
+                      currentTask.error ||
+                      '任务生成失败'
+                    : '',
+                  finalizingAt: 0,
+                  pollable: !(isCompleted || isFailed),
+                }));
+              }
+            } catch (error) {
+              console.error('Failed to poll creative center video task:', error);
+            } finally {
+              videoPollingInFlightRef.current.delete(task.localTaskId);
+            }
+          }),
+        );
+
+        if (collectPendingVideoTasks().length > 0) {
+          scheduleVideoPollingCycle(CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS);
+        }
+      }, delay);
+    };
+
+    const pendingTasks = collectPendingVideoTasks();
+    const activeTaskIds = new Set(pendingTasks.map((task) => task.localTaskId));
+    videoPollingInFlightRef.current.forEach((taskId) => {
+      if (!activeTaskIds.has(taskId)) {
+        videoPollingInFlightRef.current.delete(taskId);
       }
     });
+
+    if (pendingTasks.length === 0) {
+      clearVideoPollingTimer();
+      return;
+    }
+
+    scheduleVideoPollingCycle(0);
   }, [videoRecords]);
 
   const handleReuseRecord = (record) => {

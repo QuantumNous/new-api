@@ -13,7 +13,7 @@ type TaskDailyCount struct {
 
 type TaskStatsResponse struct {
 	RunningCount int64              `json:"running_count"`
-	DailyCounts  []TaskDailyCount   `json:"daily_counts"`
+	DailyCounts  []TaskDailyCount   `json:"daily_counts,omitempty"`
 	TotalStats   TaskStatsBreakdown `json:"total_stats"`
 	ImageStats   TaskStatsBreakdown `json:"image_stats"`
 	VideoStats   TaskStatsBreakdown `json:"video_stats"`

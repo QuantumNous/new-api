@@ -1,9 +1,7 @@
 package model
 
 import (
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/dto"
 	"gorm.io/gorm"
@@ -28,21 +26,6 @@ var taskMediaTypeActions = map[string][]string{
 		"remixGenerate",
 	},
 }
-
-type taskStatsRecord struct {
-	Action     string
-	Status     TaskStatus
-	SubmitTime int64
-	Progress   string
-	FailReason string
-}
-
-type taskStatsBucketMode string
-
-const (
-	taskStatsBucketModeDay  taskStatsBucketMode = "day"
-	taskStatsBucketModeHour taskStatsBucketMode = "hour"
-)
 
 func normalizeTaskStatus(status TaskStatus) TaskStatus {
 	normalizedStatus := strings.ToUpper(strings.TrimSpace(string(status)))
@@ -188,160 +171,70 @@ func applySyncTaskQueryFilters(query *gorm.DB, queryParams SyncTaskQueryParams) 
 	return query
 }
 
-func BuildTaskStatsResponse(records []taskStatsRecord, startTimestamp int64, endTimestamp int64) *dto.TaskStatsResponse {
-	response := &dto.TaskStatsResponse{
-		DailyCounts: make([]dto.TaskDailyCount, 0),
+type taskStatsAggregateRow struct {
+	Running int64 `gorm:"column:running"`
+	Success int64 `gorm:"column:success"`
+	Failure int64 `gorm:"column:failure"`
+}
+
+const (
+	taskStatsStatusExpr     = "UPPER(TRIM(COALESCE(status, '')))"
+	taskStatsProgressExpr   = "UPPER(TRIM(COALESCE(progress, '')))"
+	taskStatsFailReasonExpr = "TRIM(COALESCE(fail_reason, ''))"
+	taskStatsFailureCond    = "(" + taskStatsStatusExpr + " IN ('FAILURE','FAILED','ERROR','CANCELED','CANCELLED') OR (" + taskStatsFailReasonExpr + " <> '' AND " + taskStatsStatusExpr + " NOT IN ('SUCCESS','SUCCEEDED','COMPLETED','DONE')) OR " + taskStatsProgressExpr + " IN ('FAILED','FAILURE','ERROR','CANCELED','CANCELLED'))"
+	taskStatsSuccessCond    = "(" + taskStatsStatusExpr + " IN ('SUCCESS','SUCCEEDED','COMPLETED','DONE') OR (" + taskStatsFailReasonExpr + " = '' AND " + taskStatsProgressExpr + " IN ('100','100%','SUCCESS','SUCCEEDED','COMPLETED','DONE')))"
+	taskStatsRunningCond    = "(" + taskStatsStatusExpr + " IN ('NOT_START','SUBMITTED','QUEUED','IN_PROGRESS','PENDING','PROCESSING','RUNNING') OR (" + taskStatsFailReasonExpr + " = '' AND " + taskStatsStatusExpr + " NOT IN ('SUCCESS','SUCCEEDED','COMPLETED','DONE','FAILURE','FAILED','ERROR','CANCELED','CANCELLED','NOT_START','SUBMITTED','QUEUED','IN_PROGRESS','PENDING','PROCESSING','RUNNING') AND " + taskStatsProgressExpr + " <> '' AND " + taskStatsProgressExpr + " NOT IN ('100','100%','SUCCESS','SUCCEEDED','COMPLETED','DONE','FAILED','FAILURE','ERROR','CANCELED','CANCELLED')))"
+)
+
+func buildTaskStatsBaseQuery(queryParams SyncTaskQueryParams) *gorm.DB {
+	return applySyncTaskQueryFilters(DB.Model(&Task{}), queryParams)
+}
+
+func buildTaskStatsUserBaseQuery(userId int, queryParams SyncTaskQueryParams) *gorm.DB {
+	return applySyncTaskQueryFilters(DB.Model(&Task{}).Where("user_id = ?", userId), queryParams)
+}
+
+func withTaskStatsMediaType(queryParams SyncTaskQueryParams, mediaType string) SyncTaskQueryParams {
+	next := queryParams
+	next.MediaType = mediaType
+	return next
+}
+
+func aggregateTaskStats(query *gorm.DB) dto.TaskStatsBreakdown {
+	var row taskStatsAggregateRow
+	err := query.Select(
+		"SUM(CASE WHEN "+taskStatsRunningCond+" THEN 1 ELSE 0 END) AS running, " +
+			"SUM(CASE WHEN "+taskStatsSuccessCond+" THEN 1 ELSE 0 END) AS success, " +
+			"SUM(CASE WHEN "+taskStatsFailureCond+" THEN 1 ELSE 0 END) AS failure",
+	).Scan(&row).Error
+	if err != nil {
+		return dto.TaskStatsBreakdown{}
 	}
-
-	bucketMode := resolveTaskStatsBucketMode(startTimestamp, endTimestamp)
-	dailyTotals := make(map[string]int64)
-	for _, record := range records {
-		mediaType := detectTaskMediaType(record.Action)
-		if mediaType == "" {
-			continue
-		}
-		submitDate := formatTaskStatsBucketKey(time.Unix(record.SubmitTime, 0).In(time.Local), bucketMode)
-		dailyTotals[submitDate]++
-		breakdown := resolveTaskStatsBreakdown(record.Status, record.Progress, record.FailReason)
-
-		if breakdown == "running" {
-			response.RunningCount++
-			response.TotalStats.Running++
-		}
-
-		target := &response.ImageStats
-		if mediaType == TaskMediaTypeVideo {
-			target = &response.VideoStats
-		}
-
-		switch breakdown {
-		case "running":
-			target.Running++
-		case "success":
-			response.TotalStats.Success++
-			target.Success++
-		case "failure":
-			response.TotalStats.Failure++
-			target.Failure++
-		}
+	return dto.TaskStatsBreakdown{
+		Running: row.Running,
+		Success: row.Success,
+		Failure: row.Failure,
 	}
+}
 
-	bucketDates := buildTaskStatsDateBuckets(startTimestamp, endTimestamp, bucketMode)
-	if len(bucketDates) == 0 {
-		dates := make([]string, 0, len(dailyTotals))
-		for date := range dailyTotals {
-			dates = append(dates, date)
-		}
-		sort.Strings(dates)
-		for _, date := range dates {
-			response.DailyCounts = append(response.DailyCounts, dto.TaskDailyCount{
-				Date:  date,
-				Total: dailyTotals[date],
-			})
-		}
-		return response
-	}
-
-	for _, date := range bucketDates {
-		response.DailyCounts = append(response.DailyCounts, dto.TaskDailyCount{
-			Date:  date,
-			Total: dailyTotals[date],
-		})
-	}
-
+func buildTaskStatsResponse(baseQuery func(SyncTaskQueryParams) *gorm.DB, queryParams SyncTaskQueryParams) *dto.TaskStatsResponse {
+	response := &dto.TaskStatsResponse{}
+	response.TotalStats = aggregateTaskStats(baseQuery(withTaskStatsMediaType(queryParams, TaskMediaTypeAll)))
+	response.ImageStats = aggregateTaskStats(baseQuery(withTaskStatsMediaType(queryParams, TaskMediaTypeImage)))
+	response.VideoStats = aggregateTaskStats(baseQuery(withTaskStatsMediaType(queryParams, TaskMediaTypeVideo)))
+	response.RunningCount = response.TotalStats.Running
 	return response
 }
 
-func resolveTaskStatsBucketMode(startTimestamp int64, endTimestamp int64) taskStatsBucketMode {
-	if startTimestamp <= 0 || endTimestamp <= 0 {
-		return taskStatsBucketModeDay
-	}
-
-	start := time.Unix(startTimestamp, 0).In(time.Local)
-	end := time.Unix(endTimestamp, 0).In(time.Local)
-	if end.Before(start) {
-		start, end = end, start
-	}
-
-	now := time.Now().In(time.Local)
-	if start.Format("2006-01-02") == now.Format("2006-01-02") &&
-		end.Format("2006-01-02") == now.Format("2006-01-02") {
-		return taskStatsBucketModeHour
-	}
-
-	return taskStatsBucketModeDay
-}
-
-func formatTaskStatsBucketKey(t time.Time, mode taskStatsBucketMode) string {
-	switch mode {
-	case taskStatsBucketModeHour:
-		return t.Format("15:00")
-	default:
-		return t.Format("2006-01-02")
-	}
-}
-
-func buildTaskStatsDateBuckets(startTimestamp int64, endTimestamp int64, mode taskStatsBucketMode) []string {
-	if startTimestamp <= 0 || endTimestamp <= 0 {
-		return nil
-	}
-
-	start := time.Unix(startTimestamp, 0).In(time.Local)
-	end := time.Unix(endTimestamp, 0).In(time.Local)
-	if end.Before(start) {
-		start, end = end, start
-	}
-
-	dates := make([]string, 0)
-	switch mode {
-	case taskStatsBucketModeHour:
-		startHour := start.Truncate(time.Hour)
-		endHour := end.Truncate(time.Hour)
-		for current := startHour; !current.After(endHour); current = current.Add(time.Hour) {
-			dates = append(dates, current.Format("15:00"))
-		}
-	default:
-		startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
-		endDay := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, end.Location())
-		for current := startDay; !current.After(endDay); current = current.AddDate(0, 0, 1) {
-			dates = append(dates, current.Format("2006-01-02"))
-		}
-	}
-	return dates
-}
-
-func TaskGetStatsTasks(queryParams SyncTaskQueryParams) []taskStatsRecord {
-	var records []taskStatsRecord
-	query := applySyncTaskQueryFilters(DB.Model(&Task{}), queryParams)
-	err := query.Select("action", "status", "submit_time", "progress", "fail_reason").Find(&records).Error
-	if err != nil {
-		return nil
-	}
-	return records
-}
-
-func TaskGetUserStatsTasks(userId int, queryParams SyncTaskQueryParams) []taskStatsRecord {
-	var records []taskStatsRecord
-	query := applySyncTaskQueryFilters(DB.Model(&Task{}).Where("user_id = ?", userId), queryParams)
-	err := query.Select("action", "status", "submit_time", "progress", "fail_reason").Find(&records).Error
-	if err != nil {
-		return nil
-	}
-	return records
-}
-
 func TaskGetStats(queryParams SyncTaskQueryParams) *dto.TaskStatsResponse {
-	return BuildTaskStatsResponse(
-		TaskGetStatsTasks(queryParams),
-		queryParams.StartTimestamp,
-		queryParams.EndTimestamp,
-	)
+	return buildTaskStatsResponse(buildTaskStatsBaseQuery, queryParams)
 }
 
 func TaskGetUserStats(userId int, queryParams SyncTaskQueryParams) *dto.TaskStatsResponse {
-	return BuildTaskStatsResponse(
-		TaskGetUserStatsTasks(userId, queryParams),
-		queryParams.StartTimestamp,
-		queryParams.EndTimestamp,
+	return buildTaskStatsResponse(
+		func(params SyncTaskQueryParams) *gorm.DB {
+			return buildTaskStatsUserBaseQuery(userId, params)
+		},
+		queryParams,
 	)
 }
