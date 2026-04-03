@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/metrics"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -45,6 +46,20 @@ func hasCustomModelRatio(modelName string, currentRatio float64) bool {
 		return true
 	}
 	return currentRatio != defaultRatio
+}
+
+func recordRelayTokenMetrics(relayInfo *relaycommon.RelayInfo, inputTokens int, outputTokens int) {
+	if relayInfo == nil || !metrics.RelayMetricsEnabled {
+		return
+	}
+	metrics.AddRelayInputTokens(relayInfo.OriginModelName, relayInfo.ChannelId, inputTokens)
+	metrics.AddRelayOutputTokens(relayInfo.OriginModelName, relayInfo.ChannelId, outputTokens)
+}
+
+func quotaTokenTotals(info QuotaInfo) (int, int) {
+	inputTokens := info.InputDetails.TextTokens + info.InputDetails.AudioTokens
+	outputTokens := info.OutputDetails.TextTokens + info.OutputDetails.AudioTokens
+	return inputTokens, outputTokens
 }
 
 func calculateAudioQuota(info QuotaInfo) int {
@@ -190,6 +205,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
+	inputTokens, outputTokens := quotaTokenTotals(quotaInfo)
 
 	totalTokens := usage.TotalTokens
 	var logContent string
@@ -211,6 +227,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		recordRelayTokenMetrics(relayInfo, inputTokens, outputTokens)
 	}
 
 	logModel := modelName
@@ -291,6 +308,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
+	inputTokens, outputTokens := quotaTokenTotals(quotaInfo)
 
 	totalTokens := usage.TotalTokens
 	var logContent string
@@ -312,6 +330,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
+		recordRelayTokenMetrics(relayInfo, inputTokens, outputTokens)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {

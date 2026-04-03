@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/metrics"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
@@ -71,9 +72,29 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
 	var (
-		newAPIError *types.NewAPIError
-		ws          *websocket.Conn
+		newAPIError     *types.NewAPIError
+		ws              *websocket.Conn
+		relayStart      = time.Now()
+		relayModelLabel string
+		relayChannelID  int
 	)
+
+	defer func() {
+		if !metrics.RelayMetricsEnabled {
+			return
+		}
+
+		statusCode := c.Writer.Status()
+		if newAPIError != nil && newAPIError.StatusCode != 0 {
+			statusCode = newAPIError.StatusCode
+		}
+		if statusCode == 0 {
+			statusCode = http.StatusOK
+		}
+
+		metrics.RecordRelayRequest(relayModelLabel, relayChannelID, statusCode)
+		metrics.ObserveRelayRequestDuration(relayModelLabel, relayChannelID, relayStart)
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -121,6 +142,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	relayModelLabel = relayInfo.OriginModelName
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
@@ -195,6 +217,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		relayChannelID = channel.Id
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
