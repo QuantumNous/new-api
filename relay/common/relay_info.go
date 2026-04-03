@@ -754,6 +754,8 @@ type TaskInfo struct {
 	Reason           string `json:"reason,omitempty"`
 	Url              string `json:"url,omitempty"`
 	RemoteUrl        string `json:"remote_url,omitempty"`
+	CreatedAt        int64  `json:"created_at,omitempty"`
+	CompletedAt      int64  `json:"completed_at,omitempty"`
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费

@@ -445,7 +445,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	taskResult := relaycommon.TaskInfo{
-		Code: 0,
+		Code:        0,
+		CreatedAt:   resTask.CreatedAt,
+		CompletedAt: resTask.CompletedAt,
 	}
 
 	switch resTask.Status {

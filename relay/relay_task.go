@@ -23,6 +23,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func normalizeTaskTimestamp(ts int64) int64 {
+	if ts <= 0 {
+		return 0
+	}
+	if ts > 1000000000000 {
+		return ts / 1000
+	}
+	return ts
+}
+
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
@@ -540,25 +550,45 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
 	}
+	if len(body) > 0 {
+		task.Data = body
+	}
 	now := common.GetTimestamp()
+	createdAt := normalizeTaskTimestamp(ti.CreatedAt)
+	completedAt := normalizeTaskTimestamp(ti.CompletedAt)
 	switch task.Status {
 	case model.TaskStatusInProgress:
 		if task.StartTime == 0 {
-			task.StartTime = now
-		}
-	case model.TaskStatusSuccess:
-		if task.StartTime == 0 {
-			task.StartTime = task.SubmitTime
-			if task.StartTime == 0 {
+			if createdAt > 0 {
+				task.StartTime = createdAt
+			} else {
 				task.StartTime = now
 			}
 		}
+	case model.TaskStatusSuccess:
+		if task.StartTime == 0 {
+			task.StartTime = createdAt
+		}
+		if task.StartTime == 0 {
+			task.StartTime = task.SubmitTime
+		}
+		if task.StartTime == 0 {
+			task.StartTime = now
+		}
 		if task.FinishTime == 0 {
-			task.FinishTime = now
+			if completedAt > 0 {
+				task.FinishTime = completedAt
+			} else {
+				task.FinishTime = now
+			}
 		}
 	case model.TaskStatusFailure:
 		if task.FinishTime == 0 {
-			task.FinishTime = now
+			if completedAt > 0 {
+				task.FinishTime = completedAt
+			} else {
+				task.FinishTime = now
+			}
 		}
 	}
 	if strings.HasPrefix(ti.Url, "data:") {
