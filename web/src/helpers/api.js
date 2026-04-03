@@ -24,6 +24,7 @@ import {
   isValidMessage,
 } from './utils';
 import axios from 'axios';
+import i18n from '../i18n/i18n';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
 
 export let API = axios.create({
@@ -35,7 +36,6 @@ export let API = axios.create({
     'Cache-Control': 'no-store',
   },
 });
-
 
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
@@ -49,6 +49,127 @@ function redirectToOAuthUrl(url, options = {}) {
   window.location.assign(targetUrl);
 }
 
+function getCustomProviderKind(provider) {
+  return provider?.kind || 'oauth_code';
+}
+
+async function getCurrentUserFromSession() {
+  const res = await API.get('/api/user/self', { skipErrorHandler: true });
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || i18n.t('获取当前登录态失败'));
+  }
+  return res.data.data;
+}
+
+function isTicketAcquireMode(mode) {
+  return mode === 'ticket_exchange' || mode === 'ticket_validate';
+}
+
+function supportsCustomProviderBrowserLogin(provider) {
+  if (provider?.browser_login_supported !== undefined) {
+    return Boolean(provider.browser_login_supported);
+  }
+  const providerKind = getCustomProviderKind(provider);
+  if (providerKind === 'cas') {
+    return Boolean(provider?.cas_server_url);
+  }
+  if (providerKind === 'trusted_header') {
+    return true;
+  }
+  if (providerKind === 'jwt_direct') {
+    if (isTicketAcquireMode(provider?.jwt_acquire_mode || 'direct_token')) {
+      return Boolean(provider?.authorization_endpoint);
+    }
+    if ((provider?.jwt_identity_mode || 'claims') === 'userinfo') {
+      return false;
+    }
+    return Boolean(
+      provider?.authorization_endpoint &&
+        provider?.client_id &&
+        provider?.jwt_source !== 'body',
+    );
+  }
+  return Boolean(provider?.authorization_endpoint && provider?.client_id);
+}
+
+function buildAPIURL(path) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const configuredBaseURL =
+    typeof API.defaults?.baseURL === 'string'
+      ? API.defaults.baseURL.trim()
+      : '';
+
+  if (!configuredBaseURL) {
+    return new URL(normalizedPath, window.location.origin);
+  }
+
+  const baseURL = new URL(configuredBaseURL, window.location.origin);
+  const basePath = baseURL.pathname.replace(/\/+$/, '');
+  baseURL.pathname = `${basePath}${normalizedPath}`;
+  baseURL.search = '';
+  baseURL.hash = '';
+  return baseURL;
+}
+
+function buildCustomCASStartUrl(provider, state) {
+  const startUrl = buildAPIURL(`/api/auth/external/${provider.slug}/cas/start`);
+  startUrl.searchParams.set('state', state);
+  return startUrl;
+}
+
+function ensureAbsoluteOAuthURL(url) {
+  if (typeof url !== 'string' || url.trim() === '') {
+    throw new Error(i18n.t('缺少授权端点 URL'));
+  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    throw new Error(
+      i18n.t('授权端点必须是完整的 URL（以 http:// 或 https:// 开头）'),
+    );
+  }
+  return new URL(url);
+}
+
+function buildCustomJWTAuthorizationUrl(provider, state) {
+  const authUrl = ensureAbsoluteOAuthURL(provider.authorization_endpoint);
+  const acquireMode = provider.jwt_acquire_mode || 'direct_token';
+  const callbackUrl = new URL(
+    `/oauth/${provider.slug}`,
+    window.location.origin,
+  );
+
+  if (isTicketAcquireMode(acquireMode)) {
+    callbackUrl.searchParams.set('state', state);
+    authUrl.searchParams.set(
+      provider.authorization_service_field || 'service',
+      callbackUrl.toString(),
+    );
+    return authUrl;
+  }
+
+  const jwtSource = provider.jwt_source || 'query';
+
+  if (jwtSource === 'body') {
+    throw new Error(
+      i18n.t('当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment'),
+    );
+  }
+  if (!provider.client_id) {
+    throw new Error(i18n.t('JWT 登录缺少 Client ID 配置'));
+  }
+
+  authUrl.searchParams.set('client_id', provider.client_id);
+  authUrl.searchParams.set('redirect_uri', callbackUrl.toString());
+  authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('nonce', state);
+  authUrl.searchParams.set('response_type', 'id_token');
+  authUrl.searchParams.set(
+    'response_mode',
+    jwtSource === 'fragment' ? 'fragment' : 'query',
+  );
+
+  return authUrl;
+}
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -193,7 +314,8 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map((model) => ({
+  const normalizedModels = Array.isArray(data) ? data : [];
+  const modelOptions = normalizedModels.map((model) => ({
     label: model,
     value: model,
   }));
@@ -211,13 +333,20 @@ export const processModelsData = (data, currentModel) => {
 
 // 处理分组数据
 export const processGroupsData = (data, userGroup) => {
-  let groupOptions = Object.entries(data).map(([group, info]) => ({
-    label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
-    value: group,
-    ratio: info.ratio,
-    fullLabel: info.desc,
-  }));
+  const normalizedGroups =
+    data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  let groupOptions = Object.entries(normalizedGroups).map(([group, info]) => {
+    const description = info?.desc || group;
+    return {
+      label:
+        description.length > 20
+          ? description.substring(0, 20) + '...'
+          : description,
+      value: group,
+      ratio: info?.ratio ?? 1,
+      fullLabel: description,
+    };
+  });
 
   if (groupOptions.length === 0) {
     groupOptions = [
@@ -326,44 +455,78 @@ export async function onLinuxDOOAuthClicked(
  * @param {boolean} options.shouldLogout - Whether to logout first
  */
 export async function onCustomOAuthClicked(provider, options = {}) {
-  const state = await prepareOAuthState(options);
-  if (!state) return;
+  if (!supportsCustomProviderBrowserLogin(provider)) {
+    throw new Error(i18n.t('当前身份提供商当前配置暂不支持浏览器登录/绑定'));
+  }
 
   try {
-    const redirect_uri = `${window.location.origin}/oauth/${provider.slug}`;
-
-    // Check if authorization_endpoint is a full URL or relative path
-    let authUrl;
-    if (
-      provider.authorization_endpoint.startsWith('http://') ||
-      provider.authorization_endpoint.startsWith('https://')
-    ) {
-      authUrl = new URL(provider.authorization_endpoint);
-    } else {
-      // Relative path - this is a configuration error, show error message
-      console.error(
-        'Custom OAuth authorization_endpoint must be a full URL:',
-        provider.authorization_endpoint,
+    const providerKind = getCustomProviderKind(provider);
+    if (providerKind === 'trusted_header') {
+      const state = await prepareOAuthState(options);
+      if (!state) return;
+      const res = await API.post(
+        `/api/auth/external/${provider.slug}/header/login`,
+        { state },
+        { skipErrorHandler: true },
       );
-      showError(
-        'OAuth 配置错误：授权端点必须是完整的 URL（以 http:// 或 https:// 开头）',
-      );
-      return;
+      if (!res.data.success) {
+        throw new Error(res.data.message || i18n.t('未知错误'));
+      }
+      if (res.data.data?.action === 'bind') {
+        try {
+          const user = await getCurrentUserFromSession();
+          return {
+            action: 'bind',
+            user,
+          };
+        } catch (error) {
+          console.error(
+            'Failed to refresh trusted header bind session user:',
+            error,
+          );
+          throw new Error(
+            error?.response?.data?.message ||
+              error?.message ||
+              i18n.t('获取当前登录态失败'),
+          );
+        }
+      }
+      return {
+        action: 'login',
+        user: res.data.data,
+      };
     }
 
-    authUrl.searchParams.set('client_id', provider.client_id);
-    authUrl.searchParams.set('redirect_uri', redirect_uri);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set(
-      'scope',
-      provider.scopes || 'openid profile email',
-    );
-    authUrl.searchParams.set('state', state);
+    const state = await prepareOAuthState(options);
+    if (!state) return;
+    const authUrl =
+      providerKind === 'cas'
+        ? buildCustomCASStartUrl(provider, state)
+        : providerKind === 'jwt_direct'
+          ? buildCustomJWTAuthorizationUrl(provider, state)
+          : ensureAbsoluteOAuthURL(provider.authorization_endpoint);
+
+    if (providerKind !== 'jwt_direct' && providerKind !== 'cas') {
+      authUrl.searchParams.set('client_id', provider.client_id);
+      authUrl.searchParams.set(
+        'redirect_uri',
+        `${window.location.origin}/oauth/${provider.slug}`,
+      );
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set(
+        'scope',
+        provider.scopes || 'openid profile email',
+      );
+      authUrl.searchParams.set('state', state);
+    }
 
     redirectToOAuthUrl(authUrl);
+    return undefined;
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    throw new Error(
+      error?.response?.data?.message || error?.message || i18n.t('未知错误'),
+    );
   }
 }
 

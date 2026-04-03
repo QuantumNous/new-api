@@ -18,24 +18,65 @@ import (
 // CustomOAuthProviderResponse is the response structure for custom OAuth providers
 // It excludes sensitive fields like client_secret
 type CustomOAuthProviderResponse struct {
-	Id                    int    `json:"id"`
-	Name                  string `json:"name"`
-	Slug                  string `json:"slug"`
-	Icon                  string `json:"icon"`
-	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id"`
-	AuthorizationEndpoint string `json:"authorization_endpoint"`
-	TokenEndpoint         string `json:"token_endpoint"`
-	UserInfoEndpoint      string `json:"user_info_endpoint"`
-	Scopes                string `json:"scopes"`
-	UserIdField           string `json:"user_id_field"`
-	UsernameField         string `json:"username_field"`
-	DisplayNameField      string `json:"display_name_field"`
-	EmailField            string `json:"email_field"`
-	WellKnown             string `json:"well_known"`
-	AuthStyle             int    `json:"auth_style"`
-	AccessPolicy          string `json:"access_policy"`
-	AccessDeniedMessage   string `json:"access_denied_message"`
+	Id                         int    `json:"id"`
+	Name                       string `json:"name"`
+	Slug                       string `json:"slug"`
+	Icon                       string `json:"icon"`
+	Kind                       string `json:"kind"`
+	Enabled                    bool   `json:"enabled"`
+	ClientId                   string `json:"client_id"`
+	AuthorizationEndpoint      string `json:"authorization_endpoint"`
+	TokenEndpoint              string `json:"token_endpoint"`
+	UserInfoEndpoint           string `json:"user_info_endpoint"`
+	Scopes                     string `json:"scopes"`
+	Issuer                     string `json:"issuer"`
+	Audience                   string `json:"audience"`
+	JwksURL                    string `json:"jwks_url"`
+	PublicKey                  string `json:"public_key"`
+	JWTSource                  string `json:"jwt_source"`
+	JWTHeader                  string `json:"jwt_header"`
+	JWTIdentityMode            string `json:"jwt_identity_mode"`
+	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           string `json:"external_id_header"`
+	UsernameHeader             string `json:"username_header"`
+	DisplayNameHeader          string `json:"display_name_header"`
+	EmailHeader                string `json:"email_header"`
+	GroupHeader                string `json:"group_header"`
+	RoleHeader                 string `json:"role_header"`
+	CASServerURL               string `json:"cas_server_url"`
+	ServiceURL                 string `json:"service_url"`
+	ValidateURL                string `json:"validate_url"`
+	Renew                      bool   `json:"renew"`
+	Gateway                    bool   `json:"gateway"`
+	AuthorizationServiceField  string `json:"authorization_service_field"`
+	TicketExchangeURL          string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField string `json:"ticket_exchange_service_field"`
+	UserIdField                string `json:"user_id_field"`
+	UsernameField              string `json:"username_field"`
+	DisplayNameField           string `json:"display_name_field"`
+	EmailField                 string `json:"email_field"`
+	GroupField                 string `json:"group_field"`
+	RoleField                  string `json:"role_field"`
+	GroupMapping               string `json:"group_mapping"`
+	RoleMapping                string `json:"role_mapping"`
+	AutoRegister               bool   `json:"auto_register"`
+	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           bool   `json:"sync_email_on_login"`
+	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
+	GroupMappingMode           string `json:"group_mapping_mode"`
+	RoleMappingMode            string `json:"role_mapping_mode"`
+	WellKnown                  string `json:"well_known"`
+	AuthStyle                  int    `json:"auth_style"`
+	AccessPolicy               string `json:"access_policy"`
+	AccessDeniedMessage        string `json:"access_denied_message"`
 }
 
 type UserOAuthBindingResponse struct {
@@ -47,26 +88,105 @@ type UserOAuthBindingResponse struct {
 }
 
 func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthProviderResponse {
-	return &CustomOAuthProviderResponse{
-		Id:                    p.Id,
-		Name:                  p.Name,
-		Slug:                  p.Slug,
-		Icon:                  p.Icon,
-		Enabled:               p.Enabled,
-		ClientId:              p.ClientId,
-		AuthorizationEndpoint: p.AuthorizationEndpoint,
-		TokenEndpoint:         p.TokenEndpoint,
-		UserInfoEndpoint:      p.UserInfoEndpoint,
-		Scopes:                p.Scopes,
-		UserIdField:           p.UserIdField,
-		UsernameField:         p.UsernameField,
-		DisplayNameField:      p.DisplayNameField,
-		EmailField:            p.EmailField,
-		WellKnown:             p.WellKnown,
-		AuthStyle:             p.AuthStyle,
-		AccessPolicy:          p.AccessPolicy,
-		AccessDeniedMessage:   p.AccessDeniedMessage,
+	sanitized := *p
+	model.NormalizeCustomOAuthProviderForRead(&sanitized)
+
+	jwtSource := sanitized.JWTSource
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtSource) == "" {
+		jwtSource = model.CustomJWTSourceQuery
 	}
+	jwtIdentityMode := sanitized.JWTIdentityMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtIdentityMode) == "" {
+		jwtIdentityMode = model.CustomJWTIdentityModeClaims
+	}
+	jwtAcquireMode := sanitized.JWTAcquireMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(jwtAcquireMode) == "" {
+		jwtAcquireMode = model.CustomJWTAcquireModeDirectToken
+	}
+	authorizationServiceField := sanitized.AuthorizationServiceField
+	if sanitized.IsJWTDirect() && strings.TrimSpace(authorizationServiceField) == "" {
+		authorizationServiceField = "service"
+	}
+	ticketExchangeMethod := sanitized.TicketExchangeMethod
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangeMethod) == "" {
+		ticketExchangeMethod = model.CustomTicketExchangeMethodGET
+	}
+	ticketExchangePayloadMode := sanitized.TicketExchangePayloadMode
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangePayloadMode) == "" {
+		ticketExchangePayloadMode = model.CustomTicketExchangePayloadModeQuery
+	}
+	ticketExchangeTicketField := sanitized.TicketExchangeTicketField
+	if sanitized.IsJWTDirect() && strings.TrimSpace(ticketExchangeTicketField) == "" {
+		ticketExchangeTicketField = "ticket"
+	}
+	return &CustomOAuthProviderResponse{
+		Id:                         sanitized.Id,
+		Name:                       sanitized.Name,
+		Slug:                       sanitized.Slug,
+		Icon:                       sanitized.Icon,
+		Kind:                       sanitized.GetKind(),
+		Enabled:                    sanitized.Enabled,
+		ClientId:                   sanitized.ClientId,
+		AuthorizationEndpoint:      sanitized.AuthorizationEndpoint,
+		TokenEndpoint:              sanitized.TokenEndpoint,
+		UserInfoEndpoint:           sanitized.UserInfoEndpoint,
+		Scopes:                     sanitized.Scopes,
+		Issuer:                     sanitized.Issuer,
+		Audience:                   sanitized.Audience,
+		JwksURL:                    sanitized.JwksURL,
+		PublicKey:                  sanitized.PublicKey,
+		JWTSource:                  jwtSource,
+		JWTHeader:                  sanitized.JWTHeader,
+		JWTIdentityMode:            jwtIdentityMode,
+		JWTAcquireMode:             jwtAcquireMode,
+		TrustedProxyCIDRs:          sanitized.TrustedProxyCIDRs,
+		ExternalIDHeader:           sanitized.ExternalIDHeader,
+		UsernameHeader:             sanitized.UsernameHeader,
+		DisplayNameHeader:          sanitized.DisplayNameHeader,
+		EmailHeader:                sanitized.EmailHeader,
+		GroupHeader:                sanitized.GroupHeader,
+		RoleHeader:                 sanitized.RoleHeader,
+		CASServerURL:               sanitized.CASServerURL,
+		ServiceURL:                 sanitized.ServiceURL,
+		ValidateURL:                sanitized.ValidateURL,
+		Renew:                      sanitized.Renew,
+		Gateway:                    sanitized.Gateway,
+		AuthorizationServiceField:  authorizationServiceField,
+		TicketExchangeURL:          sanitized.TicketExchangeURL,
+		TicketExchangeMethod:       ticketExchangeMethod,
+		TicketExchangePayloadMode:  ticketExchangePayloadMode,
+		TicketExchangeTicketField:  ticketExchangeTicketField,
+		TicketExchangeTokenField:   sanitized.TicketExchangeTokenField,
+		TicketExchangeServiceField: sanitized.TicketExchangeServiceField,
+		UserIdField:                sanitized.UserIdField,
+		UsernameField:              sanitized.UsernameField,
+		DisplayNameField:           sanitized.DisplayNameField,
+		EmailField:                 sanitized.EmailField,
+		GroupField:                 sanitized.GroupField,
+		RoleField:                  sanitized.RoleField,
+		GroupMapping:               sanitized.GroupMapping,
+		RoleMapping:                sanitized.RoleMapping,
+		AutoRegister:               sanitized.AutoRegister,
+		AutoMergeByEmail:           sanitized.AutoMergeByEmail,
+		SyncUsernameOnLogin:        sanitized.SyncUsernameOnLogin,
+		SyncDisplayNameOnLogin:     sanitized.SyncDisplayNameOnLogin,
+		SyncEmailOnLogin:           sanitized.SyncEmailOnLogin,
+		SyncGroupOnLogin:           sanitized.SyncGroupOnLogin,
+		SyncRoleOnLogin:            sanitized.SyncRoleOnLogin,
+		GroupMappingMode:           sanitized.GroupMappingMode,
+		RoleMappingMode:            sanitized.RoleMappingMode,
+		WellKnown:                  sanitized.WellKnown,
+		AuthStyle:                  sanitized.AuthStyle,
+		AccessPolicy:               sanitized.AccessPolicy,
+		AccessDeniedMessage:        sanitized.AccessDeniedMessage,
+	}
+}
+
+func isStandaloneCustomOAuthProviderSupported(provider *model.CustomOAuthProvider) bool {
+	if provider == nil {
+		return false
+	}
+	return provider.IsOAuthCode() || provider.IsCAS()
 }
 
 // GetCustomOAuthProviders returns all custom OAuth providers
@@ -77,9 +197,12 @@ func GetCustomOAuthProviders(c *gin.Context) {
 		return
 	}
 
-	response := make([]*CustomOAuthProviderResponse, len(providers))
-	for i, p := range providers {
-		response[i] = toCustomOAuthProviderResponse(p)
+	response := make([]*CustomOAuthProviderResponse, 0, len(providers))
+	for _, p := range providers {
+		if !isStandaloneCustomOAuthProviderSupported(p) {
+			continue
+		}
+		response = append(response, toCustomOAuthProviderResponse(p))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -103,6 +226,10 @@ func GetCustomOAuthProvider(c *gin.Context) {
 		common.ApiErrorMsg(c, "未找到该 OAuth 提供商")
 		return
 	}
+	if !isStandaloneCustomOAuthProviderSupported(provider) {
+		common.ApiErrorMsg(c, "未找到该 OAuth 提供商")
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -113,24 +240,67 @@ func GetCustomOAuthProvider(c *gin.Context) {
 
 // CreateCustomOAuthProviderRequest is the request structure for creating a custom OAuth provider
 type CreateCustomOAuthProviderRequest struct {
-	Name                  string `json:"name" binding:"required"`
-	Slug                  string `json:"slug" binding:"required"`
-	Icon                  string `json:"icon"`
-	Enabled               bool   `json:"enabled"`
-	ClientId              string `json:"client_id" binding:"required"`
-	ClientSecret          string `json:"client_secret" binding:"required"`
-	AuthorizationEndpoint string `json:"authorization_endpoint" binding:"required"`
-	TokenEndpoint         string `json:"token_endpoint" binding:"required"`
-	UserInfoEndpoint      string `json:"user_info_endpoint" binding:"required"`
-	Scopes                string `json:"scopes"`
-	UserIdField           string `json:"user_id_field"`
-	UsernameField         string `json:"username_field"`
-	DisplayNameField      string `json:"display_name_field"`
-	EmailField            string `json:"email_field"`
-	WellKnown             string `json:"well_known"`
-	AuthStyle             int    `json:"auth_style"`
-	AccessPolicy          string `json:"access_policy"`
-	AccessDeniedMessage   string `json:"access_denied_message"`
+	Name                       string `json:"name" binding:"required"`
+	Slug                       string `json:"slug" binding:"required"`
+	Icon                       string `json:"icon"`
+	Kind                       string `json:"kind"`
+	Enabled                    bool   `json:"enabled"`
+	ClientId                   string `json:"client_id"`
+	ClientSecret               string `json:"client_secret"`
+	AuthorizationEndpoint      string `json:"authorization_endpoint"`
+	TokenEndpoint              string `json:"token_endpoint"`
+	UserInfoEndpoint           string `json:"user_info_endpoint"`
+	Scopes                     string `json:"scopes"`
+	Issuer                     string `json:"issuer"`
+	Audience                   string `json:"audience"`
+	JwksURL                    string `json:"jwks_url"`
+	PublicKey                  string `json:"public_key"`
+	JWTSource                  string `json:"jwt_source"`
+	JWTHeader                  string `json:"jwt_header"`
+	JWTIdentityMode            string `json:"jwt_identity_mode"`
+	JWTAcquireMode             string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           string `json:"external_id_header"`
+	UsernameHeader             string `json:"username_header"`
+	DisplayNameHeader          string `json:"display_name_header"`
+	EmailHeader                string `json:"email_header"`
+	GroupHeader                string `json:"group_header"`
+	RoleHeader                 string `json:"role_header"`
+	CASServerURL               string `json:"cas_server_url"`
+	ServiceURL                 string `json:"service_url"`
+	ValidateURL                string `json:"validate_url"`
+	Renew                      bool   `json:"renew"`
+	Gateway                    bool   `json:"gateway"`
+	AuthorizationServiceField  string `json:"authorization_service_field"`
+	TicketExchangeURL          string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField string `json:"ticket_exchange_service_field"`
+	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params"`
+	TicketExchangeHeaders      string `json:"ticket_exchange_headers"`
+	UserIdField                string `json:"user_id_field"`
+	UsernameField              string `json:"username_field"`
+	DisplayNameField           string `json:"display_name_field"`
+	EmailField                 string `json:"email_field"`
+	GroupField                 string `json:"group_field"`
+	RoleField                  string `json:"role_field"`
+	GroupMapping               string `json:"group_mapping"`
+	RoleMapping                string `json:"role_mapping"`
+	AutoRegister               bool   `json:"auto_register"`
+	AutoMergeByEmail           bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           bool   `json:"sync_email_on_login"`
+	SyncGroupOnLogin           bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            bool   `json:"sync_role_on_login"`
+	GroupMappingMode           string `json:"group_mapping_mode"`
+	RoleMappingMode            string `json:"role_mapping_mode"`
+	WellKnown                  string `json:"well_known"`
+	AuthStyle                  int    `json:"auth_style"`
+	AccessPolicy               string `json:"access_policy"`
+	AccessDeniedMessage        string `json:"access_denied_message"`
 }
 
 type FetchCustomOAuthDiscoveryRequest struct {
@@ -231,24 +401,67 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 	}
 
 	provider := &model.CustomOAuthProvider{
-		Name:                  req.Name,
-		Slug:                  req.Slug,
-		Icon:                  req.Icon,
-		Enabled:               req.Enabled,
-		ClientId:              req.ClientId,
-		ClientSecret:          req.ClientSecret,
-		AuthorizationEndpoint: req.AuthorizationEndpoint,
-		TokenEndpoint:         req.TokenEndpoint,
-		UserInfoEndpoint:      req.UserInfoEndpoint,
-		Scopes:                req.Scopes,
-		UserIdField:           req.UserIdField,
-		UsernameField:         req.UsernameField,
-		DisplayNameField:      req.DisplayNameField,
-		EmailField:            req.EmailField,
-		WellKnown:             req.WellKnown,
-		AuthStyle:             req.AuthStyle,
-		AccessPolicy:          req.AccessPolicy,
-		AccessDeniedMessage:   req.AccessDeniedMessage,
+		Name:                       req.Name,
+		Slug:                       req.Slug,
+		Icon:                       req.Icon,
+		Kind:                       req.Kind,
+		Enabled:                    req.Enabled,
+		ClientId:                   req.ClientId,
+		ClientSecret:               req.ClientSecret,
+		AuthorizationEndpoint:      req.AuthorizationEndpoint,
+		TokenEndpoint:              req.TokenEndpoint,
+		UserInfoEndpoint:           req.UserInfoEndpoint,
+		Scopes:                     req.Scopes,
+		Issuer:                     req.Issuer,
+		Audience:                   req.Audience,
+		JwksURL:                    req.JwksURL,
+		PublicKey:                  req.PublicKey,
+		JWTSource:                  req.JWTSource,
+		JWTHeader:                  req.JWTHeader,
+		JWTIdentityMode:            req.JWTIdentityMode,
+		JWTAcquireMode:             req.JWTAcquireMode,
+		TrustedProxyCIDRs:          req.TrustedProxyCIDRs,
+		ExternalIDHeader:           req.ExternalIDHeader,
+		UsernameHeader:             req.UsernameHeader,
+		DisplayNameHeader:          req.DisplayNameHeader,
+		EmailHeader:                req.EmailHeader,
+		GroupHeader:                req.GroupHeader,
+		RoleHeader:                 req.RoleHeader,
+		CASServerURL:               req.CASServerURL,
+		ServiceURL:                 req.ServiceURL,
+		ValidateURL:                req.ValidateURL,
+		Renew:                      req.Renew,
+		Gateway:                    req.Gateway,
+		AuthorizationServiceField:  req.AuthorizationServiceField,
+		TicketExchangeURL:          req.TicketExchangeURL,
+		TicketExchangeMethod:       req.TicketExchangeMethod,
+		TicketExchangePayloadMode:  req.TicketExchangePayloadMode,
+		TicketExchangeTicketField:  req.TicketExchangeTicketField,
+		TicketExchangeTokenField:   req.TicketExchangeTokenField,
+		TicketExchangeServiceField: req.TicketExchangeServiceField,
+		TicketExchangeExtraParams:  req.TicketExchangeExtraParams,
+		TicketExchangeHeaders:      req.TicketExchangeHeaders,
+		UserIdField:                req.UserIdField,
+		UsernameField:              req.UsernameField,
+		DisplayNameField:           req.DisplayNameField,
+		EmailField:                 req.EmailField,
+		GroupField:                 req.GroupField,
+		RoleField:                  req.RoleField,
+		GroupMapping:               req.GroupMapping,
+		RoleMapping:                req.RoleMapping,
+		AutoRegister:               req.AutoRegister,
+		AutoMergeByEmail:           req.AutoMergeByEmail,
+		SyncUsernameOnLogin:        req.SyncUsernameOnLogin,
+		SyncDisplayNameOnLogin:     req.SyncDisplayNameOnLogin,
+		SyncEmailOnLogin:           req.SyncEmailOnLogin,
+		SyncGroupOnLogin:           req.SyncGroupOnLogin,
+		SyncRoleOnLogin:            req.SyncRoleOnLogin,
+		GroupMappingMode:           req.GroupMappingMode,
+		RoleMappingMode:            req.RoleMappingMode,
+		WellKnown:                  req.WellKnown,
+		AuthStyle:                  req.AuthStyle,
+		AccessPolicy:               req.AccessPolicy,
+		AccessDeniedMessage:        req.AccessDeniedMessage,
 	}
 
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
@@ -258,6 +471,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 	// Register the provider in the OAuth registry
 	oauth.RegisterOrUpdateCustomProvider(provider)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -268,24 +482,67 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 
 // UpdateCustomOAuthProviderRequest is the request structure for updating a custom OAuth provider
 type UpdateCustomOAuthProviderRequest struct {
-	Name                  string  `json:"name"`
-	Slug                  string  `json:"slug"`
-	Icon                  *string `json:"icon"`    // Optional: if nil, keep existing
-	Enabled               *bool   `json:"enabled"` // Optional: if nil, keep existing
-	ClientId              string  `json:"client_id"`
-	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
-	AuthorizationEndpoint string  `json:"authorization_endpoint"`
-	TokenEndpoint         string  `json:"token_endpoint"`
-	UserInfoEndpoint      string  `json:"user_info_endpoint"`
-	Scopes                string  `json:"scopes"`
-	UserIdField           string  `json:"user_id_field"`
-	UsernameField         string  `json:"username_field"`
-	DisplayNameField      string  `json:"display_name_field"`
-	EmailField            string  `json:"email_field"`
-	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
-	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
-	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
-	AccessDeniedMessage   *string `json:"access_denied_message"` // Optional: if nil, keep existing
+	Name                       *string `json:"name"`
+	Slug                       *string `json:"slug"`
+	Icon                       *string `json:"icon"`    // Optional: if nil, keep existing
+	Enabled                    *bool   `json:"enabled"` // Optional: if nil, keep existing
+	Kind                       *string `json:"kind"`
+	ClientId                   *string `json:"client_id"`
+	ClientSecret               *string `json:"client_secret"`
+	AuthorizationEndpoint      *string `json:"authorization_endpoint"`
+	TokenEndpoint              *string `json:"token_endpoint"`
+	UserInfoEndpoint           *string `json:"user_info_endpoint"`
+	Scopes                     *string `json:"scopes"`
+	Issuer                     *string `json:"issuer"`
+	Audience                   *string `json:"audience"`
+	JwksURL                    *string `json:"jwks_url"`
+	PublicKey                  *string `json:"public_key"`
+	JWTSource                  *string `json:"jwt_source"`
+	JWTHeader                  *string `json:"jwt_header"`
+	JWTIdentityMode            *string `json:"jwt_identity_mode"`
+	JWTAcquireMode             *string `json:"jwt_acquire_mode"`
+	TrustedProxyCIDRs          *string `json:"trusted_proxy_cidrs"`
+	ExternalIDHeader           *string `json:"external_id_header"`
+	UsernameHeader             *string `json:"username_header"`
+	DisplayNameHeader          *string `json:"display_name_header"`
+	EmailHeader                *string `json:"email_header"`
+	GroupHeader                *string `json:"group_header"`
+	RoleHeader                 *string `json:"role_header"`
+	CASServerURL               *string `json:"cas_server_url"`
+	ServiceURL                 *string `json:"service_url"`
+	ValidateURL                *string `json:"validate_url"`
+	Renew                      *bool   `json:"renew"`
+	Gateway                    *bool   `json:"gateway"`
+	AuthorizationServiceField  *string `json:"authorization_service_field"`
+	TicketExchangeURL          *string `json:"ticket_exchange_url"`
+	TicketExchangeMethod       *string `json:"ticket_exchange_method"`
+	TicketExchangePayloadMode  *string `json:"ticket_exchange_payload_mode"`
+	TicketExchangeTicketField  *string `json:"ticket_exchange_ticket_field"`
+	TicketExchangeTokenField   *string `json:"ticket_exchange_token_field"`
+	TicketExchangeServiceField *string `json:"ticket_exchange_service_field"`
+	TicketExchangeExtraParams  *string `json:"ticket_exchange_extra_params"`
+	TicketExchangeHeaders      *string `json:"ticket_exchange_headers"`
+	UserIdField                *string `json:"user_id_field"`
+	UsernameField              *string `json:"username_field"`
+	DisplayNameField           *string `json:"display_name_field"`
+	EmailField                 *string `json:"email_field"`
+	GroupField                 *string `json:"group_field"`
+	RoleField                  *string `json:"role_field"`
+	GroupMapping               *string `json:"group_mapping"`
+	RoleMapping                *string `json:"role_mapping"`
+	AutoRegister               *bool   `json:"auto_register"`
+	AutoMergeByEmail           *bool   `json:"auto_merge_by_email"`
+	SyncUsernameOnLogin        *bool   `json:"sync_username_on_login"`
+	SyncDisplayNameOnLogin     *bool   `json:"sync_display_name_on_login"`
+	SyncEmailOnLogin           *bool   `json:"sync_email_on_login"`
+	SyncGroupOnLogin           *bool   `json:"sync_group_on_login"`
+	SyncRoleOnLogin            *bool   `json:"sync_role_on_login"`
+	GroupMappingMode           *string `json:"group_mapping_mode"`
+	RoleMappingMode            *string `json:"role_mapping_mode"`
+	WellKnown                  *string `json:"well_known"`            // Optional: if nil, keep existing
+	AuthStyle                  *int    `json:"auth_style"`            // Optional: if nil, keep existing
+	AccessPolicy               *string `json:"access_policy"`         // Optional: if nil, keep existing
+	AccessDeniedMessage        *string `json:"access_denied_message"` // Optional: if nil, keep existing
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -313,24 +570,24 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	oldSlug := provider.Slug
 
 	// Check if new slug is taken by another provider
-	if req.Slug != "" && req.Slug != provider.Slug {
-		if model.IsSlugTaken(req.Slug, id) {
+	if req.Slug != nil && *req.Slug != provider.Slug {
+		if model.IsSlugTaken(*req.Slug, id) {
 			common.ApiErrorMsg(c, "该 Slug 已被使用")
 			return
 		}
 		// Check if slug conflicts with built-in providers
-		if oauth.IsProviderRegistered(req.Slug) && !oauth.IsCustomProvider(req.Slug) {
+		if oauth.IsProviderRegistered(*req.Slug) && !oauth.IsCustomProvider(*req.Slug) {
 			common.ApiErrorMsg(c, "该 Slug 与内置 OAuth 提供商冲突")
 			return
 		}
 	}
 
 	// Update fields
-	if req.Name != "" {
-		provider.Name = req.Name
+	if req.Name != nil {
+		provider.Name = *req.Name
 	}
-	if req.Slug != "" {
-		provider.Slug = req.Slug
+	if req.Slug != nil {
+		provider.Slug = *req.Slug
 	}
 	if req.Icon != nil {
 		provider.Icon = *req.Icon
@@ -338,35 +595,164 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.Enabled != nil {
 		provider.Enabled = *req.Enabled
 	}
-	if req.ClientId != "" {
-		provider.ClientId = req.ClientId
+	if req.Kind != nil {
+		provider.Kind = *req.Kind
 	}
-	if req.ClientSecret != "" {
-		provider.ClientSecret = req.ClientSecret
+	if req.ClientId != nil {
+		provider.ClientId = *req.ClientId
 	}
-	if req.AuthorizationEndpoint != "" {
-		provider.AuthorizationEndpoint = req.AuthorizationEndpoint
+	if req.ClientSecret != nil {
+		provider.ClientSecret = *req.ClientSecret
 	}
-	if req.TokenEndpoint != "" {
-		provider.TokenEndpoint = req.TokenEndpoint
+	if req.AuthorizationEndpoint != nil {
+		provider.AuthorizationEndpoint = *req.AuthorizationEndpoint
 	}
-	if req.UserInfoEndpoint != "" {
-		provider.UserInfoEndpoint = req.UserInfoEndpoint
+	if req.TokenEndpoint != nil {
+		provider.TokenEndpoint = *req.TokenEndpoint
 	}
-	if req.Scopes != "" {
-		provider.Scopes = req.Scopes
+	if req.UserInfoEndpoint != nil {
+		provider.UserInfoEndpoint = *req.UserInfoEndpoint
 	}
-	if req.UserIdField != "" {
-		provider.UserIdField = req.UserIdField
+	if req.Scopes != nil {
+		provider.Scopes = *req.Scopes
 	}
-	if req.UsernameField != "" {
-		provider.UsernameField = req.UsernameField
+	if req.Issuer != nil {
+		provider.Issuer = *req.Issuer
 	}
-	if req.DisplayNameField != "" {
-		provider.DisplayNameField = req.DisplayNameField
+	if req.Audience != nil {
+		provider.Audience = *req.Audience
 	}
-	if req.EmailField != "" {
-		provider.EmailField = req.EmailField
+	if req.JwksURL != nil {
+		provider.JwksURL = *req.JwksURL
+	}
+	if req.PublicKey != nil {
+		provider.PublicKey = *req.PublicKey
+	}
+	if req.JWTSource != nil {
+		provider.JWTSource = *req.JWTSource
+	}
+	if req.JWTHeader != nil {
+		provider.JWTHeader = *req.JWTHeader
+	}
+	if req.JWTIdentityMode != nil {
+		provider.JWTIdentityMode = *req.JWTIdentityMode
+	}
+	if req.JWTAcquireMode != nil {
+		provider.JWTAcquireMode = *req.JWTAcquireMode
+	}
+	if req.TrustedProxyCIDRs != nil {
+		provider.TrustedProxyCIDRs = *req.TrustedProxyCIDRs
+	}
+	if req.ExternalIDHeader != nil {
+		provider.ExternalIDHeader = *req.ExternalIDHeader
+	}
+	if req.UsernameHeader != nil {
+		provider.UsernameHeader = *req.UsernameHeader
+	}
+	if req.DisplayNameHeader != nil {
+		provider.DisplayNameHeader = *req.DisplayNameHeader
+	}
+	if req.EmailHeader != nil {
+		provider.EmailHeader = *req.EmailHeader
+	}
+	if req.GroupHeader != nil {
+		provider.GroupHeader = *req.GroupHeader
+	}
+	if req.RoleHeader != nil {
+		provider.RoleHeader = *req.RoleHeader
+	}
+	if req.CASServerURL != nil {
+		provider.CASServerURL = *req.CASServerURL
+	}
+	if req.ServiceURL != nil {
+		provider.ServiceURL = *req.ServiceURL
+	}
+	if req.ValidateURL != nil {
+		provider.ValidateURL = *req.ValidateURL
+	}
+	if req.Renew != nil {
+		provider.Renew = *req.Renew
+	}
+	if req.Gateway != nil {
+		provider.Gateway = *req.Gateway
+	}
+	if req.AuthorizationServiceField != nil {
+		provider.AuthorizationServiceField = *req.AuthorizationServiceField
+	}
+	if req.TicketExchangeURL != nil {
+		provider.TicketExchangeURL = *req.TicketExchangeURL
+	}
+	if req.TicketExchangeMethod != nil {
+		provider.TicketExchangeMethod = *req.TicketExchangeMethod
+	}
+	if req.TicketExchangePayloadMode != nil {
+		provider.TicketExchangePayloadMode = *req.TicketExchangePayloadMode
+	}
+	if req.TicketExchangeTicketField != nil {
+		provider.TicketExchangeTicketField = *req.TicketExchangeTicketField
+	}
+	if req.TicketExchangeTokenField != nil {
+		provider.TicketExchangeTokenField = *req.TicketExchangeTokenField
+	}
+	if req.TicketExchangeServiceField != nil {
+		provider.TicketExchangeServiceField = *req.TicketExchangeServiceField
+	}
+	if req.TicketExchangeExtraParams != nil {
+		provider.TicketExchangeExtraParams = *req.TicketExchangeExtraParams
+	}
+	if req.TicketExchangeHeaders != nil {
+		provider.TicketExchangeHeaders = *req.TicketExchangeHeaders
+	}
+	if req.UserIdField != nil {
+		provider.UserIdField = *req.UserIdField
+	}
+	if req.UsernameField != nil {
+		provider.UsernameField = *req.UsernameField
+	}
+	if req.DisplayNameField != nil {
+		provider.DisplayNameField = *req.DisplayNameField
+	}
+	if req.EmailField != nil {
+		provider.EmailField = *req.EmailField
+	}
+	if req.GroupField != nil {
+		provider.GroupField = *req.GroupField
+	}
+	if req.RoleField != nil {
+		provider.RoleField = *req.RoleField
+	}
+	if req.GroupMapping != nil {
+		provider.GroupMapping = *req.GroupMapping
+	}
+	if req.RoleMapping != nil {
+		provider.RoleMapping = *req.RoleMapping
+	}
+	if req.AutoRegister != nil {
+		provider.AutoRegister = *req.AutoRegister
+	}
+	if req.AutoMergeByEmail != nil {
+		provider.AutoMergeByEmail = *req.AutoMergeByEmail
+	}
+	if req.SyncUsernameOnLogin != nil {
+		provider.SyncUsernameOnLogin = *req.SyncUsernameOnLogin
+	}
+	if req.SyncDisplayNameOnLogin != nil {
+		provider.SyncDisplayNameOnLogin = *req.SyncDisplayNameOnLogin
+	}
+	if req.SyncEmailOnLogin != nil {
+		provider.SyncEmailOnLogin = *req.SyncEmailOnLogin
+	}
+	if req.SyncGroupOnLogin != nil {
+		provider.SyncGroupOnLogin = *req.SyncGroupOnLogin
+	}
+	if req.SyncRoleOnLogin != nil {
+		provider.SyncRoleOnLogin = *req.SyncRoleOnLogin
+	}
+	if req.GroupMappingMode != nil {
+		provider.GroupMappingMode = *req.GroupMappingMode
+	}
+	if req.RoleMappingMode != nil {
+		provider.RoleMappingMode = *req.RoleMappingMode
 	}
 	if req.WellKnown != nil {
 		provider.WellKnown = *req.WellKnown
@@ -391,6 +777,7 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 		oauth.UnregisterCustomProvider(oldSlug)
 	}
 	oauth.RegisterOrUpdateCustomProvider(provider)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -434,6 +821,7 @@ func DeleteCustomOAuthProvider(c *gin.Context) {
 
 	// Unregister the provider from the OAuth registry
 	oauth.UnregisterCustomProvider(provider.Slug)
+	invalidateCustomOAuthStatusCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

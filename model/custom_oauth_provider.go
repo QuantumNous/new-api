@@ -3,10 +3,50 @@ package model
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+)
+
+const (
+	CustomOAuthProviderKindOAuthCode     = "oauth_code"
+	CustomOAuthProviderKindCAS           = "cas"
+)
+
+const (
+	CustomJWTSourceQuery    = "query"
+	CustomJWTSourceFragment = "fragment"
+	CustomJWTSourceBody     = "body"
+)
+
+const (
+	CustomOAuthMappingModeExplicitOnly = "explicit_only"
+	CustomOAuthMappingModeMappingFirst = "mapping_first"
+)
+
+const (
+	CustomJWTAcquireModeDirectToken    = "direct_token"
+	CustomJWTAcquireModeTicketExchange = "ticket_exchange"
+	CustomJWTAcquireModeTicketValidate = "ticket_validate"
+)
+
+const (
+	CustomJWTIdentityModeClaims   = "claims"
+	CustomJWTIdentityModeUserInfo = "userinfo"
+)
+
+const (
+	CustomTicketExchangeMethodGET  = "GET"
+	CustomTicketExchangeMethodPOST = "POST"
+)
+
+const (
+	CustomTicketExchangePayloadModeQuery     = "query"
+	CustomTicketExchangePayloadModeForm      = "form"
+	CustomTicketExchangePayloadModeJSON      = "json"
+	CustomTicketExchangePayloadModeMultipart = "multipart"
 )
 
 type accessPolicyPayload struct {
@@ -38,23 +78,66 @@ var supportedAccessPolicyOps = map[string]struct{}{
 
 // CustomOAuthProvider stores configuration for custom OAuth providers
 type CustomOAuthProvider struct {
-	Id                    int    `json:"id" gorm:"primaryKey"`
-	Name                  string `json:"name" gorm:"type:varchar(64);not null"`                          // Display name, e.g., "GitHub Enterprise"
-	Slug                  string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`              // URL identifier, e.g., "github-enterprise"
-	Icon                  string `json:"icon" gorm:"type:varchar(128);default:''"`                       // Icon name from @lobehub/icons
-	Enabled               bool   `json:"enabled" gorm:"default:false"`                                   // Whether this provider is enabled
-	ClientId              string `json:"client_id" gorm:"type:varchar(256)"`                             // OAuth client ID
-	ClientSecret          string `json:"-" gorm:"type:varchar(512)"`                                     // OAuth client secret (not returned to frontend)
-	AuthorizationEndpoint string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                // Authorization URL
-	TokenEndpoint         string `json:"token_endpoint" gorm:"type:varchar(512)"`                        // Token exchange URL
-	UserInfoEndpoint      string `json:"user_info_endpoint" gorm:"type:varchar(512)"`                    // User info URL
-	Scopes                string `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"` // OAuth scopes
+	Id                         int    `json:"id" gorm:"primaryKey"`
+	Name                       string `json:"name" gorm:"type:varchar(64);not null"`                                 // Display name, e.g., "GitHub Enterprise"
+	Slug                       string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`                     // URL identifier, e.g., "github-enterprise"
+	Icon                       string `json:"icon" gorm:"type:varchar(128);default:''"`                              // Icon name from @lobehub/icons
+	Kind                       string `json:"kind" gorm:"type:varchar(32);default:'oauth_code'"`                     // oauth_code / cas
+	Enabled                    bool   `json:"enabled" gorm:"default:false"`                                          // Whether this provider is enabled
+	ClientId                   string `json:"client_id" gorm:"type:varchar(256)"`                                    // OAuth client ID
+	ClientSecret               string `json:"-" gorm:"type:varchar(512)"`                                            // OAuth client secret (not returned to frontend)
+	AuthorizationEndpoint      string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                       // Authorization URL
+	TokenEndpoint              string `json:"token_endpoint" gorm:"type:varchar(512)"`                               // Token exchange URL
+	UserInfoEndpoint           string `json:"user_info_endpoint" gorm:"type:varchar(512)"`                           // User info URL
+	Scopes                     string `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"`        // OAuth scopes
+	Issuer                     string `json:"issuer" gorm:"type:varchar(512)"`                                       // JWT issuer
+	Audience                   string `json:"audience" gorm:"type:varchar(256)"`                                     // JWT audience
+	JwksURL                    string `json:"jwks_url" gorm:"type:varchar(512)"`                                     // JWKS endpoint URL
+	PublicKey                  string `json:"public_key" gorm:"type:text"`                                           // PEM public key
+	JWTSource                  string `json:"jwt_source" gorm:"type:varchar(32);default:'query'"`                    // query / fragment / body
+	JWTHeader                  string `json:"jwt_header" gorm:"type:varchar(128);default:'Authorization'"`           // token header for userinfo mode
+	JWTIdentityMode            string `json:"jwt_identity_mode" gorm:"type:varchar(32);default:'claims'"`            // claims / userinfo
+	JWTAcquireMode             string `json:"jwt_acquire_mode" gorm:"type:varchar(32);default:'direct_token'"`       // direct_token / ticket_exchange / ticket_validate
+	TrustedProxyCIDRs          string `json:"trusted_proxy_cidrs" gorm:"type:text"`                                  // JSON array of trusted proxy CIDRs or IPs
+	ExternalIDHeader           string `json:"external_id_header" gorm:"type:varchar(128)"`                           // Header carrying stable external identity
+	UsernameHeader             string `json:"username_header" gorm:"type:varchar(128)"`                              // Optional username header
+	DisplayNameHeader          string `json:"display_name_header" gorm:"type:varchar(128)"`                          // Optional display name header
+	EmailHeader                string `json:"email_header" gorm:"type:varchar(128)"`                                 // Optional email header
+	GroupHeader                string `json:"group_header" gorm:"type:varchar(128)"`                                 // Optional group header
+	RoleHeader                 string `json:"role_header" gorm:"type:varchar(128)"`                                  // Optional role header
+	CASServerURL               string `json:"cas_server_url" gorm:"type:varchar(512)"`                               // CAS server base URL
+	ServiceURL                 string `json:"service_url" gorm:"type:varchar(512)"`                                  // Optional browser callback URL override
+	ValidateURL                string `json:"validate_url" gorm:"type:varchar(512)"`                                 // Optional CAS validation URL override
+	Renew                      bool   `json:"renew" gorm:"default:false"`                                            // Force primary credentials for login
+	Gateway                    bool   `json:"gateway" gorm:"default:false"`                                          // Request passive login when supported
+	AuthorizationServiceField  string `json:"authorization_service_field" gorm:"type:varchar(64);default:'service'"` // browser login callback param for ticket exchange
+	TicketExchangeURL          string `json:"ticket_exchange_url" gorm:"type:varchar(512)"`                          // ticket processing endpoint URL
+	TicketExchangeMethod       string `json:"ticket_exchange_method" gorm:"type:varchar(16);default:'GET'"`          // GET / POST
+	TicketExchangePayloadMode  string `json:"ticket_exchange_payload_mode" gorm:"type:varchar(16);default:'query'"`  // query / form / json / multipart
+	TicketExchangeTicketField  string `json:"ticket_exchange_ticket_field" gorm:"type:varchar(64);default:'ticket'"` // ticket field name
+	TicketExchangeTokenField   string `json:"ticket_exchange_token_field" gorm:"type:varchar(128)"`                  // response token field path (exchange mode)
+	TicketExchangeServiceField string `json:"ticket_exchange_service_field" gorm:"type:varchar(64)"`                 // optional service field name
+	TicketExchangeExtraParams  string `json:"ticket_exchange_extra_params" gorm:"type:text"`                         // JSON object for exchange params
+	TicketExchangeHeaders      string `json:"ticket_exchange_headers" gorm:"type:text"`                              // JSON object for exchange headers
 
 	// Field mapping configuration (supports JSONPath via gjson)
-	UserIdField      string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                 // User ID field path, e.g., "sub", "id", "data.user.id"
-	UsernameField    string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
-	DisplayNameField string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`           // Display name field path
-	EmailField       string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
+	UserIdField            string `json:"user_id_field" gorm:"type:varchar(128);default:'sub'"`                 // User ID field path, e.g., "sub", "id", "data.user.id"
+	UsernameField          string `json:"username_field" gorm:"type:varchar(128);default:'preferred_username'"` // Username field path
+	DisplayNameField       string `json:"display_name_field" gorm:"type:varchar(128);default:'name'"`           // Display name field path
+	EmailField             string `json:"email_field" gorm:"type:varchar(128);default:'email'"`                 // Email field path
+	GroupField             string `json:"group_field" gorm:"type:varchar(128)"`                                 // Group field path
+	RoleField              string `json:"role_field" gorm:"type:varchar(128)"`                                  // Role field path
+	GroupMapping           string `json:"group_mapping" gorm:"type:text"`                                       // JSON object for external->internal group mapping
+	RoleMapping            string `json:"role_mapping" gorm:"type:text"`                                        // JSON object for external->internal role mapping
+	AutoRegister           bool   `json:"auto_register" gorm:"default:false"`                                   // Auto create local user on first login
+	AutoMergeByEmail       bool   `json:"auto_merge_by_email" gorm:"default:false"`                             // Merge to existing user by email when no binding exists
+	SyncUsernameOnLogin    bool   `json:"sync_username_on_login" gorm:"default:false"`                          // Sync username for existing users on external login
+	SyncDisplayNameOnLogin bool   `json:"sync_display_name_on_login" gorm:"default:false"`                      // Sync display name for existing users on external login
+	SyncEmailOnLogin       bool   `json:"sync_email_on_login" gorm:"default:false"`                             // Sync email for existing users on external login
+	SyncGroupOnLogin       bool   `json:"sync_group_on_login" gorm:"default:false"`                             // Sync group for existing users on external login
+	SyncRoleOnLogin        bool   `json:"sync_role_on_login" gorm:"default:false"`                              // Sync role for existing users on external login
+	GroupMappingMode       string `json:"group_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`   // explicit_only / mapping_first
+	RoleMappingMode        string `json:"role_mapping_mode" gorm:"type:varchar(32);default:'explicit_only'"`    // explicit_only / mapping_first
 
 	// Advanced options
 	WellKnown           string `json:"well_known" gorm:"type:varchar(512)"`            // OIDC discovery endpoint (optional)
@@ -68,6 +151,59 @@ type CustomOAuthProvider struct {
 
 func (CustomOAuthProvider) TableName() string {
 	return "custom_oauth_providers"
+}
+
+func (p *CustomOAuthProvider) GetKind() string {
+	kind := strings.TrimSpace(p.Kind)
+	if kind == "" {
+		return CustomOAuthProviderKindOAuthCode
+	}
+	return kind
+}
+
+func (p *CustomOAuthProvider) IsJWTDirect() bool {
+	return false
+}
+
+func (p *CustomOAuthProvider) IsTrustedHeader() bool {
+	return false
+}
+
+func (p *CustomOAuthProvider) IsCAS() bool {
+	return p.GetKind() == CustomOAuthProviderKindCAS
+}
+
+func (p *CustomOAuthProvider) IsOAuthCode() bool {
+	return p.GetKind() == CustomOAuthProviderKindOAuthCode
+}
+
+func (p *CustomOAuthProvider) GetJWTAcquireMode() string {
+	mode := normalizeCustomJWTAcquireMode(p.JWTAcquireMode)
+	if mode == "" {
+		return CustomJWTAcquireModeDirectToken
+	}
+	return mode
+}
+
+func (p *CustomOAuthProvider) GetJWTIdentityMode() string {
+	mode := normalizeCustomJWTIdentityMode(p.JWTIdentityMode)
+	if mode == "" {
+		return CustomJWTIdentityModeClaims
+	}
+	return mode
+}
+
+func (p *CustomOAuthProvider) SupportsBrowserLogin() bool {
+	if !p.Enabled {
+		return false
+	}
+	if p.IsOAuthCode() {
+		return isValidAbsoluteHTTPURL(p.AuthorizationEndpoint) && strings.TrimSpace(p.ClientId) != ""
+	}
+	if p.IsCAS() {
+		return isValidAbsoluteHTTPURL(p.CASServerURL)
+	}
+	return false
 }
 
 // GetAllCustomOAuthProviders returns all custom OAuth providers
@@ -109,7 +245,7 @@ func CreateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Create(provider).Error
+	return DB.Select("*").Create(provider).Error
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -161,35 +297,80 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		}
 	}
 	provider.Slug = slug
+	provider.Kind = strings.TrimSpace(provider.Kind)
+	if provider.Kind == "" {
+		provider.Kind = CustomOAuthProviderKindOAuthCode
+	}
+	if provider.Kind != CustomOAuthProviderKindOAuthCode &&
+		provider.Kind != CustomOAuthProviderKindCAS {
+		return errors.New("provider kind is invalid")
+	}
+	normalizeCustomOAuthProviderForKind(provider)
 
-	if provider.ClientId == "" {
-		return errors.New("client ID is required")
-	}
-	if provider.AuthorizationEndpoint == "" {
-		return errors.New("authorization endpoint is required")
-	}
-	if provider.TokenEndpoint == "" {
-		return errors.New("token endpoint is required")
-	}
-	if provider.UserInfoEndpoint == "" {
-		return errors.New("user info endpoint is required")
+	if provider.IsOAuthCode() {
+		if provider.ClientId == "" {
+			return errors.New("client ID is required")
+		}
+		if provider.AuthorizationEndpoint == "" {
+			return errors.New("authorization endpoint is required")
+		}
+		if provider.TokenEndpoint == "" {
+			return errors.New("token endpoint is required")
+		}
+		if provider.UserInfoEndpoint == "" {
+			return errors.New("user info endpoint is required")
+		}
+	} else {
+		if err := validateCASProvider(provider); err != nil {
+			return err
+		}
 	}
 
-	// Set defaults for field mappings if empty
-	if provider.UserIdField == "" {
-		provider.UserIdField = "sub"
+	if provider.IsOAuthCode() || provider.IsCAS() {
+		if provider.UserIdField == "" {
+			provider.UserIdField = "sub"
+		}
+		if provider.UsernameField == "" {
+			provider.UsernameField = "preferred_username"
+		}
+		if provider.DisplayNameField == "" {
+			provider.DisplayNameField = "name"
+		}
+		if provider.EmailField == "" {
+			provider.EmailField = "email"
+		}
+		if provider.Scopes == "" {
+			provider.Scopes = "openid profile email"
+		}
 	}
-	if provider.UsernameField == "" {
-		provider.UsernameField = "preferred_username"
+	if provider.IsCAS() {
+		if provider.UserIdField == "sub" {
+			provider.UserIdField = "authenticationSuccess.user"
+		}
 	}
-	if provider.DisplayNameField == "" {
-		provider.DisplayNameField = "name"
+	groupMappingMode := normalizeCustomOAuthMappingMode(provider.GroupMappingMode)
+	if groupMappingMode == "" {
+		return errors.New("group_mapping_mode is invalid")
 	}
-	if provider.EmailField == "" {
-		provider.EmailField = "email"
+	provider.GroupMappingMode = groupMappingMode
+
+	roleMappingMode := normalizeCustomOAuthMappingMode(provider.RoleMappingMode)
+	if roleMappingMode == "" {
+		return errors.New("role_mapping_mode is invalid")
 	}
-	if provider.Scopes == "" {
-		provider.Scopes = "openid profile email"
+	provider.RoleMappingMode = roleMappingMode
+	if strings.TrimSpace(provider.GroupMapping) != "" {
+		if err := validateJSONStringObject(provider.GroupMapping); err != nil {
+			return fmt.Errorf("group_mapping is invalid: %w", err)
+		}
+	}
+	if strings.TrimSpace(provider.RoleMapping) != "" {
+		if err := validateJSONStringObject(provider.RoleMapping); err != nil {
+			return fmt.Errorf("role_mapping is invalid: %w", err)
+		}
+		if err := validateRoleMappingTargets(provider.RoleMapping); err != nil {
+			return fmt.Errorf("role_mapping is invalid: %w", err)
+		}
 	}
 	if strings.TrimSpace(provider.AccessPolicy) != "" {
 		var policy accessPolicyPayload
@@ -201,6 +382,105 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		}
 	}
 
+	return nil
+}
+
+func isValidAbsoluteHTTPURL(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed == nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	return strings.TrimSpace(parsed.Host) != ""
+}
+
+func validateJSONStringObject(raw string) error {
+	var payload map[string]any
+	if err := common.UnmarshalJsonStr(raw, &payload); err != nil {
+		return errors.New("must be valid JSON object")
+	}
+	if payload == nil {
+		return errors.New("must be a JSON object")
+	}
+	return nil
+}
+
+func normalizeCustomOAuthMappingMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", CustomOAuthMappingModeExplicitOnly:
+		return CustomOAuthMappingModeExplicitOnly
+	case CustomOAuthMappingModeMappingFirst:
+		return CustomOAuthMappingModeMappingFirst
+	default:
+		return ""
+	}
+}
+
+func normalizeCustomJWTAcquireMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", CustomJWTAcquireModeDirectToken:
+		return CustomJWTAcquireModeDirectToken
+	case CustomJWTAcquireModeTicketExchange:
+		return CustomJWTAcquireModeTicketExchange
+	case CustomJWTAcquireModeTicketValidate:
+		return CustomJWTAcquireModeTicketValidate
+	default:
+		return ""
+	}
+}
+
+func normalizeCustomJWTIdentityMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", CustomJWTIdentityModeClaims:
+		return CustomJWTIdentityModeClaims
+	case CustomJWTIdentityModeUserInfo:
+		return CustomJWTIdentityModeUserInfo
+	default:
+		return ""
+	}
+}
+
+func normalizeTicketExchangeMethod(raw string) string {
+	switch strings.ToUpper(strings.TrimSpace(raw)) {
+	case "", CustomTicketExchangeMethodGET:
+		return CustomTicketExchangeMethodGET
+	case CustomTicketExchangeMethodPOST:
+		return CustomTicketExchangeMethodPOST
+	default:
+		return ""
+	}
+}
+
+func normalizeTicketExchangePayloadMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", CustomTicketExchangePayloadModeQuery:
+		return CustomTicketExchangePayloadModeQuery
+	case CustomTicketExchangePayloadModeForm:
+		return CustomTicketExchangePayloadModeForm
+	case CustomTicketExchangePayloadModeJSON:
+		return CustomTicketExchangePayloadModeJSON
+	case CustomTicketExchangePayloadModeMultipart:
+		return CustomTicketExchangePayloadModeMultipart
+	default:
+		return ""
+	}
+}
+
+func validateRoleMappingTargets(raw string) error {
+	var payload map[string]any
+	if err := common.UnmarshalJsonStr(raw, &payload); err != nil {
+		return errors.New("must be valid JSON object")
+	}
+	for key, value := range payload {
+		target := strings.ToLower(strings.TrimSpace(fmt.Sprint(value)))
+		switch target {
+		case "common", "user", "member", "1", "admin", "administrator", "10":
+		default:
+			return fmt.Errorf("unsupported role target for key %q", key)
+		}
+	}
 	return nil
 }
 

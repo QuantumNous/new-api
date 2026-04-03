@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -19,6 +18,75 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type customOAuthStatusInfo struct {
+	Id                        int    `json:"id"`
+	Name                      string `json:"name"`
+	Slug                      string `json:"slug"`
+	Icon                      string `json:"icon"`
+	Kind                      string `json:"kind"`
+	ClientId                  string `json:"client_id"`
+	AuthorizationEndpoint     string `json:"authorization_endpoint"`
+	Scopes                    string `json:"scopes"`
+	JWTSource                 string `json:"jwt_source"`
+	JWTIdentityMode           string `json:"jwt_identity_mode"`
+	JWTAcquireMode            string `json:"jwt_acquire_mode"`
+	AuthorizationServiceField string `json:"authorization_service_field"`
+	BrowserLoginSupported     bool   `json:"browser_login_supported"`
+}
+
+func invalidateCustomOAuthStatusCache() {
+}
+
+func getCustomOAuthStatusPayload() []customOAuthStatusInfo {
+	customProviders, err := model.GetEnabledCustomOAuthProviders()
+	if err != nil {
+		common.SysError("failed to load enabled custom auth providers: " + err.Error())
+		return nil
+	}
+
+	providersInfo := make([]customOAuthStatusInfo, 0, len(customProviders))
+	for _, config := range customProviders {
+		if !isStandaloneCustomOAuthProviderSupported(config) {
+			continue
+		}
+		sanitized := *config
+		model.NormalizeCustomOAuthProviderForRead(&sanitized)
+
+		jwtSource := sanitized.JWTSource
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtSource) == "" {
+			jwtSource = model.CustomJWTSourceQuery
+		}
+		jwtIdentityMode := sanitized.JWTIdentityMode
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtIdentityMode) == "" {
+			jwtIdentityMode = model.CustomJWTIdentityModeClaims
+		}
+		jwtAcquireMode := sanitized.JWTAcquireMode
+		if sanitized.IsJWTDirect() && strings.TrimSpace(jwtAcquireMode) == "" {
+			jwtAcquireMode = model.CustomJWTAcquireModeDirectToken
+		}
+		authorizationServiceField := sanitized.AuthorizationServiceField
+		if sanitized.IsJWTDirect() && strings.TrimSpace(authorizationServiceField) == "" {
+			authorizationServiceField = "service"
+		}
+		providersInfo = append(providersInfo, customOAuthStatusInfo{
+			Id:                        sanitized.Id,
+			Name:                      sanitized.Name,
+			Slug:                      sanitized.Slug,
+			Icon:                      sanitized.Icon,
+			Kind:                      sanitized.GetKind(),
+			ClientId:                  sanitized.ClientId,
+			AuthorizationEndpoint:     sanitized.AuthorizationEndpoint,
+			Scopes:                    sanitized.Scopes,
+			JWTSource:                 jwtSource,
+			JWTIdentityMode:           jwtIdentityMode,
+			JWTAcquireMode:            jwtAcquireMode,
+			AuthorizationServiceField: authorizationServiceField,
+			BrowserLoginSupported:     sanitized.SupportsBrowserLogin(),
+		})
+	}
+	return providersInfo
+}
 
 func TestStatus(c *gin.Context) {
 	err := model.PingDB()
@@ -42,6 +110,7 @@ func TestStatus(c *gin.Context) {
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
+	customProviders := getCustomOAuthStatusPayload()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
@@ -130,32 +199,9 @@ func GetStatus(c *gin.Context) {
 		data["faq"] = console_setting.GetFAQ()
 	}
 
-	// Add enabled custom OAuth providers
-	customProviders := oauth.GetEnabledCustomProviders()
+	// Add enabled custom auth providers
 	if len(customProviders) > 0 {
-		type CustomOAuthInfo struct {
-			Id                    int    `json:"id"`
-			Name                  string `json:"name"`
-			Slug                  string `json:"slug"`
-			Icon                  string `json:"icon"`
-			ClientId              string `json:"client_id"`
-			AuthorizationEndpoint string `json:"authorization_endpoint"`
-			Scopes                string `json:"scopes"`
-		}
-		providersInfo := make([]CustomOAuthInfo, 0, len(customProviders))
-		for _, p := range customProviders {
-			config := p.GetConfig()
-			providersInfo = append(providersInfo, CustomOAuthInfo{
-				Id:                    config.Id,
-				Name:                  config.Name,
-				Slug:                  config.Slug,
-				Icon:                  config.Icon,
-				ClientId:              config.ClientId,
-				AuthorizationEndpoint: config.AuthorizationEndpoint,
-				Scopes:                config.Scopes,
-			})
-		}
-		data["custom_oauth_providers"] = providersInfo
+		data["custom_oauth_providers"] = customProviders
 	}
 
 	c.JSON(http.StatusOK, gin.H{
