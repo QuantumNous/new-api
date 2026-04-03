@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API } from '../../helpers';
 
 /**
@@ -24,6 +25,7 @@ import { API } from '../../helpers';
  * 确保权限控制的安全性，防止前端绕过
  */
 export const useUserPermissions = () => {
+  const { t } = useTranslation();
   const [permissions, setPermissions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,11 +41,11 @@ export const useUserPermissions = () => {
         setPermissions(userPermissions);
         console.log('用户权限加载成功:', userPermissions);
       } else {
-        setError(res.data.message || '获取权限失败');
+        setError(res.data.message || t('请求失败'));
         console.error('获取权限失败:', res.data.message);
       }
     } catch (error) {
-      setError('网络错误，请重试');
+      setError(t('请求失败'));
       console.error('加载用户权限异常:', error);
     } finally {
       setLoading(false);

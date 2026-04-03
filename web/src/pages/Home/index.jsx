@@ -104,8 +104,8 @@ const Home = () => {
         }
       }
     } else {
-      showError(message);
-      setHomePageContent('加载首页内容失败...');
+      showError(message, { apiMessage: true });
+      setHomePageContent(t('加载失败'));
     }
     setHomePageContentLoaded(true);
   };
@@ -325,7 +325,7 @@ const Home = () => {
                     </div>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                       <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
-                        30+
+                        {'30+'}
                       </Typography.Text>
                     </div>
                   </div>

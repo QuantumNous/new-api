@@ -191,6 +191,46 @@ export const CHANNEL_OPTIONS = [
   },
 ];
 
+const CHANNEL_LABEL_EN_FALLBACK = {
+  百度文心千帆: 'Baidu Wenxin Qianfan',
+  百度文心千帆V2: 'Baidu Wenxin Qianfan V2',
+  阿里通义千问: 'Alibaba Qwen',
+  讯飞星火认知: 'iFlytek Spark',
+  '智谱 ChatGLM（已经弃用，请使用智谱 GLM-4V）':
+    'Zhipu ChatGLM (deprecated, use Zhipu GLM-4V)',
+  '智谱 GLM-4V': 'Zhipu GLM-4V',
+  '360 智脑': '360 Zhinao',
+  腾讯混元: 'Tencent Hunyuan',
+  零一万物: '01.AI',
+  自定义渠道: 'Custom Channel',
+  '知识库：FastGPT': 'Knowledge Base: FastGPT',
+  '知识库：AI Proxy': 'Knowledge Base: AI Proxy',
+  '嵌入模型：MokaAI M3E': 'Embedding Model: MokaAI M3E',
+  '字节火山方舟、豆包通用': 'ByteDance Ark / Doubao',
+  可灵: 'Kling',
+  即梦: 'Jimeng',
+  豆包视频: 'Doubao Video',
+};
+
+const hasChineseCharacter = (text) => /[\u4e00-\u9fff]/.test(text);
+
+export const localizeChannelLabel = (label, t, language = '') => {
+  if (typeof label !== 'string') {
+    return label;
+  }
+  const translated = typeof t === 'function' ? t(label) : label;
+  if (translated !== label) {
+    return translated;
+  }
+  if ((language || '').toLowerCase().startsWith('zh')) {
+    return label;
+  }
+  if (hasChineseCharacter(label)) {
+    return CHANNEL_LABEL_EN_FALLBACK[label] || label;
+  }
+  return label;
+};
+
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,

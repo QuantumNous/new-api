@@ -146,7 +146,7 @@ const renderQuotaUsage = (text, record, t) => {
         {t('已用额度')}: {renderQuota(used)}
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(remain) }}>
-        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
+        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}{'%'})
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(total) }}>
         {t('总额度')}: {renderQuota(total)}
@@ -160,7 +160,7 @@ const renderQuotaUsage = (text, record, t) => {
           <span className='text-xs leading-none'>{`${renderQuota(remain)} / ${renderQuota(total)}`}</span>
           <Progress
             percent={percent}
-            aria-label='quota usage'
+            aria-label={t('剩余额度/总额度')}
             format={() => `${percent.toFixed(0)}%`}
             style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
           />
@@ -312,7 +312,7 @@ export const getUsersColumns = ({
 }) => {
   return [
     {
-      title: 'ID',
+      title: t('ID'),
       dataIndex: 'id',
     },
     {

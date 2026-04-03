@@ -48,7 +48,7 @@ const ChatsSetting = () => {
 
       setInputs(newInputs);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 

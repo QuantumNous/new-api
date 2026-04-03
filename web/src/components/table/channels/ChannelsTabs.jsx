@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Tabs, TabPane, Tag } from '@douyinfe/semi-ui';
-import { CHANNEL_OPTIONS } from '../../../constants';
+import { useTranslation } from 'react-i18next';
+import { CHANNEL_OPTIONS, localizeChannelLabel } from '../../../constants';
 import { getChannelIcon } from '../../../helpers';
 
 const ChannelsTabs = ({
@@ -35,6 +36,7 @@ const ChannelsTabs = ({
   setActivePage,
   t,
 }) => {
+  const { i18n } = useTranslation();
   if (enableTagMode) return null;
 
   const handleTabChange = (key) => {
@@ -78,7 +80,7 @@ const ChannelsTabs = ({
             tab={
               <span className='flex items-center gap-2'>
                 {getChannelIcon(option.value)}
-                {option.label}
+                {localizeChannelLabel(option.label, t, i18n.language)}
                 <Tag
                   color={activeTypeKey === key ? 'red' : 'grey'}
                   shape='circle'

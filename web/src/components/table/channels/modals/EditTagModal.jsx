@@ -300,7 +300,7 @@ const EditTagModal = (props) => {
           const models = res.data.data ? res.data.data.split(',') : [];
           handleInputChange('models', models);
         } else {
-          showError(res.data.message);
+          showError(res.data.message, { apiMessage: true });
         }
       } catch (error) {
         showError(error.message);

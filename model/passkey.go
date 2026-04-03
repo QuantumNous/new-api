@@ -17,7 +17,7 @@ import (
 
 var (
 	ErrPasskeyNotFound         = errors.New("passkey credential not found")
-	ErrFriendlyPasskeyNotFound = errors.New("Passkey 验证失败，请重试或联系管理员")
+	ErrFriendlyPasskeyNotFound = errors.New("passkey verification failed, please retry or contact administrator")
 )
 
 type PasskeyCredential struct {
@@ -180,17 +180,17 @@ func GetPasskeyByCredentialID(credentialID []byte) (*PasskeyCredential, error) {
 func UpsertPasskeyCredential(credential *PasskeyCredential) error {
 	if credential == nil {
 		common.SysLog("UpsertPasskeyCredential: nil credential provided")
-		return fmt.Errorf("Passkey 保存失败，请重试")
+		return fmt.Errorf("failed to save passkey, please retry")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		// 使用Unscoped()进行硬删除，避免唯一索引冲突
 		if err := tx.Unscoped().Where("user_id = ?", credential.UserID).Delete(&PasskeyCredential{}).Error; err != nil {
 			common.SysLog(fmt.Sprintf("UpsertPasskeyCredential: failed to delete existing credential for user %d: %v", credential.UserID, err))
-			return fmt.Errorf("Passkey 保存失败，请重试")
+			return fmt.Errorf("failed to save passkey, please retry")
 		}
 		if err := tx.Create(credential).Error; err != nil {
 			common.SysLog(fmt.Sprintf("UpsertPasskeyCredential: failed to create credential for user %d: %v", credential.UserID, err))
-			return fmt.Errorf("Passkey 保存失败，请重试")
+			return fmt.Errorf("failed to save passkey, please retry")
 		}
 		return nil
 	})
@@ -199,12 +199,12 @@ func UpsertPasskeyCredential(credential *PasskeyCredential) error {
 func DeletePasskeyByUserID(userID int) error {
 	if userID == 0 {
 		common.SysLog("DeletePasskeyByUserID: empty user ID")
-		return fmt.Errorf("删除失败，请重试")
+		return fmt.Errorf("delete failed, please retry")
 	}
 	// 使用Unscoped()进行硬删除，避免唯一索引冲突
 	if err := DB.Unscoped().Where("user_id = ?", userID).Delete(&PasskeyCredential{}).Error; err != nil {
 		common.SysLog(fmt.Sprintf("DeletePasskeyByUserID: failed to delete passkey for user %d: %v", userID, err))
-		return fmt.Errorf("删除失败，请重试")
+		return fmt.Errorf("delete failed, please retry")
 	}
 	return nil
 }

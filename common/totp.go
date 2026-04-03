@@ -130,12 +130,12 @@ func ValidateNumericCode(code string) (string, error) {
 	code = strings.ReplaceAll(code, " ", "")
 
 	if len(code) != 6 {
-		return "", fmt.Errorf("验证码必须是6位数字")
+		return "", fmt.Errorf("verification code must be 6 digits")
 	}
 
 	// 检查是否为纯数字
 	if _, err := strconv.Atoi(code); err != nil {
-		return "", fmt.Errorf("验证码只能包含数字")
+		return "", fmt.Errorf("verification code must contain digits only")
 	}
 
 	return code, nil

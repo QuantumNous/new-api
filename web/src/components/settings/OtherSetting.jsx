@@ -67,7 +67,7 @@ const OtherSetting = () => {
     if (success) {
       setInputs((inputs) => ({ ...inputs, [key]: value }));
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -292,7 +292,7 @@ const OtherSetting = () => {
       formAPISettingGeneral.current.setValues(newInputs);
       formAPIPersonalization.current.setValues(newInputs);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 

@@ -204,7 +204,7 @@ export const useDeploymentsData = () => {
 
       const { success, message, data } = res.data;
       if (!success) {
-        showError(message);
+        showError(message, { apiMessage: true });
         setDeployments([]);
         setDeploymentCount(0);
         return;
@@ -287,7 +287,7 @@ export const useDeploymentsData = () => {
         showSuccess(t('部署启动成功'));
         await refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       console.error(error);
@@ -302,7 +302,7 @@ export const useDeploymentsData = () => {
         showSuccess(t('部署重启成功'));
         await refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       console.error(error);
@@ -317,7 +317,7 @@ export const useDeploymentsData = () => {
         showSuccess(t('部署删除成功'));
         await refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       console.error(error);
@@ -420,7 +420,7 @@ export const useDeploymentsData = () => {
         await refresh();
         return true;
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
         return false;
       }
     } catch (error) {
@@ -442,7 +442,7 @@ export const useDeploymentsData = () => {
         setSelectedKeys([]);
         await refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       console.error(error);

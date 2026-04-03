@@ -202,7 +202,7 @@ const RegisterForm = () => {
         showSuccess(t('登录成功！'));
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('登录失败，请重试'));
@@ -244,7 +244,7 @@ const RegisterForm = () => {
           navigate('/login');
           showSuccess(t('注册成功！'));
         } else {
-          showError(message);
+          showError(message, { apiMessage: true });
         }
       } catch (error) {
         showError(t('注册失败，请重试'));
@@ -270,7 +270,7 @@ const RegisterForm = () => {
         showSuccess(t('验证码发送成功，请检查你的邮箱！'));
         setDisableButton(true); // 发送成功后禁用按钮，开始倒计时
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('发送验证码失败，请重试'));
@@ -384,7 +384,7 @@ const RegisterForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('登录失败，请重试'));
@@ -396,7 +396,7 @@ const RegisterForm = () => {
       <div className='flex flex-col items-center'>
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
+            <img src={logo} alt='' className='h-10 rounded-full' />
             <Title heading={3} className='!text-gray-800'>
               {systemName}
             </Title>
@@ -559,7 +559,7 @@ const RegisterForm = () => {
       <div className='flex flex-col items-center'>
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
+            <img src={logo} alt='' className='h-10 rounded-full' />
             <Title heading={3} className='!text-gray-800'>
               {systemName}
             </Title>

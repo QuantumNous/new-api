@@ -112,10 +112,10 @@ function TokensPage() {
         });
         setModelOptions(options);
       } else {
-        showError(tokensData.t(message));
+        showError(message || tokensData.t('加载模型失败'));
       }
     } catch (e) {
-      showError(e.message || 'Failed to load models');
+      showError(tokensData.t('加载模型失败'));
     }
   };
 

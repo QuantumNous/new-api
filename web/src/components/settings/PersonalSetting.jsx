@@ -180,7 +180,7 @@ const PersonalSetting = () => {
       await copy(data);
       showSuccess(t('令牌已重置并已复制到剪贴板'));
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -196,7 +196,7 @@ const PersonalSetting = () => {
           backup_state: data?.backup_state || false,
         });
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       // 忽略错误，保留默认状态
@@ -274,7 +274,7 @@ const PersonalSetting = () => {
       setUserData(data);
       await loadPasskeyStatus();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -300,7 +300,7 @@ const PersonalSetting = () => {
       localStorage.removeItem('user');
       navigate('/login');
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -314,7 +314,7 @@ const PersonalSetting = () => {
       showSuccess(t('微信账户绑定成功！'));
       setShowWeChatBindModal(false);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -344,7 +344,7 @@ const PersonalSetting = () => {
       showSuccess(t('密码修改成功！'));
       setShowWeChatBindModal(false);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setShowChangePasswordModal(false);
   };
@@ -367,7 +367,7 @@ const PersonalSetting = () => {
     if (success) {
       showSuccess(t('验证码发送成功，请检查邮箱！'));
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -388,7 +388,7 @@ const PersonalSetting = () => {
       setShowEmailBindModal(false);
       userState.user.email = inputs.email;
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -441,7 +441,7 @@ const PersonalSetting = () => {
         showSuccess(t('设置保存成功'));
         await getUserData();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('设置保存失败'));

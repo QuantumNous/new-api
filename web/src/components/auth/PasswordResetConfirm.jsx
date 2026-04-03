@@ -98,7 +98,7 @@ const PasswordResetConfirm = () => {
       await copy(password);
       showNotice(`${t('密码已重置并已复制到剪贴板：')} ${password}`);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   }
@@ -118,7 +118,7 @@ const PasswordResetConfirm = () => {
         <div className='flex flex-col items-center'>
           <div className='w-full max-w-md'>
             <div className='flex items-center justify-center mb-6 gap-2'>
-              <img src={logo} alt='Logo' className='h-10 rounded-full' />
+              <img src={logo} alt='' className='h-10 rounded-full' />
               <Title heading={3} className='!text-gray-800'>
                 {systemName}
               </Title>

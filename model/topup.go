@@ -12,15 +12,15 @@ import (
 )
 
 type TopUp struct {
-	Id               int     `json:"id"`
-	UserId           int     `json:"user_id" gorm:"index"`
-	Amount           int64   `json:"amount"`
-	Money            float64 `json:"money"`
-	TradeNo          string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod    string  `json:"payment_method" gorm:"type:varchar(50)"`
-	CreateTime       int64   `json:"create_time"`
-	CompleteTime     int64   `json:"complete_time"`
-	Status           string  `json:"status"`
+	Id            int     `json:"id"`
+	UserId        int     `json:"user_id" gorm:"index"`
+	Amount        int64   `json:"amount"`
+	Money         float64 `json:"money"`
+	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`
+	CreateTime    int64   `json:"create_time"`
+	CompleteTime  int64   `json:"complete_time"`
+	Status        string  `json:"status"`
 }
 
 func (topUp *TopUp) Insert() error {
@@ -57,7 +57,7 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 
 func Recharge(referenceId string, customerId string) (err error) {
 	if referenceId == "" {
-		return errors.New("未提供支付单号")
+		return errors.New("payment reference is required")
 	}
 
 	var quota float64
@@ -71,11 +71,11 @@ func Recharge(referenceId string, customerId string) (err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New("top-up order not found")
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("充值订单状态错误")
+			return errors.New("top-up order status is invalid")
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -96,10 +96,10 @@ func Recharge(referenceId string, customerId string) (err error) {
 
 	if err != nil {
 		common.SysError("topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return errors.New("top-up failed, please retry later")
 	}
 
-	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount))
+	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("online top-up succeeded, quota added: %v, paid amount: %d", logger.FormatQuota(int(quota)), topUp.Amount))
 
 	return nil
 }
@@ -238,7 +238,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
 func ManualCompleteTopUp(tradeNo string) error {
 	if tradeNo == "" {
-		return errors.New("未提供订单号")
+		return errors.New("tradeNo is required")
 	}
 
 	refCol := "`trade_no`"
@@ -254,7 +254,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 		topUp := &TopUp{}
 		// 行级锁，避免并发补单
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New("top-up order not found")
 		}
 
 		// 幂等处理：已成功直接返回
@@ -263,7 +263,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("订单状态不是待支付，无法补单")
+			return errors.New("order is not pending payment and cannot be manually completed")
 		}
 
 		// 计算应充值额度：
@@ -278,7 +278,7 @@ func ManualCompleteTopUp(tradeNo string) error {
 			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		}
 		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+			return errors.New("invalid top-up quota")
 		}
 
 		// 标记完成
@@ -303,12 +303,12 @@ func ManualCompleteTopUp(tradeNo string) error {
 	}
 
 	// 事务外记录日志，避免阻塞
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney))
+	RecordLog(userId, LogTypeTopup, fmt.Sprintf("admin manual completion succeeded, quota added: %v, paid amount: %f", logger.FormatQuota(quotaToAdd), payMoney))
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string) (err error) {
 	if referenceId == "" {
-		return errors.New("未提供支付单号")
+		return errors.New("payment reference is required")
 	}
 
 	var quota int64
@@ -322,11 +322,11 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", referenceId).First(topUp).Error
 		if err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New("top-up order not found")
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("充值订单状态错误")
+			return errors.New("top-up order status is invalid")
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -369,17 +369,17 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 	if err != nil {
 		common.SysError("creem topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return errors.New("top-up failed, please retry later")
 	}
 
-	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money))
+	RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Creem top-up succeeded, quota added: %v, paid amount: %.2f", quota, topUp.Money))
 
 	return nil
 }
 
 func RechargeWaffo(tradeNo string) (err error) {
 	if tradeNo == "" {
-		return errors.New("未提供支付单号")
+		return errors.New("payment reference is required")
 	}
 
 	var quotaToAdd int
@@ -393,7 +393,7 @@ func RechargeWaffo(tradeNo string) (err error) {
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(topUp).Error
 		if err != nil {
-			return errors.New("充值订单不存在")
+			return errors.New("top-up order not found")
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
@@ -401,14 +401,14 @@ func RechargeWaffo(tradeNo string) (err error) {
 		}
 
 		if topUp.Status != common.TopUpStatusPending {
-			return errors.New("充值订单状态错误")
+			return errors.New("top-up order status is invalid")
 		}
 
 		dAmount := decimal.NewFromInt(topUp.Amount)
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+			return errors.New("invalid top-up quota")
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -426,11 +426,11 @@ func RechargeWaffo(tradeNo string) (err error) {
 
 	if err != nil {
 		common.SysError("waffo topup failed: " + err.Error())
-		return errors.New("充值失败，请稍后重试")
+		return errors.New("top-up failed, please retry later")
 	}
 
 	if quotaToAdd > 0 {
-		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo top-up succeeded, quota added: %v, paid amount: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 
 	return nil

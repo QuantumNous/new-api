@@ -131,7 +131,7 @@ const AccountManagement = ({
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
           } else {
-            showError(res.data.message);
+            showError(res.data.message, { apiMessage: true });
           }
         } catch (error) {
           showError(error.response?.data?.message || error.message || t('操作失败'));

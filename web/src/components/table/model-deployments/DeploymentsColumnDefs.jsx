@@ -219,7 +219,7 @@ const ContainerNameCell = ({ text, record, t }) => {
         onClick={handleCopyId}
         title={t('点击复制ID')}
       >
-        ID: {record.id}
+        {t('ID:')} {record.id}
       </Typography.Text>
     </div>
   );
@@ -236,7 +236,7 @@ const renderResourceConfig = (resource, t) => {
       {cpu && (
         <div className='flex items-center gap-1 text-xs'>
           <FaMicrochip className='text-blue-500' />
-          <span>CPU: {cpu}</span>
+          <span>{t('CPU:')} {cpu}</span>
         </div>
       )}
       {memory && (
@@ -248,7 +248,7 @@ const renderResourceConfig = (resource, t) => {
       {gpu && (
         <div className='flex items-center gap-1 text-xs'>
           <FaServer className='text-purple-500' />
-          <span>GPU: {gpu}</span>
+          <span>{t('GPU:')} {gpu}</span>
         </div>
       )}
     </div>

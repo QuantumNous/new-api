@@ -64,7 +64,7 @@ const TwoFAVerification = ({ onSuccess, onBack, isModal = false }) => {
           onSuccess(res.data.data);
         }
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('验证失败，请重试'));

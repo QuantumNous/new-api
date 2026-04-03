@@ -144,7 +144,7 @@ export default function SettingsPaymentGateway(props) {
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
-          showError(res.data.message);
+          showError(res.data.message || t('更新失败'));
         });
       } else {
         showSuccess(t('更新成功'));
@@ -188,11 +188,15 @@ export default function SettingsPaymentGateway(props) {
           </Text>
           <Banner
             type='info'
-            description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/stripe/webhook`}
+            description={t('Webhook 填：{{url}}', {
+              url: `${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/stripe/webhook`,
+            })}
           />
           <Banner
             type='warning'
-            description={`需要包含事件：checkout.session.completed 和 checkout.session.expired`}
+            description={t(
+              '需要包含事件：checkout.session.completed 和 checkout.session.expired',
+            )}
           />
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>

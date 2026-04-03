@@ -187,7 +187,7 @@ const CustomRequestEditor = ({
             <TextArea
               value={localValue}
               onChange={handleValueChange}
-              placeholder='{"model": "gpt-4o", "messages": [...], ...}'
+              placeholder={t('{"model": "gpt-4o", "messages": [...], ...}')}
               autosize={{ minRows: 8, maxRows: 20 }}
               className={`custom-request-textarea !rounded-lg font-mono text-sm ${!isValid ? '!border-red-500' : ''}`}
               style={{

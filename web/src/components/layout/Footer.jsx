@@ -132,7 +132,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    One API
+                    {'One API'}
                   </a>
                   <a
                     href='https://github.com/novicezk/midjourney-proxy'
@@ -140,7 +140,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    Midjourney-Proxy
+                    {'Midjourney-Proxy'}
                   </a>
                   <a
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
@@ -148,7 +148,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    neko-api-key-tool
+                    {'neko-api-key-tool'}
                   </a>
                 </div>
               </div>
@@ -164,7 +164,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    new-api-horizon
+                    {'new-api-horizon'}
                   </a>
                   <a
                     href='https://github.com/coaidev/coai'
@@ -172,7 +172,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    CoAI
+                    {'CoAI'}
                   </a>
                   <a
                     href='https://www.gpt-load.com/'
@@ -180,7 +180,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    GPT-Load
+                    {'GPT-Load'}
                   </a>
                 </div>
               </div>

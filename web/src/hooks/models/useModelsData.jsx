@@ -149,7 +149,7 @@ export const useModelsData = () => {
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
-        showError(message);
+        showError(message || t('获取模型列表失败'));
         setModels([]);
       }
     } catch (error) {
@@ -279,7 +279,7 @@ export const useModelsData = () => {
           setVendorCounts({ ...data.vendor_counts, all: sumAll });
         }
       } else {
-        showError(message);
+        showError(message || t('获取模型列表失败'));
         setModels([]);
       }
     } catch (error) {
@@ -323,7 +323,7 @@ export const useModelsData = () => {
         );
       }
     } else {
-      showError(message);
+      showError(message || t('操作失败'));
     }
   };
 
@@ -393,13 +393,16 @@ export const useModelsData = () => {
           successCount++;
         } else {
           showError(
-            `删除模型 ${selectedKeys[index].model_name} 失败: ${res.data.message}`,
+            t('删除模型 {{name}} 失败：{{msg}}', {
+              name: selectedKeys[index].model_name,
+              msg: res.data.message || t('未知错误'),
+            }),
           );
         }
       });
 
       if (successCount > 0) {
-        showSuccess(t(`成功删除 ${successCount} 个模型`));
+        showSuccess(t('成功删除 {{total}} 个模型', { total: successCount }));
         setSelectedKeys([]);
         await refresh();
       }

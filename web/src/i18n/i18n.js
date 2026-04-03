@@ -47,13 +47,13 @@ i18n
     },
     fallbackLng: {
       'zh-CN': ['zh-CN'],
-      'zh-TW': ['zh-TW', 'zh-CN'],
-      en: ['en', 'zh-CN'],
-      fr: ['fr', 'en', 'zh-CN'],
-      ru: ['ru', 'en', 'zh-CN'],
-      ja: ['ja', 'en', 'zh-CN'],
-      vi: ['vi', 'en', 'zh-CN'],
-      default: ['en', 'zh-CN'],
+      'zh-TW': ['zh-TW', 'zh-CN', 'en'],
+      en: ['en'],
+      fr: ['fr', 'en'],
+      ru: ['ru', 'en'],
+      ja: ['ja', 'en'],
+      vi: ['vi', 'en'],
+      default: ['en'],
     },
     returnEmptyString: false,
     nsSeparator: false,
@@ -62,27 +62,32 @@ i18n
     },
   });
 
-// If non-Chinese locales still return Chinese text for a key,
-// prefer English as a stable fallback to avoid mixed-language UI.
-const containsChinese = /[\u4e00-\u9fff]/;
+// Runtime safety net:
+// for locales that do not normally use Han script, avoid mixed-language UI
+// by preferring English when translation output still contains Han text or
+// simply echoes the key.
+const containsHan = /[\u4e00-\u9fff]/;
+const hanGuardLocales = /^(en|fr|ru|vi)(-|$)/i;
 const originalT = i18n.t.bind(i18n);
 i18n.t = function patchedT(...args) {
   const result = originalT(...args);
   const key = args[0];
   const options = args[1];
   const currentLang = i18n.resolvedLanguage || i18n.language || '';
-
-  if (
+  const shouldGuardHan = hanGuardLocales.test(currentLang);
+  const needsFallback =
     typeof key === 'string' &&
     typeof result === 'string' &&
+    shouldGuardHan &&
     !/^zh(?:-|$)/i.test(currentLang) &&
-    containsChinese.test(result)
-  ) {
+    (result === key || containsHan.test(result));
+
+  if (needsFallback) {
     const enResult = originalT(key, { ...(options || {}), lng: 'en' });
     if (
       typeof enResult === 'string' &&
       enResult !== key &&
-      !containsChinese.test(enResult)
+      !containsHan.test(enResult)
     ) {
       return enResult;
     }

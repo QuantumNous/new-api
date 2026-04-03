@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -151,7 +152,7 @@ func ClearDiskCache(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "不活跃的磁盘缓存已清理",
+		"message": i18n.T(c, i18n.MsgPerfDiskCacheCleared),
 	})
 }
 
@@ -161,7 +162,7 @@ func ResetPerformanceStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "统计信息已重置",
+		"message": i18n.T(c, i18n.MsgPerfStatsReset),
 	})
 }
 
@@ -171,7 +172,7 @@ func ForceGC(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "GC 已执行",
+		"message": i18n.T(c, i18n.MsgPerfGcExecuted),
 	})
 }
 
@@ -269,16 +270,16 @@ func CleanupLogFiles(c *gin.Context) {
 	mode := c.Query("mode")
 	valueStr := c.Query("value")
 	if mode != "by_count" && mode != "by_days" {
-		common.ApiErrorMsg(c, "invalid mode, must be by_count or by_days")
+		common.ApiErrorI18n(c, i18n.MsgPerfInvalidMode)
 		return
 	}
 	value, err := strconv.Atoi(valueStr)
 	if err != nil || value < 1 {
-		common.ApiErrorMsg(c, "invalid value, must be a positive integer")
+		common.ApiErrorI18n(c, i18n.MsgPerfInvalidValue)
 		return
 	}
 	if *common.LogDir == "" {
-		common.ApiErrorMsg(c, "log directory not configured")
+		common.ApiErrorI18n(c, i18n.MsgPerfLogDirNotConfigured)
 		return
 	}
 
@@ -339,7 +340,7 @@ func CleanupLogFiles(c *gin.Context) {
 	if len(failedFiles) > 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("部分文件删除失败（%d/%d）", len(failedFiles), len(toDelete)),
+			"message": i18n.T(c, i18n.MsgOperationFailed) + fmt.Sprintf(" (%d/%d)", len(failedFiles), len(toDelete)),
 			"data":    result,
 		})
 		return

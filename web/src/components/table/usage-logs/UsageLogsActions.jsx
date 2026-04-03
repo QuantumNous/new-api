@@ -66,7 +66,7 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            RPM: {stat.rpm}
+            {t('RPM:')} {stat.rpm}
           </Tag>
           <Tag
             color='white'
@@ -78,7 +78,7 @@ const LogsActions = ({
             }}
             className='!rounded-lg'
           >
-            TPM: {stat.tpm}
+            {t('TPM:')} {stat.tpm}
           </Tag>
         </Space>
       </Skeleton>

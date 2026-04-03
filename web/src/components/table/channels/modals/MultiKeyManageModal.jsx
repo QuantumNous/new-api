@@ -107,7 +107,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         setManualDisabledCount(data.manual_disabled_count || 0);
         setAutoDisabledCount(data.auto_disabled_count || 0);
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('获取密钥状态失败'));
       }
     } catch (error) {
       console.error(error);
@@ -134,7 +134,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('禁用密钥失败'));
       }
     } catch (error) {
       showError(t('禁用密钥失败'));
@@ -160,7 +160,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('启用密钥失败'));
       }
     } catch (error) {
       showError(t('启用密钥失败'));
@@ -186,7 +186,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         await loadKeyStatus(1, pageSize);
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('启用所有密钥失败'));
       }
     } catch (error) {
       showError(t('启用所有密钥失败'));
@@ -212,7 +212,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         await loadKeyStatus(1, pageSize);
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('禁用所有密钥失败'));
       }
     } catch (error) {
       showError(t('禁用所有密钥失败'));
@@ -232,13 +232,13 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
       });
 
       if (res.data.success) {
-        showSuccess(res.data.message);
+        showSuccess(res.data.message || t('删除成功'));
         // Reset to first page after deletion as data structure might change
         setCurrentPage(1);
         await loadKeyStatus(1, pageSize);
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('删除禁用密钥失败'));
       }
     } catch (error) {
       showError(t('删除禁用密钥失败'));
@@ -264,7 +264,7 @@ const MultiKeyManageModal = ({ visible, onCancel, channel, onRefresh }) => {
         await loadKeyStatus(currentPage, pageSize); // Reload current page
         onRefresh && onRefresh(); // Refresh parent component
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('删除密钥失败'));
       }
     } catch (error) {
       showError(t('删除密钥失败'));

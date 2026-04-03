@@ -240,7 +240,7 @@ export const useTaskLogsData = () => {
     if (success) {
       syncPageData(data);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -297,7 +297,7 @@ export const useTaskLogsData = () => {
       setUserInfoData(data);
       setShowUserInfoModal(true);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 

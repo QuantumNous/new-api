@@ -207,7 +207,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       showSuccess(t('系统公告已更新'));
       if (refresh) refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -362,7 +362,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (err) {
       showError(err.message);

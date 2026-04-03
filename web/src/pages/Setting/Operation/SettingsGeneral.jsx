@@ -220,9 +220,9 @@ export default function GeneralSettings(props) {
                         'general_setting.quota_display_type',
                       )}
                     >
-                      <Select.Option value='USD'>USD ($)</Select.Option>
-                      <Select.Option value='CNY'>CNY (¥)</Select.Option>
-                      <Select.Option value='TOKENS'>Tokens</Select.Option>
+                      <Select.Option value='USD'>{'USD ($)'}</Select.Option>
+                      <Select.Option value='CNY'>{'CNY (¥)'}</Select.Option>
+                      <Select.Option value='TOKENS'>{'Tokens'}</Select.Option>
                       <Select.Option value='CUSTOM'>
                         {t('自定义货币')}
                       </Select.Option>

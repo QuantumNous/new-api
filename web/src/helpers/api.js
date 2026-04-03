@@ -37,7 +37,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -49,7 +48,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -241,7 +239,7 @@ export async function getOAuthState() {
   if (success) {
     return data;
   } else {
-    showError(message);
+    showError(message, { apiMessage: true });
     return '';
   }
 }

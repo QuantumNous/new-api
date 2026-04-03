@@ -378,7 +378,7 @@ const RechargeCard = ({
                               fontWeight: 'normal',
                             }}
                           >
-                            (1 $ = {rate.toFixed(2)} {symbol})
+                            {`(1 $ = ${rate.toFixed(2)} ${symbol})`}
                           </span>
                         );
                       })()}

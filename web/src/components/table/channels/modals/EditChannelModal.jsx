@@ -27,7 +27,11 @@ import {
   verifyJSON,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
-import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
+import {
+  CHANNEL_OPTIONS,
+  localizeChannelLabel,
+  MODEL_FETCHABLE_CHANNEL_TYPES,
+} from '../../../../constants';
 import {
   SideSheet,
   Space,
@@ -161,7 +165,7 @@ function type2secretPrompt(type) {
 }
 
 const EditChannelModal = (props) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const channelId = props.editingChannel.id;
   const isEdit = channelId !== undefined;
   const [loading, setLoading] = useState(isEdit);
@@ -416,13 +420,15 @@ const EditChannelModal = (props) => {
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
   const doubaoCodingPlanDeprecationMessage =
-    'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
+    t(
+      'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。',
+    );
   const canKeepDeprecatedDoubaoCodingPlan =
     initialBaseUrlRef.current === DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL;
   const doubaoCodingPlanOptionLabel = (
     <Tooltip content={doubaoCodingPlanDeprecationMessage} position='left'>
       <span className='inline-flex items-center gap-2'>
-        <span>Doubao Coding Plan</span>
+        <span>{'Doubao Coding Plan'}</span>
       </span>
     </Tooltip>
   );
@@ -1021,7 +1027,7 @@ const EditChannelModal = (props) => {
         setAdvancedSettingsOpen(true);
       }
     } else {
-      showError(message);
+      showError(message || t('加载失败'));
     }
     setLoading(false);
   };
@@ -1147,7 +1153,7 @@ const EditChannelModal = (props) => {
           .map((model) => model.id),
       );
     } catch (error) {
-      showError(error.message);
+      showError(error?.message || t('操作失败'));
     }
   };
 
@@ -1164,7 +1170,7 @@ const EditChannelModal = (props) => {
         })),
       );
     } catch (error) {
-      showError(error.message);
+      showError(error?.message || t('操作失败'));
     }
   };
 
@@ -1222,7 +1228,7 @@ const EditChannelModal = (props) => {
         { skipErrorHandler: true },
       );
       if (!res?.data?.success) {
-        throw new Error(res?.data?.message || 'Failed to refresh credential');
+        throw new Error(res?.data?.message || t('刷新凭据失败'));
       }
       showSuccess(t('凭证已刷新'));
     } catch (error) {
@@ -1865,7 +1871,7 @@ const EditChannelModal = (props) => {
       props.refresh();
       props.handleClose();
     } else {
-      showError(message);
+      showError(message || t('操作失败'));
     }
   };
 
@@ -1915,7 +1921,7 @@ const EditChannelModal = (props) => {
     if (beforeCount === afterCount) {
       showInfo(t('未发现重复密钥'));
     } else {
-      showSuccess(message);
+      showSuccess(message, { apiMessage: true });
     }
   };
 
@@ -2057,10 +2063,10 @@ const EditChannelModal = (props) => {
     () =>
       CHANNEL_OPTIONS.map((opt) => ({
         ...opt,
-        // 保持 label 为纯文本以支持搜索
-        label: opt.label,
+        // Keep labels as localized plain text so Select search works naturally.
+        label: localizeChannelLabel(opt.label, t, i18n.language),
       })),
-    [],
+    [t, i18n.language],
   );
 
   const renderChannelOption = (renderProps) => {
@@ -3171,7 +3177,7 @@ const EditChannelModal = (props) => {
                       <Form.Input
                         field='other'
                         label={t('知识库 ID')}
-                        placeholder={'请输入知识库 ID，例如：123456'}
+                        placeholder={t('请输入知识库 ID，例如：123456')}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
                       />
@@ -3180,7 +3186,7 @@ const EditChannelModal = (props) => {
                     {inputs.type === 39 && (
                       <Form.Input
                         field='other'
-                        label='Account ID'
+                        label={t('Account ID')}
                         placeholder={
                           '请输入Account ID，例如：d6b5da8hk1awo8nap34ube6gh'
                         }
@@ -3193,7 +3199,7 @@ const EditChannelModal = (props) => {
                       <Form.Input
                         field='other'
                         label={t('智能体ID')}
-                        placeholder={'请输入智能体ID，例如：7342866812345'}
+                        placeholder={t('请输入智能体ID，例如：7342866812345')}
                         onChange={(value) => handleInputChange('other', value)}
                         showClear
                       />
@@ -3252,7 +3258,7 @@ const EditChannelModal = (props) => {
                           <div>
                             <Form.Input
                               field='base_url'
-                              label='AZURE_OPENAI_ENDPOINT'
+                              label={t('AZURE_OPENAI_ENDPOINT')}
                               placeholder={t(
                                 '请输入 AZURE_OPENAI_ENDPOINT，例如：https://docs-test-001.openai.azure.com',
                               )}

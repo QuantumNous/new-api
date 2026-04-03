@@ -143,7 +143,7 @@ const SettingsFAQ = ({ options, refresh }) => {
       showSuccess(t('常见问答已更新'));
       if (refresh) refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -281,7 +281,7 @@ const SettingsFAQ = ({ options, refresh }) => {
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (err) {
       showError(err.message);

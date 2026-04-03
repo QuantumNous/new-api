@@ -112,13 +112,13 @@ export default function ModelRatioSettings(props) {
     try {
       let res = await API.post(`/api/option/rest_model_ratio`);
       if (res.data.success) {
-        showSuccess(res.data.message);
+        showSuccess(t('更新成功'));
         props.refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('更新失败'));
       }
     } catch (error) {
-      showError(error);
+      showError(error?.message || t('更新失败'));
     }
   }
 
@@ -156,7 +156,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelPrice: value })}
@@ -175,7 +175,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ModelRatio: value })}
@@ -194,7 +194,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, CacheRatio: value })}
@@ -216,7 +216,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) =>
@@ -238,7 +238,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) =>
@@ -264,7 +264,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, ImageRatio: value })}
@@ -286,7 +286,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) => setInputs({ ...inputs, AudioRatio: value })}
@@ -310,7 +310,7 @@ export default function ModelRatioSettings(props) {
               rules={[
                 {
                   validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
+                  message: t('不是合法的 JSON 字符串'),
                 },
               ]}
               onChange={(value) =>

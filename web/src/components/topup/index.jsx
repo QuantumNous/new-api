@@ -139,7 +139,7 @@ const TopUp = () => {
         }
         setRedemptionCode('');
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (err) {
       showError(t('请求失败'));
@@ -357,7 +357,7 @@ const TopUp = () => {
     if (success) {
       userDispatch({ type: 'login', payload: data });
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -541,7 +541,7 @@ const TopUp = () => {
       let link = `${window.location.origin}/register?aff=${data}`;
       setAffLink(link);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -556,11 +556,11 @@ const TopUp = () => {
     });
     const { success, message } = res.data;
     if (success) {
-      showSuccess(message);
+      showSuccess(message, { apiMessage: true });
       setOpenTransfer(false);
       getUserQuota().then();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -629,7 +629,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：{{message}}', { message: data }), id: 'getAmount' });
         }
       } else {
         showError(res);
@@ -655,7 +655,7 @@ const TopUp = () => {
           setAmount(parseFloat(data));
         } else {
           setAmount(0);
-          Toast.error({ content: '错误：' + data, id: 'getAmount' });
+          Toast.error({ content: t('错误：{{message}}', { message: data }), id: 'getAmount' });
         }
       } else {
         showError(res);

@@ -145,7 +145,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			for _, fileHeader := range files {
 				// 检查文件大小
 				if fileHeader.Size > MaxFileSize {
-					return nil, fmt.Errorf("文件 %s 大小超过限制，最大允许 %d MB", fileHeader.Filename, MaxFileSize/(1024*1024))
+					return nil, fmt.Errorf("file %s exceeds size limit, maximum allowed is %d MB", fileHeader.Filename, MaxFileSize/(1024*1024))
 				}
 
 				file, err := fileHeader.Open()

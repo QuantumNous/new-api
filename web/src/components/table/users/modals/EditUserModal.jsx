@@ -109,7 +109,7 @@ const EditUserModal = (props) => {
       data.password = '';
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -145,7 +145,7 @@ const EditUserModal = (props) => {
       props.refresh();
       props.handleClose();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };

@@ -20,8 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Dropdown } from '@douyinfe/semi-ui';
 import fireworks from 'react-fireworks';
+import { useTranslation } from 'react-i18next';
 
 const NewYearButton = ({ isNewYear }) => {
+  const { t } = useTranslation();
+
   if (!isNewYear) {
     return null;
   }
@@ -43,7 +46,7 @@ const NewYearButton = ({ isNewYear }) => {
             onClick={handleNewYearClick}
             className='!text-semi-color-text-0 hover:!bg-semi-color-fill-1 dark:!text-gray-200 dark:hover:!bg-gray-600'
           >
-            Happy New Year!!! 🎉
+            {t('Happy New Year!!!')} {'🎉'}
           </Dropdown.Item>
         </Dropdown.Menu>
       }
@@ -51,8 +54,8 @@ const NewYearButton = ({ isNewYear }) => {
       <Button
         theme='borderless'
         type='tertiary'
-        icon={<span className='text-xl'>🎉</span>}
-        aria-label='New Year'
+        icon={<span className='text-xl'>{'🎉'}</span>}
+        aria-label={t('Happy New Year!!!')}
         className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 dark:focus:!bg-gray-700 rounded-full'
       />
     </Dropdown>

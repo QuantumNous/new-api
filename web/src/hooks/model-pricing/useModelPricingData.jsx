@@ -255,7 +255,7 @@ export const useModelPricingData = () => {
       setAutoGroups(auto_groups || []);
       setModelsFormat(data, group_ratio, vendorMap);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };

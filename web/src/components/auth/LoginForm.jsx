@@ -202,7 +202,7 @@ const LoginForm = () => {
         showSuccess(t('登录成功！'));
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('登录失败，请重试'));
@@ -257,7 +257,7 @@ const LoginForm = () => {
           }
           navigate('/console');
         } else {
-          showError(message);
+          showError(message, { apiMessage: true });
         }
       } else {
         showError(t('请输入用户名和密码！'));
@@ -302,7 +302,7 @@ const LoginForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('登录失败，请重试'));
@@ -505,7 +505,7 @@ const LoginForm = () => {
       <div className='flex flex-col items-center'>
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
+            <img src={logo} alt='' className='h-10 rounded-full' />
             <Title heading={3} className='!text-gray-800'>
               {systemName}
             </Title>
@@ -721,7 +721,7 @@ const LoginForm = () => {
       <div className='flex flex-col items-center'>
         <div className='w-full max-w-md'>
           <div className='flex items-center justify-center mb-6 gap-2'>
-            <img src={logo} alt='Logo' className='h-10 rounded-full' />
+            <img src={logo} alt='' className='h-10 rounded-full' />
             <Title heading={3}>{systemName}</Title>
           </div>
 

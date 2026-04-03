@@ -229,7 +229,7 @@ const SystemSetting = () => {
       }
       setIsLoaded(true);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -256,7 +256,7 @@ const SystemSetting = () => {
           value: opt.value.toString(),
         });
         if (!res.data.success) {
-          showError(res.data.message);
+          showError(res.data.message || t('更新失败'));
           return;
         }
       }
@@ -276,7 +276,7 @@ const SystemSetting = () => {
         // 检查所有请求是否成功
         const errorResults = results.filter((res) => !res.data.success);
         errorResults.forEach((res) => {
-          showError(res.data.message);
+          showError(res.data.message || t('更新失败'));
         });
       }
 
@@ -720,7 +720,7 @@ const SystemSetting = () => {
                       <Form.Input
                         field='ServerAddress'
                         label={t('服务器地址')}
-                        placeholder='https://yourdomain.com'
+                        placeholder={t('例如：https://yourdomain.com')}
                         extraText={t(
                           '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',
                         )}
@@ -749,7 +749,7 @@ const SystemSetting = () => {
                       target='_blank'
                       rel='noreferrer'
                     >
-                      new-api-worker
+                      {'new-api-worker'}
                     </a>{' '}
                     {t('或其兼容new-api-worker格式的其他版本')}
                   </Text>

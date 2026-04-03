@@ -94,7 +94,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
       showSuccess(t('API信息已更新'));
       if (refresh) refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -231,16 +231,16 @@ const SettingsAPIInfo = ({ options, refresh }) => {
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('保存失败'));
       }
     } catch (err) {
-      showError(err.message);
+      showError(err?.message || t('保存失败'));
     }
   };
 
   const columns = [
     {
-      title: 'ID',
+      title: t('ID'),
       dataIndex: 'id',
     },
     {
@@ -458,7 +458,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
           <Form.Input
             field='url'
             label={t('API地址')}
-            placeholder='https://api.example.com'
+            placeholder={t('例如：https://api.example.com')}
             rules={[{ required: true, message: t('请输入API地址') }]}
             onChange={(value) => setApiForm({ ...apiForm, url: value })}
           />

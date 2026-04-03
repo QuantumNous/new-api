@@ -178,7 +178,7 @@ const PaymentConfirmModal = ({
                             color='#635BFF'
                           />
                           <Text className='text-slate-900 dark:text-slate-100'>
-                            Stripe
+                            {'Stripe'}
                           </Text>
                         </>
                       );

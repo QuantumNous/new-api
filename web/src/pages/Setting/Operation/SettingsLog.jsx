@@ -133,7 +133,7 @@ export default function SettingsLog(props) {
             }}
           >
             <Text strong style={{ color: '#d46b08' }}>
-              ⚠️ {t('注意')}：
+              {'⚠️'} {t('注意')}：
             </Text>
             <Text style={{ color: '#333' }}>{t('将删除')} </Text>
             <Text strong style={{ color: '#cf1322' }}>

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, processModelsData, processGroupsData } from '../../helpers';
+import { API, processModelsData, processGroupsData, showError } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 export const useDataLoader = (
@@ -47,7 +47,7 @@ export const useDataLoader = (
           handleInputChange('model', selectedModel);
         }
       } else {
-        showError(t(message));
+        showError(message || t('加载模型失败'));
       }
     } catch (error) {
       showError(t('加载模型失败'));
@@ -73,7 +73,7 @@ export const useDataLoader = (
           handleInputChange('group', groupOptions[0]?.value || '');
         }
       } else {
-        showError(t(message));
+        showError(message || t('加载分组失败'));
       }
     } catch (error) {
       showError(t('加载分组失败'));

@@ -367,7 +367,7 @@ export const useChannelsData = () => {
       setChannelFormat(items, enableTagMode);
       setChannelCount(total);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -413,7 +413,7 @@ export const useChannelsData = () => {
         setChannelCount(total);
         setActivePage(page);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } finally {
       setSearching(false);
@@ -482,7 +482,7 @@ export const useChannelsData = () => {
       }
       setChannels(newChannels);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -512,7 +512,7 @@ export const useChannelsData = () => {
       }
       setChannels(newChannels);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -689,7 +689,7 @@ export const useChannelsData = () => {
       await refresh();
       setShowBatchSetTag(false);
     } else {
-      showError(res.data.message);
+      showError(res.data.message, { apiMessage: true });
     }
   };
 
@@ -714,7 +714,7 @@ export const useChannelsData = () => {
         }
       }, 100);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -726,7 +726,7 @@ export const useChannelsData = () => {
     if (success) {
       showInfo(t('已成功开始测试所有已启用通道，请刷新页面查看结果。'));
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -739,7 +739,7 @@ export const useChannelsData = () => {
       );
       await refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -749,7 +749,7 @@ export const useChannelsData = () => {
     if (success) {
       showInfo(t('已更新完毕所有已启用通道余额！'));
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -778,7 +778,7 @@ export const useChannelsData = () => {
         t('通道 ${name} 余额更新成功！').replace('${name}', record.name),
       );
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -793,7 +793,7 @@ export const useChannelsData = () => {
       );
       await refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 

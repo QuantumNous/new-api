@@ -148,7 +148,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
       showSuccess(t('Uptime Kuma配置已更新'));
       if (refresh) refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -303,7 +303,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (err) {
       showError(err.message);

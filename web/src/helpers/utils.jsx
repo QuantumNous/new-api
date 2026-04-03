@@ -102,6 +102,8 @@ let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
 let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
+const CJK_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const LATIN_CHAR_REGEX = /[A-Za-z]/;
 
 const isMobileScreen = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
@@ -120,8 +122,53 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
-export function showError(error) {
+function isZhLocale() {
+  return String(i18next.language || '')
+    .toLowerCase()
+    .startsWith('zh');
+}
+
+function isEnLocale() {
+  return String(i18next.language || '')
+    .toLowerCase()
+    .startsWith('en');
+}
+
+export function normalizeApiToastMessage(message, fallbackKey = '操作失败') {
+  const fallback = i18next.t(fallbackKey);
+  const raw = typeof message === 'string' ? message.trim() : '';
+  if (!raw) {
+    return fallback;
+  }
+
+  const translated = i18next.t(raw);
+  if (i18next.exists(raw) && translated !== raw) {
+    return translated;
+  }
+
+  if (isZhLocale()) {
+    return raw;
+  }
+
+  if (CJK_CHAR_REGEX.test(raw)) {
+    return fallback;
+  }
+
+  if (!isEnLocale() && LATIN_CHAR_REGEX.test(raw)) {
+    return fallback;
+  }
+
+  return raw;
+}
+
+export function showError(error, options = {}) {
+  const { apiMessage = false, fallbackKey = '操作失败' } = options;
   console.error(error);
+  if (apiMessage && typeof error === 'string') {
+    const message = normalizeApiToastMessage(error, fallbackKey);
+    Toast.error(i18next.t('错误：{{message}}', { message }));
+    return;
+  }
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
@@ -157,8 +204,21 @@ export function showWarning(message) {
   Toast.warning(message);
 }
 
-export function showSuccess(message) {
+export function showApiError(message, fallbackKey = '操作失败') {
+  showError(message, { apiMessage: true, fallbackKey });
+}
+
+export function showSuccess(message, options = {}) {
+  const { apiMessage = false, fallbackKey = '操作成功' } = options;
+  if (apiMessage && typeof message === 'string') {
+    Toast.success(normalizeApiToastMessage(message, fallbackKey));
+    return;
+  }
   Toast.success(message);
+}
+
+export function showApiSuccess(message, fallbackKey = '操作成功') {
+  showSuccess(message, { apiMessage: true, fallbackKey });
 }
 
 export function showInfo(message) {

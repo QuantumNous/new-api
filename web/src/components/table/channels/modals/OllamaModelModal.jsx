@@ -620,10 +620,10 @@ const OllamaModelModal = ({
                       <div className='flex justify-between mt-1'>
                         <Text type='tertiary' size='small'>
                           {(completedBytes / (1024 * 1024 * 1024)).toFixed(2)}{' '}
-                          GB
+                          {'GB'}
                         </Text>
                         <Text type='tertiary' size='small'>
-                          {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                          {(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} {'GB'}
                         </Text>
                       </div>
                     </div>

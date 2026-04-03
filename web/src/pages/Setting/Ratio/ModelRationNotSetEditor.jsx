@@ -33,7 +33,7 @@ export default function ModelRatioNotSetEditor(props) {
       if (success) {
         setEnabledModels(data);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       console.error(t('获取启用模型失败:'), error);
