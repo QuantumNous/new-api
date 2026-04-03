@@ -194,6 +194,8 @@ const UNIFORM_CREATIVE_VIDEO_CARD_MODELS = new Set([
 ]);
 const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
+const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -1058,6 +1060,20 @@ const getImageTaskMediaUrl = (item) => {
   return '';
 };
 
+const getRecoverableVideoTaskId = (task) => {
+  const rawTaskId = String(task?.taskId || task?.task_id || '').trim();
+  if (rawTaskId.startsWith('task_')) {
+    return rawTaskId;
+  }
+
+  const fallbackId = String(task?.id || '').trim();
+  if (fallbackId.startsWith('task_')) {
+    return fallbackId;
+  }
+
+  return '';
+};
+
 const normalizeImageTaskItem = (item, index = 0) => {
   if (typeof item === 'string') {
     return {
@@ -1614,6 +1630,7 @@ export default function App() {
   const historyHydratedRef = useRef(false);
   const lastPersistedImageSignatureRef = useRef('');
   const lastPersistedVideoSignatureRef = useRef('');
+  const startupVideoRecoveryRunRef = useRef(false);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadImageNotice, setUploadImageNotice] = useState('');
@@ -1637,6 +1654,10 @@ export default function App() {
 
   useEffect(() => {
     creativeCenterUploadConfigRef.current = null;
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    startupVideoRecoveryRunRef.current = false;
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -3814,6 +3835,111 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     return () => window.clearTimeout(timer);
   }, [videoPersistSignature, isLoggedIn]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !historyHydratedRef.current || startupVideoRecoveryRunRef.current) {
+      return undefined;
+    }
+
+    startupVideoRecoveryRunRef.current = true;
+
+    const candidates = videoRecords.flatMap((record) =>
+      record.tasks
+        .map((task) => ({
+          recordId: record.id,
+          taskId: task.id,
+          queryTaskId: getRecoverableVideoTaskId(task),
+          hasMedia: Boolean(getVideoTaskMediaUrl(task)),
+          status: normalizeVideoTaskStatus(task.status),
+        }))
+        .filter(
+          (task) =>
+            Boolean(task.queryTaskId) &&
+            !task.hasMedia &&
+            task.status !== 'failed',
+        ),
+    );
+    const limitedCandidates = candidates.slice(
+      0,
+      CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS,
+    );
+
+    if (limitedCandidates.length === 0) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const recoverStartupVideoTasks = async () => {
+      try {
+        for (
+          let startIndex = 0;
+          startIndex < limitedCandidates.length && !cancelled;
+          startIndex += CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY
+        ) {
+          const currentBatch = limitedCandidates.slice(
+            startIndex,
+            startIndex + CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY,
+          );
+
+          await Promise.allSettled(
+            currentBatch.map(async ({ recordId, taskId, queryTaskId }) => {
+              try {
+                const response = await API.get(
+                  `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(queryTaskId)}`,
+                  {
+                    skipErrorHandler: true,
+                    headers: {
+                      'New-API-User': getUserIdFromLocalStorage(),
+                    },
+                  },
+                );
+
+                if (cancelled) {
+                  return;
+                }
+
+                const nextTaskState = parseVideoFetchPayload(response);
+                const nextStatus = normalizeVideoTaskStatus(nextTaskState.status);
+                const resolvedURL = nextTaskState.url || '';
+                const isCompleted = nextStatus === 'completed' || Boolean(resolvedURL);
+                const isFailed = nextStatus === 'failed';
+
+                patchVideoTask(recordId, taskId, (currentTask) => ({
+                  status: isCompleted ? 'completed' : isFailed ? 'failed' : nextStatus,
+                  progress: isCompleted
+                    ? 100
+                    : nextTaskState.progress ?? currentTask.progress ?? 0,
+                  url: isCompleted
+                    ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                    : currentTask.url,
+                  content: nextTaskState.content || currentTask.content,
+                  error: isFailed
+                    ? (nextTaskState.error || currentTask.error || '任务生成失败')
+                    : '',
+                  resultUrl: isCompleted
+                    ? (resolvedURL || currentTask.resultUrl || currentTask.url)
+                    : (currentTask.resultUrl || resolvedURL),
+                  finalizingAt: 0,
+                  pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
+                }));
+              } catch (error) {
+                console.error('Failed to recover creative center video task from history:', error);
+              }
+            }),
+          );
+        }
+      } catch (error) {
+        console.error('Failed to finish startup recovery for creative center video tasks:', error);
+      }
+    };
+
+    recoverStartupVideoTasks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, videoRecords]);
 
   const handleSubmit = async () => {
     const uploadedImageUrls = uploadedImages
