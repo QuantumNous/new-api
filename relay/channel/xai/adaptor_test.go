@@ -116,6 +116,32 @@ func TestConvertImageRequestPreservesSize(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestPreservesAspectRatioAndOutputResolution(t *testing.T) {
+	adaptor := &Adaptor{}
+
+	converted, err := adaptor.ConvertImageRequest(nil, nil, dto.ImageRequest{
+		Model:            "nano-banana-pro",
+		Prompt:           "draw a panoramic mountain range",
+		AspectRatio:      "21:9",
+		OutputResolution: "4K",
+		ResponseFormat:   "url",
+	})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	xaiReq, ok := converted.(ImageRequest)
+	if !ok {
+		t.Fatalf("expected xai.ImageRequest, got %T", converted)
+	}
+	if xaiReq.AspectRatio != "21:9" {
+		t.Fatalf("unexpected aspect ratio: %s", xaiReq.AspectRatio)
+	}
+	if xaiReq.OutputResolution != "4K" {
+		t.Fatalf("unexpected output resolution: %s", xaiReq.OutputResolution)
+	}
+}
+
 func TestResolveImagePayloadSupportsPlainURLObject(t *testing.T) {
 	filename, mimeType, content, err := resolveImagePayload([]byte(`{"url":"data:image/webp;base64,dGVzdA==","filename":"sample.webp"}`))
 	if err != nil {
