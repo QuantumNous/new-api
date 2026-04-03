@@ -53,17 +53,7 @@ function getCustomProviderKind(provider) {
   return provider?.kind || 'oauth_code';
 }
 
-async function getCurrentUserFromSession() {
-  const res = await API.get('/api/user/self', { skipErrorHandler: true });
-  if (!res.data.success || !res.data.data) {
-    throw new Error(res.data.message || i18n.t('获取当前登录态失败'));
-  }
-  return res.data.data;
-}
-
-function isTicketAcquireMode(mode) {
-  return mode === 'ticket_exchange' || mode === 'ticket_validate';
-}
+const standaloneCustomProviderKinds = new Set(['oauth_code', 'cas']);
 
 function supportsCustomProviderBrowserLogin(provider) {
   if (provider?.browser_login_supported !== undefined) {
@@ -73,21 +63,8 @@ function supportsCustomProviderBrowserLogin(provider) {
   if (providerKind === 'cas') {
     return Boolean(provider?.cas_server_url);
   }
-  if (providerKind === 'trusted_header') {
-    return true;
-  }
-  if (providerKind === 'jwt_direct') {
-    if (isTicketAcquireMode(provider?.jwt_acquire_mode || 'direct_token')) {
-      return Boolean(provider?.authorization_endpoint);
-    }
-    if ((provider?.jwt_identity_mode || 'claims') === 'userinfo') {
-      return false;
-    }
-    return Boolean(
-      provider?.authorization_endpoint &&
-        provider?.client_id &&
-        provider?.jwt_source !== 'body',
-    );
+  if (!standaloneCustomProviderKinds.has(providerKind)) {
+    return false;
   }
   return Boolean(provider?.authorization_endpoint && provider?.client_id);
 }
@@ -127,48 +104,6 @@ function ensureAbsoluteOAuthURL(url) {
     );
   }
   return new URL(url);
-}
-
-function buildCustomJWTAuthorizationUrl(provider, state) {
-  const authUrl = ensureAbsoluteOAuthURL(provider.authorization_endpoint);
-  const acquireMode = provider.jwt_acquire_mode || 'direct_token';
-  const callbackUrl = new URL(
-    `/oauth/${provider.slug}`,
-    window.location.origin,
-  );
-
-  if (isTicketAcquireMode(acquireMode)) {
-    callbackUrl.searchParams.set('state', state);
-    authUrl.searchParams.set(
-      provider.authorization_service_field || 'service',
-      callbackUrl.toString(),
-    );
-    return authUrl;
-  }
-
-  const jwtSource = provider.jwt_source || 'query';
-
-  if (jwtSource === 'body') {
-    throw new Error(
-      i18n.t('当前浏览器登录暂不支持 form_post 模式，请改用 query 或 fragment'),
-    );
-  }
-  if (!provider.client_id) {
-    throw new Error(i18n.t('JWT 登录缺少 Client ID 配置'));
-  }
-
-  authUrl.searchParams.set('client_id', provider.client_id);
-  authUrl.searchParams.set('redirect_uri', callbackUrl.toString());
-  authUrl.searchParams.set('scope', provider.scopes || 'openid profile email');
-  authUrl.searchParams.set('state', state);
-  authUrl.searchParams.set('nonce', state);
-  authUrl.searchParams.set('response_type', 'id_token');
-  authUrl.searchParams.set(
-    'response_mode',
-    jwtSource === 'fragment' ? 'fragment' : 'query',
-  );
-
-  return authUrl;
 }
 
 function patchAPIInstance(instance) {
@@ -461,40 +396,8 @@ export async function onCustomOAuthClicked(provider, options = {}) {
 
   try {
     const providerKind = getCustomProviderKind(provider);
-    if (providerKind === 'trusted_header') {
-      const state = await prepareOAuthState(options);
-      if (!state) return;
-      const res = await API.post(
-        `/api/auth/external/${provider.slug}/header/login`,
-        { state },
-        { skipErrorHandler: true },
-      );
-      if (!res.data.success) {
-        throw new Error(res.data.message || i18n.t('未知错误'));
-      }
-      if (res.data.data?.action === 'bind') {
-        try {
-          const user = await getCurrentUserFromSession();
-          return {
-            action: 'bind',
-            user,
-          };
-        } catch (error) {
-          console.error(
-            'Failed to refresh trusted header bind session user:',
-            error,
-          );
-          throw new Error(
-            error?.response?.data?.message ||
-              error?.message ||
-              i18n.t('获取当前登录态失败'),
-          );
-        }
-      }
-      return {
-        action: 'login',
-        user: res.data.data,
-      };
+    if (!standaloneCustomProviderKinds.has(providerKind)) {
+      throw new Error(i18n.t('当前独立分支仅支持 OAuth 授权码与 CAS 接入类型'));
     }
 
     const state = await prepareOAuthState(options);
@@ -502,11 +405,9 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     const authUrl =
       providerKind === 'cas'
         ? buildCustomCASStartUrl(provider, state)
-        : providerKind === 'jwt_direct'
-          ? buildCustomJWTAuthorizationUrl(provider, state)
-          : ensureAbsoluteOAuthURL(provider.authorization_endpoint);
+        : ensureAbsoluteOAuthURL(provider.authorization_endpoint);
 
-    if (providerKind !== 'jwt_direct' && providerKind !== 'cas') {
+    if (providerKind !== 'cas') {
       authUrl.searchParams.set('client_id', provider.client_id);
       authUrl.searchParams.set(
         'redirect_uri',
