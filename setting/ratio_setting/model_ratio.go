@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -709,6 +710,11 @@ func FormatMatchingModelName(name string) string {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-flash", "gemini-2.5-flash-thinking-*")
 	} else if strings.HasPrefix(name, "gemini-2.5-pro") {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-pro", "gemini-2.5-pro-thinking-*")
+	} else if strings.HasPrefix(name, "gemma-4") {
+		// 兼容 gemma-4* 思考后缀（如 -minimal/-high）
+		if baseModel, level, ok := reasoning.TrimEffortSuffix(name); ok && level != "" {
+			name = baseModel
+		}
 	}
 
 	if strings.HasPrefix(name, "gpt-4-gizmo") {
