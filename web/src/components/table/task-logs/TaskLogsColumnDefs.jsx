@@ -23,6 +23,7 @@ import {
   Music,
   FileText,
   HelpCircle,
+  Image as ImageIcon,
   CheckCircle,
   Pause,
   Clock,
@@ -37,6 +38,8 @@ import {
 import {
   TASK_ACTION_FIRST_TAIL_GENERATE,
   TASK_ACTION_GENERATE,
+  TASK_ACTION_IMAGE_EDIT,
+  TASK_ACTION_IMAGE_GENERATE,
   TASK_ACTION_REFERENCE_GENERATE,
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
@@ -108,6 +111,18 @@ const renderType = (type, t) => {
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Sparkles size={14} />}>
           {t('图生视频')}
+        </Tag>
+      );
+    case TASK_ACTION_IMAGE_GENERATE:
+      return (
+        <Tag color='teal' shape='circle' prefixIcon={<ImageIcon size={14} />}>
+          {t('文生图片')}
+        </Tag>
+      );
+    case TASK_ACTION_IMAGE_EDIT:
+      return (
+        <Tag color='cyan' shape='circle' prefixIcon={<ImageIcon size={14} />}>
+          {t('编辑图片')}
         </Tag>
       );
     case TASK_ACTION_TEXT_GENERATE:
@@ -472,9 +487,14 @@ export const getTaskLogsColumns = ({
           record.action === TASK_ACTION_FIRST_TAIL_GENERATE ||
           record.action === TASK_ACTION_REFERENCE_GENERATE ||
           record.action === TASK_ACTION_REMIX_GENERATE;
+        const isImageTask =
+          record.action === TASK_ACTION_IMAGE_GENERATE ||
+          record.action === TASK_ACTION_IMAGE_EDIT;
         const isSuccess = record.status === 'SUCCESS';
         const resultUrl = record.result_url;
-        const hasResultUrl = typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
+        const hasResultUrl =
+          typeof resultUrl === 'string' &&
+          /^(https?:\/\/|data:)/.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
           return (
             <a
@@ -485,6 +505,13 @@ export const getTaskLogsColumns = ({
               }}
             >
               {t('点击预览视频')}
+            </a>
+          );
+        }
+        if (isSuccess && isImageTask && hasResultUrl) {
+          return (
+            <a href={resultUrl} target='_blank' rel='noreferrer'>
+              {t('点击预览图片')}
             </a>
           );
         }

@@ -1173,26 +1173,61 @@ const normalizeTaskDtoDataPayload = (task) => {
 
 const getTaskDtoImageUrls = (task) => {
   const dataPayload = normalizeTaskDtoDataPayload(task);
+  const urls = [];
+  const appendUniqueUrl = (candidate) => {
+    if (typeof candidate !== 'string') {
+      return;
+    }
+    const trimmedCandidate = candidate.trim();
+    if (!trimmedCandidate || urls.includes(trimmedCandidate)) {
+      return;
+    }
+    urls.push(trimmedCandidate);
+  };
+
+  appendUniqueUrl(getTaskDtoResultUrl(task));
+
   const items = Array.isArray(dataPayload?.data)
     ? dataPayload.data
     : Array.isArray(dataPayload)
       ? dataPayload
       : [];
 
-  return items
-    .map((item) => {
-      if (typeof item?.url === 'string' && item.url.trim()) {
-        return item.url.trim();
+  items.forEach((item) => {
+    if (typeof item?.url === 'string' && item.url.trim()) {
+      appendUniqueUrl(item.url.trim());
+    }
+    if (typeof item?.b64_json === 'string' && item.b64_json.trim()) {
+      appendUniqueUrl(`data:image/png;base64,${item.b64_json.trim()}`);
+    }
+    if (typeof item?.b64Json === 'string' && item.b64Json.trim()) {
+      appendUniqueUrl(`data:image/png;base64,${item.b64Json.trim()}`);
+    }
+  });
+
+  const messageContent = dataPayload?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string') {
+    extractImageUrlsFromMessage(messageContent).forEach(appendUniqueUrl);
+  } else if (Array.isArray(messageContent)) {
+    messageContent.forEach((item) => {
+      if (item?.type === 'image_url') {
+        if (typeof item?.image_url === 'string' && item.image_url.trim()) {
+          appendUniqueUrl(item.image_url.trim());
+        } else if (typeof item?.image_url?.url === 'string' && item.image_url.url.trim()) {
+          appendUniqueUrl(item.image_url.url.trim());
+        }
+        return;
       }
-      if (typeof item?.b64_json === 'string' && item.b64_json.trim()) {
-        return `data:image/png;base64,${item.b64_json.trim()}`;
-      }
-      if (typeof item?.b64Json === 'string' && item.b64Json.trim()) {
-        return `data:image/png;base64,${item.b64Json.trim()}`;
-      }
-      return '';
-    })
-    .filter(Boolean);
+
+      const textContent =
+        typeof item?.text === 'string'
+          ? item.text
+          : (typeof item?.content === 'string' ? item.content : '');
+      extractImageUrlsFromMessage(textContent).forEach(appendUniqueUrl);
+    });
+  }
+
+  return urls;
 };
 
 const buildRecoverableVideoCandidateKey = (candidate) =>
