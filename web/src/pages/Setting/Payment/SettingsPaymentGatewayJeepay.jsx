@@ -120,7 +120,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
             >
               {t('Jeepay')}
             </a>
-            {t('是由计全开源的聚合支付平台，支持多种支付方式，可申请计全官方通道接口：')}
+            {t('是由计全开源的聚合支付平台，支持多种支付方式。快速上线使用，可申请计全官方通道接口：')}
             <a
               href='https://mch.jeepay.vip/'
               target='_blank'
