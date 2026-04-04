@@ -49,6 +49,7 @@ import { IconGift } from '@douyinfe/semi-icons';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
 import { getCurrencyConfig } from '../../helpers/render';
 import SubscriptionPlansCard from './SubscriptionPlansCard';
+import jeepayIcon from '../../assets/jeepay.svg';
 
 const { Text } = Typography;
 
@@ -323,6 +324,12 @@ const RechargeCard = ({
                                     <SiWechat size={18} color='#07C160' />
                                   ) : payMethod.type === 'stripe' ? (
                                     <SiStripe size={18} color='#635BFF' />
+                                  ) : payMethod.type === 'jeepay' ? (
+                                    <img
+                                      src={jeepayIcon}
+                                      alt='Jeepay'
+                                      style={{ width: 18, height: 18 }}
+                                    />
                                   ) : (
                                     <CreditCard
                                       size={18}
