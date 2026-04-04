@@ -18,6 +18,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
 		Temperature: claudeRequest.Temperature,
+		Metadata:    claudeRequest.Metadata,
 	}
 	if claudeRequest.MaxTokens != nil {
 		openAIRequest.MaxTokens = lo.ToPtr(lo.FromPtr(claudeRequest.MaxTokens))
@@ -32,7 +33,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAIRequest.Stream = lo.ToPtr(lo.FromPtr(claudeRequest.Stream))
 	}
 
-	isOpenRouter := info.ChannelType == constant.ChannelTypeOpenRouter
+	isOpenRouter := info != nil && info.ChannelType == constant.ChannelTypeOpenRouter
 
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
@@ -57,7 +58,7 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
-	} else {
+	} else if info != nil {
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
 			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
@@ -227,29 +228,19 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
 	}
-	cacheCreation5m, cacheCreation1h := NormalizeCacheCreationSplit(
-		oaiUsage.PromptTokensDetails.CachedCreationTokens,
-		oaiUsage.ClaudeCacheCreation5mTokens,
-		oaiUsage.ClaudeCacheCreation1hTokens,
-	)
 	usage := &dto.ClaudeUsage{
 		InputTokens:              oaiUsage.PromptTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
 		CacheCreationInputTokens: oaiUsage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
 	}
-	if cacheCreation5m > 0 || cacheCreation1h > 0 {
+	if oaiUsage.ClaudeCacheCreation5mTokens > 0 || oaiUsage.ClaudeCacheCreation1hTokens > 0 {
 		usage.CacheCreation = &dto.ClaudeCacheCreationUsage{
-			Ephemeral5mInputTokens: cacheCreation5m,
-			Ephemeral1hInputTokens: cacheCreation1h,
+			Ephemeral5mInputTokens: oaiUsage.ClaudeCacheCreation5mTokens,
+			Ephemeral1hInputTokens: oaiUsage.ClaudeCacheCreation1hTokens,
 		}
 	}
 	return usage
-}
-
-func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (int, int) {
-	remainder := lo.Max([]int{totalTokens - tokens5m - tokens1h, 0})
-	return tokens5m + remainder, tokens1h
 }
 
 func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) []*dto.ClaudeResponse {
@@ -436,28 +427,23 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	}
 
 	if len(openAIResponse.Choices) == 0 {
-		// Some OpenAI-compatible upstreams end with a usage-only SSE chunk.
-		oaiUsage := openAIResponse.Usage
-		if oaiUsage == nil {
-			oaiUsage = info.ClaudeConvertInfo.Usage
-		}
-		if oaiUsage != nil {
+		// no choices
+		// 可能为非标准的 OpenAI 响应，判断是否已经完成
+		if info.ClaudeConvertInfo.Done {
 			stopOpenBlocks()
-			stopReason := stopReasonOpenAI2Claude(info.FinishReason)
-			if stopReason == "" {
-				stopReason = "end_turn"
+			oaiUsage := info.ClaudeConvertInfo.Usage
+			if oaiUsage != nil {
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Type:  "message_delta",
+					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+					Delta: &dto.ClaudeMediaMessage{
+						StopReason: common.GetPointer[string](stopReasonOpenAI2Claude(info.FinishReason)),
+					},
+				})
 			}
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Type:  "message_delta",
-				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-				Delta: &dto.ClaudeMediaMessage{
-					StopReason: common.GetPointer[string](stopReason),
-				},
-			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type: "message_stop",
 			})
-			info.ClaudeConvertInfo.Done = true
 		}
 		return claudeResponses
 	} else {
@@ -465,13 +451,6 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		doneChunk := chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != ""
 		if doneChunk {
 			info.FinishReason = *chosenChoice.FinishReason
-			oaiUsage := openAIResponse.Usage
-			if oaiUsage == nil {
-				oaiUsage = info.ClaudeConvertInfo.Usage
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Defer closing until usage is available so the final message_delta carries it.
-				return claudeResponses
-			}
 		}
 
 		var claudeResponse dto.ClaudeResponse
@@ -638,7 +617,10 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info *relayco
 	}
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
-	claudeResponse.Usage = buildClaudeUsageFromOpenAIUsage(&openAIResponse.Usage)
+	claudeResponse.Usage = &dto.ClaudeUsage{
+		InputTokens:  openAIResponse.PromptTokens,
+		OutputTokens: openAIResponse.CompletionTokens,
+	}
 
 	return claudeResponse
 }

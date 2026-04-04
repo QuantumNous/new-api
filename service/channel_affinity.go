@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
@@ -42,19 +43,21 @@ var (
 )
 
 type channelAffinityMeta struct {
-	CacheKey       string
-	TTLSeconds     int
-	RuleName       string
-	SkipRetry      bool
-	ParamTemplate  map[string]interface{}
-	KeySourceType  string
-	KeySourceKey   string
-	KeySourcePath  string
-	KeyHint        string
-	KeyFingerprint string
-	UsingGroup     string
-	ModelName      string
-	RequestPath    string
+	CacheKey            string
+	TTLSeconds          int
+	RuleName            string
+	SkipRetry           bool
+	ParamTemplate       map[string]interface{}
+	KeyValue            string
+	KeySourceType       string
+	KeySourceKey        string
+	KeySourcePath       string
+	KeySourceNestedPath string
+	KeyHint             string
+	KeyFingerprint      string
+	UsingGroup          string
+	ModelName           string
+	RequestPath         string
 }
 
 type ChannelAffinityStatsContext struct {
@@ -295,7 +298,26 @@ func matchAnyIncludeFold(patterns []string, s string) bool {
 	return false
 }
 
+func extractNestedChannelAffinityValue(rawValue string, nestedPath string) string {
+	rawValue = strings.TrimSpace(rawValue)
+	nestedPath = strings.TrimSpace(nestedPath)
+	if rawValue == "" || nestedPath == "" || !gjson.Valid(rawValue) {
+		return ""
+	}
+	res := gjson.Get(rawValue, nestedPath)
+	if !res.Exists() {
+		return ""
+	}
+	switch res.Type {
+	case gjson.String, gjson.Number, gjson.True, gjson.False:
+		return strings.TrimSpace(res.String())
+	default:
+		return strings.TrimSpace(res.Raw)
+	}
+}
+
 func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAffinityKeySource) string {
+	nestedPath := strings.TrimSpace(src.NestedPath)
 	switch src.Type {
 	case "context_int":
 		if src.Key == "" {
@@ -305,12 +327,29 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		if v <= 0 {
 			return ""
 		}
-		return strconv.Itoa(v)
+		value := strconv.Itoa(v)
+		if nestedPath != "" {
+			return extractNestedChannelAffinityValue(value, nestedPath)
+		}
+		return value
 	case "context_string":
 		if src.Key == "" {
 			return ""
 		}
-		return strings.TrimSpace(c.GetString(src.Key))
+		value := strings.TrimSpace(c.GetString(src.Key))
+		if nestedPath != "" {
+			return extractNestedChannelAffinityValue(value, nestedPath)
+		}
+		return value
+	case "request_header":
+		if c == nil || c.Request == nil || strings.TrimSpace(src.Key) == "" {
+			return ""
+		}
+		value := strings.TrimSpace(c.Request.Header.Get(src.Key))
+		if nestedPath != "" {
+			return extractNestedChannelAffinityValue(value, nestedPath)
+		}
+		return value
 	case "gjson":
 		if src.Path == "" {
 			return ""
@@ -326,6 +365,16 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		res := gjson.GetBytes(body, src.Path)
 		if !res.Exists() {
 			return ""
+		}
+		if nestedPath != "" {
+			switch res.Type {
+			case gjson.String:
+				return extractNestedChannelAffinityValue(res.String(), nestedPath)
+			case gjson.JSON:
+				return extractNestedChannelAffinityValue(res.Raw, nestedPath)
+			default:
+				return ""
+			}
 		}
 		switch res.Type {
 		case gjson.String, gjson.Number, gjson.True, gjson.False:
@@ -357,6 +406,9 @@ func setChannelAffinityContext(c *gin.Context, meta channelAffinityMeta) {
 	c.Set(ginKeyChannelAffinityCacheKey, meta.CacheKey)
 	c.Set(ginKeyChannelAffinityTTLSeconds, meta.TTLSeconds)
 	c.Set(ginKeyChannelAffinityMeta, meta)
+	if overrideCtx := buildChannelAffinityParamOverrideContext(meta); len(overrideCtx) > 0 {
+		common.SetContextKey(c, constant.ContextKeyChannelParamOverrideContext, overrideCtx)
+	}
 }
 
 func getChannelAffinityContext(c *gin.Context) (string, int, bool) {
@@ -527,10 +579,32 @@ func appendChannelAffinityTemplateAdminInfo(c *gin.Context, meta channelAffinity
 		"key_source":        meta.KeySourceType,
 		"key_key":           meta.KeySourceKey,
 		"key_path":          meta.KeySourcePath,
+		"key_nested_path":   meta.KeySourceNestedPath,
 		"key_hint":          meta.KeyHint,
 		"key_fp":            meta.KeyFingerprint,
 		"override_template": templateInfo,
 	})
+}
+
+func buildChannelAffinityParamOverrideContext(meta channelAffinityMeta) map[string]interface{} {
+	if strings.TrimSpace(meta.KeyValue) == "" {
+		return nil
+	}
+	return map[string]interface{}{
+		"channel_affinity": map[string]interface{}{
+			"key":                    meta.KeyValue,
+			"rule_name":              meta.RuleName,
+			"key_source_type":        meta.KeySourceType,
+			"key_source_key":         meta.KeySourceKey,
+			"key_source_path":        meta.KeySourcePath,
+			"key_source_nested_path": meta.KeySourceNestedPath,
+			"key_hint":               meta.KeyHint,
+			"key_fingerprint":        meta.KeyFingerprint,
+			"using_group":            meta.UsingGroup,
+			"model":                  meta.ModelName,
+			"request_path":           meta.RequestPath,
+		},
+	}
 }
 
 // ApplyChannelAffinityOverrideTemplate merges per-rule channel override templates onto the selected channel override config.
@@ -598,19 +672,21 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, modelName, usingGroup, affinityValue)
 		cacheKeyFull := channelAffinityCacheNamespace + ":" + cacheKeySuffix
 		setChannelAffinityContext(c, channelAffinityMeta{
-			CacheKey:       cacheKeyFull,
-			TTLSeconds:     ttlSeconds,
-			RuleName:       rule.Name,
-			SkipRetry:      rule.SkipRetryOnFailure,
-			ParamTemplate:  cloneStringAnyMap(rule.ParamOverrideTemplate),
-			KeySourceType:  strings.TrimSpace(usedSource.Type),
-			KeySourceKey:   strings.TrimSpace(usedSource.Key),
-			KeySourcePath:  strings.TrimSpace(usedSource.Path),
-			KeyHint:        buildChannelAffinityKeyHint(affinityValue),
-			KeyFingerprint: affinityFingerprint(affinityValue),
-			UsingGroup:     usingGroup,
-			ModelName:      modelName,
-			RequestPath:    path,
+			CacheKey:            cacheKeyFull,
+			TTLSeconds:          ttlSeconds,
+			RuleName:            rule.Name,
+			SkipRetry:           rule.SkipRetryOnFailure,
+			ParamTemplate:       cloneStringAnyMap(rule.ParamOverrideTemplate),
+			KeyValue:            affinityValue,
+			KeySourceType:       strings.TrimSpace(usedSource.Type),
+			KeySourceKey:        strings.TrimSpace(usedSource.Key),
+			KeySourcePath:       strings.TrimSpace(usedSource.Path),
+			KeySourceNestedPath: strings.TrimSpace(usedSource.NestedPath),
+			KeyHint:             buildChannelAffinityKeyHint(affinityValue),
+			KeyFingerprint:      affinityFingerprint(affinityValue),
+			UsingGroup:          usingGroup,
+			ModelName:           modelName,
+			RequestPath:         path,
 		})
 
 		cache := getChannelAffinityCache()

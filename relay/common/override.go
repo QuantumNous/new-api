@@ -1343,9 +1343,28 @@ func parseSyncTarget(spec string) (syncTarget, error) {
 			kind: "header",
 			key:  key,
 		}, nil
+	case "context":
+		return syncTarget{
+			kind: "context",
+			key:  key,
+		}, nil
 	default:
 		return syncTarget{}, fmt.Errorf("sync_fields target prefix is invalid: %s", raw)
 	}
+}
+
+func snapshotContextMap(context map[string]interface{}) map[string]interface{} {
+	if len(context) == 0 {
+		return map[string]interface{}{}
+	}
+	snapshot := make(map[string]interface{}, len(context))
+	for key, value := range context {
+		if key == paramOverrideContextAuditRecorder {
+			continue
+		}
+		snapshot[key] = value
+	}
+	return snapshot
 }
 
 func readSyncTargetValue(jsonStr string, context map[string]interface{}, target syncTarget) (interface{}, bool, error) {
@@ -1366,6 +1385,22 @@ func readSyncTargetValue(jsonStr string, context map[string]interface{}, target 
 			return nil, false, nil
 		}
 		return value, true, nil
+	case "context":
+		contextJSON, err := marshalContextJSON(snapshotContextMap(context))
+		if err != nil {
+			return nil, false, err
+		}
+		if contextJSON == "" {
+			return nil, false, nil
+		}
+		value := gjson.Get(contextJSON, target.key)
+		if !value.Exists() || value.Type == gjson.Null {
+			return nil, false, nil
+		}
+		if value.Type == gjson.String && strings.TrimSpace(value.String()) == "" {
+			return nil, false, nil
+		}
+		return value.Value(), true, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported sync_fields target kind: %s", target.kind)
 	}
@@ -1383,6 +1418,33 @@ func writeSyncTargetValue(jsonStr string, context map[string]interface{}, target
 	case "header":
 		if err := setHeaderOverrideInContext(context, target.key, value, false); err != nil {
 			return "", err
+		}
+		return jsonStr, nil
+	case "context":
+		contextJSON, err := marshalContextJSON(snapshotContextMap(context))
+		if err != nil {
+			return "", err
+		}
+		if contextJSON == "" {
+			contextJSON = "{}"
+		}
+		nextJSON, err := sjson.Set(contextJSON, target.key, value)
+		if err != nil {
+			return "", err
+		}
+		nextContext := make(map[string]interface{})
+		if err := common.UnmarshalJsonStr(nextJSON, &nextContext); err != nil {
+			return "", err
+		}
+		recorder, _ := context[paramOverrideContextAuditRecorder]
+		for key := range context {
+			delete(context, key)
+		}
+		for key, item := range nextContext {
+			context[key] = item
+		}
+		if recorder != nil {
+			context[paramOverrideContextAuditRecorder] = recorder
 		}
 		return jsonStr, nil
 	default:
@@ -2025,6 +2087,14 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 
 	headerOverrideSource := GetEffectiveHeaderOverride(info)
 	ctx[paramOverrideContextHeaderOverride] = sanitizeHeaderOverrideMap(headerOverrideSource)
+	if info.ChannelMeta != nil && len(info.ChannelMeta.ParamOverrideContext) > 0 {
+		for key, value := range info.ChannelMeta.ParamOverrideContext {
+			if _, exists := ctx[key]; exists {
+				continue
+			}
+			ctx[key] = value
+		}
+	}
 
 	ctx["retry_index"] = info.RetryIndex
 	ctx["is_retry"] = info.RetryIndex > 0
