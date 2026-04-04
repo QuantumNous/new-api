@@ -51,6 +51,7 @@ const STATUS_CONFIG = {
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
   creem: 'Creem',
+  jeepay: 'Jeepay',
   waffo: 'Waffo',
   alipay: '支付宝',
   wxpay: '微信',

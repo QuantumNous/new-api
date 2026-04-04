@@ -1,0 +1,217 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Col, Form, Row, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { API, showError, showSuccess } from '../../../helpers';
+import { useTranslation } from 'react-i18next';
+
+const { Text } = Typography;
+
+const jeepayWayCodeOptions = [
+  { label: '聚合扫码（QR_CASHIER）', value: 'QR_CASHIER' },
+  { label: '收银台（WEB_CASHIER）', value: 'WEB_CASHIER' },
+  { label: '微信扫码（WX_NATIVE）', value: 'WX_NATIVE' },
+  { label: '支付宝扫码（ALI_QR）', value: 'ALI_QR' },
+];
+
+export default function SettingsPaymentGatewayJeepay(props) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+  const [inputs, setInputs] = useState({
+    JeepayBaseURL: 'https://pay.jeepay.vip',
+    JeepayMchNo: '',
+    JeepayAppID: '',
+    JeepayAPIKey: '',
+    JeepayWayCode: 'QR_CASHIER',
+    JeepayMinTopUp: 1,
+    JeepayOrderTimeoutMinutes: 5,
+  });
+  const formApiRef = useRef(null);
+
+  useEffect(() => {
+    if (props.options && formApiRef.current) {
+      const currentInputs = {
+        JeepayBaseURL: props.options.JeepayBaseURL || 'https://pay.jeepay.vip',
+        JeepayMchNo: props.options.JeepayMchNo || '',
+        JeepayAppID: props.options.JeepayAppID || '',
+        JeepayAPIKey: props.options.JeepayAPIKey || '',
+        JeepayWayCode: props.options.JeepayWayCode || 'QR_CASHIER',
+        JeepayMinTopUp: parseInt(props.options.JeepayMinTopUp) || 1,
+        JeepayOrderTimeoutMinutes: parseInt(props.options.JeepayOrderTimeoutMinutes) || 5,
+      };
+      setInputs(currentInputs);
+      formApiRef.current.setValues(currentInputs);
+    }
+  }, [props.options]);
+
+  const handleFormChange = (values) => {
+    setInputs(values);
+  };
+
+  const submitJeepaySetting = async () => {
+    setLoading(true);
+    try {
+      const options = [
+        { key: 'JeepayBaseURL', value: inputs.JeepayBaseURL || '' },
+        { key: 'JeepayMchNo', value: inputs.JeepayMchNo || '' },
+        { key: 'JeepayAppID', value: inputs.JeepayAppID || '' },
+        ...(inputs.JeepayAPIKey
+          ? [{ key: 'JeepayAPIKey', value: inputs.JeepayAPIKey }]
+          : []),
+        { key: 'JeepayWayCode', value: inputs.JeepayWayCode || 'QR_CASHIER' },
+        { key: 'JeepayMinTopUp', value: String(inputs.JeepayMinTopUp || 1) },
+        {
+          key: 'JeepayOrderTimeoutMinutes',
+          value: String(inputs.JeepayOrderTimeoutMinutes || 5),
+        },
+      ];
+
+      const results = await Promise.all(
+        options.map((opt) =>
+          API.put('/api/option/', {
+            key: opt.key,
+            value: opt.value,
+          }),
+        ),
+      );
+
+      const errorResults = results.filter((res) => !res.data.success);
+      if (errorResults.length > 0) {
+        errorResults.forEach((res) => showError(res.data.message));
+      } else {
+        showSuccess(t('更新成功'));
+        props.refresh?.();
+      }
+    } catch (error) {
+      showError(t('更新失败'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Spin spinning={loading}>
+      <Form
+        initValues={inputs}
+        onValueChange={handleFormChange}
+        getFormApi={(api) => (formApiRef.current = api)}
+      >
+        <Form.Section text={t('Jeepay 设置')}>
+          <Text>
+            <a
+              href='https://github.com/jeequan/jeepay'
+              target='_blank'
+              rel='noreferrer'
+            >
+              {t('Jeepay')}
+            </a>
+            {t('是由计全开源的聚合支付系统，支持多种支付方式。快速上线使用，可申请计全官方通道接口：')}
+            <a
+              href='https://mch.jeepay.vip/register?c=87SFAY'
+              target='_blank'
+              rel='noreferrer'
+            >
+              {t('计全付')}
+            </a>
+            ，
+            <a
+              href='https://doc.jeequan.com/#/integrate/jqf/guide/20'
+              target='_blank'
+              rel='noreferrer'
+            >
+              {t('官方注册流程')}
+            </a>
+            。
+          </Text>
+          <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+            <Col xs={24} sm={24} md={12}>
+              <Form.Input
+                field='JeepayBaseURL'
+                label={t('支付地址')}
+                placeholder='https://pay.jeepay.vip'
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12}>
+              <Form.Input
+                field='JeepayMchNo'
+                label={t('商户号')}
+                placeholder={t('Jeepay mchNo')}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12}>
+              <Form.Input
+                field='JeepayAppID'
+                label={t('应用 ID')}
+                placeholder={t('Jeepay appId')}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12}>
+              <Form.Input
+                field='JeepayAPIKey'
+                label={t('API 密钥')}
+                placeholder={t('敏感信息不会发送到前端显示')}
+                type='password'
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={8}>
+              <Form.Select
+                field='JeepayWayCode'
+                label={t('支付方式')}
+                optionList={jeepayWayCodeOptions}
+                placeholder='WEB_CASHIER'
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8}>
+              <Form.InputNumber
+                field='JeepayMinTopUp'
+                label={t('最小充值数量')}
+                min={1}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8}>
+              <Form.InputNumber
+                field='JeepayOrderTimeoutMinutes'
+                label={t('订单超时时间（分钟）')}
+                min={1}
+              />
+            </Col>
+          </Row>
+          <Button
+            style={{ marginTop: 16 }}
+            type='primary'
+            onClick={submitJeepaySetting}
+          >
+            {t('保存 Jeepay 设置')}
+          </Button>
+        </Form.Section>
+      </Form>
+    </Spin>
+  );
+}

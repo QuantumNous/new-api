@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import JeepayQRCodeModal from './modals/JeepayQRCodeModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -63,6 +64,9 @@ const TopUp = () => {
   const [enableStripeTopUp, setEnableStripeTopUp] = useState(
     statusState?.status?.enable_stripe_topup || false,
   );
+  const [enableJeepayTopUp, setEnableJeepayTopUp] = useState(
+    statusState?.status?.enable_jeepay_topup || false,
+  );
   const [statusLoading, setStatusLoading] = useState(true);
 
   // Creem 相关状态
@@ -83,6 +87,15 @@ const TopUp = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
+  const [jeepayQRCodeOpen, setJeepayQRCodeOpen] = useState(false);
+  const [jeepayQRCodeData, setJeepayQRCodeData] = useState({
+    qrCodeUrl: '',
+    orderId: '',
+    wayCode: '',
+    money: '',
+    expiredTime: null,
+    expireAt: null,
+  });
 
   const affFetchedRef = useRef(false);
 
@@ -162,6 +175,11 @@ const TopUp = () => {
         showError(t('管理员未开启Stripe充值！'));
         return;
       }
+    } else if (payment === 'jeepay') {
+      if (!enableJeepayTopUp) {
+        showError(t('管理员未开启 Jeepay 充值！'));
+        return;
+      }
     } else {
       if (!enableOnlineTopUp) {
         showError(t('管理员未开启在线充值！'));
@@ -192,12 +210,10 @@ const TopUp = () => {
 
   const onlineTopUp = async () => {
     if (payWay === 'stripe') {
-      // Stripe 支付处理
       if (amount === 0) {
         await getStripeAmount();
       }
     } else {
-      // 普通支付处理
       if (amount === 0) {
         await getAmount();
       }
@@ -211,13 +227,18 @@ const TopUp = () => {
     try {
       let res;
       if (payWay === 'stripe') {
-        // Stripe 支付请求
         res = await API.post('/api/user/stripe/pay', {
           amount: parseInt(topUpCount),
           payment_method: 'stripe',
         });
+      } else if (payWay === 'jeepay') {
+        const selectedMethod = payMethods.find((method) => method.type === 'jeepay');
+        res = await API.post('/api/user/jeepay/pay', {
+          amount: parseInt(topUpCount),
+          payment_method: 'jeepay',
+          way_code: selectedMethod?.way_code || 'WEB_CASHIER',
+        });
       } else {
-        // 普通支付请求
         res = await API.post('/api/user/pay', {
           amount: parseInt(topUpCount),
           payment_method: payWay,
@@ -228,10 +249,22 @@ const TopUp = () => {
         const { message, data } = res.data;
         if (message === 'success') {
           if (payWay === 'stripe') {
-            // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
+          } else if (payWay === 'jeepay') {
+            if (data?.way_code && ['QR_CASHIER', 'WX_NATIVE', 'ALI_QR'].includes(data.way_code)) {
+              setJeepayQRCodeData({
+                qrCodeUrl: data.qr_code_url || data.payment_url || '',
+                orderId: data.order_id || '',
+                wayCode: data.way_code,
+                money: data.money || '',
+                expiredTime: data.expired_time || null,
+                expireAt: data.expire_at || null,
+              });
+              setJeepayQRCodeOpen(true);
+            } else {
+              window.open(data.payment_url, '_blank');
+            }
           } else {
-            // 普通支付表单提交
             let params = data;
             let url = res.data.url;
             let form = document.createElement('form');
@@ -284,7 +317,6 @@ const TopUp = () => {
       showError(t('请选择产品'));
       return;
     }
-    // Validate product has required fields
     if (!selectedCreemProduct.productId) {
       showError(t('产品配置错误，请联系管理员'));
       return;
@@ -347,7 +379,6 @@ const TopUp = () => {
   };
 
   const processCreemCallback = (data) => {
-    // 与 Stripe 保持一致的实现方式
     window.open(data.checkout_url, '_blank');
   };
 
@@ -382,10 +413,8 @@ const TopUp = () => {
         setBillingPreference(
           res.data.data?.billing_preference || 'subscription_first',
         );
-        // Active subscriptions
         const activeSubs = res.data.data?.subscriptions || [];
         setActiveSubscriptions(activeSubs);
-        // All subscriptions (including expired)
         const allSubs = res.data.data?.all_subscriptions || [];
         setAllSubscriptions(allSubs);
       }
@@ -416,37 +445,31 @@ const TopUp = () => {
     }
   };
 
-  // 获取充值配置信息
   const getTopupInfo = async () => {
     try {
       const res = await API.get('/api/user/topup/info');
-      const { message, data, success } = res.data;
+      const { data, success } = res.data;
       if (success) {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
         });
 
-        // 处理支付方式
         let payMethods = data.pay_methods || [];
         try {
           if (typeof payMethods === 'string') {
             payMethods = JSON.parse(payMethods);
           }
           if (payMethods && payMethods.length > 0) {
-            // 检查name和type是否为空
             payMethods = payMethods.filter((method) => {
               return method.name && method.type;
             });
-            // 如果没有color，则设置默认颜色
             payMethods = payMethods.map((method) => {
-              // 规范化最小充值数
               const normalizedMinTopup = Number(method.min_topup);
               method.min_topup = Number.isFinite(normalizedMinTopup)
                 ? normalizedMinTopup
                 : 0;
 
-              // Stripe 的最小充值从后端字段回填
               if (
                 method.type === 'stripe' &&
                 (!method.min_topup || method.min_topup <= 0)
@@ -474,22 +497,33 @@ const TopUp = () => {
             payMethods = [];
           }
 
-          // 如果启用了 Stripe 支付，添加到支付方法列表
-          // 这个逻辑现在由后端处理，如果 Stripe 启用，后端会在 pay_methods 中包含它
+          const normalizedPayMethods = payMethods.map((method) => {
+            if (method.type === 'jeepay') {
+              return {
+                ...method,
+                way_code: method.way_code || data.jeepay_way_code || 'WEB_CASHIER',
+              };
+            }
+            return method;
+          });
 
-          setPayMethods(payMethods);
+          setPayMethods(normalizedPayMethods);
           const enableStripeTopUp = data.enable_stripe_topup || false;
+          const enableJeepayTopUp = data.enable_jeepay_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
           const enableCreemTopUp = data.enable_creem_topup || false;
           const minTopUpValue = enableOnlineTopUp
             ? data.min_topup
             : enableStripeTopUp
               ? data.stripe_min_topup
+              : enableJeepayTopUp
+                ? data.jeepay_min_topup
               : data.enable_waffo_topup
                 ? data.waffo_min_topup
                 : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
+          setEnableJeepayTopUp(enableJeepayTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
           const enableWaffoTopUp = data.enable_waffo_topup || false;
           setEnableWaffoTopUp(enableWaffoTopUp);
@@ -498,7 +532,6 @@ const TopUp = () => {
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
-          // 设置 Creem 产品
           try {
             const products = JSON.parse(data.creem_products || '[]');
             setCreemProducts(products);
@@ -506,18 +539,15 @@ const TopUp = () => {
             setCreemProducts([]);
           }
 
-          // 如果没有自定义充值数量选项，根据最小充值金额生成预设充值额度选项
           if (topupInfo.amount_options.length === 0) {
             setPresetAmounts(generatePresetAmounts(minTopUpValue));
           }
 
-          // 初始化显示实付金额
           getAmount(minTopUpValue);
         } catch (e) {
           setPayMethods([]);
         }
 
-        // 如果有自定义充值数量选项，使用它们替换默认的预设选项
         if (data.amount_options && data.amount_options.length > 0) {
           const customPresets = data.amount_options.map((amount) => ({
             value: amount,
@@ -533,7 +563,6 @@ const TopUp = () => {
     }
   };
 
-  // 获取邀请链接
   const getAffLink = async () => {
     const res = await API.get('/api/user/aff');
     const { success, message, data } = res.data;
@@ -545,7 +574,6 @@ const TopUp = () => {
     }
   };
 
-  // 划转邀请额度
   const transfer = async () => {
     if (transferAmount < getQuotaPerUnit()) {
       showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
@@ -564,13 +592,11 @@ const TopUp = () => {
     }
   };
 
-  // 复制邀请链接
   const handleAffLinkClick = async () => {
     await copy(affLink);
     showSuccess(t('邀请链接已复制到剪切板'));
   };
 
-  // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
     if (searchParams.get('show_history') === 'true') {
       setOpenHistory(true);
@@ -580,7 +606,6 @@ const TopUp = () => {
   }, []);
 
   useEffect(() => {
-    // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
     setTransferAmount(getQuotaPerUnit());
   }, []);
@@ -591,7 +616,6 @@ const TopUp = () => {
     getAffLink().then();
   }, []);
 
-  // 在 statusState 可用时获取充值信息
   useEffect(() => {
     getTopupInfo().then();
     getSubscriptionPlans().then();
@@ -600,12 +624,8 @@ const TopUp = () => {
 
   useEffect(() => {
     if (statusState?.status) {
-      // const minTopUpValue = statusState.status.min_topup || 1;
-      // setMinTopUp(minTopUpValue);
-      // setTopUpCount(minTopUpValue);
       setTopUpLink(statusState.status.top_up_link || '');
       setPriceRatio(statusState.status.price || 1);
-
       setStatusLoading(false);
     }
   }, [statusState?.status]);
@@ -683,28 +703,30 @@ const TopUp = () => {
     setOpenHistory(false);
   };
 
+  const handleJeepayPaid = async () => {
+    setJeepayQRCodeOpen(false);
+    await getUserQuota();
+    setOpenHistory(true);
+  };
+
   const handleCreemCancel = () => {
     setCreemOpen(false);
     setSelectedCreemProduct(null);
   };
 
-  // 选择预设充值额度
   const selectPresetAmount = (preset) => {
     setTopUpCount(preset.value);
     setSelectedPreset(preset.value);
 
-    // 计算实际支付金额，考虑折扣
     const discount = preset.discount || topupInfo.discount[preset.value] || 1.0;
     const discountedAmount = preset.value * priceRatio * discount;
     setAmount(discountedAmount);
   };
 
-  // 格式化大数字显示
   const formatLargeNumber = (num) => {
     return num.toString();
   };
 
-  // 根据最小充值金额生成预设充值额度选项
   const generatePresetAmounts = (minAmount) => {
     const multipliers = [1, 5, 10, 30, 50, 100, 300, 500];
     return multipliers.map((multiplier) => ({
@@ -714,7 +736,6 @@ const TopUp = () => {
 
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
-      {/* 划转模态框 */}
       <TransferModal
         t={t}
         openTransfer={openTransfer}
@@ -727,7 +748,6 @@ const TopUp = () => {
         setTransferAmount={setTransferAmount}
       />
 
-      {/* 充值确认模态框 */}
       <PaymentConfirmModal
         t={t}
         open={open}
@@ -744,14 +764,12 @@ const TopUp = () => {
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
       />
 
-      {/* 充值账单模态框 */}
       <TopupHistoryModal
         visible={openHistory}
         onCancel={handleHistoryCancel}
         t={t}
       />
 
-      {/* Creem 充值确认模态框 */}
       <Modal
         title={t('确定要充值 $')}
         visible={creemOpen}
@@ -779,12 +797,25 @@ const TopUp = () => {
         )}
       </Modal>
 
-      {/* 主布局区域 */}
+      <JeepayQRCodeModal
+        t={t}
+        visible={jeepayQRCodeOpen}
+        onCancel={() => setJeepayQRCodeOpen(false)}
+        qrCodeUrl={jeepayQRCodeData.qrCodeUrl}
+        orderId={jeepayQRCodeData.orderId}
+        wayCode={jeepayQRCodeData.wayCode}
+        money={jeepayQRCodeData.money}
+        expiredTime={jeepayQRCodeData.expiredTime}
+        expireAt={jeepayQRCodeData.expireAt}
+        onPaid={handleJeepayPaid}
+      />
+
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
+          enableJeepayTopUp={enableJeepayTopUp}
           enableCreemTopUp={enableCreemTopUp}
           creemProducts={creemProducts}
           creemPreTopUp={creemPreTopUp}
