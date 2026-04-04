@@ -654,6 +654,9 @@ func (info *RelayInfo) SetFirstResponseTimeAt(ts time.Time) {
 	if info == nil || !info.isFirstResponse || ts.IsZero() {
 		return
 	}
+	if !info.StartTime.IsZero() && ts.Before(info.StartTime) {
+		return
+	}
 	info.FirstResponseTime = ts
 	info.isFirstResponse = false
 }

@@ -69,6 +69,17 @@ func TestRelayInfoFirstResponseLatencyMs(t *testing.T) {
 		}
 	})
 
+	t.Run("positive latency", func(t *testing.T) {
+		info := &RelayInfo{
+			StartTime:         base,
+			FirstResponseTime: base.Add(1500 * time.Millisecond),
+		}
+		latency, ok := info.FirstResponseLatencyMs()
+		if !ok || latency != 1500 {
+			t.Fatalf("expected latency=1500 ok=true, got latency=%d ok=%v", latency, ok)
+		}
+	})
+
 	t.Run("future start invalidates negative latency", func(t *testing.T) {
 		info := &RelayInfo{
 			StartTime:         base.Add(2 * time.Second),
@@ -79,6 +90,31 @@ func TestRelayInfoFirstResponseLatencyMs(t *testing.T) {
 			t.Fatalf("expected invalid latency for future start time, got latency=%d ok=%v", latency, ok)
 		}
 	})
+}
+
+func TestRelayInfoSetFirstResponseTimeAtIgnoresInvalidEarlyTimestamp(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	info := &RelayInfo{
+		StartTime:       base,
+		isFirstResponse: true,
+	}
+
+	info.SetFirstResponseTimeAt(base.Add(-time.Second))
+	if !info.FirstResponseTime.IsZero() {
+		t.Fatalf("expected invalid early timestamp to be ignored, got %v", info.FirstResponseTime)
+	}
+	if !info.isFirstResponse {
+		t.Fatal("expected first-response latch to remain open after invalid timestamp")
+	}
+
+	valid := base.Add(2 * time.Second)
+	info.SetFirstResponseTimeAt(valid)
+	if !info.FirstResponseTime.Equal(valid) {
+		t.Fatalf("expected valid timestamp %v, got %v", valid, info.FirstResponseTime)
+	}
+	if info.isFirstResponse {
+		t.Fatal("expected first-response latch to close after valid timestamp")
+	}
 }
 
 func TestRelayInfoGetFinalRequestRelayFormatPrefersExplicitFinal(t *testing.T) {
