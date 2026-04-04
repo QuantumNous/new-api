@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -257,9 +258,10 @@ func RequestJeepayPay(c *gin.Context) {
 
 	paymentURL, err := createJeepayOrder(c.Request.Context(), &orderReq)
 	if err != nil {
+		log.Printf("Jeepay 下单失败 - 订单号: %s, wayCode: %s, amountFen: %d, expiredTime: %d, err: %v", tradeNo, orderReq.WayCode, orderReq.Amount, orderReq.ExpiredTime, err)
 		topUp.Status = common.TopUpStatusFailed
 		_ = topUp.Update()
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("Jeepay下单返回：%s", err.Error())})
 		return
 	}
 
@@ -406,27 +408,39 @@ func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest)
 	client := &http.Client{Timeout: 15 * time.Second}
 	response, err := client.Do(request)
 	if err != nil {
+		log.Printf("Jeepay 请求失败 - url: %s, err: %v", request.URL.String(), err)
 		return "", err
 	}
 	defer response.Body.Close()
-
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return "", fmt.Errorf("unexpected status: %d", response.StatusCode)
-	}
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", err
 	}
 
+	log.Printf("Jeepay 下单响应 - status: %d, body: %s", response.StatusCode, string(responseBody))
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+	if err != nil {
+		return "", err
+	}
+
 	var jeepayResp jeepayResponse
 	if err := common.Unmarshal(responseBody, &jeepayResp); err != nil {
+		log.Printf("Jeepay 响应解析失败 - body: %s, err: %v", string(responseBody), err)
 		return "", err
 	}
 	if jeepayResp.Code != 0 {
-		return "", fmt.Errorf("jeepay error: %s", jeepayResp.Msg)
+		return "", fmt.Errorf("%s", jeepayResp.Msg)
 	}
-	return extractJeepayPaymentURL(jeepayResp.Data)
+	paymentURL, err := extractJeepayPaymentURL(jeepayResp.Data)
+	if err != nil {
+		log.Printf("Jeepay 支付链接提取失败 - data: %+v, err: %v", jeepayResp.Data, err)
+		return "", err
+	}
+	return paymentURL, nil
 }
 
 func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
