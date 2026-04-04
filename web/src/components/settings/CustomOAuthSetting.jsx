@@ -962,6 +962,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
             </Row>
 
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input
+                  field="group_field"
+                  label={t('用户组字段（可选）')}
+                  placeholder={t('例如：groups、roles、data.group')}
+                  extraText={t('用于从用户信息中提取组名称并自动设置用户分组，支持 JSONPath 语法；如果返回数组则取第一个值')}
+                />
+              </Col>
+            </Row>
+
             <Collapse
               keepDOM
               activeKey={advancedActiveKeys}

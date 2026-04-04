@@ -20,6 +20,8 @@ type OAuthUser struct {
 	DisplayName string
 	// Email is the email from the OAuth provider
 	Email string
+	// Group is the group/role from the OAuth provider (optional, used for auto-assigning user group)
+	Group string
 	// Extra contains any additional provider-specific data
 	Extra map[string]any
 }

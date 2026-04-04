@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -209,6 +210,29 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
+
+		// Update user's group if OAuth provides a different group and it's in available groups
+		if oauthUser.Group != "" && oauthUser.Group != user.Group {
+			common.SysLog(fmt.Sprintf("[OAuth] User %d current group: '%s', OAuth group: '%s'", user.Id, user.Group, oauthUser.Group))
+			// Check if group exists in group ratio settings
+			if ratio_setting.ContainsGroupRatio(oauthUser.Group) {
+				user.Group = oauthUser.Group
+				if err := user.Update(false); err != nil {
+					common.SysError(fmt.Sprintf("[OAuth] Failed to update user %d group to '%s': %s", user.Id, oauthUser.Group, err.Error()))
+				} else {
+					common.SysLog(fmt.Sprintf("[OAuth] Updated user %d group to '%s' from OAuth provider", user.Id, oauthUser.Group))
+				}
+			} else {
+				common.SysLog(fmt.Sprintf("[OAuth] OAuth group '%s' not in group ratio settings for user %d, keeping current group '%s'", oauthUser.Group, user.Id, user.Group))
+			}
+		} else {
+			if oauthUser.Group == "" {
+				common.SysLog(fmt.Sprintf("[OAuth] User %d OAuth group is empty, skipping group update", user.Id))
+			} else if oauthUser.Group == user.Group {
+				common.SysLog(fmt.Sprintf("[OAuth] User %d group '%s' already matches OAuth group, no update needed", user.Id, user.Group))
+			}
+		}
+
 		return user, nil
 	}
 
@@ -261,6 +285,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
+
+	// Auto-assign group from OAuth provider if configured
+	if oauthUser.Group != "" {
+		// Check if the group from OAuth is in the platform's group ratio settings
+		if ratio_setting.ContainsGroupRatio(oauthUser.Group) {
+			user.Group = oauthUser.Group
+			common.SysLog(fmt.Sprintf("[OAuth] Auto-assigned group '%s' to new user from OAuth provider (matched group ratio settings)", oauthUser.Group))
+		} else {
+			common.SysLog(fmt.Sprintf("[OAuth] Group '%s' from OAuth provider not found in group ratio settings, using default 'default'", oauthUser.Group))
+		}
+	}
 
 	// Handle affiliate code
 	affCode := session.Get("aff")
