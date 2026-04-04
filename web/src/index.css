@@ -18,6 +18,35 @@
   --sidebar-width: 180px;
   --sidebar-width-collapsed: 60px;
   --sidebar-current-width: var(--sidebar-width);
+
+  /* --- Trae Emerald Primary Color Tokens --- */
+  --semi-color-primary: #00B894;
+  --semi-color-primary-hover: #00D2A6;
+  --semi-color-primary-active: #00997A;
+  --semi-color-primary-disabled: rgba(0, 184, 148, 0.4);
+  --semi-color-primary-light-default: rgba(0, 184, 148, 0.1);
+  --semi-color-primary-light-hover: rgba(0, 184, 148, 0.2);
+  --semi-color-primary-light-active: rgba(0, 184, 148, 0.3);
+
+  /* --- Pill Style Radius Tokens --- */
+  --semi-border-radius-extra-small: 6px;
+  --semi-border-radius-small: 8px;
+  --semi-border-radius-medium: 12px;
+  --semi-border-radius-large: 16px;
+  --semi-border-radius-circle: 9999px;
+  --semi-border-radius-full: 9999px;
+}
+
+/* ==================== 暗黑模式全局变量 ==================== */
+html.dark {
+  /* --- Trae Emerald Primary Color Tokens (Dark Mode adjustments) --- */
+  --semi-color-primary: #00D2A6;
+  --semi-color-primary-hover: #00E6B8;
+  --semi-color-primary-active: #00B894;
+  --semi-color-primary-disabled: rgba(0, 210, 166, 0.4);
+  --semi-color-primary-light-default: rgba(0, 210, 166, 0.15);
+  --semi-color-primary-light-hover: rgba(0, 210, 166, 0.25);
+  --semi-color-primary-light-active: rgba(0, 210, 166, 0.35);
 }
 
 body.sidebar-collapsed {
@@ -966,20 +995,24 @@ html.dark .with-pastel-balls::before {
 }
 
 /* ==================== 自定义圆角样式 ==================== */
-.semi-radio,
-.semi-tagInput,
-.semi-input-textarea-wrapper,
-.semi-navigation-sub-title,
-.semi-chat-inputBox-sendButton,
-.semi-page-item,
-.semi-navigation-item,
-.semi-tag-closable,
-.semi-input-wrapper,
-.semi-tabs-tab-button,
-.semi-select,
+/* Pill style component specific overrides */
 .semi-button,
+.semi-input-wrapper,
+.semi-select,
+.semi-tagInput-wrapper,
 .semi-datepicker-range-input {
-  border-radius: 10px !important;
+  border-radius: var(--semi-border-radius-full) !important;
+}
+
+.semi-tag-closable,
+.semi-radio-inner,
+.semi-page-item,
+.semi-tabs-tab-button {
+  border-radius: var(--semi-border-radius-full) !important;
+}
+
+.semi-input-textarea-wrapper {
+  border-radius: var(--semi-border-radius-large) !important; /* Textareas look weird as full pills */
 }
 
 @keyframes slideInLeft {
