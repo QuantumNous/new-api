@@ -156,10 +156,10 @@ const PaymentSetting = () => {
           <SettingsPaymentGatewayCreem options={inputs} refresh={onRefresh} />
         </Card>
         <Card style={{ marginTop: '10px' }}>
-          <SettingsPaymentGatewayJeepay options={inputs} refresh={onRefresh} />
+          <SettingsPaymentGatewayWaffo options={inputs} refresh={onRefresh} />
         </Card>
         <Card style={{ marginTop: '10px' }}>
-          <SettingsPaymentGatewayWaffo options={inputs} refresh={onRefresh} />
+          <SettingsPaymentGatewayJeepay options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
