@@ -258,14 +258,8 @@ func RequestJeepayPay(c *gin.Context) {
 }
 
 func JeepayNotify(c *gin.Context) {
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+	payload, err := parseJeepayNotifyPayload(c)
 	if err != nil {
-		c.String(http.StatusBadRequest, "fail")
-		return
-	}
-
-	var payload map[string]interface{}
-	if err := common.Unmarshal(bodyBytes, &payload); err != nil {
 		c.String(http.StatusBadRequest, "fail")
 		return
 	}
@@ -306,6 +300,48 @@ func JeepayNotify(c *gin.Context) {
 	}
 
 	c.String(http.StatusOK, "success")
+}
+
+func parseJeepayNotifyPayload(c *gin.Context) (map[string]interface{}, error) {
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmedBody := strings.TrimSpace(string(bodyBytes))
+	if trimmedBody != "" {
+		var payload map[string]interface{}
+		if err := common.Unmarshal([]byte(trimmedBody), &payload); err == nil && len(payload) > 0 {
+			return payload, nil
+		}
+	}
+
+	if len(bodyBytes) > 0 {
+		c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		if err := c.Request.ParseForm(); err == nil {
+			payload := make(map[string]interface{})
+			for key, values := range c.Request.PostForm {
+				if len(values) > 0 {
+					payload[key] = values[0]
+				}
+			}
+			if len(payload) > 0 {
+				return payload, nil
+			}
+		}
+	}
+
+	payload := make(map[string]interface{})
+	for key, values := range c.Request.URL.Query() {
+		if len(values) > 0 {
+			payload[key] = values[0]
+		}
+	}
+	if len(payload) > 0 {
+		return payload, nil
+	}
+
+	return nil, fmt.Errorf("empty notify payload")
 }
 
 func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest) (string, error) {
