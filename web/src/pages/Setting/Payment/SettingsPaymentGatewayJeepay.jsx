@@ -35,7 +35,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
-    JeepayBaseURL: '',
+    JeepayBaseURL: 'https://pay.jeepay.vip',
     JeepayMchNo: '',
     JeepayAppID: '',
     JeepayAPIKey: '',
@@ -48,7 +48,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
   useEffect(() => {
     if (props.options && formApiRef.current) {
       const currentInputs = {
-        JeepayBaseURL: props.options.JeepayBaseURL || '',
+        JeepayBaseURL: props.options.JeepayBaseURL || 'https://pay.jeepay.vip',
         JeepayMchNo: props.options.JeepayMchNo || '',
         JeepayAppID: props.options.JeepayAppID || '',
         JeepayAPIKey: props.options.JeepayAPIKey || '',
@@ -137,7 +137,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
               <Form.Input
                 field='JeepayBaseURL'
                 label={t('支付地址')}
-                placeholder={t('例如：https://pay.example.com')}
+                placeholder='https://pay.jeepay.vip'
               />
             </Col>
             <Col xs={24} sm={24} md={12}>

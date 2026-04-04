@@ -1,6 +1,6 @@
 package setting
 
-var JeepayBaseURL = ""
+var JeepayBaseURL = "https://pay.jeepay.vip"
 var JeepayMchNo = ""
 var JeepayAppID = ""
 var JeepayAPIKey = ""
