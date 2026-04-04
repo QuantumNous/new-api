@@ -673,11 +673,11 @@ func SafeElapsedSeconds(startTime time.Time, endTime time.Time) int64 {
 	if startTime.IsZero() || endTime.IsZero() {
 		return 0
 	}
-	elapsedSeconds := endTime.Unix() - startTime.Unix()
-	if elapsedSeconds < 0 {
+	elapsed := endTime.Sub(startTime)
+	if elapsed < 0 {
 		return 0
 	}
-	return elapsedSeconds
+	return int64(elapsed / time.Second)
 }
 
 func (info *RelayInfo) UseTimeSeconds(now time.Time) int64 {
