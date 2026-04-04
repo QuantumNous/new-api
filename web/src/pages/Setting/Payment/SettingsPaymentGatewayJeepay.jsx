@@ -122,7 +122,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
             >
               {t('Jeepay')}
             </a>
-            {t('是由计全开源的聚合支付平台，支持多种支付方式。快速上线使用，可申请计全官方通道接口：')}
+            {t('是由计全开源的聚合支付系统，支持多种支付方式。快速上线使用，可申请计全官方通道接口：')}
             <a
               href='https://mch.jeepay.vip/register?c=87SFAY'
               target='_blank'
@@ -130,7 +130,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
             >
               {t('计全付')}
             </a>
-            ，{t('请查看官方注册流程')}
+            ，
             <a
               href='https://doc.jeequan.com/#/integrate/jqf/guide/20'
               target='_blank'
@@ -138,6 +138,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
             >
               {t('官方注册流程')}
             </a>
+            。
           </Text>
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={12}>

@@ -25,6 +25,7 @@ export default function JeepayQRCodeModal({
   const pollTimerRef = useRef(null);
   const pollDeadlineRef = useRef(null);
   const countdownTimerRef = useRef(null);
+  const expireAtRef = useRef(null);
   const [remainingSeconds, setRemainingSeconds] = React.useState(null);
   const [isExpired, setIsExpired] = React.useState(false);
 
@@ -45,6 +46,7 @@ export default function JeepayQRCodeModal({
         countdownTimerRef.current = null;
       }
       pollDeadlineRef.current = null;
+      expireAtRef.current = null;
       setRemainingSeconds(null);
       setIsExpired(false);
       return undefined;
@@ -54,9 +56,12 @@ export default function JeepayQRCodeModal({
     setIsExpired(false);
 
     if (expiredTime) {
-      let leftSeconds = Number(expiredTime) || 0;
+      expireAtRef.current = Date.now() + (Number(expiredTime) || 0) * 1000;
       const updateCountdown = () => {
-        const currentLeft = Math.max(0, leftSeconds);
+        const currentLeft = Math.max(
+          0,
+          Math.ceil((expireAtRef.current - Date.now()) / 1000),
+        );
         setRemainingSeconds(currentLeft);
         if (currentLeft <= 0) {
           setIsExpired(true);
@@ -70,7 +75,6 @@ export default function JeepayQRCodeModal({
           }
           return;
         }
-        leftSeconds -= 1;
       };
       updateCountdown();
       countdownTimerRef.current = setInterval(updateCountdown, 1000);
