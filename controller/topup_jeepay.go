@@ -265,6 +265,30 @@ func RequestJeepayPay(c *gin.Context) {
 	})
 }
 
+func GetJeepayPayStatus(c *gin.Context) {
+	tradeNo := strings.TrimSpace(c.Param("tradeNo"))
+	if tradeNo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "订单号不能为空"})
+		return
+	}
+
+	userID := c.GetInt("id")
+	topUp := model.GetTopUpByTradeNo(tradeNo)
+	if topUp == nil || topUp.UserId != userID || topUp.PaymentMethod != PaymentMethodJeepay {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "订单不存在"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"trade_no": tradeNo,
+			"status":   topUp.Status,
+			"money":    topUp.Money,
+		},
+	})
+}
+
 func JeepayNotify(c *gin.Context) {
 	payload, err := parseJeepayNotifyPayload(c)
 	if err != nil {

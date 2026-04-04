@@ -732,6 +732,12 @@ const TopUp = () => {
     setOpenHistory(false);
   };
 
+  const handleJeepayPaid = async () => {
+    setJeepayQRCodeOpen(false);
+    await getUserQuota();
+    setOpenHistory(true);
+  };
+
   const handleCreemCancel = () => {
     setCreemOpen(false);
     setSelectedCreemProduct(null);
@@ -836,6 +842,7 @@ const TopUp = () => {
         orderId={jeepayQRCodeData.orderId}
         wayCode={jeepayQRCodeData.wayCode}
         money={jeepayQRCodeData.money}
+        onPaid={handleJeepayPaid}
       />
 
       {/* 主布局区域 */}

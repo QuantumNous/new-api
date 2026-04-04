@@ -1,6 +1,7 @@
-import React from 'react';
-import { Modal, Typography } from '@douyinfe/semi-ui';
+import React, { useEffect, useRef } from 'react';
+import { Modal, Toast, Typography } from '@douyinfe/semi-ui';
 import { QRCodeSVG } from 'qrcode.react';
+import { API, showError } from '../../../helpers';
 
 const { Text, Paragraph } = Typography;
 
@@ -18,12 +19,74 @@ export default function JeepayQRCodeModal({
   orderId,
   wayCode,
   money,
+  onPaid,
 }) {
+  const pollTimerRef = useRef(null);
+  const pollDeadlineRef = useRef(null);
+
   const payTips = {
     QR_CASHIER: '请使用微信/支付宝/云闪付扫码支付',
     WX_NATIVE: '请使用微信扫码支付',
     ALI_QR: '请使用支付宝扫码支付',
   };
+
+  useEffect(() => {
+    if (!visible || !orderId) {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      pollDeadlineRef.current = null;
+      return undefined;
+    }
+
+    pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+
+    const pollStatus = async () => {
+      if (Date.now() > pollDeadlineRef.current) {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        Toast.info({ content: t('支付结果处理中，请稍后在充值记录中查看') });
+        return;
+      }
+
+      try {
+        const res = await API.get(`/api/user/jeepay/status/${encodeURIComponent(orderId)}`);
+        if (!res?.data?.success) {
+          return;
+        }
+        const status = res.data?.data?.status;
+        if (status === 'success') {
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          Toast.success({ content: t('支付成功') });
+          onPaid?.();
+        } else if (status === 'failed' || status === 'expired') {
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          showError(t('订单状态已变更，请重新下单'));
+        }
+      } catch (error) {
+        // ignore transient polling errors
+      }
+    };
+
+    pollStatus();
+    pollTimerRef.current = setInterval(pollStatus, 3000);
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [visible, orderId, onPaid, t]);
 
   return (
     <Modal
