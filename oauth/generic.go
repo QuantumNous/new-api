@@ -243,6 +243,16 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 	username := gjson.Get(bodyStr, p.config.UsernameField).String()
 	displayName := gjson.Get(bodyStr, p.config.DisplayNameField).String()
 	email := gjson.Get(bodyStr, p.config.EmailField).String()
+	group := ""
+	if p.config.GroupField != "" {
+		groupResult := gjson.Get(bodyStr, p.config.GroupField)
+		// If result is an array, take the first element
+		if groupResult.IsArray() && len(groupResult.Array()) > 0 {
+			group = groupResult.Array()[0].String()
+		} else {
+			group = groupResult.String()
+		}
+	}
 
 	// If user ID field returns a number, convert it
 	if userId == "" {
@@ -260,8 +270,8 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": p.config.Name})
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo success: id=%s, username=%s, name=%s, email=%s",
-		p.config.Slug, userId, username, displayName, email)
+	common.SysLog(fmt.Sprintf("[OAuth-Generic-%s] GetUserInfo success: id=%s, username=%s, name=%s, email=%s, group=%s",
+		p.config.Slug, userId, username, displayName, email, group))
 
 	policyRaw := strings.TrimSpace(p.config.AccessPolicy)
 	if policyRaw != "" {
@@ -284,6 +294,7 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 		Username:       username,
 		DisplayName:    displayName,
 		Email:          email,
+		Group:          group,
 		Extra: map[string]any{
 			"provider": p.config.Slug,
 		},

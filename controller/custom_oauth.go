@@ -32,6 +32,7 @@ type CustomOAuthProviderResponse struct {
 	UsernameField         string `json:"username_field"`
 	DisplayNameField      string `json:"display_name_field"`
 	EmailField            string `json:"email_field"`
+	GroupField            string `json:"group_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
@@ -62,6 +63,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		UsernameField:         p.UsernameField,
 		DisplayNameField:      p.DisplayNameField,
 		EmailField:            p.EmailField,
+		GroupField:            p.GroupField,
 		WellKnown:             p.WellKnown,
 		AuthStyle:             p.AuthStyle,
 		AccessPolicy:          p.AccessPolicy,
@@ -127,6 +129,7 @@ type CreateCustomOAuthProviderRequest struct {
 	UsernameField         string `json:"username_field"`
 	DisplayNameField      string `json:"display_name_field"`
 	EmailField            string `json:"email_field"`
+	GroupField            string `json:"group_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
 	AccessPolicy          string `json:"access_policy"`
@@ -245,6 +248,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		UsernameField:         req.UsernameField,
 		DisplayNameField:      req.DisplayNameField,
 		EmailField:            req.EmailField,
+		GroupField:            req.GroupField,
 		WellKnown:             req.WellKnown,
 		AuthStyle:             req.AuthStyle,
 		AccessPolicy:          req.AccessPolicy,
@@ -282,6 +286,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	UsernameField         string  `json:"username_field"`
 	DisplayNameField      string  `json:"display_name_field"`
 	EmailField            string  `json:"email_field"`
+	GroupField            string  `json:"group_field"`
 	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
 	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
 	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
@@ -367,6 +372,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.EmailField != "" {
 		provider.EmailField = req.EmailField
+	}
+	if req.GroupField != "" {
+		provider.GroupField = req.GroupField
 	}
 	if req.WellKnown != nil {
 		provider.WellKnown = *req.WellKnown
