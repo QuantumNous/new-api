@@ -40,8 +40,6 @@ export default function SettingsPaymentGatewayJeepay(props) {
     JeepayAppID: '',
     JeepayAPIKey: '',
     JeepayWayCode: 'QR_CASHIER',
-    JeepayNotifyURL: '',
-    JeepayReturnURL: '',
     JeepayMinTopUp: 1,
     JeepayOrderTimeoutMinutes: 5,
   });
@@ -55,8 +53,6 @@ export default function SettingsPaymentGatewayJeepay(props) {
         JeepayAppID: props.options.JeepayAppID || '',
         JeepayAPIKey: props.options.JeepayAPIKey || '',
         JeepayWayCode: props.options.JeepayWayCode || 'QR_CASHIER',
-        JeepayNotifyURL: props.options.JeepayNotifyURL || '',
-        JeepayReturnURL: props.options.JeepayReturnURL || '',
         JeepayMinTopUp: parseInt(props.options.JeepayMinTopUp) || 1,
         JeepayOrderTimeoutMinutes: parseInt(props.options.JeepayOrderTimeoutMinutes) || 5,
       };
@@ -79,9 +75,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
         ...(inputs.JeepayAPIKey
           ? [{ key: 'JeepayAPIKey', value: inputs.JeepayAPIKey }]
           : []),
-        { key: 'JeepayWayCode', value: inputs.JeepayWayCode || 'WEB_CASHIER' },
-        { key: 'JeepayNotifyURL', value: inputs.JeepayNotifyURL || '' },
-        { key: 'JeepayReturnURL', value: inputs.JeepayReturnURL || '' },
+        { key: 'JeepayWayCode', value: inputs.JeepayWayCode || 'QR_CASHIER' },
         { key: 'JeepayMinTopUp', value: String(inputs.JeepayMinTopUp || 1) },
         {
           key: 'JeepayOrderTimeoutMinutes',
@@ -198,25 +192,6 @@ export default function SettingsPaymentGatewayJeepay(props) {
                 field='JeepayOrderTimeoutMinutes'
                 label={t('订单超时时间（分钟）')}
                 min={1}
-              />
-            </Col>
-          </Row>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={12}>
-              <Form.Input
-                field='JeepayNotifyURL'
-                label={t('异步通知地址')}
-                placeholder={t('留空则使用系统回调地址')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={12}>
-              <Form.Input
-                field='JeepayReturnURL'
-                label={t('支付返回地址')}
-                placeholder={t('留空则返回充值页')}
               />
             </Col>
           </Row>
