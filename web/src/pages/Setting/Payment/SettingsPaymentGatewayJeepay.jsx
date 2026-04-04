@@ -111,13 +111,33 @@ export default function SettingsPaymentGatewayJeepay(props) {
         onValueChange={handleFormChange}
         getFormApi={(api) => (formApiRef.current = api)}
       >
-        <Form.Section text={t('Jeepay 支付')}>
-          <Text>{t('用于按现有 top_up 链路拉起 Jeepay 收银台并接收异步通知。')}</Text>
+        <Form.Section text={t('Jeepay 设置')}>
+          <Text>
+            {t('Jeepay')}
+            （
+            <a
+              href='https://github.com/jeequan/jeepay'
+              target='_blank'
+              rel='noreferrer'
+            >
+              https://github.com/jeequan/jeepay
+            </a>
+            ）{t('是由计全开源的聚合支付平台，支持多种支付方式，可申请计全官方通道接口：计全付')}
+            （
+            <a
+              href='https://mch.jeepay.vip/'
+              target='_blank'
+              rel='noreferrer'
+            >
+              https://mch.jeepay.vip/
+            </a>
+            ）
+          </Text>
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={12}>
               <Form.Input
                 field='JeepayBaseURL'
-                label={t('Jeepay 服务地址')}
+                label={t('支付地址')}
                 placeholder={t('例如：https://pay.example.com')}
               />
             </Col>
@@ -156,7 +176,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
             <Col xs={24} sm={24} md={8}>
               <Form.Select
                 field='JeepayWayCode'
-                label={t('支付方式编码')}
+                label={t('支付方式')}
                 optionList={jeepayWayCodeOptions}
                 placeholder='WEB_CASHIER'
               />
