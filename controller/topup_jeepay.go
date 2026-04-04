@@ -39,21 +39,22 @@ type JeepayPayRequest struct {
 }
 
 type jeepayUnifiedOrderRequest struct {
-	MchNo      string `json:"mchNo"`
-	AppID      string `json:"appId"`
-	MchOrderNo string `json:"mchOrderNo"`
-	WayCode    string `json:"wayCode"`
-	Amount     int64  `json:"amount"`
-	Currency   string `json:"currency"`
-	ClientIP   string `json:"clientIp"`
-	Subject    string `json:"subject"`
-	Body       string `json:"body"`
-	NotifyURL  string `json:"notifyUrl"`
-	ReturnURL  string `json:"returnUrl,omitempty"`
-	ReqTime    int64  `json:"reqTime"`
-	Version    string `json:"version"`
-	Sign       string `json:"sign"`
-	SignType   string `json:"signType"`
+	MchNo       string `json:"mchNo"`
+	AppID       string `json:"appId"`
+	MchOrderNo  string `json:"mchOrderNo"`
+	WayCode     string `json:"wayCode"`
+	Amount      int64  `json:"amount"`
+	Currency    string `json:"currency"`
+	ClientIP    string `json:"clientIp"`
+	Subject     string `json:"subject"`
+	Body        string `json:"body"`
+	NotifyURL   string `json:"notifyUrl"`
+	ReturnURL   string `json:"returnUrl,omitempty"`
+	ExpiredTime int64  `json:"expiredTime,omitempty"`
+	ReqTime     int64  `json:"reqTime"`
+	Version     string `json:"version"`
+	Sign        string `json:"sign"`
+	SignType    string `json:"signType"`
 }
 
 type jeepayResponse struct {
@@ -68,6 +69,17 @@ func getJeepayMinTopup() int64 {
 		return 1
 	}
 	return int64(setting.JeepayMinTopUp)
+}
+
+func getJeepayOrderTimeoutMinutes() int64 {
+	if setting.JeepayOrderTimeoutMinutes <= 0 {
+		return 5
+	}
+	return int64(setting.JeepayOrderTimeoutMinutes)
+}
+
+func getJeepayExpiredTime(reqTime int64) int64 {
+	return reqTime + getJeepayOrderTimeoutMinutes()*60*1000
 }
 
 func isJeepayConfigured() bool {
@@ -208,20 +220,21 @@ func RequestJeepayPay(c *gin.Context) {
 	}
 
 	orderReq := jeepayUnifiedOrderRequest{
-		MchNo:      setting.JeepayMchNo,
-		AppID:      setting.JeepayAppID,
-		MchOrderNo: tradeNo,
-		WayCode:    resolveJeepayWayCode(req.WayCode),
-		Amount:     amountFen,
-		Currency:   "cny",
-		ClientIP:   c.ClientIP(),
-		Subject:    fmt.Sprintf("new-api top-up %d", req.Amount),
-		Body:       fmt.Sprintf("Top-up %d", req.Amount),
-		NotifyURL:  notifyURL,
-		ReturnURL:  returnURL,
-		ReqTime:    reqTime,
-		Version:    jeepayVersion,
-		SignType:   jeepaySignTypeMD5,
+		MchNo:       setting.JeepayMchNo,
+		AppID:       setting.JeepayAppID,
+		MchOrderNo:  tradeNo,
+		WayCode:     resolveJeepayWayCode(req.WayCode),
+		Amount:      amountFen,
+		Currency:    "cny",
+		ClientIP:    c.ClientIP(),
+		Subject:     fmt.Sprintf("new-api top-up %d", req.Amount),
+		Body:        fmt.Sprintf("Top-up %d", req.Amount),
+		NotifyURL:   notifyURL,
+		ReturnURL:   returnURL,
+		ExpiredTime: getJeepayExpiredTime(reqTime),
+		ReqTime:     reqTime,
+		Version:     jeepayVersion,
+		SignType:    jeepaySignTypeMD5,
 	}
 	signSource := map[string]interface{}{
 		"mchNo":      orderReq.MchNo,
@@ -235,6 +248,7 @@ func RequestJeepayPay(c *gin.Context) {
 		"body":       orderReq.Body,
 		"notifyUrl":  orderReq.NotifyURL,
 		"returnUrl":  orderReq.ReturnURL,
+		"expiredTime": orderReq.ExpiredTime,
 		"reqTime":    orderReq.ReqTime,
 		"version":    orderReq.Version,
 		"signType":   orderReq.SignType,
@@ -254,6 +268,7 @@ func RequestJeepayPay(c *gin.Context) {
 		"order_id":    tradeNo,
 		"way_code":    orderReq.WayCode,
 		"money":       payMoney,
+		"expired_time": orderReq.ExpiredTime,
 	}
 	if isJeepayQRCodeWay(orderReq.WayCode) {
 		responseData["qr_code_url"] = paymentURL

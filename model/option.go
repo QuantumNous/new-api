@@ -97,6 +97,7 @@ func InitOptionMap() {
 	common.OptionMap["JeepayNotifyURL"] = setting.JeepayNotifyURL
 	common.OptionMap["JeepayReturnURL"] = setting.JeepayReturnURL
 	common.OptionMap["JeepayMinTopUp"] = strconv.Itoa(setting.JeepayMinTopUp)
+	common.OptionMap["JeepayOrderTimeoutMinutes"] = strconv.Itoa(setting.JeepayOrderTimeoutMinutes)
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -398,6 +399,8 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.JeepayReturnURL = value
 	case "JeepayMinTopUp":
 		setting.JeepayMinTopUp, _ = strconv.Atoi(value)
+	case "JeepayOrderTimeoutMinutes":
+		setting.JeepayOrderTimeoutMinutes, _ = strconv.Atoi(value)
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":

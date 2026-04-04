@@ -25,8 +25,8 @@ import { useTranslation } from 'react-i18next';
 const { Text } = Typography;
 
 const jeepayWayCodeOptions = [
-  { label: '收银台（WEB_CASHIER）', value: 'WEB_CASHIER' },
   { label: '聚合扫码（QR_CASHIER）', value: 'QR_CASHIER' },
+  { label: '收银台（WEB_CASHIER）', value: 'WEB_CASHIER' },
   { label: '微信扫码（WX_NATIVE）', value: 'WX_NATIVE' },
   { label: '支付宝扫码（ALI_QR）', value: 'ALI_QR' },
 ];
@@ -39,10 +39,11 @@ export default function SettingsPaymentGatewayJeepay(props) {
     JeepayMchNo: '',
     JeepayAppID: '',
     JeepayAPIKey: '',
-    JeepayWayCode: 'WEB_CASHIER',
+    JeepayWayCode: 'QR_CASHIER',
     JeepayNotifyURL: '',
     JeepayReturnURL: '',
     JeepayMinTopUp: 1,
+    JeepayOrderTimeoutMinutes: 5,
   });
   const formApiRef = useRef(null);
 
@@ -53,10 +54,11 @@ export default function SettingsPaymentGatewayJeepay(props) {
         JeepayMchNo: props.options.JeepayMchNo || '',
         JeepayAppID: props.options.JeepayAppID || '',
         JeepayAPIKey: props.options.JeepayAPIKey || '',
-        JeepayWayCode: props.options.JeepayWayCode || 'WEB_CASHIER',
+        JeepayWayCode: props.options.JeepayWayCode || 'QR_CASHIER',
         JeepayNotifyURL: props.options.JeepayNotifyURL || '',
         JeepayReturnURL: props.options.JeepayReturnURL || '',
         JeepayMinTopUp: parseInt(props.options.JeepayMinTopUp) || 1,
+        JeepayOrderTimeoutMinutes: parseInt(props.options.JeepayOrderTimeoutMinutes) || 5,
       };
       setInputs(currentInputs);
       formApiRef.current.setValues(currentInputs);
@@ -81,6 +83,10 @@ export default function SettingsPaymentGatewayJeepay(props) {
         { key: 'JeepayNotifyURL', value: inputs.JeepayNotifyURL || '' },
         { key: 'JeepayReturnURL', value: inputs.JeepayReturnURL || '' },
         { key: 'JeepayMinTopUp', value: String(inputs.JeepayMinTopUp || 1) },
+        {
+          key: 'JeepayOrderTimeoutMinutes',
+          value: String(inputs.JeepayOrderTimeoutMinutes || 5),
+        },
       ];
 
       const results = await Promise.all(
@@ -184,6 +190,13 @@ export default function SettingsPaymentGatewayJeepay(props) {
               <Form.InputNumber
                 field='JeepayMinTopUp'
                 label={t('最小充值数量')}
+                min={1}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={8}>
+              <Form.InputNumber
+                field='JeepayOrderTimeoutMinutes'
+                label={t('订单超时时间（分钟）')}
                 min={1}
               />
             </Col>

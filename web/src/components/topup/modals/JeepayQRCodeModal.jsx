@@ -19,10 +19,13 @@ export default function JeepayQRCodeModal({
   orderId,
   wayCode,
   money,
+  expiredTime,
   onPaid,
 }) {
   const pollTimerRef = useRef(null);
   const pollDeadlineRef = useRef(null);
+  const countdownTimerRef = useRef(null);
+  const [remainingSeconds, setRemainingSeconds] = React.useState(null);
 
   const payTips = {
     QR_CASHIER: '请使用微信/支付宝/云闪付扫码支付',
@@ -36,11 +39,25 @@ export default function JeepayQRCodeModal({
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
       pollDeadlineRef.current = null;
+      setRemainingSeconds(null);
       return undefined;
     }
 
     pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+
+    if (expiredTime) {
+      const updateCountdown = () => {
+        const left = Math.max(0, Math.ceil((expiredTime - Date.now()) / 1000));
+        setRemainingSeconds(left);
+      };
+      updateCountdown();
+      countdownTimerRef.current = setInterval(updateCountdown, 1000);
+    }
 
     const pollStatus = async () => {
       if (Date.now() > pollDeadlineRef.current) {
@@ -85,8 +102,12 @@ export default function JeepayQRCodeModal({
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
     };
-  }, [visible, orderId, onPaid, t]);
+  }, [visible, orderId, expiredTime, onPaid, t]);
 
   return (
     <Modal
@@ -106,6 +127,9 @@ export default function JeepayQRCodeModal({
         )}
         {money !== '' && money !== null && money !== undefined ? (
           <Text>{t('实付金额')}：{Number(money).toFixed(2)} {t('元')}</Text>
+        ) : null}
+        {remainingSeconds !== null ? (
+          <Text>{t('支付剩余时间')}：{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</Text>
         ) : null}
         {orderId ? (
           <Text type='tertiary' size='small'>

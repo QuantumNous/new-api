@@ -93,6 +93,7 @@ const TopUp = () => {
     orderId: '',
     wayCode: '',
     money: '',
+    expiredTime: null,
   });
 
   const affFetchedRef = useRef(false);
@@ -260,6 +261,7 @@ const TopUp = () => {
                 orderId: data.order_id || '',
                 wayCode: data.way_code,
                 money: data.money || '',
+                expiredTime: data.expired_time || null,
               });
               setJeepayQRCodeOpen(true);
             } else {
@@ -842,6 +844,7 @@ const TopUp = () => {
         orderId={jeepayQRCodeData.orderId}
         wayCode={jeepayQRCodeData.wayCode}
         money={jeepayQRCodeData.money}
+        expiredTime={jeepayQRCodeData.expiredTime}
         onPaid={handleJeepayPaid}
       />
 
