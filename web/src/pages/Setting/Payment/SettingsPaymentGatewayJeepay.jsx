@@ -74,7 +74,9 @@ export default function SettingsPaymentGatewayJeepay(props) {
         { key: 'JeepayBaseURL', value: inputs.JeepayBaseURL || '' },
         { key: 'JeepayMchNo', value: inputs.JeepayMchNo || '' },
         { key: 'JeepayAppID', value: inputs.JeepayAppID || '' },
-        { key: 'JeepayAPIKey', value: inputs.JeepayAPIKey || '' },
+        ...(inputs.JeepayAPIKey
+          ? [{ key: 'JeepayAPIKey', value: inputs.JeepayAPIKey }]
+          : []),
         { key: 'JeepayWayCode', value: inputs.JeepayWayCode || 'WEB_CASHIER' },
         { key: 'JeepayNotifyURL', value: inputs.JeepayNotifyURL || '' },
         { key: 'JeepayReturnURL', value: inputs.JeepayReturnURL || '' },
