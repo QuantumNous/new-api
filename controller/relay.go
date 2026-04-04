@@ -746,13 +746,13 @@ func getModelCapability(modelName string) modelCapability {
 			cap.supportsTools = true
 		}
 
-		// 设置优先级
+		// 设置优先级（基于模型能力，而非请求内容）
 		if cap.supportsVision {
 			cap.priority = 80
 		} else if cap.supportsTools {
 			cap.priority = 60
 		} else {
-			cap.priority = 40
+			cap.priority = 90 // 纯文本模型优先级最高
 		}
 
 		// 缓存结果
@@ -762,7 +762,7 @@ func getModelCapability(modelName string) modelCapability {
 
 	// 当模型元数据不可用时，返回默认能力（纯文本模型）
 	cap := modelCapability{
-		priority: 40, // 默认优先级
+		priority: 90, // 默认纯文本模型优先级最高
 	}
 
 	// 缓存结果
