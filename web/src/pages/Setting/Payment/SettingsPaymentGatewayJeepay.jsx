@@ -113,25 +113,22 @@ export default function SettingsPaymentGatewayJeepay(props) {
       >
         <Form.Section text={t('Jeepay 设置')}>
           <Text>
-            {t('Jeepay')}
-            （
             <a
               href='https://github.com/jeequan/jeepay'
               target='_blank'
               rel='noreferrer'
             >
-              https://github.com/jeequan/jeepay
+              {t('Jeepay')}
             </a>
-            ）{t('是由计全开源的聚合支付平台，支持多种支付方式，可申请计全官方通道接口：计全付')}
-            （
+            {t('是由计全开源的聚合支付平台，支持多种支付方式，可申请计全官方通道接口：')}
             <a
               href='https://mch.jeepay.vip/'
               target='_blank'
               rel='noreferrer'
             >
-              https://mch.jeepay.vip/
+              {t('计全付')}
             </a>
-            ）
+            。
           </Text>
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={12}>
