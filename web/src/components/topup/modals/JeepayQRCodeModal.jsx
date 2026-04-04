@@ -26,6 +26,7 @@ export default function JeepayQRCodeModal({
   const pollDeadlineRef = useRef(null);
   const countdownTimerRef = useRef(null);
   const [remainingSeconds, setRemainingSeconds] = React.useState(null);
+  const [isExpired, setIsExpired] = React.useState(false);
 
   const payTips = {
     QR_CASHIER: '请使用微信/支付宝/云闪付扫码支付',
@@ -45,15 +46,30 @@ export default function JeepayQRCodeModal({
       }
       pollDeadlineRef.current = null;
       setRemainingSeconds(null);
+      setIsExpired(false);
       return undefined;
     }
 
     pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+    setIsExpired(false);
 
     if (expiredTime) {
       let leftSeconds = Number(expiredTime) || 0;
       const updateCountdown = () => {
-        setRemainingSeconds(Math.max(0, leftSeconds));
+        const currentLeft = Math.max(0, leftSeconds);
+        setRemainingSeconds(currentLeft);
+        if (currentLeft <= 0) {
+          setIsExpired(true);
+          if (countdownTimerRef.current) {
+            clearInterval(countdownTimerRef.current);
+            countdownTimerRef.current = null;
+          }
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          return;
+        }
         leftSeconds -= 1;
       };
       updateCountdown();
@@ -67,6 +83,10 @@ export default function JeepayQRCodeModal({
           pollTimerRef.current = null;
         }
         Toast.info({ content: t('支付结果处理中，请稍后在充值记录中查看') });
+        return;
+      }
+
+      if (isExpired) {
         return;
       }
 
@@ -108,7 +128,7 @@ export default function JeepayQRCodeModal({
         countdownTimerRef.current = null;
       }
     };
-  }, [visible, orderId, expiredTime, onPaid, t]);
+  }, [visible, orderId, expiredTime, isExpired, onPaid, t]);
 
   return (
     <Modal
@@ -131,7 +151,26 @@ export default function JeepayQRCodeModal({
           </div>
         ) : null}
 
-        {qrCodeUrl ? (
+        {isExpired ? (
+          <div
+            style={{
+              width: 220,
+              height: 220,
+              borderRadius: 12,
+              background: 'var(--semi-color-fill-0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              gap: 8,
+              color: 'var(--semi-color-text-2)',
+              border: '1px dashed var(--semi-color-border)',
+            }}
+          >
+            <Text strong>{t('二维码已过期')}</Text>
+            <Text type='secondary'>{t('请重新下单获取新的支付码')}</Text>
+          </div>
+        ) : qrCodeUrl ? (
           <QRCodeSVG value={qrCodeUrl} size={220} includeMargin />
         ) : (
           <Text type='danger'>{t('二维码内容为空')}</Text>
