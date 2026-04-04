@@ -121,22 +121,35 @@ export default function JeepayQRCodeModal({
     >
       <div className='flex flex-col items-center gap-3 py-2'>
         <Text strong>{t(payTips[wayCode] || '请使用扫码支付')}</Text>
+
+        {money !== '' && money !== null && money !== undefined ? (
+          <div className='flex flex-col items-center gap-1'>
+            <Text type='secondary'>{t('实付金额')}</Text>
+            <Text strong style={{ fontSize: 24, color: '#ef4444' }}>
+              {Number(money).toFixed(2)} {t('元')}
+            </Text>
+          </div>
+        ) : null}
+
         {qrCodeUrl ? (
           <QRCodeSVG value={qrCodeUrl} size={220} includeMargin />
         ) : (
           <Text type='danger'>{t('二维码内容为空')}</Text>
         )}
-        {money !== '' && money !== null && money !== undefined ? (
-          <Text>{t('实付金额')}：{Number(money).toFixed(2)} {t('元')}</Text>
-        ) : null}
-        {remainingSeconds !== null ? (
-          <Text>{t('支付剩余时间')}：{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</Text>
-        ) : null}
-        {orderId ? (
-          <Text type='tertiary' size='small'>
-            {t('订单号')}：{orderId}
-          </Text>
-        ) : null}
+
+        <div className='flex flex-col items-center gap-1'>
+          {orderId ? (
+            <Text type='tertiary' size='small'>
+              {t('订单号')}：{orderId}
+            </Text>
+          ) : null}
+          {remainingSeconds !== null ? (
+            <Text type='secondary' size='small'>
+              {t('支付剩余时间')}：{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
+            </Text>
+          ) : null}
+        </div>
+
         <Paragraph type='warning' style={{ textAlign: 'center', marginBottom: 0 }}>
           {t('该码只能扫一次，再次扫码需重新下单！')}
         </Paragraph>
