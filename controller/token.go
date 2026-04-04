@@ -94,6 +94,37 @@ func GetTokenKey(c *gin.Context) {
 	})
 }
 
+func BatchGetTokenKeys(c *gin.Context) {
+	userId := c.GetInt("id")
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Ids) == 0 {
+		common.ApiError(c, fmt.Errorf("ids is empty"))
+		return
+	}
+	if len(req.Ids) > 100 {
+		common.ApiError(c, fmt.Errorf("batch size exceeds limit (max 100)"))
+		return
+	}
+	tokens, err := model.GetTokensByIdsAndUserId(req.Ids, userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	keys := make(map[int]string, len(tokens))
+	for _, token := range tokens {
+		keys[token.Id] = token.GetFullKey()
+	}
+	common.ApiSuccess(c, gin.H{
+		"keys": keys,
+	})
+}
+
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")

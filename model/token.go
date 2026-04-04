@@ -234,6 +234,15 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	}
 }
 
+func GetTokensByIdsAndUserId(ids []int, userId int) ([]*Token, error) {
+	if len(ids) == 0 || userId == 0 {
+		return nil, errors.New("ids 或 userId 为空！")
+	}
+	var tokens []*Token
+	err := DB.Where("id IN ? AND user_id = ?", ids, userId).Find(&tokens).Error
+	return tokens, err
+}
+
 func GetTokenByIds(id int, userId int) (*Token, error) {
 	if id == 0 || userId == 0 {
 		return nil, errors.New("id 或 userId 为空！")
