@@ -3,9 +3,10 @@ package operation_setting
 import "github.com/QuantumNous/new-api/setting/config"
 
 type ChannelAffinityKeySource struct {
-	Type string `json:"type"` // context_int, context_string, gjson
-	Key  string `json:"key,omitempty"`
-	Path string `json:"path,omitempty"`
+	Type       string `json:"type"` // context_int, context_string, request_header, gjson
+	Key        string `json:"key,omitempty"`
+	Path       string `json:"path,omitempty"`
+	NestedPath string `json:"nested_path,omitempty"`
 }
 
 type ChannelAffinityRule struct {
@@ -85,12 +86,12 @@ func buildClaudeCliHeaderTemplate(headers []string) map[string]interface{} {
 			},
 			{
 				"mode": "sync_fields",
-				"from": "header:x-claude-code-session-id",
+				"from": "context:channel_affinity.key",
 				"to":   "header:session_id",
 			},
 			{
 				"mode": "sync_fields",
-				"from": "header:x-claude-code-session-id",
+				"from": "context:channel_affinity.key",
 				"to":   "json:prompt_cache_key",
 			},
 		},
@@ -123,7 +124,8 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			ModelRegex: []string{"^claude-.*$", "^gpt-.*$"},
 			PathRegex:  []string{"/v1/messages"},
 			KeySources: []ChannelAffinityKeySource{
-				{Type: "gjson", Path: "metadata.user_id"},
+				{Type: "request_header", Key: "X-Claude-Code-Session-Id"},
+				{Type: "gjson", Path: "metadata.user_id", NestedPath: "session_id"},
 			},
 			ValueRegex:            "",
 			TTLSeconds:            0,

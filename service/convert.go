@@ -14,62 +14,11 @@ import (
 	"github.com/samber/lo"
 )
 
-type claudeClientSessionMeta struct {
-	SessionID string `json:"session_id"`
-}
-
-func getRequestHeaderIgnoreCase(headers map[string]string, name string) string {
-	if len(headers) == 0 {
-		return ""
-	}
-	for key, value := range headers {
-		if strings.EqualFold(strings.TrimSpace(key), name) {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
-func derivePromptCacheKeyFromClaudeRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) string {
-	if info != nil {
-		for _, headerName := range []string{
-			"X-Claude-Code-Session-Id",
-			"Session_id",
-			"session_id",
-		} {
-			if value := getRequestHeaderIgnoreCase(info.RequestHeaders, headerName); value != "" {
-				return value
-			}
-		}
-	}
-
-	if len(claudeRequest.Metadata) == 0 {
-		return ""
-	}
-
-	var metadata dto.ClaudeMetadata
-	if err := common.Unmarshal(claudeRequest.Metadata, &metadata); err != nil {
-		return ""
-	}
-	if strings.TrimSpace(metadata.UserId) == "" {
-		return ""
-	}
-
-	var sessionMeta claudeClientSessionMeta
-	if err := common.UnmarshalJsonStr(metadata.UserId, &sessionMeta); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(sessionMeta.SessionID)
-}
-
 func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.RelayInfo) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
 		Temperature: claudeRequest.Temperature,
 		Metadata:    claudeRequest.Metadata,
-	}
-	if cacheKey := derivePromptCacheKeyFromClaudeRequest(claudeRequest, info); cacheKey != "" {
-		openAIRequest.PromptCacheKey = cacheKey
 	}
 	if claudeRequest.MaxTokens != nil {
 		openAIRequest.MaxTokens = lo.ToPtr(lo.FromPtr(claudeRequest.MaxTokens))

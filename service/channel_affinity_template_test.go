@@ -260,10 +260,12 @@ func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *tes
 	}
 	require.NotNil(t, claudeRule)
 
-	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
+	meta := channelAffinityMeta{
 		RuleName:      claudeRule.Name,
 		ParamTemplate: claudeRule.ParamOverrideTemplate,
-	})
+		KeyValue:      "claude-session-123",
+	}
+	ctx := buildChannelAffinityTemplateContextForTest(meta)
 
 	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, map[string]interface{}{})
 	require.True(t, applied)
@@ -275,7 +277,8 @@ func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *tes
 			"X-App":                    "cli",
 		},
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ParamOverride: mergedOverride,
+			ParamOverride:        mergedOverride,
+			ParamOverrideContext: buildChannelAffinityParamOverrideContext(meta),
 		},
 	}
 
@@ -288,4 +291,35 @@ func TestClaudeTemplateSyncsClaudeSessionToPromptCacheKeyAndSessionHeader(t *tes
 	require.Equal(t, "claude-session-123", info.RuntimeHeadersOverride["session_id"])
 	require.Equal(t, "claude-cli-test", info.RuntimeHeadersOverride["user-agent"])
 	require.Equal(t, "cli", info.RuntimeHeadersOverride["x-app"])
+}
+
+func TestExtractChannelAffinityValueFromRequestHeader(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set("X-Claude-Code-Session-Id", "header-session")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type: "request_header",
+		Key:  "X-Claude-Code-Session-Id",
+	})
+	require.Equal(t, "header-session", value)
+}
+
+func TestExtractChannelAffinityValueFromNestedJSONString(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/v1/messages",
+		strings.NewReader(`{"metadata":{"user_id":"{\"device_id\":\"dev-1\",\"session_id\":\"nested-session\"}"}}`),
+	)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	value := extractChannelAffinityValue(ctx, operation_setting.ChannelAffinityKeySource{
+		Type:       "gjson",
+		Path:       "metadata.user_id",
+		NestedPath: "session_id",
+	})
+	require.Equal(t, "nested-session", value)
 }

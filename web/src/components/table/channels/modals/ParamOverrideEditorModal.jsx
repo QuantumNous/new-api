@@ -273,6 +273,7 @@ const getModeValuePlaceholder = (mode) => {
 const SYNC_TARGET_TYPE_OPTIONS = [
   { label: '请求体字段', value: 'json' },
   { label: '请求头字段', value: 'header' },
+  { label: '上下文字段', value: 'context' },
 ];
 
 const LEGACY_TEMPLATE = {
@@ -770,11 +771,15 @@ const parseSyncTargetSpec = (spec) => {
   if (prefix === 'header') {
     return { type: 'header', key };
   }
+  if (prefix === 'context') {
+    return { type: 'context', key };
+  }
   return { type: 'json', key };
 };
 
 const buildSyncTargetSpec = (type, key) => {
-  const normalizedType = type === 'header' ? 'header' : 'json';
+  const normalizedType =
+    type === 'header' || type === 'context' ? type : 'json';
   const normalizedKey = String(key ?? '').trim();
   if (!normalizedKey) return '';
   return `${normalizedType}:${normalizedKey}`;
@@ -2989,14 +2994,12 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     className='cursor-pointer'
                                     onClick={() =>
                                       updateOperation(selectedOperation.id, {
-                                        from: 'header:session_id',
+                                        from: 'context:channel_affinity.key',
                                         to: 'json:prompt_cache_key',
                                       })
                                     }
                                   >
-                                    {
-                                      'header:session_id -> json:prompt_cache_key'
-                                    }
+                                    {'context:channel_affinity.key -> json:prompt_cache_key'}
                                   </Tag>
                                   <Tag
                                     size='small'
@@ -3004,14 +3007,12 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     className='cursor-pointer'
                                     onClick={() =>
                                       updateOperation(selectedOperation.id, {
-                                        from: 'json:prompt_cache_key',
+                                        from: 'context:channel_affinity.key',
                                         to: 'header:session_id',
                                       })
                                     }
                                   >
-                                    {
-                                      'json:prompt_cache_key -> header:session_id'
-                                    }
+                                    {'context:channel_affinity.key -> header:session_id'}
                                   </Tag>
                                 </Space>
                               </div>

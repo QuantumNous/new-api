@@ -61,12 +61,12 @@ export const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = {
     },
     {
       mode: 'sync_fields',
-      from: 'header:x-claude-code-session-id',
+      from: 'context:channel_affinity.key',
       to: 'header:session_id',
     },
     {
       mode: 'sync_fields',
-      from: 'header:x-claude-code-session-id',
+      from: 'context:channel_affinity.key',
       to: 'json:prompt_cache_key',
     },
   ],
@@ -93,7 +93,10 @@ export const CHANNEL_AFFINITY_RULE_TEMPLATES = {
     name: 'claude cli trace',
     model_regex: ['^claude-.*$', '^gpt-.*$'],
     path_regex: ['/v1/messages'],
-    key_sources: [{ type: 'gjson', path: 'metadata.user_id' }],
+    key_sources: [
+      { type: 'request_header', key: 'X-Claude-Code-Session-Id' },
+      { type: 'gjson', path: 'metadata.user_id', nested_path: 'session_id' },
+    ],
     param_override_template: CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
     value_regex: '',
     ttl_seconds: 0,
