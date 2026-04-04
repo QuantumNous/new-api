@@ -92,6 +92,7 @@ const TopUp = () => {
     qrCodeUrl: '',
     orderId: '',
     wayCode: '',
+    money: '',
   });
 
   const affFetchedRef = useRef(false);
@@ -258,6 +259,7 @@ const TopUp = () => {
                 qrCodeUrl: data.qr_code_url || data.payment_url || '',
                 orderId: data.order_id || '',
                 wayCode: data.way_code,
+                money: data.money || '',
               });
               setJeepayQRCodeOpen(true);
             } else {
@@ -833,6 +835,7 @@ const TopUp = () => {
         qrCodeUrl={jeepayQRCodeData.qrCodeUrl}
         orderId={jeepayQRCodeData.orderId}
         wayCode={jeepayQRCodeData.wayCode}
+        money={jeepayQRCodeData.money}
       />
 
       {/* 主布局区域 */}

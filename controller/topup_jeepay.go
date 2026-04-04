@@ -253,6 +253,7 @@ func RequestJeepayPay(c *gin.Context) {
 		"payment_url": paymentURL,
 		"order_id":    tradeNo,
 		"way_code":    orderReq.WayCode,
+		"money":       payMoney,
 	}
 	if isJeepayQRCodeWay(orderReq.WayCode) {
 		responseData["qr_code_url"] = paymentURL
