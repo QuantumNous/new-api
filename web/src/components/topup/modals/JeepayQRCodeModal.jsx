@@ -51,9 +51,10 @@ export default function JeepayQRCodeModal({
     pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
 
     if (expiredTime) {
+      let leftSeconds = Number(expiredTime) || 0;
       const updateCountdown = () => {
-        const left = Math.max(0, Math.ceil((expiredTime - Date.now()) / 1000));
-        setRemainingSeconds(left);
+        setRemainingSeconds(Math.max(0, leftSeconds));
+        leftSeconds -= 1;
       };
       updateCountdown();
       countdownTimerRef.current = setInterval(updateCountdown, 1000);

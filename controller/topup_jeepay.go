@@ -79,8 +79,8 @@ func getJeepayOrderTimeoutMinutes() int64 {
 	return int64(setting.JeepayOrderTimeoutMinutes)
 }
 
-func getJeepayExpiredTime(reqTime int64) int64 {
-	return reqTime + getJeepayOrderTimeoutMinutes()*60*1000
+func getJeepayExpiredTime() int64 {
+	return getJeepayOrderTimeoutMinutes() * 60
 }
 
 func isJeepayConfigured() bool {
@@ -232,7 +232,7 @@ func RequestJeepayPay(c *gin.Context) {
 		Body:        fmt.Sprintf("Top-up %d", req.Amount),
 		NotifyURL:   notifyURL,
 		ReturnURL:   returnURL,
-		ExpiredTime: getJeepayExpiredTime(reqTime),
+		ExpiredTime: getJeepayExpiredTime(),
 		ReqTime:     reqTime,
 		Version:     jeepayVersion,
 		SignType:    jeepaySignTypeMD5,
