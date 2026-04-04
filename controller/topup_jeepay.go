@@ -238,21 +238,21 @@ func RequestJeepayPay(c *gin.Context) {
 		SignType:    jeepaySignTypeMD5,
 	}
 	signSource := map[string]interface{}{
-		"mchNo":      orderReq.MchNo,
-		"appId":      orderReq.AppID,
-		"mchOrderNo": orderReq.MchOrderNo,
-		"wayCode":    orderReq.WayCode,
-		"amount":     orderReq.Amount,
-		"currency":   orderReq.Currency,
-		"clientIp":   orderReq.ClientIP,
-		"subject":    orderReq.Subject,
-		"body":       orderReq.Body,
-		"notifyUrl":  orderReq.NotifyURL,
-		"returnUrl":  orderReq.ReturnURL,
+		"mchNo":       orderReq.MchNo,
+		"appId":       orderReq.AppID,
+		"mchOrderNo":  orderReq.MchOrderNo,
+		"wayCode":     orderReq.WayCode,
+		"amount":      orderReq.Amount,
+		"currency":    orderReq.Currency,
+		"clientIp":    orderReq.ClientIP,
+		"subject":     orderReq.Subject,
+		"body":        orderReq.Body,
+		"notifyUrl":   orderReq.NotifyURL,
+		"returnUrl":   orderReq.ReturnURL,
 		"expiredTime": orderReq.ExpiredTime,
-		"reqTime":    orderReq.ReqTime,
-		"version":    orderReq.Version,
-		"signType":   orderReq.SignType,
+		"reqTime":     orderReq.ReqTime,
+		"version":     orderReq.Version,
+		"signType":    orderReq.SignType,
 	}
 	orderReq.Sign = buildJeepaySign(signSource, setting.JeepayAPIKey)
 
@@ -265,12 +265,14 @@ func RequestJeepayPay(c *gin.Context) {
 		return
 	}
 
+	expireAt := time.Now().Add(time.Duration(orderReq.ExpiredTime) * time.Second).Unix()
 	responseData := gin.H{
-		"payment_url": paymentURL,
-		"order_id":    tradeNo,
-		"way_code":    orderReq.WayCode,
-		"money":       payMoney,
+		"payment_url":  paymentURL,
+		"order_id":     tradeNo,
+		"way_code":     orderReq.WayCode,
+		"money":        payMoney,
 		"expired_time": orderReq.ExpiredTime,
+		"expire_at":    expireAt,
 	}
 	if isJeepayQRCodeWay(orderReq.WayCode) {
 		responseData["qr_code_url"] = paymentURL
@@ -296,12 +298,19 @@ func GetJeepayPayStatus(c *gin.Context) {
 		return
 	}
 
+	status := topUp.Status
+	expireAt := topUp.CreateTime + getJeepayExpiredTime()
+	if status == common.TopUpStatusPending && expireAt > 0 && time.Now().Unix() >= expireAt {
+		status = "expired"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"trade_no": tradeNo,
-			"status":   topUp.Status,
-			"money":    topUp.Money,
+			"trade_no":  tradeNo,
+			"status":    status,
+			"money":     topUp.Money,
+			"expire_at": expireAt,
 		},
 	})
 }
@@ -330,6 +339,25 @@ func JeepayNotify(c *gin.Context) {
 	}
 
 	state := jeepayValueToString(payload["state"])
+
+	if state == jeepayStateSuccess {
+		topUp := model.GetTopUpByTradeNo(tradeNo)
+		if topUp == nil || topUp.PaymentMethod != PaymentMethodJeepay {
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
+		notifyAmount, err := parseJeepayAmountFen(payload["amount"])
+		if err != nil {
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
+		expectedAmount := int64(topUp.Money*100 + 0.5)
+		if notifyAmount != expectedAmount {
+			log.Printf("Jeepay 通知金额不一致 - tradeNo: %s, expectedFen: %d, actualFen: %d", tradeNo, expectedAmount, notifyAmount)
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
+	}
 
 	LockOrder(tradeNo)
 	defer UnlockOrder(tradeNo)
@@ -418,9 +446,8 @@ func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest)
 		return "", err
 	}
 
-	log.Printf("Jeepay 下单响应 - status: %d, body: %s", response.StatusCode, string(responseBody))
-
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		log.Printf("Jeepay 下单失败响应 - status: %d, body: %s", response.StatusCode, truncateJeepayLogBody(responseBody))
 		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
 	if err != nil {
@@ -429,17 +456,19 @@ func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest)
 
 	var jeepayResp jeepayResponse
 	if err := common.Unmarshal(responseBody, &jeepayResp); err != nil {
-		log.Printf("Jeepay 响应解析失败 - body: %s, err: %v", string(responseBody), err)
+		log.Printf("Jeepay 响应解析失败 - status: %d, body: %s, err: %v", response.StatusCode, truncateJeepayLogBody(responseBody), err)
 		return "", err
 	}
 	if jeepayResp.Code != 0 {
+		log.Printf("Jeepay 业务失败 - code: %d, msg: %s", jeepayResp.Code, strings.TrimSpace(jeepayResp.Msg))
 		return "", fmt.Errorf("%s", jeepayResp.Msg)
 	}
 	paymentURL, err := extractJeepayPaymentURL(jeepayResp.Data)
 	if err != nil {
-		log.Printf("Jeepay 支付链接提取失败 - data: %+v, err: %v", jeepayResp.Data, err)
+		log.Printf("Jeepay 支付链接提取失败 - err: %v", err)
 		return "", err
 	}
+	log.Printf("Jeepay 下单成功 - mchOrderNo: %s, wayCode: %s, status: %d", orderReq.MchOrderNo, orderReq.WayCode, response.StatusCode)
 	return paymentURL, nil
 }
 
@@ -483,6 +512,48 @@ func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
 	}
 
 	return "", fmt.Errorf("payment url not found")
+}
+
+func truncateJeepayLogBody(body []byte) string {
+	const maxLen = 256
+	trimmed := strings.TrimSpace(string(body))
+	if len(trimmed) <= maxLen {
+		return trimmed
+	}
+	return trimmed[:maxLen] + "..."
+}
+
+func parseJeepayAmountFen(value interface{}) (int64, error) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), nil
+	case int64:
+		return typed, nil
+	case float64:
+		return int64(typed), nil
+	case float32:
+		return int64(typed), nil
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return 0, fmt.Errorf("empty amount")
+		}
+		parsed, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return parsed, nil
+	default:
+		trimmed := strings.TrimSpace(fmt.Sprintf("%v", typed))
+		if trimmed == "" {
+			return 0, fmt.Errorf("empty amount")
+		}
+		parsed, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return parsed, nil
+	}
 }
 
 func getJeepayWayCode() string {

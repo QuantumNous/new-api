@@ -5,12 +5,6 @@ import { API, showError } from '../../../helpers';
 
 const { Text, Paragraph } = Typography;
 
-const wayCodeLabelMap = {
-  QR_CASHIER: '聚合扫码',
-  WX_NATIVE: '微信扫码',
-  ALI_QR: '支付宝扫码',
-};
-
 export default function JeepayQRCodeModal({
   t,
   visible,
@@ -20,10 +14,10 @@ export default function JeepayQRCodeModal({
   wayCode,
   money,
   expiredTime,
+  expireAt,
   onPaid,
 }) {
   const pollTimerRef = useRef(null);
-  const pollDeadlineRef = useRef(null);
   const countdownTimerRef = useRef(null);
   const expireAtRef = useRef(null);
   const [remainingSeconds, setRemainingSeconds] = React.useState(null);
@@ -46,16 +40,17 @@ export default function JeepayQRCodeModal({
     }
 
     if (!visible || !orderId) {
-      pollDeadlineRef.current = null;
       expireAtRef.current = null;
       setRemainingSeconds(null);
       setIsExpired(false);
       return undefined;
     }
 
-    pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
-    expireAtRef.current = Date.now() + (Number(expiredTime) || 0) * 1000;
-    setIsExpired(false);
+    const expireAtMs = Number(expireAt) > 0
+      ? Number(expireAt) * 1000
+      : Date.now() + (Number(expiredTime) || 0) * 1000;
+    expireAtRef.current = expireAtMs;
+    setIsExpired(Date.now() >= expireAtMs);
 
     const markExpired = () => {
       setIsExpired(true);
@@ -85,7 +80,7 @@ export default function JeepayQRCodeModal({
     countdownTimerRef.current = setInterval(updateCountdown, 1000);
 
     const pollStatus = async () => {
-      if (Date.now() > pollDeadlineRef.current || Date.now() > expireAtRef.current) {
+      if (Date.now() > expireAtRef.current) {
         markExpired();
         return;
       }
@@ -108,7 +103,11 @@ export default function JeepayQRCodeModal({
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
-          showError(t('订单状态已变更，请重新下单'));
+          if (status === 'expired') {
+            markExpired();
+          } else {
+            showError(t('订单状态已变更，请重新下单'));
+          }
         }
       } catch (error) {
         // ignore transient polling errors
@@ -128,7 +127,7 @@ export default function JeepayQRCodeModal({
         countdownTimerRef.current = null;
       }
     };
-  }, [visible, orderId, expiredTime, onPaid, t]);
+  }, [visible, orderId, expiredTime, expireAt, onPaid, t]);
 
   return (
     <Modal
