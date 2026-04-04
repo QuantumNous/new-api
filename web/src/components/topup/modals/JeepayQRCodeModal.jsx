@@ -36,15 +36,16 @@ export default function JeepayQRCodeModal({
   };
 
   useEffect(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+
     if (!visible || !orderId) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current);
-        countdownTimerRef.current = null;
-      }
       pollDeadlineRef.current = null;
       expireAtRef.current = null;
       setRemainingSeconds(null);
@@ -53,44 +54,39 @@ export default function JeepayQRCodeModal({
     }
 
     pollDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+    expireAtRef.current = Date.now() + (Number(expiredTime) || 0) * 1000;
     setIsExpired(false);
 
-    if (expiredTime) {
-      expireAtRef.current = Date.now() + (Number(expiredTime) || 0) * 1000;
-      const updateCountdown = () => {
-        const currentLeft = Math.max(
-          0,
-          Math.ceil((expireAtRef.current - Date.now()) / 1000),
-        );
-        setRemainingSeconds(currentLeft);
-        if (currentLeft <= 0) {
-          setIsExpired(true);
-          if (countdownTimerRef.current) {
-            clearInterval(countdownTimerRef.current);
-            countdownTimerRef.current = null;
-          }
-          if (pollTimerRef.current) {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-          }
-          return;
-        }
-      };
-      updateCountdown();
-      countdownTimerRef.current = setInterval(updateCountdown, 1000);
-    }
+    const markExpired = () => {
+      setIsExpired(true);
+      setRemainingSeconds(0);
+      if (countdownTimerRef.current) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+
+    const updateCountdown = () => {
+      const currentLeft = Math.max(
+        0,
+        Math.ceil((expireAtRef.current - Date.now()) / 1000),
+      );
+      setRemainingSeconds(currentLeft);
+      if (currentLeft <= 0) {
+        markExpired();
+      }
+    };
+
+    updateCountdown();
+    countdownTimerRef.current = setInterval(updateCountdown, 1000);
 
     const pollStatus = async () => {
-      if (Date.now() > pollDeadlineRef.current) {
-        if (pollTimerRef.current) {
-          clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-        }
-        Toast.info({ content: t('支付结果处理中，请稍后在充值记录中查看') });
-        return;
-      }
-
-      if (isExpired) {
+      if (Date.now() > pollDeadlineRef.current || Date.now() > expireAtRef.current) {
+        markExpired();
         return;
       }
 
@@ -132,7 +128,7 @@ export default function JeepayQRCodeModal({
         countdownTimerRef.current = null;
       }
     };
-  }, [visible, orderId, expiredTime, isExpired, onPaid, t]);
+  }, [visible, orderId, expiredTime, onPaid, t]);
 
   return (
     <Modal
