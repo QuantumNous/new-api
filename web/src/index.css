@@ -178,7 +178,7 @@ code {
 
 /* 侧边栏导航项样式 */
 .sidebar-nav-item {
-  border-radius: 6px;
+  border-radius: var(--semi-border-radius-full);
   margin: 3px 8px;
   transition: all 0.15s ease;
   padding: 8px 12px;
@@ -964,6 +964,11 @@ html.dark .with-pastel-balls::before {
 .semi-card-header,
 .semi-card-body {
   padding: 10px !important;
+}
+
+/* Card Soft Rounded Style */
+.semi-card {
+  border-radius: var(--semi-border-radius-large) !important;
 }
 
 /* ==================== 使用日志: channel affinity tag ==================== */
