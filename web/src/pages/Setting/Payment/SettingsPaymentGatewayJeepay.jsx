@@ -18,11 +18,18 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Col, Form, Row, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Select, Spin, Typography } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
+
+const jeepayWayCodeOptions = [
+  { label: '收银台（WEB_CASHIER）', value: 'WEB_CASHIER' },
+  { label: '聚合扫码（QR_CASHIER）', value: 'QR_CASHIER' },
+  { label: '微信扫码（WX_NATIVE）', value: 'WX_NATIVE' },
+  { label: '支付宝扫码（ALI_QR）', value: 'ALI_QR' },
+];
 
 export default function SettingsPaymentGatewayJeepay(props) {
   const { t } = useTranslation();
@@ -147,9 +154,10 @@ export default function SettingsPaymentGatewayJeepay(props) {
             style={{ marginTop: 16 }}
           >
             <Col xs={24} sm={24} md={8}>
-              <Form.Input
+              <Form.Select
                 field='JeepayWayCode'
                 label={t('支付方式编码')}
+                optionList={jeepayWayCodeOptions}
                 placeholder='WEB_CASHIER'
               />
             </Col>

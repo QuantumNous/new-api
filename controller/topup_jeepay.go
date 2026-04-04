@@ -35,6 +35,7 @@ const (
 type JeepayPayRequest struct {
 	Amount        int64  `json:"amount"`
 	PaymentMethod string `json:"payment_method"`
+	WayCode       string `json:"way_code,omitempty"`
 }
 
 type jeepayUnifiedOrderRequest struct {
@@ -210,7 +211,7 @@ func RequestJeepayPay(c *gin.Context) {
 		MchNo:      setting.JeepayMchNo,
 		AppID:      setting.JeepayAppID,
 		MchOrderNo: tradeNo,
-		WayCode:    getJeepayWayCode(),
+		WayCode:    resolveJeepayWayCode(req.WayCode),
 		Amount:     amountFen,
 		Currency:   "cny",
 		ClientIP:   c.ClientIP(),
@@ -248,12 +249,18 @@ func RequestJeepayPay(c *gin.Context) {
 		return
 	}
 
+	responseData := gin.H{
+		"payment_url": paymentURL,
+		"order_id":    tradeNo,
+		"way_code":    orderReq.WayCode,
+	}
+	if isJeepayQRCodeWay(orderReq.WayCode) {
+		responseData["qr_code_url"] = paymentURL
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
-		"data": gin.H{
-			"payment_url": paymentURL,
-			"order_id":    tradeNo,
-		},
+		"data":    responseData,
 	})
 }
 
@@ -426,9 +433,38 @@ func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
 
 func getJeepayWayCode() string {
 	if setting.JeepayWayCode != "" {
-		return setting.JeepayWayCode
+		return strings.ToUpper(setting.JeepayWayCode)
 	}
 	return "WEB_CASHIER"
+}
+
+func resolveJeepayWayCode(requestWayCode string) string {
+	candidate := strings.ToUpper(strings.TrimSpace(requestWayCode))
+	if candidate == "" {
+		candidate = getJeepayWayCode()
+	}
+	if isSupportedJeepayWayCode(candidate) {
+		return candidate
+	}
+	return getJeepayWayCode()
+}
+
+func isSupportedJeepayWayCode(wayCode string) bool {
+	switch strings.ToUpper(strings.TrimSpace(wayCode)) {
+	case "WEB_CASHIER", "QR_CASHIER", "WX_NATIVE", "ALI_QR":
+		return true
+	default:
+		return false
+	}
+}
+
+func isJeepayQRCodeWay(wayCode string) bool {
+	switch strings.ToUpper(strings.TrimSpace(wayCode)) {
+	case "QR_CASHIER", "WX_NATIVE", "ALI_QR":
+		return true
+	default:
+		return false
+	}
 }
 
 func operationQuotaDisplayIsTokens() bool {

@@ -102,6 +102,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_stripe_topup": setting.StripeApiSecret != "" && setting.StripeWebhookSecret != "" && setting.StripePriceId != "",
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
 		"enable_jeepay_topup": enableJeepay,
+		"jeepay_way_code":     getJeepayWayCode(),
 		"enable_waffo_topup": enableWaffo,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {

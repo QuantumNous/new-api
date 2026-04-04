@@ -39,6 +39,7 @@ import InvitationCard from './InvitationCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import JeepayQRCodeModal from './modals/JeepayQRCodeModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
@@ -86,6 +87,12 @@ const TopUp = () => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [payMethods, setPayMethods] = useState([]);
+  const [jeepayQRCodeOpen, setJeepayQRCodeOpen] = useState(false);
+  const [jeepayQRCodeData, setJeepayQRCodeData] = useState({
+    qrCodeUrl: '',
+    orderId: '',
+    wayCode: '',
+  });
 
   const affFetchedRef = useRef(false);
 
@@ -225,9 +232,11 @@ const TopUp = () => {
           payment_method: 'stripe',
         });
       } else if (payWay === 'jeepay') {
+        const selectedMethod = payMethods.find((method) => method.type === 'jeepay');
         res = await API.post('/api/user/jeepay/pay', {
           amount: parseInt(topUpCount),
           payment_method: 'jeepay',
+          way_code: selectedMethod?.way_code || 'WEB_CASHIER',
         });
       } else {
         // 普通支付请求
@@ -244,7 +253,16 @@ const TopUp = () => {
             // Stripe 支付回调处理
             window.open(data.pay_link, '_blank');
           } else if (payWay === 'jeepay') {
-            window.open(data.payment_url, '_blank');
+            if (data?.way_code && ['QR_CASHIER', 'WX_NATIVE', 'ALI_QR'].includes(data.way_code)) {
+              setJeepayQRCodeData({
+                qrCodeUrl: data.qr_code_url || data.payment_url || '',
+                orderId: data.order_id || '',
+                wayCode: data.way_code,
+              });
+              setJeepayQRCodeOpen(true);
+            } else {
+              window.open(data.payment_url, '_blank');
+            }
           } else {
             // 普通支付表单提交
             let params = data;
@@ -492,7 +510,17 @@ const TopUp = () => {
           // 如果启用了 Stripe 支付，添加到支付方法列表
           // 这个逻辑现在由后端处理，如果 Stripe 启用，后端会在 pay_methods 中包含它
 
-          setPayMethods(payMethods);
+          const normalizedPayMethods = payMethods.map((method) => {
+            if (method.type === 'jeepay') {
+              return {
+                ...method,
+                way_code: method.way_code || data.jeepay_way_code || 'WEB_CASHIER',
+              };
+            }
+            return method;
+          });
+
+          setPayMethods(normalizedPayMethods);
           const enableStripeTopUp = data.enable_stripe_topup || false;
           const enableJeepayTopUp = data.enable_jeepay_topup || false;
           const enableOnlineTopUp = data.enable_online_topup || false;
@@ -797,6 +825,15 @@ const TopUp = () => {
           </>
         )}
       </Modal>
+
+      <JeepayQRCodeModal
+        t={t}
+        visible={jeepayQRCodeOpen}
+        onCancel={() => setJeepayQRCodeOpen(false)}
+        qrCodeUrl={jeepayQRCodeData.qrCodeUrl}
+        orderId={jeepayQRCodeData.orderId}
+        wayCode={jeepayQRCodeData.wayCode}
+      />
 
       {/* 主布局区域 */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
