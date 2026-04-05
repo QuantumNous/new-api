@@ -103,9 +103,8 @@ export default function JeepayQRCodeModal({
             clearInterval(pollTimerRef.current);
             pollTimerRef.current = null;
           }
-          if (status === 'expired') {
-            markExpired();
-          } else {
+          markExpired();
+          if (status === 'failed') {
             showError(t('订单状态已变更，请重新下单'));
           }
         }
