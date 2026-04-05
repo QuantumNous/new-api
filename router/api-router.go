@@ -203,6 +203,18 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		// Model configuration (alias and deprecated models)
+		modelConfigRoute := apiRouter.Group("/model-config")
+		modelConfigRoute.Use(middleware.AdminAuth())
+		{
+			modelConfigRoute.GET("/aliases", controller.ListModelAliasesAPI)
+			modelConfigRoute.POST("/aliases", controller.AddModelAliasAPI)
+			modelConfigRoute.DELETE("/aliases/:alias", controller.RemoveModelAliasAPI)
+			modelConfigRoute.GET("/deprecated", controller.ListDeprecatedModelsAPI)
+			modelConfigRoute.POST("/deprecated", controller.AddDeprecatedModelAPI)
+			modelConfigRoute.DELETE("/deprecated/:model", controller.RemoveDeprecatedModelAPI)
+		}
+
 		channelRoute := apiRouter.Group("/channel")
 		channelRoute.Use(middleware.AdminAuth())
 		{
