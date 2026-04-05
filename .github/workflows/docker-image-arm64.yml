@@ -73,14 +73,14 @@ jobs:
 #        with:
 #          registry: ghcr.io
 #          username: ${{ github.actor }}
-#          password: ${{ secrets.GITHUB_TOKEN }}
+#          password: ${{ secrets.DOCKERHUB_GITHUB_TOKEN }}
 
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: |
-            calciumion/new-api
+            dinghualabs/new-api
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}
 
       - name: Build & push single-arch (to both registries)
@@ -91,8 +91,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: |
-            calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}
-            calciumion/new-api:latest-${{ matrix.arch }}
+            dinghualabs/new-api:${{ env.TAG }}-${{ matrix.arch }}
+            dinghualabs/new-api:latest-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:${{ env.TAG }}-${{ matrix.arch }}
 #            ghcr.io/${{ env.GHCR_REPOSITORY }}:latest-${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -105,13 +105,13 @@ jobs:
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
 
       - name: Sign image with cosign
-        run: cosign sign --yes calciumion/new-api@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes dinghualabs/new-api@${{ steps.build.outputs.digest }}
 
       - name: Output digest
         run: |
           echo "### Docker Image Digest (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "calciumion/new-api:${{ env.TAG }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "dinghualabs/new-api:${{ env.TAG }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -141,22 +141,22 @@ jobs:
       - name: Create & push manifest (Docker Hub - version)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${TAG} \
-            calciumion/new-api:${TAG}-amd64 \
-            calciumion/new-api:${TAG}-arm64
+            -t dinghualabs/new-api:${TAG} \
+            dinghualabs/new-api:${TAG}-amd64 \
+            dinghualabs/new-api:${TAG}-arm64
 
       - name: Create & push manifest (Docker Hub - latest)
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:latest \
-            calciumion/new-api:latest-amd64 \
-            calciumion/new-api:latest-arm64
+            -t dinghualabs/new-api:latest \
+            dinghualabs/new-api:latest-amd64 \
+            dinghualabs/new-api:latest-arm64
 
       - name: Output manifest digest
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect calciumion/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect dinghualabs/new-api:${TAG} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       # ---- GHCR ----
