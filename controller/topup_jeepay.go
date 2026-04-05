@@ -128,6 +128,9 @@ func buildJeepaySign(params map[string]interface{}, apiKey string) string {
 }
 
 func jeepayValueToString(value interface{}) string {
+	if value == nil {
+		return ""
+	}
 	switch typed := value.(type) {
 	case string:
 		return typed
@@ -220,11 +223,13 @@ func RequestJeepayPay(c *gin.Context) {
 		return
 	}
 
+	wayCode := resolveJeepayWayCode(req.WayCode)
+
 	orderReq := jeepayUnifiedOrderRequest{
 		MchNo:       setting.JeepayMchNo,
 		AppID:       setting.JeepayAppID,
 		MchOrderNo:  tradeNo,
-		WayCode:     resolveJeepayWayCode(req.WayCode),
+		WayCode:     wayCode,
 		Amount:      amountFen,
 		Currency:    "cny",
 		ClientIP:    c.ClientIP(),
@@ -265,7 +270,8 @@ func RequestJeepayPay(c *gin.Context) {
 		return
 	}
 
-	expireAt := time.Now().Add(time.Duration(orderReq.ExpiredTime) * time.Second).Unix()
+	// 与 GetJeepayPayStatus 保持一致，统一基于 topUp.CreateTime 计算过期时间
+	expireAt := topUp.CreateTime + orderReq.ExpiredTime
 	responseData := gin.H{
 		"payment_url":  paymentURL,
 		"order_id":     tradeNo,
@@ -274,7 +280,9 @@ func RequestJeepayPay(c *gin.Context) {
 		"expired_time": orderReq.ExpiredTime,
 		"expire_at":    expireAt,
 	}
-	if isJeepayQRCodeWay(orderReq.WayCode) {
+	// 聚合扫码/微信扫码/支付宝扫码：前端弹二维码弹窗，内容为 Jeepay 返回的链接
+	// 收银台：前端跳转到 Jeepay 返回的链接
+	if isJeepayQRCodeWay(wayCode) {
 		responseData["qr_code_url"] = paymentURL
 	}
 
@@ -450,9 +458,6 @@ func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest)
 		log.Printf("Jeepay 下单失败响应 - status: %d, body: %s", response.StatusCode, truncateJeepayLogBody(responseBody))
 		return "", fmt.Errorf("HTTP %d: %s", response.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
-	if err != nil {
-		return "", err
-	}
 
 	var jeepayResp jeepayResponse
 	if err := common.Unmarshal(responseBody, &jeepayResp); err != nil {
@@ -465,10 +470,10 @@ func createJeepayOrder(ctx context.Context, orderReq *jeepayUnifiedOrderRequest)
 	}
 	paymentURL, err := extractJeepayPaymentURL(jeepayResp.Data)
 	if err != nil {
-		log.Printf("Jeepay 支付链接提取失败 - err: %v", err)
+		log.Printf("Jeepay 支付链接提取失败 - data: %v, err: %v", jeepayResp.Data, err)
 		return "", err
 	}
-	log.Printf("Jeepay 下单成功 - mchOrderNo: %s, wayCode: %s, status: %d", orderReq.MchOrderNo, orderReq.WayCode, response.StatusCode)
+	log.Printf("Jeepay 下单成功 - mchOrderNo: %s, wayCode: %s, paymentURL: %s", orderReq.MchOrderNo, orderReq.WayCode, paymentURL)
 	return paymentURL, nil
 }
 

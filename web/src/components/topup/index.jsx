@@ -251,9 +251,10 @@ const TopUp = () => {
           if (payWay === 'stripe') {
             window.open(data.pay_link, '_blank');
           } else if (payWay === 'jeepay') {
-            if (data?.way_code && ['QR_CASHIER', 'WX_NATIVE', 'ALI_QR'].includes(data.way_code)) {
+            // 有 qr_code_url 则显示二维码，否则跳转收银台
+            if (data.qr_code_url) {
               setJeepayQRCodeData({
-                qrCodeUrl: data.qr_code_url || data.payment_url || '',
+                qrCodeUrl: data.qr_code_url,
                 orderId: data.order_id || '',
                 wayCode: data.way_code,
                 money: data.money || '',

@@ -18,6 +18,15 @@ import (
 func setupJeepayTestDB(t *testing.T) {
 	t.Helper()
 
+	origDB, origLogDB := model.DB, model.LOG_DB
+	origSQLite, origMySQL, origPG := common.UsingSQLite, common.UsingMySQL, common.UsingPostgreSQL
+	origRedis, origLogConsume, origQuotaPerUnit := common.RedisEnabled, common.LogConsumeEnabled, common.QuotaPerUnit
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = origDB, origLogDB
+		common.UsingSQLite, common.UsingMySQL, common.UsingPostgreSQL = origSQLite, origMySQL, origPG
+		common.RedisEnabled, common.LogConsumeEnabled, common.QuotaPerUnit = origRedis, origLogConsume, origQuotaPerUnit
+	})
+
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
@@ -56,7 +65,7 @@ func TestJeepayNotify(t *testing.T) {
 	setupJeepayTestDB(t)
 	gin.SetMode(gin.TestMode)
 
-	settingJeepayForTest()
+	settingJeepayForTest(t)
 
 	user := &model.User{
 		Username: "alice",
@@ -119,7 +128,7 @@ func TestJeepayNotifyRejectsInvalidSignature(t *testing.T) {
 	setupJeepayTestDB(t)
 	gin.SetMode(gin.TestMode)
 
-	settingJeepayForTest()
+	settingJeepayForTest(t)
 
 	topUp := &model.TopUp{
 		UserId:        1,
@@ -170,7 +179,12 @@ const (
 	settingJeepayApiKeyForTest = "secret-key"
 )
 
-func settingJeepayForTest() {
+func settingJeepayForTest(t *testing.T) {
+	t.Helper()
+	origBaseURL, origMchNo, origAppID, origAPIKey := setting.JeepayBaseURL, setting.JeepayMchNo, setting.JeepayAppID, setting.JeepayAPIKey
+	t.Cleanup(func() {
+		setting.JeepayBaseURL, setting.JeepayMchNo, setting.JeepayAppID, setting.JeepayAPIKey = origBaseURL, origMchNo, origAppID, origAPIKey
+	})
 	setting.JeepayBaseURL = "https://jeepay.example.com"
 	setting.JeepayMchNo = settingJeepayMchNoForTest
 	setting.JeepayAppID = settingJeepayAppIDForTest

@@ -18,6 +18,7 @@ export default function JeepayQRCodeModal({
   onPaid,
 }) {
   const pollTimerRef = useRef(null);
+  const pollingRef = useRef(false);
   const countdownTimerRef = useRef(null);
   const expireAtRef = useRef(null);
   const [remainingSeconds, setRemainingSeconds] = React.useState(null);
@@ -80,11 +81,13 @@ export default function JeepayQRCodeModal({
     countdownTimerRef.current = setInterval(updateCountdown, 1000);
 
     const pollStatus = async () => {
+      if (pollingRef.current) return;
       if (Date.now() > expireAtRef.current) {
         markExpired();
         return;
       }
 
+      pollingRef.current = true;
       try {
         const res = await API.get(`/api/user/jeepay/status/${encodeURIComponent(orderId)}`);
         if (!res?.data?.success) {
@@ -110,6 +113,8 @@ export default function JeepayQRCodeModal({
         }
       } catch (error) {
         // ignore transient polling errors
+      } finally {
+        pollingRef.current = false;
       }
     };
 
