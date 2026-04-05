@@ -477,7 +477,12 @@ func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("empty data")
 	}
 
-	for _, key := range []string{"payUrl", "payData", "codeUrl", "cashierUrl"} {
+	// codeUrl 可能使用非 HTTP scheme（如 weixin://...），优先提取且不要求 HTTP 前缀
+	if value := strings.TrimSpace(jeepayValueToString(data["codeUrl"])); value != "" {
+		return value, nil
+	}
+
+	for _, key := range []string{"payUrl", "payData", "cashierUrl"} {
 		value := strings.TrimSpace(jeepayValueToString(data[key]))
 		if value != "" && strings.HasPrefix(value, "http") {
 			return value, nil
@@ -492,7 +497,10 @@ func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
 		if strings.HasPrefix(trimmed, "{") {
 			var nested map[string]interface{}
 			if err := common.Unmarshal([]byte(trimmed), &nested); err == nil {
-				for _, key := range []string{"payUrl", "cashierUrl", "codeUrl"} {
+				if value := strings.TrimSpace(jeepayValueToString(nested["codeUrl"])); value != "" {
+					return value, nil
+				}
+				for _, key := range []string{"payUrl", "cashierUrl"} {
 					value := strings.TrimSpace(jeepayValueToString(nested[key]))
 					if value != "" && strings.HasPrefix(value, "http") {
 						return value, nil
@@ -503,7 +511,10 @@ func extractJeepayPaymentURL(data map[string]interface{}) (string, error) {
 	}
 
 	if payData, ok := data["payData"].(map[string]interface{}); ok {
-		for _, key := range []string{"payUrl", "cashierUrl", "codeUrl"} {
+		if value := strings.TrimSpace(jeepayValueToString(payData["codeUrl"])); value != "" {
+			return value, nil
+		}
+		for _, key := range []string{"payUrl", "cashierUrl"} {
 			value := strings.TrimSpace(jeepayValueToString(payData[key]))
 			if value != "" && strings.HasPrefix(value, "http") {
 				return value, nil
