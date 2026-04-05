@@ -398,9 +398,17 @@ func updateOptionMap(key string, value string) (err error) {
 	case "JeepayReturnURL":
 		setting.JeepayReturnURL = value
 	case "JeepayMinTopUp":
-		setting.JeepayMinTopUp, _ = strconv.Atoi(value)
+		if parsedValue, convErr := strconv.Atoi(value); convErr != nil {
+			return convErr
+		} else {
+			setting.JeepayMinTopUp = parsedValue
+		}
 	case "JeepayOrderTimeoutMinutes":
-		setting.JeepayOrderTimeoutMinutes, _ = strconv.Atoi(value)
+		if parsedValue, convErr := strconv.Atoi(value); convErr != nil {
+			return convErr
+		} else {
+			setting.JeepayOrderTimeoutMinutes = parsedValue
+		}
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":
