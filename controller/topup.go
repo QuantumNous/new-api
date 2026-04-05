@@ -92,7 +92,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Jeepay",
 				"type":      PaymentMethodJeepay,
 				"color":     "rgba(var(--semi-green-5), 1)",
-				"min_topup": strconv.Itoa(setting.JeepayMinTopUp),
+				"min_topup": strconv.FormatInt(getJeepayMinTopup(), 10),
 			})
 		}
 	}
@@ -103,7 +103,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_creem_topup":  setting.CreemApiKey != "" && setting.CreemProducts != "[]",
 		"enable_jeepay_topup":          enableJeepay,
 		"jeepay_way_code":              getJeepayWayCode(),
-		"jeepay_order_timeout_minutes": setting.JeepayOrderTimeoutMinutes,
+		"jeepay_order_timeout_minutes": getJeepayOrderTimeoutMinutes(),
 		"enable_waffo_topup": enableWaffo,
 		"waffo_pay_methods": func() interface{} {
 			if enableWaffo {
@@ -114,7 +114,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"creem_products": setting.CreemProducts,
 		"pay_methods":         payMethods,
 		"min_topup":           operation_setting.MinTopUp,
-		"jeepay_min_topup":    setting.JeepayMinTopUp,
+		"jeepay_min_topup":    getJeepayMinTopup(),
 		"stripe_min_topup":    setting.StripeMinTopUp,
 		"waffo_min_topup":     setting.WaffoMinTopUp,
 		"amount_options":      operation_setting.GetPaymentSetting().AmountOptions,
