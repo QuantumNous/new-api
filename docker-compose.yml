@@ -12,13 +12,9 @@
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
-version: '3.4' # For compatibility with older Docker versions
-
 services:
   new-api:
-    build:
-      context: .
-    image: calciumion/new-api:latest
+    image: ghcr.io/tonytown6033/new-api@sha256:ba83d3c4761931190e0c7c0bdcf1e0a924d1e37d208af5197b9fd00e4ad112ac
     container_name: new-api
     restart: always
     command: --log-dir /app/logs
