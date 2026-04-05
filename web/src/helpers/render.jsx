@@ -563,7 +563,7 @@ export function getOAuthProviderIcon(iconName, size = 20) {
     return (
       <img
         src={raw}
-        alt='provider icon'
+        alt=''
         width={iconSize}
         height={iconSize}
         style={{ borderRadius: 4, objectFit: 'cover' }}

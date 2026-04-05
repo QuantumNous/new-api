@@ -84,10 +84,10 @@ const getVendorDisplayName = (vendorName, t) => {
     : vendorName;
 };
 
-const createDefaultAvatar = () => (
+const createDefaultAvatar = (t) => (
   <div className={COMPONENT_STYLES.avatarContainer}>
     <Avatar size='large' color='transparent'>
-      AI
+      {t('AI')}
     </Avatar>
   </div>
 );
@@ -119,7 +119,7 @@ const createAvatarContent = (vendor, isAllVendors) => {
 
 const renderVendorAvatar = (vendor, t, isAllVendors = false) => {
   if (!vendor) {
-    return createDefaultAvatar();
+    return createDefaultAvatar(t);
   }
 
   const displayName = getVendorDisplayName(vendor.name, t);

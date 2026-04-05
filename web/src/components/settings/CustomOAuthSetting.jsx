@@ -246,7 +246,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       if (res.data.success) {
         setProviders(res.data.data || []);
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('获取自定义 OAuth 提供商列表失败'));
       }
     } catch (error) {
       showError(t('获取自定义 OAuth 提供商列表失败'));
@@ -296,7 +296,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         showSuccess(t('删除成功'));
         fetchProviders();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('删除失败'));
       }
     } catch (error) {
       showError(t('删除失败'));
@@ -320,9 +320,23 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       requiredFields.push('client_secret');
     }
 
+    const requiredFieldLabels = {
+      name: t('名称'),
+      slug: t('唯一标识'),
+      client_id: t('Client ID'),
+      client_secret: t('Client Secret'),
+      authorization_endpoint: t('授权端点 URL'),
+      token_endpoint: t('令牌端点 URL'),
+      user_info_endpoint: t('用户信息端点 URL'),
+    };
+
     for (const field of requiredFields) {
       if (!currentValues[field]) {
-        showError(t(`请填写 ${field}`));
+        showError(
+          t('请填写 {{field}}', {
+            field: requiredFieldLabels[field] || field,
+          }),
+        );
         return;
       }
     }
@@ -362,7 +376,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         closeModal();
         fetchProviders();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || (editingProvider ? t('更新失败') : t('创建失败')));
       }
     } catch (error) {
       showError(
@@ -542,7 +556,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       key: 'name',
     },
     {
-      title: 'Slug',
+      title: t('标识符 (Slug)'),
       dataIndex: 'slug',
       key: 'slug',
       render: (slug) => <Tag>{slug}</Tag>,
@@ -581,6 +595,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           <Popconfirm
             title={t('确定要删除此 OAuth 提供商吗？')}
             onConfirm={() => handleDelete(record.id)}
+            okText={t('确定')}
+            cancelText={t('取消')}
           >
             <Button icon={<IconDelete />} size="small" type="danger">
               {t('删除')}
@@ -782,7 +798,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="slug"
-                  label="Slug"
+                  label={t('Slug')}
                   placeholder={t('例如：github-enterprise')}
                   extraText={t('URL 标识，只能包含小写字母、数字和连字符')}
                   rules={[{ required: true, message: t('请输入 Slug') }]}
@@ -829,7 +845,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="client_id"
-                  label="Client ID"
+                  label={t('Client ID')}
                   placeholder={t('OAuth Client ID')}
                   rules={[{ required: true, message: t('请输入 Client ID') }]}
                 />
@@ -837,7 +853,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Col span={12}>
                 <Form.Input
                   field="client_secret"
-                  label="Client Secret"
+                  label={t('Client Secret')}
                   type="password"
                   placeholder={
                     editingProvider
@@ -909,7 +925,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Form.Input
                   field="scopes"
                   label={t('Scopes（可选）')}
-                  placeholder="openid profile email"
+                  placeholder={t('例如：openid profile email')}
                   extraText={
                     discoveryInfo?.scopesSupported?.length
                       ? t('Discovery 建议 scopes：') +

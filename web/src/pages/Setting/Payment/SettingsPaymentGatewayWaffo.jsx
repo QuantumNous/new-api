@@ -201,7 +201,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
-          showError(res.data.message);
+          showError(res.data.message || t('更新失败'));
         });
       } else {
         showSuccess(t('更新成功'));
@@ -277,7 +277,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
         text ? (
           <img
             src={text}
-            alt='icon'
+            alt=''
             style={{ width: 24, height: 24, objectFit: 'contain' }}
           />
         ) : (
@@ -328,7 +328,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
           <Text>
             {t('Waffo 是一个支付聚合平台，支持多种支付方式。')}
             <a href='https://waffo.com' target='_blank' rel='noreferrer'>
-              Waffo Official Site
+              {'waffo.com'}
             </a>
             <br />
           </Text>
@@ -538,7 +538,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
               {payMethodForm.icon && (
                 <img
                   src={payMethodForm.icon}
-                  alt='preview'
+                  alt=''
                   style={{
                     width: 32,
                     height: 32,
@@ -584,7 +584,7 @@ export default function SettingsPaymentGatewayWaffo(props) {
             <Input
               value={payMethodForm.payMethodType}
               onChange={(val) => setPayMethodForm({ ...payMethodForm, payMethodType: val })}
-              placeholder='CREDITCARD,DEBITCARD'
+              placeholder={'CREDITCARD,DEBITCARD'}
               maxLength={64}
             />
             <Text type='tertiary' size='small'>{t('Waffo API 参数，可空，例如：CREDITCARD,DEBITCARD（最多64位）')}</Text>

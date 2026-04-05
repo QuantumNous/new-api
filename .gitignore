@@ -29,3 +29,5 @@ data/
 .gomodcache/
 .gocache-temp
 .gopath
+.air.toml
+docker-compose.dev.yml

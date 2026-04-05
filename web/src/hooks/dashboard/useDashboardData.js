@@ -134,7 +134,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     }
 
     const username = userState?.user?.username || '';
-    return `👋${greeting}，${username}`;
+    return `👋 ${greeting} ${username}`.trim();
   }, [t, userState?.user?.username]);
 
   // ========== 回调函数 ==========
@@ -177,7 +177,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         if (data.length === 0) {
           data.push({
             count: 0,
-            model_name: '无数据',
+            model_name: t('暂无数据'),
             quota: 0,
             created_at: now.getTime() / 1000,
           });
@@ -185,13 +185,13 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         data.sort((a, b) => a.created_at - b.created_at);
         return data;
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
         return [];
       }
     } finally {
       setLoading(false);
     }
-  }, [inputs, dataExportDefaultTime, isAdminUser, now]);
+  }, [inputs, dataExportDefaultTime, isAdminUser, now, t]);
 
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
@@ -204,7 +204,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
           setActiveUptimeTab(data[0].categoryName);
         }
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (err) {
       console.error(err);
@@ -219,7 +219,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     if (success) {
       userDispatch({ type: 'login', payload: data });
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   }, [userDispatch]);
 

@@ -53,7 +53,7 @@ export const useDashboardCharts = (
     data: [
       {
         id: 'id0',
-        values: [{ type: 'null', value: '0' }],
+        values: [{ type: t('暂无数据'), value: '0' }],
       },
     ],
     outerRadius: 0.8,
@@ -154,7 +154,7 @@ export const useDashboardCharts = (
           array.sort((a, b) => b.value - a.value);
           let sum = 0;
           for (let i = 0; i < array.length; i++) {
-            if (array[i].key == '其他') {
+            if (array[i].key === t('其他') || array[i].key === '其他') {
               continue;
             }
             let value = parseFloat(array[i].value);
@@ -271,6 +271,27 @@ export const useDashboardCharts = (
     return newModelColors;
   }, []);
 
+  const localizeModelName = useCallback(
+    (modelName) => {
+      const raw = String(modelName ?? '').trim();
+      const lower = raw.toLowerCase();
+      if (
+        !raw ||
+        raw === '无数据' ||
+        raw === '暂无数据' ||
+        lower === 'no data' ||
+        lower === 'null'
+      ) {
+        return t('暂无数据');
+      }
+      if (raw === '其他') {
+        return t('其他');
+      }
+      return raw;
+    },
+    [t],
+  );
+
   const updateChartData = useCallback(
     (data) => {
       const processedData = processRawData(
@@ -300,7 +321,10 @@ export const useDashboardCharts = (
       );
       setTrendData(trendDataResult);
 
-      const newModelColors = generateModelColors(uniqueModels, {});
+      const localizedModelSet = new Set(
+        Array.from(uniqueModels).map((model) => localizeModelName(model)),
+      );
+      const newModelColors = generateModelColors(localizedModelSet, {});
       setModelColors(newModelColors);
 
       const aggregatedData = aggregateDataByTimeAndModel(
@@ -310,7 +334,11 @@ export const useDashboardCharts = (
 
       const modelTotals = new Map();
       for (let [_, value] of aggregatedData) {
-        updateMapValue(modelTotals, value.model, value.count);
+        updateMapValue(
+          modelTotals,
+          localizeModelName(value.model),
+          value.count,
+        );
       }
 
       const newPieData = Array.from(modelTotals)
@@ -334,7 +362,7 @@ export const useDashboardCharts = (
           const aggregated = aggregatedData.get(key);
           return {
             Time: time,
-            Model: model,
+            Model: localizeModelName(model),
             rawQuota: aggregated?.quota || 0,
             Usage: aggregated?.quota
               ? getQuotaWithUnit(aggregated.quota, 4)
@@ -374,7 +402,7 @@ export const useDashboardCharts = (
           const aggregated = aggregatedData.get(key);
           return {
             Time: time,
-            Model: model,
+            Model: localizeModelName(model),
             Count: aggregated?.count || 0,
           };
         });
@@ -416,6 +444,7 @@ export const useDashboardCharts = (
       dataExportDefaultTime,
       setTrendData,
       generateModelColors,
+      localizeModelName,
       setModelColors,
       setPieData,
       setLineData,

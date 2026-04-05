@@ -248,7 +248,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const columns = useMemo(() => {
     return [
       {
-        title: 'ID',
+        title: t('ID'),
         dataIndex: ['subscription', 'id'],
         key: 'id',
         width: 70,
@@ -365,7 +365,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             {t('用户订阅管理')}
           </Typography.Title>
           <Text type='tertiary' className='ml-2'>
-            {user?.username || '-'} (ID: {user?.id || '-'})
+            {user?.username || '-'} {t('(ID: {{id}})', { id: user?.id || '-' })}
           </Text>
         </Space>
       }

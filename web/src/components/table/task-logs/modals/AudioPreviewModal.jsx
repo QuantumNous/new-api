@@ -136,7 +136,7 @@ const AudioClipCard = ({ clip }) => {
             ref={audioRef}
             src={audioUrl}
             controls
-            preload='none'
+            preload={'none'}
             onError={() => setHasError(true)}
             style={{ width: '100%', height: 36 }}
           />

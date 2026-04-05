@@ -279,7 +279,7 @@ export const useLogsData = () => {
     if (success) {
       setStat(data);
     } else {
-      showError(message);
+      showError(message || t('请求失败'));
     }
   };
 
@@ -304,7 +304,7 @@ export const useLogsData = () => {
     if (success) {
       setStat(data);
     } else {
-      showError(message);
+      showError(message || t('请求失败'));
     }
   };
 
@@ -333,7 +333,7 @@ export const useLogsData = () => {
       setUserInfoData(data);
       setShowUserInfoModal(true);
     } else {
-      showError(message);
+      showError(message || t('请求失败'));
     }
   };
 
@@ -384,7 +384,7 @@ export const useLogsData = () => {
       if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
         expandDataLocal.push({
           key: t('渠道信息'),
-          value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
+          value: `${logs[i].channel} - ${logs[i].channel_name || `[${t('未知')}]`}`,
         });
       }
       if (logs[i].request_id) {
@@ -572,7 +572,7 @@ export const useLogsData = () => {
         }
         if (other?.reasoning_effort) {
           expandDataLocal.push({
-            key: t('Reasoning Effort'),
+          key: t('推理强度'),
             value: other.reasoning_effort,
           });
         }
@@ -605,7 +605,7 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue = statusLabel + ' (' + (ss.end_reason || t('未知')) + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -758,7 +758,7 @@ export const useLogsData = () => {
 
       setLogsFormat(newPageData);
     } else {
-      showError(message);
+      showError(message || t('请求失败'));
     }
     setLoading(false);
   };
@@ -791,7 +791,7 @@ export const useLogsData = () => {
   const copyText = async (e, text) => {
     e.stopPropagation();
     if (await copy(text)) {
-      showSuccess('已复制：' + text);
+      showSuccess(t('已复制：{{text}}', { text }));
     } else {
       Modal.error({ title: t('无法复制到剪贴板，请手动复制'), content: text });
     }

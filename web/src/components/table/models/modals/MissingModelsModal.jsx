@@ -50,7 +50,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
       if (res.data.success) {
         setMissingModels(res.data.data || []);
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (_) {
       showError(t('获取未配置模型失败'));

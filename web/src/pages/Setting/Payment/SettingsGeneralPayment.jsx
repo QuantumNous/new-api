@@ -61,7 +61,7 @@ export default function SettingsGeneralPayment(props) {
         showSuccess(t('更新成功'));
         props.refresh && props.refresh();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('更新失败'));
       }
     } catch (error) {
       showError(t('更新失败'));
@@ -80,7 +80,7 @@ export default function SettingsGeneralPayment(props) {
           <Form.Input
             field='ServerAddress'
             label={t('服务器地址')}
-            placeholder={'https://yourdomain.com'}
+            placeholder={t('例如：https://yourdomain.com')}
             style={{ width: '100%' }}
             extraText={t(
               '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',

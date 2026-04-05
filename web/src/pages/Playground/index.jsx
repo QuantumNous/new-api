@@ -214,7 +214,7 @@ const Playground = () => {
                 (url) => url.trim() !== '',
               );
               if (validImageUrls.length > 0) {
-                const textContent = getTextContent(messages[i]) || '示例消息';
+                const textContent = getTextContent(messages[i]) || t('示例');
                 const content = buildMessageContent(
                   textContent,
                   validImageUrls,
@@ -233,7 +233,7 @@ const Playground = () => {
       console.error('构造预览请求体失败:', error);
       return null;
     }
-  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
+  }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody, t]);
 
   // 发送消息
   function onMessageSend(content, attachment) {
@@ -262,7 +262,7 @@ const Playground = () => {
         return;
       } catch (error) {
         console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
+        Toast.error(t(ERROR_MESSAGES.JSON_PARSE_ERROR));
         return;
       }
     }

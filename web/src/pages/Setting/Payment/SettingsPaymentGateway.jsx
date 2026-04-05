@@ -195,7 +195,7 @@ export default function SettingsPaymentGateway(props) {
       const errorResults = results.filter((res) => !res.data.success);
       if (errorResults.length > 0) {
         errorResults.forEach((res) => {
-          showError(res.data.message);
+          showError(res.data.message || t('更新失败'));
         });
       } else {
         showSuccess(t('更新成功'));

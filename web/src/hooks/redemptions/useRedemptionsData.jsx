@@ -84,7 +84,7 @@ export const useRedemptionsData = () => {
         setTokenCount(data.total);
         setRedemptionFormat(newPageData);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(error.message);
@@ -112,7 +112,7 @@ export const useRedemptionsData = () => {
         setTokenCount(data.total);
         setRedemptionFormat(newPageData);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(error.message);
@@ -153,7 +153,7 @@ export const useRedemptionsData = () => {
         }
         setRedemptions(newRedemptions);
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(error.message);
@@ -228,10 +228,10 @@ export const useRedemptionsData = () => {
   // Copy text
   const copyText = async (text) => {
     if (await copy(text)) {
-      showSuccess('已复制到剪贴板！');
+      showSuccess(t('已复制到剪贴板！'));
     } else {
       Modal.error({
-        title: '无法复制到剪贴板，请手动复制',
+        title: t('无法复制到剪贴板，请手动复制'),
         content: text,
         size: 'large',
       });
@@ -265,7 +265,7 @@ export const useRedemptionsData = () => {
           showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));
           await refresh();
         } else {
-          showError(message);
+          showError(message, { apiMessage: true });
         }
         setLoading(false);
       },

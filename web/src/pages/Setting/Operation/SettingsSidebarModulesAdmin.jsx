@@ -160,7 +160,7 @@ export default function SettingsSidebarModulesAdmin(props) {
           await props.refresh();
         }
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('保存失败，请重试'));

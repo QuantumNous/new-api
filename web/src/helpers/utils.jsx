@@ -27,6 +27,7 @@ import {
 } from '../constants/playground.constants';
 import { TABLE_COMPACT_MODES_KEY } from '../constants';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
+import i18next from '../i18n/i18n';
 
 const HTMLToastContent = ({ htmlContent }) => {
   return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
@@ -101,6 +102,8 @@ let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
 let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
+const CJK_CHAR_REGEX = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+const LATIN_CHAR_REGEX = /[A-Za-z]/;
 
 const isMobileScreen = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
@@ -119,8 +122,53 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
-export function showError(error) {
+function isZhLocale() {
+  return String(i18next.language || '')
+    .toLowerCase()
+    .startsWith('zh');
+}
+
+function isEnLocale() {
+  return String(i18next.language || '')
+    .toLowerCase()
+    .startsWith('en');
+}
+
+export function normalizeApiToastMessage(message, fallbackKey = '操作失败') {
+  const fallback = i18next.t(fallbackKey);
+  const raw = typeof message === 'string' ? message.trim() : '';
+  if (!raw) {
+    return fallback;
+  }
+
+  const translated = i18next.t(raw);
+  if (i18next.exists(raw) && translated !== raw) {
+    return translated;
+  }
+
+  if (isZhLocale()) {
+    return raw;
+  }
+
+  if (CJK_CHAR_REGEX.test(raw)) {
+    return fallback;
+  }
+
+  if (!isEnLocale() && LATIN_CHAR_REGEX.test(raw)) {
+    return fallback;
+  }
+
+  return raw;
+}
+
+export function showError(error, options = {}) {
+  const { apiMessage = false, fallbackKey = '操作失败' } = options;
   console.error(error);
+  if (apiMessage && typeof error === 'string') {
+    const message = normalizeApiToastMessage(error, fallbackKey);
+    Toast.error(i18next.t('错误：{{message}}', { message }));
+    return;
+  }
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
@@ -131,22 +179,24 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          Toast.error(i18next.t('错误：请求次数过多，请稍后再试！'));
           break;
         case 500:
-          Toast.error('错误：服务器内部错误，请联系管理员！');
+          Toast.error(i18next.t('错误：服务器内部错误，请联系管理员！'));
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.info(i18next.t('本站仅作演示之用，无服务端！'));
           break;
         default:
-          Toast.error('错误：' + error.message);
+          Toast.error(
+            i18next.t('错误：{{message}}', { message: error.message }),
+          );
       }
       return;
     }
-    Toast.error('错误：' + error.message);
+    Toast.error(i18next.t('错误：{{message}}', { message: error.message }));
   } else {
-    Toast.error('错误：' + error);
+    Toast.error(i18next.t('错误：{{error}}', { error }));
   }
 }
 
@@ -154,8 +204,21 @@ export function showWarning(message) {
   Toast.warning(message);
 }
 
-export function showSuccess(message) {
+export function showApiError(message, fallbackKey = '操作失败') {
+  showError(message, { apiMessage: true, fallbackKey });
+}
+
+export function showSuccess(message, options = {}) {
+  const { apiMessage = false, fallbackKey = '操作成功' } = options;
+  if (apiMessage && typeof message === 'string') {
+    Toast.success(normalizeApiToastMessage(message, fallbackKey));
+    return;
+  }
   Toast.success(message);
+}
+
+export function showApiSuccess(message, fallbackKey = '操作成功') {
+  showSuccess(message, { apiMessage: true, fallbackKey });
 }
 
 export function showInfo(message) {
@@ -527,19 +590,19 @@ export const getRelativeTime = (publishDate) => {
 
   // 根据时间差返回相应的描述
   if (diffSeconds < 60) {
-    return '刚刚';
+    return i18next.t('刚刚');
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} 分钟前`;
+    return i18next.t('{{count}} 分钟前', { count: diffMinutes });
   } else if (diffHours < 24) {
-    return `${diffHours} 小时前`;
+    return i18next.t('{{count}} 小时前', { count: diffHours });
   } else if (diffDays < 7) {
-    return `${diffDays} 天前`;
+    return i18next.t('{{count}} 天前', { count: diffDays });
   } else if (diffWeeks < 4) {
-    return `${diffWeeks} 周前`;
+    return i18next.t('{{count}} 周前', { count: diffWeeks });
   } else if (diffMonths < 12) {
-    return `${diffMonths} 个月前`;
+    return i18next.t('{{count}} 个月前', { count: diffMonths });
   } else if (diffYears < 2) {
-    return '1 年前';
+    return i18next.t('1 年前');
   } else {
     // 超过2年显示具体日期
     return formatDateString(pubDate);

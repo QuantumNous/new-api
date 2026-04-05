@@ -27,6 +27,16 @@ export const supportedLanguages = [
   'vi',
 ];
 
+export const languageDisplayOptions = [
+  { value: 'zh-CN', nativeLabel: '简体中文', flag: '🇨🇳' },
+  { value: 'zh-TW', nativeLabel: '繁體中文', flag: '🇹🇼' },
+  { value: 'en', nativeLabel: 'English', flag: '🇬🇧' },
+  { value: 'fr', nativeLabel: 'Français', flag: '🇫🇷' },
+  { value: 'ru', nativeLabel: 'Русский', flag: '🇷🇺' },
+  { value: 'ja', nativeLabel: '日本語', flag: '🇯🇵' },
+  { value: 'vi', nativeLabel: 'Tiếng Việt', flag: '🇻🇳' },
+];
+
 export const normalizeLanguage = (language) => {
   if (!language) {
     return language;

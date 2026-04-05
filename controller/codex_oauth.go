@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/service"
@@ -80,11 +81,11 @@ func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelNotExists)})
 			return
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexChannelTypeInvalid)})
 			return
 		}
 	}
@@ -133,15 +134,15 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	code, state, err := parseCodexAuthorizationInput(req.Input)
 	if err != nil {
 		common.SysError("failed to parse codex authorization input: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexAuthInputParseFailed)})
 		return
 	}
 	if strings.TrimSpace(code) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing authorization code"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthInvalidCode)})
 		return
 	}
 	if strings.TrimSpace(state) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "missing state in input"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
 		return
 	}
 
@@ -153,11 +154,11 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		if ch == nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelNotExists)})
 			return
 		}
 		if ch.Type != constant.ChannelTypeCodex {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexChannelTypeInvalid)})
 			return
 		}
 		channelProxy = ch.GetSetting().Proxy
@@ -167,11 +168,11 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	expectedState, _ := session.Get(codexOAuthSessionKey(channelID, "state")).(string)
 	verifier, _ := session.Get(codexOAuthSessionKey(channelID, "verifier")).(string)
 	if strings.TrimSpace(expectedState) == "" || strings.TrimSpace(verifier) == "" {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "oauth flow not started or session expired"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexOAuthFlowExpired)})
 		return
 	}
 	if state != expectedState {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "state mismatch"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
 		return
 	}
 
@@ -181,13 +182,13 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
 		common.SysError("failed to exchange codex authorization code: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexTokenExchangeFailed)})
 		return
 	}
 
 	accountID, ok := service.ExtractCodexAccountIDFromJWT(tokenRes.AccessToken)
 	if !ok {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "failed to extract account_id from access_token"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgCodexAccountExtractFailed)})
 		return
 	}
 	email, _ := service.ExtractEmailFromJWT(tokenRes.AccessToken)

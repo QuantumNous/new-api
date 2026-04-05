@@ -100,7 +100,7 @@ const ChannelAffinityUsageCacheModal = ({
         const { success, message, data } = res.data || {};
         if (!success) {
           setStats(null);
-          showError(t(message || '请求失败'));
+          showError(message || t('请求失败'));
           return;
         }
         setStats(data || {});

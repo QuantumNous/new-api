@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
@@ -27,6 +28,7 @@ import {
 import { getTaskLogsColumns } from './TaskLogsColumnDefs';
 
 const TaskLogsTable = (taskLogsData) => {
+  const { i18n } = useTranslation();
   const {
     logs,
     loading,
@@ -51,6 +53,7 @@ const TaskLogsTable = (taskLogsData) => {
   const allColumns = useMemo(() => {
     return getTaskLogsColumns({
       t,
+      locale: i18n.language,
       COLUMN_KEYS,
       copyText,
       openContentModal,
@@ -59,7 +62,17 @@ const TaskLogsTable = (taskLogsData) => {
       showUserInfoFunc,
       isAdminUser,
     });
-  }, [t, COLUMN_KEYS, copyText, openContentModal, openVideoModal, openAudioModal, showUserInfoFunc, isAdminUser]);
+  }, [
+    t,
+    i18n.language,
+    COLUMN_KEYS,
+    copyText,
+    openContentModal,
+    openVideoModal,
+    openAudioModal,
+    showUserInfoFunc,
+    isAdminUser,
+  ]);
 
   // Filter columns based on visibility settings
   const getVisibleColumns = () => {

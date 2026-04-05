@@ -90,7 +90,7 @@ const TwoFASetting = ({ t }) => {
         setSetupModalVisible(true);
         setCurrentStep(0);
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('设置2FA失败'));
@@ -119,7 +119,7 @@ const TwoFASetting = ({ t }) => {
         setCurrentStep(0);
         fetchStatus();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('启用2FA失败'));
@@ -152,7 +152,7 @@ const TwoFASetting = ({ t }) => {
         setConfirmDisable(false);
         fetchStatus();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('禁用2FA失败'));
@@ -179,7 +179,7 @@ const TwoFASetting = ({ t }) => {
         setVerificationCode('');
         fetchStatus();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (error) {
       showError(t('重新生成备用码失败'));

@@ -41,6 +41,7 @@ import {
 } from '../../../helpers';
 import {
   CHANNEL_OPTIONS,
+  localizeChannelLabel,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
@@ -52,7 +53,7 @@ import {
 import { FaRandom } from 'react-icons/fa';
 
 // Render functions
-const renderType = (type, record = {}, t) => {
+const renderType = (type, record = {}, t, locale = '') => {
   const channelInfo = record?.channel_info;
   let type2label = new Map();
   for (let i = 0; i < CHANNEL_OPTIONS.length; i++) {
@@ -77,9 +78,15 @@ const renderType = (type, record = {}, t) => {
       );
   }
 
+  const localizedTypeLabel = localizeChannelLabel(
+    type2label[type]?.label,
+    t,
+    locale,
+  );
+
   const typeTag = (
     <Tag color={type2label[type]?.color} shape='circle' prefixIcon={icon}>
-      {type2label[type]?.label}
+      {localizedTypeLabel}
     </Tag>
   );
 
@@ -132,7 +139,7 @@ const renderType = (type, record = {}, t) => {
             className='cursor-pointer'
             onClick={handleNavigate}
           >
-            IO.NET
+            {'IO.NET'}
           </Tag>
         </span>
       </Tooltip>
@@ -306,6 +313,7 @@ const getUpstreamUpdateMeta = (record) => {
 
 export const getChannelsColumns = ({
   t,
+  locale = '',
   COLUMN_KEYS,
   updateChannelBalance,
   manageChannel,
@@ -482,7 +490,7 @@ export const getChannelsColumns = ({
       dataIndex: 'type',
       render: (text, record, index) => {
         if (record.children === undefined) {
-          return <>{renderType(text, record, t)}</>;
+          return <>{renderType(text, record, t, locale)}</>;
         } else {
           return <>{renderTagType(t)}</>;
         }
@@ -612,7 +620,7 @@ export const getChannelsColumns = ({
                       return;
                     }
                     submitTagEdit('priority', {
-                      tag: record.key,
+                      tag: record.tag ?? record.key,
                       priority: e.target.value,
                     });
                   },
@@ -667,7 +675,7 @@ export const getChannelsColumns = ({
                       return;
                     }
                     submitTagEdit('weight', {
-                      tag: record.key,
+                      tag: record.tag ?? record.key,
                       weight: e.target.value,
                     });
                   },
@@ -876,14 +884,14 @@ export const getChannelsColumns = ({
               <Button
                 type='tertiary'
                 size='small'
-                onClick={() => manageTag(record.key, 'enable')}
+                onClick={() => manageTag(record.tag ?? record.key, 'enable')}
               >
                 {t('启用全部')}
               </Button>
               <Button
                 type='tertiary'
                 size='small'
-                onClick={() => manageTag(record.key, 'disable')}
+                onClick={() => manageTag(record.tag ?? record.key, 'disable')}
               >
                 {t('禁用全部')}
               </Button>
@@ -892,7 +900,7 @@ export const getChannelsColumns = ({
                 size='small'
                 onClick={() => {
                   setShowEditTag(true);
-                  setEditingTag(record.key);
+                  setEditingTag(record.tag ?? record.key);
                 }}
               >
                 {t('编辑')}

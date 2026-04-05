@@ -110,7 +110,7 @@ const PaymentSetting = () => {
 
       setInputs(newInputs);
     } else {
-      showError(t(message));
+      showError(message || t('加载支付设置失败'));
     }
   };
 

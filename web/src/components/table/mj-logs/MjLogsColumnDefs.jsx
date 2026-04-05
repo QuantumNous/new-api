@@ -131,7 +131,7 @@ function renderType(type, t) {
     case 'UPLOAD':
       return (
         <Tag color='blue' shape='circle' prefixIcon={<Upload size={14} />}>
-          上传文件
+          {t('上传文件')}
         </Tag>
       );
     case 'SHORTEN':
@@ -300,7 +300,7 @@ const renderTimestamp = (timestampInSeconds) => {
 };
 
 function renderDuration(submit_time, finishTime, t) {
-  if (!submit_time || !finishTime) return 'N/A';
+  if (!submit_time || !finishTime) return t('无');
 
   const start = new Date(submit_time);
   const finish = new Date(finishTime);
@@ -412,7 +412,7 @@ export const getMjLogsColumns = ({
                 }
                 percent={text ? parseInt(text.replace('%', '')) : 0}
                 showInfo={true}
-                aria-label='drawing progress'
+                aria-label={t('进度')}
                 style={{ minWidth: '160px' }}
               />
             }
@@ -442,7 +442,7 @@ export const getMjLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.PROMPT,
-      title: 'Prompt',
+      title: t('Prompt'),
       dataIndex: 'prompt',
       render: (text, record, index) => {
         if (!text) {
@@ -464,7 +464,7 @@ export const getMjLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.PROMPT_EN,
-      title: 'PromptEn',
+      title: t('PromptEn'),
       dataIndex: 'prompt_en',
       render: (text, record, index) => {
         if (!text) {

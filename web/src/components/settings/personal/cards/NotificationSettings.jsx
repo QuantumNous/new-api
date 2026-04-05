@@ -146,7 +146,7 @@ const NotificationSettings = ({
         // 刷新useSidebar钩子中的用户配置，实现实时更新
         await refreshUserConfig();
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('保存失败'));
       }
     } catch (error) {
       showError(t('保存失败'));
@@ -428,10 +428,10 @@ const NotificationSettings = ({
                   onChange={(value) => handleFormChange('warningType', value)}
                   rules={[{ required: true, message: t('请选择通知方式') }]}
                 >
-                  <Radio value='email'>{t('邮件通知')}</Radio>
-                  <Radio value='webhook'>{t('Webhook通知')}</Radio>
-                  <Radio value='bark'>{t('Bark通知')}</Radio>
-                  <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  <Radio value={'email'}>{t('邮件通知')}</Radio>
+                  <Radio value={'webhook'}>{t('Webhook通知')}</Radio>
+                  <Radio value={'bark'}>{t('Bark通知')}</Radio>
+                  <Radio value={'gotify'}>{t('Gotify通知')}</Radio>
                 </Form.RadioGroup>
 
                 <Form.AutoComplete
@@ -549,34 +549,33 @@ const NotificationSettings = ({
                           <CodeViewer
                             content={{
                               type: 'quota_exceed',
-                              title: '额度预警通知',
-                              content:
-                                '您的额度即将用尽，当前剩余额度为 {{value}}',
+                              title: t('额度预警通知'),
+                              content: t('您的额度即将用尽，当前剩余额度为 {{value}}'),
                               values: ['$0.99'],
                               timestamp: 1739950503,
                             }}
-                            title='webhook'
+                            title={t('webhook')}
                             language='json'
                           />
                         </div>
                         <div className='text-xs text-gray-500 leading-relaxed'>
                           <div>
-                            <strong>type:</strong>{' '}
+                            <strong>{t('type:')}</strong>{' '}
                             {t('通知类型 (quota_exceed: 额度预警)')}{' '}
                           </div>
                           <div>
-                            <strong>title:</strong> {t('通知标题')}
+                            <strong>{t('title:')}</strong> {t('通知标题')}
                           </div>
                           <div>
-                            <strong>content:</strong>{' '}
+                            <strong>{t('content:')}</strong>{' '}
                             {t('通知内容，支持 {{value}} 变量占位符')}
                           </div>
                           <div>
-                            <strong>values:</strong>{' '}
+                            <strong>{t('values:')}</strong>{' '}
                             {t('按顺序替换content中的变量占位符')}
                           </div>
                           <div>
-                            <strong>timestamp:</strong> {t('Unix时间戳')}
+                            <strong>{t('timestamp:')}</strong> {t('Unix时间戳')}
                           </div>
                         </div>
                       </div>
@@ -617,14 +616,14 @@ const NotificationSettings = ({
                       </div>
                       <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
                         https://api.day.app/yourkey/{'{{title}}'}/
-                        {'{{content}}'}?sound=alarm&group=quota
+                        {'{{content}}'}{'?sound=alarm&group=quota'}
                       </div>
                       <div className='text-xs text-gray-500 space-y-2'>
                         <div>
-                          • <strong>{'title'}:</strong> {t('通知标题')}
+                          • <strong>{t('title')}:</strong> {t('通知标题')}
                         </div>
                         <div>
-                          • <strong>{'content'}:</strong> {t('通知内容')}
+                          • <strong>{t('content')}:</strong> {t('通知内容')}
                         </div>
                         <div className='mt-3 pt-3 border-t border-gray-200'>
                           <span className='text-gray-400'>
@@ -636,7 +635,7 @@ const NotificationSettings = ({
                             rel='noopener noreferrer'
                             className='text-blue-500 hover:text-blue-600 font-medium'
                           >
-                            Bark {t('官方文档')}
+                            {'Bark '} {t('官方文档')}
                           </a>
                         </div>
                       </div>
@@ -737,7 +736,7 @@ const NotificationSettings = ({
                             rel='noopener noreferrer'
                             className='text-blue-500 hover:text-blue-600 font-medium'
                           >
-                            Gotify {t('官方文档')}
+                            {'Gotify '} {t('官方文档')}
                           </a>
                         </div>
                       </div>

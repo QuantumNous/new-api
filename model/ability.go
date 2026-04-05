@@ -74,7 +74,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 
 	if len(priorities) == 0 {
 		// 如果没有查询到优先级，则返回错误
-		return 0, errors.New("数据库一致性被破坏")
+		return 0, errors.New("database consistency is broken")
 	}
 
 	// 确定要使用的优先级
@@ -287,7 +287,7 @@ var fixLock = sync.Mutex{}
 func FixAbility() (int, int, error) {
 	lock := fixLock.TryLock()
 	if !lock {
-		return 0, 0, errors.New("已经有一个修复任务在运行中，请稍后再试")
+		return 0, 0, errors.New("a fix task is already running, please try again later")
 	}
 	defer fixLock.Unlock()
 

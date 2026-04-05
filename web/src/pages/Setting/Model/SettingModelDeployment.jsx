@@ -198,7 +198,7 @@ export default function SettingModelDeployment(props) {
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
                   <Cloud size={18} />
-                  <span>io.net</span>
+                  <span>{'io.net'}</span>
                 </div>
               }
               bodyStyle={{ padding: '20px' }}

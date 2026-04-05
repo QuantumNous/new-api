@@ -28,7 +28,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		return err2
 	}
 	if SMTPServer == "" && SMTPAccount == "" {
-		return fmt.Errorf("SMTP 服务器未配置")
+		return fmt.Errorf("SMTP server is not configured")
 	}
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+

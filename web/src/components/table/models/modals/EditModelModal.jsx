@@ -155,7 +155,7 @@ const EditModelModal = (props) => {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
       } else {
-        showError(message);
+        showError(message || t('加载模型信息失败'));
       }
     } catch (error) {
       showError(t('加载模型信息失败'));
@@ -209,7 +209,7 @@ const EditModelModal = (props) => {
           props.refresh();
           props.handleClose();
         } else {
-          showError(t(message));
+          showError(message || t('操作失败'));
         }
       } else {
         const res = await API.post('/api/models/', submitData);
@@ -219,7 +219,7 @@ const EditModelModal = (props) => {
           props.refresh();
           props.handleClose();
         } else {
-          showError(t(message));
+          showError(message || t('操作失败'));
         }
       }
     } catch (error) {

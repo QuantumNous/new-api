@@ -55,7 +55,7 @@ const DatabaseStep = ({ setupStatus, renderNavigationButtons, t }) => {
                   </p>
                 )}
                 <p className='mt-2 text-sm opacity-70'>
-                  💡 {t('提示：如需备份数据，只需复制上述目录即可')}
+                  {'💡'} {t('提示：如需备份数据，只需复制上述目录即可')}
                 </p>
               </div>
             ) : (

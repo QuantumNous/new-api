@@ -41,7 +41,10 @@ import {
   TASK_ACTION_TEXT_GENERATE,
   TASK_ACTION_REMIX_GENERATE,
 } from '../../../constants/common.constant';
-import { CHANNEL_OPTIONS } from '../../../constants/channel.constants';
+import {
+  CHANNEL_OPTIONS,
+  localizeChannelLabel,
+} from '../../../constants/channel.constants';
 import { stringToColor } from '../../../helpers/render';
 import { Avatar, Space } from '@douyinfe/semi-ui';
 
@@ -143,14 +146,14 @@ const renderType = (type, t) => {
   }
 };
 
-const renderPlatform = (platform, t) => {
+const renderPlatform = (platform, t, locale = '') => {
   let option = CHANNEL_OPTIONS.find(
     (opt) => String(opt.value) === String(platform),
   );
   if (option) {
     return (
       <Tag color={option.color} shape='circle'>
-        {option.label}
+        {localizeChannelLabel(option.label, t, locale)}
       </Tag>
     );
   }
@@ -158,7 +161,7 @@ const renderPlatform = (platform, t) => {
     case 'suno':
       return (
         <Tag color='green' shape='circle'>
-          Suno
+          {'Suno'}
         </Tag>
       );
     default:
@@ -235,6 +238,7 @@ const renderStatus = (type, t) => {
 
 export const getTaskLogsColumns = ({
   t,
+  locale = '',
   COLUMN_KEYS,
   copyText,
   openContentModal,
@@ -319,7 +323,7 @@ export const getTaskLogsColumns = ({
       title: t('平台'),
       dataIndex: 'platform',
       render: (text, record, index) => {
-        return <div>{renderPlatform(text, t)}</div>;
+        return <div>{renderPlatform(text, t, locale)}</div>;
       },
     },
     {
@@ -373,7 +377,7 @@ export const getTaskLogsColumns = ({
                 }
                 percent={text ? parseInt(text.replace('%', '')) : 0}
                 showInfo={true}
-                aria-label='task progress'
+                aria-label={t('进度')}
                 style={{ minWidth: '160px' }}
               />
             )}

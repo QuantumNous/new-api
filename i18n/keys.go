@@ -32,6 +32,7 @@ const (
 	MsgTokenNameTooLong          = "token.name_too_long"
 	MsgTokenQuotaNegative        = "token.quota_negative"
 	MsgTokenQuotaExceedMax       = "token.quota_exceed_max"
+	MsgTokenCountLimitReached    = "token.count_limit_reached"
 	MsgTokenGenerateFailed       = "token.generate_failed"
 	MsgTokenGetInfoFailed        = "token.get_info_failed"
 	MsgTokenExpiredCannotEnable  = "token.expired_cannot_enable"
@@ -134,6 +135,8 @@ const (
 	MsgPaymentCreateFailed     = "payment.create_failed"
 	MsgPaymentStartFailed      = "payment.start_failed"
 	MsgPaymentAmountTooLow     = "payment.amount_too_low"
+	MsgPaymentProductRequired  = "payment.product_required"
+	MsgPaymentProductNotFound  = "payment.product_not_found"
 	MsgPaymentStripeNotConfig  = "payment.stripe_not_configured"
 	MsgPaymentWebhookNotConfig = "payment.webhook_not_configured"
 	MsgPaymentPriceIdNotConfig = "payment.price_id_not_configured"
@@ -151,17 +154,19 @@ const (
 
 // Channel related messages
 const (
-	MsgChannelNotExists          = "channel.not_exists"
-	MsgChannelIdFormatError      = "channel.id_format_error"
-	MsgChannelNoAvailableKey     = "channel.no_available_key"
-	MsgChannelGetListFailed      = "channel.get_list_failed"
-	MsgChannelGetTagsFailed      = "channel.get_tags_failed"
-	MsgChannelGetKeyFailed       = "channel.get_key_failed"
-	MsgChannelGetOllamaFailed    = "channel.get_ollama_failed"
-	MsgChannelQueryFailed        = "channel.query_failed"
-	MsgChannelNoValidUpstream    = "channel.no_valid_upstream"
-	MsgChannelUpstreamSaturated  = "channel.upstream_saturated"
-	MsgChannelGetAvailableFailed = "channel.get_available_failed"
+	MsgChannelNotExists              = "channel.not_exists"
+	MsgChannelIdFormatError          = "channel.id_format_error"
+	MsgChannelNoAvailableKey         = "channel.no_available_key"
+	MsgChannelGetListFailed          = "channel.get_list_failed"
+	MsgChannelGetTagsFailed          = "channel.get_tags_failed"
+	MsgChannelGetKeyFailed           = "channel.get_key_failed"
+	MsgChannelGetOllamaFailed        = "channel.get_ollama_failed"
+	MsgChannelGetOllamaVersionFailed = "channel.get_ollama_version_failed"
+	MsgChannelOllamaOnlyOperation    = "channel.ollama_only_operation"
+	MsgChannelQueryFailed            = "channel.query_failed"
+	MsgChannelNoValidUpstream        = "channel.no_valid_upstream"
+	MsgChannelUpstreamSaturated      = "channel.upstream_saturated"
+	MsgChannelGetAvailableFailed     = "channel.get_available_failed"
 )
 
 // Model related messages
@@ -198,11 +203,17 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed    = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal   = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed    = "passkey.update_failed"
+	MsgPasskeyInvalidUserId   = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed    = "passkey.verify_failed"
+	MsgPasskeyNotEnabled      = "passkey.not_enabled"
+	MsgPasskeyNotBound        = "passkey.not_bound"
+	MsgPasskeyRegisterSuccess = "passkey.register_success"
+	MsgPasskeyUnbound         = "passkey.unbound"
+	MsgPasskeyResetSuccess    = "passkey.reset_success"
+	MsgPasskeyVerifySuccess   = "passkey.verify_success"
 )
 
 // 2FA related messages
@@ -251,9 +262,12 @@ const (
 
 // Performance related messages
 const (
-	MsgPerfDiskCacheCleared = "performance.disk_cache_cleared"
-	MsgPerfStatsReset       = "performance.stats_reset"
-	MsgPerfGcExecuted       = "performance.gc_executed"
+	MsgPerfDiskCacheCleared    = "performance.disk_cache_cleared"
+	MsgPerfStatsReset          = "performance.stats_reset"
+	MsgPerfGcExecuted          = "performance.gc_executed"
+	MsgPerfInvalidMode         = "performance.invalid_mode"
+	MsgPerfInvalidValue        = "performance.invalid_value"
+	MsgPerfLogDirNotConfigured = "performance.log_dir_not_configured"
 )
 
 // Ability related messages
@@ -306,11 +320,136 @@ const (
 
 // Custom OAuth provider related messages
 const (
-	MsgCustomOAuthNotFound          = "custom_oauth.not_found"
-	MsgCustomOAuthSlugEmpty         = "custom_oauth.slug_empty"
-	MsgCustomOAuthSlugExists        = "custom_oauth.slug_exists"
-	MsgCustomOAuthNameEmpty         = "custom_oauth.name_empty"
-	MsgCustomOAuthHasBindings       = "custom_oauth.has_bindings"
-	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
-	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthNotFound                  = "custom_oauth.not_found"
+	MsgCustomOAuthSlugEmpty                 = "custom_oauth.slug_empty"
+	MsgCustomOAuthSlugExists                = "custom_oauth.slug_exists"
+	MsgCustomOAuthSlugConflictBuiltin       = "custom_oauth.slug_conflict_builtin"
+	MsgCustomOAuthNameEmpty                 = "custom_oauth.name_empty"
+	MsgCustomOAuthInvalidRequestParams      = "custom_oauth.invalid_request_params"
+	MsgCustomOAuthDiscoveryOrIssuerRequired = "custom_oauth.discovery_or_issuer_required"
+	MsgCustomOAuthDiscoveryURLInvalid       = "custom_oauth.discovery_url_invalid"
+	MsgCustomOAuthDiscoveryRequestFailed    = "custom_oauth.discovery_request_failed"
+	MsgCustomOAuthDiscoveryFetchFailed      = "custom_oauth.discovery_fetch_failed"
+	MsgCustomOAuthDiscoveryParseFailed      = "custom_oauth.discovery_parse_failed"
+	MsgCustomOAuthBindingCheckFailed        = "custom_oauth.binding_check_failed"
+	MsgCustomOAuthHasBindings               = "custom_oauth.has_bindings"
+	MsgCustomOAuthBindingNotFound           = "custom_oauth.binding_not_found"
+	MsgCustomOAuthProviderIdInvalid         = "custom_oauth.provider_id_field_invalid"
+)
+
+// Usage data messages
+const (
+	MsgUsageTimeRangeTooLong = "usedata.time_range_too_long"
+)
+
+// Log messages
+const (
+	MsgLogDeprecated = "log.deprecated_api"
+)
+
+// Channel affinity messages
+const (
+	MsgChannelAffinityRuleRequired = "channel_affinity.rule_required"
+)
+
+// Codex messages
+const (
+	MsgCodexChannelTypeInvalid    = "codex.channel_type_invalid"
+	MsgCodexMultiKeyUnsupported   = "codex.multi_key_unsupported"
+	MsgCodexCredentialParseFailed = "codex.credential_parse_failed"
+	MsgCodexAccessTokenRequired   = "codex.access_token_required"
+	MsgCodexAccountIDRequired     = "codex.account_id_required"
+	MsgCodexUsageFetchFailed      = "codex.usage_fetch_failed"
+	MsgCodexAuthInputParseFailed  = "codex.auth_input_parse_failed"
+	MsgCodexOAuthFlowExpired      = "codex.oauth_flow_expired"
+	MsgCodexTokenExchangeFailed   = "codex.token_exchange_failed"
+	MsgCodexAccountExtractFailed  = "codex.account_extract_failed"
+)
+
+// Secure verification messages
+const (
+	MsgSecureVerificationMethodNotEnabled = "secure_verification.method_not_enabled"
+)
+
+// Setup messages
+const (
+	MsgSetupAlreadyCompleted   = "setup.already_completed"
+	MsgSetupUsernameTooLong    = "setup.username_too_long"
+	MsgSetupPasswordMismatch   = "setup.password_mismatch"
+	MsgSetupPasswordTooShort   = "setup.password_too_short"
+	MsgSetupSystemError        = "setup.system_error"
+	MsgSetupCreateAdminFailed  = "setup.create_admin_failed"
+	MsgSetupSaveSelfUseFailed  = "setup.save_self_use_failed"
+	MsgSetupSaveDemoSiteFailed = "setup.save_demo_site_failed"
+	MsgSetupInitFailed         = "setup.init_failed"
+	MsgSetupInitSuccess        = "setup.init_success"
+)
+
+// Option messages
+const (
+	MsgOptionEnableRequiresConfig = "option.enable_requires_config"
+	MsgOptionRatioUpdateFailed    = "option.ratio_update_failed"
+)
+
+// Misc messages
+const (
+	MsgMiscInvalidEmail        = "misc.invalid_email"
+	MsgMiscEmailDomainRejected = "misc.email_domain_rejected"
+	MsgMiscEmailAliasRejected  = "misc.email_alias_rejected"
+	MsgMiscResetLinkInvalid    = "misc.reset_link_invalid"
+)
+
+// Additional user messages
+const (
+	MsgUserGetGroupFailed = "user.get_group_failed"
+)
+
+// Additional payment messages
+const (
+	MsgPaymentMinTopup                 = "payment.min_topup"
+	MsgPaymentMaxTopup                 = "payment.max_topup"
+	MsgPaymentSuccessRedirectUntrusted = "payment.success_redirect_untrusted"
+	MsgPaymentCancelRedirectUntrusted  = "payment.cancel_redirect_untrusted"
+)
+
+// Additional 2FA messages
+const (
+	MsgTwoFASecretGenerateFailed = "twofa.secret_generate_failed"
+	MsgTwoFABackupGenerateFailed = "twofa.backup_generate_failed"
+	MsgTwoFABackupSaveFailed     = "twofa.backup_save_failed"
+	MsgTwoFASetupInitSuccess     = "twofa.setup_init_success"
+	MsgTwoFASetupRequired        = "twofa.setup_required"
+	MsgTwoFAEnableSuccess        = "twofa.enable_success"
+	MsgTwoFADisableSuccess       = "twofa.disable_success"
+	MsgTwoFABackupRegenerated    = "twofa.backup_regenerated"
+	MsgTwoFASessionExpired       = "twofa.session_expired"
+	MsgTwoFASessionInvalid       = "twofa.session_invalid"
+	MsgTwoFAAdminDisabled        = "twofa.admin_disabled"
+)
+
+// Additional channel messages
+const (
+	MsgChannelRefreshCredentialFailed      = "channel.refresh_credential_failed"
+	MsgChannelUnsupportedAddMode           = "channel.unsupported_add_mode"
+	MsgChannelTagRequired                  = "channel.tag_required"
+	MsgChannelParamOverrideInvalidJSON     = "channel.param_override_invalid_json"
+	MsgChannelHeaderOverrideInvalidJSON    = "channel.header_override_invalid_json"
+	MsgChannelAppendKeyParseFailed         = "channel.append_key_parse_failed"
+	MsgChannelCopyFailed                   = "channel.copy_failed"
+	MsgChannelNotMultiKeyMode              = "channel.not_multi_key_mode"
+	MsgChannelKeyIndexRequiredDisable      = "channel.key_index_required_disable"
+	MsgChannelKeyIndexOutOfRange           = "channel.key_index_out_of_range"
+	MsgChannelKeyDisabled                  = "channel.key_disabled"
+	MsgChannelKeyIndexRequiredEnable       = "channel.key_index_required_enable"
+	MsgChannelKeyEnabled                   = "channel.key_enabled"
+	MsgChannelEnabledKeysCount             = "channel.enabled_keys_count"
+	MsgChannelNoKeysToDisable              = "channel.no_keys_to_disable"
+	MsgChannelDisabledKeysCount            = "channel.disabled_keys_count"
+	MsgChannelKeyIndexRequiredDelete       = "channel.key_index_required_delete"
+	MsgChannelCannotDeleteLastKey          = "channel.cannot_delete_last_key"
+	MsgChannelKeyDeleted                   = "channel.key_deleted"
+	MsgChannelNoAutoDisabledKeysToDelete   = "channel.no_auto_disabled_keys_to_delete"
+	MsgChannelDeletedAutoDisabledKeysCount = "channel.deleted_auto_disabled_keys_count"
+	MsgChannelMultiKeyBalanceUnsupported   = "channel.multi_key_balance_unsupported"
+	MsgChannelUnsupportedOperation         = "channel.unsupported_operation"
 )

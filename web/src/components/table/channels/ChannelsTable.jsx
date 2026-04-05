@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useMemo } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
+import { useTranslation } from 'react-i18next';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
@@ -27,6 +28,7 @@ import {
 import { getChannelsColumns } from './ChannelsColumnDefs';
 
 const ChannelsTable = (channelsData) => {
+  const { i18n } = useTranslation();
   const {
     channels,
     loading,
@@ -37,7 +39,8 @@ const ChannelsTable = (channelsData) => {
     enableBatchDelete,
     compactMode,
     visibleColumns,
-    setSelectedChannels,
+    selectedChannelRowKeys,
+    handleChannelRowSelectionChange,
     handlePageChange,
     handlePageSizeChange,
     handleRow,
@@ -69,6 +72,7 @@ const ChannelsTable = (channelsData) => {
   const allColumns = useMemo(() => {
     return getChannelsColumns({
       t,
+      locale: i18n.language,
       COLUMN_KEYS,
       updateChannelBalance,
       manageChannel,
@@ -93,6 +97,7 @@ const ChannelsTable = (channelsData) => {
     });
   }, [
     t,
+    i18n.language,
     COLUMN_KEYS,
     updateChannelBalance,
     manageChannel,
@@ -151,9 +156,8 @@ const ChannelsTable = (channelsData) => {
       rowSelection={
         enableBatchDelete
           ? {
-              onChange: (selectedRowKeys, selectedRows) => {
-                setSelectedChannels(selectedRows);
-              },
+              selectedRowKeys: selectedChannelRowKeys,
+              onChange: handleChannelRowSelectionChange,
             }
           : null
       }

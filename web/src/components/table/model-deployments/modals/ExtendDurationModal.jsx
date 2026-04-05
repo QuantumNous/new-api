@@ -259,7 +259,7 @@ const ExtendDurationModal = ({
     onCancel();
   };
 
-  const currentRemainingTime = deployment?.time_remaining || '0分钟';
+  const currentRemainingTime = deployment?.time_remaining || `0${t('分钟')}`;
   const newTotalTime = `${currentRemainingTime} + ${durationHours}${t('小时')}`;
 
   const priceData = priceEstimation || {};
@@ -324,7 +324,7 @@ const ExtendDurationModal = ({
               </Text>
               <div className='mt-1'>
                 <Text type='secondary' size='small'>
-                  ID: {deployment?.id}
+                  {t('ID:')} {deployment?.id}
                 </Text>
               </div>
             </div>

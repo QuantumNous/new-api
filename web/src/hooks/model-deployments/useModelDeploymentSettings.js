@@ -18,9 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { API } from '../../helpers';
 
 export const useModelDeploymentSettings = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     'model_deployment.ionet.enabled': false,
@@ -55,27 +57,28 @@ export const useModelDeploymentSettings = () => {
 
   const isIoNetEnabled = settings['model_deployment.ionet.enabled'];
 
-  const buildConnectionError = (
-    rawMessage,
-    fallbackMessage = 'Connection failed',
-  ) => {
-    const message = (rawMessage || fallbackMessage).trim();
-    const normalized = message.toLowerCase();
-    if (normalized.includes('expired') || normalized.includes('expire')) {
-      return { type: 'expired', message };
-    }
-    if (
-      normalized.includes('invalid') ||
-      normalized.includes('unauthorized') ||
-      normalized.includes('api key')
-    ) {
-      return { type: 'invalid', message };
-    }
-    if (normalized.includes('network') || normalized.includes('timeout')) {
-      return { type: 'network', message };
-    }
-    return { type: 'unknown', message };
-  };
+  const buildConnectionError = useCallback(
+    (rawMessage, fallbackMessage) => {
+      const fallback = (fallbackMessage || t('连接失败')).trim();
+      const message = (rawMessage || fallback).trim();
+      const normalized = message.toLowerCase();
+      if (normalized.includes('expired') || normalized.includes('expire')) {
+        return { type: 'expired', message };
+      }
+      if (
+        normalized.includes('invalid') ||
+        normalized.includes('unauthorized') ||
+        normalized.includes('api key')
+      ) {
+        return { type: 'invalid', message };
+      }
+      if (normalized.includes('network') || normalized.includes('timeout')) {
+        return { type: 'network', message };
+      }
+      return { type: 'unknown', message };
+    },
+    [t],
+  );
 
   const testConnection = useCallback(async () => {
     setConnectionState({ loading: true, ok: null, error: null });
@@ -91,7 +94,7 @@ export const useModelDeploymentSettings = () => {
         return;
       }
 
-      const message = response?.data?.message || 'Connection failed';
+      const message = response?.data?.message || t('连接失败');
       setConnectionState({
         loading: false,
         ok: false,
@@ -102,19 +105,19 @@ export const useModelDeploymentSettings = () => {
         setConnectionState({
           loading: false,
           ok: false,
-          error: { type: 'network', message: 'Network connection failed' },
+          error: { type: 'network', message: t('网络连接失败') },
         });
         return;
       }
       const rawMessage =
-        error?.response?.data?.message || error?.message || 'Unknown error';
+        error?.response?.data?.message || error?.message || t('未知错误');
       setConnectionState({
         loading: false,
         ok: false,
-        error: buildConnectionError(rawMessage, 'Connection failed'),
+        error: buildConnectionError(rawMessage, t('连接失败')),
       });
     }
-  }, []);
+  }, [buildConnectionError, t]);
 
   useEffect(() => {
     if (!loading && isIoNetEnabled) {

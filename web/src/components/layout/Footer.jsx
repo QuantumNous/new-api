@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useMemo, useContext } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
 import { StatusContext } from '../../context/Status';
@@ -132,7 +132,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    One API
+                    {'One API'}
                   </a>
                   <a
                     href='https://github.com/novicezk/midjourney-proxy'
@@ -140,7 +140,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    Midjourney-Proxy
+                    {'Midjourney-Proxy'}
                   </a>
                   <a
                     href='https://github.com/Calcium-Ion/neko-api-key-tool'
@@ -148,7 +148,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    neko-api-key-tool
+                    {'neko-api-key-tool'}
                   </a>
                 </div>
               </div>
@@ -164,7 +164,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    new-api-horizon
+                    {'new-api-horizon'}
                   </a>
                   <a
                     href='https://github.com/coaidev/coai'
@@ -172,7 +172,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    CoAI
+                    {'CoAI'}
                   </a>
                   <a
                     href='https://www.gpt-load.com/'
@@ -180,7 +180,7 @@ const FooterBar = () => {
                     rel='noopener noreferrer'
                     className='!text-semi-color-text-1'
                   >
-                    GPT-Load
+                    {'GPT-Load'}
                   </a>
                 </div>
               </div>
@@ -191,22 +191,47 @@ const FooterBar = () => {
         <div className='flex flex-col md:flex-row items-center justify-between w-full max-w-[1110px] gap-6'>
           <div className='flex flex-wrap items-center gap-2'>
             <Typography.Text className='text-sm !text-semi-color-text-1'>
-              © {currentYear} {systemName}. {t('版权所有')}
+              <Trans
+                i18nKey='© {{year}} QuantumNous。版权所有。'
+                values={{ year: currentYear }}
+                components={{
+                  quantumnous: (
+                    <a
+                      href='https://github.com/QuantumNous'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='!text-semi-color-primary font-medium'
+                    />
+                  ),
+                }}
+              />
             </Typography.Text>
           </div>
 
           <div className='text-sm'>
             <span className='!text-semi-color-text-1'>
-              {t('设计与开发由')}{' '}
+              <Trans
+                i18nKey='由 QuantumNous 的 New API 团队用 ❤️ 打造。'
+                components={{
+                  newApi: (
+                    <a
+                      href='https://www.newapi.ai/'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='!text-semi-color-primary font-medium'
+                    />
+                  ),
+                  quantumnous: (
+                    <a
+                      href='https://github.com/QuantumNous'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='!text-semi-color-primary font-medium'
+                    />
+                  ),
+                }}
+              />
             </span>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='!text-semi-color-primary font-medium'
-            >
-              New API
-            </a>
           </div>
         </div>
       </footer>
@@ -229,16 +254,28 @@ const FooterBar = () => {
             ></div>
             <div className='text-sm flex-shrink-0'>
               <span className='!text-semi-color-text-1'>
-                {t('设计与开发由')}{' '}
+                <Trans
+                  i18nKey='由 QuantumNous 的 New API 团队用 ❤️ 打造。'
+                  components={{
+                    newApi: (
+                      <a
+                        href='https://www.newapi.ai/'
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='!text-semi-color-primary font-medium'
+                      />
+                    ),
+                    quantumnous: (
+                      <a
+                        href='https://github.com/QuantumNous'
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='!text-semi-color-primary font-medium'
+                      />
+                    ),
+                  }}
+                />
               </span>
-              <a
-                href='https://github.com/QuantumNous/new-api'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='!text-semi-color-primary font-medium'
-              >
-                New API
-              </a>
             </div>
           </div>
         </footer>

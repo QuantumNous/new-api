@@ -201,7 +201,7 @@ func Register(c *gin.Context) {
 		// 生成默认令牌
 		token := model.Token{
 			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
+			Name:               cleanUser.Username + "'s initial token",
 			Key:                key,
 			CreatedTime:        common.GetTimestamp(),
 			AccessedTime:       common.GetTimestamp(),
@@ -502,7 +502,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 转换为JSON字符串
 	configBytes, err := json.Marshal(defaultConfig)
 	if err != nil {
-		common.SysLog("生成默认边栏配置失败: " + err.Error())
+		common.SysLog("failed to generate default sidebar config: " + err.Error())
 		return ""
 	}
 
@@ -573,7 +573,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 	if originUser.Quota != updatedUser.Quota {
-		model.RecordLog(originUser.Id, model.LogTypeManage, fmt.Sprintf("管理员将用户额度从 %s修改为 %s", logger.LogQuota(originUser.Quota), logger.LogQuota(updatedUser.Quota)))
+		model.RecordLog(originUser.Id, model.LogTypeManage, fmt.Sprintf("admin changed user quota from %s to %s", logger.LogQuota(originUser.Quota), logger.LogQuota(updatedUser.Quota)))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -717,7 +717,7 @@ func UpdateSelf(c *gin.Context) {
 	}
 	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
 	if err != nil {
-		common.ApiError(c, err)
+		common.ApiErrorMsg(c, i18n.T(c, err.Error()))
 		return
 	}
 	if err := cleanUser.Update(updatePassword); err != nil {
@@ -742,7 +742,7 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 	// 密码不为空,需要验证原密码
 	// 支持第一次账号绑定时原密码为空的情况
 	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) && currentUser.Password != "" {
-		err = fmt.Errorf("原密码错误")
+		err = errors.New(i18n.MsgUserOriginalPasswordError)
 		return
 	}
 	if newPassword == "" {

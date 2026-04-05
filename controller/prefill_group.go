@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func CreatePrefillGroup(c *gin.Context) {
 		return
 	}
 	if g.Name == "" || g.Type == "" {
-		common.ApiErrorMsg(c, "组名称和类型不能为空")
+		common.ApiErrorI18n(c, i18n.MsgGroupNameTypeEmpty)
 		return
 	}
 	// 创建前检查名称
@@ -36,7 +37,7 @@ func CreatePrefillGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	} else if dup {
-		common.ApiErrorMsg(c, "组名称已存在")
+		common.ApiErrorI18n(c, i18n.MsgGroupNameExists)
 		return
 	}
 
@@ -55,7 +56,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 		return
 	}
 	if g.Id == 0 {
-		common.ApiErrorMsg(c, "缺少组 ID")
+		common.ApiErrorI18n(c, i18n.MsgGroupIdMissing)
 		return
 	}
 	// 名称冲突检查
@@ -63,7 +64,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	} else if dup {
-		common.ApiErrorMsg(c, "组名称已存在")
+		common.ApiErrorI18n(c, i18n.MsgGroupNameExists)
 		return
 	}
 

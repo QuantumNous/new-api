@@ -205,6 +205,8 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
           <Popconfirm
             title={t('确定删除此组？')}
             onConfirm={() => deleteGroup(record.id)}
+            okText={t('确定')}
+            cancelText={t('取消')}
           >
             <Button size='small' type='danger'>
               {t('删除')}

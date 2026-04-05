@@ -1401,8 +1401,8 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
                   value={priceCurrency}
                   onChange={handleCurrencyChange}
                 >
-                  <Radio value='usdc'>USDC</Radio>
-                  <Radio value='iocoin'>IOCOIN</Radio>
+                  <Radio value={'usdc'}>{'USDC'}</Radio>
+                  <Radio value={'iocoin'}>{'IOCOIN'}</Radio>
                 </RadioGroup>
                 <Tag size='small' color='blue'>
                   {currencyLabel}

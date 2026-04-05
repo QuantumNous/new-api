@@ -81,7 +81,7 @@ const EditRedemptionModal = (props) => {
       }
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -137,7 +137,7 @@ const EditRedemptionModal = (props) => {
         props.handleClose();
       }
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     if (!isEdit && data) {
       let text = '';

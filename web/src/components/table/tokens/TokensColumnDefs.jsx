@@ -141,7 +141,7 @@ const renderTokenKey = (
               type='tertiary'
               icon={revealed ? <IconEyeClosed /> : <IconEyeOpened />}
               loading={loading}
-              aria-label='toggle token visibility'
+              aria-label={t('密钥')}
               onClick={async (e) => {
                 e.stopPropagation();
                 await toggleTokenVisibility(record);
@@ -170,7 +170,7 @@ const renderTokenKey = (
                 type='tertiary'
                 icon={<IconCopy />}
                 loading={loading}
-                aria-label='copy token key'
+                aria-label={t('复制密钥')}
                 onClick={async (e) => {
                   e.stopPropagation();
                 }}
@@ -227,7 +227,7 @@ const renderModelLimits = (text, record, t) => {
           position='top'
           showArrow
         >
-          <Avatar size='extra-extra-small' alt='unknown'>
+          <Avatar size='extra-extra-small' alt={t('unknown')}>
             {t('其他')}
           </Avatar>
         </Tooltip>,
@@ -313,7 +313,7 @@ const renderQuotaUsage = (text, record, t) => {
         {t('已用额度')}: {renderQuota(used)}
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(remain) }}>
-        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}%)
+        {t('剩余额度')}: {renderQuota(remain)} ({percent.toFixed(0)}{'%'})
       </Paragraph>
       <Paragraph copyable={{ content: renderQuota(total) }}>
         {t('总额度')}: {renderQuota(total)}
@@ -328,7 +328,7 @@ const renderQuotaUsage = (text, record, t) => {
           <Progress
             percent={percent}
             stroke={getProgressColor(percent)}
-            aria-label='quota usage'
+            aria-label={t('剩余额度/总额度')}
             format={() => `${percent.toFixed(0)}%`}
             style={{ width: '100%', marginTop: '1px', marginBottom: 0 }}
           />

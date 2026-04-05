@@ -146,16 +146,16 @@ const DebugPanel = ({
                 {t('预览请求体')}
                 {customRequestMode && (
                   <span className='px-1.5 py-0.5 text-xs bg-orange-100 text-orange-600 rounded-full'>
-                    自定义
+                    {t('自定义')}
                   </span>
                 )}
               </div>
             }
-            itemKey='preview'
+            itemKey={'preview'}
           >
             <CodeViewer
               content={debugData.previewRequest}
-              title='preview'
+              title={'preview'}
               language='json'
             />
           </TabPane>
@@ -167,11 +167,11 @@ const DebugPanel = ({
                 {t('实际请求体')}
               </div>
             }
-            itemKey='request'
+            itemKey={'request'}
           >
             <CodeViewer
               content={debugData.request}
-              title='request'
+              title={'request'}
               language='json'
             />
           </TabPane>
@@ -183,19 +183,21 @@ const DebugPanel = ({
                 {t('响应')}
                 {debugData.sseMessages && debugData.sseMessages.length > 0 && (
                   <span className='px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full'>
-                    SSE ({debugData.sseMessages.length})
+                    {t('SSE（{{total}}）', {
+                      total: debugData.sseMessages.length,
+                    })}
                   </span>
                 )}
               </div>
             }
-            itemKey='response'
+            itemKey={'response'}
           >
             {debugData.sseMessages && debugData.sseMessages.length > 0 ? (
-              <SSEViewer sseData={debugData.sseMessages} title='response' />
+              <SSEViewer sseData={debugData.sseMessages} title={'response'} />
             ) : (
               <CodeViewer
                 content={debugData.response}
-                title='response'
+                title={'response'}
                 language='json'
               />
             )}

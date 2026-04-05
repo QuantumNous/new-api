@@ -201,9 +201,9 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
     }
     return (
       formattedContent.substring(0, PERFORMANCE_CONFIG.PREVIEW_LENGTH) +
-      '\n\n// ... 内容被截断以提升性能 ...'
+      `\n\n// ... ${t('为性能原因已截断')} ...`
     );
-  }, [formattedContent, contentMetrics.isLarge, isExpanded]);
+  }, [formattedContent, contentMetrics.isLarge, isExpanded, t]);
 
   const highlightedContent = useMemo(() => {
     if (contentMetrics.isVeryLarge && !isExpanded) {
@@ -381,13 +381,13 @@ const CodeViewer = ({ content, title, language = 'json' }) => {
                 <span
                   style={{ fontSize: '11px', opacity: 0.7, marginLeft: '4px' }}
                 >
-                  (+
+                  {'(+'}
                   {Math.round(
                     (contentMetrics.length -
                       PERFORMANCE_CONFIG.PREVIEW_LENGTH) /
                       1000,
                   )}
-                  K)
+                  {'K)'}
                 </span>
               )}
             </Button>

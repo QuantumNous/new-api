@@ -204,10 +204,10 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     });
     const { success, message } = res.data;
     if (success) {
-      showSuccess('系统公告已更新');
+      showSuccess(t('系统公告已更新'));
       if (refresh) refresh();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -219,7 +219,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       setHasChanges(false);
     } catch (error) {
       console.error('系统公告更新失败', error);
-      showError('系统公告更新失败');
+      showError(t('系统公告更新失败'));
     } finally {
       setLoading(false);
     }
@@ -261,7 +261,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       );
       setAnnouncementsList(newList);
       setHasChanges(true);
-      showSuccess('公告已删除，请及时点击“保存设置”进行保存');
+      showSuccess(t('公告已删除，请及时点击“保存设置”进行保存'));
     }
     setShowDeleteModal(false);
     setDeletingAnnouncement(null);
@@ -269,7 +269,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   const handleSaveAnnouncement = async () => {
     if (!announcementForm.content || !announcementForm.publishDate) {
-      showError('请填写完整的公告信息');
+      showError(t('请填写完整的公告信息'));
       return;
     }
 
@@ -302,11 +302,11 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       setShowAnnouncementModal(false);
       showSuccess(
         editingAnnouncement
-          ? '公告已更新，请及时点击“保存设置”进行保存'
-          : '公告已添加，请及时点击“保存设置”进行保存',
+          ? t('公告已更新，请及时点击“保存设置”进行保存')
+          : t('公告已添加，请及时点击“保存设置”进行保存'),
       );
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      showError(t('操作失败: {{message}}', { message: error.message }));
     } finally {
       setModalLoading(false);
     }
@@ -362,7 +362,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
         showSuccess(t('设置已保存'));
         refresh?.();
       } else {
-        showError(res.data.message);
+        showError(res.data.message, { apiMessage: true });
       }
     } catch (err) {
       showError(err.message);
@@ -371,7 +371,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
 
   const handleBatchDelete = () => {
     if (selectedRowKeys.length === 0) {
-      showError('请先选择要删除的系统公告');
+      showError(t('请先选择要删除的系统公告'));
       return;
     }
 
@@ -382,7 +382,9 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     setSelectedRowKeys([]);
     setHasChanges(true);
     showSuccess(
-      `已删除 ${selectedRowKeys.length} 个系统公告，请及时点击“保存设置”进行保存`,
+      t('已删除 {{count}} 个系统公告，请及时点击“保存设置”进行保存', {
+        count: selectedRowKeys.length,
+      }),
     );
   };
 

@@ -236,7 +236,7 @@ export const useMjLogsData = () => {
     if (success) {
       syncPageData(data);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };

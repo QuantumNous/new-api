@@ -165,8 +165,8 @@ export default function SettingsDrawing(props) {
                   field={'MjModeClearEnabled'}
                   label={
                     <>
-                      {t('开启之后会清除用户提示词中的')} <Tag>--fast</Tag> 、
-                      <Tag>--relax</Tag> {t('以及')} <Tag>--turbo</Tag>{' '}
+                      {t('开启之后会清除用户提示词中的')} <Tag>{'--fast'}</Tag>,{' '}
+                      <Tag>{'--relax'}</Tag> {t('以及')} <Tag>{'--turbo'}</Tag>{' '}
                       {t('参数')}
                     </>
                   }

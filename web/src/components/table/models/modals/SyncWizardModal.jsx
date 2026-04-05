@@ -85,7 +85,7 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
             onChange={(e) => setOption(e?.target?.value ?? e)}
             type='card'
             direction='horizontal'
-            aria-label='同步方式选择'
+            aria-label={t('选择方式')}
             name='sync-mode-selection'
           >
             <Radio value='official' extra={t('从官方模型库同步')}>
@@ -109,20 +109,20 @@ const SyncWizardModal = ({ visible, onClose, onConfirm, loading, t }) => {
               onChange={(e) => setLocale(e?.target?.value ?? e)}
               type='card'
               direction='horizontal'
-              aria-label='语言选择'
+              aria-label={t('选择语言')}
               name='sync-locale-selection'
             >
-              <Radio value='en' extra='English'>
-                en
+              <Radio value={'en'} extra={t('English')}>
+                {'en'}
               </Radio>
-              <Radio value='zh-CN' extra='简体中文'>
-                zh-CN
+              <Radio value={'zh-CN'} extra={t('简体中文')}>
+                {'zh-CN'}
               </Radio>
-              <Radio value='zh-TW' extra='繁體中文'>
-                zh-TW
+              <Radio value={'zh-TW'} extra={t('繁體中文')}>
+                {'zh-TW'}
               </Radio>
-              <Radio value='ja' extra='日本語'>
-                ja
+              <Radio value={'ja'} extra={t('日本語')}>
+                {'ja'}
               </Radio>
             </RadioGroup>
           </div>

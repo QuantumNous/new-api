@@ -80,7 +80,7 @@ export const useUsersData = () => {
       setUserCount(data.total);
       setUserFormat(newPageData);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -115,7 +115,7 @@ export const useUsersData = () => {
       setUserCount(data.total);
       setUserFormat(newPageData);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setSearching(false);
   };
@@ -148,7 +148,7 @@ export const useUsersData = () => {
 
       setUsers(newUsers);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
 
     setLoading(false);

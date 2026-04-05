@@ -17,19 +17,19 @@ var Chats = []map[string]string{
 		"AionUI": "aionui://provider/add?v=1&data={aionuiConfig}",
 	},
 	{
-		"流畅阅读": "fluentread",
+		"Fluent Read": "fluentread",
 	},
 	{
 		"CC Switch": "ccswitch",
 	},
 	{
-		"Lobe Chat 官方示例": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",
+		"Lobe Chat Official Example": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",
 	},
 	{
 		"AI as Workspace": "https://aiaw.app/set-provider?provider={\"type\":\"openai\",\"settings\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\",\"compatibility\":\"strict\"}}",
 	},
 	{
-		"AMA 问天": "ama://set-api-key?server={address}&key={key}",
+		"AMA": "ama://set-api-key?server={address}&key={key}",
 	},
 	{
 		"OpenCat": "opencat://team/join?domain={address}&token={key}",

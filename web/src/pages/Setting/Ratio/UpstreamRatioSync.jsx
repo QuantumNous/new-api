@@ -189,7 +189,7 @@ export default function UpstreamRatioSync(props) {
           return merged;
         });
       } else {
-        showError(res.data.message);
+        showError(res.data.message || t('获取渠道失败'));
       }
     } catch (error) {
       showError(t('获取渠道失败：') + error.message);

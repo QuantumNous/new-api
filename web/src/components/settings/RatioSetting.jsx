@@ -73,7 +73,7 @@ const RatioSetting = () => {
       });
       setInputs(newInputs);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -82,7 +82,7 @@ const RatioSetting = () => {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      showError('刷新失败');
+      showError(t('刷新失败'));
     } finally {
       setLoading(false);
     }

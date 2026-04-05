@@ -67,21 +67,21 @@ const KEY_DEFAULT_TTL = 'channel_affinity_setting.default_ttl_seconds';
 const KEY_RULES = 'channel_affinity_setting.rules';
 
 const KEY_SOURCE_TYPES = [
-  { label: 'context_int', value: 'context_int' },
-  { label: 'context_string', value: 'context_string' },
-  { label: 'gjson', value: 'gjson' },
+  { labelKey: '上下文整数 (context_int)', value: 'context_int' },
+  { labelKey: '上下文字符串 (context_string)', value: 'context_string' },
+  { labelKey: 'JSON 路径 (gjson)', value: 'gjson' },
 ];
 
 const CONTEXT_KEY_PRESETS = [
-  { key: 'id', label: 'id（用户 ID）' },
-  { key: 'token_id', label: 'token_id' },
-  { key: 'token_key', label: 'token_key' },
-  { key: 'token_group', label: 'token_group' },
-  { key: 'group', label: 'group（using_group）' },
-  { key: 'username', label: 'username' },
-  { key: 'user_group', label: 'user_group' },
-  { key: 'user_email', label: 'user_email' },
-  { key: 'specific_channel_id', label: 'specific_channel_id' },
+  { key: 'id', labelKey: 'id（user_id）' },
+  { key: 'token_id', labelKey: 'token_id' },
+  { key: 'token_key', labelKey: 'token_key' },
+  { key: 'token_group', labelKey: 'token_group' },
+  { key: 'group', labelKey: 'group（using_group）' },
+  { key: 'username', labelKey: 'username' },
+  { key: 'user_group', labelKey: 'user_group' },
+  { key: 'user_email', labelKey: 'user_email' },
+  { key: 'specific_channel_id', labelKey: 'specific_channel_id' },
 ];
 
 const RULES_JSON_PLACEHOLDER = `[
@@ -163,14 +163,14 @@ const makeUniqueName = (existingNames, baseName) => {
 
 const tryParseRulesJsonArray = (jsonString) => {
   const raw = jsonString || '[]';
-  if (!verifyJSON(raw)) return { ok: false, message: 'Rules JSON is invalid' };
+  if (!verifyJSON(raw)) return { ok: false, message: '规则 JSON 格式不正确' };
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed))
-      return { ok: false, message: 'Rules JSON must be an array' };
+      return { ok: false, message: '规则 JSON 格式不正确' };
     return { ok: true, value: parsed };
   } catch (e) {
-    return { ok: false, message: 'Rules JSON is invalid' };
+    return { ok: false, message: '规则 JSON 格式不正确' };
   }
 };
 
@@ -347,7 +347,7 @@ export default function SettingsChannelAffinity(props) {
         disableDuplicate: true,
       });
       const { success, message, data } = res.data;
-      if (!success) return showError(t(message));
+      if (!success) return showError(message || t('操作失败'));
       setCacheStats(data || {});
     } catch (e) {
       showError(t('刷新缓存统计失败'));
@@ -370,7 +370,7 @@ export default function SettingsChannelAffinity(props) {
         });
         const { success, message } = res.data;
         if (!success) {
-          showError(t(message));
+          showError(message || t('操作失败'));
           return;
         }
         showSuccess(t('已清空'));
@@ -401,7 +401,7 @@ export default function SettingsChannelAffinity(props) {
         });
         const { success, message } = res.data;
         if (!success) {
-          showError(t(message));
+          showError(message || t('操作失败'));
           return;
         }
         showSuccess(t('已清空'));
@@ -571,7 +571,7 @@ export default function SettingsChannelAffinity(props) {
       render: (_, record) => {
         const name = (record?.name || '').trim();
         if (!name || !record?.include_rule_name) {
-          return <Text type='tertiary'>N/A</Text>;
+          return <Text type='tertiary'>{t('无')}</Text>;
         }
         const n = Number(cacheStats?.by_rule_name?.[name] || 0);
         return <Text>{n}</Text>;
@@ -581,8 +581,8 @@ export default function SettingsChannelAffinity(props) {
       title: t('作用域'),
       render: (_, record) => {
         const tags = [];
-        if (record?.include_using_group) tags.push('分组');
-        if (record?.include_rule_name) tags.push('规则');
+        if (record?.include_using_group) tags.push(t('分组'));
+        if (record?.include_rule_name) tags.push(t('规则'));
         if (tags.length === 0) return '-';
         return tags.map((x) => (
           <Tag key={x} style={{ marginRight: 4 }}>
@@ -919,7 +919,7 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_MAX_ENTRIES}
                   label={t('最大条目数')}
                   min={0}
-                  placeholder='例如 100000…'
+                  placeholder={t('例如 100000…')}
                   extraText={
                     <Text type='tertiary' size='small'>
                       {t(
@@ -940,7 +940,7 @@ export default function SettingsChannelAffinity(props) {
                   field={KEY_DEFAULT_TTL}
                   label={t('默认 TTL（秒）')}
                   min={0}
-                  placeholder='例如 3600…'
+                  placeholder={t('例如 3600…')}
                   extraText={
                     <Text type='tertiary' size='small'>
                       {t(
@@ -1072,7 +1072,7 @@ export default function SettingsChannelAffinity(props) {
             field='name'
             label={t('名称')}
             extraText={t('规则名称（可读性更好，也会出现在管理侧日志中）。')}
-            placeholder='例如 prefer-by-conversation-id…'
+            placeholder={t('例如 prefer-by-conversation-id…')}
             rules={[{ required: true }]}
             onChange={(value) =>
               setEditingRule((prev) => ({ ...(prev || {}), name: value }))
@@ -1157,7 +1157,7 @@ export default function SettingsChannelAffinity(props) {
                   <Form.Input
                     field='value_regex'
                     label={t('Value 正则')}
-                    placeholder='^[-0-9A-Za-z._:]{1,128}$'
+                    placeholder={'^[-0-9A-Za-z._:]{1,128}$'}
                     extraText={t(
                       '可选。对提取到的亲和 Key 做正则校验；不填表示不校验。',
                     )}
@@ -1167,7 +1167,7 @@ export default function SettingsChannelAffinity(props) {
                   <Form.InputNumber
                     field='ttl_seconds'
                     label={t('TTL（秒，0 表示默认）')}
-                    placeholder='例如 600…'
+                    placeholder={t('例如 600…')}
                     min={0}
                     extraText={
                       <Text type='tertiary' size='small'>
@@ -1294,7 +1294,7 @@ export default function SettingsChannelAffinity(props) {
             <div style={{ marginTop: 6 }}>
               {(CONTEXT_KEY_PRESETS || []).map((x) => (
                 <Tag key={x.key} style={{ marginRight: 6, marginBottom: 6 }}>
-                  {x.label}
+                  {t(x.labelKey)}
                 </Tag>
               ))}
             </div>
@@ -1307,7 +1307,10 @@ export default function SettingsChannelAffinity(props) {
                 render: (_, __, idx) => (
                   <Select
                     style={{ width: 160 }}
-                    optionList={KEY_SOURCE_TYPES}
+                    optionList={KEY_SOURCE_TYPES.map((option) => ({
+                      value: option.value,
+                      label: t(option.labelKey),
+                    }))}
                     value={(
                       editingRule?.key_sources?.[idx]?.type || 'gjson'
                     ).trim()}

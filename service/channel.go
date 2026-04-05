@@ -19,18 +19,18 @@ func formatNotifyType(channelId int, status int) string {
 
 // disable & notify
 func DisableChannel(channelError types.ChannelError, reason string) {
-	common.SysLog(fmt.Sprintf("通道「%s」（#%d）发生错误，准备禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason))
+	common.SysLog(fmt.Sprintf("channel '%s' (#%d) encountered an error, preparing to disable, reason: %s", channelError.ChannelName, channelError.ChannelId, reason))
 
 	// 检查是否启用自动禁用功能
 	if !channelError.AutoBan {
-		common.SysLog(fmt.Sprintf("通道「%s」（#%d）未启用自动禁用功能，跳过禁用操作", channelError.ChannelName, channelError.ChannelId))
+		common.SysLog(fmt.Sprintf("channel '%s' (#%d) does not enable auto-disable, skipping disable operation", channelError.ChannelName, channelError.ChannelId))
 		return
 	}
 
 	success := model.UpdateChannelStatus(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason)
 	if success {
-		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
-		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
+		subject := fmt.Sprintf("Channel '%s' (#%d) has been disabled", channelError.ChannelName, channelError.ChannelId)
+		content := fmt.Sprintf("Channel '%s' (#%d) has been disabled. Reason: %s", channelError.ChannelName, channelError.ChannelId, reason)
 		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
 	}
 }
@@ -38,8 +38,8 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 func EnableChannel(channelId int, usingKey string, channelName string) {
 	success := model.UpdateChannelStatus(channelId, usingKey, common.ChannelStatusEnabled, "")
 	if success {
-		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
-		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
+		subject := fmt.Sprintf("Channel '%s' (#%d) has been enabled", channelName, channelId)
+		content := fmt.Sprintf("Channel '%s' (#%d) has been enabled", channelName, channelId)
 		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
 	}
 }

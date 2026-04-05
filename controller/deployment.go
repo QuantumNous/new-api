@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/pkg/ionet"
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +20,7 @@ func getIoAPIKey(c *gin.Context) (string, bool) {
 	apiKey := common.OptionMap["model_deployment.ionet.api_key"]
 	common.OptionMapRWMutex.RUnlock()
 	if !enabled || strings.TrimSpace(apiKey) == "" {
-		common.ApiErrorMsg(c, "io.net model deployment is not enabled or api key missing")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentNotEnabled)
 		return "", false
 	}
 	return apiKey, true
@@ -67,7 +68,7 @@ func TestIoNetConnection(c *gin.Context) {
 	}
 	if len(bytes.TrimSpace(rawBody)) > 0 {
 		if err := json.Unmarshal(rawBody, &req); err != nil {
-			common.ApiErrorMsg(c, "invalid request payload")
+			common.ApiErrorI18n(c, i18n.MsgDeploymentInvalidPayload)
 			return
 		}
 	}
@@ -78,7 +79,7 @@ func TestIoNetConnection(c *gin.Context) {
 		storedKey := strings.TrimSpace(common.OptionMap["model_deployment.ionet.api_key"])
 		common.OptionMapRWMutex.RUnlock()
 		if storedKey == "" {
-			common.ApiErrorMsg(c, "api_key is required")
+			common.ApiErrorI18n(c, i18n.MsgDeploymentApiKeyRequired)
 			return
 		}
 		apiKey = storedKey
@@ -120,7 +121,7 @@ func TestIoNetConnection(c *gin.Context) {
 func requireDeploymentID(c *gin.Context) (string, bool) {
 	deploymentID := strings.TrimSpace(c.Param("id"))
 	if deploymentID == "" {
-		common.ApiErrorMsg(c, "deployment ID is required")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentIdRequired)
 		return "", false
 	}
 	return deploymentID, true
@@ -129,7 +130,7 @@ func requireDeploymentID(c *gin.Context) (string, bool) {
 func requireContainerID(c *gin.Context) (string, bool) {
 	containerID := strings.TrimSpace(c.Param("container_id"))
 	if containerID == "" {
-		common.ApiErrorMsg(c, "container ID is required")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentContainerIdReq)
 		return "", false
 	}
 	return containerID, true
@@ -367,7 +368,7 @@ func UpdateDeploymentName(c *gin.Context) {
 	}
 
 	if updateReq.Name == "" {
-		common.ApiErrorMsg(c, "deployment name cannot be empty")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentNameEmpty)
 		return
 	}
 
@@ -378,7 +379,7 @@ func UpdateDeploymentName(c *gin.Context) {
 	}
 
 	if !available {
-		common.ApiErrorMsg(c, "deployment name is not available, please choose a different name")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentNameTaken)
 		return
 	}
 
@@ -571,13 +572,13 @@ func GetAvailableReplicas(c *gin.Context) {
 	gpuCountStr := c.Query("gpu_count")
 
 	if hardwareIDStr == "" {
-		common.ApiErrorMsg(c, "hardware_id parameter is required")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentHardwareIdReq)
 		return
 	}
 
 	hardwareID, err := strconv.Atoi(hardwareIDStr)
 	if err != nil || hardwareID <= 0 {
-		common.ApiErrorMsg(c, "invalid hardware_id parameter")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentHardwareInvId)
 		return
 	}
 
@@ -626,7 +627,7 @@ func CheckClusterNameAvailability(c *gin.Context) {
 
 	clusterName := strings.TrimSpace(c.Query("name"))
 	if clusterName == "" {
-		common.ApiErrorMsg(c, "name parameter is required")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentNameEmpty)
 		return
 	}
 
@@ -656,7 +657,7 @@ func GetDeploymentLogs(c *gin.Context) {
 
 	containerID := c.Query("container_id")
 	if containerID == "" {
-		common.ApiErrorMsg(c, "container_id parameter is required")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentContainerIdReq)
 		return
 	}
 	level := c.Query("level")
@@ -780,7 +781,7 @@ func GetContainerDetails(c *gin.Context) {
 		return
 	}
 	if details == nil {
-		common.ApiErrorMsg(c, "container details not found")
+		common.ApiErrorI18n(c, i18n.MsgDeploymentNotFound)
 		return
 	}
 

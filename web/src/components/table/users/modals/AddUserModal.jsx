@@ -61,7 +61,7 @@ const AddUserModal = (props) => {
       props.refresh();
       props.handleClose();
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };

@@ -107,7 +107,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     if (success) {
       syncPageData(data);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -286,7 +286,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       }
       setTokens(newTokens);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setLoading(false);
   };
@@ -312,7 +312,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       setSearchMode(true);
       syncPageData(data);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
     setSearching(false);
   };

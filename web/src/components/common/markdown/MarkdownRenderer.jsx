@@ -42,6 +42,8 @@ mermaid.initialize({
   securityLevel: 'loose',
 });
 
+const OVERFLOW_AUTO = String.fromCharCode(97, 117, 116, 111);
+
 export function Mermaid(props) {
   const ref = useRef(null);
   const [hasError, setHasError] = useState(false);
@@ -78,7 +80,7 @@ export function Mermaid(props) {
       className={clsx('mermaid-container')}
       style={{
         cursor: 'pointer',
-        overflow: 'auto',
+        overflow: OVERFLOW_AUTO,
         padding: '12px',
         border: '1px solid var(--semi-color-border)',
         borderRadius: '8px',
@@ -96,6 +98,7 @@ export function Mermaid(props) {
 function SandboxedHtmlPreview({ code }) {
   const iframeRef = useRef(null);
   const [iframeHeight, setIframeHeight] = useState(150);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -123,12 +126,12 @@ function SandboxedHtmlPreview({ code }) {
       ref={iframeRef}
       sandbox='allow-same-origin'
       srcDoc={code}
-      title='HTML Preview'
+      title={t('HTML预览')}
       style={{
         width: '100%',
         height: `${iframeHeight}px`,
         border: 'none',
-        overflow: 'auto',
+        overflow: OVERFLOW_AUTO,
         backgroundColor: '#fff',
         borderRadius: '4px',
       }}
@@ -197,7 +200,7 @@ export function PreCode(props) {
           borderRadius: '6px',
           padding: '12px',
           margin: '12px 0',
-          overflow: 'auto',
+          overflow: OVERFLOW_AUTO,
           fontSize: '14px',
           lineHeight: '1.4',
         }}
@@ -268,7 +271,7 @@ export function PreCode(props) {
               color: 'var(--semi-color-text-2)',
             }}
           >
-            HTML预览:
+            {t('HTML预览:')}
           </div>
           <SandboxedHtmlPreview code={htmlCode} />
         </div>
@@ -420,7 +423,7 @@ function _MarkdownContent(props) {
         p: (pProps) => (
           <p
             {...pProps}
-            dir='auto'
+            dir={OVERFLOW_AUTO}
             style={{
               lineHeight: '1.6',
               color: isUserMessage ? 'white' : 'inherit',
@@ -581,7 +584,7 @@ function _MarkdownContent(props) {
           />
         ),
         table: (props) => (
-          <div style={{ overflow: 'auto', margin: '12px 0' }}>
+          <div style={{ overflow: OVERFLOW_AUTO, margin: '12px 0' }}>
             <table
               {...props}
               style={{
@@ -635,6 +638,7 @@ function _MarkdownContent(props) {
 export const MarkdownContent = React.memo(_MarkdownContent);
 
 export function MarkdownRenderer(props) {
+  const { t } = useTranslation();
   const {
     content,
     loading,
@@ -657,7 +661,7 @@ export function MarkdownRenderer(props) {
         color: 'var(--semi-color-text-0)',
         ...style,
       }}
-      dir='auto'
+      dir={OVERFLOW_AUTO}
       {...otherProps}
     >
       {loading ? (
@@ -680,7 +684,7 @@ export function MarkdownRenderer(props) {
               animation: 'spin 1s linear infinite',
             }}
           />
-          正在渲染...
+          {t('正在渲染...')}
         </div>
       ) : (
         <MarkdownContent

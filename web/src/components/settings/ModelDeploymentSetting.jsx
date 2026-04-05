@@ -51,7 +51,7 @@ const ModelDeploymentSetting = () => {
 
       setInputs(newInputs);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
     }
   };
 
@@ -60,7 +60,7 @@ const ModelDeploymentSetting = () => {
       setLoading(true);
       await getOptions();
     } catch (error) {
-      showError('刷新失败');
+      showError(t('刷新失败'));
       console.error(error);
     } finally {
       setLoading(false);

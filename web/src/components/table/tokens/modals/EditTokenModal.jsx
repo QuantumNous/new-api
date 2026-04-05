@@ -122,7 +122,7 @@ const EditTokenModal = (props) => {
       });
       setModels(localModelOptions);
     } else {
-      showError(t(message));
+      showError(message || t('加载模型失败'));
     }
   };
 
@@ -145,7 +145,7 @@ const EditTokenModal = (props) => {
       //   formApiRef.current.setValue('group', 'auto');
       // }
     } else {
-      showError(t(message));
+      showError(message || t('加载分组失败'));
     }
   };
 
@@ -166,7 +166,7 @@ const EditTokenModal = (props) => {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
     } else {
-      showError(message);
+      showError(message || t('加载失败'));
     }
     setLoading(false);
   };
@@ -231,7 +231,7 @@ const EditTokenModal = (props) => {
         props.refresh();
         props.handleClose();
       } else {
-        showError(t(message));
+        showError(message || t('操作失败'));
       }
     } else {
       const count = parseInt(values.tokenCount, 10) || 1;
@@ -263,7 +263,7 @@ const EditTokenModal = (props) => {
         if (success) {
           successCount++;
         } else {
-          showError(t(message));
+          showError(message || t('操作失败'));
           break;
         }
       }

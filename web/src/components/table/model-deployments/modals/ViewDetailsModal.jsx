@@ -494,7 +494,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                 {details.locations.map((location) => (
                   <Tag key={location.id} color='orange' size='large'>
                     <div className='flex items-center gap-1'>
-                      <span>🌍</span>
+                      <span>{'🌍'}</span>
                       <span>
                         {location.name} ({location.iso2})
                       </span>
@@ -523,7 +523,7 @@ const ViewDetailsModal = ({ visible, onCancel, deployment, t }) => {
                   {details.amount_paid
                     ? details.amount_paid.toFixed(2)
                     : '0.00'}{' '}
-                  USDC
+                  {'USDC'}
                 </Text>
               </div>
 

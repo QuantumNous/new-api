@@ -168,9 +168,9 @@ const JSONEditor = ({
       setJsonError('');
     } catch (error) {
       console.log('JSON解析失败:', error.message);
-      setJsonError(error.message);
+      setJsonError(t('JSON格式错误'));
     }
-  }, [value]);
+  }, [value, t]);
 
   // 外部 value 变化时，若不在手动模式，则同步手动文本
   useEffect(() => {
@@ -215,7 +215,7 @@ const JSONEditor = ({
           setJsonError('');
           onChange?.(newValue);
         } catch (error) {
-          setJsonError(error.message);
+          setJsonError(t('JSON格式错误'));
         }
       } else {
         setKeyValuePairs([]);
@@ -250,7 +250,7 @@ const JSONEditor = ({
         setJsonError('');
         setEditMode('visual');
       } catch (error) {
-        setJsonError(error.message);
+        setJsonError(t('JSON格式错误'));
         return;
       }
     }
@@ -661,7 +661,7 @@ const JSONEditor = ({
         {hasJsonError && (
           <Banner
             type='danger'
-            description={`JSON 格式错误: ${jsonError}`}
+            description={jsonError}
             className='mb-3'
           />
         )}

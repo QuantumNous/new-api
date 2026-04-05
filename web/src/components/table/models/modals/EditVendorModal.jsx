@@ -59,7 +59,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
       } else {
-        showError(message);
+        showError(message || t('加载供应商信息失败'));
       }
     } catch (error) {
       showError(t('加载供应商信息失败'));
@@ -97,7 +97,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           refresh();
           handleClose();
         } else {
-          showError(t(message));
+          showError(message || t('操作失败'));
         }
       } else {
         const res = await API.post('/api/vendors/', submitData);
@@ -107,7 +107,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           refresh();
           handleClose();
         } else {
-          showError(t(message));
+          showError(message || t('操作失败'));
         }
       }
     } catch (error) {

@@ -137,7 +137,7 @@ const SSEViewer = ({ sseData }) => {
         <div className='flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg'>
           <CheckCircle size={16} className='text-green-600' />
           <Typography.Text className='text-green-600 font-medium'>
-            {t('流式响应完成')} [DONE]
+            {t('流式响应完成')} {'[DONE]'}
           </Typography.Text>
         </div>
       );
@@ -279,7 +279,7 @@ const SSEViewer = ({ sseData }) => {
                 <div className='flex items-center gap-2'>
                   <Badge count={`#${item.index + 1}`} type='tertiary' />
                   {item.isDone ? (
-                    <span className='text-green-600 font-medium'>[DONE]</span>
+                    <span className='text-green-600 font-medium'>{'[DONE]'}</span>
                   ) : item.error ? (
                     <span className='text-red-600'>{t('解析错误')}</span>
                   ) : (

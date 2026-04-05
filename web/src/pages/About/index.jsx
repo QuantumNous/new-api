@@ -45,7 +45,7 @@ const About = () => {
       setAbout(aboutContent);
       localStorage.setItem('about', aboutContent);
     } else {
-      showError(message);
+      showError(message, { apiMessage: true });
       setAbout(t('加载关于内容失败...'));
     }
     setAboutLoaded(true);
@@ -78,7 +78,7 @@ const About = () => {
           rel='noopener noreferrer'
           className='!text-semi-color-primary'
         >
-          NewAPI
+          {'NewAPI'}
         </a>{' '}
         {t('© {{currentYear}}', { currentYear })}{' '}
         <a
@@ -87,7 +87,7 @@ const About = () => {
           rel='noopener noreferrer'
           className='!text-semi-color-primary'
         >
-          QuantumNous
+          {'QuantumNous'}
         </a>{' '}
         {t('| 基于')}{' '}
         <a
@@ -96,16 +96,16 @@ const About = () => {
           rel='noopener noreferrer'
           className='!text-semi-color-primary'
         >
-          One API v0.5.4
+          {'One API v0.5.4'}
         </a>{' '}
-        © 2023{' '}
+        {'© 2023'}{' '}
         <a
           href='https://github.com/songquanpeng'
           target='_blank'
           rel='noopener noreferrer'
           className='!text-semi-color-primary'
         >
-          JustSong
+          {'JustSong'}
         </a>
       </p>
       <p>

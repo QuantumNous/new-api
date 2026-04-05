@@ -38,7 +38,7 @@ const UsageModeStep = ({
         type='card'
         direction='horizontal'
         className='mt-4'
-        aria-label='使用模式选择'
+        aria-label={t('选择方式')}
         name='usage-mode-selection'
       >
         <Radio

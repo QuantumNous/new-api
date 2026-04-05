@@ -230,24 +230,164 @@ const getModeValueLabel = (mode) => {
   return '值（支持 JSON 或普通文本）';
 };
 
-const HEADER_VALUE_JSONC_EXAMPLE = `{
-  // 置空：删除 Bedrock 不支持的 beta特性
+const STATIC_TEXT_EN_MAP = {
+  '设置字段': 'Set field',
+  '删除字段': 'Delete field',
+  '追加到末尾': 'Append to end',
+  '追加到开头': 'Prepend to start',
+  '复制字段': 'Copy field',
+  '移动字段': 'Move field',
+  '字符串替换': 'String replace',
+  '正则替换': 'Regex replace',
+  '裁剪前缀': 'Trim prefix',
+  '裁剪后缀': 'Trim suffix',
+  '确保前缀': 'Ensure prefix',
+  '确保后缀': 'Ensure suffix',
+  '去掉空白': 'Trim spaces',
+  '转小写': 'Lowercase',
+  '转大写': 'Uppercase',
+  '返回自定义错误': 'Return custom error',
+  '清理对象项': 'Prune object entries',
+  '请求头透传': 'Pass request headers',
+  '字段同步': 'Sync fields',
+  '设置请求头': 'Set request header',
+  '删除请求头': 'Delete request header',
+  '复制请求头': 'Copy request header',
+  '移动请求头': 'Move request header',
+  '完全匹配': 'Exact match',
+  '前缀匹配': 'Prefix match',
+  '后缀匹配': 'Suffix match',
+  '包含': 'Contains',
+  '大于': 'Greater than',
+  '大于等于': 'Greater or equal',
+  '小于': 'Less than',
+  '小于等于': 'Less or equal',
+  '把值写入目标字段': 'Write value to target field',
+  '删除目标字段': 'Delete target field',
+  '把值追加到数组 / 字符串 / 对象末尾':
+    'Append value to array / string / object',
+  '把值追加到数组 / 字符串 / 对象开头':
+    'Prepend value to array / string / object',
+  '把来源字段复制到目标字段': 'Copy source field to target field',
+  '把来源字段移动到目标字段': 'Move source field to target field',
+  '在目标字段里做字符串替换': 'Apply string replacement on target field',
+  '在目标字段里做正则替换': 'Apply regex replacement on target field',
+  '去掉字符串前缀': 'Remove string prefix',
+  '去掉字符串后缀': 'Remove string suffix',
+  '确保字符串有指定前缀': 'Ensure string has specified prefix',
+  '确保字符串有指定后缀': 'Ensure string has specified suffix',
+  '去掉字符串头尾空白': 'Trim leading/trailing spaces',
+  '把字符串转成小写': 'Convert string to lowercase',
+  '把字符串转成大写': 'Convert string to uppercase',
+  '立即返回自定义错误': 'Return custom error immediately',
+  '按条件清理对象中的子项': 'Prune object children by conditions',
+  '把指定请求头透传到上游请求': 'Pass selected request headers upstream',
+  '在一个字段有值、另一个缺失时自动补齐':
+    'Auto-fill when one field has value and the other is missing',
+  '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留':
+    'Set runtime header: overwrite full value, or delete/replace/append/whitelist comma-separated tokens',
+  '删除运行期请求头': 'Delete runtime request header',
+  '请求头名称': 'Header name',
+  '目标路径（可选）': 'Target path (optional)',
+  '目标字段路径': 'Target field path',
+  '匹配文本': 'Match text',
+  '正则表达式': 'Regex pattern',
+  '来源请求头': 'Source header',
+  '来源字段': 'Source field',
+  '替换为': 'Replace with',
+  '目标请求头': 'Target header',
+  '目标字段': 'Target field',
+  '（可留空）': '(optional)',
+  '请求头值（支持字符串或 JSON 映射）':
+    'Header value (supports string or JSON mapping)',
+  '透传请求头（支持逗号分隔或 JSON 数组）':
+    'Pass-through headers (comma-separated or JSON array)',
+  '前后缀文本': 'Prefix/suffix text',
+  '清理规则（字符串或 JSON 对象）':
+    'Prune rule (string or JSON object)',
+  '值（支持 JSON 或普通文本）': 'Value (JSON or plain text)',
+  '纯字符串（整条覆盖）：': 'Plain string (overwrite full header):',
+  '或使用 JSON 规则：': 'Or use JSON rules:',
+  '请求体字段': 'Request body field',
+  '请求头字段': 'Request header field',
+  '基础模板': 'Basic templates',
+  '场景模板': 'Scenario templates',
+  '新格式模板（规则集）': 'New-format template (ruleset)',
+  '旧格式模板（JSON 对象）': 'Legacy template (JSON object)',
+  '请求头透传（X-Request-Id）': 'Header pass-through (X-Request-Id)',
+  'Gemini 图片 4K': 'Gemini image 4K',
+  'Claude CLI 请求头透传': 'Claude CLI header pass-through',
+  'Codex CLI 请求头透传': 'Codex CLI header pass-through',
+  'AWS Bedrock Claude 兼容模板': 'AWS Bedrock Claude compatibility template',
+  '填入目标路径': 'Fill target path',
+  '填入来源字段': 'Fill source field',
+  '填入目标字段': 'Fill target field',
+  '常用请求字段': 'Common request fields',
+  '模型名称': 'Model name',
+  '支持多级模型名，例如 openai/gpt-4o-mini':
+    'Supports multi-segment model names, e.g. openai/gpt-4o-mini',
+  '采样温度': 'Sampling temperature',
+  '控制输出随机性': 'Controls output randomness',
+  '最大输出 Token': 'Max output tokens',
+  '控制输出长度上限': 'Controls output length limit',
+  '最后一条消息内容': 'Last message content',
+  '常用于重写用户输入': 'Commonly used to rewrite user input',
+  '上下文字段': 'Context fields',
+  '是否重试': 'Is retry',
+  'true 表示重试请求': 'true means a retry request',
+  '上次错误码': 'Last error code',
+  '配合重试策略使用': 'Use with retry strategy',
+  '会话 ID': 'Session ID',
+  '可用于路由或缓存命中': 'Can be used for routing or cache hit',
+  '请求头映射字段': 'Header-mapped fields',
+  '标准化 Authorization': 'Normalized Authorization',
+  '统一小写后可稳定匹配':
+    'Lowercase normalization improves matching stability',
+  '标准化 X-Debug-Mode': 'Normalized X-Debug-Mode',
+  '适合灰度 / 调试开关判断': 'Useful for canary/debug switch checks',
+  '置空：删除 Bedrock 不支持的 beta特性':
+    'Set null to remove Bedrock-unsupported beta features',
+  '替换：把旧特性改成兼容特性':
+    'Replace old feature token with compatible token',
+  '追加：在末尾补一个需要的特性':
+    'Append required feature token at the end',
+};
+
+const CHINESE_CHAR_REGEX = /[\u4e00-\u9fff]/;
+
+const resolveStaticText = (value, t, isZhLocale) => {
+  const text = String(value ?? '');
+  if (!text) return '';
+  if (isZhLocale) return text;
+  const translated = t(text);
+  if (
+    typeof translated === 'string' &&
+    translated !== text &&
+    !CHINESE_CHAR_REGEX.test(translated)
+  ) {
+    return translated;
+  }
+  return STATIC_TEXT_EN_MAP[text] || translated;
+};
+
+const buildHeaderValueJsoncExample = (resolveText) => `{
+  // ${resolveText('置空：删除 Bedrock 不支持的 beta特性')}
   "files-api-2025-04-14": null,
 
-  // 替换：把旧特性改成兼容特性
+  // ${resolveText('替换：把旧特性改成兼容特性')}
   "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",
 
-  // 追加：在末尾补一个需要的特性
+  // ${resolveText('追加：在末尾补一个需要的特性')}
   "$append": ["context-1m-2025-08-07"]
 }`;
 
-const getModeValuePlaceholder = (mode) => {
+const getModeValuePlaceholder = (mode, resolveText = (v) => v) => {
   if (mode === 'set_header') {
     return [
-      '纯字符串（整条覆盖）：',
+      resolveText('纯字符串（整条覆盖）：'),
       'Bearer sk-xxx',
       '',
-      '或使用 JSON 规则：',
+      resolveText('或使用 JSON 规则：'),
       '{',
       '  "files-api-2025-04-14": null,',
       '  "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",',
@@ -840,9 +980,13 @@ const reorderOperations = (
   return nextOperations;
 };
 
-const getOperationSummary = (operation = {}, index = 0) => {
+const getOperationSummary = (
+  operation = {},
+  index = 0,
+  operationModeLabelMap = OPERATION_MODE_LABEL_MAP,
+) => {
   const mode = operation.mode || 'set';
-  const modeLabel = OPERATION_MODE_LABEL_MAP[mode] || mode;
+  const modeLabel = operationModeLabelMap[mode] || mode;
   if (mode === 'sync_fields') {
     const from = String(operation.from || '').trim();
     const to = String(operation.to || '').trim();
@@ -884,7 +1028,7 @@ const parseInitialState = (rawValue) => {
       legacyValue: '',
       operations: [createDefaultOperation()],
       jsonText: text,
-      jsonError: 'JSON 格式不正确',
+      jsonError: 'JSON格式错误',
     };
   }
 
@@ -1066,7 +1210,15 @@ const validateOperations = (operations, t) => {
 };
 
 const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isZhLocale = useMemo(
+    () => /^zh(?:-|$)/i.test(i18n.resolvedLanguage || i18n.language || ''),
+    [i18n.language, i18n.resolvedLanguage],
+  );
+  const localizeStaticText = useCallback(
+    (text) => resolveStaticText(text, t, isZhLocale),
+    [isZhLocale, t],
+  );
 
   const [editMode, setEditMode] = useState('visual');
   const [visualMode, setVisualMode] = useState('operations');
@@ -1087,6 +1239,79 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const [fieldGuideTarget, setFieldGuideTarget] = useState('path');
   const [fieldGuideKeyword, setFieldGuideKeyword] = useState('');
 
+  const operationModeOptions = useMemo(
+    () =>
+      OPERATION_MODE_OPTIONS.map((item) => ({
+        ...item,
+        label: localizeStaticText(item.label),
+      })),
+    [localizeStaticText],
+  );
+
+  const operationModeLabelMap = useMemo(
+    () =>
+      operationModeOptions.reduce((acc, item) => {
+        acc[item.value] = item.label;
+        return acc;
+      }, {}),
+    [operationModeOptions],
+  );
+
+  const conditionModeOptions = useMemo(
+    () =>
+      CONDITION_MODE_OPTIONS.map((item) => ({
+        ...item,
+        label: localizeStaticText(item.label),
+      })),
+    [localizeStaticText],
+  );
+
+  const syncTargetTypeOptions = useMemo(
+    () =>
+      SYNC_TARGET_TYPE_OPTIONS.map((item) => ({
+        ...item,
+        label: localizeStaticText(item.label),
+      })),
+    [localizeStaticText],
+  );
+
+  const templateGroupOptions = useMemo(
+    () =>
+      TEMPLATE_GROUP_OPTIONS.map((item) => ({
+        ...item,
+        label: localizeStaticText(item.label),
+      })),
+    [localizeStaticText],
+  );
+
+  const fieldGuideTargetOptions = useMemo(
+    () =>
+      FIELD_GUIDE_TARGET_OPTIONS.map((item) => ({
+        ...item,
+        label: localizeStaticText(item.label),
+      })),
+    [localizeStaticText],
+  );
+
+  const builtinFieldSections = useMemo(
+    () =>
+      BUILTIN_FIELD_SECTIONS.map((section) => ({
+        ...section,
+        title: localizeStaticText(section.title),
+        fields: (section.fields || []).map((field) => ({
+          ...field,
+          label: localizeStaticText(field.label),
+          tip: localizeStaticText(field.tip),
+        })),
+      })),
+    [localizeStaticText],
+  );
+
+  const headerValueJsoncExample = useMemo(
+    () => buildHeaderValueJsoncExample(localizeStaticText),
+    [localizeStaticText],
+  );
+
   useEffect(() => {
     if (!visible) return;
     const nextState = parseInitialState(value);
@@ -1095,7 +1320,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setLegacyValue(nextState.legacyValue);
     setOperations(nextState.operations);
     setJsonText(nextState.jsonText);
-    setJsonError(nextState.jsonError);
+    setJsonError(nextState.jsonError ? t(nextState.jsonError) : '');
     setOperationSearch('');
     setSelectedOperationId(nextState.operations[0]?.id || '');
     setExpandedConditionMap({});
@@ -1113,7 +1338,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setFieldGuideVisible(false);
     setFieldGuideTarget('path');
     setFieldGuideKeyword('');
-  }, [visible, value]);
+  }, [t, value, visible]);
 
   useEffect(() => {
     if (operations.length === 0) {
@@ -1131,9 +1356,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
         .filter(([, config]) => config.group === templateGroupKey)
         .map(([value, config]) => ({
           value,
-          label: config.label,
+          label: localizeStaticText(config.label),
         })),
-    [templateGroupKey],
+    [localizeStaticText, templateGroupKey],
   );
 
   useEffect(() => {
@@ -1523,9 +1748,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const filteredFieldGuideSections = useMemo(() => {
     const keyword = fieldGuideKeyword.trim().toLowerCase();
     if (!keyword) {
-      return BUILTIN_FIELD_SECTIONS;
+      return builtinFieldSections;
     }
-    return BUILTIN_FIELD_SECTIONS.map((section) => ({
+    return builtinFieldSections.map((section) => ({
       ...section,
       fields: section.fields.filter((field) =>
         [field.key, field.label, field.tip]
@@ -1535,7 +1760,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
           .includes(keyword),
       ),
     })).filter((section) => section.fields.length > 0);
-  }, [fieldGuideKeyword]);
+  }, [builtinFieldSections, fieldGuideKeyword]);
 
   const fieldGuideActionLabel = useMemo(() => {
     if (fieldGuideTarget === 'from') return t('填入来源');
@@ -1927,7 +2152,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
               <Tag color='grey'>{t('模板')}</Tag>
               <Select
                 value={templateGroupKey}
-                optionList={TEMPLATE_GROUP_OPTIONS}
+                optionList={templateGroupOptions}
                 onChange={(nextValue) =>
                   setTemplateGroupKey(nextValue || 'basic')
                 }
@@ -2012,7 +2237,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               size='small'
                               color={getOperationModeTagColor(mode)}
                             >
-                              {`${OPERATION_MODE_LABEL_MAP[mode] || mode} · ${count}`}
+                              {`${operationModeLabelMap[mode] || mode} · ${count}`}
                             </Tag>
                           ))}
                         </Space>
@@ -2119,7 +2344,11 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           size='small'
                                           className='block mt-1'
                                         >
-                                          {getOperationSummary(operation, index)}
+                                          {getOperationSummary(
+                                            operation,
+                                            index,
+                                            operationModeLabelMap,
+                                          )}
                                         </Text>
                                         {String(operation.description || '').trim() ? (
                                           <Text
@@ -2151,7 +2380,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         operation.mode || 'set',
                                       )}
                                     >
-                                      {OPERATION_MODE_LABEL_MAP[
+                                      {operationModeLabelMap[
                                         operation.mode || 'set'
                                       ] ||
                                         operation.mode ||
@@ -2198,6 +2427,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   {getOperationSummary(
                                     selectedOperation,
                                     selectedOperationIndex,
+                                    operationModeLabelMap,
                                   )}
                                 </Text>
                               </Space>
@@ -2231,7 +2461,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 </Text>
                                 <Select
                                   value={mode}
-                                  optionList={OPERATION_MODE_OPTIONS}
+                                  optionList={operationModeOptions}
                                   onChange={(nextMode) =>
                                     updateOperation(selectedOperation.id, {
                                       mode: nextMode,
@@ -2243,9 +2473,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               {meta.path || meta.pathOptional ? (
                                 <Col xs={24} md={16}>
                                   <Text type='tertiary' size='small'>
-                                    {meta.pathOptional
-                                      ? t('目标路径（可选）')
-                                      : t(getModePathLabel(mode))}
+                                    {localizeStaticText(getModePathLabel(mode))}
                                   </Text>
                                   <Input
                                     value={selectedOperation.path}
@@ -2265,7 +2493,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               size='small'
                               className='mt-1 block'
                             >
-                              {MODE_DESCRIPTIONS[mode] || ''}
+                              {localizeStaticText(MODE_DESCRIPTIONS[mode] || '')}
                             </Text>
                             <div className='mt-2'>
                               <Text type='tertiary' size='small'>
@@ -2392,7 +2620,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           </Text>
                                           <Input
                                             value={returnErrorDraft.code}
-                                            placeholder='forced_bad_request'
+                                            placeholder={'forced_bad_request'}
                                             onChange={(nextValue) =>
                                               updateReturnErrorDraft(
                                                 selectedOperation.id,
@@ -2407,7 +2635,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           </Text>
                                           <Input
                                             value={returnErrorDraft.type}
-                                            placeholder='invalid_request_error'
+                                            placeholder={'invalid_request_error'}
                                             onChange={(nextValue) =>
                                               updateReturnErrorDraft(
                                                 selectedOperation.id,
@@ -2564,7 +2792,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   </Text>
                                   <Input
                                     value={pruneObjectsDraft.typeText}
-                                    placeholder='redacted_thinking'
+                                    placeholder={'redacted_thinking'}
                                     onChange={(nextValue) =>
                                       updatePruneObjectsDraft(
                                         selectedOperation.id,
@@ -2715,7 +2943,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                       </Text>
                                                       <Input
                                                         value={rule.path}
-                                                        placeholder='type'
+                                                        placeholder={'type'}
                                                         onChange={(nextValue) =>
                                                           updatePruneRule(
                                                             selectedOperation.id,
@@ -2735,7 +2963,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                       <Select
                                                         value={rule.mode}
                                                         optionList={
-                                                          CONDITION_MODE_OPTIONS
+                                                          conditionModeOptions
                                                         }
                                                         style={{ width: '100%' }}
                                                         onChange={(nextValue) =>
@@ -2756,7 +2984,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                       </Text>
                                                       <Input
                                                         value={rule.value_text}
-                                                        placeholder='redacted_thinking'
+                                                        placeholder={'redacted_thinking'}
                                                         onChange={(nextValue) =>
                                                           updatePruneRule(
                                                             selectedOperation.id,
@@ -2829,7 +3057,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 <div className='mt-2'>
                                   <div className='flex items-center justify-between gap-2'>
                                     <Text type='tertiary' size='small'>
-                                      {t(getModeValueLabel(mode))}
+                                      {localizeStaticText(getModeValueLabel(mode))}
                                     </Text>
                                     {mode === 'set_header' ? (
                                       <Space spacing={6}>
@@ -2864,7 +3092,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   <TextArea
                                     value={selectedOperation.value_text}
                                     autosize={{ minRows: 1, maxRows: 4 }}
-                                    placeholder={getModeValuePlaceholder(mode)}
+                                    placeholder={getModeValuePlaceholder(
+                                      mode,
+                                      localizeStaticText,
+                                    )}
                                     onChange={(nextValue) =>
                                       updateOperation(selectedOperation.id, {
                                         value_text: nextValue,
@@ -2912,7 +3143,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     <div className='flex gap-2'>
                                       <Select
                                         value={syncFromTarget?.type || 'json'}
-                                        optionList={SYNC_TARGET_TYPE_OPTIONS}
+                                        optionList={syncTargetTypeOptions}
                                         style={{ width: 120 }}
                                         onChange={(nextType) =>
                                           updateOperation(
@@ -2928,7 +3159,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       />
                                       <Input
                                         value={syncFromTarget?.key || ''}
-                                        placeholder='session_id'
+                                        placeholder={'session_id'}
                                         onChange={(nextKey) =>
                                           updateOperation(
                                             selectedOperation.id,
@@ -2950,7 +3181,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     <div className='flex gap-2'>
                                       <Select
                                         value={syncToTarget?.type || 'json'}
-                                        optionList={SYNC_TARGET_TYPE_OPTIONS}
+                                        optionList={syncTargetTypeOptions}
                                         style={{ width: 120 }}
                                         onChange={(nextType) =>
                                           updateOperation(
@@ -2966,7 +3197,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       />
                                       <Input
                                         value={syncToTarget?.key || ''}
-                                        placeholder='prompt_cache_key'
+                                        placeholder={'prompt_cache_key'}
                                         onChange={(nextKey) =>
                                           updateOperation(
                                             selectedOperation.id,
@@ -3020,7 +3251,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 {meta.from || meta.to === false ? (
                                   <Col xs={24} md={12}>
                                     <Text type='tertiary' size='small'>
-                                      {t(getModeFromLabel(mode))}
+                                      {localizeStaticText(getModeFromLabel(mode))}
                                     </Text>
                                     <Input
                                       value={selectedOperation.from}
@@ -3036,11 +3267,13 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 {meta.to || meta.to === false ? (
                                   <Col xs={24} md={12}>
                                     <Text type='tertiary' size='small'>
-                                      {t(getModeToLabel(mode))}
+                                      {localizeStaticText(getModeToLabel(mode))}
                                     </Text>
                                     <Input
                                       value={selectedOperation.to}
-                                      placeholder={getModeToPlaceholder(mode)}
+                                      placeholder={localizeStaticText(
+                                        getModeToPlaceholder(mode),
+                                      )}
                                       onChange={(nextValue) =>
                                         updateOperation(selectedOperation.id, {
                                           to: nextValue,
@@ -3165,7 +3398,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                               </Text>
                                               <Input
                                                 value={condition.path}
-                                                placeholder='model'
+                                                placeholder={'model'}
                                                 onChange={(nextValue) =>
                                                   updateCondition(
                                                     selectedOperation.id,
@@ -3185,7 +3418,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                               <Select
                                                 value={condition.mode}
                                                 optionList={
-                                                  CONDITION_MODE_OPTIONS
+                                                  conditionModeOptions
                                                 }
                                                 onChange={(nextValue) =>
                                                   updateCondition(
@@ -3206,7 +3439,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                               </Text>
                                               <Input
                                                 value={condition.value_text}
-                                                placeholder='gpt'
+                                                placeholder={'gpt'}
                                                 onChange={(nextValue) =>
                                                   updateCondition(
                                                     selectedOperation.id,
@@ -3339,7 +3572,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
             {t('下面是带注释的示例，仅用于参考；实际保存时请删除注释。')}
           </Text>
           <TextArea
-            value={HEADER_VALUE_JSONC_EXAMPLE}
+            value={headerValueJsoncExample}
             readOnly
             autosize={{ minRows: 16, maxRows: 20 }}
             style={{ marginBottom: 8 }}
@@ -3397,7 +3630,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
               />
               <Select
                 value={fieldGuideTarget}
-                optionList={FIELD_GUIDE_TARGET_OPTIONS}
+                optionList={fieldGuideTargetOptions}
                 onChange={(nextValue) =>
                   setFieldGuideTarget(nextValue || 'path')
                 }

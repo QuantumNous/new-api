@@ -95,7 +95,7 @@ const NoticeModal = ({
           setNoticeContent('');
         }
       } else {
-        showError(message);
+        showError(message, { apiMessage: true });
       }
     } catch (error) {
       showError(error.message);

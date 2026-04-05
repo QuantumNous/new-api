@@ -25,6 +25,7 @@ import {
 } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import i18next from '../i18n/i18n';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -35,7 +36,6 @@ export let API = axios.create({
     'Cache-Control': 'no-store',
   },
 });
-
 
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
@@ -48,7 +48,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -161,7 +160,7 @@ export const buildApiPayload = (
 // 处理API错误响应
 export const handleApiError = (error, response = null) => {
   const errorInfo = {
-    error: error.message || '未知错误',
+    error: error.message || i18next.t('未知错误'),
     timestamp: new Date().toISOString(),
     stack: error.stack,
   };
@@ -172,9 +171,9 @@ export const handleApiError = (error, response = null) => {
   }
 
   if (error.message.includes('HTTP error')) {
-    errorInfo.details = '服务器返回了错误状态码';
+    errorInfo.details = i18next.t('服务器返回了错误状态码');
   } else if (error.message.includes('Failed to fetch')) {
-    errorInfo.details = '网络连接失败或服务器无响应';
+    errorInfo.details = i18next.t('网络连接失败或服务器无响应');
   }
 
   return errorInfo;
@@ -211,7 +210,7 @@ export const processGroupsData = (data, userGroup) => {
   if (groupOptions.length === 0) {
     groupOptions = [
       {
-        label: '用户分组',
+        label: i18next.t('用户分组'),
         value: '',
         ratio: 1,
       },
@@ -240,7 +239,7 @@ export async function getOAuthState() {
   if (success) {
     return data;
   } else {
-    showError(message);
+    showError(message, { apiMessage: true });
     return '';
   }
 }
@@ -352,7 +351,11 @@ export async function onCustomOAuthClicked(provider, options = {}) {
     redirectToOAuthUrl(authUrl);
   } catch (error) {
     console.error('Failed to initiate custom OAuth:', error);
-    showError('OAuth 登录失败：' + (error.message || '未知错误'));
+    showError(
+      i18next.t('OAuth 登录失败：{{message}}', {
+        message: error.message || i18next.t('未知错误'),
+      }),
+    );
   }
 }
 
