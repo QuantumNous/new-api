@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import jeepayIcon from '../../../assets/jeepay.svg';
 
 const { Text } = Typography;
 
@@ -139,6 +140,13 @@ const PaymentConfirmModal = ({
                             className='mr-2'
                             size={16}
                             color='#635BFF'
+                          />
+                        ) : payMethod.type === 'jeepay' ? (
+                          <img
+                            src={jeepayIcon}
+                            alt='Jeepay'
+                            className='mr-2'
+                            style={{ width: 16, height: 16 }}
                           />
                         ) : (
                           <CreditCard
