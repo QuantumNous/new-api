@@ -259,8 +259,8 @@ func RequestJeepayPay(c *gin.Context) {
 	paymentURL, err := createJeepayOrder(c.Request.Context(), &orderReq)
 	if err != nil {
 		log.Printf("Jeepay 下单失败 - 订单号: %s, wayCode: %s, amountFen: %d, expiredTime: %d, err: %v", tradeNo, orderReq.WayCode, orderReq.Amount, orderReq.ExpiredTime, err)
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		// 保持订单 pending 状态 - 错误可能是临时的（超时、网络）
+		// 如果 Jeepay 实际已创建订单，后续 webhook 仍可正常入账
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("Jeepay下单返回：%s", err.Error())})
 		return
 	}

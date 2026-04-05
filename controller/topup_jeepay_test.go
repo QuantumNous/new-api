@@ -26,6 +26,7 @@ func setupJeepayTestDB(t *testing.T) {
 	common.UsingSQLite = true
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
+	common.RedisEnabled = false
 	common.LogConsumeEnabled = true
 	common.QuotaPerUnit = 1
 
