@@ -25,24 +25,22 @@ import {
 const MESSAGES_STORAGE_KEY = 'playground_messages';
 
 const normalizeMaxTokens = (value) => {
-  const fallback = DEFAULT_CONFIG.inputs.max_tokens;
-
   if (typeof value === 'number') {
-    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
   }
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (trimmed === '') {
-      return fallback;
+      return null;
     }
     const parsed = Number(trimmed);
     return Number.isFinite(parsed) && parsed >= 0
       ? Math.floor(parsed)
-      : fallback;
+      : null;
   }
 
-  return fallback;
+  return null;
 };
 
 /**
