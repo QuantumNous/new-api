@@ -24,6 +24,27 @@ import {
 
 const MESSAGES_STORAGE_KEY = 'playground_messages';
 
+const normalizeMaxTokens = (value) => {
+  const fallback = DEFAULT_CONFIG.inputs.max_tokens;
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return fallback;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed >= 0
+      ? Math.floor(parsed)
+      : fallback;
+  }
+
+  return fallback;
+};
+
 /**
  * 保存配置到 localStorage
  * @param {Object} config - 要保存的配置对象
@@ -82,6 +103,10 @@ export const loadConfig = () => {
         customRequestBody:
           parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
       };
+
+      mergedConfig.inputs.max_tokens = normalizeMaxTokens(
+        mergedConfig.inputs.max_tokens,
+      );
 
       return mergedConfig;
     }

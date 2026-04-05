@@ -24,7 +24,10 @@ import {
   isValidMessage,
 } from './utils';
 import axios from 'axios';
-import { MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  DEFAULT_CONFIG,
+  MESSAGE_ROLES,
+} from '../constants/playground.constants';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -108,6 +111,27 @@ API.interceptors.response.use(
 
 // playground
 
+const normalizeMaxTokens = (value) => {
+  const fallback = DEFAULT_CONFIG.inputs.max_tokens;
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return fallback;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed >= 0
+      ? Math.floor(parsed)
+      : fallback;
+  }
+
+  return fallback;
+};
+
 // 构建API请求负载
 export const buildApiPayload = (
   messages,
@@ -150,7 +174,16 @@ export const buildApiPayload = (
     const value = inputs[param];
     const hasValue = value !== undefined && value !== null;
 
-    if (enabled && hasValue) {
+    if (!enabled) {
+      return;
+    }
+
+    if (param === 'max_tokens') {
+      payload[param] = normalizeMaxTokens(value);
+      return;
+    }
+
+    if (hasValue) {
       payload[param] = value;
     }
   });
