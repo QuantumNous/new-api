@@ -24,15 +24,14 @@ import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
 
-const jeepayWayCodeOptions = [
-  { label: '聚合扫码（QR_CASHIER）', value: 'QR_CASHIER' },
-  { label: '收银台（WEB_CASHIER）', value: 'WEB_CASHIER' },
-  { label: '微信扫码（WX_NATIVE）', value: 'WX_NATIVE' },
-  { label: '支付宝扫码（ALI_QR）', value: 'ALI_QR' },
-];
-
 export default function SettingsPaymentGatewayJeepay(props) {
   const { t } = useTranslation();
+  const jeepayWayCodeOptions = [
+    { label: t('聚合扫码') + '（QR_CASHIER）', value: 'QR_CASHIER' },
+    { label: t('收银台') + '（WEB_CASHIER）', value: 'WEB_CASHIER' },
+    { label: t('微信扫码') + '（WX_NATIVE）', value: 'WX_NATIVE' },
+    { label: t('支付宝扫码') + '（ALI_QR）', value: 'ALI_QR' },
+  ];
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     JeepayBaseURL: 'https://pay.jeepay.vip',
@@ -152,7 +151,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
               <Form.Input
                 field='JeepayMchNo'
                 label={t('商户号')}
-                placeholder={t('Jeepay mchNo')}
+                placeholder={t('请输入商户号')}
               />
             </Col>
           </Row>
@@ -164,7 +163,7 @@ export default function SettingsPaymentGatewayJeepay(props) {
               <Form.Input
                 field='JeepayAppID'
                 label={t('应用 ID')}
-                placeholder={t('Jeepay appId')}
+                placeholder={t('请输入应用 ID')}
               />
             </Col>
             <Col xs={24} sm={24} md={12}>
