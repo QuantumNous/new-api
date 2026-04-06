@@ -1987,13 +1987,13 @@ const DropButton = ({ icon, label, open, onClick, children }) => (
       onClick={onClick}
       className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-[13px] font-bold transition-all duration-300 backdrop-blur-md ${
         open 
-          ? 'border-indigo-500/50 bg-indigo-500/20 text-indigo-200 shadow-[0_0_15px_rgba(99,102,241,0.2)]' 
+          ? 'border-blue-500/50 bg-blue-500/20 text-blue-200 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
           : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:border-white/20 hover:text-white'
       }`}
     >
       {icon}
       {label}
-      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-indigo-300' : ''}`} />
+      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-blue-300' : ''}`} />
     </button>
     {children}
   </div>
@@ -2018,7 +2018,7 @@ const DropSelectButton = ({
   >
     {openMenu === menuKey && (
       <div className={`absolute bottom-14 left-0 z-20 ${widthClass} rounded-[1.5rem] border border-white/10 bg-[#1A2234]/95 backdrop-blur-3xl p-2 shadow-2xl shadow-black/50 overflow-hidden`}>
-        <div className='absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none' />
+        <div className='absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none' />
         <div className='relative flex flex-col gap-1'>
           {options.map((option) => (
             <button
@@ -2029,7 +2029,7 @@ const DropSelectButton = ({
               }}
               className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-[13px] font-bold transition-all duration-300 ${
                 value === option.value
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                  ? 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow-md'
                   : 'text-slate-400 hover:bg-white/10 hover:text-white'
               }`}
             >
@@ -5518,21 +5518,21 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   return (
-    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-slate-50 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100 via-white to-cyan-50 text-slate-800 font-sans selection:bg-indigo-500/30 selection:text-indigo-900 overflow-hidden'>
+    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#f0f5ff] bg-gradient-to-br from-[#eaf2ff] via-white to-[#f0f5ff] text-slate-800 font-sans selection:bg-blue-500/20 selection:text-blue-900 overflow-hidden'>
       {/* 动态背景光效 */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-300/30 blur-[120px]" />
-        <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-indigo-300/30 blur-[150px]" />
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-400/10 blur-[120px]" />
+        <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-sky-300/10 blur-[150px]" />
       </div>
-      <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/60 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
+      <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
         <div className='shrink-0 p-7'>
           <div className='flex items-center gap-3'>
-            <div className='h-10 w-10 rounded-[14px] bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-black/5'>
+            <div className='h-10 w-10 rounded-[14px] bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 ring-1 ring-black/5'>
               <Sparkles size={20} className="animate-pulse" />
             </div>
-            <h1 className='text-[22px] font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-600 drop-shadow-sm'>创作中心</h1>
+            <h1 className='text-[22px] font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-blue-500 drop-shadow-sm'>创作中心</h1>
           </div>
-          <p className='mt-2.5 text-[11px] font-bold text-indigo-600/70 uppercase tracking-[0.25em]'>Unleash Your Creativity</p>
+          <p className='mt-2.5 text-[11px] font-bold text-blue-500/70 uppercase tracking-[0.25em]'>Unleash Your Creativity</p>
         </div>
 
         <nav className='shrink-0 flex justify-around border-b border-slate-200/50 pb-5 px-5'>
@@ -5548,12 +5548,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 }}
                 className={`group relative flex flex-col items-center gap-2.5 transition-all duration-500 ${active ? 'text-slate-900 scale-105' : 'text-slate-500 hover:text-slate-700 hover:-translate-y-0.5'}`}
               >
-                <div className={`p-3 rounded-[1rem] transition-all duration-500 ${active ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
+                <div className={`p-3 rounded-[1rem] transition-all duration-500 ${active ? 'bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
                   <Icon size={22} strokeWidth={active ? 2.5 : 2} />
                 </div>
                 <span className={`text-[12px] font-bold transition-all ${active ? 'text-indigo-700' : 'text-slate-500'}`}>{tab.label}</span>
                 {tab.badge && <span className='absolute -right-2 -top-1.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-orange-500/30 border border-white/20'>{tab.badge}</span>}
-                {active && <div className="absolute -bottom-5 w-1/2 h-[3px] rounded-t-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />}
+                {active && <div className="absolute -bottom-5 w-1/2 h-[3px] rounded-t-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" />}
               </button>
             );
           })}
@@ -5566,8 +5566,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               onClick={() => setIsSessionPanelOpen((prev) => !prev)}
               disabled={isSubmitPending}
               className={
-                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-indigo-400/50 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ' +
-                (isSessionPanelOpen ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : '')
+                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-blue-400/50 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ' +
+                (isSessionPanelOpen ? 'bg-blue-50 border-blue-300 text-indigo-700' : '')
               }
             >
               <History size={16} />
@@ -5585,7 +5585,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
             {isSessionPanelOpen && (
               <div className='absolute left-0 right-0 top-[3.5rem] z-30 rounded-[1.75rem] border border-slate-200/80 bg-white/95 backdrop-blur-3xl p-4 shadow-xl overflow-hidden'>
-                <div className='absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none' />
+                <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
                 <div className='relative mb-4 px-2'>
                   <div className='text-sm font-black text-slate-900'>历史会话</div>
                   <div className='text-[11px] text-slate-500 mt-0.5'>仅删除会话，图片视频资源仍保留</div>
@@ -5629,7 +5629,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                               type='button'
                               onClick={() => renameCreativeSession(activeTab, session.id)}
                               disabled={isSubmitPending}
-                              className='rounded-full border border-slate-200 px-3.5 py-1.5 text-[11px] font-bold text-slate-500 transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50'
+                              className='rounded-full border border-slate-200 px-3.5 py-1.5 text-[11px] font-bold text-slate-500 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
                             >
                               重命名
                             </button>
@@ -5654,8 +5654,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         </div>
 
         <div className='relative flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar custom-dark-scrollbar'>
-          <div className='text-[10px] font-bold text-indigo-600/80 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2'>
-            <div className="h-[1px] w-4 bg-indigo-500/30"></div>
+          <div className='text-[10px] font-bold text-blue-600/80 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2'>
+            <div className="h-[1px] w-4 bg-blue-500/30"></div>
             核心创作模型
           </div>
           {currentDisplayModels.map((model) => (
@@ -5673,14 +5673,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <div
                   className={`absolute right-3 top-3 max-w-[100px] truncate rounded-full px-2 py-0.5 text-[9px] font-black tracking-wide transition-all ${
                     activeModel === model.id
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm border border-black/5'
-                      : 'bg-white/60 text-slate-500 border border-slate-200 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-200'
+                      ? 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow-sm border border-black/5'
+                      : 'bg-white/60 text-slate-500 border border-slate-200 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200'
                   }`}
                 >
                   {model.priceLabel}
                 </div>
               ) : null}
-              <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] transition-all duration-500 ${activeModel === model.id ? 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm text-white rotate-3 scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-indigo-600 group-hover:border-indigo-300 group-hover:-rotate-3 group-hover:shadow-sm'}`}>
+              <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] transition-all duration-500 ${activeModel === model.id ? 'bg-gradient-to-br from-blue-500 to-sky-500 shadow-sm text-white rotate-3 scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-blue-600 group-hover:border-blue-300 group-hover:-rotate-3 group-hover:shadow-sm'}`}>
                 {model.icon}
               </div>
               <div className='min-w-0 flex-1 pr-16'>
@@ -5692,25 +5692,25 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           {hoveredSidebarModel ? (
             <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[340px] lg:block animate-in fade-in slide-in-from-left-4 duration-300'>
               <div className='relative overflow-hidden rounded-[2rem] border border-slate-200/60 bg-white/95 p-6 shadow-xl backdrop-blur-3xl'>
-                <div className='absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.1),_transparent_70%)]' />
+                <div className='absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.1),_transparent_70%)]' />
                 <div className='relative'>
                   <div className='mb-4 flex items-start justify-between gap-4'>
                     <div className='flex min-w-0 items-center gap-4'>
-                      <div className='flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm border border-black/5'>
+                      <div className='flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-sm border border-black/5'>
                         {hoveredSidebarModel.icon}
                       </div>
                       <div className='min-w-0'>
                         <div className='truncate text-[17px] font-black tracking-tight text-slate-900'>
                           {hoveredSidebarModel.name}
                         </div>
-                        <div className='mt-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600'>
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                        <div className='mt-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600'>
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                           模型简介
                         </div>
                       </div>
                     </div>
                     {hoveredSidebarModel.priceLabel ? (
-                      <div className='shrink-0 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1.5 text-[11px] font-black text-indigo-600'>
+                      <div className='shrink-0 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-[11px] font-black text-blue-600'>
                         {hoveredSidebarModel.priceLabel}
                       </div>
                     ) : null}
@@ -5732,14 +5732,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
                   <div className='relative max-w-xl rounded-[3rem] border border-slate-200/60 bg-white/60 px-12 py-16 text-center shadow-[0_0_50px_rgba(0,0,0,0.05)] backdrop-blur-2xl overflow-hidden'>
-                    <div className='absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none' />
-                    <div className='relative mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm ring-1 ring-black/5'>
+                    <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
+                    <div className='relative mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-blue-500 to-sky-500 text-white shadow-sm ring-1 ring-black/5'>
                       {selectedModel?.icon || <MessageSquare size={40} />}
                     </div>
-                    <div className='relative text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 flex items-center justify-center gap-2'>
-                      <div className="h-[1px] w-8 bg-indigo-500/30" />
+                    <div className='relative text-[11px] font-black uppercase tracking-[0.3em] text-blue-600 flex items-center justify-center gap-2'>
+                      <div className="h-[1px] w-8 bg-blue-500/30" />
                       当前模型
-                      <div className="h-[1px] w-8 bg-indigo-500/30" />
+                      <div className="h-[1px] w-8 bg-blue-500/30" />
                     </div>
                     <h3 className='relative mt-6 text-4xl font-black tracking-tight text-slate-900 drop-shadow-sm'>
                       {selectedModel?.name || '对话模型'}
@@ -5754,7 +5754,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
                     msg.role === 'user' 
-                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]' 
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]' 
                       : 'bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
                   }`}>
                     {getMessageImages(msg.content).length > 0 && (
@@ -5780,8 +5780,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               {isGenerating && (
                 <div className='flex justify-start animate-in slide-in-from-bottom-4 duration-500'>
                   <div className='bg-white border border-slate-200/50 rounded-[1.75rem] rounded-tl-sm px-6 py-4 flex gap-4 items-center text-slate-500 shadow-sm shadow-black/5'>
-                    <Loader2 size={20} className='animate-spin text-indigo-500' />
-                    <span className='text-[13px] font-black tracking-[0.1em] uppercase text-indigo-500'>正在深度思考...</span>
+                    <Loader2 size={20} className='animate-spin text-blue-500' />
+                    <span className='text-[13px] font-black tracking-[0.1em] uppercase text-blue-500'>正在深度思考...</span>
                   </div>
                 </div>
               )}
@@ -5812,7 +5812,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
                         <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-sm backdrop-blur-sm'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-blue-50 border border-blue-200 text-blue-600 shadow-sm backdrop-blur-sm'>
                             {recordModel?.icon || <ImageIcon size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
@@ -6128,7 +6128,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
                         <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-sm backdrop-blur-sm'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-blue-50 border border-blue-200 text-blue-600 shadow-sm backdrop-blur-sm'>
                             {recordModel?.icon || <Video size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
@@ -6501,7 +6501,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent backdrop-blur-md'>
           <div className='mx-auto max-w-4xl relative'>
-            <div className='absolute -inset-1 rounded-[3rem] bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 opacity-[0.15] blur-xl transition-all duration-500 group-focus-within:opacity-[0.25] animate-pulse pb-4'></div>
+            <div className='absolute -inset-1 rounded-[3rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 opacity-[0.15] blur-xl transition-all duration-500 group-focus-within:opacity-[0.25] animate-pulse pb-4'></div>
             <div className='relative flex flex-col rounded-[2.5rem] bg-white/60 backdrop-blur-2xl p-5 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] border border-white/60 focus-within:border-white focus-within:bg-white/80 transition-all duration-500 group'>
               <input
                 ref={fileInputRef}
@@ -6517,11 +6517,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/50 text-slate-500 transition-all duration-300 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-sm'
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/50 text-slate-500 transition-all duration-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm'
                     >
                       <div className='flex flex-col items-center gap-2'>
                         {isUploadingImage ? (
-                          <Loader2 size={24} className='animate-spin text-indigo-400' />
+                          <Loader2 size={24} className='animate-spin text-blue-400' />
                         ) : (
                           <ImagePlus size={24} />
                         )}
@@ -6543,9 +6543,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitPending || (!prompt.trim() && uploadedImages.every((item) => !(item?.status === 'uploaded' && item?.url)))}
-                  className='group/btn flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 text-white shadow-[0_8px_20px_-6px_rgba(99,102,241,0.6)] transition-all duration-300 hover:shadow-[0_12px_30px_-8px_rgba(99,102,241,0.8)] hover:scale-110 active:scale-95 disabled:from-white/10 disabled:via-white/10 disabled:to-white/10 disabled:text-slate-500 disabled:shadow-none disabled:transform-none disabled:border disabled:border-white/5'
+                  className='group/btn flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#3A75F6] text-white shadow-[0_6px_20px_-6px_rgba(58,117,246,0.5)] transition-all duration-300 hover:bg-[#346AE0] hover:shadow-[0_8px_25px_-6px_rgba(58,117,246,0.6)] hover:scale-[1.05] active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:transform-none disabled:border-transparent'
                 >
-                  {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={30} strokeWidth={3} className='transition-transform group-hover/btn:-translate-y-1' />}
+                  {isSubmitPending ? <Loader2 size={26} className='animate-spin' /> : <ArrowUp size={26} strokeWidth={2.5} className='transition-transform group-hover/btn:-translate-y-0.5' />}
                 </button>
               </div>
 
@@ -6553,7 +6553,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 <div className='mt-5 flex flex-wrap gap-4 rounded-2xl border border-slate-200/50 bg-slate-50/50 px-5 py-4'>
                   {uploadedImages.map((imageItem) => (
                     <div key={imageItem.id} className='w-24 group/img'>
-                      <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-indigo-300'>
+                      <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-blue-300'>
                         <img
                           src={imageItem.previewUrl || buildCreativeCenterImageDisplayUrl(imageItem.url)}
                           alt={imageItem.name}
@@ -6568,7 +6568,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       </div>
                       <div className='mt-2.5 truncate text-center text-[11px] font-medium text-slate-500'>
                         {imageItem.status === 'uploading' ? (
-                          <span className="flex items-center justify-center gap-1 text-indigo-500"><Loader2 size={10} className="animate-spin"/> 上传中</span>
+                          <span className="flex items-center justify-center gap-1 text-blue-500"><Loader2 size={10} className="animate-spin"/> 上传中</span>
                         ) : imageItem.name}
                       </div>
                     </div>
@@ -6584,7 +6584,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
               {currentImageUploadLimit ? (
                 <div className='mt-3 px-3 text-[11px] text-slate-500 font-medium'>
-                  当前模型最多可上传 <span className="text-indigo-600 font-bold">{currentImageUploadLimit}</span> 张图片（建议不大于5M/张）
+                  当前模型最多可上传 <span className="text-blue-600 font-bold">{currentImageUploadLimit}</span> 张图片（建议不大于5M/张）
                 </div>
               ) : !isCurrentModelImageUploadEnabled ? (
                 <div className='mt-3 px-3 text-[11px] text-slate-400 flex items-center gap-1.5'>
@@ -6593,18 +6593,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
 
               {!isLoggedIn && (
-                <div className='mt-5 flex items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-sm text-indigo-800 shadow-sm'>
+                <div className='mt-5 flex items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-indigo-800 shadow-sm'>
                   <div className='font-bold flex items-center gap-2'>
-                    <Sparkles size={16} className="text-indigo-500" />
+                    <Sparkles size={16} className="text-blue-500" />
                     {'\u5f53\u524d\u4ec5\u5f00\u653e\u6d4f\u89c8\uff0c\u53d1\u9001\u5185\u5bb9\u524d\u9700\u8981\u5148\u767b\u5f55\u8d26\u53f7\u3002'}
                   </div>
                   <button
                     onClick={() => {
                       window.location.href = '/login';
                     }}
-                    className='shrink-0 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2 text-xs font-black text-white shadow-[0_4px_15px_rgba(99,102,241,0.4)] transition-all hover:scale-105 hover:shadow-[0_6px_20px_rgba(99,102,241,0.6)]'
+                    className='shrink-0 rounded-[0.85rem] bg-[#3A75F6] px-6 py-2.5 text-xs font-bold tracking-wide text-white shadow-[0_4px_15px_rgba(58,117,246,0.3)] transition-all hover:bg-[#346AE0] hover:shadow-[0_6px_20px_rgba(58,117,246,0.4)]'
                   >
-                    {'\u53bb\u767b\u5f55'}
+                    去登录
                   </button>
                 </div>
               )}
