@@ -18,15 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Banner,
-  Button,
-  Col,
-  Form,
-  Row,
-  Spin,
-  Typography,
-} from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
   API,
   removeTrailingSlash,
@@ -34,8 +26,7 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
-
-const { Text } = Typography;
+import { BookOpen, TriangleAlert } from 'lucide-react';
 
 const defaultInputs = {
   WaffoPancakeEnabled: false,
@@ -56,6 +47,9 @@ const toBoolean = (value) => value === true || value === 'true';
 
 export default function SettingsPaymentGatewayWaffoPancake(props) {
   const { t } = useTranslation();
+  const sectionTitle = props.hideSectionTitle
+    ? undefined
+    : t('Waffo Pancake 设置');
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState(defaultInputs);
   const formApiRef = useRef(null);
@@ -77,7 +71,8 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       WaffoPancakePrivateKey: props.options.WaffoPancakePrivateKey || '',
       WaffoPancakeWebhookPublicKey:
         props.options.WaffoPancakeWebhookPublicKey || '',
-      WaffoPancakeWebhookTestKey: props.options.WaffoPancakeWebhookTestKey || '',
+      WaffoPancakeWebhookTestKey:
+        props.options.WaffoPancakeWebhookTestKey || '',
       WaffoPancakeStoreID: props.options.WaffoPancakeStoreID || '',
       WaffoPancakeProductID: props.options.WaffoPancakeProductID || '',
       WaffoPancakeReturnURL: props.options.WaffoPancakeReturnURL || '',
@@ -238,25 +233,38 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
         onValueChange={handleFormChange}
         getFormApi={(api) => (formApiRef.current = api)}
       >
-        <Form.Section text={t('Waffo Pancake 设置')}>
-          <Text>
-            Waffo Pancake 的商户、商品和签名密钥请
-            <a
-              href='https://docs.waffo.ai'
-              target='_blank'
-              rel='noreferrer'
-            >
-              点击此处
-            </a>
-            获取，建议先在测试环境完成联调。
-          </Text>
+        <Form.Section text={sectionTitle}>
           <Banner
             type='info'
-            description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/waffo-pancake/webhook`}
+            icon={<BookOpen size={16} />}
+            description={
+              <>
+                Waffo Pancake 的商户、商品和签名密钥请
+                <a
+                  href='https://docs.waffo.ai'
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  点击此处
+                </a>
+                获取，建议先在测试环境完成联调。
+                <br />
+                Webhook：
+                {props.options.ServerAddress
+                  ? removeTrailingSlash(props.options.ServerAddress)
+                  : t('网站地址')}
+                /api/waffo-pancake/webhook
+              </>
+            }
+            style={{ marginBottom: 12 }}
           />
           <Banner
             type='warning'
-            description={t('请确认 Merchant、Store、Product 和对应环境密钥一致。')}
+            icon={<TriangleAlert size={16} />}
+            description={t(
+              '请确认 Merchant、Store、Product 和对应环境密钥一致。',
+            )}
+            style={{ marginBottom: 16 }}
           />
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={12} md={8} lg={8} xl={8}>

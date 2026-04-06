@@ -38,12 +38,14 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { BookOpen, TriangleAlert } from 'lucide-react';
 
 const { Text } = Typography;
 const toBoolean = (value) => value === true || value === 'true';
 
 export default function SettingsPaymentGatewayWaffo(props) {
   const { t } = useTranslation();
+  const sectionTitle = props.hideSectionTitle ? undefined : t('Waffo 设置');
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     WaffoEnabled: false,
@@ -154,15 +156,30 @@ export default function SettingsPaymentGatewayWaffo(props) {
         options.push({ key: 'WaffoPrivateKey', value: inputs.WaffoPrivateKey });
       }
 
-      options.push({ key: 'WaffoPublicCert', value: inputs.WaffoPublicCert || '' });
-      options.push({ key: 'WaffoSandboxPublicCert', value: inputs.WaffoSandboxPublicCert || '' });
+      options.push({
+        key: 'WaffoPublicCert',
+        value: inputs.WaffoPublicCert || '',
+      });
+      options.push({
+        key: 'WaffoSandboxPublicCert',
+        value: inputs.WaffoSandboxPublicCert || '',
+      });
 
       if (inputs.WaffoSandboxApiKey && inputs.WaffoSandboxApiKey !== '') {
-        options.push({ key: 'WaffoSandboxApiKey', value: inputs.WaffoSandboxApiKey });
+        options.push({
+          key: 'WaffoSandboxApiKey',
+          value: inputs.WaffoSandboxApiKey,
+        });
       }
 
-      if (inputs.WaffoSandboxPrivateKey && inputs.WaffoSandboxPrivateKey !== '') {
-        options.push({ key: 'WaffoSandboxPrivateKey', value: inputs.WaffoSandboxPrivateKey });
+      if (
+        inputs.WaffoSandboxPrivateKey &&
+        inputs.WaffoSandboxPrivateKey !== ''
+      ) {
+        options.push({
+          key: 'WaffoSandboxPrivateKey',
+          value: inputs.WaffoSandboxPrivateKey,
+        });
       }
 
       options.push({
@@ -170,7 +187,10 @@ export default function SettingsPaymentGatewayWaffo(props) {
         value: inputs.WaffoSandbox ? 'true' : 'false',
       });
 
-      options.push({ key: 'WaffoMerchantId', value: inputs.WaffoMerchantId || '' });
+      options.push({
+        key: 'WaffoMerchantId',
+        value: inputs.WaffoMerchantId || '',
+      });
       options.push({ key: 'WaffoCurrency', value: inputs.WaffoCurrency || '' });
 
       options.push({
@@ -183,8 +203,14 @@ export default function SettingsPaymentGatewayWaffo(props) {
         value: String(inputs.WaffoMinTopUp || 1),
       });
 
-      options.push({ key: 'WaffoNotifyUrl', value: inputs.WaffoNotifyUrl || '' });
-      options.push({ key: 'WaffoReturnUrl', value: inputs.WaffoReturnUrl || '' });
+      options.push({
+        key: 'WaffoNotifyUrl',
+        value: inputs.WaffoNotifyUrl || '',
+      });
+      options.push({
+        key: 'WaffoReturnUrl',
+        value: inputs.WaffoReturnUrl || '',
+      });
 
       // 保存支付方式列表
       options.push({
@@ -221,7 +247,12 @@ export default function SettingsPaymentGatewayWaffo(props) {
   // 打开新增弹窗
   const openAddPayMethodModal = () => {
     setEditingPayMethodIndex(-1);
-    setPayMethodForm({ name: '', icon: '', payMethodType: '', payMethodName: '' });
+    setPayMethodForm({
+      name: '',
+      icon: '',
+      payMethodType: '',
+      payMethodName: '',
+    });
     setPayMethodModalVisible(true);
   };
 
@@ -327,29 +358,36 @@ export default function SettingsPaymentGatewayWaffo(props) {
         onValueChange={handleFormChange}
         getFormApi={(api) => (formApiRef.current = api)}
       >
-        <Form.Section text={t('Waffo 设置')}>
-          <Text>
-            Waffo 密钥、商户和支付方式等设置请
-            <a
-              href='https://waffo.com'
-              target='_blank'
-              rel='noreferrer'
-            >
-              点击此处
-            </a>
-            进行配置，切换沙盒模式时请同步填写对应环境的密钥。
-          </Text>
+        <Form.Section text={sectionTitle}>
           <Banner
             type='info'
-            description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/waffo/webhook`}
+            icon={<BookOpen size={16} />}
+            description={
+              <>
+                Waffo 密钥、商户和支付方式等设置请
+                <a href='https://waffo.com' target='_blank' rel='noreferrer'>
+                  点击此处
+                </a>
+                进行配置，切换沙盒模式时请同步填写对应环境的密钥。
+                <br />
+                Webhook：
+                {props.options.ServerAddress
+                  ? removeTrailingSlash(props.options.ServerAddress)
+                  : t('网站地址')}
+                /api/waffo/webhook
+              </>
+            }
+            style={{ marginBottom: 12 }}
           />
           <Banner
             type='warning'
+            icon={<TriangleAlert size={16} />}
             description={
               isSandboxMode
                 ? t('当前显示的是测试环境配置，请确认商户和测试环境密钥一致。')
                 : t('当前显示的是生产环境配置，请确认商户和生产环境密钥一致。')
             }
+            style={{ marginBottom: 16 }}
           />
 
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
@@ -390,7 +428,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.Input
                 field='WaffoApiKey'
                 label={t('API 密钥（生产环境）')}
-                placeholder={t('填写后覆盖当前生产环境 API 密钥，留空表示保持当前不变')}
+                placeholder={t(
+                  '填写后覆盖当前生产环境 API 密钥，留空表示保持当前不变',
+                )}
                 extraText={t('保存后不会回显，请填写生产环境对应的 API 密钥')}
                 type='password'
               />
@@ -399,7 +439,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPrivateKey'
                 label={t('API 私钥（生产环境）')}
-                placeholder={t('填写后覆盖当前生产环境私钥，留空表示保持当前不变')}
+                placeholder={t(
+                  '填写后覆盖当前生产环境私钥，留空表示保持当前不变',
+                )}
                 extraText={t('保存后不会回显，请填写生产环境对应的 API 私钥')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
@@ -409,7 +451,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoPublicCert'
                 label={t('Waffo 公钥（生产环境）')}
-                placeholder={t('填写生产环境 Waffo 公钥，Base64 或 PEM 内容均可')}
+                placeholder={t(
+                  '填写生产环境 Waffo 公钥，Base64 或 PEM 内容均可',
+                )}
                 extraText={t('用于校验生产环境的 Waffo 回调签名')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
@@ -425,7 +469,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.Input
                 field='WaffoSandboxApiKey'
                 label={t('API 密钥（测试环境）')}
-                placeholder={t('填写后覆盖当前测试环境 API 密钥，留空表示保持当前不变')}
+                placeholder={t(
+                  '填写后覆盖当前测试环境 API 密钥，留空表示保持当前不变',
+                )}
                 extraText={t('保存后不会回显，请填写测试环境对应的 API 密钥')}
                 type='password'
               />
@@ -434,7 +480,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPrivateKey'
                 label={t('API 私钥（测试环境）')}
-                placeholder={t('填写后覆盖当前测试环境私钥，留空表示保持当前不变')}
+                placeholder={t(
+                  '填写后覆盖当前测试环境私钥，留空表示保持当前不变',
+                )}
                 extraText={t('保存后不会回显，请填写测试环境对应的 API 私钥')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
@@ -444,7 +492,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               <Form.TextArea
                 field='WaffoSandboxPublicCert'
                 label={t('Waffo 公钥（测试环境）')}
-                placeholder={t('填写测试环境 Waffo 公钥，Base64 或 PEM 内容均可')}
+                placeholder={t(
+                  '填写测试环境 Waffo 公钥，Base64 或 PEM 内容均可',
+                )}
                 extraText={t('用于校验测试环境的 Waffo 回调签名')}
                 type='password'
                 autosize={{ minRows: 3, maxRows: 6 }}
@@ -511,12 +561,12 @@ export default function SettingsPaymentGatewayWaffo(props) {
 
         <Form.Section text={t('支付方式设置')}>
           <Text type='secondary'>
-            {t('这里配置 Waffo 下展示给用户的 Card、Apple Pay、Google Pay 等子支付方式。')}
+            {t(
+              '这里配置 Waffo 下展示给用户的 Card、Apple Pay、Google Pay 等子支付方式。',
+            )}
           </Text>
           <div style={{ marginTop: 12, marginBottom: 12 }}>
-            <Button onClick={openAddPayMethodModal}>
-              {t('新增支付方式')}
-            </Button>
+            <Button onClick={openAddPayMethodModal}>{t('新增支付方式')}</Button>
           </div>
           <Table
             columns={payMethodColumns}
@@ -524,7 +574,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
             rowKey={(record, index) => index}
             pagination={false}
             size='small'
-            empty={<Text type='tertiary'>{t('暂无支付方式，点击上方按钮新增')}</Text>}
+            empty={
+              <Text type='tertiary'>{t('暂无支付方式，点击上方按钮新增')}</Text>
+            }
           />
           <Button onClick={submitWaffoSetting} style={{ marginTop: 16 }}>
             {t('更新 Waffo 设置')}
@@ -534,7 +586,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
 
       {/* 新增/编辑支付方式弹窗 */}
       <Modal
-        title={editingPayMethodIndex === -1 ? t('新增支付方式') : t('编辑支付方式')}
+        title={
+          editingPayMethodIndex === -1 ? t('新增支付方式') : t('编辑支付方式')
+        }
         visible={payMethodModalVisible}
         onOk={handlePayMethodModalOk}
         onCancel={() => setPayMethodModalVisible(false)}
@@ -545,14 +599,22 @@ export default function SettingsPaymentGatewayWaffo(props) {
           <div>
             <div style={{ marginBottom: 4 }}>
               <Text strong>{t('显示名称')}</Text>
-              <span style={{ color: 'var(--semi-color-danger)', marginLeft: 4 }}>*</span>
+              <span
+                style={{ color: 'var(--semi-color-danger)', marginLeft: 4 }}
+              >
+                *
+              </span>
             </div>
             <Input
               value={payMethodForm.name}
-              onChange={(val) => setPayMethodForm({ ...payMethodForm, name: val })}
+              onChange={(val) =>
+                setPayMethodForm({ ...payMethodForm, name: val })
+              }
               placeholder={t('例如：Credit Card')}
             />
-            <Text type='tertiary' size='small'>{t('用户在充值页面看到的支付方式名称，例如：Credit Card')}</Text>
+            <Text type='tertiary' size='small'>
+              {t('用户在充值页面看到的支付方式名称，例如：Credit Card')}
+            </Text>
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
@@ -598,7 +660,9 @@ export default function SettingsPaymentGatewayWaffo(props) {
               )}
             </Space>
             <div>
-              <Text type='tertiary' size='small'>{t('上传 PNG/JPG/SVG 图片，建议尺寸 ≤ 128×128px')}</Text>
+              <Text type='tertiary' size='small'>
+                {t('上传 PNG/JPG/SVG 图片，建议尺寸 ≤ 128×128px')}
+              </Text>
             </div>
           </div>
           <div>
@@ -607,11 +671,17 @@ export default function SettingsPaymentGatewayWaffo(props) {
             </div>
             <Input
               value={payMethodForm.payMethodType}
-              onChange={(val) => setPayMethodForm({ ...payMethodForm, payMethodType: val })}
+              onChange={(val) =>
+                setPayMethodForm({ ...payMethodForm, payMethodType: val })
+              }
               placeholder='CREDITCARD,DEBITCARD'
               maxLength={64}
             />
-            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空，例如：CREDITCARD,DEBITCARD（最多64位）')}</Text>
+            <Text type='tertiary' size='small'>
+              {t(
+                'Waffo API 参数，可空，例如：CREDITCARD,DEBITCARD（最多64位）',
+              )}
+            </Text>
           </div>
           <div>
             <div style={{ marginBottom: 4 }}>
@@ -619,11 +689,15 @@ export default function SettingsPaymentGatewayWaffo(props) {
             </div>
             <Input
               value={payMethodForm.payMethodName}
-              onChange={(val) => setPayMethodForm({ ...payMethodForm, payMethodName: val })}
+              onChange={(val) =>
+                setPayMethodForm({ ...payMethodForm, payMethodName: val })
+              }
               placeholder={t('可空')}
               maxLength={64}
             />
-            <Text type='tertiary' size='small'>{t('Waffo API 参数，可空（最多64位）')}</Text>
+            <Text type='tertiary' size='small'>
+              {t('Waffo API 参数，可空（最多64位）')}
+            </Text>
           </div>
         </div>
       </Modal>

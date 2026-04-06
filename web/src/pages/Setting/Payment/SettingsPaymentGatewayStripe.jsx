@@ -18,16 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Banner,
-  Button,
-  Form,
-  Row,
-  Col,
-  Typography,
-  Spin,
-} from '@douyinfe/semi-ui';
-const { Text } = Typography;
+import { Banner, Button, Form, Row, Col, Spin } from '@douyinfe/semi-ui';
 import {
   API,
   removeTrailingSlash,
@@ -35,9 +26,11 @@ import {
   showSuccess,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { BookOpen, TriangleAlert } from 'lucide-react';
 
 export default function SettingsPaymentGateway(props) {
   const { t } = useTranslation();
+  const sectionTitle = props.hideSectionTitle ? undefined : t('Stripe 设置');
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     StripeApiSecret: '',
@@ -165,34 +158,44 @@ export default function SettingsPaymentGateway(props) {
         onValueChange={handleFormChange}
         getFormApi={(api) => (formApiRef.current = api)}
       >
-        <Form.Section text={t('Stripe 设置')}>
-          <Text>
-            Stripe 密钥、Webhook 等设置请
-            <a
-              href='https://dashboard.stripe.com/developers'
-              target='_blank'
-              rel='noreferrer'
-            >
-              点击此处
-            </a>
-            进行设置，最好先在
-            <a
-              href='https://dashboard.stripe.com/test/developers'
-              target='_blank'
-              rel='noreferrer'
-            >
-              测试环境
-            </a>
-            进行测试。
-            <br />
-          </Text>
+        <Form.Section text={sectionTitle}>
           <Banner
             type='info'
-            description={`Webhook 填：${props.options.ServerAddress ? removeTrailingSlash(props.options.ServerAddress) : t('网站地址')}/api/stripe/webhook`}
+            icon={<BookOpen size={16} />}
+            description={
+              <>
+                Stripe 密钥、Webhook 等设置请
+                <a
+                  href='https://dashboard.stripe.com/developers'
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  点击此处
+                </a>
+                进行设置，建议先在
+                <a
+                  href='https://dashboard.stripe.com/test/developers'
+                  target='_blank'
+                  rel='noreferrer'
+                >
+                  测试环境
+                </a>
+                完成联调。
+                <br />
+                Webhook：
+                {props.options.ServerAddress
+                  ? removeTrailingSlash(props.options.ServerAddress)
+                  : t('网站地址')}
+                /api/stripe/webhook
+              </>
+            }
+            style={{ marginBottom: 12 }}
           />
           <Banner
             type='warning'
-            description={`需要包含事件：checkout.session.completed 和 checkout.session.expired`}
+            icon={<TriangleAlert size={16} />}
+            description='需要包含事件：checkout.session.completed 和 checkout.session.expired'
+            style={{ marginBottom: 16 }}
           />
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
@@ -200,7 +203,9 @@ export default function SettingsPaymentGateway(props) {
                 field='StripeApiSecret'
                 label={t('API 密钥')}
                 placeholder={t('例如：sk_xxx 或 rk_xxx，留空表示保持当前不变')}
-                extraText={t('保存后不会回显，请填写当前环境对应的 Stripe API 密钥')}
+                extraText={t(
+                  '保存后不会回显，请填写当前环境对应的 Stripe API 密钥',
+                )}
                 type='password'
               />
             </Col>
