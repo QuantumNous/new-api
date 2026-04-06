@@ -31,6 +31,8 @@ import {
   renderQuota,
   stringToColor,
   getLogOther,
+  getUsageLogModelPriceForRender,
+  describeUsageLogTierPricing,
   renderModelTag,
   renderModelPriceSimple,
 } from '../../../helpers';
@@ -143,10 +145,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -184,11 +183,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -460,48 +455,59 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  const renderedModelPrice = getUsageLogModelPriceForRender(other);
+  const tierPricingSummary = describeUsageLogTierPricing(other, t);
+  const summarySegments = other?.claude
+    ? renderModelPriceSimple(
+        other.model_ratio,
+        renderedModelPrice,
+        other.group_ratio,
+        other?.user_group_ratio,
+        other.cache_tokens || 0,
+        other.cache_ratio || 1.0,
+        other.cache_creation_tokens || 0,
+        other.cache_creation_ratio || 1.0,
+        other.cache_creation_tokens_5m || 0,
+        other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+        other.cache_creation_tokens_1h || 0,
+        other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+        false,
+        1.0,
+        other?.is_system_prompt_overwritten,
+        'claude',
+        billingDisplayMode,
+        'segments',
+      )
+    : renderModelPriceSimple(
+        other.model_ratio,
+        renderedModelPrice,
+        other.group_ratio,
+        other?.user_group_ratio,
+        other.cache_tokens || 0,
+        other.cache_ratio || 1.0,
+        0,
+        1.0,
+        0,
+        1.0,
+        0,
+        1.0,
+        false,
+        1.0,
+        other?.is_system_prompt_overwritten,
+        'openai',
+        billingDisplayMode,
+        'segments',
+      );
+
+  if (tierPricingSummary && Array.isArray(summarySegments)) {
+    summarySegments.splice(1, 0, {
+      text: tierPricingSummary,
+      tone: 'secondary',
+    });
+  }
+
   return {
-    segments: other?.claude
-      ? renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          other.cache_creation_tokens || 0,
-          other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_5m || 0,
-          other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_1h || 0,
-          other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'claude',
-          billingDisplayMode,
-          'segments',
-        )
-      : renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'openai',
-          billingDisplayMode,
-          'segments',
-        ),
+    segments: summarySegments,
   };
 }
 

@@ -25,6 +25,7 @@ type PriceData struct {
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+	TierPricing          *TierPricingMeta
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {
@@ -38,5 +39,19 @@ func (p *PriceData) AddOtherRatio(key string, ratio float64) {
 }
 
 func (p *PriceData) ToSetting() string {
-	return fmt.Sprintf("ModelPrice: %f, ModelRatio: %f, CompletionRatio: %f, CacheRatio: %f, GroupRatio: %f, UsePrice: %t, CacheCreationRatio: %f, CacheCreation5mRatio: %f, CacheCreation1hRatio: %f, QuotaToPreConsume: %d, ImageRatio: %f, AudioRatio: %f, AudioCompletionRatio: %f", p.ModelPrice, p.ModelRatio, p.CompletionRatio, p.CacheRatio, p.GroupRatioInfo.GroupRatio, p.UsePrice, p.CacheCreationRatio, p.CacheCreation5mRatio, p.CacheCreation1hRatio, p.QuotaToPreConsume, p.ImageRatio, p.AudioRatio, p.AudioCompletionRatio)
+	tierSetting := "nil"
+	if p.TierPricing != nil {
+		maxTokens := "nil"
+		if p.TierPricing.MaxTokens != nil {
+			maxTokens = fmt.Sprintf("%d", *p.TierPricing.MaxTokens)
+		}
+		tierSetting = fmt.Sprintf("{ Basis: %s, TierIndex: %d, MinTokens: %d, MaxTokens: %s, BasisValue: %d }",
+			p.TierPricing.Basis,
+			p.TierPricing.TierIndex,
+			p.TierPricing.MinTokens,
+			maxTokens,
+			p.TierPricing.BasisValue,
+		)
+	}
+	return fmt.Sprintf("ModelPrice: %f, ModelRatio: %f, CompletionRatio: %f, CacheRatio: %f, GroupRatio: %f, UsePrice: %t, CacheCreationRatio: %f, CacheCreation5mRatio: %f, CacheCreation1hRatio: %f, QuotaToPreConsume: %d, ImageRatio: %f, AudioRatio: %f, AudioCompletionRatio: %f, TierPricing: %s", p.ModelPrice, p.ModelRatio, p.CompletionRatio, p.CacheRatio, p.GroupRatioInfo.GroupRatio, p.UsePrice, p.CacheCreationRatio, p.CacheCreation5mRatio, p.CacheCreation1hRatio, p.QuotaToPreConsume, p.ImageRatio, p.AudioRatio, p.AudioCompletionRatio, tierSetting)
 }

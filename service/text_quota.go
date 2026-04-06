@@ -78,6 +78,15 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 }
 
 func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) textQuotaSummary {
+	if usage == nil {
+		usage = &dto.Usage{
+			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
+			CompletionTokens: 0,
+			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
+		}
+	}
+	applyTierPricingToRelayInfo(relayInfo, usage.PromptTokens)
+
 	summary := textQuotaSummary{
 		ModelName:            relayInfo.OriginModelName,
 		TokenName:            ctx.GetString("token_name"),
@@ -94,14 +103,6 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		UsageSemantic:        usageSemanticFromUsage(relayInfo, usage),
 	}
 	summary.IsClaudeUsageSemantic = summary.UsageSemantic == "anthropic"
-
-	if usage == nil {
-		usage = &dto.Usage{
-			PromptTokens:     relayInfo.GetEstimatePromptTokens(),
-			CompletionTokens: 0,
-			TotalTokens:      relayInfo.GetEstimatePromptTokens(),
-		}
-	}
 
 	summary.PromptTokens = usage.PromptTokens
 	summary.CompletionTokens = usage.CompletionTokens

@@ -77,6 +77,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendTierPricingInfo(relayInfo, other)
 	return other
 }
 
@@ -114,9 +115,29 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 	other["stream_status"] = streamInfo
 }
 
+func appendTierPricingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil || relayInfo.PriceData.TierPricing == nil {
+		return
+	}
+	tierInfo := relayInfo.PriceData.TierPricing
+	other["tier_pricing_enabled"] = tierInfo.Enabled
+	other["tier_basis"] = tierInfo.Basis
+	other["tier_index"] = tierInfo.TierIndex
+	other["tier_min_tokens"] = tierInfo.MinTokens
+	if tierInfo.MaxTokens != nil {
+		other["tier_max_tokens"] = *tierInfo.MaxTokens
+	}
+	other["tier_basis_value"] = tierInfo.BasisValue
+}
+
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
 	if relayInfo == nil || other == nil {
 		return
+	}
+	if relayInfo.PriceData.UsePrice {
+		other["billing_quota_type"] = 1
+	} else {
+		other["billing_quota_type"] = 0
 	}
 	// billing_source: "wallet" or "subscription"
 	if relayInfo.BillingSource != "" {
@@ -256,6 +277,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	other := make(map[string]interface{})
 	other["model_price"] = priceData.ModelPrice
 	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
+	other["billing_quota_type"] = 1
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}

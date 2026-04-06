@@ -467,6 +467,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
+	if updatedPriceData, applied := ratio_setting.ApplyModelTierPricing(info.OriginModelName, priceData, usage.PromptTokens); applied {
+		priceData = updatedPriceData
+		info.PriceData = updatedPriceData
+	}
 
 	quota := 0
 	if !priceData.UsePrice {

@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -276,6 +277,74 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheCreationFromPromptBill
 	// quota = (2604 - 100) + 100*1.25 + 383 = 3012
 	require.Equal(t, 2604, summary.PromptTokens)
 	require.Equal(t, 3012, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummaryReappliesTierPricingOnFinalUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	require.NoError(t, ratio_setting.UpdateModelTierPricingByJSONString(`{
+  "google/gemini-3.1-pro-preview": {
+    "enabled": true,
+    "basis": "prompt_tokens",
+    "tiers": [
+      {
+        "min_tokens": 0,
+        "max_tokens": 200000,
+        "input_price": 2,
+        "completion_price": 12,
+        "cache_read_price": 0.2
+      },
+      {
+        "min_tokens": 200000,
+        "input_price": 4,
+        "completion_price": 18,
+        "cache_read_price": 0.4
+      }
+    ]
+  }
+}`))
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelTierPricingByJSONString("{}"))
+	})
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "google/gemini-3.1-pro-preview",
+		PriceData: types.PriceData{
+			ModelRatio:           1,
+			CompletionRatio:      6,
+			CacheRatio:           0.1,
+			CacheCreationRatio:   1.25,
+			CacheCreation5mRatio: 1.25,
+			CacheCreation1hRatio: 2,
+			ImageRatio:           0.5,
+			AudioRatio:           0.75,
+			AudioCompletionRatio: 2,
+			GroupRatioInfo: types.GroupRatioInfo{
+				GroupRatio: 2.4,
+			},
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     200000,
+		CompletionTokens: 1000,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.Equal(t, 2.0, summary.ModelRatio)
+	require.Equal(t, 4.5, summary.CompletionRatio)
+	require.Equal(t, 0.1, summary.CacheRatio)
+	require.Equal(t, 981600, summary.Quota)
+	require.NotNil(t, relayInfo.PriceData.TierPricing)
+	require.Equal(t, 1, relayInfo.PriceData.TierPricing.TierIndex)
+	require.Equal(t, 200000, relayInfo.PriceData.TierPricing.BasisValue)
+	require.Equal(t, 0.5, relayInfo.PriceData.ImageRatio)
+	require.Equal(t, 0.75, relayInfo.PriceData.AudioRatio)
+	require.Equal(t, 2.0, relayInfo.PriceData.AudioCompletionRatio)
 }
 
 func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T) {

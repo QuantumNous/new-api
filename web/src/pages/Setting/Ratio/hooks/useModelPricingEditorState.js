@@ -4,6 +4,7 @@ import { API, showError, showSuccess } from '../../../../helpers';
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
+const TIER_BASIS_PROMPT_TOKENS = 'prompt_tokens';
 
 const EMPTY_MODEL = {
   name: '',
@@ -18,6 +19,9 @@ const EMPTY_MODEL = {
   imagePrice: '',
   audioInputPrice: '',
   audioOutputPrice: '',
+  tierPricingEnabled: false,
+  tierPricingBasis: TIER_BASIS_PROMPT_TOKENS,
+  tierPricingTiers: [],
   rawRatios: {
     modelRatio: '',
     completionRatio: '',
@@ -50,6 +54,9 @@ const toNumberOrNull = (value) => {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
+
+const isNonNegativeInteger = (value) =>
+  Number.isInteger(value) && value >= 0;
 
 const formatNumber = (value) => {
   const num = toNumberOrNull(value);
@@ -97,6 +104,127 @@ const normalizeCompletionRatioMeta = (rawMeta) => {
   };
 };
 
+const normalizeTierPricingConfig = (rawConfig) => {
+  if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) {
+    return {
+      enabled: false,
+      basis: TIER_BASIS_PROMPT_TOKENS,
+      tiers: [],
+    };
+  }
+
+  const tiers = Array.isArray(rawConfig.tiers)
+    ? rawConfig.tiers.map((tier) => ({
+        minTokens: toNumericString(tier?.min_tokens),
+        maxTokens: hasValue(tier?.max_tokens)
+          ? toNumericString(tier.max_tokens)
+          : '',
+        inputPrice: toNumericString(tier?.input_price),
+        completionPrice: toNumericString(tier?.completion_price),
+        cacheReadPrice: toNumericString(tier?.cache_read_price),
+      }))
+    : [];
+
+  return {
+    enabled: Boolean(rawConfig.enabled),
+    basis:
+      rawConfig.basis === TIER_BASIS_PROMPT_TOKENS
+        ? rawConfig.basis
+        : TIER_BASIS_PROMPT_TOKENS,
+    tiers,
+  };
+};
+
+const getTierReferenceInputPrice = (model) =>
+  toNumberOrNull(model?.tierPricingTiers?.[0]?.inputPrice);
+
+const getExtensionReferenceInputPrice = (model) => {
+  if (model?.tierPricingEnabled) {
+    return getTierReferenceInputPrice(model);
+  }
+  return toNumberOrNull(model?.inputPrice);
+};
+
+const buildDefaultTierRowFromModel = (model) => ({
+  minTokens: '0',
+  maxTokens: '',
+  inputPrice: model?.inputPrice || '',
+  completionPrice: model?.completionPrice || '',
+  cacheReadPrice: model?.cachePrice || '',
+});
+
+const sortTierRows = (tiers) =>
+  [...tiers].sort((left, right) => {
+    const leftMin = toNumberOrNull(left.minTokens);
+    const rightMin = toNumberOrNull(right.minTokens);
+    if (leftMin === null && rightMin === null) return 0;
+    if (leftMin === null) return 1;
+    if (rightMin === null) return -1;
+    return leftMin - rightMin;
+  });
+
+export const breakpointsFromTiers = (tiers) => {
+  if (!Array.isArray(tiers) || tiers.length === 0) return [];
+  const sorted = sortTierRows(tiers);
+  return sorted
+    .filter((tier) => hasValue(tier.maxTokens))
+    .map((tier) => Number(tier.maxTokens));
+};
+
+const tiersFromBreakpoints = (breakpoints, existingTiers) => {
+  const sorted = [...breakpoints].sort((a, b) => a - b);
+  const boundaries = [0, ...sorted];
+  const newTiers = [];
+  for (let i = 0; i < boundaries.length; i++) {
+    const min = boundaries[i];
+    const max = i < sorted.length ? sorted[i] : null;
+    const existing = (existingTiers || []).find(
+      (t) =>
+        toNumberOrNull(t.minTokens) === min &&
+        (max === null
+          ? !hasValue(t.maxTokens)
+          : toNumberOrNull(t.maxTokens) === max),
+    );
+    if (existing) {
+      newTiers.push({ ...existing });
+      continue;
+    }
+    const overlapping = (existingTiers || []).find(
+      (t) => toNumberOrNull(t.minTokens) === min,
+    );
+    if (overlapping) {
+      newTiers.push({
+        ...overlapping,
+        minTokens: String(min),
+        maxTokens: max !== null ? String(max) : '',
+      });
+      continue;
+    }
+    const prevTier = i > 0 ? newTiers[i - 1] : null;
+    newTiers.push({
+      minTokens: String(min),
+      maxTokens: max !== null ? String(max) : '',
+      inputPrice: prevTier?.inputPrice || '',
+      completionPrice: prevTier?.completionPrice || '',
+      cacheReadPrice: prevTier?.cacheReadPrice || '',
+    });
+  }
+  return newTiers;
+};
+
+const syncBasePricingFromFirstTier = (model) => {
+  const firstTier = model?.tierPricingTiers?.[0];
+  if (!firstTier) {
+    return model;
+  }
+  return {
+    ...model,
+    inputPrice: firstTier.inputPrice ?? '',
+    completionPrice: firstTier.completionPrice ?? '',
+    cachePrice: firstTier.cacheReadPrice ?? '',
+  };
+};
+
 const buildModelState = (name, sourceMaps) => {
   const modelRatio = toNumericString(sourceMaps.ModelRatio[name]);
   const completionRatio = toNumericString(sourceMaps.CompletionRatio[name]);
@@ -111,11 +239,36 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
-  const inputPrice = ratioToBasePrice(modelRatio);
-  const inputPriceNumber = toNumberOrNull(inputPrice);
+  const tierPricingConfig = normalizeTierPricingConfig(
+    sourceMaps.ModelTierPricing?.[name],
+  );
+  const tierReferenceInputPrice = toNumberOrNull(
+    tierPricingConfig.tiers[0]?.inputPrice,
+  );
+  const inputPrice = ratioToBasePrice(modelRatio) || tierPricingConfig.tiers[0]?.inputPrice || '';
+  const completionPriceFromRatio =
+    inputPrice !== '' &&
+    hasValue(
+      completionRatioMeta.locked ? completionRatioMeta.ratio : completionRatio,
+    )
+      ? formatNumber(
+          Number(inputPrice) *
+            Number(
+              completionRatioMeta.locked
+                ? completionRatioMeta.ratio
+                : completionRatio,
+            ),
+        )
+      : tierPricingConfig.tiers[0]?.completionPrice || '';
+  const cachePriceFromRatio =
+    inputPrice !== '' && hasValue(cacheRatio)
+      ? formatNumber(Number(inputPrice) * Number(cacheRatio))
+      : tierPricingConfig.tiers[0]?.cacheReadPrice || '';
+  const extensionInputPriceNumber =
+    tierReferenceInputPrice !== null ? tierReferenceInputPrice : toNumberOrNull(inputPrice);
   const audioInputPrice =
-    inputPriceNumber !== null && hasValue(audioRatio)
-      ? formatNumber(inputPriceNumber * Number(audioRatio))
+    extensionInputPriceNumber !== null && hasValue(audioRatio)
+      ? formatNumber(extensionInputPriceNumber * Number(audioRatio))
       : '';
 
   return {
@@ -124,35 +277,20 @@ const buildModelState = (name, sourceMaps) => {
     billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
     fixedPrice,
     inputPrice,
+    tierPricingEnabled: tierPricingConfig.enabled,
+    tierPricingBasis: tierPricingConfig.basis,
+    tierPricingTiers: tierPricingConfig.tiers,
     completionRatioLocked: completionRatioMeta.locked,
     lockedCompletionRatio: completionRatioMeta.ratio,
-    completionPrice:
-      inputPriceNumber !== null &&
-      hasValue(
-        completionRatioMeta.locked
-          ? completionRatioMeta.ratio
-          : completionRatio,
-      )
-        ? formatNumber(
-            inputPriceNumber *
-              Number(
-                completionRatioMeta.locked
-                  ? completionRatioMeta.ratio
-                  : completionRatio,
-              ),
-          )
-        : '',
-    cachePrice:
-      inputPriceNumber !== null && hasValue(cacheRatio)
-        ? formatNumber(inputPriceNumber * Number(cacheRatio))
-        : '',
+    completionPrice: completionPriceFromRatio,
+    cachePrice: cachePriceFromRatio,
     createCachePrice:
-      inputPriceNumber !== null && hasValue(createCacheRatio)
-        ? formatNumber(inputPriceNumber * Number(createCacheRatio))
+      extensionInputPriceNumber !== null && hasValue(createCacheRatio)
+        ? formatNumber(extensionInputPriceNumber * Number(createCacheRatio))
         : '',
     imagePrice:
-      inputPriceNumber !== null && hasValue(imageRatio)
-        ? formatNumber(inputPriceNumber * Number(imageRatio))
+      extensionInputPriceNumber !== null && hasValue(imageRatio)
+        ? formatNumber(extensionInputPriceNumber * Number(imageRatio))
         : '',
     audioInputPrice,
     audioOutputPrice:
@@ -182,8 +320,15 @@ const buildModelState = (name, sourceMaps) => {
   };
 };
 
-export const isBasePricingUnset = (model) =>
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+export const isBasePricingUnset = (model) => {
+  if (model.billingMode === 'per-request') {
+    return !hasValue(model.fixedPrice);
+  }
+  if (model.tierPricingEnabled && model.tierPricingTiers.length > 0) {
+    return false;
+  }
+  return !hasValue(model.inputPrice);
+};
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
@@ -207,7 +352,27 @@ export const getModelWarnings = (model, t) => {
   }
 
   if (
+    model.tierPricingEnabled &&
+    [
+      model.rawRatios.modelRatio,
+      model.rawRatios.completionRatio,
+      model.rawRatios.cacheRatio,
+    ].some(hasValue)
+  ) {
+    warnings.push(
+      t('开启阶梯定价后，文本主价格将改为写入 ModelTierPricing，不再保留旧的平面基础倍率。'),
+    );
+  }
+
+  if (model.completionRatioLocked && model.tierPricingEnabled) {
+    warnings.push(
+      t('该模型补全倍率由后端锁定，不支持阶梯定价；请关闭阶梯定价后再保存。'),
+    );
+  }
+
+  if (
     !hasValue(model.inputPrice) &&
+    !model.tierPricingEnabled &&
     [
       model.rawRatios.completionRatio,
       model.rawRatios.cacheRatio,
@@ -226,6 +391,7 @@ export const getModelWarnings = (model, t) => {
 
   if (
     model.billingMode === 'per-token' &&
+    !model.tierPricingEnabled &&
     hasDerivedPricing &&
     !hasValue(model.inputPrice)
   ) {
@@ -240,12 +406,63 @@ export const getModelWarnings = (model, t) => {
     warnings.push(t('填写音频补全价格前，需要先填写音频输入价格。'));
   }
 
+  if (
+    model.tierPricingEnabled &&
+    [
+      model.createCachePrice,
+      model.imagePrice,
+      model.audioInputPrice,
+      model.audioOutputPrice,
+    ].some(hasValue)
+  ) {
+    warnings.push(
+      t('非阶梯扩展价格会按第一档输入价格换算为全局倍率，命中更高阶梯时实际价格会随输入单价等比例变化。'),
+    );
+  }
+
   return warnings;
+};
+
+const formatCompactTokenCount = (value) => {
+  const num = toNumberOrNull(value);
+  if (num === null) return '-';
+  if (num >= 1000 && num % 1000 === 0) {
+    return `${num / 1000}k`;
+  }
+  return String(num);
+};
+
+const buildTierRangeLabel = (tier) => {
+  const minLabel = formatCompactTokenCount(tier?.minTokens);
+  if (!hasValue(tier?.maxTokens)) {
+    return `>= ${minLabel}`;
+  }
+  return `${minLabel} <= x < ${formatCompactTokenCount(tier.maxTokens)}`;
+};
+
+const buildTierSummaryText = (model, t) => {
+  if (!model.tierPricingEnabled || model.tierPricingTiers.length === 0) {
+    return '';
+  }
+  const ranges = model.tierPricingTiers.map(buildTierRangeLabel).join(' / ');
+  return `${t('阶梯定价')} ${model.tierPricingTiers.length}${t('档')} ${ranges}`;
 };
 
 export const buildSummaryText = (model, t) => {
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
+  }
+
+  if (model.tierPricingEnabled && model.tierPricingTiers.length > 0) {
+    const extraCount = [
+      model.createCachePrice,
+      model.imagePrice,
+      model.audioInputPrice,
+      model.audioOutputPrice,
+    ].filter(hasValue).length;
+    const extraLabel =
+      extraCount > 0 ? `，${t('额外价格项')} ${extraCount}` : '';
+    return `${buildTierSummaryText(model, t)}${extraLabel}`;
   }
 
   if (hasValue(model.inputPrice)) {
@@ -267,16 +484,152 @@ export const buildSummaryText = (model, t) => {
 
 export const buildOptionalFieldToggles = (model) => ({
   completionPrice:
-    model.completionRatioLocked || hasValue(model.completionPrice),
-  cachePrice: hasValue(model.cachePrice),
+    !model.tierPricingEnabled &&
+    (model.completionRatioLocked || hasValue(model.completionPrice)),
+  cachePrice: !model.tierPricingEnabled && hasValue(model.cachePrice),
   createCachePrice: hasValue(model.createCachePrice),
   imagePrice: hasValue(model.imagePrice),
   audioInputPrice: hasValue(model.audioInputPrice),
   audioOutputPrice: hasValue(model.audioOutputPrice),
 });
 
+const validateAndSerializeTierPricing = (model, t) => {
+  if (model.billingMode !== 'per-token' || !model.tierPricingEnabled) {
+    return null;
+  }
+
+  if (model.completionRatioLocked) {
+    throw new Error(
+      t('模型 {{name}} 的补全倍率由后端锁定，不支持阶梯定价', {
+        name: model.name,
+      }),
+    );
+  }
+
+  const tiers = model.tierPricingTiers.map((tier, index) => {
+    const minTokens = toNumberOrNull(tier.minTokens);
+    const maxTokens = hasValue(tier.maxTokens)
+      ? toNumberOrNull(tier.maxTokens)
+      : null;
+    const inputPrice = toNumberOrNull(tier.inputPrice);
+    const completionPrice = toNumberOrNull(tier.completionPrice);
+    const cacheReadPrice = toNumberOrNull(tier.cacheReadPrice);
+
+    if (minTokens === null || inputPrice === null || completionPrice === null) {
+      throw new Error(
+        t('模型 {{name}} 的第 {{index}} 档缺少必填字段', {
+          name: model.name,
+          index: index + 1,
+        }),
+      );
+    }
+
+    return {
+      min_tokens: minTokens,
+      max_tokens: maxTokens,
+      input_price: inputPrice,
+      completion_price: completionPrice,
+      ...(cacheReadPrice !== null
+        ? { cache_read_price: cacheReadPrice }
+        : {}),
+    };
+  });
+
+  if (model.tierPricingEnabled && tiers.length === 0) {
+    throw new Error(
+      t('模型 {{name}} 已开启阶梯定价，但还没有配置任何阶梯', {
+        name: model.name,
+      }),
+    );
+  }
+
+  tiers.sort((a, b) => a.min_tokens - b.min_tokens);
+
+  tiers.forEach((tier, index) => {
+    if (
+      !isNonNegativeInteger(tier.min_tokens) ||
+      (tier.max_tokens !== null && !isNonNegativeInteger(tier.max_tokens))
+    ) {
+      throw new Error(
+        t('模型 {{name}} 的阶梯 tokens 必须是非负整数', {
+          name: model.name,
+        }),
+      );
+    }
+    if (tier.min_tokens < 0) {
+      throw new Error(
+        t('模型 {{name}} 的第 {{index}} 档最小输入 tokens 不能小于 0', {
+          name: model.name,
+          index: index + 1,
+        }),
+      );
+    }
+    if (index === 0 && tier.min_tokens !== 0) {
+      throw new Error(
+        t('模型 {{name}} 的第一档必须从 0 开始', { name: model.name }),
+      );
+    }
+    if (tier.input_price < 0 || tier.completion_price < 0) {
+      throw new Error(
+        t('模型 {{name}} 的阶梯价格不能为负数', { name: model.name }),
+      );
+    }
+    if (hasValue(tier.cache_read_price) && tier.cache_read_price < 0) {
+      throw new Error(
+        t('模型 {{name}} 的缓存读取价格不能为负数', { name: model.name }),
+      );
+    }
+    if (
+      tier.input_price === 0 &&
+      (tier.completion_price !== 0 ||
+        (hasValue(tier.cache_read_price) && tier.cache_read_price !== 0))
+    ) {
+      throw new Error(
+        t('模型 {{name}} 的某个阶梯输入价格为 0 时，输出和缓存读取价格也必须为 0', {
+          name: model.name,
+        }),
+      );
+    }
+    if (tier.max_tokens !== null && tier.max_tokens <= tier.min_tokens) {
+      throw new Error(
+        t('模型 {{name}} 的第 {{index}} 档最大输入 tokens 必须大于最小值', {
+          name: model.name,
+          index: index + 1,
+        }),
+      );
+    }
+    if (index < tiers.length - 1) {
+      if (tier.max_tokens === null) {
+        throw new Error(
+          t('模型 {{name}} 只有最后一档可以不填写最大值', {
+            name: model.name,
+          }),
+        );
+      }
+      if (tiers[index + 1].min_tokens !== tier.max_tokens) {
+        throw new Error(
+          t('模型 {{name}} 的阶梯必须连续且不能重叠', { name: model.name }),
+        );
+      }
+    } else if (tier.max_tokens !== null) {
+      throw new Error(
+        t('模型 {{name}} 的最后一档最大值必须留空，表示无上限', {
+          name: model.name,
+        }),
+      );
+    }
+  });
+
+  return {
+    enabled: model.tierPricingEnabled,
+    basis: TIER_BASIS_PROMPT_TOKENS,
+    tiers,
+  };
+};
+
 const serializeModel = (model, t) => {
   const result = {
+    ModelTierPricing: null,
     ModelPrice: null,
     ModelRatio: null,
     CompletionRatio: null,
@@ -294,28 +647,35 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  const inputPrice = toNumberOrNull(model.inputPrice);
-  const completionPrice = toNumberOrNull(model.completionPrice);
-  const cachePrice = toNumberOrNull(model.cachePrice);
+  result.ModelTierPricing = validateAndSerializeTierPricing(model, t);
+
+  const inputPrice = model.tierPricingEnabled
+    ? getTierReferenceInputPrice(model)
+    : toNumberOrNull(model.inputPrice);
+  const completionPrice = model.tierPricingEnabled
+    ? null
+    : toNumberOrNull(model.completionPrice);
+  const cachePrice = model.tierPricingEnabled
+    ? null
+    : toNumberOrNull(model.cachePrice);
   const createCachePrice = toNumberOrNull(model.createCachePrice);
   const imagePrice = toNumberOrNull(model.imagePrice);
   const audioInputPrice = toNumberOrNull(model.audioInputPrice);
   const audioOutputPrice = toNumberOrNull(model.audioOutputPrice);
 
   const hasDependentPrice = [
-    completionPrice,
-    cachePrice,
     createCachePrice,
     imagePrice,
     audioInputPrice,
     audioOutputPrice,
+    ...(model.tierPricingEnabled ? [] : [completionPrice, cachePrice]),
   ].some((value) => value !== null);
 
   if (inputPrice === null) {
     if (hasDependentPrice) {
       throw new Error(
         t(
-          '模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率',
+          '模型 {{name}} 缺少参考输入价格，无法计算扩展价格对应的倍率',
           {
             name: model.name,
           },
@@ -323,15 +683,15 @@ const serializeModel = (model, t) => {
       );
     }
 
-    if (hasValue(model.rawRatios.modelRatio)) {
+    if (!model.tierPricingEnabled && hasValue(model.rawRatios.modelRatio)) {
       result.ModelRatio = toNormalizedNumber(model.rawRatios.modelRatio);
     }
-    if (hasValue(model.rawRatios.completionRatio)) {
+    if (!model.tierPricingEnabled && hasValue(model.rawRatios.completionRatio)) {
       result.CompletionRatio = toNormalizedNumber(
         model.rawRatios.completionRatio,
       );
     }
-    if (hasValue(model.rawRatios.cacheRatio)) {
+    if (!model.tierPricingEnabled && hasValue(model.rawRatios.cacheRatio)) {
       result.CacheRatio = toNormalizedNumber(model.rawRatios.cacheRatio);
     }
     if (hasValue(model.rawRatios.createCacheRatio)) {
@@ -353,28 +713,30 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  result.ModelRatio = toNormalizedNumber(inputPrice / 2);
+  if (!model.tierPricingEnabled) {
+    result.ModelRatio = toNormalizedNumber(inputPrice / 2);
 
-  if (!model.completionRatioLocked && completionPrice !== null) {
-    result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
-  } else if (
-    model.completionRatioLocked &&
-    hasValue(model.rawRatios.completionRatio)
-  ) {
-    result.CompletionRatio = toNormalizedNumber(
-      model.rawRatios.completionRatio,
-    );
+    if (!model.completionRatioLocked && completionPrice !== null) {
+      result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
+    } else if (
+      model.completionRatioLocked &&
+      hasValue(model.rawRatios.completionRatio)
+    ) {
+      result.CompletionRatio = toNormalizedNumber(
+        model.rawRatios.completionRatio,
+      );
+    }
+    if (cachePrice !== null) {
+      result.CacheRatio = toNormalizedNumber(cachePrice / inputPrice);
+    }
   }
-  if (cachePrice !== null) {
-    result.CacheRatio = toNormalizedNumber(cachePrice / inputPrice);
-  }
-  if (createCachePrice !== null) {
+  if (createCachePrice !== null && inputPrice !== 0) {
     result.CreateCacheRatio = toNormalizedNumber(createCachePrice / inputPrice);
   }
-  if (imagePrice !== null) {
+  if (imagePrice !== null && inputPrice !== 0) {
     result.ImageRatio = toNormalizedNumber(imagePrice / inputPrice);
   }
-  if (audioInputPrice !== null) {
+  if (audioInputPrice !== null && inputPrice !== 0) {
     result.AudioRatio = toNormalizedNumber(audioInputPrice / inputPrice);
   }
   if (audioOutputPrice !== null) {
@@ -393,15 +755,102 @@ const serializeModel = (model, t) => {
   return result;
 };
 
-export const buildPreviewRows = (model, t) => {
+export const buildPreviewSections = (model, t) => {
   if (!model) return [];
 
   if (model.billingMode === 'per-request') {
     return [
       {
-        key: 'ModelPrice',
-        label: 'ModelPrice',
-        value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
+        key: 'legacy-flat-fields',
+        title: t('Legacy Flat Fields'),
+        rows: [
+          {
+            key: 'ModelPrice',
+            label: 'ModelPrice',
+            value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
+          },
+        ],
+      },
+    ];
+  }
+
+  if (model.tierPricingEnabled) {
+    const referenceInputPrice = getTierReferenceInputPrice(model);
+    const tierPreviewValue = JSON.stringify(
+      {
+        [model.name]: {
+          enabled: model.tierPricingEnabled,
+          basis: TIER_BASIS_PROMPT_TOKENS,
+          tiers: model.tierPricingTiers.map((tier) => ({
+            min_tokens: hasValue(tier.minTokens) ? Number(tier.minTokens) : null,
+            max_tokens: hasValue(tier.maxTokens) ? Number(tier.maxTokens) : null,
+            input_price: hasValue(tier.inputPrice) ? Number(tier.inputPrice) : null,
+            completion_price: hasValue(tier.completionPrice)
+              ? Number(tier.completionPrice)
+              : null,
+            ...(hasValue(tier.cacheReadPrice)
+              ? { cache_read_price: Number(tier.cacheReadPrice) }
+              : {}),
+          })),
+        },
+      },
+      null,
+      2,
+    );
+
+    return [
+      {
+        key: 'model-tier-pricing',
+        title: 'ModelTierPricing',
+        code: tierPreviewValue,
+      },
+      {
+        key: 'legacy-flat-fields',
+        title: t('Legacy Flat Fields'),
+        rows: [
+          {
+            key: 'CreateCacheRatio',
+            label: 'CreateCacheRatio',
+            value:
+              referenceInputPrice !== null &&
+              referenceInputPrice !== 0 &&
+              hasValue(model.createCachePrice)
+                ? formatNumber(Number(model.createCachePrice) / referenceInputPrice)
+                : t('空'),
+          },
+          {
+            key: 'ImageRatio',
+            label: 'ImageRatio',
+            value:
+              referenceInputPrice !== null &&
+              referenceInputPrice !== 0 &&
+              hasValue(model.imagePrice)
+                ? formatNumber(Number(model.imagePrice) / referenceInputPrice)
+                : t('空'),
+          },
+          {
+            key: 'AudioRatio',
+            label: 'AudioRatio',
+            value:
+              referenceInputPrice !== null &&
+              referenceInputPrice !== 0 &&
+              hasValue(model.audioInputPrice)
+                ? formatNumber(Number(model.audioInputPrice) / referenceInputPrice)
+                : t('空'),
+          },
+          {
+            key: 'AudioCompletionRatio',
+            label: 'AudioCompletionRatio',
+            value:
+              hasValue(model.audioOutputPrice) &&
+              hasValue(model.audioInputPrice) &&
+              Number(model.audioInputPrice) !== 0
+                ? formatNumber(
+                    Number(model.audioOutputPrice) / Number(model.audioInputPrice),
+                  )
+                : t('空'),
+          },
+        ],
       },
     ];
   }
@@ -410,53 +859,59 @@ export const buildPreviewRows = (model, t) => {
   if (inputPrice === null) {
     return [
       {
-        key: 'ModelRatio',
-        label: 'ModelRatio',
-        value: hasValue(model.rawRatios.modelRatio)
-          ? model.rawRatios.modelRatio
-          : t('空'),
-      },
-      {
-        key: 'CompletionRatio',
-        label: 'CompletionRatio',
-        value: hasValue(model.rawRatios.completionRatio)
-          ? model.rawRatios.completionRatio
-          : t('空'),
-      },
-      {
-        key: 'CacheRatio',
-        label: 'CacheRatio',
-        value: hasValue(model.rawRatios.cacheRatio)
-          ? model.rawRatios.cacheRatio
-          : t('空'),
-      },
-      {
-        key: 'CreateCacheRatio',
-        label: 'CreateCacheRatio',
-        value: hasValue(model.rawRatios.createCacheRatio)
-          ? model.rawRatios.createCacheRatio
-          : t('空'),
-      },
-      {
-        key: 'ImageRatio',
-        label: 'ImageRatio',
-        value: hasValue(model.rawRatios.imageRatio)
-          ? model.rawRatios.imageRatio
-          : t('空'),
-      },
-      {
-        key: 'AudioRatio',
-        label: 'AudioRatio',
-        value: hasValue(model.rawRatios.audioRatio)
-          ? model.rawRatios.audioRatio
-          : t('空'),
-      },
-      {
-        key: 'AudioCompletionRatio',
-        label: 'AudioCompletionRatio',
-        value: hasValue(model.rawRatios.audioCompletionRatio)
-          ? model.rawRatios.audioCompletionRatio
-          : t('空'),
+        key: 'legacy-flat-fields',
+        title: t('Legacy Flat Fields'),
+        rows: [
+          {
+            key: 'ModelRatio',
+            label: 'ModelRatio',
+            value: hasValue(model.rawRatios.modelRatio)
+              ? model.rawRatios.modelRatio
+              : t('空'),
+          },
+          {
+            key: 'CompletionRatio',
+            label: 'CompletionRatio',
+            value: hasValue(model.rawRatios.completionRatio)
+              ? model.rawRatios.completionRatio
+              : t('空'),
+          },
+          {
+            key: 'CacheRatio',
+            label: 'CacheRatio',
+            value: hasValue(model.rawRatios.cacheRatio)
+              ? model.rawRatios.cacheRatio
+              : t('空'),
+          },
+          {
+            key: 'CreateCacheRatio',
+            label: 'CreateCacheRatio',
+            value: hasValue(model.rawRatios.createCacheRatio)
+              ? model.rawRatios.createCacheRatio
+              : t('空'),
+          },
+          {
+            key: 'ImageRatio',
+            label: 'ImageRatio',
+            value: hasValue(model.rawRatios.imageRatio)
+              ? model.rawRatios.imageRatio
+              : t('空'),
+          },
+          {
+            key: 'AudioRatio',
+            label: 'AudioRatio',
+            value: hasValue(model.rawRatios.audioRatio)
+              ? model.rawRatios.audioRatio
+              : t('空'),
+          },
+          {
+            key: 'AudioCompletionRatio',
+            label: 'AudioCompletionRatio',
+            value: hasValue(model.rawRatios.audioCompletionRatio)
+              ? model.rawRatios.audioCompletionRatio
+              : t('空'),
+          },
+        ],
       },
     ];
   }
@@ -470,56 +925,62 @@ export const buildPreviewRows = (model, t) => {
 
   return [
     {
-      key: 'ModelRatio',
-      label: 'ModelRatio',
-      value: formatNumber(inputPrice / 2),
-    },
-    {
-      key: 'CompletionRatio',
-      label: 'CompletionRatio',
-      value: model.completionRatioLocked
-        ? `${model.lockedCompletionRatio || t('空')} (${t('后端固定')})`
-        : completionPrice !== null
-          ? formatNumber(completionPrice / inputPrice)
-          : t('空'),
-    },
-    {
-      key: 'CacheRatio',
-      label: 'CacheRatio',
-      value:
-        cachePrice !== null ? formatNumber(cachePrice / inputPrice) : t('空'),
-    },
-    {
-      key: 'CreateCacheRatio',
-      label: 'CreateCacheRatio',
-      value:
-        createCachePrice !== null
-          ? formatNumber(createCachePrice / inputPrice)
-          : t('空'),
-    },
-    {
-      key: 'ImageRatio',
-      label: 'ImageRatio',
-      value:
-        imagePrice !== null ? formatNumber(imagePrice / inputPrice) : t('空'),
-    },
-    {
-      key: 'AudioRatio',
-      label: 'AudioRatio',
-      value:
-        audioInputPrice !== null
-          ? formatNumber(audioInputPrice / inputPrice)
-          : t('空'),
-    },
-    {
-      key: 'AudioCompletionRatio',
-      label: 'AudioCompletionRatio',
-      value:
-        audioOutputPrice !== null &&
-        audioInputPrice !== null &&
-        audioInputPrice !== 0
-          ? formatNumber(audioOutputPrice / audioInputPrice)
-          : t('空'),
+      key: 'legacy-flat-fields',
+      title: t('Legacy Flat Fields'),
+      rows: [
+        {
+          key: 'ModelRatio',
+          label: 'ModelRatio',
+          value: formatNumber(inputPrice / 2),
+        },
+        {
+          key: 'CompletionRatio',
+          label: 'CompletionRatio',
+          value: model.completionRatioLocked
+            ? `${model.lockedCompletionRatio || t('空')} (${t('后端固定')})`
+            : completionPrice !== null
+              ? formatNumber(completionPrice / inputPrice)
+              : t('空'),
+        },
+        {
+          key: 'CacheRatio',
+          label: 'CacheRatio',
+          value:
+            cachePrice !== null ? formatNumber(cachePrice / inputPrice) : t('空'),
+        },
+        {
+          key: 'CreateCacheRatio',
+          label: 'CreateCacheRatio',
+          value:
+            createCachePrice !== null
+              ? formatNumber(createCachePrice / inputPrice)
+              : t('空'),
+        },
+        {
+          key: 'ImageRatio',
+          label: 'ImageRatio',
+          value:
+            imagePrice !== null ? formatNumber(imagePrice / inputPrice) : t('空'),
+        },
+        {
+          key: 'AudioRatio',
+          label: 'AudioRatio',
+          value:
+            audioInputPrice !== null
+              ? formatNumber(audioInputPrice / inputPrice)
+              : t('空'),
+        },
+        {
+          key: 'AudioCompletionRatio',
+          label: 'AudioCompletionRatio',
+          value:
+            audioOutputPrice !== null &&
+            audioInputPrice !== null &&
+            audioInputPrice !== 0
+              ? formatNumber(audioOutputPrice / audioInputPrice)
+              : t('空'),
+        },
+      ],
     },
   ];
 };
@@ -545,6 +1006,7 @@ export function useModelPricingEditorState({
     const sourceMaps = {
       ModelPrice: parseOptionJSON(options.ModelPrice),
       ModelRatio: parseOptionJSON(options.ModelRatio),
+      ModelTierPricing: parseOptionJSON(options.ModelTierPricing),
       CompletionRatio: parseOptionJSON(options.CompletionRatio),
       CompletionRatioMeta: parseOptionJSON(options.CompletionRatioMeta),
       CacheRatio: parseOptionJSON(options.CacheRatio),
@@ -558,6 +1020,7 @@ export function useModelPricingEditorState({
       ...candidateModelNames,
       ...Object.keys(sourceMaps.ModelPrice),
       ...Object.keys(sourceMaps.ModelRatio),
+      ...Object.keys(sourceMaps.ModelTierPricing),
       ...Object.keys(sourceMaps.CompletionRatio),
       ...Object.keys(sourceMaps.CompletionRatioMeta),
       ...Object.keys(sourceMaps.CacheRatio),
@@ -630,8 +1093,8 @@ export function useModelPricingEditorState({
     [selectedModel, t],
   );
 
-  const previewRows = useMemo(
-    () => buildPreviewRows(selectedModel, t),
+  const previewSections = useMemo(
+    () => buildPreviewSections(selectedModel, t),
     [selectedModel, t],
   );
 
@@ -713,6 +1176,114 @@ export function useModelPricingEditorState({
     });
   };
 
+  const handleTierPricingToggle = (checked) => {
+    if (!selectedModel) return;
+    if (checked && selectedModel.completionRatioLocked) {
+      showError(t('该模型补全倍率由后端锁定，不支持阶梯定价'));
+      return;
+    }
+    upsertModel(selectedModel.name, (model) => {
+      const nextModel = {
+        ...model,
+        tierPricingEnabled: checked,
+        tierPricingBasis: TIER_BASIS_PROMPT_TOKENS,
+      };
+      if (checked && nextModel.tierPricingTiers.length === 0) {
+        nextModel.tierPricingTiers = [buildDefaultTierRowFromModel(model)];
+      }
+      if (!checked) {
+        return syncBasePricingFromFirstTier(nextModel);
+      }
+      return nextModel;
+    });
+  };
+
+  const handleTierFieldChange = (index, field, value) => {
+    if (!selectedModel || !NUMERIC_INPUT_REGEX.test(value)) {
+      return;
+    }
+
+    upsertModel(selectedModel.name, (model) =>
+      syncBasePricingFromFirstTier({
+        ...model,
+        tierPricingTiers: model.tierPricingTiers.map((tier, tierIndex) =>
+          tierIndex === index ? { ...tier, [field]: value } : tier,
+        ),
+      }),
+    );
+  };
+
+  const handleAddBreakpoint = (value) => {
+    if (!selectedModel) return;
+    const num = Number(value);
+    if (!Number.isInteger(num) || num <= 0) return;
+    upsertModel(selectedModel.name, (model) => {
+      const existing = breakpointsFromTiers(model.tierPricingTiers);
+      if (existing.includes(num)) return model;
+      const nextBreakpoints = [...existing, num];
+      return syncBasePricingFromFirstTier({
+        ...model,
+        tierPricingTiers: tiersFromBreakpoints(
+          nextBreakpoints,
+          model.tierPricingTiers,
+        ),
+      });
+    });
+  };
+
+  const handleRemoveBreakpoint = (bpIndex) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => {
+      const existing = breakpointsFromTiers(model.tierPricingTiers);
+      const nextBreakpoints = existing.filter((_, i) => i !== bpIndex);
+      return syncBasePricingFromFirstTier({
+        ...model,
+        tierPricingTiers: tiersFromBreakpoints(
+          nextBreakpoints,
+          model.tierPricingTiers,
+        ),
+      });
+    });
+  };
+
+  const handleEditBreakpoint = (bpIndex, newValue) => {
+    if (!selectedModel) return;
+    const num = Number(newValue);
+    if (!Number.isInteger(num) || num <= 0) return;
+    upsertModel(selectedModel.name, (model) => {
+      const existing = breakpointsFromTiers(model.tierPricingTiers);
+      if (existing.some((v, i) => i !== bpIndex && v === num)) return model;
+      const nextBreakpoints = existing.map((v, i) => (i === bpIndex ? num : v));
+      return syncBasePricingFromFirstTier({
+        ...model,
+        tierPricingTiers: tiersFromBreakpoints(
+          nextBreakpoints,
+          model.tierPricingTiers,
+        ),
+      });
+    });
+  };
+
+  const handleSaveTierRow = (index, priceData) => {
+    if (!selectedModel || index === null || index === undefined) return;
+    upsertModel(selectedModel.name, (model) => {
+      const nextTiers = model.tierPricingTiers.map((tier, tierIndex) =>
+        tierIndex === index
+          ? {
+              ...tier,
+              inputPrice: priceData.inputPrice,
+              completionPrice: priceData.completionPrice,
+              cacheReadPrice: priceData.cacheReadPrice,
+            }
+          : tier,
+      );
+      return syncBasePricingFromFirstTier({
+        ...model,
+        tierPricingTiers: nextTiers,
+      });
+    });
+  };
+
   const fillDerivedPricesFromBase = (model, nextInputPrice) => {
     const baseNumber = toNumberOrNull(nextInputPrice);
     if (baseNumber === null) {
@@ -779,6 +1350,7 @@ export function useModelPricingEditorState({
     upsertModel(selectedModel.name, (model) => ({
       ...model,
       billingMode: value,
+      tierPricingEnabled: value === 'per-request' ? false : model.tierPricingEnabled,
     }));
   };
 
@@ -835,6 +1407,19 @@ export function useModelPricingEditorState({
       return false;
     }
 
+    if (selectedModel.tierPricingEnabled) {
+      const lockedTargets = selectedModelNames.filter((modelName) => {
+        const targetModel = models.find((item) => item.name === modelName);
+        return targetModel?.completionRatioLocked;
+      });
+      if (lockedTargets.length > 0) {
+        showError(
+          t('已勾选模型中包含补全倍率锁定模型，不能批量应用阶梯定价'),
+        );
+        return false;
+      }
+    }
+
     const sourceToggles = optionalFieldToggles[selectedModel.name] || {};
 
     setModels((previous) =>
@@ -854,6 +1439,11 @@ export function useModelPricingEditorState({
           imagePrice: selectedModel.imagePrice,
           audioInputPrice: selectedModel.audioInputPrice,
           audioOutputPrice: selectedModel.audioOutputPrice,
+          tierPricingEnabled: selectedModel.tierPricingEnabled,
+          tierPricingBasis: selectedModel.tierPricingBasis,
+          tierPricingTiers: selectedModel.tierPricingTiers.map((tier) => ({
+            ...tier,
+          })),
         };
 
         if (
@@ -877,10 +1467,15 @@ export function useModelPricingEditorState({
       selectedModelNames.forEach((modelName) => {
         const targetModel = models.find((item) => item.name === modelName);
         next[modelName] = {
-          completionPrice: targetModel?.completionRatioLocked
-            ? true
-            : Boolean(sourceToggles.completionPrice),
-          cachePrice: Boolean(sourceToggles.cachePrice),
+          completionPrice:
+            selectedModel.tierPricingEnabled
+              ? false
+              : targetModel?.completionRatioLocked
+                ? true
+                : Boolean(sourceToggles.completionPrice),
+          cachePrice: selectedModel.tierPricingEnabled
+            ? false
+            : Boolean(sourceToggles.cachePrice),
           createCachePrice: Boolean(sourceToggles.createCachePrice),
           imagePrice: Boolean(sourceToggles.imagePrice),
           audioInputPrice: Boolean(sourceToggles.audioInputPrice),
@@ -905,6 +1500,7 @@ export function useModelPricingEditorState({
     setLoading(true);
     try {
       const output = {
+        ModelTierPricing: {},
         ModelPrice: {},
         ModelRatio: {},
         CompletionRatio: {},
@@ -924,15 +1520,23 @@ export function useModelPricingEditorState({
         });
       }
 
-      const requestQueue = Object.entries(output).map(([key, value]) =>
-        API.put('/api/option/', {
-          key,
-          value: JSON.stringify(value, null, 2),
-        }),
-      );
+      const orderedKeys = [
+        'ModelTierPricing',
+        'ModelPrice',
+        'ModelRatio',
+        'CompletionRatio',
+        'CacheRatio',
+        'CreateCacheRatio',
+        'ImageRatio',
+        'AudioRatio',
+        'AudioCompletionRatio',
+      ];
 
-      const results = await Promise.all(requestQueue);
-      for (const res of results) {
+      for (const key of orderedKeys) {
+        const res = await API.put('/api/option/', {
+          key,
+          value: JSON.stringify(output[key], null, 2),
+        });
         if (!res?.data?.success) {
           throw new Error(res?.data?.message || t('保存失败，请重试'));
         }
@@ -965,9 +1569,15 @@ export function useModelPricingEditorState({
     filteredModels,
     pagedData,
     selectedWarnings,
-    previewRows,
+    previewSections,
     isOptionalFieldEnabled,
     handleOptionalFieldToggle,
+    handleTierPricingToggle,
+    handleTierFieldChange,
+    handleAddBreakpoint,
+    handleRemoveBreakpoint,
+    handleEditBreakpoint,
+    handleSaveTierRow,
     handleNumericFieldChange,
     handleBillingModeChange,
     handleSubmit,

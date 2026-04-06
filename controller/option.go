@@ -19,6 +19,7 @@ import (
 var completionRatioMetaOptionKeys = []string{
 	"ModelPrice",
 	"ModelRatio",
+	"ModelTierPricing",
 	"CompletionRatio",
 	"CacheRatio",
 	"CreateCacheRatio",
@@ -230,6 +231,15 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "缓存创建倍率设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelTierPricing":
+		err = ratio_setting.UpdateModelTierPricingByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型阶梯定价设置失败: " + err.Error(),
 			})
 			return
 		}

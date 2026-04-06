@@ -343,6 +343,7 @@ func InitRatioSettings() {
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
+	modelTierPricingMap.Clear()
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -729,6 +730,9 @@ func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or rati
 	modelRatio, success, _ := GetModelRatio(model)
 	if success {
 		return modelRatio, false, true
+	}
+	if tierRatio, ok := GetModelTierPricingBaseRatio(model); ok {
+		return tierRatio, false, true
 	}
 	return 37.5, false, false
 }

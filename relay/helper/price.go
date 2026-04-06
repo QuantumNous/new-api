@@ -61,6 +61,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
+	priceData := types.PriceData{
+		GroupRatioInfo: groupRatioInfo,
+		UsePrice:       usePrice,
+	}
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
@@ -69,7 +73,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		var success bool
 		var matchName string
 		modelRatio, success, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
-		if !success {
+		if !success && !ratio_setting.HasEnabledModelTierPricing(info.OriginModelName) {
 			acceptUnsetRatio := false
 			if info.UserSetting.AcceptUnsetRatioModel {
 				acceptUnsetRatio = true
@@ -87,13 +91,29 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		imageRatio, _ = ratio_setting.GetImageRatio(info.OriginModelName)
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
-		ratio := modelRatio * groupRatioInfo.GroupRatio
+		priceData.ModelRatio = modelRatio
+		priceData.CompletionRatio = completionRatio
+		priceData.CacheRatio = cacheRatio
+		priceData.CacheCreationRatio = cacheCreationRatio
+		priceData.CacheCreation5mRatio = cacheCreationRatio5m
+		priceData.CacheCreation1hRatio = cacheCreationRatio1h
+		priceData.ImageRatio = imageRatio
+		priceData.AudioRatio = audioRatio
+		priceData.AudioCompletionRatio = audioCompletionRatio
+		if updatedPriceData, applied := ratio_setting.ApplyModelTierPricing(info.OriginModelName, priceData, promptTokens); applied {
+			priceData = updatedPriceData
+		}
+		modelRatio = priceData.ModelRatio
+		completionRatio = priceData.CompletionRatio
+		cacheRatio = priceData.CacheRatio
+		ratio := priceData.ModelRatio * groupRatioInfo.GroupRatio
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
 		if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		priceData.ModelPrice = modelPrice
 	}
 
 	// check if free model pre-consume is disabled
@@ -115,22 +135,18 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 	}
 
-	priceData := types.PriceData{
-		FreeModel:            freeModel,
-		ModelPrice:           modelPrice,
-		ModelRatio:           modelRatio,
-		CompletionRatio:      completionRatio,
-		GroupRatioInfo:       groupRatioInfo,
-		UsePrice:             usePrice,
-		CacheRatio:           cacheRatio,
-		ImageRatio:           imageRatio,
-		AudioRatio:           audioRatio,
-		AudioCompletionRatio: audioCompletionRatio,
-		CacheCreationRatio:   cacheCreationRatio,
-		CacheCreation5mRatio: cacheCreationRatio5m,
-		CacheCreation1hRatio: cacheCreationRatio1h,
-		QuotaToPreConsume:    preConsumedQuota,
-	}
+	priceData.FreeModel = freeModel
+	priceData.ModelPrice = modelPrice
+	priceData.ModelRatio = modelRatio
+	priceData.CompletionRatio = completionRatio
+	priceData.CacheRatio = cacheRatio
+	priceData.ImageRatio = imageRatio
+	priceData.AudioRatio = audioRatio
+	priceData.AudioCompletionRatio = audioCompletionRatio
+	priceData.CacheCreationRatio = cacheCreationRatio
+	priceData.CacheCreation5mRatio = cacheCreationRatio5m
+	priceData.CacheCreation1hRatio = cacheCreationRatio1h
+	priceData.QuotaToPreConsume = preConsumedQuota
 
 	if common.DebugEnabled {
 		println(fmt.Sprintf("model_price_helper result: %s", priceData.ToSetting()))
@@ -187,13 +203,6 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 }
 
 func ContainPriceOrRatio(modelName string) bool {
-	_, ok := ratio_setting.GetModelPrice(modelName, false)
-	if ok {
-		return true
-	}
-	_, ok, _ = ratio_setting.GetModelRatio(modelName)
-	if ok {
-		return true
-	}
-	return false
+	_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
+	return exist
 }
