@@ -1,0 +1,96 @@
+{
+  "name": "react-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@douyinfe/semi-icons": "^2.63.1",
+    "@douyinfe/semi-ui": "^2.69.1",
+    "@lobehub/icons": "^2.0.0",
+    "@visactor/react-vchart": "~1.8.8",
+    "@visactor/vchart": "~1.8.8",
+    "@visactor/vchart-semi-theme": "~1.8.8",
+    "axios": "1.13.5",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.11",
+    "history": "^5.3.0",
+    "i18next": "^23.16.8",
+    "i18next-browser-languagedetector": "^7.2.0",
+    "katex": "^0.16.22",
+    "lucide-react": "^0.511.0",
+    "marked": "^4.1.1",
+    "mermaid": "^11.6.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-dropzone": "^14.2.3",
+    "react-fireworks": "^1.0.4",
+    "react-i18next": "^13.0.0",
+    "react-icons": "^5.5.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.3.0",
+    "react-telegram-login": "^1.1.2",
+    "react-toastify": "^9.0.8",
+    "react-turnstile": "^1.0.5",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "sse.js": "^2.6.0",
+    "unist-util-visit": "^5.0.0",
+    "use-debounce": "^10.0.4"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "prettier . --check",
+    "lint:fix": "prettier . --write",
+    "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
+    "eslint:fix": "bunx eslint \"**/*.{js,jsx}\" --fix --cache",
+    "preview": "vite preview",
+    "i18n:extract": "bunx i18next-cli extract",
+    "i18n:status": "bunx i18next-cli status",
+    "i18n:sync": "bunx i18next-cli sync",
+    "i18n:lint": "bunx i18next-cli lint"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@douyinfe/vite-plugin-semi": "^2.74.0-alpha.6",
+    "@so1ve/prettier-config": "^3.1.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.21",
+    "code-inspector-plugin": "^1.3.3",
+    "eslint": "8.57.0",
+    "eslint-plugin-header": "^3.1.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "i18next-cli": "^1.10.3",
+    "postcss": "^8.5.3",
+    "prettier": "^3.0.0",
+    "tailwindcss": "^3",
+    "typescript": "4.4.2",
+    "vite": "^5.2.0"
+  },
+  "prettier": {
+    "singleQuote": true,
+    "jsxSingleQuote": true
+  },
+  "proxy": "http://localhost:3000"
+}
