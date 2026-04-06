@@ -22,6 +22,7 @@ common.delete_success: "刪除成功"
 common.delete_failed: "刪除失敗"
 common.already_exists: "已存在"
 common.name_cannot_be_empty: "名稱不能為空"
+common.batch_too_many: "批次請求數量過多，最多 {{.Max}} 條"
 
 # Token messages
 token.name_too_long: "令牌名稱過長"

@@ -1,12 +1,10 @@
 package claude
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -43,61 +41,6 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
-	}
-}
-
-func createClaudeFileSource(file *dto.MessageFile) *types.FileSource {
-	if file == nil || file.FileData == "" {
-		return nil
-	}
-	if strings.HasPrefix(file.FileData, "http://") || strings.HasPrefix(file.FileData, "https://") {
-		return types.NewURLFileSource(file.FileData)
-	}
-	mimeType := ""
-	if ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(file.FileName)), "."); ext != "" {
-		if detected := service.GetMimeTypeByExtension(ext); detected != "application/octet-stream" {
-			mimeType = detected
-		}
-	}
-	return types.NewBase64FileSource(file.FileData, mimeType)
-}
-
-func buildClaudeFileMessage(c *gin.Context, file *dto.MessageFile) (*dto.ClaudeMediaMessage, error) {
-	source := createClaudeFileSource(file)
-	if source == nil {
-		return nil, nil
-	}
-	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting document for Claude")
-	if err != nil {
-		return nil, fmt.Errorf("get file data failed: %w", err)
-	}
-	switch strings.ToLower(mimeType) {
-	case "application/pdf":
-		return &dto.ClaudeMediaMessage{
-			Type: "document",
-			Source: &dto.ClaudeMessageSource{
-				Type:      "base64",
-				MediaType: mimeType,
-				Data:      base64Data,
-			},
-		}, nil
-	case "text/plain":
-		decodedData, err := base64.StdEncoding.DecodeString(base64Data)
-		if err != nil {
-			return nil, fmt.Errorf("decode text file data failed: %w", err)
-		}
-		return &dto.ClaudeMediaMessage{
-			Type: "text",
-			Text: common.GetPointer(string(decodedData)),
-		}, nil
-	default:
-		msg := fmt.Sprintf("claude: skip unsupported file content, filename=%q, mime=%q", file.FileName, mimeType)
-		if c != nil {
-			logger.LogInfo(c, msg)
-		} else {
-			common.SysLog(msg)
-		}
-		return nil, nil
 	}
 }
 
@@ -142,7 +85,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 			// 解析 UserLocation JSON
 			var userLocationMap map[string]interface{}
-			if err := json.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
+			if err := common.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
 				// 检查是否有 approximate 字段
 				if approximateData, ok := userLocationMap["approximate"].(map[string]interface{}); ok {
 					if timezone, ok := approximateData["timezone"].(string); ok && timezone != "" {
@@ -406,44 +349,33 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							Type: "text",
 							Text: common.GetPointer[string](mediaMessage.Text),
 						})
-					case dto.ContentTypeImageURL:
-						claudeMediaMessage := dto.ClaudeMediaMessage{
-							Type: "image",
-							Source: &dto.ClaudeMessageSource{
-								Type: "base64",
-							},
-						}
-						imageUrl := mediaMessage.GetImageMedia()
-						if imageUrl == nil {
+					default:
+						source := mediaMessage.ToFileSource()
+						if source == nil {
 							continue
-						}
-						// 使用统一的文件服务获取图片数据
-						var source *types.FileSource
-						if strings.HasPrefix(imageUrl.Url, "http") {
-							source = types.NewURLFileSource(imageUrl.Url)
-						} else {
-							source = types.NewBase64FileSource(imageUrl.Url, "")
 						}
 						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
 						if err != nil {
 							return nil, fmt.Errorf("get file data failed: %s", err.Error())
 						}
+						claudeMediaMessage := dto.ClaudeMediaMessage{
+							Source: &dto.ClaudeMessageSource{
+								Type: "base64",
+							},
+						}
+						if strings.HasPrefix(mimeType, "application/pdf") {
+							claudeMediaMessage.Type = "document"
+						} else {
+							claudeMediaMessage.Type = "image"
+						}
+
 						claudeMediaMessage.Source.MediaType = mimeType
 						claudeMediaMessage.Source.Data = base64Data
 						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
-					// FIXME
-					//case dto.ContentTypeFile:
-					//	claudeFileMessage, err := buildClaudeFileMessage(c, mediaMessage.GetFile())
-					//	if err != nil {
-					//		return nil, err
-					//	}
-					//	if claudeFileMessage != nil {
-					//		claudeMediaMessages = append(claudeMediaMessages, *claudeFileMessage)
-					//	}
-					default:
 						continue
 					}
 				}
+
 				if message.ToolCalls != nil {
 					for _, toolCall := range message.ParseToolCalls() {
 						inputObj := make(map[string]any)
