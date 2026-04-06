@@ -1985,15 +1985,15 @@ const DropButton = ({ icon, label, open, onClick, children }) => (
   <div className='relative'>
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 rounded-none border-b text-[10px] font-mono tracking-widest uppercase transition-all duration-200 px-1 py-1 ${
+      className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-[13px] font-bold transition-all duration-300 backdrop-blur-md ${
         open 
-          ? 'border-zinc-300 text-zinc-100 bg-zinc-800/80' 
-          : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:border-zinc-800'
+          ? 'border-indigo-500/50 bg-indigo-500/20 text-indigo-200 shadow-[0_0_15px_rgba(99,102,241,0.2)]' 
+          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:border-white/20 hover:text-white'
       }`}
     >
       {icon}
       {label}
-      <ChevronDown size={14} className={`transition-transform duration-200 ${open ? 'rotate-180 text-zinc-300' : ''}`} />
+      <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${open ? 'rotate-180 text-indigo-300' : ''}`} />
     </button>
     {children}
   </div>
@@ -2017,8 +2017,9 @@ const DropSelectButton = ({
     onClick={() => setOpenMenu(openMenu === menuKey ? null : menuKey)}
   >
     {openMenu === menuKey && (
-      <div className={`absolute bottom-full mb-2 left-0 z-20 ${widthClass} border border-zinc-800 bg-zinc-950 p-1 shadow-2xl`}>
-        <div className='flex flex-col'>
+      <div className={`absolute bottom-14 left-0 z-20 ${widthClass} rounded-[1.5rem] border border-white/10 bg-[#1A2234]/95 backdrop-blur-3xl p-2 shadow-2xl shadow-black/50 overflow-hidden`}>
+        <div className='absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent pointer-events-none' />
+        <div className='relative flex flex-col gap-1'>
           {options.map((option) => (
             <button
               key={option.value}
@@ -2026,14 +2027,14 @@ const DropSelectButton = ({
                 onSelect(option.value);
                 setOpenMenu(null);
               }}
-              className={`flex w-full items-center justify-between px-2.5 py-2 text-[11px] font-mono tracking-wider transition-all duration-200 ${
+              className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-[13px] font-bold transition-all duration-300 ${
                 value === option.value
-                  ? 'bg-zinc-100 text-zinc-950 font-bold'
-                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
               }`}
             >
               <span>{option.label}</span>
-              {value === option.value && <Check size={14} />}
+              {value === option.value && <Check size={14} className="text-white drop-shadow-md" />}
             </button>
           ))}
         </div>
@@ -2638,7 +2639,7 @@ export default function App() {
     params: taskParams,
     taskType,
     detailText = '',
-    detailClassName = 'text-zinc-400',
+    detailClassName = 'text-slate-400',
   }) => {
     const progressMeta = getEstimatedTaskProgress({
       task,
@@ -2652,7 +2653,7 @@ export default function App() {
 
     return (
       <div>
-        <div className='mb-2 flex items-center justify-between text-[11px] text-zinc-400'>
+        <div className='mb-2 flex items-center justify-between text-[11px] text-slate-400'>
           <span>任务 {taskIndex + 1}</span>
           <span>{progressMeta.progressText}</span>
         </div>
@@ -2666,7 +2667,7 @@ export default function App() {
             />
           )}
         </div>
-        <p className={`mt-3 text-[11px] leading-5 ${detailText ? detailClassName : 'text-zinc-400'}`}>
+        <p className={`mt-3 text-[11px] leading-5 ${detailText ? detailClassName : 'text-slate-400'}`}>
           {detailText || progressMeta.statusText}
         </p>
       </div>
@@ -5517,22 +5518,24 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   return (
-    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#050505] text-zinc-200 font-sans selection:bg-zinc-700 selection:text-white overflow-hidden'>
-      {/* 极简网格背景 - 精密工作台风格 */}
-      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.02]" style={{backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px'}} />
-      
-      <aside className='relative z-10 flex w-[300px] shrink-0 flex-col border-r border-zinc-800/80 bg-[#0A0A0A]'>
-        <div className='shrink-0 p-6 pb-4'>
+    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-slate-50 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100 via-white to-cyan-50 text-slate-800 font-sans selection:bg-indigo-500/30 selection:text-indigo-900 overflow-hidden'>
+      {/* 动态背景光效 */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-blue-300/30 blur-[120px]" />
+        <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-indigo-300/30 blur-[150px]" />
+      </div>
+      <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/60 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
+        <div className='shrink-0 p-7'>
           <div className='flex items-center gap-3'>
-            <div className='flex h-8 w-8 items-center justify-center bg-zinc-100 text-zinc-950'>
-              <Sparkles size={16} />
+            <div className='h-10 w-10 rounded-[14px] bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-black/5'>
+              <Sparkles size={20} className="animate-pulse" />
             </div>
-            <h1 className='text-lg font-black tracking-tight text-white uppercase'>创作中心</h1>
+            <h1 className='text-[22px] font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-indigo-600 to-purple-600 drop-shadow-sm'>创作中心</h1>
           </div>
-          <p className='mt-3 text-[9px] font-mono text-zinc-500 uppercase tracking-[0.2em]'>UNIX_CREATIVE_ENV v2.0</p>
+          <p className='mt-2.5 text-[11px] font-bold text-indigo-600/70 uppercase tracking-[0.25em]'>Unleash Your Creativity</p>
         </div>
 
-        <nav className='shrink-0 flex justify-between border-y border-zinc-800/80 px-4 py-3'>
+        <nav className='shrink-0 flex justify-around border-b border-slate-200/50 pb-5 px-5'>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -5543,50 +5546,51 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   setActiveTab(tab.id);
                   setOpenMenu(null);
                 }}
-                className={`relative flex flex-col items-center gap-1.5 px-4 py-2 transition-all duration-200 ${active ? 'text-zinc-50' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`group relative flex flex-col items-center gap-2.5 transition-all duration-500 ${active ? 'text-slate-900 scale-105' : 'text-slate-500 hover:text-slate-700 hover:-translate-y-0.5'}`}
               >
-                <Icon size={18} strokeWidth={active ? 2 : 1.5} />
-                <span className={`text-[10px] uppercase font-mono tracking-wider ${active ? 'font-bold' : ''}`}>{tab.label}</span>
-                {tab.badge && <span className='absolute -right-1 -top-1 border border-zinc-500 bg-transparent px-1 text-[8px] font-mono text-zinc-400'>{tab.badge}</span>}
-                {active && <div className="absolute top-0 bottom-0 left-0 right-0 border-b-2 border-zinc-100 pointer-events-none" />}
+                <div className={`p-3 rounded-[1rem] transition-all duration-500 ${active ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] ring-1 ring-black/5' : 'bg-white/40 text-slate-500 group-hover:bg-white/80 group-hover:shadow-[0_4px_12px_rgba(0,0,0,0.05)]'}`}>
+                  <Icon size={22} strokeWidth={active ? 2.5 : 2} />
+                </div>
+                <span className={`text-[12px] font-bold transition-all ${active ? 'text-indigo-700' : 'text-slate-500'}`}>{tab.label}</span>
+                {tab.badge && <span className='absolute -right-2 -top-1.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 px-2 py-0.5 text-[9px] font-black text-white shadow-lg shadow-orange-500/30 border border-white/20'>{tab.badge}</span>}
+                {active && <div className="absolute -bottom-5 w-1/2 h-[3px] rounded-t-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />}
               </button>
             );
           })}
         </nav>
 
-        <div className='shrink-0 border-b border-zinc-800/80 px-5 py-4'>
-          <div className='relative flex flex-wrap items-center gap-2'>
+        <div className='shrink-0 border-b border-slate-200/50 px-6 py-5'>
+          <div className='relative flex flex-wrap items-center gap-3'>
             <button
               type='button'
               onClick={() => setIsSessionPanelOpen((prev) => !prev)}
               disabled={isSubmitPending}
               className={
-                'inline-flex flex-1 justify-center items-center gap-2 rounded-none border px-0 py-2 text-[11px] font-mono uppercase tracking-widest transition-all ' +
-                (isSessionPanelOpen 
-                  ? 'border-zinc-500 bg-zinc-800 text-zinc-100' 
-                  : 'border-zinc-800 bg-transparent text-zinc-400 hover:border-zinc-600 hover:text-zinc-200')
+                'inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-indigo-400/50 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 ' +
+                (isSessionPanelOpen ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : '')
               }
             >
-              <History size={14} />
-              HISTORY
+              <History size={16} />
+              历史会话
             </button>
             <button
               type='button'
               onClick={() => createCreativeSession(activeTab)}
               disabled={isSubmitPending}
-              className='inline-flex flex-1 justify-center items-center gap-2 rounded-none border border-zinc-800 bg-transparent px-0 py-2 text-[11px] font-mono uppercase tracking-widest text-zinc-400 transition-all hover:border-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+              className='inline-flex flex-1 justify-center items-center gap-2 rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white/90 to-white/60 backdrop-blur-md px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-300 hover:border-purple-300 hover:from-purple-50 hover:to-white/80 hover:text-purple-700 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 group'
             >
-              <Plus size={14} />
-              NEW
+              <Plus size={16} className="transition-transform duration-300 group-hover:rotate-90" />
+              新建会话
             </button>
 
             {isSessionPanelOpen && (
-              <div className='absolute left-0 right-0 top-full mt-2 z-30 border border-zinc-800 bg-[#0A0A0A] p-3 shadow-2xl'>
-                <div className='mb-3 px-1'>
-                  <div className='text-[10px] font-mono tracking-widest text-zinc-100'>历史会话记录</div>
-                  <div className='text-[9px] font-mono text-zinc-600 mt-1'>资源持久保留,仅删除会话索引</div>
+              <div className='absolute left-0 right-0 top-[3.5rem] z-30 rounded-[1.75rem] border border-slate-200/80 bg-white/95 backdrop-blur-3xl p-4 shadow-xl overflow-hidden'>
+                <div className='absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none' />
+                <div className='relative mb-4 px-2'>
+                  <div className='text-sm font-black text-slate-900'>历史会话</div>
+                  <div className='text-[11px] text-slate-500 mt-0.5'>仅删除会话，图片视频资源仍保留</div>
                 </div>
-                <div className='max-h-[300px] space-y-1 overflow-y-auto px-1 custom-scrollbar'>
+                <div className='relative max-h-[420px] space-y-2 overflow-y-auto pr-1 custom-scrollbar'>
                   {currentTabSessions
                     .slice()
                     .sort(
@@ -5600,42 +5604,43 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       return (
                         <div
                           key={session.id}
-                          className={`group border px-3 py-2.5 transition-all ${
+                          className={`group rounded-2xl border px-4 py-3.5 transition-all duration-300 ${
                             isCurrentSession
-                              ? 'border-zinc-500 bg-zinc-900'
-                              : 'border-transparent bg-transparent hover:bg-zinc-900 hover:border-zinc-800'
+                              ? 'border-blue-300 bg-blue-50/80 shadow-sm'
+                              : 'border-slate-200/50 bg-white/40 hover:bg-white/80 hover:border-slate-300'
                           }`}
                         >
                           <button
                             type='button'
                             onClick={() => openCreativeSession(activeTab, session.id)}
                             disabled={isSubmitPending}
-                            className='w-full text-left'
+                            className='min-w-0 w-full text-left disabled:cursor-not-allowed'
                           >
-                            <div className={`truncate text-[13px] font-medium ${isCurrentSession ? 'text-zinc-100' : 'text-zinc-400 group-hover:text-zinc-200'}`}>
-                              {session.name || 'Untitled Session'}
+                            <div className={`truncate text-[15px] font-bold ${isCurrentSession ? 'text-indigo-700' : 'text-slate-800'}`}>
+                              {session.name || '未命名会话'}
                             </div>
-                            <div className='mt-1 truncate text-[10px] font-mono text-zinc-600'>
+                            <div className='mt-1.5 truncate text-[11px] text-slate-500'>
                               {formatCreativeSessionMeta(activeTab, session)}
-                              {sessionTime ? <span> · {sessionTime}</span> : ''}
+                              {sessionTime ? <span className='text-slate-400'> · {sessionTime}</span> : ''}
                             </div>
                           </button>
-                          <div className='mt-2.5 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <div className='mt-4 flex items-center justify-end gap-2'>
                             <button
                               type='button'
                               onClick={() => renameCreativeSession(activeTab, session.id)}
                               disabled={isSubmitPending}
-                              className='border border-zinc-700 px-2.5 py-1 text-[10px] font-mono text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                              className='rounded-full border border-slate-200 px-3.5 py-1.5 text-[11px] font-bold text-slate-500 transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50'
                             >
-                              RENAME
+                              重命名
                             </button>
                             <button
                               type='button'
                               onClick={() => deleteCreativeSession(activeTab, session.id)}
                               disabled={isSubmitPending}
-                              className='p-1 text-zinc-500 hover:bg-white hover:text-black'
+                              className='rounded-full border border-slate-200 p-1.5 text-slate-500 transition-all hover:border-red-300 hover:bg-red-50 hover:text-red-500'
+                              title='只删除会话，图片视频资源仍保留'
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </div>
@@ -5645,11 +5650,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               </div>
             )}
           </div>
+
         </div>
 
-        <div className='relative flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar space-y-1'>
-          <div className='text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-3 px-1.5'>
-            Available Models
+        <div className='relative flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar custom-dark-scrollbar'>
+          <div className='text-[10px] font-bold text-indigo-600/80 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2'>
+            <div className="h-[1px] w-4 bg-indigo-500/30"></div>
+            核心创作模型
           </div>
           {currentDisplayModels.map((model) => (
             <button
@@ -5657,48 +5664,60 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               onClick={() => setActiveModel(model.id)}
               onMouseEnter={() => setHoveredSidebarModelId(model.id)}
               onMouseLeave={() => setHoveredSidebarModelId((currentId) => (currentId === model.id ? '' : currentId))}
-              className={`w-full group flex items-start gap-3 border p-3 text-left transition-all ${
-                activeModel === model.id 
-                  ? 'border-l-2 border-l-zinc-100 border-zinc-800 bg-zinc-900/80 shadow-sm' 
-                  : 'border-transparent bg-transparent hover:bg-zinc-900/50 hover:border-zinc-800'
+              title={model.fullDesc || model.desc || model.name}
+              className={`relative w-full group flex items-start gap-4 rounded-[1.25rem] border p-4 text-left transition-all duration-500 backdrop-blur-sm ${
+                activeModel === model.id ? 'border-blue-400/50 bg-blue-50/60 shadow-[0_0_20px_rgba(59,130,246,0.1)] ring-1 ring-blue-300 translate-x-1' : 'border-slate-200/50 bg-white/40 hover:bg-white/80 hover:border-slate-300 hover:shadow-sm'
               }`}
             >
-              <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border ${activeModel === model.id ? 'border-zinc-500 bg-zinc-800 text-zinc-100' : 'border-zinc-800 bg-transparent text-zinc-400 group-hover:text-zinc-300 group-hover:border-zinc-600'}`}>
-                {React.cloneElement(model.icon, { size: activeModel === model.id ? 16 : 14 })}
-              </div>
-              <div className='min-w-0 flex-1 grid'>
-                <div className='flex items-center justify-between'>
-                  <div className={`text-[12px] font-bold truncate ${activeModel === model.id ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-200'}`}>{model.name}</div>
-                  {model.priceLabel ? (
-                    <div className='text-[9px] font-mono text-zinc-500 tracking-wider flex-shrink-0 ml-2'>
-                      {model.priceLabel}
-                    </div>
-                  ) : null}
+              {model.priceLabel ? (
+                <div
+                  className={`absolute right-3 top-3 max-w-[100px] truncate rounded-full px-2 py-0.5 text-[9px] font-black tracking-wide transition-all ${
+                    activeModel === model.id
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm border border-black/5'
+                      : 'bg-white/60 text-slate-500 border border-slate-200 group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-200'
+                  }`}
+                >
+                  {model.priceLabel}
                 </div>
-                <p className={`mt-1 text-[10px] leading-relaxed line-clamp-1 font-mono ${activeModel === model.id ? 'text-zinc-400' : 'text-zinc-600 group-hover:text-zinc-500'}`}>{model.desc}</p>
+              ) : null}
+              <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] transition-all duration-500 ${activeModel === model.id ? 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm text-white rotate-3 scale-110' : 'bg-slate-100 text-slate-500 border border-slate-200 group-hover:bg-white/80 group-hover:text-indigo-600 group-hover:border-indigo-300 group-hover:-rotate-3 group-hover:shadow-sm'}`}>
+                {model.icon}
+              </div>
+              <div className='min-w-0 flex-1 pr-16'>
+                <div className={`text-[14px] font-black truncate transition-colors ${activeModel === model.id ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{model.name}</div>
+                <p className={`mt-1.5 text-[11px] leading-relaxed line-clamp-2 transition-colors ${activeModel === model.id ? 'text-indigo-700' : 'text-slate-500 group-hover:text-slate-600'}`}>{model.desc}</p>
               </div>
             </button>
           ))}
-          {hoveredSidebarModel && hoveredSidebarModel.id !== activeModel ? (
-            <div className='pointer-events-none absolute left-full top-6 z-30 ml-4 hidden w-[300px] lg:block animate-in fade-in slide-in-from-left-2 duration-200'>
-              <div className='border border-zinc-700 bg-zinc-950 p-5 shadow-2xl'>
-                <div className='mb-3 flex items-start gap-4'>
-                  <div className='flex h-10 w-10 shrink-0 items-center justify-center border border-zinc-600 bg-zinc-800 text-white'>
-                    {hoveredSidebarModel.icon}
-                  </div>
-                  <div className='min-w-0'>
-                    <div className='truncate text-sm font-bold text-white'>
-                      {hoveredSidebarModel.name}
+          {hoveredSidebarModel ? (
+            <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[340px] lg:block animate-in fade-in slide-in-from-left-4 duration-300'>
+              <div className='relative overflow-hidden rounded-[2rem] border border-slate-200/60 bg-white/95 p-6 shadow-xl backdrop-blur-3xl'>
+                <div className='absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.1),_transparent_70%)]' />
+                <div className='relative'>
+                  <div className='mb-4 flex items-start justify-between gap-4'>
+                    <div className='flex min-w-0 items-center gap-4'>
+                      <div className='flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm border border-black/5'>
+                        {hoveredSidebarModel.icon}
+                      </div>
+                      <div className='min-w-0'>
+                        <div className='truncate text-[17px] font-black tracking-tight text-slate-900'>
+                          {hoveredSidebarModel.name}
+                        </div>
+                        <div className='mt-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600'>
+                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                          模型简介
+                        </div>
+                      </div>
                     </div>
-                    {hoveredSidebarModel.priceLabel && (
-                      <div className='mt-1 text-[10px] font-mono text-zinc-400 uppercase tracking-widest'>
+                    {hoveredSidebarModel.priceLabel ? (
+                      <div className='shrink-0 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1.5 text-[11px] font-black text-indigo-600'>
                         {hoveredSidebarModel.priceLabel}
                       </div>
-                    )}
+                    ) : null}
                   </div>
-                </div>
-                <div className='text-[11px] font-sans leading-relaxed text-zinc-400'>
-                  {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || 'No description available.'}
+                  <div className='rounded-2xl border border-slate-200/60 bg-slate-50/50 px-5 py-4 text-sm leading-relaxed text-slate-700 shadow-sm'>
+                    {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无简介'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -5706,61 +5725,52 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         </div>
       </aside>
 
-
-      <main className='relative flex flex-1 flex-col overflow-hidden bg-[#050505] border-l border-zinc-800/50 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]'>
-        {/* Subtle grid on right */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.01]" style={{backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '100px 100px'}} />
-        
+      <main className='relative flex flex-1 flex-col overflow-hidden bg-slate-100/40 backdrop-blur-xl'>
         {activeTab === 'chat' && (
-          <div className='flex flex-1 min-h-0 flex-col overflow-hidden relative z-10'>
-            <div ref={scrollRef} className='flex-1 min-h-0 overflow-y-auto px-8 pb-10 pt-8 space-y-6 custom-scrollbar'>
+          <div className='flex flex-1 min-h-0 flex-col overflow-hidden'>
+            <div ref={scrollRef} className='flex-1 min-h-0 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
-                  <div className='relative max-w-lg border border-zinc-800/80 bg-zinc-900/40 p-12 text-center backdrop-blur-md overflow-hidden'>
-                    <div className='absolute inset-0 bg-gradient-to-b from-zinc-800/20 to-transparent pointer-events-none' />
-                    <div className='absolute top-0 left-0 w-2 h-2 border-t border-l border-zinc-500' />
-                    <div className='absolute top-0 right-0 w-2 h-2 border-t border-r border-zinc-500' />
-                    <div className='absolute bottom-0 left-0 w-2 h-2 border-b border-l border-zinc-500' />
-                    <div className='absolute bottom-0 right-0 w-2 h-2 border-b border-r border-zinc-500' />
-                    
-                    <div className='relative mx-auto mb-8 flex h-16 w-16 items-center justify-center border border-zinc-700 bg-zinc-800 text-white shadow-xl'>
-                      {selectedModel?.icon || <MessageSquare size={24} />}
+                  <div className='relative max-w-xl rounded-[3rem] border border-slate-200/60 bg-white/60 px-12 py-16 text-center shadow-[0_0_50px_rgba(0,0,0,0.05)] backdrop-blur-2xl overflow-hidden'>
+                    <div className='absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none' />
+                    <div className='relative mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm ring-1 ring-black/5'>
+                      {selectedModel?.icon || <MessageSquare size={40} />}
                     </div>
-                    <div className='relative text-[10px] font-mono uppercase tracking-[0.4em] text-zinc-500 flex items-center justify-center gap-3'>
-                      <div className="h-[1px] w-6 bg-zinc-800" />
-                      SELECTED MODEL
-                      <div className="h-[1px] w-6 bg-zinc-800" />
+                    <div className='relative text-[11px] font-black uppercase tracking-[0.3em] text-indigo-600 flex items-center justify-center gap-2'>
+                      <div className="h-[1px] w-8 bg-indigo-500/30" />
+                      当前模型
+                      <div className="h-[1px] w-8 bg-indigo-500/30" />
                     </div>
-                    <h3 className='relative mt-6 text-2xl font-bold tracking-tight text-white font-sans'>
-                      {selectedModel?.name || 'CONVERSATIONAL MODEL'}
+                    <h3 className='relative mt-6 text-4xl font-black tracking-tight text-slate-900 drop-shadow-sm'>
+                      {selectedModel?.name || '对话模型'}
                     </h3>
-                    <p className='relative mt-4 text-[13px] leading-relaxed text-zinc-400 font-mono'>
-                      {selectedModel?.desc || 'Current dialogue model configuration. Ready for task execution and prompt processing.'}
+                    <p className='relative mt-6 text-[15px] leading-8 text-slate-500 font-medium'>
+                      {selectedModel?.desc || '这里会显示当前对话模型的介绍，帮助你在开始前快速了解它适合做什么。'}
                     </p>
                   </div>
                 </div>
               )}
               {chatMessages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] px-6 py-5 border transition-all ${
+                  <div className={`max-w-[80%] rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
                     msg.role === 'user' 
-                      ? 'bg-zinc-100 text-zinc-950 border-zinc-300 rounded-none rounded-tl-xl rounded-b-xl shadow-lg text-[14px]' 
-                      : 'bg-[#0A0A0A] border-zinc-800 text-zinc-300 rounded-none rounded-tr-xl rounded-b-xl shadow-2xl text-[14px]'
+                      ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]' 
+                      : 'bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
                   }`}>
                     {getMessageImages(msg.content).length > 0 && (
-                      <div className='mb-4 grid grid-cols-1 gap-3 border-b border-zinc-800/50 pb-4'>
+                      <div className='mb-3 grid grid-cols-1 gap-2'>
                         {getMessageImages(msg.content).map((imageUrl, index) => (
                           <img
                             key={`${msg.id}-image-${index}`}
                             src={imageUrl}
                             alt={`uploaded-${index + 1}`}
-                            className='max-h-64 object-cover border border-zinc-800/80'
+                            className='max-h-56 rounded-2xl border border-slate-200 object-cover'
                           />
                         ))}
                       </div>
                     )}
                     {getMessageText(msg.content) ? (
-                      <p className='text-[14px] leading-7 whitespace-pre-wrap font-sans font-medium tracking-wide'>
+                      <p className='text-[15px] leading-relaxed whitespace-pre-wrap'>
                         {getMessageText(msg.content)}
                       </p>
                     ) : null}
@@ -5768,10 +5778,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               ))}
               {isGenerating && (
-                <div className='flex justify-start animate-in slide-in-from-bottom-2 duration-300'>
-                  <div className='bg-[#0A0A0A] border border-zinc-800 px-5 py-3.5 flex gap-3 items-center text-zinc-400 shadow-xl rounded-tr-xl rounded-b-xl'>
-                    <Loader2 size={16} className='animate-spin text-zinc-100' />
-                    <span className='text-[11px] font-mono tracking-[0.2em] uppercase text-zinc-300'>Processing...</span>
+                <div className='flex justify-start animate-in slide-in-from-bottom-4 duration-500'>
+                  <div className='bg-white border border-slate-200/50 rounded-[1.75rem] rounded-tl-sm px-6 py-4 flex gap-4 items-center text-slate-500 shadow-sm shadow-black/5'>
+                    <Loader2 size={20} className='animate-spin text-indigo-500' />
+                    <span className='text-[13px] font-black tracking-[0.1em] uppercase text-indigo-500'>正在深度思考...</span>
                   </div>
                 </div>
               )}
@@ -5802,11 +5812,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
                         <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-100 shadow-xl'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-sm backdrop-blur-sm'>
                             {recordModel?.icon || <ImageIcon size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
-                            <div className='border border-zinc-800 bg-[#0A0A0A] px-5 py-4 shadow-2xl transition-all duration-300 group-hover:bg-zinc-900 group-hover:border-zinc-700'>
+                            <div className='rounded-[1.75rem] border border-slate-200/50 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:bg-white/90 group-hover:border-slate-200 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]'>
                               <div className='flex items-start justify-between gap-4'>
                                 <button
                                   onClick={() => toggleImageRecordCollapsed(record.id)}
@@ -5814,10 +5824,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 >
                                   <div className='flex items-start justify-between gap-4'>
                                     <div className='min-w-0'>
-                                      <p className='text-[15px] font-bold leading-7 text-zinc-200 whitespace-pre-wrap transition-colors group-hover:text-white'>
+                                      <p className='text-[15px] font-bold leading-7 text-slate-800 whitespace-pre-wrap transition-colors group-hover:text-slate-900'>
                                         {record.prompt || '未填写提示词'}
                                       </p>
-                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400'>
+                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500'>
                                         <span>{record.modelName || '图片模型'}</span>
                                         {metaSummary ? <span>{metaSummary}</span> : null}
                                         {record.total > 0 ? (
@@ -5827,7 +5837,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-zinc-400'>
+                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-500'>
                                       {recordTime ? <span>{recordTime}</span> : null}
                                       <ChevronDown
                                         size={16}
@@ -5838,7 +5848,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 </button>
                                 <button
                                   onClick={() => handleRemoveImageRecord(record.id)}
-                                  className='rounded-full border border-slate-200 p-2 text-zinc-400 transition hover:border-red-200 hover:text-red-500'
+                                  className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
                                 >
                                   <X size={16} />
                                 </button>
@@ -5868,7 +5878,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                     {record.images.map((imageItem, imageIndex) => (
                                       <div
                                         key={imageItem.id || `${record.id}-loading-${imageIndex}`}
-                                        className='group relative overflow-hidden border border-zinc-800 bg-[#050505] shadow-2xl'
+                                        className='group relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'
                                       >
                                         {imageItem.url ? (
                                           <>
@@ -5884,7 +5894,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 onClick={() =>
                                                   toggleImageTaskSelection(record.id, imageItem.id)
                                                 }
-                                                className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title={
                                                   selectedImageIdSet.has(imageItem.id)
                                                     ? '取消选择'
@@ -5904,7 +5914,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                     title: `${record.prompt || '图片预览'} · 第 ${imageIndex + 1} 张`,
                                                   })
                                                 }
-                                                className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title='预览'
                                               >
                                                 <Eye size={16} />
@@ -5916,7 +5926,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                     buildImageDownloadFilename(record, recordIndex, imageIndex),
                                                   )
                                                 }
-                                                className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title='下载'
                                               >
                                                 <Download size={16} />
@@ -5928,7 +5938,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                           </>
                                         ) : (
                                           <div className='aspect-[3/4] h-full w-full bg-slate-100 p-4 flex flex-col justify-between'>
-                                            <div className='flex items-center gap-2 text-zinc-500'>
+                                            <div className='flex items-center gap-2 text-slate-500'>
                                               {imageItem.status === 'failed' ? (
                                                 <X size={14} className='text-red-500' />
                                               ) : (
@@ -5963,7 +5973,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 {record.images.map((imageItem, imageIndex) => (
                                   <div
                                     key={imageItem.id || `${record.id}-${imageIndex}`}
-                                    className='group relative overflow-hidden border border-zinc-800 bg-[#050505] shadow-2xl'
+                                    className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
                                     {imageItem.url ? (
                                       <>
@@ -5979,7 +5989,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                             onClick={() =>
                                               toggleImageTaskSelection(record.id, imageItem.id)
                                             }
-                                            className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title={
                                               selectedImageIdSet.has(imageItem.id)
                                                 ? '取消选择'
@@ -5999,7 +6009,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 title: `${record.prompt || '图片预览'} · 第 ${imageIndex + 1} 张`,
                                               })
                                             }
-                                            className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title='预览'
                                           >
                                             <Eye size={16} />
@@ -6011,7 +6021,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 buildImageDownloadFilename(record, recordIndex, imageIndex),
                                               )
                                             }
-                                            className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title='下载'
                                           >
                                             <Download size={16} />
@@ -6020,7 +6030,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                       </>
                                     ) : (
                                       <div className='aspect-[3/4] h-full w-full bg-slate-50 p-4 flex flex-col justify-between'>
-                                        <div className='flex items-center gap-2 text-zinc-500'>
+                                        <div className='flex items-center gap-2 text-slate-500'>
                                           {imageItem.status === 'failed' ? (
                                             <X size={14} className='text-red-500' />
                                           ) : (
@@ -6118,11 +6128,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         style={{ contentVisibility: 'auto', containIntrinsicSize: '960px' }}
                       >
                         <div className='flex items-start gap-4'>
-                          <div className='flex h-12 w-12 shrink-0 items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-100 shadow-xl'>
+                          <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] bg-indigo-50 border border-indigo-200 text-indigo-600 shadow-sm backdrop-blur-sm'>
                             {recordModel?.icon || <Video size={22} />}
                           </div>
                           <div className='min-w-0 flex-1 group'>
-                            <div className='border border-zinc-800 bg-[#0A0A0A] px-5 py-4 shadow-2xl transition-all duration-300 group-hover:bg-zinc-900 group-hover:border-zinc-700'>
+                            <div className='rounded-[1.75rem] border border-slate-200/50 bg-white/60 px-5 py-4 shadow-sm backdrop-blur-xl transition-all duration-300 group-hover:bg-white/90 group-hover:border-slate-200 group-hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]'>
                               <div className='flex items-start justify-between gap-4'>
                                 <button
                                   onClick={() => toggleVideoRecordCollapsed(record.id)}
@@ -6130,10 +6140,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 >
                                   <div className='flex items-start justify-between gap-4'>
                                     <div className='min-w-0'>
-                                      <p className='text-[15px] font-bold leading-7 text-zinc-200 whitespace-pre-wrap transition-colors group-hover:text-white'>
+                                      <p className='text-[15px] font-bold leading-7 text-slate-800 whitespace-pre-wrap transition-colors group-hover:text-slate-900'>
                                         {record.prompt || '未填写提示词'}
                                       </p>
-                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400'>
+                                      <div className='mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500'>
                                         <span>{record.modelName || '视频模型'}</span>
                                         {metaSummary ? <span>{metaSummary}</span> : null}
                                         {record.total > 0 ? (
@@ -6143,7 +6153,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         ) : null}
                                       </div>
                                     </div>
-                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-zinc-400'>
+                                    <div className='flex shrink-0 items-center gap-3 pl-3 text-xs text-slate-500'>
                                       {recordTime ? <span>{recordTime}</span> : null}
                                       <ChevronDown
                                         size={16}
@@ -6154,7 +6164,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 </button>
                                 <button
                                   onClick={() => handleRemoveVideoRecord(record.id)}
-                                  className='rounded-full border border-slate-200 p-2 text-zinc-400 transition hover:border-red-200 hover:text-red-500'
+                                  className='rounded-full border border-slate-200 p-2 text-slate-400 transition hover:border-red-200 hover:text-red-500'
                                 >
                                   <X size={16} />
                                 </button>
@@ -6184,7 +6194,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                     {record.tasks.map((task, taskIndex) => (
                                       <div
                                         key={`${record.id}-loading-task-${task.id || taskIndex}`}
-                                        className='group relative overflow-hidden border border-zinc-800 bg-[#050505] shadow-2xl'
+                                        className='group relative overflow-hidden rounded-[1.5rem] border border-blue-100 bg-white shadow-sm'
                                       >
                                         {getVideoTaskMediaUrl(task) ? (
                                           <div
@@ -6226,7 +6236,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 onClick={() =>
                                                   toggleVideoTaskSelection(record.id, task.id)
                                                 }
-                                                className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title={
                                                   selectedVideoIdSet.has(task.id)
                                                     ? '取消选择'
@@ -6250,7 +6260,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                     ),
                                                   )
                                                 }
-                                                className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                                className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                                 title='下载'
                                               >
                                                 <Download size={16} />
@@ -6262,7 +6272,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                             className='h-full w-full bg-slate-100 p-4 flex flex-col justify-between'
                                             style={{ aspectRatio: videoCardAspectRatio }}
                                           >
-                                            <div className='flex items-center gap-2 text-zinc-500'>
+                                            <div className='flex items-center gap-2 text-slate-500'>
                                               {task.status === 'failed' ? (
                                                 <X size={14} className='text-red-500' />
                                               ) : (
@@ -6288,7 +6298,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                               detailClassName:
                                                 task.status === 'failed'
                                                   ? 'text-red-500'
-                                                  : 'text-zinc-500',
+                                                  : 'text-slate-500',
                                             })}
                                           </div>
                                         )}
@@ -6306,7 +6316,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                 {record.tasks.map((task, taskIndex) => (
                                   <div
                                     key={`${record.id}-${task.id || taskIndex}`}
-                                    className='group relative overflow-hidden border border-zinc-800 bg-[#050505] shadow-2xl'
+                                    className='group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-lg shadow-slate-200/50'
                                   >
                                     {getVideoTaskMediaUrl(task) ? (
                                       <div
@@ -6348,7 +6358,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                             onClick={() =>
                                               toggleVideoTaskSelection(record.id, task.id)
                                             }
-                                            className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title={
                                               selectedVideoIdSet.has(task.id)
                                                 ? '取消选择'
@@ -6372,7 +6382,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                                 ),
                                               )
                                             }
-                                            className='bg-zinc-900/90 border border-zinc-700 p-2 text-zinc-300 shadow-lg transition hover:bg-white hover:text-black backdrop-blur-sm'
+                                            className='rounded-full bg-white/95 p-2 text-slate-700 shadow-lg transition hover:scale-105'
                                             title='下载'
                                           >
                                             <Download size={16} />
@@ -6384,7 +6394,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                         className='h-full w-full bg-slate-50 p-4 flex flex-col justify-between'
                                         style={{ aspectRatio: videoCardAspectRatio }}
                                       >
-                                        <div className='flex items-center gap-2 text-zinc-500'>
+                                        <div className='flex items-center gap-2 text-slate-500'>
                                           {task.status === 'failed' ? (
                                             <X size={14} className='text-red-500' />
                                           ) : (
@@ -6410,7 +6420,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                                           detailClassName:
                                             task.status === 'failed'
                                               ? 'text-red-500'
-                                              : 'text-zinc-500',
+                                              : 'text-slate-500',
                                         })}
                                       </div>
                                     )}
@@ -6474,13 +6484,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   <div className='mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm'>
                     {selectedModel?.icon || (activeTab === 'image' ? <ImageIcon size={36} /> : <Video size={36} />)}
                   </div>
-                  <div className='text-xs font-bold uppercase tracking-[0.24em] text-zinc-400'>
+                  <div className='text-xs font-bold uppercase tracking-[0.24em] text-slate-400'>
                     当前模型
                   </div>
                   <h3 className='mt-4 text-3xl font-black tracking-tight text-slate-900'>
                     {selectedModel?.name || (activeTab === 'image' ? '图片模型' : '视频模型')}
                   </h3>
-                  <p className='mt-4 text-sm leading-8 text-zinc-500'>
+                  <p className='mt-4 text-sm leading-8 text-slate-500'>
                     {selectedModel?.desc || '这里会显示当前模型的介绍，帮助你在开始创作前快速了解它更擅长生成什么内容。'}
                   </p>
                 </div>
@@ -6489,9 +6499,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </div>
         )}
 
-        <div className='p-6 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent backdrop-blur-lg'>
+        <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent backdrop-blur-md'>
           <div className='mx-auto max-w-4xl relative'>
-            <div className='relative flex flex-col border border-zinc-800 bg-[#0A0A0A]/95 backdrop-blur-3xl p-5 shadow-2xl focus-within:border-zinc-500 focus-within:bg-[#0A0A0A] transition-all duration-300 group'>
+            <div className='absolute -inset-1 rounded-[3rem] bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 opacity-[0.15] blur-xl transition-all duration-500 group-focus-within:opacity-[0.25] animate-pulse pb-4'></div>
+            <div className='relative flex flex-col rounded-[2.5rem] bg-white/60 backdrop-blur-2xl p-5 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] border border-white/60 focus-within:border-white focus-within:bg-white/80 transition-all duration-500 group'>
               <input
                 ref={fileInputRef}
                 type='file'
@@ -6506,16 +6517,16 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className='flex h-20 w-20 items-center justify-center border border-dashed border-zinc-700 bg-[#050505] text-zinc-500 transition-all duration-300 hover:border-zinc-400 hover:bg-zinc-900 hover:text-zinc-300'
+                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/50 text-slate-500 transition-all duration-300 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-sm'
                     >
-                      <div className='flex flex-col items-center gap-1.5'>
+                      <div className='flex flex-col items-center gap-2'>
                         {isUploadingImage ? (
-                          <Loader2 size={20} className='animate-spin text-zinc-400' />
+                          <Loader2 size={24} className='animate-spin text-indigo-400' />
                         ) : (
-                          <ImagePlus size={20} />
+                          <ImagePlus size={24} />
                         )}
-                        <span className='text-[10px] uppercase font-mono tracking-wider'>
-                          {uploadedImages.length > 0 ? 'UPLOAD MORE' : 'IMAGE'}
+                        <span className='text-[11px] font-bold tracking-wide'>
+                          {uploadedImages.length > 0 ? '继续上传' : '上传图片'}
                         </span>
                       </div>
                     </button>
@@ -6526,38 +6537,38 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
-                  placeholder={!isLoggedIn ? "Log in to execute tasks..." : activeTab === 'chat' ? "Input prompt sequence..." : "Describe visual concepts parameters..."}
-                  className='max-h-60 min-h-[70px] flex-1 resize-none bg-transparent py-3 text-[15px] font-medium leading-relaxed font-sans text-zinc-100 outline-none placeholder:text-zinc-600'
+                  placeholder={!isLoggedIn ? "登录后即可开始对话、图片或视频创作..." : activeTab === 'chat' ? "发送消息..." : "描述你想要的画面，越详细越好..."}
+                  className='max-h-60 min-h-[70px] flex-1 resize-none bg-transparent py-3 text-[16px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 custom-scrollbar'
                 />
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitPending || (!prompt.trim() && uploadedImages.every((item) => !(item?.status === 'uploaded' && item?.url)))}
-                  className='group/btn flex h-14 w-14 shrink-0 items-center justify-center bg-zinc-100 text-zinc-950 transition-all duration-300 hover:bg-white hover:scale-[1.03] active:scale-[0.97] disabled:bg-zinc-900 disabled:text-zinc-600 disabled:scale-100 disabled:cursor-not-allowed shadow-xl'
+                  className='group/btn flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 text-white shadow-[0_8px_20px_-6px_rgba(99,102,241,0.6)] transition-all duration-300 hover:shadow-[0_12px_30px_-8px_rgba(99,102,241,0.8)] hover:scale-110 active:scale-95 disabled:from-white/10 disabled:via-white/10 disabled:to-white/10 disabled:text-slate-500 disabled:shadow-none disabled:transform-none disabled:border disabled:border-white/5'
                 >
-                  {isSubmitPending ? <Loader2 size={24} className='animate-spin' /> : <ArrowUp size={24} strokeWidth={2.5} className='transition-transform group-hover/btn:-translate-y-0.5' />}
+                  {isSubmitPending ? <Loader2 size={28} className='animate-spin' /> : <ArrowUp size={30} strokeWidth={3} className='transition-transform group-hover/btn:-translate-y-1' />}
                 </button>
               </div>
 
               {uploadedImages.length > 0 ? (
-                <div className='mt-5 flex flex-wrap gap-4 border-t border-zinc-900 pt-4 px-2'>
+                <div className='mt-5 flex flex-wrap gap-4 rounded-2xl border border-slate-200/50 bg-slate-50/50 px-5 py-4'>
                   {uploadedImages.map((imageItem) => (
-                    <div key={imageItem.id} className='w-20 group/img'>
-                      <div className='relative h-20 w-20 overflow-hidden border border-zinc-800 bg-[#050505] transition-all duration-300 group-hover/img:border-zinc-500'>
+                    <div key={imageItem.id} className='w-24 group/img'>
+                      <div className='relative h-24 w-24 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm transition-transform duration-300 group-hover/img:scale-105 group-hover/img:border-indigo-300'>
                         <img
                           src={imageItem.previewUrl || buildCreativeCenterImageDisplayUrl(imageItem.url)}
                           alt={imageItem.name}
-                          className='h-full w-full object-cover opacity-80 transition-opacity group-hover/img:opacity-100'
+                          className='h-full w-full object-cover opacity-90 transition-opacity group-hover/img:opacity-100'
                         />
                         <button
                           onClick={() => removeUploadedImage(imageItem.id)}
-                          className='absolute right-1 top-1 flex h-5 w-5 items-center justify-center bg-black/80 backdrop-blur text-white opacity-0 transition-opacity hover:bg-zinc-100 hover:text-black group-hover/img:opacity-100'
+                          className='absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 p-1 text-white opacity-0 backdrop-blur-md transition-all duration-300 hover:bg-red-500 group-hover/img:opacity-100'
                         >
-                          <X size={12} />
+                          <X size={14} />
                         </button>
                       </div>
-                      <div className='mt-2 truncate text-center text-[9px] font-mono tracking-wide text-zinc-500'>
+                      <div className='mt-2.5 truncate text-center text-[11px] font-medium text-slate-500'>
                         {imageItem.status === 'uploading' ? (
-                          <span className="flex items-center justify-center gap-1 text-zinc-300"><Loader2 size={10} className="animate-spin"/> UPLOADING</span>
+                          <span className="flex items-center justify-center gap-1 text-indigo-500"><Loader2 size={10} className="animate-spin"/> 上传中</span>
                         ) : imageItem.name}
                       </div>
                     </div>
@@ -6566,39 +6577,39 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               ) : null}
 
               {uploadImageNotice ? (
-                <div className='mt-4 px-3 text-[10px] font-mono tracking-wide text-red-500 flex items-center gap-2 uppercase'>
-                  <div className="w-1 h-1 bg-red-500 animate-pulse"></div>
+                <div className='mt-4 px-3 text-xs font-bold text-red-500 flex items-center gap-2'>
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></div>
                   {uploadImageNotice}
                 </div>
               ) : null}
               {currentImageUploadLimit ? (
-                <div className='mt-3 px-3 text-[10px] text-zinc-600 font-mono tracking-widest uppercase'>
-                  LIMIT: <span className="text-zinc-300">{currentImageUploadLimit}</span> IMAGES (MAX 5MB/EA)
+                <div className='mt-3 px-3 text-[11px] text-slate-500 font-medium'>
+                  当前模型最多可上传 <span className="text-indigo-600 font-bold">{currentImageUploadLimit}</span> 张图片（建议不大于5M/张）
                 </div>
               ) : !isCurrentModelImageUploadEnabled ? (
-                <div className='mt-3 px-3 text-[10px] text-zinc-700 font-mono tracking-widest uppercase flex items-center gap-1.5'>
-                  <X size={10} /> IMAGE UPLOAD UNAVAILABLE
+                <div className='mt-3 px-3 text-[11px] text-slate-400 flex items-center gap-1.5'>
+                  <X size={12} /> 当前模型暂不支持上传图片
                 </div>
               ) : null}
 
               {!isLoggedIn && (
-                <div className='mt-5 flex items-center justify-between gap-4 border border-zinc-800 bg-zinc-900/50 px-5 py-4 text-xs font-mono text-zinc-400'>
-                  <div className='flex items-center gap-2 uppercase tracking-widest'>
-                    <Sparkles size={14} className="text-zinc-500" />
-                    {"READ-ONLY MODE. AUTHENTICATION REQUIRED."}
+                <div className='mt-5 flex items-center justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-sm text-indigo-800 shadow-sm'>
+                  <div className='font-bold flex items-center gap-2'>
+                    <Sparkles size={16} className="text-indigo-500" />
+                    {'\u5f53\u524d\u4ec5\u5f00\u653e\u6d4f\u89c8\uff0c\u53d1\u9001\u5185\u5bb9\u524d\u9700\u8981\u5148\u767b\u5f55\u8d26\u53f7\u3002'}
                   </div>
                   <button
                     onClick={() => {
                       window.location.href = '/login';
                     }}
-                    className='shrink-0 bg-zinc-100 px-4 py-2 text-[10px] uppercase font-bold tracking-widest text-zinc-950 transition-all hover:bg-white'
+                    className='shrink-0 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2 text-xs font-black text-white shadow-[0_4px_15px_rgba(99,102,241,0.4)] transition-all hover:scale-105 hover:shadow-[0_6px_20px_rgba(99,102,241,0.6)]'
                   >
-                    {"AUTHENTICATE"}
+                    {'\u53bb\u767b\u5f55'}
                   </button>
                 </div>
               )}
               {activeTab !== 'chat' && (
-                <div className='mt-6 flex flex-wrap items-center gap-3 border-t border-zinc-900 pt-5 px-2'>
+                <div className='mt-6 flex flex-wrap items-center gap-3 border-t border-slate-200/50 pt-5 px-3'>
                   <DropSelectButton
                     menuKey='generationCount'
                     icon={<Layers size={14} />}
@@ -6631,8 +6642,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     />
                   )}
                   {activeTab === 'image' && isGrokImageEditModel && (
-                    <div className='border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-[10px] font-mono tracking-wider text-zinc-300 uppercase'>
-                      ASPECT RATIO: MATCH INPUT
+                    <div className='rounded-full border border-slate-200 bg-white/50 backdrop-blur-md px-4 py-2 text-[13px] font-bold text-slate-600'>
+                      比例 跟随图一
                     </div>
                   )}
 
@@ -6816,7 +6827,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     </>
                   )}
 
-                  <div className='ml-auto text-[10px] text-zinc-500 font-black tracking-[0.2em] uppercase'>Enter 发送</div>
+                  <div className='ml-auto text-[10px] text-slate-500 font-black tracking-[0.2em] uppercase'>Enter 发送</div>
                 </div>
               )}
             </div>
@@ -6827,32 +6838,32 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             type='button'
             onClick={handleClearCurrentSession}
             disabled={isSubmitPending}
-            title='Clear conversation history (Assets will be retained)'
-            className='pointer-events-auto inline-flex items-center gap-2 border border-zinc-800 bg-zinc-900/90 px-4 py-2 text-[11px] font-mono tracking-wider text-zinc-400 shadow-[0_8px_30px_rgb(0,0,0,0.5)] backdrop-blur-sm transition-all hover:bg-red-950/50 hover:border-red-900/50 hover:text-red-400 disabled:cursor-not-allowed disabled:border-zinc-900 disabled:bg-[#050505] disabled:text-zinc-600'
+            title='只删除会话，图片视频资源仍保留'
+            className='pointer-events-auto inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-5 py-3 text-sm font-bold text-slate-600 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200/50 disabled:bg-white/50 disabled:text-slate-400 disabled:transform-none'
           >
-            <Trash2 size={14} />
-            CLEAR LOG
+            <Trash2 size={16} />
+            清除会话
           </button>
         </div>
       </main>
 
       {previewImage ? (
-        <div className='fixed inset-0 z-[100] flex items-center justify-center bg-[#050505]/95 p-6 backdrop-blur-3xl transition-all'>
-          <div className='relative w-full max-w-6xl border border-zinc-800 bg-[#0A0A0A] p-2 shadow-2xl'>
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-sm'>
+          <div className='relative w-full max-w-5xl rounded-[2rem] bg-white p-4 shadow-2xl'>
             <button
               onClick={() => setPreviewImage(null)}
-              className='absolute right-4 top-4 z-10 bg-[#050505] border border-zinc-800 p-2 text-zinc-400 transition hover:border-red-900/50 hover:bg-red-950/30 hover:text-red-400'
+              className='absolute right-4 top-4 z-10 rounded-full border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-red-200 hover:text-red-500'
             >
-              <X size={16} />
+              <X size={18} />
             </button>
-            <div className='mb-3 px-3 pr-14 text-[11px] font-mono tracking-wider text-zinc-500 uppercase'>
-              {previewImage.title || 'IMAGE VIEWER'}
+            <div className='mb-4 px-2 pr-12 text-sm font-semibold text-slate-600'>
+              {previewImage.title || '图片预览'}
             </div>
-            <div className='flex items-center justify-center overflow-hidden border border-zinc-900 bg-black'>
+            <div className='overflow-hidden rounded-[1.5rem] bg-slate-100'>
               <img
                 src={buildCreativeCenterImageDisplayUrl(previewImage.url)}
                 alt={previewImage.title || 'Preview'}
-                className='max-h-[85vh] w-auto max-w-full object-contain filter contrast-105'
+                className='max-h-[80vh] w-full object-contain'
               />
             </div>
           </div>
@@ -6861,9 +6872,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 0px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
       `}} />
     </div>
   );
