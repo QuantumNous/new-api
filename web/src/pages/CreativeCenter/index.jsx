@@ -5518,7 +5518,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   return (
-    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#172033] via-[#0B0F19] to-[#0B0F19] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 overflow-hidden'>
+    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] mt-16 w-full bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#172033] via-[#0B0F19] to-[#0B0F19] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 overflow-hidden'>
       {/* 动态背景光效 */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px]" />
