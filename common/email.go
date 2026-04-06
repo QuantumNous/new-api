@@ -26,6 +26,13 @@ func shouldUseSMTPLoginAuth() bool {
 	return isOutlookServer(SMTPAccount) || slices.Contains(EmailLoginAuthServerList, SMTPServer)
 }
 
+func getSMTPAuth() smtp.Auth {
+	if shouldUseSMTPLoginAuth() {
+		return LoginAuth(SMTPAccount, SMTPToken)
+	}
+	return smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
+}
+
 func SendEmail(subject string, receiver string, content string) error {
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
@@ -45,7 +52,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		"Message-ID: %s\r\n"+ // 添加 Message-ID 头
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
 		receiver, SystemName, SMTPFrom, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
-	auth := smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
+	auth := getSMTPAuth()
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
 	var err error
@@ -88,7 +95,6 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 	} else if shouldUseSMTPLoginAuth() {
-		auth = LoginAuth(SMTPAccount, SMTPToken)
 		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
 	} else {
 		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
