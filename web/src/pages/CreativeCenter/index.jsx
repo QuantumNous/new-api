@@ -5525,17 +5525,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-sky-300/10 blur-[150px]" />
       </div>
       <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-slate-200/50 bg-white/70 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.05)]'>
-        <div className='shrink-0 p-7 flex items-center justify-between'>
-          <h1 className='text-[26px] italic font-black tracking-[0.15em] text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-sky-500 to-blue-500 drop-shadow-sm font-serif'>
+        <div className='shrink-0 p-7 pt-9 pb-6 flex items-center justify-center'>
+          <h1 className='text-[28px] font-black tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-br from-blue-700 via-sky-500 to-blue-500 drop-shadow-md'>
             释放你的创造力
           </h1>
-          <button 
-            onClick={() => window.location.href = '/console/assets'} 
-            className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-blue-200/60 bg-blue-50/80 text-blue-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gradient-to-br hover:from-blue-500 hover:to-sky-500 hover:text-white hover:border-transparent hover:shadow-md hover:shadow-blue-500/25"
-            title="资产素材库"
-          >
-            <Wallet size={18} className="transition-transform duration-300 group-hover:scale-110" />
-          </button>
         </div>
 
         <nav className='shrink-0 flex justify-around border-b border-slate-200/50 pb-5 px-5'>
@@ -5697,37 +5690,47 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           ))}
           {hoveredSidebarModel ? (
             <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[340px] lg:block animate-in fade-in slide-in-from-left-4 duration-300'>
-              <div className='relative overflow-hidden rounded-[2.5rem] border border-blue-100/60 bg-white/95 p-6 shadow-[0_20px_60px_-15px_rgba(59,130,246,0.15)] backdrop-blur-3xl'>
-                <div className='absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.15),transparent_70%)]' />
+              <div className='relative overflow-hidden rounded-[2.5rem] border border-blue-100/60 bg-white/95 p-7 shadow-[0_30px_80px_-15px_rgba(59,130,246,0.2)] backdrop-blur-3xl'>
+                <div className='absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.18),transparent_70%)]' />
                 <div className='relative'>
-                  <div className='mb-5 flex items-start justify-between gap-4'>
-                    <div className='flex min-w-0 items-center gap-4'>
-                      <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-lg shadow-blue-500/20 ring-1 ring-blue-400/50'>
+                  <div className='mb-6 flex items-start justify-between gap-4'>
+                    <div className='flex min-w-0 items-center gap-5'>
+                      <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/50'>
                         {hoveredSidebarModel.icon}
                       </div>
                       <div className='min-w-0'>
-                        <div className='truncate text-[18px] font-black tracking-tight text-slate-900'>
+                        <div className='truncate text-[20px] font-black tracking-tight text-slate-900 drop-shadow-sm'>
                           {hoveredSidebarModel.name}
                         </div>
-                        <div className='mt-1.5 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-blue-500'>
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+                        <div className='mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-blue-500'>
+                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
                           深度解析
                         </div>
                       </div>
                     </div>
                     {hoveredSidebarModel.priceLabel ? (
-                      <div className='shrink-0 rounded-[10px] bg-blue-50/80 border border-blue-200/60 px-3 py-1.5 text-[11px] font-black text-blue-600 shadow-sm'>
+                      <div className='shrink-0 rounded-[12px] bg-blue-50/80 border border-blue-200/60 px-3.5 py-1.5 text-[12px] font-black text-blue-600 shadow-sm'>
                         {hoveredSidebarModel.priceLabel}
                       </div>
                     ) : null}
                   </div>
-                  <div className='relative rounded-3xl border border-blue-100 bg-gradient-to-b from-blue-50/40 to-transparent p-5 text-[13px] font-medium leading-relaxed text-slate-600 shadow-sm'>
+                  <div className='relative rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/50 to-white/50 p-6 text-[14px] font-medium leading-loose text-slate-600 shadow-inner'>
                     {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无详细简介'}
                   </div>
                 </div>
               </div>
             </div>
           ) : null}
+        </div>
+        
+        <div className='shrink-0 p-5 mt-auto border-t border-slate-200/50 bg-white/40 backdrop-blur-md'>
+          <button 
+            onClick={() => window.location.href = '/console/assets'} 
+            className="flex w-full items-center justify-center gap-3 rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-500 px-4 py-3.5 text-[14px] font-black tracking-[0.15em] text-white shadow-[0_8px_20px_rgba(59,130,246,0.2)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_12px_25px_rgba(59,130,246,0.3)] hover:brightness-110 active:scale-[0.98]"
+          >
+            <Wallet size={18} />
+            查看资产库
+          </button>
         </div>
       </aside>
 
