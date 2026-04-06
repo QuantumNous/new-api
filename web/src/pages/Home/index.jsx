@@ -927,6 +927,7 @@ const Home = () => {
                         background: 'var(--semi-color-bg-1)',
                         borderRadius: 16,
                         border: '1px solid var(--semi-color-border)',
+                        height: '100%',
                       }}
                     >
                       <img
@@ -1178,7 +1179,7 @@ const Home = () => {
                         background: 'var(--semi-color-bg-1)',
                         border: '1px solid var(--semi-color-border)',
                         borderRadius: 16,
-                        height: 290,
+                        height: '100%',
                       }}
                     >
                       <div
@@ -1222,7 +1223,7 @@ const Home = () => {
                             fontSize: 14,
                             lineHeight: '24px',
                             margin: 0,
-                            height: 90,
+                            flex: 1,
                           }}
                         >
                           {card.desc}
@@ -1284,6 +1285,9 @@ const Home = () => {
                               height: 44,
                               borderRadius: 8,
                               fontSize: 14,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               background: 'var(--semi-color-text-0)',
                               color: 'var(--semi-color-bg-0)',
                               boxShadow: 'none',

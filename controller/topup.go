@@ -291,6 +291,7 @@ func EpayNotify(c *gin.Context) {
 		}
 		if topUp.Status == "pending" {
 			topUp.Status = "success"
+			topUp.CompleteTime = common.GetTimestamp()
 			err := topUp.Update()
 			if err != nil {
 				log.Printf("易支付回调更新订单失败: %v", topUp)

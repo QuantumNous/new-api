@@ -151,7 +151,7 @@ const Pricing = () => {
   const [, setVendorsMap] = useState({});
   const [groupRatio, setGroupRatio] = useState({});
   const [usableGroup, setUsableGroup] = useState({});
-  const [, setEndpointMap] = useState({});
+  const [endpointMap, setEndpointMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   // ── Filter state ──
@@ -665,7 +665,7 @@ const Pricing = () => {
                   theme={selectedGroup === g.value ? 'solid' : 'borderless'}
                   style={{ borderRadius: 6, fontSize: 12 }}
                   onClick={() => setSelectedGroup(g.value)}>
-                  {g.label}
+                  {g.value}
                 </Button>
               ))}
             </div>
@@ -735,8 +735,6 @@ const Pricing = () => {
       : [];
     const vendorColors = getVendorGradient(model.vendor_name);
     const displayName = getModelDisplayName(model.model_name);
-    const groupCount = Array.isArray(model.enable_groups) ? model.enable_groups.length : 0;
-
     return (
       <div key={model.model_name}
         onClick={() => handleOpenDetail(model)}
@@ -841,24 +839,6 @@ const Pricing = () => {
 
           {/* Spacer to push bottom content down */}
           <div style={{ flex: 1 }} />
-
-          {/* Group count badge - colored outline like reference */}
-          {groupCount > 0 && (
-            <div style={{
-              display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-              marginBottom: 10,
-            }}>
-              <span style={{
-                fontSize: 12, fontWeight: 600, lineHeight: 1,
-                padding: '4px 10px', borderRadius: 6,
-                border: '1.5px solid var(--semi-color-primary)',
-                color: 'var(--semi-color-primary)',
-                backgroundColor: 'var(--semi-color-primary-light-default)',
-              }}>
-                {groupCount} {t('组')}
-              </span>
-            </div>
-          )}
 
           {/* ── Price section ── */}
           <div style={{
@@ -1077,15 +1057,6 @@ const Pricing = () => {
         },
       },
       {
-        title: t('分组'),
-        key: 'groups',
-        width: 100,
-        render: (_, record) => {
-          const count = Array.isArray(record.enable_groups) ? record.enable_groups.length : 0;
-          return <span style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>{count} {t('组')}</span>;
-        },
-      },
-      {
         title: '',
         key: 'actions',
         width: 60,
@@ -1164,7 +1135,6 @@ const Pricing = () => {
   // ═══════════════════════════════════════════════════════════════════
   const renderDetailSheet = () => {
     if (!detailModel) return null;
-    const prices = getModelPrices(detailModel);
     const typeLabel = detailModel.quota_type === 0 ? t('按Token收费') : t('按次收费');
     const typeColor = detailModel.quota_type === 0 ? 'green' : 'orange';
     const tags = detailModel.tags
@@ -1250,88 +1220,158 @@ const Pricing = () => {
               {detailModel.supported_endpoint_types && detailModel.supported_endpoint_types.length > 0 && (
                 <div style={{ flex: '0 0 100%' }}>
                   <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('支持端点')}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {detailModel.supported_endpoint_types.map((ep) => (
-                      <Tag key={ep} size='small' style={{ borderRadius: 6 }}>{ep}</Tag>
+                      <Tag key={ep} size='small' style={{ borderRadius: 6, width: 'fit-content',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                      }}>{endpointMap[ep]?.path || ep}</Tag>
                     ))}
                   </div>
                 </div>
               )}
-              {detailModel.enable_groups && detailModel.enable_groups.length > 0 && (
-                <div style={{ flex: '0 0 100%' }}>
-                  <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('可用分组')}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {detailModel.enable_groups.map((g) => (
-                      <Tag key={g} size='small' style={{ borderRadius: 6 }}>{g}</Tag>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Pricing detail */}
-          <div style={{ borderRadius: 12, border: '1px solid var(--semi-color-border)', overflow: 'hidden' }}>
-            <div style={{
-              padding: '12px 16px', fontSize: 14, fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: 8,
-              borderBottom: '1px solid var(--semi-color-border)',
-            }}>
-              💰 {t('价格详情')}
-            </div>
-            <div style={{ padding: 16 }}>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {/* Input */}
-                <div style={{
-                  flex: 1, padding: 16, borderRadius: 12,
-                  backgroundColor: 'rgba(22, 163, 74, 0.06)',
-                  border: '1px solid rgba(22, 163, 74, 0.12)',
-                }}>
-                  <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('输入价格')}</div>
-                  <div style={{
-                    fontSize: 24, fontWeight: 800,
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                    color: '#16a34a',
-                  }}>
-                    {prices.input}
-                    <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
-                      {prices.unit}
-                    </span>
-                  </div>
-                </div>
-                {/* Output */}
-                {!prices.isFixed && (
-                  <div style={{
-                    flex: 1, padding: 16, borderRadius: 12,
-                    backgroundColor: 'rgba(234, 179, 8, 0.06)',
-                    border: '1px solid rgba(234, 179, 8, 0.12)',
-                  }}>
-                    <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('输出价格')}</div>
-                    <div style={{
-                      fontSize: 24, fontWeight: 800,
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                      color: '#d97706',
-                    }}>
-                      {prices.output}
-                      <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
-                        {prices.unit}
-                      </span>
+              {(() => {
+                const userGroups = detailModel.enable_groups && usableGroup
+                  ? detailModel.enable_groups.filter((g) => Object.prototype.hasOwnProperty.call(usableGroup, g))
+                  : [];
+                return userGroups.length > 0 ? (
+                  <div style={{ flex: '0 0 100%' }}>
+                    <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('可用分组')}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {userGroups.map((g) => (
+                        <Tag key={g} size='small' style={{ borderRadius: 6 }}>{g}</Tag>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Ratio info */}
-              {detailModel.quota_type === 0 && (
-                <div style={{ marginTop: 16, padding: 12, borderRadius: 10, backgroundColor: 'var(--semi-color-fill-0)', fontSize: 13, color: 'var(--semi-color-text-2)' }}>
-                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                    <span>{t('模型倍率')}: <strong>{detailModel.model_ratio}</strong></span>
-                    <span>{t('补全倍率')}: <strong>{parseFloat(detailModel.completion_ratio?.toFixed(3))}</strong></span>
-                  </div>
-                </div>
-              )}
+                ) : null;
+              })()}
             </div>
           </div>
+
+          {/* Pricing detail - per visible group */}
+          {(() => {
+            const visibleGroups = detailModel.enable_groups && usableGroup
+              ? detailModel.enable_groups.filter((g) => Object.prototype.hasOwnProperty.call(usableGroup, g))
+              : [];
+            if (visibleGroups.length === 0) return null;
+            return (
+              <div style={{ borderRadius: 12, border: '1px solid var(--semi-color-border)', overflow: 'hidden' }}>
+                <div style={{
+                  padding: '12px 16px', fontSize: 14, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  borderBottom: '1px solid var(--semi-color-border)',
+                }}>
+                  💰 {t('价格详情')}
+                </div>
+                <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {visibleGroups.map((group) => {
+                    const groupPriceData = calculateModelPrice({
+                      record: detailModel, selectedGroup: group, groupRatio,
+                      tokenUnit: unitMillion ? 'M' : 'K', displayPrice,
+                      currency: 'USD', quotaDisplayType: siteDisplayType,
+                      precision: 2,
+                    });
+                    let gPrices;
+                    if (!groupPriceData) {
+                      gPrices = { input: '-', output: '-', unit: '', isFixed: false };
+                    } else if (detailModel.quota_type === 1) {
+                      gPrices = { input: groupPriceData.price || '-', output: '-', unit: `/ ${t('次')}`, isFixed: true };
+                    } else {
+                      gPrices = {
+                        input: groupPriceData.inputPrice || '-',
+                        output: groupPriceData.completionPrice || '-',
+                        cacheRead: groupPriceData.cachePrice || null,
+                        cacheCreate: groupPriceData.createCachePrice || null,
+                        unit: `/${unitMillion ? 'M' : 'K'}`,
+                        isFixed: false,
+                      };
+                    }
+                    return (
+                      <div key={group}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--semi-color-text-1)' }}>{group}</div>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{
+                            flex: '1 1 calc(50% - 6px)', minWidth: 120, padding: 16, borderRadius: 12,
+                            backgroundColor: 'rgba(22, 163, 74, 0.06)',
+                            border: '1px solid rgba(22, 163, 74, 0.12)',
+                          }}>
+                            <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('输入价格')}</div>
+                            <div style={{
+                              fontSize: 24, fontWeight: 800,
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                              color: '#16a34a',
+                            }}>
+                              {gPrices.input}
+                              <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
+                                {gPrices.unit}
+                              </span>
+                            </div>
+                          </div>
+                          {!gPrices.isFixed && (
+                            <div style={{
+                              flex: '1 1 calc(50% - 6px)', minWidth: 120, padding: 16, borderRadius: 12,
+                              backgroundColor: 'rgba(234, 179, 8, 0.06)',
+                              border: '1px solid rgba(234, 179, 8, 0.12)',
+                            }}>
+                              <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('输出价格')}</div>
+                              <div style={{
+                                fontSize: 24, fontWeight: 800,
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                color: '#d97706',
+                              }}>
+                                {gPrices.output}
+                                <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
+                                  {gPrices.unit}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          {gPrices.cacheRead && (
+                            <div style={{
+                              flex: '1 1 calc(50% - 6px)', minWidth: 120, padding: 16, borderRadius: 12,
+                              backgroundColor: 'rgba(99, 102, 241, 0.06)',
+                              border: '1px solid rgba(99, 102, 241, 0.12)',
+                            }}>
+                              <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('缓存读取价格')}</div>
+                              <div style={{
+                                fontSize: 24, fontWeight: 800,
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                color: '#6366f1',
+                              }}>
+                                {gPrices.cacheRead}
+                                <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
+                                  {gPrices.unit}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          {gPrices.cacheCreate && (
+                            <div style={{
+                              flex: '1 1 calc(50% - 6px)', minWidth: 120, padding: 16, borderRadius: 12,
+                              backgroundColor: 'rgba(168, 85, 247, 0.06)',
+                              border: '1px solid rgba(168, 85, 247, 0.12)',
+                            }}>
+                              <div style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginBottom: 6 }}>{t('缓存创建价格')}</div>
+                              <div style={{
+                                fontSize: 24, fontWeight: 800,
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                color: '#a855f7',
+                              }}>
+                                {gPrices.cacheCreate}
+                                <span style={{ fontSize: 13, color: 'var(--semi-color-text-3)', fontWeight: 400, marginLeft: 4 }}>
+                                  {gPrices.unit}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            );
+          })()}
         </div>
       </SideSheet>
     );

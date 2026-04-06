@@ -109,7 +109,7 @@ func GetUserRecentTopUpMoney(userId int, days int) (float64, error) {
 	sinceTimestamp := common.GetTimestamp() - int64(days*86400)
 	var total float64
 	err := DB.Model(&TopUp{}).
-		Where("user_id = ? AND status = ? AND complete_time >= ?", userId, "success", sinceTimestamp).
+		Where("user_id = ? AND status = ? AND CASE WHEN complete_time = 0 THEN create_time ELSE complete_time END >= ?", userId, "success", sinceTimestamp).
 		Select("COALESCE(SUM(money), 0)").
 		Find(&total).Error
 	return total, err
