@@ -154,6 +154,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		return
 	}
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	if promptContent := ExtractPromptContentFromRequest(c); promptContent != "" {
+		params.Other["prompt_content"] = promptContent
+	}
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
@@ -458,6 +464,16 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 }
 
 func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64, error) {
+	if targetTimestamp <= 0 {
+		retentionDays := common.LogRetentionDays
+		if retentionDays <= 0 {
+			retentionDays = 7
+		}
+		targetTimestamp = time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
+	}
+	if limit <= 0 {
+		limit = 100
+	}
 	var total int64 = 0
 
 	for {
@@ -478,4 +494,25 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 	}
 
 	return total, nil
+}
+
+func CleanupOldLogsLoop() {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+
+	runCleanup := func() {
+		count, err := DeleteOldLog(context.Background(), 0, 500)
+		if err != nil {
+			common.SysError("failed to cleanup old logs: " + err.Error())
+			return
+		}
+		if count > 0 {
+			common.SysLog(fmt.Sprintf("cleaned up %d expired logs", count))
+		}
+	}
+
+	runCleanup()
+	for range ticker.C {
+		runCleanup()
+	}
 }

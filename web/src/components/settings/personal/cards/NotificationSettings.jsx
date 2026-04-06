@@ -74,6 +74,7 @@ const NotificationSettings = ({
       detail: true,
       token: true,
       log: true,
+      monitor: true,
       midjourney: true,
       task: true,
     },
@@ -162,6 +163,7 @@ const NotificationSettings = ({
         detail: true,
         token: true,
         log: true,
+        monitor: true,
         midjourney: true,
         task: true,
       },
@@ -265,6 +267,11 @@ const NotificationSettings = ({
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
+        {
+          key: 'monitor',
+          title: t('监控中心'),
+          description: t('请求趋势与 Prompt 监控'),
+        },
         {
           key: 'midjourney',
           title: t('绘图日志'),

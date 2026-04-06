@@ -64,6 +64,7 @@ import {
   MessageSquare,
   Key,
   BarChart3,
+  ChartColumnIncreasing,
   Image as ImageIcon,
   CheckSquare,
   CreditCard,
@@ -126,6 +127,8 @@ export function getLucideIcon(key, selected = false) {
       return <Key {...commonProps} color={iconColor} />;
     case 'log':
       return <BarChart3 {...commonProps} color={iconColor} />;
+    case 'monitor':
+      return <ChartColumnIncreasing {...commonProps} color={iconColor} />;
     case 'midjourney':
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':

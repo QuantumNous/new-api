@@ -150,13 +150,6 @@ func GetLogsSelfStat(c *gin.Context) {
 
 func DeleteHistoryLogs(c *gin.Context) {
 	targetTimestamp, _ := strconv.ParseInt(c.Query("target_timestamp"), 10, 64)
-	if targetTimestamp == 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "target timestamp is required",
-		})
-		return
-	}
 	count, err := model.DeleteOldLog(c.Request.Context(), targetTimestamp, 100)
 	if err != nil {
 		common.ApiError(c, err)

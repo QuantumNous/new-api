@@ -59,16 +59,18 @@ const PageLayout = () => {
     '/console/task',
     '/console/models',
     '/pricing',
+    '/monitor',
   ];
 
   const shouldHideFooter = cardProPages.includes(location.pathname);
 
   const shouldInnerPadding =
-    location.pathname.includes('/console') &&
+    (location.pathname.includes('/console') || location.pathname === '/monitor') &&
     !location.pathname.startsWith('/console/chat') &&
     location.pathname !== '/console/playground';
 
-  const isConsoleRoute = location.pathname.startsWith('/console');
+  const isConsoleRoute =
+    location.pathname.startsWith('/console') || location.pathname === '/monitor';
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
 
   useEffect(() => {

@@ -20,4 +20,17 @@ func SetDashboardRouter(router *gin.Engine) {
 		apiRouter.GET("/dashboard/billing/usage", controller.GetUsage)
 		apiRouter.GET("/v1/dashboard/billing/usage", controller.GetUsage)
 	}
+
+	monitorRouter := router.Group("/")
+	monitorRouter.Use(middleware.RouteTag("old_api"))
+	monitorRouter.Use(gzip.Gzip(gzip.DefaultCompression))
+	monitorRouter.Use(middleware.GlobalAPIRateLimit())
+	monitorRouter.Use(middleware.CORS())
+	monitorRouter.Use(middleware.UserAuth())
+	{
+		monitorRouter.GET("/dashboard/channel/stats", controller.GetDashboardChannelStats)
+		monitorRouter.GET("/dashboard/model/stats", controller.GetDashboardModelStats)
+		monitorRouter.GET("/dashboard/overview", controller.GetDashboardOverview)
+		monitorRouter.GET("/dashboard/logs/prompts", controller.GetDashboardPromptLogs)
+	}
 }
