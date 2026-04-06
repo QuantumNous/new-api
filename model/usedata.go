@@ -102,27 +102,48 @@ func increaseQuotaData(userId int, username string, modelName string, count int,
 }
 
 func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).Find(&quotaDatas).Error
-	return quotaDatas, err
+	return GetQuotaDataByUsernameAndModel(username, "", startTime, endTime)
 }
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	return GetQuotaDataByUserIdAndModel(userId, "", startTime, endTime)
+}
+
+func GetQuotaDataByUsernameAndModel(username string, modelName string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).Find(&quotaDatas).Error
+	tx := DB.Table("quota_data").Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime)
+	if modelName != "" {
+		tx = tx.Where("model_name = ?", modelName)
+	}
+	err = tx.Find(&quotaDatas).Error
 	return quotaDatas, err
 }
 
-func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
+func GetQuotaDataByUserIdAndModel(userId int, modelName string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	tx := DB.Table("quota_data").Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime)
+	if modelName != "" {
+		tx = tx.Where("model_name = ?", modelName)
+	}
+	err = tx.Find(&quotaDatas).Error
+	return quotaDatas, err
+}
+
+func GetAllQuotaDates(startTime int64, endTime int64, username string, userId int, modelName string) (quotaData []*QuotaData, err error) {
+	if userId != 0 {
+		return GetQuotaDataByUserIdAndModel(userId, modelName, startTime, endTime)
+	}
 	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
+		return GetQuotaDataByUsernameAndModel(username, modelName, startTime, endTime)
 	}
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
 	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
-	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
+	tx := DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if modelName != "" {
+		tx = tx.Where("model_name = ?", modelName)
+	}
+	err = tx.Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
 }

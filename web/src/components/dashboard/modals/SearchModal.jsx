@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Modal, Form } from '@douyinfe/semi-ui';
+import { Modal, Form, Radio } from '@douyinfe/semi-ui';
 
 const SearchModal = ({
   searchModalVisible,
@@ -42,7 +42,15 @@ const SearchModal = ({
     <Component {...FORM_FIELD_PROPS} {...props} />
   );
 
-  const { start_timestamp, end_timestamp, username } = inputs;
+  const {
+    start_timestamp,
+    end_timestamp,
+    username,
+    user_id,
+    user_search_type,
+    model_name,
+  } = inputs;
+  const userSearchType = user_search_type || 'username';
 
   return (
     <Modal
@@ -86,15 +94,52 @@ const SearchModal = ({
             handleInputChange(value, 'data_export_default_time'),
         })}
 
+        {isAdminUser && (
+          <Form.RadioGroup
+            field='user_search_type'
+            label={t('用户')}
+            initValue={userSearchType}
+            value={userSearchType}
+            onChange={(value) => handleInputChange(value, 'user_search_type')}
+          >
+            <Radio value='username'>{t('用户名')}</Radio>
+            <Radio value='user_id'>{t('用户ID')}</Radio>
+          </Form.RadioGroup>
+        )}
+
         {isAdminUser &&
+          userSearchType === 'username' &&
           createFormField(Form.Input, {
             field: 'username',
-            label: t('用户名称'),
+            noLabel: true,
             value: username,
             placeholder: t('可选值'),
             name: 'username',
             onChange: (value) => handleInputChange(value, 'username'),
           })}
+
+        {isAdminUser &&
+          userSearchType === 'user_id' &&
+          createFormField(Form.InputNumber, {
+            field: 'user_id',
+            noLabel: true,
+            value: user_id,
+            placeholder: t('可选值'),
+            name: 'user_id',
+            min: 1,
+            step: 1,
+            precision: 0,
+            onChange: (value) => handleInputChange(value, 'user_id'),
+          })}
+
+        {createFormField(Form.Input, {
+          field: 'model_name',
+          label: t('模型名称'),
+          value: model_name,
+          placeholder: t('可选值'),
+          name: 'model_name',
+          onChange: (value) => handleInputChange(value, 'model_name'),
+        })}
       </Form>
     </Modal>
   );
