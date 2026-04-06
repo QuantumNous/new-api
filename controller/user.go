@@ -238,6 +238,7 @@ func GetAllUsers(c *gin.Context) {
 	}
 
 	model.FillInviterUsernames(users)
+	model.FillActiveIPs(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -249,14 +250,16 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	ip := c.Query("ip")
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, ip, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	model.FillInviterUsernames(users)
+	model.FillActiveIPs(users)
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -1255,5 +1258,56 @@ func GetUserInvitees(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    invitees,
+	})
+}
+
+const (
+	vipGroup              = "vip"
+	vipMinRecentTopUp     = 20.0        // $20
+	vipRecentTopUpDays    = 7
+)
+
+func UpgradeVIP(c *gin.Context) {
+	userId := c.GetInt("id")
+
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// 已经是 VIP
+	if user.Group == vipGroup {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": i18n.T(c, i18n.MsgUserAlreadyVIP),
+		})
+		return
+	}
+
+	// 检查最近7天充值总额 >= $20
+	recentMoney, err := model.GetUserRecentTopUpMoney(userId, vipRecentTopUpDays)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if recentMoney < vipMinRecentTopUp {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": i18n.T(c, i18n.MsgUserUpgradeVIPFailed),
+		})
+		return
+	}
+
+	// 升级
+	err = model.UpgradeUserGroup(userId, vipGroup)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": i18n.T(c, i18n.MsgUserUpgradeVIPSuccess),
 	})
 }

@@ -131,6 +131,10 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
+	// 异步写入活跃 IP 汇总表（通过 Redis 队列）
+	if log.Ip != "" {
+		PublishActiveIP(log.UserId, log.Ip)
+	}
 }
 
 type RecordConsumeLogParams struct {
@@ -191,6 +195,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
+	}
+	// 异步写入活跃 IP 汇总表（通过 Redis 队列）
+	if log.Ip != "" {
+		PublishActiveIP(log.UserId, log.Ip)
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {

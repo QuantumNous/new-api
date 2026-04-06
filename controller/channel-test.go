@@ -56,8 +56,26 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
-func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) (res testResult) {
 	tik := time.Now()
+
+	// 测试失败时记录错误日志
+	defer func() {
+		if res.localErr == nil {
+			return
+		}
+		tok := time.Now()
+		consumedTime := int(tok.Sub(tik).Seconds())
+		errContent := fmt.Sprintf("渠道测试失败: %s", res.localErr.Error())
+		c := res.context
+		if c == nil {
+			// 部分早期失败路径没有 context，创建一个临时的
+			w := httptest.NewRecorder()
+			c, _ = gin.CreateTestContext(w)
+		}
+		model.RecordErrorLog(c, 1, channel.Id, testModel, "模型测试", errContent, 0, consumedTime, isStream, "", nil)
+	}()
+
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,

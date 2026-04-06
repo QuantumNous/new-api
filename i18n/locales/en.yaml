@@ -90,6 +90,9 @@ user.wechat_id_empty: "WeChat ID is empty!"
 user.telegram_id_empty: "Telegram ID is empty!"
 user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
+user.already_vip: "You are already a VIP user"
+user.upgrade_vip_failed: "Upgrade failed! Self-service VIP upgrade requires top-up amount greater than $20 in the last 7 days. If you have met the requirements, please contact the administrator."
+user.upgrade_vip_success: "Congratulations! You have been upgraded to VIP"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"

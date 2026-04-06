@@ -91,6 +91,9 @@ user.wechat_id_empty: "WeChat id 為空！"
 user.telegram_id_empty: "Telegram id 為空！"
 user.telegram_not_bound: "該 Telegram 帳號未綁定"
 user.linux_do_id_empty: "Linux DO id 為空！"
+user.already_vip: "您已經是 VIP 用戶"
+user.upgrade_vip_failed: "升級失敗！自助升級為VIP需最近7日充值額度大於$20，如已滿足充值條件，請聯繫管理員。"
+user.upgrade_vip_success: "恭喜！您已成功升級為 VIP 用戶"
 
 # Quota messages
 quota.negative: "額度不能為負數！"

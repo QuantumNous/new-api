@@ -206,8 +206,65 @@ const renderInviteInfo = (text, record, t, showInvitedUsersModal) => {
 };
 
 /**
- * Render operations column
+ * Render IP information (register IP + active IPs)
  */
+const renderIpInfo = (text, record, t) => {
+  const registerIp = record.register_ip || '';
+  const activeIPs = record.active_ips || [];
+  // Deduplicate: remove register_ip from activeIPs list
+  const otherIPs = activeIPs.filter((ip) => ip !== registerIp);
+
+  if (!registerIp && otherIPs.length === 0) {
+    return <span>-</span>;
+  }
+
+  const popoverContent = (
+    <div className='text-xs p-2' style={{ maxWidth: 320, maxHeight: 300, overflowY: 'auto' }}>
+      {registerIp && (
+        <div style={{ marginBottom: 6 }}>
+          <Typography.Text strong>{t('注册IP')}:</Typography.Text>
+          <br />
+          <Typography.Text copyable={{ content: registerIp }}>
+            {registerIp}
+          </Typography.Text>
+        </div>
+      )}
+      {otherIPs.length > 0 && (
+        <div>
+          <Typography.Text strong>
+            {t('活跃IP')} ({otherIPs.length}):
+          </Typography.Text>
+          <div style={{ marginTop: 4 }}>
+            {otherIPs.map((ip, idx) => (
+              <div key={idx} style={{ lineHeight: '22px' }}>
+                <Typography.Text copyable={{ content: ip }}>
+                  {ip}
+                </Typography.Text>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const totalCount = (registerIp ? 1 : 0) + otherIPs.length;
+
+  return (
+    <Popover content={popoverContent} position='top'>
+      <Tag color='white' shape='circle' className='!text-xs' style={{ cursor: 'pointer' }}>
+        <Space spacing={4}>
+          <span>{registerIp || otherIPs[0] || '-'}</span>
+          {totalCount > 1 && (
+            <Tag color='blue' shape='circle' size='small'>
+              +{totalCount - 1}
+            </Tag>
+          )}
+        </Space>
+      </Tag>
+    </Popover>
+  );
+};
 const renderOperations = (
   text,
   record,
@@ -357,6 +414,11 @@ export const getUsersColumns = ({
       render: (text, record, index) => {
         return <div>{renderRole(text, t)}</div>;
       },
+    },
+    {
+      title: t('IP信息'),
+      dataIndex: 'register_ip',
+      render: (text, record) => renderIpInfo(text, record, t),
     },
     {
       title: t('邀请信息'),

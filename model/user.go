@@ -50,6 +50,8 @@ type User struct {
 	RegisterUA       string         `json:"register_ua" gorm:"type:varchar(512);column:register_ua"`
 	InviterUsername  string         `json:"inviter_username" gorm:"-"`
 	InviteCount     int            `json:"invite_count" gorm:"-"`
+	ActiveIPs       []string       `json:"active_ips,omitempty" gorm:"-"`
+	CreatedAt       int64          `json:"created_at" gorm:"bigint;autoCreateTime"`
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 	LinuxDOId        string         `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
@@ -227,7 +229,7 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, ip string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -246,30 +248,37 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
 
-	// 构建搜索条件
-	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
+	// IP 独立搜索
+	if ip != "" {
+		// 从汇总表查活跃 IP 匹配的用户 ID
+		activeIPUserIDs, _ := SearchUserIDsByIP(ip)
+		if len(activeIPUserIDs) > 0 {
+			query = query.Where("register_ip = ? OR id IN ?", ip, activeIPUserIDs)
+		} else {
+			query = query.Where("register_ip = ?", ip)
+		}
+	}
 
-	// 尝试将关键字转换为整数ID
-	keywordInt, err := strconv.Atoi(keyword)
-	if err == nil {
-		// 如果是数字，同时搜索ID和其他字段
-		likeCondition = "id = ? OR " + likeCondition
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
-		} else {
-			query = query.Where(likeCondition,
-				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+	// 关键字搜索
+	if keyword != "" {
+		likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
+		likeArgs := []interface{}{
+			"%" + keyword + "%", "%" + keyword + "%", "%" + keyword + "%",
 		}
-	} else {
-		// 非数字关键字，只搜索字符串字段
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
-		} else {
-			query = query.Where(likeCondition,
-				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
+
+		// 尝试将关键字转换为整数ID
+		keywordInt, convErr := strconv.Atoi(keyword)
+		if convErr == nil {
+			likeCondition = "id = ? OR " + likeCondition
+			likeArgs = append([]interface{}{keywordInt}, likeArgs...)
 		}
+
+		query = query.Where(likeCondition, likeArgs...)
+	}
+
+	// 分组过滤
+	if group != "" {
+		query = query.Where(commonGroupCol+" = ?", group)
 	}
 
 	// 获取总数
@@ -395,7 +404,9 @@ func (user *User) Insert(inviterId int) error {
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := dto.UserSetting{
+			RecordIpLog: true,
+		}
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
@@ -450,10 +461,13 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	user.AffCode = common.GetRandomString(4)
+	user.InviterId = inviterId
 
 	// 初始化用户设置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := dto.UserSetting{
+			RecordIpLog: true,
+		}
 		user.SetSetting(defaultSetting)
 	}
 
@@ -543,6 +557,18 @@ func (user *User) Edit(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+// UpgradeUserGroup 升级用户分组
+func UpgradeUserGroup(userId int, group string) error {
+	err := DB.Model(&User{}).Where("id = ?", userId).Updates(map[string]interface{}{
+		"group":      group,
+		"base_level": group,
+	}).Error
+	if err != nil {
+		return err
+	}
+	return UpdateUserGroupCache(userId, group)
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -1046,7 +1072,7 @@ func RootUserExists() bool {
 
 func GetUserInvitees(userId int) ([]User, error) {
 	var users []User
-	err := DB.Select("id, username, register_ip, register_ua").
+	err := DB.Select("id, username, status, register_ip, register_ua, created_at").
 		Where("inviter_id = ?", userId).
 		Order("id desc").
 		Find(&users).Error

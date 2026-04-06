@@ -67,6 +67,41 @@ const InvitedUsersModal = ({ visible, onCancel, user, t }) => {
         width: 120,
       },
       {
+        title: t('状态'),
+        dataIndex: 'status',
+        width: 80,
+        render: (text) => {
+          if (text === 1) {
+            return (
+              <Tag color='green' shape='circle' size='small'>
+                {t('已启用')}
+              </Tag>
+            );
+          } else if (text === 2) {
+            return (
+              <Tag color='red' shape='circle' size='small'>
+                {t('已禁用')}
+              </Tag>
+            );
+          }
+          return (
+            <Tag color='grey' shape='circle' size='small'>
+              {t('未知状态')}
+            </Tag>
+          );
+        },
+      },
+      {
+        title: t('注册时间'),
+        dataIndex: 'created_at',
+        width: 170,
+        render: (text) => {
+          if (!text) return '-';
+          const d = new Date(text * 1000);
+          return d.toLocaleString();
+        },
+      },
+      {
         title: t('注册IP'),
         dataIndex: 'register_ip',
         width: 140,
