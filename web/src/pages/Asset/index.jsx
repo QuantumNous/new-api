@@ -618,9 +618,7 @@ const AssetLibrary = () => {
               />
             </div>
           ) : (
-            <div
-              className={`grid gap-3 ${showPreview ? 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5' : 'grid-cols-2 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6'}`}
-            >
+            <div className='grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5'>
               {assets.map((asset, index) => {
                 const previewUrl = getAssetPreviewUrl(asset);
                 const checked = selectedIds.includes(asset.asset_id);

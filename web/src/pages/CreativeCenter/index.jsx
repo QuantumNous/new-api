@@ -5762,10 +5762,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       : 'justify-start md:pr-20 lg:pr-32'
                   }`}
                 >
-                  <div className={`w-full rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
+                  <div className={`rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
                     msg.role === 'user'
-                      ? 'max-w-[440px] md:max-w-[520px] bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]'
-                      : 'max-w-[720px] xl:max-w-[780px] bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
+                      ? 'w-auto max-w-[440px] md:max-w-[520px] bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]'
+                      : 'w-full max-w-[720px] xl:max-w-[780px] bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
                   }`}>
                     {getMessageImages(msg.content).length > 0 && (
                       <div className='mb-3 grid grid-cols-1 gap-2'>
