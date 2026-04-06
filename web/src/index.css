@@ -869,6 +869,63 @@ html.dark .with-pastel-balls::before {
   mix-blend-mode: screen;
 }
 
+/* ==================== 首页重设计样式 ==================== */
+
+/* 点阵网格背景 */
+.home-dot-grid {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.065) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+html.dark .home-dot-grid {
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.065) 1px, transparent 1px);
+}
+
+/* 供应商 Logo 无缝滚动跑马灯 */
+@keyframes home-marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.home-marquee {
+  position: relative;
+  overflow: hidden;
+}
+
+.home-marquee::before,
+.home-marquee::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 120px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.home-marquee::before {
+  left: 0;
+  background: linear-gradient(to right, var(--semi-color-bg-0), transparent);
+}
+
+.home-marquee::after {
+  right: 0;
+  background: linear-gradient(to left, var(--semi-color-bg-0), transparent);
+}
+
+.home-marquee-inner {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+  width: max-content;
+  animation: home-marquee-scroll 36s linear infinite;
+  padding: 0 18px;
+}
+
+.home-marquee:hover .home-marquee-inner {
+  animation-play-state: paused;
+}
+
 /* ==================== 表格卡片滚动设置 ==================== */
 .table-scroll-card {
   display: flex;
