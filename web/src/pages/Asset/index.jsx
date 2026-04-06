@@ -229,8 +229,7 @@ const AssetLibrary = () => {
     return { imageCount, videoCount };
   }, [assets]);
 
-  const getFormValues = () => {
-    const values = formApi?.getValues?.() || {};
+  const buildQueryParams = (values = {}) => {
     const dateRange = Array.isArray(values.dateRange) ? values.dateRange : [];
     const startTimestamp = parseDateValueToTimestamp(dateRange[0]);
     const endTimestamp = parseDateValueToTimestamp(dateRange[1]);
@@ -247,6 +246,13 @@ const AssetLibrary = () => {
       end_timestamp:
         Number.isFinite(endTimestamp) && endTimestamp > 0 ? endTimestamp : undefined,
     };
+  };
+
+  const [queryParams, setQueryParams] = useState(() => buildQueryParams(formInitValues));
+
+  const getFormValues = () => {
+    const values = formApi?.getValues?.() || formInitValues;
+    return buildQueryParams(values);
   };
 
   const syncAssetData = (payload) => {
@@ -266,14 +272,14 @@ const AssetLibrary = () => {
     });
   };
 
-  const loadAssets = async (page = 1, size = pageSize) => {
+  const loadAssets = async (page = 1, size = pageSize, filters = queryParams) => {
     setLoading(true);
     try {
       const endpoint = isAdminUser ? '/api/asset/' : '/api/asset/self';
       const params = {
         p: page,
         page_size: size,
-        ...getFormValues(),
+        ...filters,
       };
       const res = await API.get(endpoint, { params });
       const { success, message, data } = res.data;
@@ -297,7 +303,9 @@ const AssetLibrary = () => {
     if (storedPreviewMode === 'true') {
       setShowPreview(true);
     }
-    loadAssets(1, localPageSize).then();
+    const initialQueryParams = buildQueryParams(formInitValues);
+    setQueryParams(initialQueryParams);
+    loadAssets(1, localPageSize, initialQueryParams).then();
   }, []);
 
   useEffect(() => {
@@ -305,20 +313,22 @@ const AssetLibrary = () => {
   }, [showPreview]);
 
   const refresh = async () => {
+    const nextQueryParams = getFormValues();
+    setQueryParams(nextQueryParams);
     setSelectedIds([]);
     setSelectedAssetMap({});
-    await loadAssets(1, pageSize);
+    await loadAssets(1, pageSize, nextQueryParams);
   };
 
   const handlePageChange = (page) => {
-    loadAssets(page, pageSize).then();
+    loadAssets(page, pageSize, queryParams).then();
   };
 
   const handlePageSizeChange = async (size) => {
     localStorage.setItem('asset-library-page-size', `${size}`);
     setSelectedIds([]);
     setSelectedAssetMap({});
-    await loadAssets(1, size);
+    await loadAssets(1, size, queryParams);
   };
 
   const handleToggleSelect = (asset) => {
