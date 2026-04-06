@@ -17,9 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const _dir = dirname(fileURLToPath(import.meta.url));
+
 export default {
   plugins: {
-    tailwindcss: {},
+    tailwindcss: { config: join(_dir, 'tailwind.config.js') },
     autoprefixer: {},
   },
 };

@@ -17,8 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const _dir = dirname(fileURLToPath(import.meta.url));
+
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  content: [join(_dir, 'index.html'), join(_dir, 'src/**/*.{js,jsx,ts,tsx}')],
   theme: {
     colors: {
       'semi-color-white': 'var(--semi-color-white)',

@@ -29,6 +29,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // semi-ui@2.93.0 removed ./dist/css/semi.css from package exports; bypass via absolute path
+      '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
+        __dirname,
+        'node_modules/@douyinfe/semi-ui/dist/css/semi.css',
+      ),
+      // stub antd peer dep required by @lobehub/icons@2.48.0
+      'antd': path.resolve(__dirname, 'src/stubs/antd.js'),
     },
   },
   plugins: [
@@ -51,9 +58,7 @@ export default defineConfig({
       },
     },
     react(),
-    vitePluginSemi({
-      cssLayer: true,
-    }),
+    vitePluginSemi({}),
   ],
   optimizeDeps: {
     force: true,
