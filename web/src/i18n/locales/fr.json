@@ -3333,5 +3333,7 @@
     "剪贴板中未检测到连接信息": "Aucune info de connexion trouvée dans le presse-papiers",
     "连接信息已填入": "Informations de connexion appliquées",
     "无法读取剪贴板": "Impossible de lire le presse-papiers"
-  }
+  },
+  "找不到该值": "Valeur introuvable",
+  "用户ID": "ID utilisateur"
 }

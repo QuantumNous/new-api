@@ -3377,5 +3377,7 @@
     "剪贴板中未检测到连接信息": "No connection info found in clipboard",
     "连接信息已填入": "Connection info applied",
     "无法读取剪贴板": "Cannot read clipboard"
-  }
+  },
+  "找不到该值": "Value not found",
+  "用户ID": "User ID"
 }
