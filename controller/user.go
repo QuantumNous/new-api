@@ -59,6 +59,11 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// 维护模式检查：密码验证通过后，根据用户角色决定是否允许登录
+	if !checkMaintenanceLoginAllowed(&user, c) {
+		return
+	}
+
 	// 检查是否启用2FA
 	if model.IsTwoFAEnabled(user.Id) {
 		// 设置pending session，等待2FA验证

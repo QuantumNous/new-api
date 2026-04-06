@@ -176,6 +176,15 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/migrate_console_setting", controller.MigrateConsoleSetting) // 用于迁移检测的旧键，下个版本会删除
 		}
 
+		// 维护模式管理路由（仅 root 可操作）
+		maintenanceRoute := apiRouter.Group("/maintenance")
+		maintenanceRoute.Use(middleware.RootAuth())
+		{
+			maintenanceRoute.GET("/", controller.GetMaintenanceStatus)
+			maintenanceRoute.PUT("/", controller.UpdateMaintenanceStatus)
+			maintenanceRoute.POST("/disable", controller.DisableMaintenance)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())

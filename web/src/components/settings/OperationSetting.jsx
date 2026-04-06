@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsMaintenance from '../../pages/Setting/Operation/SettingsMaintenance';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -103,7 +104,7 @@ const OperationSetting = () => {
       showError(message);
     }
   };
-  async function onRefresh() {
+  async function onRefresh () {
     try {
       setLoading(true);
       await getOptions();
@@ -149,6 +150,10 @@ const OperationSetting = () => {
         {/* 额度设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCreditLimit options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 维护模式设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsMaintenance />
         </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>

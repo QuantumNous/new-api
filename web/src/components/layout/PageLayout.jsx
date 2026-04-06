@@ -22,6 +22,7 @@ import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
+import MaintenanceBanner from './MaintenanceBanner';
 import { ToastContainer } from 'react-toastify';
 import React, { useContext, useEffect, useState } from 'react';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
@@ -168,6 +169,7 @@ const PageLayout = () => {
           drawerOpen={drawerOpen}
         />
       </Header>
+      <MaintenanceBanner />
       <Layout
         style={{
           overflow: isMobile ? 'visible' : 'auto',
