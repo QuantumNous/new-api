@@ -199,9 +199,8 @@ export default function SettingsPaymentGateway(props) {
               <Form.Input
                 field='StripeApiSecret'
                 label={t('API 密钥')}
-                placeholder={t(
-                  'sk_xxx 或 rk_xxx 的 Stripe 密钥，敏感信息不显示',
-                )}
+                placeholder={t('例如：sk_xxx 或 rk_xxx，留空表示保持当前不变')}
+                extraText={t('保存后不会回显，请填写当前环境对应的 Stripe API 密钥')}
                 type='password'
               />
             </Col>
@@ -209,7 +208,8 @@ export default function SettingsPaymentGateway(props) {
               <Form.Input
                 field='StripeWebhookSecret'
                 label={t('Webhook 签名密钥')}
-                placeholder={t('whsec_xxx 的 Webhook 签名密钥，敏感信息不显示')}
+                placeholder={t('例如：whsec_xxx，留空表示保持当前不变')}
+                extraText={t('用于校验 Stripe Webhook 签名，保存后不会回显')}
                 type='password'
               />
             </Col>
@@ -217,7 +217,8 @@ export default function SettingsPaymentGateway(props) {
               <Form.Input
                 field='StripePriceId'
                 label={t('商品价格 ID')}
-                placeholder={t('price_xxx 的商品价格 ID，新建产品后可获得')}
+                placeholder={t('例如：price_xxx')}
+                extraText={t('在 Stripe 后台创建价格后获得')}
               />
             </Col>
           </Row>
@@ -231,6 +232,7 @@ export default function SettingsPaymentGateway(props) {
                 precision={2}
                 label={t('充值价格（x元/美金）')}
                 placeholder={t('例如：7，就是7元/美金')}
+                extraText={t('按 1 美元对应的站内价格填写')}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
@@ -238,6 +240,7 @@ export default function SettingsPaymentGateway(props) {
                 field='StripeMinTopUp'
                 label={t('最低充值美元数量')}
                 placeholder={t('例如：2，就是最低充值2$')}
+                extraText={t('用户单次最少可充值的美元数量')}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
