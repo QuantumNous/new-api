@@ -139,21 +139,23 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	return priceData, nil
 }
 
-// ModelPriceHelperPerCall 按次计费的 PriceHelper (MJ、Task)
+// ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
-	// 如果没有配置价格，检查模型倍率配置
-	if !success {
+	usePrice := success
+	var modelRatio float64
 
-		// 没有配置费用，也要使用默认费用,否则按费率计费模型无法使用
+	if !success {
 		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
 		if ok {
 			modelPrice = defaultPrice
+			usePrice = true
 		} else {
-			// 没有配置倍率也不接受没配置,那就返回错误
-			_, ratioSuccess, matchName := ratio_setting.GetModelRatio(info.OriginModelName)
+			var ratioSuccess bool
+			var matchName string
+			modelRatio, ratioSuccess, matchName = ratio_setting.GetModelRatio(info.OriginModelName)
 			acceptUnsetRatio := false
 			if info.UserSetting.AcceptUnsetRatioModel {
 				acceptUnsetRatio = true
@@ -161,25 +163,37 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 			if !ratioSuccess && !acceptUnsetRatio {
 				return types.PriceData{}, fmt.Errorf("模型 %s 倍率或价格未配置，请联系管理员设置或开始自用模式；Model %s ratio or price not set, please set or start self-use mode", matchName, matchName)
 			}
-			// 未配置价格但配置了倍率，使用默认预扣价格
-			modelPrice = float64(common.PreConsumedQuota) / common.QuotaPerUnit
 		}
-
 	}
-	quota := int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 
-	// 免费模型检测（与 ModelPriceHelper 对齐）
+	var quota int
 	freeModel := false
-	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
-		if groupRatioInfo.GroupRatio == 0 || modelPrice == 0 {
-			quota = 0
-			freeModel = true
+
+	if usePrice {
+		quota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			if groupRatioInfo.GroupRatio == 0 || modelPrice == 0 {
+				quota = 0
+				freeModel = true
+			}
+		}
+	} else {
+		// 按量计费：以模型倍率的一半作为预扣额度
+		quota = int(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		modelPrice = -1
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			if groupRatioInfo.GroupRatio == 0 || modelRatio == 0 {
+				quota = 0
+				freeModel = true
+			}
 		}
 	}
 
 	priceData := types.PriceData{
 		FreeModel:      freeModel,
 		ModelPrice:     modelPrice,
+		ModelRatio:     modelRatio,
+		UsePrice:       usePrice,
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
