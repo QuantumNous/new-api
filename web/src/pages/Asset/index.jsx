@@ -443,57 +443,63 @@ const AssetLibrary = () => {
   };
 
   const statsArea = (
-    <div className='flex flex-col gap-3'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <Tag color='light-blue' shape='circle'>
-          当前页 {assets.length} 条
-        </Tag>
-        <Tag color='cyan' shape='circle'>
-          图片 {summaryStats.imageCount}
-        </Tag>
-        <Tag color='purple' shape='circle'>
-          视频 {summaryStats.videoCount}
-        </Tag>
-        <Tag color={selectedIds.length > 0 ? 'green' : 'grey'} shape='circle'>
-          已选 {selectedIds.length}
-        </Tag>
-      </div>
-      <div className='flex flex-wrap items-center gap-2 justify-between'>
+    <div className='flex flex-col gap-4 mb-4 mt-2'>
+      <div className='flex flex-wrap items-center justify-between gap-3 bg-[var(--semi-color-fill-0)] p-3 rounded-2xl border border-[var(--semi-color-border)] shadow-sm'>
+        <div className='flex items-center gap-2 flex-1'>
+          <Tag color='light-blue' shape='circle' size='large' className='!font-medium px-3'>
+            当前页 {assets.length} 条
+          </Tag>
+          <Tag color='cyan' shape='circle' size='large' className='!font-medium px-3'>
+            图片 {summaryStats.imageCount}
+          </Tag>
+          <Tag color='purple' shape='circle' size='large' className='!font-medium px-3'>
+            视频 {summaryStats.videoCount}
+          </Tag>
+          <Tag color={selectedIds.length > 0 ? 'green' : 'grey'} shape='circle' size='large' className='!font-medium px-3 transition-colors'>
+            已选 {selectedIds.length}
+          </Tag>
+        </div>
         <div className='flex flex-wrap items-center gap-2'>
           <Button
-            size='small'
+            size='default'
             type='primary'
+            theme='solid'
             icon={<IconDownload />}
             disabled={selectedIds.length === 0}
             loading={downloading}
             onClick={handleBatchDownload}
+            className='!rounded-xl shadow-md hover:shadow-lg transition-all border-none'
           >
             批量下载
           </Button>
-          <Button size='small' type='tertiary' onClick={toggleSelectCurrentPage}>
+          <Button size='default' type='tertiary' theme='light' onClick={toggleSelectCurrentPage} className='!rounded-xl shadow-sm hover:shadow transition-all'>
             {assets.length > 0 &&
             assets.every((asset) => selectedIds.includes(asset.asset_id))
               ? '取消全选本页'
               : '全选本页'}
           </Button>
           <Button
-            size='small'
-            type={showPreview ? 'secondary' : 'tertiary'}
+            size='default'
+            type={showPreview ? 'primary' : 'tertiary'}
+            theme={showPreview ? 'light' : 'borderless'}
             icon={showPreview ? <IconEyeOpened /> : <IconEyeClosed />}
             onClick={() => setShowPreview((prev) => !prev)}
+            className='!rounded-xl shadow-sm hover:shadow transition-all'
           >
             预览 {showPreview ? '开' : '关'}
           </Button>
+          <Button
+            size='default'
+            type='tertiary'
+            theme='borderless'
+            icon={<IconRefresh />}
+            loading={loading}
+            onClick={refresh}
+            className='!rounded-xl hover:bg-[var(--semi-color-fill-1)] transition-colors'
+          >
+            刷新
+          </Button>
         </div>
-        <Button
-          size='small'
-          type='tertiary'
-          icon={<IconRefresh />}
-          loading={loading}
-          onClick={refresh}
-        >
-          刷新
-        </Button>
       </div>
     </div>
   );
@@ -509,14 +515,15 @@ const AssetLibrary = () => {
       trigger='change'
       stopValidateWithError={false}
     >
-      <div className='flex flex-col gap-2'>
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2'>
+      <div className='flex flex-col gap-3 bg-[var(--semi-color-fill-0)] p-5 rounded-2xl border border-[var(--semi-color-border)] transition-colors hover:border-[var(--semi-color-border)] shadow-sm'>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
           <Form.Select
             field='type'
             optionList={ASSET_TYPE_OPTIONS}
             placeholder='资产类型'
             pure
-            size='small'
+            size='default'
+            className='w-full !rounded-xl'
           />
           <Form.Input
             field='model_name'
@@ -524,7 +531,8 @@ const AssetLibrary = () => {
             placeholder='模型名称'
             showClear
             pure
-            size='small'
+            size='default'
+            className='w-full !rounded-xl'
           />
           {isAdminUser && (
             <Form.Input
@@ -533,28 +541,30 @@ const AssetLibrary = () => {
               placeholder='用户名'
               showClear
               pure
-              size='small'
+              size='default'
+              className='w-full !rounded-xl'
             />
           )}
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
           <Form.Input
             field='keyword'
             prefix={<IconSearch />}
             placeholder='提示词 / 会话名'
             showClear
             pure
-            size='small'
+            size='default'
+            className='w-full !rounded-xl'
           />
           <Form.DatePicker
             field='dateRange'
-            className='w-full'
+            className='w-full !rounded-xl'
             type='dateTimeRange'
             placeholder={['开始时间', '结束时间']}
             showClear
             pure
-            size='small'
+            size='default'
             presets={DATE_RANGE_PRESETS.map((preset) => ({
               text: preset.text,
               start: preset.start(),
@@ -563,13 +573,12 @@ const AssetLibrary = () => {
           />
         </div>
 
-        <div className='flex justify-end gap-2'>
-          <Button size='small' type='tertiary' htmlType='submit' loading={loading}>
-            查询
-          </Button>
+        <div className='flex justify-end gap-3 mt-1'>
           <Button
-            size='small'
+            size='default'
             type='tertiary'
+            theme='light'
+            className='!rounded-xl px-6 shadow-sm hover:shadow transition-all'
             onClick={() => {
               formApi?.reset?.();
               setTimeout(() => {
@@ -578,6 +587,16 @@ const AssetLibrary = () => {
             }}
           >
             重置
+          </Button>
+          <Button 
+            size='default' 
+            type='primary' 
+            theme='solid' 
+            htmlType='submit' 
+            loading={loading} 
+            className='!rounded-xl px-6 shadow-md hover:shadow-lg transition-all border-none'
+          >
+             查询
           </Button>
         </div>
       </div>
@@ -601,11 +620,12 @@ const AssetLibrary = () => {
           })}
         >
           {assets.length === 0 ? (
-            <div className='py-14'>
-              <Empty
-                image={<PackageOpen size={48} />}
-                title='暂无可展示的创作中心资产'
-              />
+            <div className='py-20 flex flex-col items-center justify-center bg-[var(--semi-color-fill-0)] rounded-3xl border border-dashed border-[var(--semi-color-border)] m-4 shadow-sm'>
+              <div className='w-24 h-24 rounded-full bg-[var(--semi-color-primary-light-default)] flex items-center justify-center mb-6 text-[var(--semi-color-primary)] shadow-inner'>
+                <PackageOpen size={48} strokeWidth={1.5} />
+              </div>
+              <h3 className='text-xl font-bold text-[var(--semi-color-text-0)] mb-2'>暂无可展示的资源</h3>
+              <p className='text-[var(--semi-color-text-2)] text-sm'>调整查询条件或开始一次新的创作以生成资产</p>
             </div>
           ) : (
             <div
@@ -618,22 +638,31 @@ const AssetLibrary = () => {
                 return (
                   <Card
                     key={asset.asset_id}
-                    shadows='hover'
-                    bordered={true}
-                    bodyStyle={{ padding: 12 }}
-                    className={`!rounded-2xl transition-all ${checked ? 'ring-2 ring-[var(--semi-color-primary)]' : ''}`}
+                    shadows='none'
+                    bordered={false}
+                    bodyStyle={{ padding: 16 }}
+                    className={`!rounded-3xl transition-all duration-300 border bg-[var(--semi-color-bg-1)] hover:-translate-y-1 ${
+                      checked 
+                        ? 'ring-2 ring-[var(--semi-color-primary)] ring-offset-2 border-transparent dark:ring-offset-gray-900 bg-[var(--semi-color-primary-light-default)]/10 shadow-lg shadow-[var(--semi-color-primary-light-default)]/20' 
+                        : 'border-[var(--semi-color-border)]/60 hover:border-[var(--semi-color-primary)]/50 hover:shadow-xl hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)]'
+                    }`}
                     headerLine={false}
                     title={
                       <div className='flex items-center gap-2 min-w-0'>
-                        <label className='flex items-center gap-2 min-w-0 cursor-pointer'>
-                          <input
-                            type='checkbox'
-                            checked={checked}
-                            onChange={() => handleToggleSelect(asset)}
-                          />
+                        <label className='flex items-center gap-3 min-w-0 cursor-pointer group'>
+                          <div className={`shrink-0 w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${checked ? 'bg-[var(--semi-color-primary)] border-[var(--semi-color-primary)]' : 'border-[var(--semi-color-border)] group-hover:border-[var(--semi-color-primary)] bg-transparent'}`}>
+                            {checked && <div className="w-2.5 h-2.5 rounded-sm bg-white shadow-sm" />}
+                            <input
+                              type='checkbox'
+                              className='sr-only'
+                              checked={checked}
+                              onChange={() => handleToggleSelect(asset)}
+                            />
+                          </div>
                           <Tag
                             color={asset.asset_type === 'video' ? 'purple' : 'blue'}
                             size='small'
+                            className='!font-medium px-2 rounded-lg'
                           >
                             {asset.asset_type === 'video' ? '视频' : '图片'}
                           </Tag>
@@ -641,103 +670,112 @@ const AssetLibrary = () => {
                       </div>
                     }
                   >
-                    <div className={`flex flex-col ${showPreview ? 'gap-2.5' : 'gap-2'}`}>
+                    <div className={`flex flex-col ${showPreview ? 'gap-3.5' : 'gap-3'}`}>
                       {showPreview ? (
                         <button
                           type='button'
-                          className='relative overflow-hidden rounded-xl border bg-[var(--semi-color-fill-0)] aspect-square cursor-pointer'
+                          className='group relative overflow-hidden rounded-2xl border bg-[var(--semi-color-fill-0)] aspect-square cursor-pointer shadow-sm transition-all duration-300 hover:shadow-md'
                           style={{ borderColor: 'var(--semi-color-border)' }}
                           onClick={() => setPreviewAsset(asset)}
                         >
                           {asset.asset_type === 'image' ? (
                             previewUrl ? (
-                              <img
-                                src={previewUrl}
-                                alt={asset.prompt || 'creative asset'}
-                                className='w-full h-full object-cover'
-                              />
+                              <>
+                                <img
+                                  src={previewUrl}
+                                  alt={asset.prompt || 'creative asset'}
+                                  className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
+                                />
+                                <div className='absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/10' />
+                              </>
                             ) : (
-                              <div className='w-full h-full flex items-center justify-center'>
-                                <ImageIcon size={36} />
+                              <div className='w-full h-full flex flex-col items-center justify-center text-[var(--semi-color-text-3)] transition-colors duration-300 group-hover:text-[var(--semi-color-primary)]'>
+                                <ImageIcon size={36} strokeWidth={1.5} />
                               </div>
                             )
                           ) : previewUrl ? (
                             <>
                               <video
                                 src={previewUrl}
-                                className='w-full h-full object-cover'
+                                className='w-full h-full object-cover transition-transform duration-500 group-hover:scale-105'
                                 muted
                                 preload='metadata'
                               />
-                              <div className='absolute inset-0 flex items-center justify-center bg-black/20'>
-                                <span className='inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-slate-900'>
-                                  <IconPlay />
+                              <div className='absolute inset-0 flex items-center justify-center bg-black/10 transition-colors duration-300 group-hover:bg-black/30 backdrop-blur-[1px]'>
+                                <span className='inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] transform transition-transform duration-300 group-hover:scale-110 border border-white/30'>
+                                  <IconPlay size='large' />
                                 </span>
                               </div>
                             </>
                           ) : (
-                            <div className='w-full h-full flex items-center justify-center'>
-                              <Video size={36} />
+                            <div className='w-full h-full flex flex-col items-center justify-center text-[var(--semi-color-text-3)] transition-colors duration-300 group-hover:text-[var(--semi-color-primary)]'>
+                              <Video size={36} strokeWidth={1.5} />
                             </div>
                           )}
                         </button>
                       ) : null}
 
-                      <div className='flex flex-wrap gap-2'>
-                        <Tag color='white' size='small'>
+                      <div className='flex flex-wrap gap-2 pt-1'>
+                        <Tag color='white' size='small' className='!rounded-lg border border-[var(--semi-color-border)] shadow-sm px-2'>
                           {asset.model_name || '未命名模型'}
                         </Tag>
                         {asset.group ? (
-                          <Tag color='grey' size='small'>
+                          <Tag color='grey' size='small' className='!rounded-lg px-2 border border-transparent'>
                             {asset.group}
                           </Tag>
                         ) : null}
                         {isAdminUser && asset.username ? (
-                          <Tag color='light-blue' size='small'>
+                          <Tag color='light-blue' size='small' className='!rounded-lg px-2'>
                             {asset.username}
                           </Tag>
                         ) : null}
                       </div>
 
-                      <div className={showPreview ? 'min-h-[52px]' : 'min-h-[38px]'}>
+                      <div className={showPreview ? 'min-h-[44px]' : 'min-h-[22px]'}>
                         <Paragraph
                           ellipsis={{ rows: showPreview ? 2 : 1, showTooltip: true }}
                           style={{
                             marginBottom: 0,
                             wordBreak: 'break-word',
-                            fontSize: 12,
+                            fontSize: 13,
                             lineHeight: 1.5,
+                            color: 'var(--semi-color-text-0)'
                           }}
                         >
                           {asset.prompt || '未记录提示词'}
                         </Paragraph>
                       </div>
 
-                      <div className={`grid grid-cols-1 text-xs ${showPreview ? 'gap-2' : 'gap-1.5'}`}>
-                        <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
-                          <Text type='tertiary' size='small'>
+                      <div className={`grid grid-cols-2 text-xs ${showPreview ? 'gap-2.5' : 'gap-2'}`}>
+                        <div className='flex flex-col rounded-xl px-2.5 py-2 bg-[var(--semi-color-fill-0)]/80 border border-[var(--semi-color-border)]/50 hover:bg-[var(--semi-color-fill-0)] transition-colors duration-200'>
+                          <Text type='tertiary' size='small' className='mb-1 flex items-center gap-1.5 opacity-80'>
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"></span>
                             会话
                           </Text>
-                          <div className='mt-1 font-medium break-all'>
-                            {asset.session_name || asset.session_id || '-'}
+                          <div className='font-medium text-[var(--semi-color-text-0)] break-all'>
+                            <Text ellipsis={{ showTooltip: true }} style={{ width: '100%', color: 'inherit' }}>
+                              {asset.session_name || asset.session_id || '-'}
+                            </Text>
                           </div>
                         </div>
-                        <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
-                          <Text type='tertiary' size='small'>
-                            创建时间
+                        <div className='flex flex-col rounded-xl px-2.5 py-2 bg-[var(--semi-color-fill-0)]/80 border border-[var(--semi-color-border)]/50 hover:bg-[var(--semi-color-fill-0)] transition-colors duration-200'>
+                          <Text type='tertiary' size='small' className='mb-1 flex items-center gap-1.5 opacity-80'>
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0"></span>
+                            时间
                           </Text>
-                          <div className='mt-1 font-medium text-[12px]'>
+                          <div className='font-medium text-[12px] text-[var(--semi-color-text-0)] tracking-tight'>
                             {formatAssetTime(asset.created_at)}
                           </div>
                         </div>
                       </div>
 
-                      <div className='flex gap-2'>
+                      <div className='flex gap-2.5 pt-1.5'>
                         <Button
                           block
                           type='tertiary'
-                          icon={<Eye size={14} />}
-                          size='small'
+                          theme='light'
+                          icon={<Eye size={15} strokeWidth={2} />}
+                          className='!rounded-xl shadow-sm hover:shadow transition-all font-medium flex-1'
                           onClick={() => setPreviewAsset(asset)}
                         >
                           预览
@@ -745,8 +783,9 @@ const AssetLibrary = () => {
                         <Button
                           block
                           type='primary'
-                          icon={<Download size={14} />}
-                          size='small'
+                          theme='light'
+                          icon={<Download size={15} strokeWidth={2} />}
+                          className='!rounded-xl shadow-sm hover:shadow transition-all font-medium flex-1'
                           onClick={() => downloadAssetByUrl(asset, index)}
                         >
                           下载
