@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" fill="none">
+  <defs>
+    <clipPath id="c">
+      <circle cx="24" cy="24" r="19.5"/>
+    </clipPath>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Icon mark ── -->
+  <circle cx="24" cy="24" r="23" fill="#0A0F0D"/>
+  <g clip-path="url(#c)">
+    <rect x="4"  y="13"    width="16" height="5.5" rx="2.75" fill="#10B981"/>
+    <rect x="23" y="13"    width="11" height="5.5" rx="2.75" fill="#10B981" opacity="0.45"/>
+    <rect x="37" y="13"    width="8"  height="5.5" rx="2.75" fill="#10B981" opacity="0.18"/>
+    <rect x="4"  y="21.25" width="8"  height="5.5" rx="2.75" fill="#10B981" opacity="0.22"/>
+    <rect x="15" y="21.25" width="16" height="5.5" rx="2.75" fill="#10B981" opacity="0.88"/>
+    <rect x="34" y="21.25" width="11" height="5.5" rx="2.75" fill="#10B981" opacity="0.38"/>
+    <rect x="4"  y="29.5"  width="7"  height="5.5" rx="2.75" fill="#10B981" opacity="0.15"/>
+    <rect x="14" y="29.5"  width="10" height="5.5" rx="2.75" fill="#10B981" opacity="0.45"/>
+    <rect x="27" y="29.5"  width="17" height="5.5" rx="2.75" fill="#10B981"/>
+  </g>
+  <circle cx="24" cy="24" r="22" stroke="url(#ring)" stroke-width="1.25" fill="none"/>
+  <path d="M 8.5 14 A 18 18 0 0 1 39.5 14" stroke="white" stroke-width="0.75" opacity="0.12" stroke-linecap="round" fill="none"/>
+
+  <!-- ── Wordmark ── -->
+  <text
+    x="58" y="21"
+    font-family="'DM Mono', 'IBM Plex Mono', 'Fira Code', 'Courier New', monospace"
+    font-size="13"
+    font-weight="500"
+    letter-spacing="0.5"
+    fill="#0A0F0D"
+  >llm-tokens</text>
+
+  <!-- Subtle domain suffix -->
+  <text
+    x="58" y="35"
+    font-family="'DM Mono', 'IBM Plex Mono', 'Fira Code', 'Courier New', monospace"
+    font-size="9"
+    font-weight="400"
+    letter-spacing="1.5"
+    fill="#10B981"
+    opacity="0.9"
+  >.com</text>
+
+  <!-- Thin divider between icon and text -->
+  <line x1="50" y1="10" x2="50" y2="38" stroke="#0A0F0D" stroke-width="0.75" opacity="0.12"/>
+</svg>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <clipPath id="c">
+      <circle cx="24" cy="24" r="19.5"/>
+    </clipPath>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Coin base -->
+  <circle cx="24" cy="24" r="23" fill="#0A0F0D"/>
+
+  <!-- Token stream pills, clipped to inner circle -->
+  <g clip-path="url(#c)">
+    <!-- Row 1 — top, sweeps left bright → right dim -->
+    <rect x="4"  y="13"  width="16" height="5.5" rx="2.75" fill="#10B981"/>
+    <rect x="23" y="13"  width="11" height="5.5" rx="2.75" fill="#10B981" opacity="0.45"/>
+    <rect x="37" y="13"  width="8"  height="5.5" rx="2.75" fill="#10B981" opacity="0.18"/>
+
+    <!-- Row 2 — middle pivot -->
+    <rect x="4"  y="21.25" width="8"  height="5.5" rx="2.75" fill="#10B981" opacity="0.22"/>
+    <rect x="15" y="21.25" width="16" height="5.5" rx="2.75" fill="#10B981" opacity="0.88"/>
+    <rect x="34" y="21.25" width="11" height="5.5" rx="2.75" fill="#10B981" opacity="0.38"/>
+
+    <!-- Row 3 — bottom, sweeps left dim → right bright -->
+    <rect x="4"  y="29.5"  width="7"  height="5.5" rx="2.75" fill="#10B981" opacity="0.15"/>
+    <rect x="14" y="29.5"  width="10" height="5.5" rx="2.75" fill="#10B981" opacity="0.45"/>
+    <rect x="27" y="29.5"  width="17" height="5.5" rx="2.75" fill="#10B981"/>
+  </g>
+
+  <!-- Outer ring -->
+  <circle cx="24" cy="24" r="22" stroke="url(#ring)" stroke-width="1.25" fill="none"/>
+  <!-- Subtle inner highlight arc -->
+  <path d="M 8.5 14 A 18 18 0 0 1 39.5 14" stroke="white" stroke-width="0.75" opacity="0.12" stroke-linecap="round" fill="none"/>
+</svg>

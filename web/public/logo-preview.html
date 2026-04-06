@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>llm-tokens.com — Logo Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --emerald:   #10B981;
+    --emerald-hi:#34D399;
+    --dark:      #0A0F0D;
+    --dark-2:    #111917;
+    --dark-3:    #1a2620;
+    --light:     #f0fdf4;
+    --muted:     #6ee7b7;
+  }
+
+  body {
+    background: var(--dark);
+    color: var(--light);
+    font-family: 'DM Mono', 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 40px 20px;
+  }
+
+  .page { width: 100%; max-width: 820px; }
+
+  h1 {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 48px;
+    opacity: 0.7;
+  }
+
+  /* ── Swatch grid ── */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+  }
+
+  .swatch {
+    padding: 40px 36px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .swatch::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    opacity: 0.35;
+    text-transform: uppercase;
+  }
+
+  .swatch-dark  { background: var(--dark-2); }
+  .swatch-dark2 { background: var(--dark-3); }
+  .swatch-light { background: #ffffff; }
+  .swatch-mid   { background: #f0fdf4; }
+
+  .swatch-light .wordmark-text,
+  .swatch-mid   .wordmark-text { color: var(--dark); }
+
+  /* ── Icon sizes row ── */
+  .sizes {
+    margin-top: 2px;
+    background: var(--dark-2);
+    padding: 36px;
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+  }
+  .size-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .size-label {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    opacity: 0.4;
+    text-transform: uppercase;
+  }
+
+  /* ── Inline SVG wordmark ── */
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .wordmark-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+    color: var(--light);
+  }
+  .wordmark-name {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+  }
+  .wordmark-tld {
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    color: var(--emerald);
+    margin-top: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>llm-tokens.com — logo system</h1>
+
+  <div class="grid">
+    <!-- Dark bg, full wordmark 32px -->
+    <div class="swatch swatch-dark" data-label="dark / 32px">
+      <div class="wordmark">
+        <img src="llm-tokens-icon.svg" width="32" height="32" alt=""/>
+        <div class="wordmark-text">
+          <span class="wordmark-name">llm-tokens</span>
+          <span class="wordmark-tld">.com</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dark2 bg, full wordmark 48px -->
+    <div class="swatch swatch-dark2" data-label="dark-2 / 48px">
+      <div class="wordmark">
+        <img src="llm-tokens-icon.svg" width="48" height="48" alt=""/>
+        <div class="wordmark-text">
+          <span class="wordmark-name" style="font-size:20px">llm-tokens</span>
+          <span class="wordmark-tld" style="font-size:13px">.com</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Light bg, dark text -->
+    <div class="swatch swatch-light" data-label="light / 32px">
+      <div class="wordmark">
+        <img src="llm-tokens-icon.svg" width="32" height="32" alt=""/>
+        <div class="wordmark-text" style="color:#0A0F0D">
+          <span class="wordmark-name">llm-tokens</span>
+          <span class="wordmark-tld">.com</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Light-green bg -->
+    <div class="swatch swatch-mid" data-label="mint / 32px">
+      <div class="wordmark">
+        <img src="llm-tokens-icon.svg" width="32" height="32" alt=""/>
+        <div class="wordmark-text" style="color:#0A0F0D">
+          <span class="wordmark-name">llm-tokens</span>
+          <span class="wordmark-tld">.com</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Size scale -->
+  <div class="sizes">
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="16" height="16" alt=""/>
+      <span class="size-label">16</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="24" height="24" alt=""/>
+      <span class="size-label">24</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="32" height="32" alt=""/>
+      <span class="size-label">32</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="48" height="48" alt=""/>
+      <span class="size-label">48</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="64" height="64" alt=""/>
+      <span class="size-label">64</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="96" height="96" alt=""/>
+      <span class="size-label">96</span>
+    </div>
+    <div class="size-item">
+      <img src="llm-tokens-icon.svg" width="128" height="128" alt=""/>
+      <span class="size-label">128</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
