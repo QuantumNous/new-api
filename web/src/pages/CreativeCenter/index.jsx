@@ -5727,9 +5727,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       <main className='relative flex flex-1 flex-col overflow-hidden bg-slate-100/40 backdrop-blur-xl'>
         {activeTab === 'chat' && (
           <div className='flex flex-1 min-h-0 flex-col overflow-hidden'>
-            <div ref={scrollRef} className='flex-1 min-h-0 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
+            <div
+              ref={scrollRef}
+              className='flex-1 min-h-0 overflow-y-auto px-4 pb-10 pt-6 md:px-8 xl:px-12 custom-scrollbar'
+            >
+              <div className='mx-auto flex w-full max-w-[1180px] flex-col gap-6'>
               {chatMessages.length === 0 && !isGenerating && (
-                <div className='flex h-full items-center justify-center'>
+                <div className='flex min-h-full items-center justify-center py-8'>
                   <div className='relative max-w-xl rounded-[3rem] border border-blue-100/50 bg-white/70 px-12 py-16 text-center shadow-[0_0_50px_rgba(59,130,246,0.05)] backdrop-blur-3xl overflow-hidden transition-all hover:bg-white/90 hover:shadow-[0_20px_80px_rgba(59,130,246,0.1)]'>
                     <div className='absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent pointer-events-none' />
                     <div className='relative mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-[1.75rem] bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-xl shadow-blue-500/20 ring-1 ring-blue-400'>
@@ -5750,11 +5754,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               )}
               {chatMessages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
-                    msg.role === 'user' 
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]' 
-                      : 'bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
+                <div
+                  key={msg.id}
+                  className={`flex w-full ${
+                    msg.role === 'user'
+                      ? 'justify-end md:pl-20 lg:pl-32'
+                      : 'justify-start md:pr-20 lg:pr-32'
+                  }`}
+                >
+                  <div className={`w-full rounded-[1.75rem] px-6 py-4 shadow-sm transition-all border ${
+                    msg.role === 'user'
+                      ? 'max-w-[440px] md:max-w-[520px] bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm border-blue-400/30 shadow-blue-500/10 text-[15px]'
+                      : 'max-w-[720px] xl:max-w-[780px] bg-white border-slate-200/50 text-slate-800 rounded-tl-sm shadow-black/5 text-[15px]'
                   }`}>
                     {getMessageImages(msg.content).length > 0 && (
                       <div className='mb-3 grid grid-cols-1 gap-2'>
@@ -5777,13 +5788,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 </div>
               ))}
               {isGenerating && (
-                <div className='flex justify-start animate-in slide-in-from-bottom-4 duration-500'>
+                <div className='flex w-full justify-start md:pr-20 lg:pr-32 animate-in slide-in-from-bottom-4 duration-500'>
                   <div className='bg-white border border-slate-200/50 rounded-[1.75rem] rounded-tl-sm px-6 py-4 flex gap-4 items-center text-slate-500 shadow-sm shadow-black/5'>
                     <Loader2 size={20} className='animate-spin text-blue-500' />
                     <span className='text-[13px] font-black tracking-[0.1em] uppercase text-blue-500'>正在深度思考...</span>
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         )}
@@ -6500,8 +6512,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           </div>
         )}
 
-        <div className='p-8 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent backdrop-blur-md'>
-          <div className='mx-auto max-w-4xl relative'>
+        <div className='px-4 pb-8 pt-6 md:px-8 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent backdrop-blur-md'>
+          <div className={`mx-auto relative ${activeTab === 'chat' ? 'max-w-[1180px]' : 'max-w-4xl'}`}>
             <div className='absolute -inset-1 rounded-[3rem] bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 opacity-[0.15] blur-xl transition-all duration-500 group-focus-within:opacity-[0.25] animate-pulse pb-4'></div>
             <div className='relative flex flex-col rounded-[2.5rem] bg-white/60 backdrop-blur-2xl p-5 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.05)] border border-white/60 focus-within:border-white focus-within:bg-white/80 transition-all duration-500 group'>
               <input
