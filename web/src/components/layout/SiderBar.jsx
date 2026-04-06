@@ -100,16 +100,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             : 'tableHiddle',
       },
       {
-        text: t('资产库'),
-        itemKey: 'asset',
-        to: '/assets',
-      },
-      {
         text: t('任务日志'),
         itemKey: 'task',
         to: '/task',
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+      },
+      {
+        text: t('资产库'),
+        itemKey: 'asset',
+        to: '/assets',
       },
     ];
 
