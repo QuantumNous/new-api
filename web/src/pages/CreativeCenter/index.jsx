@@ -5711,8 +5711,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                     <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-xl shadow-blue-500/30 ring-1 ring-blue-400/50'>
                       {hoveredSidebarModel.icon}
                     </div>
-                    <div className='min-w-0'>
-                      <div className='truncate text-[22px] font-black tracking-tight text-slate-900 drop-shadow-sm'>
+                    <div className='min-w-0 flex-1'>
+                      <div className='text-[20px] font-black tracking-tight text-slate-900 drop-shadow-sm leading-tight break-words'>
                         {hoveredSidebarModel.name}
                       </div>
                     </div>
