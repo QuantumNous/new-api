@@ -5688,39 +5688,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               </div>
             </button>
           ))}
-          {hoveredSidebarModel ? (
-            <div className='pointer-events-none absolute left-full top-6 z-30 ml-5 hidden w-[340px] lg:block animate-in fade-in slide-in-from-left-4 duration-300'>
-              <div className='relative overflow-hidden rounded-[2.5rem] border border-blue-100/60 bg-white/95 p-7 shadow-[0_30px_80px_-15px_rgba(59,130,246,0.2)] backdrop-blur-3xl'>
-                <div className='absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.18),transparent_70%)]' />
-                <div className='relative'>
-                  <div className='mb-6 flex items-start justify-between gap-4'>
-                    <div className='flex min-w-0 items-center gap-5'>
-                      <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/50'>
-                        {hoveredSidebarModel.icon}
-                      </div>
-                      <div className='min-w-0'>
-                        <div className='truncate text-[20px] font-black tracking-tight text-slate-900 drop-shadow-sm'>
-                          {hoveredSidebarModel.name}
-                        </div>
-                        <div className='mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-blue-500'>
-                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
-                          深度解析
-                        </div>
-                      </div>
-                    </div>
-                    {hoveredSidebarModel.priceLabel ? (
-                      <div className='shrink-0 rounded-[12px] bg-blue-50/80 border border-blue-200/60 px-3.5 py-1.5 text-[12px] font-black text-blue-600 shadow-sm'>
-                        {hoveredSidebarModel.priceLabel}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className='relative rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/50 to-white/50 p-6 text-[14px] font-medium leading-loose text-slate-600 shadow-inner'>
-                    {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无详细简介'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
+
         </div>
         
         <div className='shrink-0 p-5 mt-auto border-t border-slate-200/50 bg-white/40 backdrop-blur-md'>
@@ -5732,6 +5700,41 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             查看资产库
           </button>
         </div>
+
+        {hoveredSidebarModel ? (
+          <div className='pointer-events-none absolute left-[105%] top-32 z-[100] hidden w-[360px] lg:block animate-in fade-in slide-in-from-left-4 duration-500 zoom-in-95'>
+            <div className='relative overflow-hidden rounded-[2.5rem] border border-blue-100 bg-white/95 p-7 shadow-[0_40px_100px_-20px_rgba(59,130,246,0.25)] backdrop-blur-3xl'>
+              <div className='absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.15),transparent_75%)]' />
+              <div className='relative'>
+                <div className='mb-6 flex items-start justify-between gap-4'>
+                  <div className='flex min-w-0 items-center gap-5'>
+                    <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-xl shadow-blue-500/30 ring-1 ring-blue-400/50'>
+                      {hoveredSidebarModel.icon}
+                    </div>
+                    <div className='min-w-0'>
+                      <div className='truncate text-[22px] font-black tracking-tight text-slate-900 drop-shadow-sm'>
+                        {hoveredSidebarModel.name}
+                      </div>
+                      <div className='mt-2 flex items-center gap-2 text-[10.5px] font-black uppercase tracking-[0.25em] text-blue-500'>
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+                        深度解析
+                      </div>
+                    </div>
+                  </div>
+                  {hoveredSidebarModel.priceLabel ? (
+                    <div className='shrink-0 rounded-2xl bg-blue-50/80 border border-blue-200/60 px-3.5 py-1.5 text-[12px] font-black text-blue-600 shadow-sm'>
+                      {hoveredSidebarModel.priceLabel}
+                    </div>
+                  ) : null}
+                </div>
+                <div className='relative rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/30 to-white/60 p-6 text-[14.5px] font-medium leading-loose text-slate-600 shadow-inner'>
+                  {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无详细简介'}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
       </aside>
 
       <main className='relative flex flex-1 flex-col overflow-hidden bg-slate-100/40 backdrop-blur-xl'>
