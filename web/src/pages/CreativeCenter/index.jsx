@@ -5518,14 +5518,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   };
 
   return (
-    <div className='flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#172033] via-[#0B0F19] to-[#0B0F19] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 overflow-hidden'>
+    <div className='relative flex h-[calc(100vh-64px)] min-h-[calc(100vh-64px)] w-full bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#172033] via-[#0B0F19] to-[#0B0F19] text-slate-200 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 overflow-hidden'>
       {/* 动态背景光效 */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-indigo-600/10 blur-[120px]" />
         <div className="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-blue-600/10 blur-[150px]" />
       </div>
       <aside className='relative z-10 flex w-[320px] shrink-0 flex-col border-r border-white/5 bg-[#111827]/60 backdrop-blur-3xl shadow-[4px_0_24px_-16px_rgba(0,0,0,0.5)]'>
-        <div className='p-7'>
+        <div className='shrink-0 p-7'>
           <div className='flex items-center gap-3'>
             <div className='h-10 w-10 rounded-[14px] bg-gradient-to-br from-indigo-500 via-purple-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 ring-1 ring-white/10'>
               <Sparkles size={20} className="animate-pulse" />
@@ -5535,7 +5535,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           <p className='mt-2.5 text-[11px] font-bold text-indigo-400/70 uppercase tracking-[0.25em]'>Unleash Your Creativity</p>
         </div>
 
-        <nav className='flex justify-around border-b border-white/5 pb-5 px-5'>
+        <nav className='shrink-0 flex justify-around border-b border-white/5 pb-5 px-5'>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -5559,7 +5559,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           })}
         </nav>
 
-        <div className='border-b border-white/5 px-6 py-5'>
+        <div className='shrink-0 border-b border-white/5 px-6 py-5'>
           <div className='relative flex flex-wrap items-center gap-3'>
             <button
               type='button'
