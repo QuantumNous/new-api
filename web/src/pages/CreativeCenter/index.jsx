@@ -5653,7 +5653,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
         </div>
 
-        <div className='relative flex-1 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar custom-dark-scrollbar'>
+        <div className='relative flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-3 custom-scrollbar custom-dark-scrollbar'>
           <div className='text-[10px] font-bold text-indigo-400/80 uppercase tracking-[0.2em] mb-4 px-2 flex items-center gap-2'>
             <div className="h-[1px] w-4 bg-indigo-500/30"></div>
             核心创作模型
@@ -5727,8 +5727,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       <main className='relative flex flex-1 flex-col overflow-hidden bg-[#0F172A]/40 backdrop-blur-xl'>
         {activeTab === 'chat' && (
-          <div className='flex flex-1 flex-col overflow-hidden'>
-            <div ref={scrollRef} className='flex-1 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
+          <div className='flex flex-1 min-h-0 flex-col overflow-hidden'>
+            <div ref={scrollRef} className='flex-1 min-h-0 overflow-y-auto px-8 pb-10 pt-4 space-y-6 custom-scrollbar'>
               {chatMessages.length === 0 && !isGenerating && (
                 <div className='flex h-full items-center justify-center'>
                   <div className='relative max-w-xl rounded-[3rem] border border-white/5 bg-[#1E293B]/60 px-12 py-16 text-center shadow-[0_0_50px_rgba(0,0,0,0.3)] backdrop-blur-2xl overflow-hidden'>
@@ -5790,7 +5790,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         )}
 
         {activeTab !== 'chat' && (
-          <div ref={scrollRef} className='relative flex-1 overflow-y-auto px-10 pb-10 pt-4 custom-scrollbar'>
+          <div ref={scrollRef} className='relative flex-1 min-h-0 overflow-y-auto px-10 pb-10 pt-4 custom-scrollbar'>
             {activeTab === 'image' && imageRecords.length > 0 ? (
               <div className='mx-auto flex w-full max-w-6xl flex-col gap-8'>
                 <div className='space-y-10'>
