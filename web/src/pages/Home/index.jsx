@@ -736,7 +736,7 @@ const Home = () => {
                     lineHeight: isMobile ? 1.26 : '90px',
                   }}
                 >
-                  {t('高效且稳定的')}
+                  {t('高效且稳定地')}
                   <br />
                   {t('访问所有AI模型')}
                 </h2>
