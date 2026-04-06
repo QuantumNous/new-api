@@ -5702,26 +5702,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         </div>
 
         {hoveredSidebarModel ? (
-          <div className='pointer-events-none absolute left-[105%] top-32 z-[100] hidden w-[360px] lg:block animate-in fade-in slide-in-from-left-4 duration-500 zoom-in-95'>
+          <div className='pointer-events-none absolute left-[105%] top-32 z-[100] hidden min-w-[340px] max-w-[450px] lg:block animate-in fade-in slide-in-from-left-4 duration-500 zoom-in-95'>
             <div className='relative overflow-hidden rounded-[2.5rem] border border-blue-100 bg-white/95 p-7 shadow-[0_40px_100px_-20px_rgba(59,130,246,0.25)] backdrop-blur-3xl'>
               <div className='absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.15),transparent_75%)]' />
               <div className='relative'>
-                <div className='mb-6 flex items-start justify-between gap-4'>
-                  <div className='flex min-w-0 items-center gap-5'>
-                    <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-xl shadow-blue-500/30 ring-1 ring-blue-400/50'>
-                      {hoveredSidebarModel.icon}
-                    </div>
-                    <div className='min-w-0 flex-1'>
-                      <div className='text-[20px] font-black tracking-tight text-slate-900 drop-shadow-sm leading-tight break-words'>
-                        {hoveredSidebarModel.name}
-                      </div>
-                    </div>
+                <div className='mb-6 flex items-center gap-5'>
+                  <div className='flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-blue-500 to-sky-400 text-white shadow-xl shadow-blue-500/30 ring-1 ring-blue-400/50'>
+                    {hoveredSidebarModel.icon}
                   </div>
-                  {hoveredSidebarModel.priceLabel ? (
-                    <div className='shrink-0 rounded-2xl bg-blue-50/80 border border-blue-200/60 px-3.5 py-1.5 text-[12px] font-black text-blue-600 shadow-sm'>
-                      {hoveredSidebarModel.priceLabel}
-                    </div>
-                  ) : null}
+                  <div className='text-[20px] font-black tracking-tight text-slate-900 drop-shadow-sm leading-tight whitespace-nowrap shrink-0'>
+                    {hoveredSidebarModel.name}
+                  </div>
                 </div>
                 <div className='relative rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/30 to-white/60 p-6 text-[14.5px] font-medium leading-loose text-slate-600 shadow-inner'>
                   {hoveredSidebarModel.fullDesc || hoveredSidebarModel.desc || '暂无详细简介'}
