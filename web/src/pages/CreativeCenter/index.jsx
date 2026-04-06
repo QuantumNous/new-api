@@ -5715,10 +5715,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                       <div className='truncate text-[22px] font-black tracking-tight text-slate-900 drop-shadow-sm'>
                         {hoveredSidebarModel.name}
                       </div>
-                      <div className='mt-2 flex items-center gap-2 text-[10.5px] font-black uppercase tracking-[0.25em] text-blue-500'>
-                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
-                        深度解析
-                      </div>
                     </div>
                   </div>
                   {hoveredSidebarModel.priceLabel ? (
