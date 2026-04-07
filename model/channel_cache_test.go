@@ -13,8 +13,8 @@ func prepareChannelCacheTest(t *testing.T) {
 	t.Helper()
 	initCol()
 	require.NoError(t, DB.AutoMigrate(&Ability{}))
-	DB.Exec("DELETE FROM abilities")
-	DB.Exec("DELETE FROM channels")
+	require.NoError(t, DB.Exec("DELETE FROM abilities").Error)
+	require.NoError(t, DB.Exec("DELETE FROM channels").Error)
 
 	channelSyncLock.Lock()
 	group2model2channels = nil
