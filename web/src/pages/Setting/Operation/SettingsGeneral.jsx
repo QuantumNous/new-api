@@ -274,7 +274,6 @@ export default function GeneralSettings(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-<<<<<<< HEAD
                 <Form.Select
                   field='general_setting.quota_display_type'
                   label={t('额度展示类型')}

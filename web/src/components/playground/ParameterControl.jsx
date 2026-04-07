@@ -248,7 +248,6 @@ const ParameterControl = ({
             disabled={disabled}
           />
         </div>
-<<<<<<< HEAD
         <InputNumber
           id='playground-max-tokens'
           placeholder='MaxTokens'
