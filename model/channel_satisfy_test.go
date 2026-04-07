@@ -63,3 +63,35 @@ func TestHasResponsesBootstrapRecoveryEnabledChannelAcceptsEnabledOptInChannel(t
 		t.Fatal("enabled opted-in channel should satisfy responses bootstrap recovery")
 	}
 }
+
+func TestHasResponsesBootstrapRecoveryCandidateChannelAcceptsDisabledOptInChannel(t *testing.T) {
+	withResponsesBootstrapCacheFixture(t, map[int]*Channel{
+		1: {
+			Id:            1,
+			Status:        common.ChannelStatusManuallyDisabled,
+			Group:         "default",
+			Models:        "gpt-5",
+			OtherSettings: `{"responses_stream_bootstrap_recovery_enabled":true}`,
+		},
+	})
+
+	if !HasResponsesBootstrapRecoveryCandidateChannel([]string{"default"}, "gpt-5") {
+		t.Fatal("disabled opted-in channel should remain a bootstrap recovery candidate")
+	}
+}
+
+func TestHasResponsesBootstrapRecoveryCandidateChannelRejectsNonOptInChannel(t *testing.T) {
+	withResponsesBootstrapCacheFixture(t, map[int]*Channel{
+		1: {
+			Id:            1,
+			Status:        common.ChannelStatusManuallyDisabled,
+			Group:         "default",
+			Models:        "gpt-5",
+			OtherSettings: `{"responses_stream_bootstrap_recovery_enabled":false}`,
+		},
+	})
+
+	if HasResponsesBootstrapRecoveryCandidateChannel([]string{"default"}, "gpt-5") {
+		t.Fatal("non-opt-in channel should not satisfy bootstrap recovery candidate lookup")
+	}
+}

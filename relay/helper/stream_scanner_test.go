@@ -116,9 +116,8 @@ func TestStreamScannerHandler_ZeroStreamingTimeoutFallsBack(t *testing.T) {
 
 	var called atomic.Bool
 	require.NotPanics(t, func() {
-		StreamScannerHandler(c, resp, info, func(data string) bool {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
 			called.Store(true)
-			return true
 		})
 	})
 	assert.True(t, called.Load())

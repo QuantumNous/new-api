@@ -73,6 +73,35 @@ func HasResponsesBootstrapRecoveryEnabledChannel(groups []string, modelName stri
 	return false
 }
 
+func HasResponsesBootstrapRecoveryCandidateChannel(groups []string, modelName string) bool {
+	if len(groups) == 0 || modelName == "" {
+		return false
+	}
+	normalized := ratio_setting.FormatMatchingModelName(modelName)
+	if !common.MemoryCacheEnabled {
+		return hasResponsesBootstrapRecoveryCandidateChannelDB(groups, modelName, normalized)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	for _, channel := range channelsIDM {
+		if channel == nil {
+			continue
+		}
+		if !channel.GetOtherSettings().ResponsesStreamBootstrapRecoveryEnabled {
+			continue
+		}
+		if !channelMatchesAnyGroup(channel, groups) {
+			continue
+		}
+		if channelSupportsModel(channel, modelName, normalized) {
+			return true
+		}
+	}
+	return false
+}
+
 func isChannelEnabledForGroupModelDB(group string, modelName string, channelID int) bool {
 	var count int64
 	err := DB.Model(&Ability{}).
@@ -95,6 +124,28 @@ func isChannelEnabledForGroupModelDB(group string, modelName string, channelID i
 func hasResponsesBootstrapRecoveryEnabledChannelDB(groups []string, modelName string, normalized string) bool {
 	var channels []*Channel
 	if err := DB.Where("status = ?", common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
+		return false
+	}
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		if !channel.GetOtherSettings().ResponsesStreamBootstrapRecoveryEnabled {
+			continue
+		}
+		if !channelMatchesAnyGroup(channel, groups) {
+			continue
+		}
+		if channelSupportsModel(channel, modelName, normalized) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasResponsesBootstrapRecoveryCandidateChannelDB(groups []string, modelName string, normalized string) bool {
+	var channels []*Channel
+	if err := DB.Find(&channels).Error; err != nil {
 		return false
 	}
 	for _, channel := range channels {

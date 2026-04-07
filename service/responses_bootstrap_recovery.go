@@ -198,7 +198,7 @@ func ShouldWaitForResponsesBootstrapRecoverySelection(c *gin.Context, usingGroup
 		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 		groups = GetUserAutoGroup(userGroup)
 	}
-	return model.HasResponsesBootstrapRecoveryEnabledChannel(groups, modelName)
+	return model.HasResponsesBootstrapRecoveryCandidateChannel(groups, modelName)
 }
 
 func IsResponsesBootstrapRecoveryEnabledForSelectedChannel(c *gin.Context) bool {
