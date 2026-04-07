@@ -21,11 +21,6 @@ import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 
 const PricingDisplaySettings = ({
-  showWithRecharge,
-  setShowWithRecharge,
-  currency,
-  setCurrency,
-  siteDisplayType,
   showRatio,
   setShowRatio,
   viewMode,
@@ -35,17 +30,7 @@ const PricingDisplaySettings = ({
   loading = false,
   t,
 }) => {
-  const supportsCurrencyDisplay = siteDisplayType !== 'TOKENS';
-
   const items = [
-    ...(supportsCurrencyDisplay
-      ? [
-          {
-            value: 'recharge',
-            label: t('充值价格显示'),
-          },
-        ]
-      : []),
     {
       value: 'ratio',
       label: t('显示倍率'),
@@ -60,17 +45,8 @@ const PricingDisplaySettings = ({
     },
   ];
 
-  const currencyItems = [
-    { value: 'USD', label: 'USD ($)' },
-    { value: 'CNY', label: 'CNY (¥)' },
-    { value: 'CUSTOM', label: t('自定义货币') },
-  ];
-
   const handleChange = (value) => {
     switch (value) {
-      case 'recharge':
-        setShowWithRecharge(!showWithRecharge);
-        break;
       case 'ratio':
         setShowRatio(!showRatio);
         break;
@@ -85,7 +61,6 @@ const PricingDisplaySettings = ({
 
   const getActiveValues = () => {
     const activeValues = [];
-    if (supportsCurrencyDisplay && showWithRecharge) activeValues.push('recharge');
     if (showRatio) activeValues.push('ratio');
     if (viewMode === 'table') activeValues.push('tableView');
     if (tokenUnit === 'K') activeValues.push('tokenUnit');
@@ -93,30 +68,16 @@ const PricingDisplaySettings = ({
   };
 
   return (
-    <div>
-      <SelectableButtonGroup
-        title={t('显示设置')}
-        items={items}
-        activeValue={getActiveValues()}
-        onChange={handleChange}
-        withCheckbox
-        collapsible={false}
-        loading={loading}
-        t={t}
-      />
-
-      {supportsCurrencyDisplay && showWithRecharge && (
-        <SelectableButtonGroup
-          title={t('货币单位')}
-          items={currencyItems}
-          activeValue={currency}
-          onChange={setCurrency}
-          collapsible={false}
-          loading={loading}
-          t={t}
-        />
-      )}
-    </div>
+    <SelectableButtonGroup
+      title={t('显示设置')}
+      items={items}
+      activeValue={getActiveValues()}
+      onChange={handleChange}
+      withCheckbox
+      collapsible={false}
+      loading={loading}
+      t={t}
+    />
   );
 };
 
