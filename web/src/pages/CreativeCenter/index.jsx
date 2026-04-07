@@ -1,4 +1,5 @@
 import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
+import { SSE } from 'sse.js';
 import {
   ArrowUp,
   Check,
@@ -262,6 +263,11 @@ const parseTimestampValue = (value, fallback = 0) => {
 
 const shouldUseEstimatedImageProgress = (modelName) => Boolean(modelName);
 const shouldUseEstimatedVideoProgress = (modelName) => Boolean(modelName);
+const shouldUseCreativeCenterChatStream = (modelName) => {
+  const normalizedModelName =
+    typeof modelName === 'string' ? modelName.trim().toLowerCase() : '';
+  return normalizedModelName.includes('gpt');
+};
 
 const getEstimatedImageDurationMs = (params = {}) => {
   switch (params?.outputResolution) {
@@ -546,6 +552,212 @@ const extractImageUrlsFromCreativeResponse = (data) => {
   }
 
   return [];
+};
+
+const CREATIVE_CENTER_TEXT_FRAGMENT_KEYS = [
+  'text',
+  'output_text',
+  'summary_text',
+  'generated_text',
+  'generation',
+  'completion',
+  'content',
+  'message',
+  'response',
+  'result',
+  'answer',
+  'value',
+  'refusal',
+  'transcript',
+  'markdown',
+  'outputText',
+  'responseText',
+  'content_text',
+  'text_content',
+];
+
+const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
+  'data',
+  'payload',
+  'body',
+  'choice',
+  'message',
+  'output',
+  'outputs',
+  'choices',
+  'candidates',
+  'parts',
+  'segments',
+  'items',
+  'messages',
+  'delta',
+];
+
+const CREATIVE_CENTER_DIAGNOSTIC_MESSAGE_PREFIXES = [
+  '模型已返回响应',
+  '请求失败',
+];
+const CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT = 4000;
+
+const isCreativeCenterDiagnosticAssistantMessage = (message) => {
+  if (!message || message.role !== 'assistant' || typeof message.content !== 'string') {
+    return false;
+  }
+
+  const content = message.content.trim();
+  return CREATIVE_CENTER_DIAGNOSTIC_MESSAGE_PREFIXES.some((prefix) =>
+    content.startsWith(prefix),
+  );
+};
+
+const buildCreativeCenterChatRequestMessages = (messages) => {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.filter((message) => {
+    if (!message || !message.role) {
+      return false;
+    }
+    if (message.role !== 'assistant') {
+      return true;
+    }
+    if (isCreativeCenterDiagnosticAssistantMessage(message)) {
+      return false;
+    }
+    if (typeof message.content === 'string' && !message.content.trim()) {
+      return false;
+    }
+    return true;
+  });
+};
+
+const collectCreativeCenterTextFragments = (value, visited = new WeakSet()) => {
+  if (typeof value === 'string') {
+    return value.trim() ? [value] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) =>
+      collectCreativeCenterTextFragments(item, visited),
+    );
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+  if (visited.has(value)) {
+    return [];
+  }
+  visited.add(value);
+
+  const fragments = [];
+  const append = (nextValue) => {
+    collectCreativeCenterTextFragments(nextValue, visited).forEach((fragment) => {
+      if (fragment.trim()) {
+        fragments.push(fragment);
+      }
+    });
+  };
+
+  CREATIVE_CENTER_TEXT_FRAGMENT_KEYS.forEach((key) => {
+    if (value[key] !== undefined && value[key] !== null) {
+      append(value[key]);
+    }
+  });
+
+  CREATIVE_CENTER_NESTED_RESPONSE_KEYS.forEach((key) => {
+    if (
+      value[key] &&
+      typeof value[key] === 'object' &&
+      !CREATIVE_CENTER_TEXT_FRAGMENT_KEYS.includes(key)
+    ) {
+      append(value[key]);
+    }
+  });
+
+  return [...new Set(fragments)];
+};
+
+const formatCreativeCenterRawResponsePreview = (payload) => {
+  const formatTextPreview = (value) => {
+    const trimmedValue = typeof value === 'string' ? value.trim() : '';
+    return trimmedValue.length > CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT
+      ? `${trimmedValue.slice(0, CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT)}\n...`
+      : trimmedValue;
+  };
+
+  if (payload === undefined || payload === null) {
+    return '';
+  }
+  if (typeof payload === 'string') {
+    return formatTextPreview(payload);
+  }
+  try {
+    const serialized = JSON.stringify(payload, null, 2);
+    return formatTextPreview(serialized);
+  } catch {
+    return '';
+  }
+};
+
+const extractCreativeCenterChatResponse = (payload) => {
+  const rootPayload =
+    payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object'
+      ? payload.data
+      : payload;
+  const choice = rootPayload?.choices?.[0];
+  const message = choice?.message || {};
+  const candidate = rootPayload?.candidates?.[0];
+  const outputItems = Array.isArray(rootPayload?.output)
+    ? rootPayload.output
+    : [];
+
+  const reasoningFragments = [
+    message.reasoning_content,
+    message.reasoning,
+    choice?.reasoning_content,
+    choice?.reasoning,
+    rootPayload?.reasoning_content,
+    rootPayload?.reasoning,
+  ]
+    .flatMap((value) => collectCreativeCenterTextFragments(value))
+    .filter(Boolean);
+
+  const contentFragments = [
+    choice,
+    message,
+    message.content,
+    choice?.text,
+    choice?.delta?.content,
+    rootPayload?.output_text,
+    rootPayload?.text,
+    rootPayload?.content,
+    rootPayload?.message,
+    rootPayload?.response,
+    rootPayload?.result,
+    rootPayload?.answer,
+    rootPayload?.data,
+    rootPayload?.payload,
+    rootPayload?.body,
+    candidate?.content?.parts,
+    outputItems,
+  ]
+    .flatMap((value) => collectCreativeCenterTextFragments(value))
+    .filter(Boolean);
+
+  const content = [...new Set(contentFragments)].join('\n\n').trim();
+  const reasoningContent = [...new Set(reasoningFragments)].join('\n\n').trim();
+  const rawResponsePreview =
+    !content && !reasoningContent
+      ? formatCreativeCenterRawResponsePreview(rootPayload || payload)
+      : '';
+
+  return {
+    content,
+    reasoningContent,
+    rawResponsePreview,
+  };
 };
 
 const buildCreativeCenterImageDisplayUrl = (url) => {
@@ -2300,6 +2512,8 @@ export default function App() {
     };
 
     const resolveTabsForModel = (modelName, model) => {
+      const capabilityModelName =
+        model?.upstream_model_name || model?.upstreamModelName || modelName;
       const tags = String(model?.tags || '')
         .split(',')
         .map((tag) => tag.trim())
@@ -2332,7 +2546,7 @@ export default function App() {
         return ['image'];
       }
 
-      return inferTabsFromModelName(modelName);
+      return inferTabsFromModelName(capabilityModelName);
     };
 
     const createModelCard = (model, tabKey, modelName, vendorMap) => {
@@ -2341,6 +2555,8 @@ export default function App() {
         .map((tag) => tag.trim())
         .filter(Boolean);
       const resolvedModelName = model?.model_name || model?.name || modelName || '未命名模型';
+      const capabilityModelName =
+        model?.upstream_model_name || model?.upstreamModelName || resolvedModelName;
       const vendor =
         model?.vendor_id && vendorMap[model.vendor_id]
           ? vendorMap[model.vendor_id]
@@ -2357,6 +2573,7 @@ export default function App() {
         desc: resolvedDescription,
         fullDesc: resolvedDescription,
         pricingModel: model,
+        capabilityModelName,
         icon: renderCreativeModelIcon(
           Number(model?.channel_type || 0),
           model?.icon,
@@ -2573,32 +2790,34 @@ export default function App() {
     currentDisplayModels[0] ||
     null;
   const currentModelName = selectedModel?.value || selectedModel?.name || '';
+  const currentCapabilityModelName =
+    selectedModel?.capabilityModelName || currentModelName;
   const isGrokImagineImageModel =
-    GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
-  const isGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(currentModelName);
+    GROK_IMAGINE_IMAGE_MODELS.has(currentCapabilityModelName);
+  const isGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(currentCapabilityModelName);
   const isGrokImageGenerationModel =
-    GROK_IMAGE_GENERATION_MODELS.has(currentModelName);
-  const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
-  const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
+    GROK_IMAGE_GENERATION_MODELS.has(currentCapabilityModelName);
+  const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentCapabilityModelName);
+  const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentCapabilityModelName);
   const isAdobeSoraModel =
-    currentModelName === 'sora2' || currentModelName === 'sora2-pro';
+    currentCapabilityModelName === 'sora2' || currentCapabilityModelName === 'sora2-pro';
   const isAdobeVeoModel =
-    currentModelName === 'veo31' ||
-    currentModelName === 'veo31-ref' ||
-    currentModelName === 'veo31-fast';
+    currentCapabilityModelName === 'veo31' ||
+    currentCapabilityModelName === 'veo31-ref' ||
+    currentCapabilityModelName === 'veo31-fast';
   const isChatTab = activeTab === 'chat';
   const isSubmitPending = (isChatTab && isGenerating) || isUploadingImage;
   const isVideoModel =
-    typeof currentModelName === 'string' && currentModelName.includes('video');
-  const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
-  const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
+    typeof currentCapabilityModelName === 'string' && currentCapabilityModelName.includes('video');
+  const isGrokImagineVideoModel = currentCapabilityModelName === 'grok-imagine-1.0-video';
+  const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentCapabilityModelName);
   const currentAdobeImageAspectRatioOptions =
-    getAdobeImageAspectRatioOptions(currentModelName);
+    getAdobeImageAspectRatioOptions(currentCapabilityModelName);
   const currentAdobeSupportsAutoImageSize =
-    supportsAdobeAutoImageSize(currentModelName);
+    supportsAdobeAutoImageSize(currentCapabilityModelName);
   const isCurrentModelImageUploadEnabled = isCreativeCenterImageUploadEnabled(
     activeTab,
-    currentModelName,
+    currentCapabilityModelName,
   );
   useEffect(() => {
     if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
@@ -2681,20 +2900,23 @@ export default function App() {
     const snapshot = {
       generationCount: sourceParams.generationCount,
     };
+    const capabilityModelName =
+      findModelCard(tabKey, modelName)?.capabilityModelName || modelName;
     const isCurrentGrokImagineImageModel =
-      GROK_IMAGINE_IMAGE_MODELS.has(modelName);
-    const isCurrentGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(modelName);
-    const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(modelName);
-    const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(modelName);
+      GROK_IMAGINE_IMAGE_MODELS.has(capabilityModelName);
+    const isCurrentGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(capabilityModelName);
+    const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(capabilityModelName);
+    const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(capabilityModelName);
     const isCurrentAdobeSoraModel =
-      modelName === 'sora2' || modelName === 'sora2-pro';
+      capabilityModelName === 'sora2' || capabilityModelName === 'sora2-pro';
     const isCurrentAdobeVeoModel =
-      modelName === 'veo31' ||
-      modelName === 'veo31-ref' ||
-      modelName === 'veo31-fast';
+      capabilityModelName === 'veo31' ||
+      capabilityModelName === 'veo31-ref' ||
+      capabilityModelName === 'veo31-fast';
     const isCurrentVideoModel =
-      typeof modelName === 'string' && modelName.includes('video');
-    const isCurrentGrokImagineVideoModel = modelName === 'grok-imagine-1.0-video';
+      typeof capabilityModelName === 'string' && capabilityModelName.includes('video');
+    const isCurrentGrokImagineVideoModel =
+      capabilityModelName === 'grok-imagine-1.0-video';
 
     if (tabKey === 'image') {
       if (isCurrentGrokImagineImageModel && !isCurrentGrokImageEditModel) {
@@ -2702,12 +2924,12 @@ export default function App() {
       }
 
       if (isCurrentAdobeImageModel) {
-        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(modelName);
+        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(capabilityModelName);
         const defaultAdobeAspectRatio =
           adobeAspectRatioOptions[0]?.value || '1:1';
         snapshot.aspectRatio = sourceParams.aspectRatio || defaultAdobeAspectRatio;
         if (
-          supportsAdobeAutoImageSize(modelName) &&
+          supportsAdobeAutoImageSize(capabilityModelName) &&
           snapshot.aspectRatio === 'auto'
         ) {
           snapshot.autoImageSize = sourceParams.autoImageSize;
@@ -2728,13 +2950,13 @@ export default function App() {
 
       if (isCurrentAdobeVideoModel) {
         snapshot.videoDuration =
-          sourceParams.videoDuration || getAdobeVideoDefaultDuration(modelName);
+          sourceParams.videoDuration || getAdobeVideoDefaultDuration(capabilityModelName);
         snapshot.aspectRatio =
-          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(modelName);
+          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(capabilityModelName);
         if (isCurrentAdobeVeoModel) {
           snapshot.videoResolution = sourceParams.videoResolution || '1080p';
         }
-        if (modelName === 'veo31') {
+        if (capabilityModelName === 'veo31') {
           snapshot.referenceMode = sourceParams.referenceMode || 'frame';
         }
       }
@@ -2877,7 +3099,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       if (isAdobeImageModel) {
         const adobeAspectRatioOptions =
-          getAdobeImageAspectRatioOptions(currentModelName);
+          getAdobeImageAspectRatioOptions(currentCapabilityModelName);
         const defaultAdobeAspectRatio =
           adobeAspectRatioOptions[0]?.value || '1:1';
         if (
@@ -2888,7 +3110,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           next.aspectRatio = defaultAdobeAspectRatio;
         }
         if (
-          supportsAdobeAutoImageSize(currentModelName) &&
+          supportsAdobeAutoImageSize(currentCapabilityModelName) &&
           !ADOBE_AUTO_IMAGE_SIZE_OPTIONS.some(
             (option) => option.value === next.autoImageSize,
           )
@@ -2936,17 +3158,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       }
 
       if (isAdobeVideoModel) {
-        const durationOptions = getAdobeVideoDurationOptions(currentModelName);
-        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentModelName);
+        const durationOptions = getAdobeVideoDurationOptions(currentCapabilityModelName);
+        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentCapabilityModelName);
         if (
           !durationOptions.some((option) => option.value === next.videoDuration)
         ) {
-          next.videoDuration = getAdobeVideoDefaultDuration(currentModelName);
+          next.videoDuration = getAdobeVideoDefaultDuration(currentCapabilityModelName);
         }
         if (
           !aspectRatioOptions.some((option) => option.value === next.aspectRatio)
         ) {
-          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentModelName);
+          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentCapabilityModelName);
         }
         if (
           isAdobeVeoModel &&
@@ -2957,7 +3179,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           next.videoResolution = '1080p';
         }
         if (
-          currentModelName === 'veo31' &&
+          currentCapabilityModelName === 'veo31' &&
           !ADOBE_REFERENCE_MODE_OPTIONS.some(
             (option) => option.value === next.referenceMode,
           )
@@ -2969,6 +3191,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
     });
   }, [
+    currentCapabilityModelName,
     currentModelName,
     isAdobeImageModel,
     isAdobeVeoModel,
@@ -2982,6 +3205,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     modelName = currentModelName,
     tabKey = activeTab,
   ) => {
+    const capabilityModelName =
+      findModelCard(tabKey, modelName)?.capabilityModelName || modelName;
     const effectiveParams = createEffectiveParamsSnapshot(
       tabKey,
       modelName,
@@ -2990,6 +3215,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     return {
       model: modelName,
+      capabilityModel: capabilityModelName,
       group: activeGroup,
       stream: false,
       imageSize: effectiveParams.imageSize,
@@ -3398,6 +3624,86 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     });
     return response.data;
   };
+
+  const postCreativeChatStreamRequest = (payload) =>
+    new Promise((resolve, reject) => {
+      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        headers: {
+          'Content-Type': 'application/json',
+          'New-API-User': getUserIdFromLocalStorage(),
+        },
+        method: 'POST',
+        payload: JSON.stringify({
+          ...payload,
+          stream: true,
+        }),
+      });
+
+      let settled = false;
+      const contentFragments = [];
+      const reasoningFragments = [];
+      const rawFragments = [];
+      const cleanup = () => {
+        try {
+          source.close();
+        } catch {
+          // ignore close errors from already-closed SSE connections
+        }
+      };
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve({
+          content: contentFragments.join('').trim(),
+          reasoningContent: reasoningFragments.join('').trim(),
+          rawResponsePreview: formatCreativeCenterRawResponsePreview(
+            rawFragments.join('\n'),
+          ),
+        });
+      };
+      const fail = (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      source.addEventListener('message', (event) => {
+        if (event.data === '[DONE]') {
+          finish();
+          return;
+        }
+
+        rawFragments.push(event.data);
+        try {
+          const chunk = JSON.parse(event.data);
+          const chunkResponse = extractCreativeCenterChatResponse(chunk);
+          if (chunkResponse.reasoningContent) {
+            reasoningFragments.push(chunkResponse.reasoningContent);
+          }
+          if (chunkResponse.content) {
+            contentFragments.push(chunkResponse.content);
+          }
+        } catch (error) {
+          fail(error);
+        }
+      });
+
+      source.addEventListener('error', (event) => {
+        fail(new Error(event?.data || 'SSE request failed'));
+      });
+
+      try {
+        source.stream();
+      } catch (error) {
+        fail(error);
+      }
+    });
 
   const persistImageRecords = async (records, options = {}) => {
     lastPersistedImageSignatureRef.current = buildCreativePersistSignature(records, 'image');
@@ -4930,21 +5236,28 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const nextUserMessages = [...currentChatHistory, userMsg];
       setChatMessages(nextUserMessages);
       try {
+        const requestMessages =
+          buildCreativeCenterChatRequestMessages(nextUserMessages);
         const payload = buildApiPayload(
-          nextUserMessages,
+          requestMessages,
           '',
           createCreativeInputs(params, currentModelName, 'chat'),
           PARAMETER_TOGGLES_DISABLED,
         );
-        const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
-        const choice = data?.choices?.[0];
+        const chatResponse = shouldUseCreativeCenterChatStream(currentCapabilityModelName)
+          ? await postCreativeChatStreamRequest(payload)
+          : extractCreativeCenterChatResponse(
+              await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload),
+            );
         const processed = processThinkTags(
-          choice?.message?.content || '',
-          choice?.message?.reasoning_content || choice?.message?.reasoning || '',
+          chatResponse.content,
+          chatResponse.reasoningContent,
         );
         const content =
           [processed.reasoningContent, processed.content].filter(Boolean).join('\n\n') ||
-          '模型已返回响应，但未解析到可展示内容。';
+          (chatResponse.rawResponsePreview
+            ? `模型已返回响应，但格式未识别，以下是原始响应摘要：\n\n\`\`\`json\n${chatResponse.rawResponsePreview}\n\`\`\``
+            : '模型已返回响应，但未解析到可展示内容。');
         const assistantMsg = {
           role: 'assistant',
           content,
@@ -5061,7 +5374,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               currentUploadedImageUrls,
             );
             const useAdobeChatImageRequest =
-              ADOBE_CHAT_IMAGE_MODELS.has(currentModelName);
+              ADOBE_CHAT_IMAGE_MODELS.has(currentCapabilityModelName);
             const payload = useAdobeChatImageRequest
               ? {
                   model: currentModelName,
@@ -5130,7 +5443,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             patchImageTask(recordId, taskId, {
               requestId,
               requestPollable:
-                ADOBE_IMAGE_MODELS.has(currentModelName) &&
+                ADOBE_IMAGE_MODELS.has(currentCapabilityModelName) &&
                 !useAdobeChatImageRequest,
               submittedAt,
               estimateStartAt,
@@ -5397,7 +5710,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               }
             });
             if (
-              currentModelName === 'grok-imagine-1.0-video' &&
+              currentCapabilityModelName === 'grok-imagine-1.0-video' &&
               currentUploadedImageUrls.length > 0
             ) {
               payload.image_reference = currentUploadedImageUrls;
@@ -6773,11 +7086,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         menuKey='videoDuration'
                         icon={<Clock size={14} />}
                         label={`时长 ${getOptionLabel(
-                          getAdobeVideoDurationOptions(currentModelName),
+                          getAdobeVideoDurationOptions(currentCapabilityModelName),
                           params.videoDuration,
                         )}`}
                         value={params.videoDuration}
-                        options={getAdobeVideoDurationOptions(currentModelName)}
+                        options={getAdobeVideoDurationOptions(currentCapabilityModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -6791,7 +7104,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         icon={<Copy size={14} />}
                         label={`比例 ${params.aspectRatio}`}
                         value={params.aspectRatio}
-                        options={getAdobeVideoAspectRatioOptions(currentModelName)}
+                        options={getAdobeVideoAspectRatioOptions(currentCapabilityModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -6819,7 +7132,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         />
                       )}
 
-                      {currentModelName === 'veo31' && (
+                      {currentCapabilityModelName === 'veo31' && (
                         <DropSelectButton
                           menuKey='referenceMode'
                           icon={<Layers size={14} />}
