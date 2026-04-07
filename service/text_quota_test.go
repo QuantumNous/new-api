@@ -220,7 +220,7 @@ func TestCalculateTextQuotaSummaryClampsNegativeUseTime(t *testing.T) {
 				GroupRatio: 1,
 			},
 		},
-		StartTime: time.Now().Add(2 * time.Second),
+		StartTime: time.Now().Add(time.Hour),
 	}
 
 	usage := &dto.Usage{
