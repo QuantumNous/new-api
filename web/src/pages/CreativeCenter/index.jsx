@@ -548,6 +548,112 @@ const extractImageUrlsFromCreativeResponse = (data) => {
   return [];
 };
 
+const collectCreativeCenterTextFragments = (value) => {
+  if (typeof value === 'string') {
+    return value.trim() ? [value] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectCreativeCenterTextFragments(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const fragments = [];
+  const append = (nextValue) => {
+    collectCreativeCenterTextFragments(nextValue).forEach((fragment) => {
+      if (fragment.trim()) {
+        fragments.push(fragment);
+      }
+    });
+  };
+
+  if (typeof value.text === 'string') {
+    append(value.text);
+  } else if (value.text && typeof value.text === 'object') {
+    append(value.text.value || value.text.content);
+  }
+
+  if (typeof value.output_text === 'string') {
+    append(value.output_text);
+  }
+  if (typeof value.summary_text === 'string') {
+    append(value.summary_text);
+  }
+  if (typeof value.content === 'string' || Array.isArray(value.content)) {
+    append(value.content);
+  }
+  if (typeof value.message === 'string') {
+    append(value.message);
+  }
+  if (typeof value.response === 'string') {
+    append(value.response);
+  }
+  if (typeof value.result === 'string') {
+    append(value.result);
+  }
+  if (typeof value.answer === 'string') {
+    append(value.answer);
+  }
+
+  if (value.content && typeof value.content === 'object' && !Array.isArray(value.content)) {
+    append(value.content.text || value.content.value || value.content.parts);
+  }
+  if (Array.isArray(value.parts)) {
+    append(value.parts);
+  }
+
+  return [...new Set(fragments)];
+};
+
+const extractCreativeCenterChatResponse = (payload) => {
+  const rootPayload =
+    payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object'
+      ? payload.data
+      : payload;
+  const choice = rootPayload?.choices?.[0];
+  const message = choice?.message || {};
+  const candidate = rootPayload?.candidates?.[0];
+  const outputItems = Array.isArray(rootPayload?.output)
+    ? rootPayload.output
+    : [];
+
+  const reasoningFragments = [
+    message.reasoning_content,
+    message.reasoning,
+    choice?.reasoning_content,
+    choice?.reasoning,
+    rootPayload?.reasoning_content,
+    rootPayload?.reasoning,
+  ]
+    .flatMap((value) => collectCreativeCenterTextFragments(value))
+    .filter(Boolean);
+
+  const contentFragments = [
+    message.content,
+    choice?.text,
+    choice?.delta?.content,
+    rootPayload?.output_text,
+    rootPayload?.text,
+    rootPayload?.content,
+    rootPayload?.message,
+    rootPayload?.response,
+    rootPayload?.result,
+    rootPayload?.answer,
+    candidate?.content?.parts,
+    outputItems,
+  ]
+    .flatMap((value) => collectCreativeCenterTextFragments(value))
+    .filter(Boolean);
+
+  return {
+    content: [...new Set(contentFragments)].join('\n\n').trim(),
+    reasoningContent: [...new Set(reasoningFragments)].join('\n\n').trim(),
+  };
+};
+
 const buildCreativeCenterImageDisplayUrl = (url) => {
   if (typeof url !== 'string') {
     return '';
@@ -4937,10 +5043,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           PARAMETER_TOGGLES_DISABLED,
         );
         const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
-        const choice = data?.choices?.[0];
+        const chatResponse = extractCreativeCenterChatResponse(data);
         const processed = processThinkTags(
-          choice?.message?.content || '',
-          choice?.message?.reasoning_content || choice?.message?.reasoning || '',
+          chatResponse.content,
+          chatResponse.reasoningContent,
         );
         const content =
           [processed.reasoningContent, processed.content].filter(Boolean).join('\n\n') ||
