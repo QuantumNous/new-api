@@ -434,6 +434,69 @@ func TestHandleCustomOAuthJWTLoginBindsExistingSessionUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthJWTLoginTreatsRepeatBindForSameUserAsSuccess(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
+	provider := createJWTDirectProviderForTest(t, privateKey, jwtDirectProviderTestOptions{
+		AutoRegister: true,
+	})
+	user := createUserForBindTest(t, "bind-repeat-user")
+	if err := model.CreateUserOAuthBinding(&model.UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     provider.Id,
+		ProviderUserId: "ext-repeat-1",
+	}); err != nil {
+		t.Fatalf("failed to seed oauth binding: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(user.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	token := signJWTForControllerTest(t, privateKey, jwt.MapClaims{
+		"iss": "https://issuer.example.com",
+		"aud": "new-api",
+		"sub": "ext-repeat-1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	response := postJWTLoginForTest(t, client, server.URL, state, token)
+	if !response.Success {
+		t.Fatalf("expected repeat bind response success, got message: %s", response.Message)
+	}
+
+	var bindData oauthJWTBindResponse
+	if err := common.Unmarshal(response.Data, &bindData); err != nil {
+		t.Fatalf("failed to decode bind response: %v", err)
+	}
+	if bindData.Action != "bind" {
+		t.Fatalf("expected bind action, got %s", bindData.Action)
+	}
+
+	binding, err := model.GetUserOAuthBinding(user.Id, provider.Id)
+	if err != nil {
+		t.Fatalf("failed to reload oauth binding: %v", err)
+	}
+	if binding.ProviderUserId != "ext-repeat-1" {
+		t.Fatalf("expected binding to keep provider user id ext-repeat-1, got %s", binding.ProviderUserId)
+	}
+}
+
 func TestHandleCustomOAuthJWTLoginDoesNotSyncAttributesDuringBind(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)

@@ -269,6 +269,60 @@ func TestHandleCustomOAuthHeaderLoginBindsExistingSessionUser(t *testing.T) {
 	}
 }
 
+func TestHandleCustomOAuthHeaderLoginTreatsRepeatBindForSameUserAsSuccess(t *testing.T) {
+	setupCustomOAuthJWTControllerTestDB(t)
+	provider := createTrustedHeaderProviderForTest(t, trustedHeaderProviderTestOptions{
+		AutoRegister: true,
+	})
+	user := createUserForBindTest(t, "header-repeat-bind-user")
+	if err := model.CreateUserOAuthBinding(&model.UserOAuthBinding{
+		UserId:         user.Id,
+		ProviderId:     provider.Id,
+		ProviderUserId: "trusted-repeat-user",
+	}); err != nil {
+		t.Fatalf("failed to seed trusted header binding: %v", err)
+	}
+
+	router := newCustomOAuthJWTRouter(t)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := newTestHTTPClient(t)
+	loginReq, err := http.NewRequest(http.MethodGet, server.URL+"/test/login-as/"+strconv.Itoa(user.Id), nil)
+	if err != nil {
+		t.Fatalf("failed to build login-as request: %v", err)
+	}
+	loginResp, err := client.Do(loginReq)
+	if err != nil {
+		t.Fatalf("failed to establish session: %v", err)
+	}
+	_ = loginResp.Body.Close()
+
+	state := fetchOAuthStateForTest(t, client, server.URL)
+	response := postTrustedHeaderLoginForTest(t, client, server.URL, provider.Slug, state, map[string]string{
+		"X-Auth-User-Id": "trusted-repeat-user",
+	})
+	if !response.Success {
+		t.Fatalf("expected repeat trusted header bind success, got message: %s", response.Message)
+	}
+
+	var bindData oauthJWTBindResponse
+	if err := common.Unmarshal(response.Data, &bindData); err != nil {
+		t.Fatalf("failed to decode trusted header bind response: %v", err)
+	}
+	if bindData.Action != "bind" {
+		t.Fatalf("expected bind action, got %s", bindData.Action)
+	}
+
+	binding, err := model.GetUserOAuthBinding(user.Id, provider.Id)
+	if err != nil {
+		t.Fatalf("failed to reload trusted header binding: %v", err)
+	}
+	if binding.ProviderUserId != "trusted-repeat-user" {
+		t.Fatalf("expected trusted header binding to keep provider user id trusted-repeat-user, got %s", binding.ProviderUserId)
+	}
+}
+
 func TestHandleCustomOAuthHeaderLoginMergesByEmailWhenEnabled(t *testing.T) {
 	setupCustomOAuthJWTControllerTestDB(t)
 	provider := createTrustedHeaderProviderForTest(t, trustedHeaderProviderTestOptions{

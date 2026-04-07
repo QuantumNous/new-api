@@ -279,6 +279,8 @@ type FetchCustomOAuthDiscoveryRequest struct {
 	IssuerURL    string `json:"issuer_url"`
 }
 
+const customOAuthDiscoveryResponseLimit = 1 << 20
+
 // FetchCustomOAuthDiscovery fetches OIDC discovery document via backend (root-only route)
 func FetchCustomOAuthDiscovery(c *gin.Context) {
 	var req FetchCustomOAuthDiscoveryRequest
@@ -336,7 +338,7 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	}
 
 	var discovery map[string]any
-	if err = common.DecodeJson(resp.Body, &discovery); err != nil {
+	if err = common.DecodeJson(io.LimitReader(resp.Body, customOAuthDiscoveryResponseLimit), &discovery); err != nil {
 		common.ApiErrorMsg(c, "解析 Discovery 配置失败: "+err.Error())
 		return
 	}

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -179,17 +180,6 @@ func handleOAuthBindWithUser(c *gin.Context, provider oauth.Provider, oauthUser 
 }
 
 func bindOAuthIdentityToCurrentUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
-	// Check if this OAuth account is already bound (check both new ID and legacy ID)
-	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
-		return &OAuthAlreadyBoundError{Provider: provider.GetName()}
-	}
-	// Also check legacy ID to prevent duplicate bindings during migration period
-	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && legacyID != "" {
-		if provider.IsUserIDTaken(legacyID) {
-			return &OAuthAlreadyBoundError{Provider: provider.GetName()}
-		}
-	}
-
 	// Get current user from session
 	session := sessions.Default(c)
 	id := session.Get("id")
@@ -202,13 +192,14 @@ func bindOAuthIdentityToCurrentUser(c *gin.Context, provider oauth.Provider, oau
 		return err
 	}
 
+	if err := ensureProviderBindingAvailableForUser(&user, provider, oauthUser); err != nil {
+		return err
+	}
+
 	// Handle binding based on provider type
 	if customBindingProvider, ok := provider.(oauth.CustomBindingProvider); ok {
 		// Custom provider: use user_oauth_bindings table
-		err = ensureUserHasNoCustomProviderBinding(user.Id, customBindingProvider.GetProviderId())
-		if err == nil {
-			err = model.UpdateUserOAuthBinding(user.Id, customBindingProvider.GetProviderId(), oauthUser.ProviderUserID)
-		}
+		err = model.UpdateUserOAuthBinding(user.Id, customBindingProvider.GetProviderId(), oauthUser.ProviderUserID)
 		if err != nil {
 			return err
 		}
@@ -432,15 +423,73 @@ func findOAuthMergeCandidateByEmail(email string) (*model.User, error) {
 	return users[0], nil
 }
 
-func ensureUserHasNoCustomProviderBinding(userID, providerID int) error {
-	_, err := model.GetUserOAuthBinding(userID, providerID)
-	if err == nil {
-		return fmt.Errorf("user already has a binding for provider %d", providerID)
+func ensureProviderBindingAvailableForUser(user *model.User, provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
+	if user == nil || provider == nil || oauthUser == nil {
+		return nil
 	}
+
+	if err := ensureProviderUserIDAvailableForUser(user.Id, provider, oauthUser.ProviderUserID); err != nil {
+		return err
+	}
+
+	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok {
+		legacyID = strings.TrimSpace(legacyID)
+		if legacyID != "" && legacyID != strings.TrimSpace(oauthUser.ProviderUserID) {
+			if err := ensureProviderUserIDAvailableForUser(user.Id, provider, legacyID); err != nil {
+				return err
+			}
+		}
+	}
+
+	if customBindingProvider, ok := provider.(oauth.CustomBindingProvider); ok {
+		return ensureCustomProviderBindingAvailable(user.Id, customBindingProvider.GetProviderId(), oauthUser.ProviderUserID)
+	}
+
+	return ensureBuiltInProviderBindingAvailable(user, provider, oauthUser)
+}
+
+func ensureProviderUserIDAvailableForUser(userID int, provider oauth.Provider, providerUserID string) error {
+	providerUserID = strings.TrimSpace(providerUserID)
+	if providerUserID == "" || !provider.IsUserIDTaken(providerUserID) {
+		return nil
+	}
+
+	boundUser := &model.User{}
+	if err := provider.FillUserByProviderID(boundUser, providerUserID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if boundUser.Id == userID {
+		return nil
+	}
+	return &OAuthAlreadyBoundError{Provider: provider.GetName()}
+}
+
+func ensureCustomProviderBindingAvailable(userID, providerID int, providerUserID string) error {
+	binding, err := model.GetUserOAuthBinding(userID, providerID)
 	if err == gorm.ErrRecordNotFound {
 		return nil
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(binding.ProviderUserId) == strings.TrimSpace(providerUserID) {
+		return nil
+	}
+	return fmt.Errorf("user already has a binding for provider %d", providerID)
+}
+
+func ensureUserHasNoCustomProviderBinding(userID, providerID int) error {
+	_, err := model.GetUserOAuthBinding(userID, providerID)
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("user already has a binding for provider %d", providerID)
 }
 
 func ensureBuiltInProviderBindingAvailable(user *model.User, provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
