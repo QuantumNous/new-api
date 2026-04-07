@@ -5230,7 +5230,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           createCreativeInputs(params, currentModelName, 'chat'),
           PARAMETER_TOGGLES_DISABLED,
         );
-        const chatResponse = shouldUseCreativeCenterChatStream(currentCapabilityModelName)
+        const chatResponse = shouldUseCreativeCenterChatStream(currentModelName)
           ? await postCreativeChatStreamRequest(payload)
           : extractCreativeCenterChatResponse(
               await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload),
