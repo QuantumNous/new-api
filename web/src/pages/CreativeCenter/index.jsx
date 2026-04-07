@@ -1,4 +1,5 @@
 import React, { useContext, useMemo, useRef, useState, useEffect } from 'react';
+import { SSE } from 'sse.js';
 import {
   ArrowUp,
   Check,
@@ -262,6 +263,11 @@ const parseTimestampValue = (value, fallback = 0) => {
 
 const shouldUseEstimatedImageProgress = (modelName) => Boolean(modelName);
 const shouldUseEstimatedVideoProgress = (modelName) => Boolean(modelName);
+const shouldUseCreativeCenterChatStream = (modelName) => {
+  const normalizedModelName =
+    typeof modelName === 'string' ? modelName.trim().toLowerCase() : '';
+  return normalizedModelName.includes('gpt');
+};
 
 const getEstimatedImageDurationMs = (params = {}) => {
   switch (params?.outputResolution) {
@@ -3615,6 +3621,84 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     return response.data;
   };
 
+  const postCreativeChatStreamRequest = (payload) =>
+    new Promise((resolve, reject) => {
+      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        headers: {
+          'Content-Type': 'application/json',
+          'New-API-User': getUserIdFromLocalStorage(),
+        },
+        method: 'POST',
+        payload: JSON.stringify({
+          ...payload,
+          stream: true,
+        }),
+      });
+
+      let settled = false;
+      const contentFragments = [];
+      const reasoningFragments = [];
+      const rawFragments = [];
+      const cleanup = () => {
+        try {
+          source.close();
+        } catch {
+          // ignore close errors from already-closed SSE connections
+        }
+      };
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        resolve({
+          content: contentFragments.join('').trim(),
+          reasoningContent: reasoningFragments.join('').trim(),
+          rawResponsePreview: rawFragments.join('\n').trim(),
+        });
+      };
+      const fail = (error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      source.addEventListener('message', (event) => {
+        if (event.data === '[DONE]') {
+          finish();
+          return;
+        }
+
+        rawFragments.push(event.data);
+        try {
+          const chunk = JSON.parse(event.data);
+          const chunkResponse = extractCreativeCenterChatResponse(chunk);
+          if (chunkResponse.reasoningContent) {
+            reasoningFragments.push(chunkResponse.reasoningContent);
+          }
+          if (chunkResponse.content) {
+            contentFragments.push(chunkResponse.content);
+          }
+        } catch (error) {
+          fail(error);
+        }
+      });
+
+      source.addEventListener('error', (event) => {
+        fail(new Error(event?.data || 'SSE request failed'));
+      });
+
+      try {
+        source.stream();
+      } catch (error) {
+        fail(error);
+      }
+    });
+
   const persistImageRecords = async (records, options = {}) => {
     lastPersistedImageSignatureRef.current = buildCreativePersistSignature(records, 'image');
     const nextSnapshot = updateCurrentCreativeSessionSnapshot('image', {
@@ -5154,8 +5238,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           createCreativeInputs(params, currentModelName, 'chat'),
           PARAMETER_TOGGLES_DISABLED,
         );
-        const data = await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload);
-        const chatResponse = extractCreativeCenterChatResponse(data);
+        const chatResponse = shouldUseCreativeCenterChatStream(currentCapabilityModelName)
+          ? await postCreativeChatStreamRequest(payload)
+          : extractCreativeCenterChatResponse(
+              await postCreativeRequest(API_ENDPOINTS.CHAT_COMPLETIONS, payload),
+            );
         const processed = processThinkTags(
           chatResponse.content,
           chatResponse.reasoningContent,
