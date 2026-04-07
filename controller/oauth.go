@@ -214,6 +214,9 @@ func bindOAuthIdentityToCurrentUser(c *gin.Context, provider oauth.Provider, oau
 		}
 	} else {
 		// Built-in provider: update user record directly
+		if err := ensureBuiltInProviderBindingAvailable(&user, provider, oauthUser); err != nil {
+			return err
+		}
 		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
 		err = user.Update(false)
 		if err != nil {
@@ -438,6 +441,40 @@ func ensureUserHasNoCustomProviderBinding(userID, providerID int) error {
 		return nil
 	}
 	return err
+}
+
+func ensureBuiltInProviderBindingAvailable(user *model.User, provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
+	if user == nil || provider == nil || oauthUser == nil {
+		return nil
+	}
+
+	currentID := strings.TrimSpace(getBuiltInProviderBinding(user, provider))
+	if currentID == "" || currentID == strings.TrimSpace(oauthUser.ProviderUserID) {
+		return nil
+	}
+
+	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok {
+		if strings.TrimSpace(legacyID) != "" && currentID == strings.TrimSpace(legacyID) {
+			return nil
+		}
+	}
+
+	return &OAuthAlreadyBoundError{Provider: provider.GetName()}
+}
+
+func getBuiltInProviderBinding(user *model.User, provider oauth.Provider) string {
+	switch provider.(type) {
+	case *oauth.GitHubProvider:
+		return user.GitHubId
+	case *oauth.DiscordProvider:
+		return user.DiscordId
+	case *oauth.OIDCProvider:
+		return user.OidcId
+	case *oauth.LinuxDOProvider:
+		return user.LinuxDOId
+	default:
+		return ""
+	}
 }
 
 func bindOAuthIdentityToUser(user *model.User, provider oauth.Provider, providerUserID string) error {
