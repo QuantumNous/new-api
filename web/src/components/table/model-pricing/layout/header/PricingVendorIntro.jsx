@@ -146,8 +146,6 @@ const PricingVendorIntro = memo(
     isMobile = false,
     searchValue = '',
     setShowFilterModal,
-    showWithRecharge,
-    setShowWithRecharge,
     currency,
     setCurrency,
     showRatio,
@@ -281,8 +279,6 @@ const PricingVendorIntro = memo(
           isMobile={isMobile}
           searchValue={searchValue}
           setShowFilterModal={setShowFilterModal}
-          showWithRecharge={showWithRecharge}
-          setShowWithRecharge={setShowWithRecharge}
           currency={currency}
           setCurrency={setCurrency}
           showRatio={showRatio}
@@ -303,8 +299,6 @@ const PricingVendorIntro = memo(
         isMobile,
         searchValue,
         setShowFilterModal,
-        showWithRecharge,
-        setShowWithRecharge,
         currency,
         setCurrency,
         showRatio,
