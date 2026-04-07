@@ -161,7 +161,9 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	otherStr := common.MapToJsonStr(params.Other)
 	upstreamUsageStr := ""
 	if params.UpstreamUsage != nil {
-		upstreamUsageStr = common.GetJsonString(params.UpstreamUsage)
+		if b, err := common.Marshal(params.UpstreamUsage); err == nil {
+			upstreamUsageStr = string(b)
+		}
 	}
 	// 判断是否需要记录 IP
 	needRecordIp := false
