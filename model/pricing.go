@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,7 +16,6 @@ import (
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
-	UpstreamModelName      string                  `json:"upstream_model_name,omitempty"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	ChannelType            int                     `json:"channel_type,omitempty"`
@@ -96,32 +96,6 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 		return endpoints
 	}
 	return make([]constant.EndpointType, 0)
-}
-
-func resolvePricingUpstreamModelName(modelName string, modelMapping *string) string {
-	if modelMapping == nil {
-		return modelName
-	}
-	rawMapping := strings.TrimSpace(*modelMapping)
-	if rawMapping == "" || rawMapping == "{}" {
-		return modelName
-	}
-	modelMap := make(map[string]string)
-	if err := common.UnmarshalJsonStr(rawMapping, &modelMap); err != nil {
-		return modelName
-	}
-
-	currentModel := modelName
-	visitedModels := map[string]bool{currentModel: true}
-	for {
-		mappedModel, exists := modelMap[currentModel]
-		if !exists || mappedModel == "" || visitedModels[mappedModel] {
-			break
-		}
-		visitedModels[mappedModel] = true
-		currentModel = mappedModel
-	}
-	return currentModel
 }
 
 func updatePricing() {
@@ -206,7 +180,6 @@ func updatePricing() {
 	}
 
 	modelGroupsMap := make(map[string]*types.Set[string])
-	modelUpstreamNameMap := make(map[string]string)
 
 	for _, ability := range enableAbilities {
 		groups, ok := modelGroupsMap[ability.Model]
@@ -215,12 +188,6 @@ func updatePricing() {
 			modelGroupsMap[ability.Model] = groups
 		}
 		groups.Add(ability.Group)
-		if _, ok := modelUpstreamNameMap[ability.Model]; !ok {
-			upstreamModelName := resolvePricingUpstreamModelName(ability.Model, ability.ModelMapping)
-			if upstreamModelName != ability.Model {
-				modelUpstreamNameMap[ability.Model] = upstreamModelName
-			}
-		}
 	}
 
 	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
@@ -229,11 +196,7 @@ func updatePricing() {
 	// 先根据已有能力填充原生端点
 	for _, ability := range enableAbilities {
 		endpoints := modelSupportEndpointsStr[ability.Model]
-		endpointModelName := ability.Model
-		if upstreamModelName := modelUpstreamNameMap[ability.Model]; upstreamModelName != "" {
-			endpointModelName = upstreamModelName
-		}
-		channelTypes := common.GetEndpointTypesByChannelType(ability.ChannelType, endpointModelName)
+		channelTypes := common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 		for _, channelType := range channelTypes {
 			if !common.StringsContains(endpoints, string(channelType)) {
 				endpoints = append(endpoints, string(channelType))
@@ -248,7 +211,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			endpoints := make([]string, 0, len(raw))
 			for k, v := range raw {
 				switch v.(type) {
@@ -292,7 +255,7 @@ func updatePricing() {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
+		if err := json.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
 			for k, v := range raw {
 				switch val := v.(type) {
 				case string:
@@ -325,7 +288,6 @@ func updatePricing() {
 	for model, groups := range modelGroupsMap {
 		pricing := Pricing{
 			ModelName:              model,
-			UpstreamModelName:      modelUpstreamNameMap[model],
 			EnableGroup:            groups.Items(),
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 			ChannelType:            modelChannelTypeMap[model],
