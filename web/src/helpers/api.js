@@ -160,8 +160,6 @@ export const buildApiPayload = (
     messages: processedMessages,
     stream: inputs.stream,
   };
-  const capabilityModel =
-    inputs.capabilityModel || inputs.capability_model || inputs.model;
 
   // 添加启用的参数
   const parameterMappings = {
@@ -184,18 +182,18 @@ export const buildApiPayload = (
   });
 
   const isVideoModel =
-    typeof capabilityModel === 'string' && capabilityModel.includes('video');
+    typeof inputs.model === 'string' && inputs.model.includes('video');
   const isGrokImagineImageModel =
-    grokImagineImageModels.has(capabilityModel) ||
-    grokImagineImageEditModels.has(capabilityModel);
-  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(capabilityModel);
-  const isGrokImagineVideoModel = capabilityModel === 'grok-imagine-1.0-video';
-  const isAdobeImageModel = adobeImageModels.has(capabilityModel);
-  const isAdobeVideoModel = adobeVideoModels.has(capabilityModel);
+    grokImagineImageModels.has(inputs.model) ||
+    grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineImageEditModel = grokImagineImageEditModels.has(inputs.model);
+  const isGrokImagineVideoModel = inputs.model === 'grok-imagine-1.0-video';
+  const isAdobeImageModel = adobeImageModels.has(inputs.model);
+  const isAdobeVideoModel = adobeVideoModels.has(inputs.model);
   const isAdobeVeoModel =
-    capabilityModel === 'veo31' ||
-    capabilityModel === 'veo31-ref' ||
-    capabilityModel === 'veo31-fast';
+    inputs.model === 'veo31' ||
+    inputs.model === 'veo31-ref' ||
+    inputs.model === 'veo31-fast';
   const adobeAspectRatioRaw =
     inputs.aspectRatio || (isAdobeVideoModel ? '16:9' : '1:1');
   const adobeAspectRatio =
@@ -277,10 +275,8 @@ export const buildApiPayload = (
     }
   }
   if (isAdobeVideoModel) {
-    const forcedDuration =
-      capabilityModel === 'veo31-ref' ? 8 : Number(inputs.videoDuration || 4);
-    const forcedAspectRatio =
-      capabilityModel === 'veo31-ref' ? '16:9' : adobeAspectRatio;
+    const forcedDuration = inputs.model === 'veo31-ref' ? 8 : Number(inputs.videoDuration || 4);
+    const forcedAspectRatio = inputs.model === 'veo31-ref' ? '16:9' : adobeAspectRatio;
     payload.duration = forcedDuration;
     payload.aspect_ratio = forcedAspectRatio;
     if (Number.isFinite(normalizedSeed)) {
@@ -289,9 +285,9 @@ export const buildApiPayload = (
     if (isAdobeVeoModel) {
       payload.resolution = inputs.videoResolution || '1080p';
     }
-    if (capabilityModel === 'veo31-ref') {
+    if (inputs.model === 'veo31-ref') {
       payload.reference_mode = 'image';
-    } else if (capabilityModel === 'veo31' && inputs.referenceMode) {
+    } else if (inputs.model === 'veo31' && inputs.referenceMode) {
       payload.reference_mode = inputs.referenceMode;
     }
   }
