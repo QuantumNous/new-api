@@ -548,64 +548,98 @@ const extractImageUrlsFromCreativeResponse = (data) => {
   return [];
 };
 
-const collectCreativeCenterTextFragments = (value) => {
+const CREATIVE_CENTER_TEXT_FRAGMENT_KEYS = [
+  'text',
+  'output_text',
+  'summary_text',
+  'generated_text',
+  'generation',
+  'completion',
+  'content',
+  'message',
+  'response',
+  'result',
+  'answer',
+  'value',
+];
+
+const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
+  'data',
+  'payload',
+  'body',
+  'output',
+  'outputs',
+  'choices',
+  'candidates',
+  'parts',
+  'segments',
+  'items',
+  'messages',
+  'delta',
+];
+
+const collectCreativeCenterTextFragments = (value, visited = new WeakSet()) => {
   if (typeof value === 'string') {
     return value.trim() ? [value] : [];
   }
 
   if (Array.isArray(value)) {
-    return value.flatMap((item) => collectCreativeCenterTextFragments(item));
+    return value.flatMap((item) =>
+      collectCreativeCenterTextFragments(item, visited),
+    );
   }
 
   if (!value || typeof value !== 'object') {
     return [];
   }
+  if (visited.has(value)) {
+    return [];
+  }
+  visited.add(value);
 
   const fragments = [];
   const append = (nextValue) => {
-    collectCreativeCenterTextFragments(nextValue).forEach((fragment) => {
+    collectCreativeCenterTextFragments(nextValue, visited).forEach((fragment) => {
       if (fragment.trim()) {
         fragments.push(fragment);
       }
     });
   };
 
-  if (typeof value.text === 'string') {
-    append(value.text);
-  } else if (value.text && typeof value.text === 'object') {
-    append(value.text.value || value.text.content);
-  }
+  CREATIVE_CENTER_TEXT_FRAGMENT_KEYS.forEach((key) => {
+    if (value[key] !== undefined && value[key] !== null) {
+      append(value[key]);
+    }
+  });
 
-  if (typeof value.output_text === 'string') {
-    append(value.output_text);
-  }
-  if (typeof value.summary_text === 'string') {
-    append(value.summary_text);
-  }
-  if (typeof value.content === 'string' || Array.isArray(value.content)) {
-    append(value.content);
-  }
-  if (typeof value.message === 'string') {
-    append(value.message);
-  }
-  if (typeof value.response === 'string') {
-    append(value.response);
-  }
-  if (typeof value.result === 'string') {
-    append(value.result);
-  }
-  if (typeof value.answer === 'string') {
-    append(value.answer);
-  }
-
-  if (value.content && typeof value.content === 'object' && !Array.isArray(value.content)) {
-    append(value.content.text || value.content.value || value.content.parts);
-  }
-  if (Array.isArray(value.parts)) {
-    append(value.parts);
-  }
+  CREATIVE_CENTER_NESTED_RESPONSE_KEYS.forEach((key) => {
+    if (
+      value[key] &&
+      typeof value[key] === 'object' &&
+      !CREATIVE_CENTER_TEXT_FRAGMENT_KEYS.includes(key)
+    ) {
+      append(value[key]);
+    }
+  });
 
   return [...new Set(fragments)];
+};
+
+const formatCreativeCenterRawResponsePreview = (payload) => {
+  if (payload === undefined || payload === null) {
+    return '';
+  }
+  if (typeof payload === 'string') {
+    return payload.trim();
+  }
+  try {
+    const serialized = JSON.stringify(payload, null, 2);
+    return serialized.length > 4000
+      ? `${serialized.slice(0, 4000)}\n...`
+      : serialized;
+  } catch {
+    return '';
+  }
 };
 
 const extractCreativeCenterChatResponse = (payload) => {
@@ -642,15 +676,26 @@ const extractCreativeCenterChatResponse = (payload) => {
     rootPayload?.response,
     rootPayload?.result,
     rootPayload?.answer,
+    rootPayload?.data,
+    rootPayload?.payload,
+    rootPayload?.body,
     candidate?.content?.parts,
     outputItems,
   ]
     .flatMap((value) => collectCreativeCenterTextFragments(value))
     .filter(Boolean);
 
+  const content = [...new Set(contentFragments)].join('\n\n').trim();
+  const reasoningContent = [...new Set(reasoningFragments)].join('\n\n').trim();
+  const rawResponsePreview =
+    !content && !reasoningContent
+      ? formatCreativeCenterRawResponsePreview(rootPayload || payload)
+      : '';
+
   return {
-    content: [...new Set(contentFragments)].join('\n\n').trim(),
-    reasoningContent: [...new Set(reasoningFragments)].join('\n\n').trim(),
+    content,
+    reasoningContent,
+    rawResponsePreview,
   };
 };
 
@@ -5064,7 +5109,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         );
         const content =
           [processed.reasoningContent, processed.content].filter(Boolean).join('\n\n') ||
-          '模型已返回响应，但未解析到可展示内容。';
+          (chatResponse.rawResponsePreview
+            ? `模型已返回响应，但格式未识别，以下是原始响应摘要：\n\n\`\`\`json\n${chatResponse.rawResponsePreview}\n\`\`\``
+            : '模型已返回响应，但未解析到可展示内容。');
         const assistantMsg = {
           role: 'assistant',
           content,
