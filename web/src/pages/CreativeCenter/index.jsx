@@ -2406,6 +2406,8 @@ export default function App() {
     };
 
     const resolveTabsForModel = (modelName, model) => {
+      const capabilityModelName =
+        model?.upstream_model_name || model?.upstreamModelName || modelName;
       const tags = String(model?.tags || '')
         .split(',')
         .map((tag) => tag.trim())
@@ -2438,7 +2440,7 @@ export default function App() {
         return ['image'];
       }
 
-      return inferTabsFromModelName(modelName);
+      return inferTabsFromModelName(capabilityModelName);
     };
 
     const createModelCard = (model, tabKey, modelName, vendorMap) => {
@@ -2447,6 +2449,8 @@ export default function App() {
         .map((tag) => tag.trim())
         .filter(Boolean);
       const resolvedModelName = model?.model_name || model?.name || modelName || '未命名模型';
+      const capabilityModelName =
+        model?.upstream_model_name || model?.upstreamModelName || resolvedModelName;
       const vendor =
         model?.vendor_id && vendorMap[model.vendor_id]
           ? vendorMap[model.vendor_id]
@@ -2463,6 +2467,7 @@ export default function App() {
         desc: resolvedDescription,
         fullDesc: resolvedDescription,
         pricingModel: model,
+        capabilityModelName,
         icon: renderCreativeModelIcon(
           Number(model?.channel_type || 0),
           model?.icon,
@@ -2679,32 +2684,34 @@ export default function App() {
     currentDisplayModels[0] ||
     null;
   const currentModelName = selectedModel?.value || selectedModel?.name || '';
+  const currentCapabilityModelName =
+    selectedModel?.capabilityModelName || currentModelName;
   const isGrokImagineImageModel =
-    GROK_IMAGINE_IMAGE_MODELS.has(currentModelName);
-  const isGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(currentModelName);
+    GROK_IMAGINE_IMAGE_MODELS.has(currentCapabilityModelName);
+  const isGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(currentCapabilityModelName);
   const isGrokImageGenerationModel =
-    GROK_IMAGE_GENERATION_MODELS.has(currentModelName);
-  const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentModelName);
-  const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentModelName);
+    GROK_IMAGE_GENERATION_MODELS.has(currentCapabilityModelName);
+  const isAdobeImageModel = ADOBE_IMAGE_MODELS.has(currentCapabilityModelName);
+  const isAdobeVideoModel = ADOBE_VIDEO_MODELS.has(currentCapabilityModelName);
   const isAdobeSoraModel =
-    currentModelName === 'sora2' || currentModelName === 'sora2-pro';
+    currentCapabilityModelName === 'sora2' || currentCapabilityModelName === 'sora2-pro';
   const isAdobeVeoModel =
-    currentModelName === 'veo31' ||
-    currentModelName === 'veo31-ref' ||
-    currentModelName === 'veo31-fast';
+    currentCapabilityModelName === 'veo31' ||
+    currentCapabilityModelName === 'veo31-ref' ||
+    currentCapabilityModelName === 'veo31-fast';
   const isChatTab = activeTab === 'chat';
   const isSubmitPending = (isChatTab && isGenerating) || isUploadingImage;
   const isVideoModel =
-    typeof currentModelName === 'string' && currentModelName.includes('video');
-  const isGrokImagineVideoModel = currentModelName === 'grok-imagine-1.0-video';
-  const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentModelName);
+    typeof currentCapabilityModelName === 'string' && currentCapabilityModelName.includes('video');
+  const isGrokImagineVideoModel = currentCapabilityModelName === 'grok-imagine-1.0-video';
+  const currentImageUploadLimit = getCreativeCenterImageUploadLimit(currentCapabilityModelName);
   const currentAdobeImageAspectRatioOptions =
-    getAdobeImageAspectRatioOptions(currentModelName);
+    getAdobeImageAspectRatioOptions(currentCapabilityModelName);
   const currentAdobeSupportsAutoImageSize =
-    supportsAdobeAutoImageSize(currentModelName);
+    supportsAdobeAutoImageSize(currentCapabilityModelName);
   const isCurrentModelImageUploadEnabled = isCreativeCenterImageUploadEnabled(
     activeTab,
-    currentModelName,
+    currentCapabilityModelName,
   );
   useEffect(() => {
     if (!currentImageUploadLimit || uploadedImages.length <= currentImageUploadLimit) {
@@ -2787,20 +2794,23 @@ export default function App() {
     const snapshot = {
       generationCount: sourceParams.generationCount,
     };
+    const capabilityModelName =
+      findModelCard(tabKey, modelName)?.capabilityModelName || modelName;
     const isCurrentGrokImagineImageModel =
-      GROK_IMAGINE_IMAGE_MODELS.has(modelName);
-    const isCurrentGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(modelName);
-    const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(modelName);
-    const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(modelName);
+      GROK_IMAGINE_IMAGE_MODELS.has(capabilityModelName);
+    const isCurrentGrokImageEditModel = GROK_IMAGE_EDIT_MODELS.has(capabilityModelName);
+    const isCurrentAdobeImageModel = ADOBE_IMAGE_MODELS.has(capabilityModelName);
+    const isCurrentAdobeVideoModel = ADOBE_VIDEO_MODELS.has(capabilityModelName);
     const isCurrentAdobeSoraModel =
-      modelName === 'sora2' || modelName === 'sora2-pro';
+      capabilityModelName === 'sora2' || capabilityModelName === 'sora2-pro';
     const isCurrentAdobeVeoModel =
-      modelName === 'veo31' ||
-      modelName === 'veo31-ref' ||
-      modelName === 'veo31-fast';
+      capabilityModelName === 'veo31' ||
+      capabilityModelName === 'veo31-ref' ||
+      capabilityModelName === 'veo31-fast';
     const isCurrentVideoModel =
-      typeof modelName === 'string' && modelName.includes('video');
-    const isCurrentGrokImagineVideoModel = modelName === 'grok-imagine-1.0-video';
+      typeof capabilityModelName === 'string' && capabilityModelName.includes('video');
+    const isCurrentGrokImagineVideoModel =
+      capabilityModelName === 'grok-imagine-1.0-video';
 
     if (tabKey === 'image') {
       if (isCurrentGrokImagineImageModel && !isCurrentGrokImageEditModel) {
@@ -2808,12 +2818,12 @@ export default function App() {
       }
 
       if (isCurrentAdobeImageModel) {
-        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(modelName);
+        const adobeAspectRatioOptions = getAdobeImageAspectRatioOptions(capabilityModelName);
         const defaultAdobeAspectRatio =
           adobeAspectRatioOptions[0]?.value || '1:1';
         snapshot.aspectRatio = sourceParams.aspectRatio || defaultAdobeAspectRatio;
         if (
-          supportsAdobeAutoImageSize(modelName) &&
+          supportsAdobeAutoImageSize(capabilityModelName) &&
           snapshot.aspectRatio === 'auto'
         ) {
           snapshot.autoImageSize = sourceParams.autoImageSize;
@@ -2834,13 +2844,13 @@ export default function App() {
 
       if (isCurrentAdobeVideoModel) {
         snapshot.videoDuration =
-          sourceParams.videoDuration || getAdobeVideoDefaultDuration(modelName);
+          sourceParams.videoDuration || getAdobeVideoDefaultDuration(capabilityModelName);
         snapshot.aspectRatio =
-          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(modelName);
+          sourceParams.aspectRatio || getAdobeVideoDefaultAspectRatio(capabilityModelName);
         if (isCurrentAdobeVeoModel) {
           snapshot.videoResolution = sourceParams.videoResolution || '1080p';
         }
-        if (modelName === 'veo31') {
+        if (capabilityModelName === 'veo31') {
           snapshot.referenceMode = sourceParams.referenceMode || 'frame';
         }
       }
@@ -2983,7 +2993,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       if (isAdobeImageModel) {
         const adobeAspectRatioOptions =
-          getAdobeImageAspectRatioOptions(currentModelName);
+          getAdobeImageAspectRatioOptions(currentCapabilityModelName);
         const defaultAdobeAspectRatio =
           adobeAspectRatioOptions[0]?.value || '1:1';
         if (
@@ -2994,7 +3004,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           next.aspectRatio = defaultAdobeAspectRatio;
         }
         if (
-          supportsAdobeAutoImageSize(currentModelName) &&
+          supportsAdobeAutoImageSize(currentCapabilityModelName) &&
           !ADOBE_AUTO_IMAGE_SIZE_OPTIONS.some(
             (option) => option.value === next.autoImageSize,
           )
@@ -3042,17 +3052,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       }
 
       if (isAdobeVideoModel) {
-        const durationOptions = getAdobeVideoDurationOptions(currentModelName);
-        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentModelName);
+        const durationOptions = getAdobeVideoDurationOptions(currentCapabilityModelName);
+        const aspectRatioOptions = getAdobeVideoAspectRatioOptions(currentCapabilityModelName);
         if (
           !durationOptions.some((option) => option.value === next.videoDuration)
         ) {
-          next.videoDuration = getAdobeVideoDefaultDuration(currentModelName);
+          next.videoDuration = getAdobeVideoDefaultDuration(currentCapabilityModelName);
         }
         if (
           !aspectRatioOptions.some((option) => option.value === next.aspectRatio)
         ) {
-          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentModelName);
+          next.aspectRatio = getAdobeVideoDefaultAspectRatio(currentCapabilityModelName);
         }
         if (
           isAdobeVeoModel &&
@@ -3063,7 +3073,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           next.videoResolution = '1080p';
         }
         if (
-          currentModelName === 'veo31' &&
+          currentCapabilityModelName === 'veo31' &&
           !ADOBE_REFERENCE_MODE_OPTIONS.some(
             (option) => option.value === next.referenceMode,
           )
@@ -3075,6 +3085,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
     });
   }, [
+    currentCapabilityModelName,
     currentModelName,
     isAdobeImageModel,
     isAdobeVeoModel,
@@ -3088,6 +3099,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     modelName = currentModelName,
     tabKey = activeTab,
   ) => {
+    const capabilityModelName =
+      findModelCard(tabKey, modelName)?.capabilityModelName || modelName;
     const effectiveParams = createEffectiveParamsSnapshot(
       tabKey,
       modelName,
@@ -3096,6 +3109,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     return {
       model: modelName,
+      capabilityModel: capabilityModelName,
       group: activeGroup,
       stream: false,
       imageSize: effectiveParams.imageSize,
@@ -5167,7 +5181,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               currentUploadedImageUrls,
             );
             const useAdobeChatImageRequest =
-              ADOBE_CHAT_IMAGE_MODELS.has(currentModelName);
+              ADOBE_CHAT_IMAGE_MODELS.has(currentCapabilityModelName);
             const payload = useAdobeChatImageRequest
               ? {
                   model: currentModelName,
@@ -5236,7 +5250,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             patchImageTask(recordId, taskId, {
               requestId,
               requestPollable:
-                ADOBE_IMAGE_MODELS.has(currentModelName) &&
+                ADOBE_IMAGE_MODELS.has(currentCapabilityModelName) &&
                 !useAdobeChatImageRequest,
               submittedAt,
               estimateStartAt,
@@ -5503,7 +5517,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               }
             });
             if (
-              currentModelName === 'grok-imagine-1.0-video' &&
+              currentCapabilityModelName === 'grok-imagine-1.0-video' &&
               currentUploadedImageUrls.length > 0
             ) {
               payload.image_reference = currentUploadedImageUrls;
@@ -6879,11 +6893,11 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         menuKey='videoDuration'
                         icon={<Clock size={14} />}
                         label={`时长 ${getOptionLabel(
-                          getAdobeVideoDurationOptions(currentModelName),
+                          getAdobeVideoDurationOptions(currentCapabilityModelName),
                           params.videoDuration,
                         )}`}
                         value={params.videoDuration}
-                        options={getAdobeVideoDurationOptions(currentModelName)}
+                        options={getAdobeVideoDurationOptions(currentCapabilityModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -6897,7 +6911,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         icon={<Copy size={14} />}
                         label={`比例 ${params.aspectRatio}`}
                         value={params.aspectRatio}
-                        options={getAdobeVideoAspectRatioOptions(currentModelName)}
+                        options={getAdobeVideoAspectRatioOptions(currentCapabilityModelName)}
                         openMenu={openMenu}
                         setOpenMenu={setOpenMenu}
                         onSelect={(value) =>
@@ -6925,7 +6939,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         />
                       )}
 
-                      {currentModelName === 'veo31' && (
+                      {currentCapabilityModelName === 'veo31' && (
                         <DropSelectButton
                           menuKey='referenceMode'
                           icon={<Layers size={14} />}
