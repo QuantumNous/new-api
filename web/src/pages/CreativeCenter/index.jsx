@@ -561,6 +561,13 @@ const CREATIVE_CENTER_TEXT_FRAGMENT_KEYS = [
   'result',
   'answer',
   'value',
+  'refusal',
+  'transcript',
+  'markdown',
+  'outputText',
+  'responseText',
+  'content_text',
+  'text_content',
 ];
 
 const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
@@ -577,6 +584,46 @@ const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
   'messages',
   'delta',
 ];
+
+const CREATIVE_CENTER_DIAGNOSTIC_MESSAGE_PREFIXES = [
+  '模型已返回响应',
+  '请求失败',
+  '妯″瀷宸茶繑鍥炲搷搴',
+  '璇锋眰澶辫触',
+];
+
+const isCreativeCenterDiagnosticAssistantMessage = (message) => {
+  if (!message || message.role !== 'assistant' || typeof message.content !== 'string') {
+    return false;
+  }
+
+  const content = message.content.trim();
+  return CREATIVE_CENTER_DIAGNOSTIC_MESSAGE_PREFIXES.some((prefix) =>
+    content.startsWith(prefix),
+  );
+};
+
+const buildCreativeCenterChatRequestMessages = (messages) => {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages.filter((message) => {
+    if (!message || !message.role) {
+      return false;
+    }
+    if (message.role !== 'assistant') {
+      return true;
+    }
+    if (isCreativeCenterDiagnosticAssistantMessage(message)) {
+      return false;
+    }
+    if (typeof message.content === 'string' && !message.content.trim()) {
+      return false;
+    }
+    return true;
+  });
+};
 
 const collectCreativeCenterTextFragments = (value, visited = new WeakSet()) => {
   if (typeof value === 'string') {
@@ -5095,8 +5142,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const nextUserMessages = [...currentChatHistory, userMsg];
       setChatMessages(nextUserMessages);
       try {
+        const requestMessages =
+          buildCreativeCenterChatRequestMessages(nextUserMessages);
         const payload = buildApiPayload(
-          nextUserMessages,
+          requestMessages,
           '',
           createCreativeInputs(params, currentModelName, 'chat'),
           PARAMETER_TOGGLES_DISABLED,
