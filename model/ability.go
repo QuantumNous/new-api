@@ -28,6 +28,12 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+func ensureAbilityColumnsInitialized() {
+	if commonGroupCol == "" {
+		initCol()
+	}
+}
+
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
@@ -39,6 +45,7 @@ func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 }
 
 func GetGroupEnabledModels(group string) []string {
+	ensureAbilityColumnsInitialized()
 	var models []string
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
@@ -59,6 +66,7 @@ func GetAllEnableAbilities() []Ability {
 }
 
 func getPriority(group string, model string, retry int) (int, error) {
+	ensureAbilityColumnsInitialized()
 
 	var priorities []int
 	err := DB.Model(&Ability{}).
@@ -89,6 +97,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 }
 
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
+	ensureAbilityColumnsInitialized()
 	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
 	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
 	if retry != 0 {
