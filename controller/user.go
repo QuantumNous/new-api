@@ -253,11 +253,7 @@ func SearchUsers(c *gin.Context) {
 
 	if planIdStr != "" {
 		planId, parseErr := strconv.Atoi(planIdStr)
-		if parseErr != nil {
-			common.ApiError(c, parseErr)
-			return
-		}
-		if planId <= 0 {
+		if parseErr != nil || planId <= 0 {
 			common.ApiErrorMsg(c, "无效的订阅套餐ID")
 			return
 		}

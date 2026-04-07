@@ -36,8 +36,9 @@ export const useUsersData = () => {
   const [groupOptions, setGroupOptions] = useState([]);
   const [planOptions, setPlanOptions] = useState([]);
   const [userCount, setUserCount] = useState(0);
-  const [userSubscriptions, setUserSubscriptions] = useState({});
+  const [userSubscriptions, setUserSubscriptions] = useState(null);
   const latestSubscriptionRequestRef = useRef(0);
+  const latestUserRequestRef = useRef(0);
 
   // Modal states
   const [showAddUser, setShowAddUser] = useState(false);
@@ -76,8 +77,10 @@ export const useUsersData = () => {
 
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
+    const reqId = ++latestUserRequestRef.current;
     setLoading(true);
     const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    if (reqId !== latestUserRequestRef.current) return;
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -101,7 +104,7 @@ export const useUsersData = () => {
       return;
     }
 
-    setUserSubscriptions({});
+    setUserSubscriptions(null);
 
     const userIds = userList.map((u) => u.id);
     try {
@@ -127,7 +130,7 @@ export const useUsersData = () => {
       if (requestId !== latestSubscriptionRequestRef.current) {
         return;
       }
-      setUserSubscriptions({});
+      setUserSubscriptions(null);
     }
   };
 
@@ -152,12 +155,19 @@ export const useUsersData = () => {
       await loadUsers(startIdx, pageSize);
       return;
     }
+    const reqId = ++latestUserRequestRef.current;
     setSearching(true);
-    let url = `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`;
+    const params = new URLSearchParams({
+      keyword: searchKeyword,
+      group: searchGroup,
+      p: String(startIdx),
+      page_size: String(pageSize),
+    });
     if (searchPlan) {
-      url += `&plan_id=${searchPlan}`;
+      params.set('plan_id', String(searchPlan));
     }
-    const res = await API.get(url);
+    const res = await API.get(`/api/user/search?${params.toString()}`);
+    if (reqId !== latestUserRequestRef.current) return;
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;

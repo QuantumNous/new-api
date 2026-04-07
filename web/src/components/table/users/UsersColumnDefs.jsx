@@ -183,7 +183,10 @@ const getPlanColor = (planId) => {
  * Render subscription information (supports multiple active subscriptions)
  */
 const renderSubscriptionInfo = (record, userSubscriptions, planOptions, t) => {
-  const subs = userSubscriptions?.[record.id];
+  if (userSubscriptions === null) {
+    return <Tag color='grey' shape='circle' size='small'>-</Tag>;
+  }
+  const subs = userSubscriptions[record.id];
   if (!subs || !Array.isArray(subs) || subs.length === 0) {
     return (
       <Tag color='grey' shape='circle' size='small'>
@@ -203,7 +206,7 @@ const renderSubscriptionInfo = (record, userSubscriptions, planOptions, t) => {
           (p) => p.value === sub.plan_id,
         )?.label;
         const endDate = sub.end_time
-          ? new Date(sub.end_time * 1000).toLocaleDateString()
+          ? new Date(sub.end_time * 1000).toLocaleString()
           : '-';
 
         const tooltipContent = (
