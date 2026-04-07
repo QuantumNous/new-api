@@ -84,7 +84,7 @@ const FooterBar = () => {
               Agentrix API
             </a>
           </div>
-        </footer>
+        </div>
       ) : (
         customFooter
       )}
