@@ -92,14 +92,61 @@ export const useApiRequest = (
     if (typeof content === 'string') {
       return content;
     }
-    if (!Array.isArray(content)) {
+    if (!content || typeof content !== 'object') {
       return '';
     }
-    const textParts = content
-      .filter((item) => item?.type === 'text')
-      .map((item) => item?.text || '')
-      .filter(Boolean);
-    return textParts.join('\n');
+
+    const collectTextFragments = (value, visited = new WeakSet()) => {
+      if (typeof value === 'string') {
+        return value.trim() ? [value] : [];
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((item) => collectTextFragments(item, visited));
+      }
+      if (!value || typeof value !== 'object' || visited.has(value)) {
+        return [];
+      }
+      visited.add(value);
+
+      const fragments = [];
+      const append = (nextValue) => {
+        collectTextFragments(nextValue, visited).forEach((fragment) => {
+          if (fragment.trim()) {
+            fragments.push(fragment);
+          }
+        });
+      };
+
+      [
+        'text',
+        'output_text',
+        'content',
+        'message',
+        'response',
+        'result',
+        'answer',
+        'value',
+        'outputText',
+        'responseText',
+        'content_text',
+        'text_content',
+        'refusal',
+      ].forEach((key) => {
+        if (value[key] !== undefined && value[key] !== null) {
+          append(value[key]);
+        }
+      });
+
+      ['delta', 'parts', 'segments', 'items', 'output', 'outputs'].forEach((key) => {
+        if (value[key] && typeof value[key] === 'object') {
+          append(value[key]);
+        }
+      });
+
+      return [...new Set(fragments)];
+    };
+
+    return collectTextFragments(content).join('\n');
   }, []);
 
   const getImageFromMessageContent = useCallback((content) => {
@@ -644,11 +691,15 @@ export const useApiRequest = (
 
         if (data.choices?.[0]) {
           const choice = data.choices[0];
-          let content = choice.message?.content || '';
+          let content =
+            getTextFromMessageContent(choice.message?.content) ||
+            getTextFromMessageContent(choice.message) ||
+            getTextFromMessageContent(choice);
           let reasoningContent =
-            choice.message?.reasoning_content ||
-            choice.message?.reasoning ||
-            '';
+            getTextFromMessageContent(choice.message?.reasoning_content) ||
+            getTextFromMessageContent(choice.message?.reasoning) ||
+            getTextFromMessageContent(choice.reasoning_content) ||
+            getTextFromMessageContent(choice.reasoning);
 
           if (
             isGrokImagineImageEditModel(payload?.model) ||
