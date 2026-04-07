@@ -3,7 +3,7 @@ name: PR Check
 permissions:
   contents: read
   issues: read
-  pull-requests: write
+  pull-requests: read
 
 on:
   pull_request_target:
