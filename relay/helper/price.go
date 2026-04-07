@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -64,6 +65,75 @@ func extractResolutionKeyFromRequest(request dto.Request) string {
 	return ""
 }
 
+func extractPositiveIntValue(value any) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		if v > 0 {
+			return v, true
+		}
+	case int64:
+		if v > 0 {
+			return int(v), true
+		}
+	case float64:
+		if v > 0 {
+			return int(v), true
+		}
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && parsed > 0 {
+			return parsed, true
+		}
+	}
+	return 0, false
+}
+
+func extractSecondsFromRequestMetadata(metadata []byte) (int, bool) {
+	if len(metadata) == 0 {
+		return 0, false
+	}
+	var metadataMap map[string]any
+	if err := common.Unmarshal(metadata, &metadataMap); err != nil {
+		return 0, false
+	}
+	for _, key := range []string{"durationSeconds", "duration_seconds", "duration", "seconds"} {
+		if seconds, ok := extractPositiveIntValue(metadataMap[key]); ok {
+			return seconds, true
+		}
+	}
+	return 0, false
+}
+
+func extractSecondsFromRequest(request dto.Request) (int, bool) {
+	switch req := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		if seconds, ok := extractSecondsFromRequestMetadata(req.Metadata); ok {
+			return seconds, true
+		}
+		if req.Duration != nil {
+			if seconds, ok := extractPositiveIntValue(*req.Duration); ok {
+				return seconds, true
+			}
+		}
+		if req.Seconds != nil {
+			if seconds, ok := extractPositiveIntValue(*req.Seconds); ok {
+				return seconds, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func resolveSecondsBasedModelPrice(info *relaycommon.RelayInfo) (float64, bool) {
+	if info == nil || info.Request == nil {
+		return 0, false
+	}
+	seconds, ok := extractSecondsFromRequest(info.Request)
+	if !ok {
+		return 0, false
+	}
+	return ratio_setting.GetModelPriceBySeconds(info.OriginModelName, seconds)
+}
+
 func resolveResolutionBasedModelPrice(c *gin.Context, info *relaycommon.RelayInfo) (float64, bool) {
 	if info == nil {
 		return 0, false
@@ -115,7 +185,25 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 	if !usePrice {
+		if secondsPrice, ok := resolveSecondsBasedModelPrice(info); ok {
+			modelPrice = secondsPrice
+			usePrice = true
+		}
+	}
+	if !usePrice {
 		if resolutionPrice, ok := resolveResolutionBasedModelPrice(c, info); ok {
+			modelPrice = resolutionPrice
+			usePrice = true
+		}
+	}
+	if !usePrice {
+		if secondsPrice, ok := ratio_setting.GetModelPriceBySecondsMin(info.OriginModelName); ok {
+			modelPrice = secondsPrice
+			usePrice = true
+		}
+	}
+	if !usePrice {
+		if resolutionPrice, ok := ratio_setting.GetModelPriceByResolutionMin(info.OriginModelName); ok {
 			modelPrice = resolutionPrice
 			usePrice = true
 		}
