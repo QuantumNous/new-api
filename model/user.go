@@ -222,10 +222,11 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, startIdx int, num int, planId ...int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
+	now := common.GetTimestamp()
 
 	// 开始事务
 	tx := DB.Begin()
@@ -240,6 +241,12 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 
 	// 构建基础查询
 	query := tx.Unscoped().Model(&User{})
+
+	// 如果指定了 planId，先筛选有该订阅计划的用户
+	if len(planId) > 0 && planId[0] > 0 {
+		query = query.Where("id IN (?)",
+			tx.Model(&UserSubscription{}).Select("user_id").Where("plan_id = ? AND status = ? AND end_time > ?", planId[0], "active", now))
+	}
 
 	// 构建搜索条件
 	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"

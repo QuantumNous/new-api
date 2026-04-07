@@ -170,6 +170,71 @@ const renderQuotaUsage = (text, record, t) => {
   );
 };
 
+const PLAN_TAG_COLORS = [
+  'green', 'blue', 'cyan', 'violet', 'teal', 'lime', 'amber', 'indigo',
+];
+
+const getPlanColor = (planId) => {
+  if (!planId) return 'green';
+  return PLAN_TAG_COLORS[planId % PLAN_TAG_COLORS.length];
+};
+
+/**
+ * Render subscription information (supports multiple active subscriptions)
+ */
+const renderSubscriptionInfo = (record, userSubscriptions, planOptions, t) => {
+  const subs = userSubscriptions?.[record.id];
+  if (!subs || !Array.isArray(subs) || subs.length === 0) {
+    return (
+      <Tag color='grey' shape='circle' size='small'>
+        {t('无订阅')}
+      </Tag>
+    );
+  }
+
+  const now = Date.now() / 1000;
+
+  return (
+    <Space spacing={4} wrap>
+      {subs.map((sub) => {
+        const isExpired = sub.end_time > 0 && sub.end_time < now;
+        const isActive = sub.status === 'active' && !isExpired;
+        const planName = planOptions?.find(
+          (p) => p.value === sub.plan_id,
+        )?.label;
+        const endDate = sub.end_time
+          ? new Date(sub.end_time * 1000).toLocaleDateString()
+          : '-';
+
+        const tooltipContent = (
+          <div className='text-xs'>
+            <div>
+              {t('到期')}: {endDate}
+            </div>
+            {sub.amount_total > 0 && (
+              <div>
+                {t('额度')}: {sub.amount_used}/{sub.amount_total}
+              </div>
+            )}
+          </div>
+        );
+
+        return (
+          <Tooltip key={sub.id} content={tooltipContent} position='top'>
+            <Tag
+              color={isActive ? getPlanColor(sub.plan_id) : 'grey'}
+              shape='circle'
+              size='small'
+            >
+              {planName || (sub.plan_id ? `#${sub.plan_id}` : t('订阅中'))}
+            </Tag>
+          </Tooltip>
+        );
+      })}
+    </Space>
+  );
+};
+
 /**
  * Render invite information
  */
@@ -309,6 +374,8 @@ export const getUsersColumns = ({
   showResetPasskeyModal,
   showResetTwoFAModal,
   showUserSubscriptionsModal,
+  userSubscriptions,
+  planOptions,
 }) => {
   return [
     {
@@ -344,6 +411,12 @@ export const getUsersColumns = ({
       render: (text, record, index) => {
         return <div>{renderRole(text, t)}</div>;
       },
+    },
+    {
+      title: t('订阅信息'),
+      dataIndex: 'subscription',
+      render: (text, record) =>
+        renderSubscriptionInfo(record, userSubscriptions, planOptions, t),
     },
     {
       title: t('邀请信息'),

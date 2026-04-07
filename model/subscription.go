@@ -666,6 +666,27 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(subs), nil
 }
 
+// GetActiveSubscriptionsByUserIds returns all active subscriptions per user for a batch of user IDs.
+// Returns a map of userId -> []UserSubscription.
+func GetActiveSubscriptionsByUserIds(userIds []int) (map[int][]UserSubscription, error) {
+	if len(userIds) == 0 {
+		return map[int][]UserSubscription{}, nil
+	}
+	now := common.GetTimestamp()
+	var subs []UserSubscription
+	err := DB.Where("user_id IN ? AND status = ? AND end_time > ?", userIds, "active", now).
+		Order("end_time desc, id desc").
+		Find(&subs).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int][]UserSubscription, len(userIds))
+	for i := range subs {
+		result[subs[i].UserId] = append(result[subs[i].UserId], subs[i])
+	}
+	return result, nil
+}
+
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
 func HasActiveUserSubscription(userId int) (bool, error) {
