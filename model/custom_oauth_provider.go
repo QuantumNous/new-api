@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	CustomOAuthProviderKindOAuthCode = "oauth_code"
-	CustomOAuthProviderKindCAS       = "cas"
+	CustomOAuthProviderKindOAuthCode     = "oauth_code"
+	CustomOAuthProviderKindCAS           = "cas"
+	CustomOAuthProviderKindJWTDirect     = "jwt_direct"
+	CustomOAuthProviderKindTrustedHeader = "trusted_header"
 )
 
 const (
@@ -82,7 +84,7 @@ type CustomOAuthProvider struct {
 	Name                       string `json:"name" gorm:"type:varchar(64);not null"`                                 // Display name, e.g., "GitHub Enterprise"
 	Slug                       string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`                     // URL identifier, e.g., "github-enterprise"
 	Icon                       string `json:"icon" gorm:"type:varchar(128);default:''"`                              // Icon name from @lobehub/icons
-	Kind                       string `json:"kind" gorm:"type:varchar(32);default:'oauth_code'"`                     // oauth_code / cas
+	Kind                       string `json:"kind" gorm:"type:varchar(32);default:'oauth_code'"`                     // oauth_code / cas / jwt_direct / trusted_header
 	Enabled                    bool   `json:"enabled" gorm:"default:false"`                                          // Whether this provider is enabled
 	ClientId                   string `json:"client_id" gorm:"type:varchar(256)"`                                    // OAuth client ID
 	ClientSecret               string `json:"-" gorm:"type:varchar(512)"`                                            // OAuth client secret (not returned to frontend)
@@ -162,11 +164,11 @@ func (p *CustomOAuthProvider) GetKind() string {
 }
 
 func (p *CustomOAuthProvider) IsJWTDirect() bool {
-	return false
+	return p.GetKind() == CustomOAuthProviderKindJWTDirect
 }
 
 func (p *CustomOAuthProvider) IsTrustedHeader() bool {
-	return false
+	return p.GetKind() == CustomOAuthProviderKindTrustedHeader
 }
 
 func (p *CustomOAuthProvider) IsCAS() bool {
@@ -302,7 +304,9 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		provider.Kind = CustomOAuthProviderKindOAuthCode
 	}
 	if provider.Kind != CustomOAuthProviderKindOAuthCode &&
-		provider.Kind != CustomOAuthProviderKindCAS {
+		provider.Kind != CustomOAuthProviderKindCAS &&
+		provider.Kind != CustomOAuthProviderKindJWTDirect &&
+		provider.Kind != CustomOAuthProviderKindTrustedHeader {
 		return errors.New("provider kind is invalid")
 	}
 	normalizeCustomOAuthProviderForKind(provider)
@@ -333,13 +337,13 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		if !isValidAbsoluteHTTPURL(provider.UserInfoEndpoint) {
 			return errors.New("user info endpoint must be a valid absolute http or https URL")
 		}
-	} else {
+	} else if provider.IsCAS() {
 		if err := validateCASProvider(provider); err != nil {
 			return err
 		}
 	}
 
-	if provider.IsOAuthCode() || provider.IsCAS() {
+	if provider.IsOAuthCode() || provider.IsJWTDirect() || provider.IsCAS() {
 		if provider.UserIdField == "" {
 			provider.UserIdField = "sub"
 		}
