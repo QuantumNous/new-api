@@ -127,9 +127,9 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	if req.Plan.Currency == "" {
-		req.Plan.Currency = "USD"
+		req.Plan.Currency = "CNY"
 	}
-	req.Plan.Currency = "USD"
+	req.Plan.Currency = "CNY"
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -190,9 +190,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	}
 	req.Plan.Id = id
 	if req.Plan.Currency == "" {
-		req.Plan.Currency = "USD"
+		req.Plan.Currency = "CNY"
 	}
-	req.Plan.Currency = "USD"
+	req.Plan.Currency = "CNY"
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}

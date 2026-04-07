@@ -135,6 +135,34 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		// ==================== MyClaw Client API ====================
+		// 客户端专用接口（手机验证码登录 + 自动 Token 管理），独立于网页登录流程
+		// 安全：CriticalRateLimit + SmsRateLimit 限流；登录响应不含 cookie，仅返回 API Key
+		clientRoute := apiRouter.Group("/client")
+		{
+			clientRoute.POST("/login_sms",
+				middleware.CriticalRateLimit(),
+				middleware.SmsRateLimit(),
+				middleware.TurnstileCheck(),
+				controller.ClientSmsLogin)
+
+			// 基于 API Key 鉴权的客户端自查接口
+			clientRoute.GET("/self",
+				middleware.TokenAuth(),
+				controller.ClientGetSelf)
+
+			// 订阅套餐列表（公开，无需登录）
+			// Subscription plans list (public)
+			clientRoute.GET("/subscription/plans", controller.GetSubscriptionPlans)
+
+			// 客户端发起订阅支付（API Key 鉴权 + 限流）
+			// Client subscription pay (API Key auth + rate limited)
+			clientRoute.POST("/subscription/epay/pay",
+				middleware.TokenAuth(),
+				middleware.CriticalRateLimit(),
+				controller.SubscriptionRequestEpay)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
