@@ -22,7 +22,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
-import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
 import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
@@ -90,9 +89,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
 
-  const theme = useTheme();
-  const actualTheme = useActualTheme();
-  const setTheme = useSetTheme();
+  const actualTheme = 'light';
 
   // Logo loading effect
   useEffect(() => {
@@ -196,19 +193,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     [i18n, userState, userDispatch],
   );
 
-  const handleThemeToggle = useCallback(
-    (newTheme) => {
-      if (
-        !newTheme ||
-        (newTheme !== 'light' && newTheme !== 'dark' && newTheme !== 'auto')
-      ) {
-        return;
-      }
-      setTheme(newTheme);
-    },
-    [setTheme],
-  );
-
   const handleMobileMenuToggle = useCallback(() => {
     if (isMobile) {
       onMobileMenuToggle();
@@ -234,7 +218,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     docsLink,
     isDemoSiteMode,
     isConsoleRoute,
-    theme,
     drawerOpen,
     headerNavModules,
     pricingRequireAuth,
@@ -242,7 +225,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     // Actions
     logout,
     handleLanguageChange,
-    handleThemeToggle,
     handleMobileMenuToggle,
     navigate,
     t,
