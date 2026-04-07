@@ -574,6 +574,8 @@ const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
   'data',
   'payload',
   'body',
+  'choice',
+  'message',
   'output',
   'outputs',
   'choices',
@@ -713,6 +715,8 @@ const extractCreativeCenterChatResponse = (payload) => {
     .filter(Boolean);
 
   const contentFragments = [
+    choice,
+    message,
     message.content,
     choice?.text,
     choice?.delta?.content,
