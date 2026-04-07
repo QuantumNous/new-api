@@ -37,6 +37,7 @@ type Log struct {
 	Ip               string `json:"ip" gorm:"index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	Other            string `json:"other"`
+	UpstreamUsage    string `json:"upstream_usage,omitempty" gorm:"type:text"`
 }
 
 // don't use iota, avoid change log type value
@@ -147,6 +148,7 @@ type RecordConsumeLogParams struct {
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
 	Other            map[string]interface{} `json:"other"`
+	UpstreamUsage    interface{}            `json:"upstream_usage,omitempty"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -157,6 +159,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	otherStr := common.MapToJsonStr(params.Other)
+	upstreamUsageStr := ""
+	if params.UpstreamUsage != nil {
+		upstreamUsageStr = common.GetJsonString(params.UpstreamUsage)
+	}
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -188,6 +194,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		}(),
 		RequestId: requestId,
 		Other:     otherStr,
+		UpstreamUsage: upstreamUsageStr,
 	}
 	err := LOG_DB.Create(log).Error
 	if err != nil {
