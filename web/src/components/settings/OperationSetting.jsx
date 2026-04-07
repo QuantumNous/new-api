@@ -28,6 +28,7 @@ import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsMaintenance from '../../pages/Setting/Operation/SettingsMaintenance';
+import SettingsTimeDynamicRatio from '../../pages/Setting/Operation/SettingsTimeDynamicRatio';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -154,6 +155,10 @@ const OperationSetting = () => {
         {/* 维护模式设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsMaintenance />
+        </Card>
+        {/* 时间动态倍率 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsTimeDynamicRatio />
         </Card>
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>

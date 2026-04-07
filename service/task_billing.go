@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
@@ -118,6 +120,9 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 	if bc := task.PrivateData.BillingContext; bc != nil {
 		other["model_price"] = bc.ModelPrice
 		other["group_ratio"] = bc.GroupRatio
+		if bc.TimeDynamicMultiplier != 0 {
+			other["time_dynamic_multiplier"] = bc.TimeDynamicMultiplier
+		}
 		if len(bc.OtherRatios) > 0 {
 			for k, v := range bc.OtherRatios {
 				other[k] = v
@@ -268,6 +273,8 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	}
 
 	groupRatio := ratio_setting.GetGroupRatio(group)
+	// 异步回调时，仍对当前时间匹配时间动态倍率
+	tdMultiplier := operation_setting.ResolveTimeDynamicMultiplier(modelName, group, time.Now())
 	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
 
 	var finalGroupRatio float64
@@ -277,9 +284,9 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		finalGroupRatio = groupRatio
 	}
 
-	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio
-	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio)
+	// 计算实际应扣费额度: totalTokens * modelRatio * groupRatio * tdMultiplier
+	actualQuota := int(float64(totalTokens) * modelRatio * finalGroupRatio * tdMultiplier)
 
-	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f", totalTokens, modelRatio, finalGroupRatio)
+	reason := fmt.Sprintf("token重算：tokens=%d, modelRatio=%.2f, groupRatio=%.2f, tdMultiplier=%.2f", totalTokens, modelRatio, finalGroupRatio, tdMultiplier)
 	RecalculateTaskQuota(ctx, task, actualQuota, reason)
 }

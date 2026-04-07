@@ -9,22 +9,23 @@ type GroupRatioInfo struct {
 }
 
 type PriceData struct {
-	FreeModel            bool
-	ModelPrice           float64
-	ModelRatio           float64
-	CompletionRatio      float64
-	CacheRatio           float64
-	CacheCreationRatio   float64
-	CacheCreation5mRatio float64
-	CacheCreation1hRatio float64
-	ImageRatio           float64
-	AudioRatio           float64
-	AudioCompletionRatio float64
-	OtherRatios          map[string]float64
-	UsePrice             bool
-	Quota                int // 按次计费的最终额度（MJ / Task）
-	QuotaToPreConsume    int // 按量计费的预消耗额度
-	GroupRatioInfo       GroupRatioInfo
+	FreeModel             bool
+	ModelPrice            float64
+	ModelRatio            float64
+	CompletionRatio       float64
+	CacheRatio            float64
+	CacheCreationRatio    float64
+	CacheCreation5mRatio  float64
+	CacheCreation1hRatio  float64
+	ImageRatio            float64
+	AudioRatio            float64
+	AudioCompletionRatio  float64
+	OtherRatios           map[string]float64
+	UsePrice              bool
+	Quota                 int // 按次计费的最终额度（MJ / Task）
+	QuotaToPreConsume     int // 按量计费的预消耗额度
+	GroupRatioInfo        GroupRatioInfo
+	TimeDynamicMultiplier float64 // 时间动态倍率（默认1.0，独立于GroupRatio，仅用于计费和日志）
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

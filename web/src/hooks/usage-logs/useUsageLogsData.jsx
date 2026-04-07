@@ -424,42 +424,47 @@ export const useLogsData = () => {
         });
       }
       if (logs[i].type === 2) {
+        let logDetailValue = other?.claude
+          ? renderClaudeLogContent(
+            other?.model_ratio,
+            other.completion_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_ratio || 1.0,
+            other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_5m || 0,
+            other.cache_creation_ratio_5m ||
+            other.cache_creation_ratio ||
+            1.0,
+            other.cache_creation_tokens_1h || 0,
+            other.cache_creation_ratio_1h ||
+            other.cache_creation_ratio ||
+            1.0,
+            billingDisplayMode,
+          )
+          : renderLogContent(
+            other?.model_ratio,
+            other.completion_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_ratio || 1.0,
+            false,
+            1.0,
+            other.web_search || false,
+            other.web_search_call_count || 0,
+            other.file_search || false,
+            other.file_search_call_count || 0,
+            billingDisplayMode,
+          );
+        // 追加时间动态倍率信息
+        if (other?.time_dynamic_multiplier && other.time_dynamic_multiplier !== 1) {
+          logDetailValue += `，${t('时间倍率')} ${other.time_dynamic_multiplier}x`;
+        }
         expandDataLocal.push({
           key: t('日志详情'),
-          value: other?.claude
-            ? renderClaudeLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                other.cache_creation_ratio || 1.0,
-                other.cache_creation_tokens_5m || 0,
-                other.cache_creation_ratio_5m ||
-                  other.cache_creation_ratio ||
-                  1.0,
-                other.cache_creation_tokens_1h || 0,
-                other.cache_creation_ratio_1h ||
-                  other.cache_creation_ratio ||
-                  1.0,
-                billingDisplayMode,
-              )
-            : renderLogContent(
-                other?.model_ratio,
-                other.completion_ratio,
-                other.model_price,
-                other.group_ratio,
-                other?.user_group_ratio,
-                other.cache_ratio || 1.0,
-                false,
-                1.0,
-                other.web_search || false,
-                other.web_search_call_count || 0,
-                other.file_search || false,
-                other.file_search_call_count || 0,
-                billingDisplayMode,
-              ),
+          value: logDetailValue,
         });
         if (logs[i]?.content) {
           expandDataLocal.push({
@@ -529,12 +534,12 @@ export const useLogsData = () => {
               other.cache_creation_ratio || 1.0,
               other.cache_creation_tokens_5m || 0,
               other.cache_creation_ratio_5m ||
-                other.cache_creation_ratio ||
-                1.0,
+              other.cache_creation_ratio ||
+              1.0,
               other.cache_creation_tokens_1h || 0,
               other.cache_creation_ratio_1h ||
-                other.cache_creation_ratio ||
-                1.0,
+              other.cache_creation_ratio ||
+              1.0,
               billingDisplayMode,
             );
           } else {
@@ -569,6 +574,13 @@ export const useLogsData = () => {
             key: t('计费过程'),
             value: content,
           });
+          // 追加时间动态倍率独立行
+          if (other?.time_dynamic_multiplier && other.time_dynamic_multiplier !== 1) {
+            expandDataLocal.push({
+              key: t('时间倍率'),
+              value: `${other.time_dynamic_multiplier}x（规则命中，实际扣费已乘以此倍率）`,
+            });
+          }
         }
         if (other?.reasoning_effort) {
           expandDataLocal.push({
@@ -766,7 +778,7 @@ export const useLogsData = () => {
   // Page handlers
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadLogs(page, pageSize).then((r) => {});
+    loadLogs(page, pageSize).then((r) => { });
   };
 
   const handlePageSizeChange = async (size) => {

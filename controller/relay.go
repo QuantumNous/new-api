@@ -155,6 +155,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// 时间动态倍率响应 Header（仅在命中规则时返回）
+	if priceData.TimeDynamicMultiplier != 0 && priceData.TimeDynamicMultiplier != 1.0 {
+		c.Header("X-New-Api-Time-Dynamic-Multiplier", fmt.Sprintf("%.4f", priceData.TimeDynamicMultiplier))
+	}
+
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
 
 	if priceData.FreeModel {
@@ -576,12 +581,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName),
+			ModelPrice:            relayInfo.PriceData.ModelPrice,
+			GroupRatio:            relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:            relayInfo.PriceData.ModelRatio,
+			OtherRatios:           relayInfo.PriceData.OtherRatios,
+			TimeDynamicMultiplier: relayInfo.PriceData.TimeDynamicMultiplier,
+			OriginModelName:       relayInfo.OriginModelName,
+			PerCallBilling:        common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName),
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

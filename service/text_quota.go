@@ -247,6 +247,11 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
 
+		// 时间动态倍率（影响全部费用，在 OtherRatios 之前）
+		if relayInfo.PriceData.TimeDynamicMultiplier != 0 && relayInfo.PriceData.TimeDynamicMultiplier != 1.0 {
+			quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(relayInfo.PriceData.TimeDynamicMultiplier))
+		}
+
 		if len(relayInfo.PriceData.OtherRatios) > 0 {
 			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
 				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))
@@ -264,6 +269,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dFileSearchQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(dImageGenerationCallQuota)
+
+		// 时间动态倍率（影响全部费用，在 OtherRatios 之前）
+		if relayInfo.PriceData.TimeDynamicMultiplier != 0 && relayInfo.PriceData.TimeDynamicMultiplier != 1.0 {
+			quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(relayInfo.PriceData.TimeDynamicMultiplier))
+		}
+
 		if len(relayInfo.PriceData.OtherRatios) > 0 {
 			for _, otherRatio := range relayInfo.PriceData.OtherRatios {
 				quotaCalculateDecimal = quotaCalculateDecimal.Mul(decimal.NewFromFloat(otherRatio))

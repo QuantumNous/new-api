@@ -55,7 +55,7 @@ const colors = [
   'yellow',
 ];
 
-function formatRatio(ratio) {
+function formatRatio (ratio) {
   if (ratio === undefined || ratio === null) {
     return '-';
   }
@@ -65,7 +65,7 @@ function formatRatio(ratio) {
   return String(ratio);
 }
 
-function buildChannelAffinityTooltip(affinity, t) {
+function buildChannelAffinityTooltip (affinity, t) {
   if (!affinity) {
     return null;
   }
@@ -94,7 +94,7 @@ function buildChannelAffinityTooltip(affinity, t) {
 }
 
 // Render functions
-function renderType(type, t) {
+function renderType (type, t) {
   switch (type) {
     case 1:
       return (
@@ -141,7 +141,7 @@ function renderType(type, t) {
   }
 }
 
-function buildStreamStatusTooltip(ss, t) {
+function buildStreamStatusTooltip (ss, t) {
   if (!ss) return null;
   const lines = [
     t('流状态') + '：' + t('异常'),
@@ -162,7 +162,7 @@ function buildStreamStatusTooltip(ss, t) {
   );
 }
 
-function renderIsStream(bool, t, streamStatus) {
+function renderIsStream (bool, t, streamStatus) {
   const isError = streamStatus && streamStatus.status !== 'ok';
 
   if (bool) {
@@ -203,7 +203,7 @@ function renderIsStream(bool, t, streamStatus) {
   }
 }
 
-function renderUseTime(type, t) {
+function renderUseTime (type, t) {
   const time = parseInt(type);
   if (time < 101) {
     return (
@@ -229,7 +229,7 @@ function renderUseTime(type, t) {
   }
 }
 
-function renderFirstUseTime(type, t) {
+function renderFirstUseTime (type, t) {
   let time = parseFloat(type) / 1000.0;
   time = time.toFixed(1);
   if (time < 3) {
@@ -256,7 +256,7 @@ function renderFirstUseTime(type, t) {
   }
 }
 
-function renderBillingTag(record, t) {
+function renderBillingTag (record, t) {
   const other = getLogOther(record.other);
   if (other?.billing_source === 'subscription') {
     return (
@@ -268,7 +268,7 @@ function renderBillingTag(record, t) {
   return null;
 }
 
-function renderModelName(record, copyText, t) {
+function renderModelName (record, copyText, t) {
   let other = getLogOther(record.other);
   let modelMapped =
     other?.is_model_mapped &&
@@ -277,7 +277,7 @@ function renderModelName(record, copyText, t) {
   if (!modelMapped) {
     return renderModelTag(record.model_name, {
       onClick: (event) => {
-        copyText(event, record.model_name).then((r) => {});
+        copyText(event, record.model_name).then((r) => { });
       },
     });
   } else {
@@ -294,7 +294,7 @@ function renderModelName(record, copyText, t) {
                     </Typography.Text>
                     {renderModelTag(record.model_name, {
                       onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => {});
+                        copyText(event, record.model_name).then((r) => { });
                       },
                     })}
                   </div>
@@ -305,7 +305,7 @@ function renderModelName(record, copyText, t) {
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {
                         copyText(event, other.upstream_model_name).then(
-                          (r) => {},
+                          (r) => { },
                         );
                       },
                     })}
@@ -316,7 +316,7 @@ function renderModelName(record, copyText, t) {
           >
             {renderModelTag(record.model_name, {
               onClick: (event) => {
-                copyText(event, record.model_name).then((r) => {});
+                copyText(event, record.model_name).then((r) => { });
               },
               suffixIcon: (
                 <Route
@@ -331,7 +331,7 @@ function renderModelName(record, copyText, t) {
   }
 }
 
-function toTokenNumber(value) {
+function toTokenNumber (value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 0;
@@ -339,11 +339,11 @@ function toTokenNumber(value) {
   return parsed;
 }
 
-function formatTokenCount(value) {
+function formatTokenCount (value) {
   return toTokenNumber(value).toLocaleString();
 }
 
-function getPromptCacheSummary(other) {
+function getPromptCacheSummary (other) {
   if (!other || typeof other !== 'object') {
     return null;
   }
@@ -369,13 +369,13 @@ function getPromptCacheSummary(other) {
   };
 }
 
-function normalizeDetailText(detail) {
+function normalizeDetailText (detail) {
   return String(detail || '')
     .replace(/\n\r/g, '\n')
     .replace(/\r\n/g, '\n');
 }
 
-function getUsageLogGroupSummary(groupRatio, userGroupRatio, t) {
+function getUsageLogGroupSummary (groupRatio, userGroupRatio, t) {
   const parsedUserGroupRatio = Number(userGroupRatio);
   const useUserGroupRatio =
     Number.isFinite(parsedUserGroupRatio) && parsedUserGroupRatio !== -1;
@@ -386,7 +386,7 @@ function getUsageLogGroupSummary(groupRatio, userGroupRatio, t) {
   return `${useUserGroupRatio ? t('专属倍率') : t('分组')} ${formatRatio(ratio)}x`;
 }
 
-function renderCompactDetailSummary(summarySegments) {
+function renderCompactDetailSummary (summarySegments) {
   const segments = Array.isArray(summarySegments)
     ? summarySegments.filter((segment) => segment?.text)
     : [];
@@ -423,7 +423,7 @@ function renderCompactDetailSummary(summarySegments) {
   );
 }
 
-function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
+function getUsageLogDetailSummary (record, text, billingDisplayMode, t) {
   const other = getLogOther(record.other);
 
   if (record.type === 6) {
@@ -460,48 +460,58 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  const baseSegments = other?.claude
+    ? renderModelPriceSimple(
+      other.model_ratio,
+      other.model_price,
+      other.group_ratio,
+      other?.user_group_ratio,
+      other.cache_tokens || 0,
+      other.cache_ratio || 1.0,
+      other.cache_creation_tokens || 0,
+      other.cache_creation_ratio || 1.0,
+      other.cache_creation_tokens_5m || 0,
+      other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+      other.cache_creation_tokens_1h || 0,
+      other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+      false,
+      1.0,
+      other?.is_system_prompt_overwritten,
+      'claude',
+      billingDisplayMode,
+      'segments',
+    )
+    : renderModelPriceSimple(
+      other.model_ratio,
+      other.model_price,
+      other.group_ratio,
+      other?.user_group_ratio,
+      other.cache_tokens || 0,
+      other.cache_ratio || 1.0,
+      0,
+      1.0,
+      0,
+      1.0,
+      0,
+      1.0,
+      false,
+      1.0,
+      other?.is_system_prompt_overwritten,
+      'openai',
+      billingDisplayMode,
+      'segments',
+    );
+
+  // 追加时间动态倍率 segment
+  if (other?.time_dynamic_multiplier && other.time_dynamic_multiplier !== 1) {
+    baseSegments.push({
+      tone: 'primary',
+      text: `${t('时间倍率')} ${other.time_dynamic_multiplier}x`,
+    });
+  }
+
   return {
-    segments: other?.claude
-      ? renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          other.cache_creation_tokens || 0,
-          other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_5m || 0,
-          other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-          other.cache_creation_tokens_1h || 0,
-          other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'claude',
-          billingDisplayMode,
-          'segments',
-        )
-      : renderModelPriceSimple(
-          other.model_ratio,
-          other.model_price,
-          other.group_ratio,
-          other?.user_group_ratio,
-          other.cache_tokens || 0,
-          other.cache_ratio || 1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          0,
-          1.0,
-          false,
-          1.0,
-          other?.is_system_prompt_overwritten,
-          'openai',
-          billingDisplayMode,
-          'segments',
-        ),
+    segments: baseSegments,
   };
 }
 

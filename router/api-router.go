@@ -185,6 +185,14 @@ func SetApiRouter(router *gin.Engine) {
 			maintenanceRoute.POST("/disable", controller.DisableMaintenance)
 		}
 
+		// 时间动态倍率管理路由（仅 root 可操作）
+		timeDynamicRatioRoute := apiRouter.Group("/time-dynamic-ratio")
+		timeDynamicRatioRoute.Use(middleware.RootAuth())
+		{
+			timeDynamicRatioRoute.GET("/", controller.GetTimeDynamicRatio)
+			timeDynamicRatioRoute.PUT("/", controller.UpdateTimeDynamicRatio)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())
