@@ -3,7 +3,7 @@ name: Deploy
 on:
   push:
     branches:
-      - main
+      - develop
 
 jobs:
   deploy:
@@ -23,6 +23,6 @@ jobs:
           script: |
             cd ${{ env.DEPLOY_PATH }}
             git fetch origin
-            git reset --hard origin/main
+            git reset --hard origin/develop
             ./start.sh build
             ./start.sh restart
