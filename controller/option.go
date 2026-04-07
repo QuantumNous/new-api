@@ -94,7 +94,6 @@ func GetOptions(c *gin.Context) {
 		"message": "",
 		"data":    options,
 	})
-	return
 }
 
 type OptionUpdateRequest struct {
@@ -260,6 +259,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "monitor_setting.channel_test_stream_retry_status_codes":
+		_, err = operation_setting.ParseHTTPStatusCodeRanges(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case "console_setting.api_info":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
 		if err != nil {
@@ -306,5 +314,4 @@ func UpdateOption(c *gin.Context) {
 		"success": true,
 		"message": "",
 	})
-	return
 }

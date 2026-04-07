@@ -40,6 +40,34 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	statusCode  int
+	duration    time.Duration
+}
+
+func shouldRetryChannelTestWithStream(result testResult) bool {
+	if result.newAPIError == nil {
+		return false
+	}
+	statusCode := result.statusCode
+	if statusCode == 0 {
+		statusCode = result.newAPIError.StatusCode
+	}
+	return operation_setting.ShouldRetryChannelTestWithStream(statusCode, result.newAPIError.Error())
+}
+
+func testChannelWithOptionalStreamRetry(channel *model.Channel, testModel string, endpointType string, isStream bool, allowStreamRetry bool) testResult {
+	result := testChannel(channel, testModel, endpointType, isStream)
+	if !allowStreamRetry || isStream || !shouldRetryChannelTestWithStream(result) {
+		return result
+	}
+	common.SysLog(fmt.Sprintf(
+		"channel test retrying with stream enabled: channel_id=%d name=%s model=%s endpoint_type=%s",
+		channel.Id,
+		channel.Name,
+		strings.TrimSpace(testModel),
+		strings.TrimSpace(endpointType),
+	))
+	return testChannel(channel, testModel, endpointType, true)
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -56,8 +84,16 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
-func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) (result testResult) {
 	tik := time.Now()
+	defer func() {
+		if result.duration == 0 {
+			result.duration = time.Since(tik)
+		}
+		if result.statusCode == 0 && result.newAPIError != nil {
+			result.statusCode = result.newAPIError.StatusCode
+		}
+	}()
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
@@ -430,7 +466,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			return testResult{
 				context:     c,
 				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+				newAPIError: err,
+				statusCode:  httpResp.StatusCode,
 			}
 		}
 	}
@@ -450,8 +487,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			newAPIError: types.NewOpenAIError(usageErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
-	result := w.Result()
-	respBody, err := readTestResponseBody(result.Body, isStream)
+	httpResult := w.Result()
+	respBody, err := readTestResponseBody(httpResult.Body, isStream)
 	if err != nil {
 		return testResult{
 			context:     c,
@@ -479,7 +516,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		quota = int(priceData.ModelPrice * common.QuotaPerUnit)
 	}
 	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
+	duration := tok.Sub(tik)
+	milliseconds := duration.Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
@@ -501,6 +539,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		context:     c,
 		localErr:    nil,
 		newAPIError: nil,
+		duration:    duration,
 	}
 }
 
@@ -753,8 +792,9 @@ func TestChannel(c *gin.Context) {
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
-	tik := time.Now()
-	result := testChannel(channel, testModel, endpointType, isStream)
+	manualTest, _ := strconv.ParseBool(c.Query("manual_test"))
+	allowStreamRetry := !manualTest && c.Query("stream") == "" && strings.TrimSpace(endpointType) == ""
+	result := testChannelWithOptionalStreamRetry(channel, testModel, endpointType, isStream, allowStreamRetry)
 	if result.localErr != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -763,8 +803,7 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
+	milliseconds := result.duration.Milliseconds()
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
@@ -815,10 +854,8 @@ func testAllChannels(notify bool) error {
 				continue
 			}
 			isChannelEnabled := channel.Status == common.ChannelStatusEnabled
-			tik := time.Now()
-			result := testChannel(channel, "", "", false)
-			tok := time.Now()
-			milliseconds := tok.Sub(tik).Milliseconds()
+			result := testChannelWithOptionalStreamRetry(channel, "", "", false, true)
+			milliseconds := result.duration.Milliseconds()
 
 			shouldBanChannel := false
 			newAPIError := result.newAPIError

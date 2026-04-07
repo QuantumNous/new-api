@@ -864,6 +864,7 @@ export const useChannelsData = () => {
     model,
     endpointType = '',
     stream = false,
+    manualTest = false,
   ) => {
     const testKey = `${record.id}-${model}`;
 
@@ -882,6 +883,9 @@ export const useChannelsData = () => {
       }
       if (stream) {
         url += `&stream=true`;
+      }
+      if (manualTest) {
+        url += `&manual_test=true`;
       }
       const res = await API.get(url);
 
@@ -1016,6 +1020,7 @@ export const useChannelsData = () => {
             model,
             selectedEndpointType,
             isStreamTest,
+            true,
           ),
         );
         const batchResults = await Promise.allSettled(batchPromises);
