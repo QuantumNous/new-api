@@ -596,9 +596,8 @@ const CREATIVE_CENTER_NESTED_RESPONSE_KEYS = [
 const CREATIVE_CENTER_DIAGNOSTIC_MESSAGE_PREFIXES = [
   '模型已返回响应',
   '请求失败',
-  '妯″瀷宸茶繑鍥炲搷搴',
-  '璇锋眰澶辫触',
 ];
+const CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT = 4000;
 
 const isCreativeCenterDiagnosticAssistantMessage = (message) => {
   if (!message || message.role !== 'assistant' || typeof message.content !== 'string') {
@@ -681,17 +680,22 @@ const collectCreativeCenterTextFragments = (value, visited = new WeakSet()) => {
 };
 
 const formatCreativeCenterRawResponsePreview = (payload) => {
+  const formatTextPreview = (value) => {
+    const trimmedValue = typeof value === 'string' ? value.trim() : '';
+    return trimmedValue.length > CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT
+      ? `${trimmedValue.slice(0, CREATIVE_CENTER_RAW_RESPONSE_PREVIEW_LIMIT)}\n...`
+      : trimmedValue;
+  };
+
   if (payload === undefined || payload === null) {
     return '';
   }
   if (typeof payload === 'string') {
-    return payload.trim();
+    return formatTextPreview(payload);
   }
   try {
     const serialized = JSON.stringify(payload, null, 2);
-    return serialized.length > 4000
-      ? `${serialized.slice(0, 4000)}\n...`
-      : serialized;
+    return formatTextPreview(serialized);
   } catch {
     return '';
   }
@@ -3655,7 +3659,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         resolve({
           content: contentFragments.join('').trim(),
           reasoningContent: reasoningFragments.join('').trim(),
-          rawResponsePreview: rawFragments.join('\n').trim(),
+          rawResponsePreview: formatCreativeCenterRawResponsePreview(
+            rawFragments.join('\n'),
+          ),
         });
       };
       const fail = (error) => {
