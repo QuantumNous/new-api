@@ -756,8 +756,12 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			if len(truncatedResponse) > 500 {
 				truncatedResponse = truncatedResponse[:500] + "...(truncated)"
 			}
-			logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空, requestId: %s, model: %s, channelId: %d, promptTokens: %d, streamDone: %t, responseText: %q",
-				info.RequestId, info.UpstreamModelName, info.ChannelId, claudeInfo.Usage.PromptTokens, claudeInfo.Done, truncatedResponse))
+			finishReason := ""
+			if info.ClaudeConvertInfo != nil {
+				finishReason = info.ClaudeConvertInfo.FinishReason
+			}
+			logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空, requestId: %s, model: %s, channelId: %d, promptTokens: %d, streamDone: %t, finishReason: %s, responseText: %q",
+				info.RequestId, info.UpstreamModelName, info.ChannelId, claudeInfo.Usage.PromptTokens, claudeInfo.Done, finishReason, truncatedResponse))
 		}
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
