@@ -13,66 +13,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// parseModelID 解析并验证模型ID
-func parseModelID(c *gin.Context) (int, error) {
-	idStr := c.Param("id")
-	return strconv.Atoi(idStr)
-}
-
-// checkModelNameDuplicate 检查模型名称是否重复，返回错误消息
-func checkModelNameDuplicate(id int, name string) string {
-	if name == "" {
-		return "模型名称不能为空"
-	}
-	if dup, err := model.IsModelNameDuplicated(id, name); err != nil {
-		return err.Error()
-	} else if dup {
-		return "模型名称已存在"
-	}
-	return ""
-}
-
 // GetAllModelsMeta 获取模型列表（分页）
 func GetAllModelsMeta(c *gin.Context) {
-	pageInfo := common.GetPageQuery(c)
-	status := c.Query("status")
-	syncOfficial := c.Query("sync_official")
 
-	modelsMeta, total, err := model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), status, syncOfficial)
+	pageInfo := common.GetPageQuery(c)
+	modelsMeta, err := model.GetAllModels(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	// 批量填充附加字段，提升列表接口性能
+	enrichModels(modelsMeta)
+	var total int64
+	model.DB.Model(&model.Model{}).Count(&total)
 
-	respondWithModels(c, modelsMeta, total, pageInfo, status, syncOfficial)
-}
-
-// SearchModelsMeta 搜索模型列表
-func SearchModelsMeta(c *gin.Context) {
-	keyword := c.Query("keyword")
-	vendor := c.Query("vendor")
-	status := c.Query("status")
-	syncOfficial := c.Query("sync_official")
-	pageInfo := common.GetPageQuery(c)
-
-	modelsMeta, total, err := model.SearchModels(keyword, vendor, status, syncOfficial, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	respondWithModels(c, modelsMeta, total, pageInfo, status, syncOfficial)
-}
-
-// respondWithModels 统一处理模型列表响应
-func respondWithModels(c *gin.Context, models []*model.Model, total int64, pageInfo *common.PageInfo, status, syncOfficial string) {
-	enrichModels(models)
-	vendorCounts, _ := model.GetVendorModelCounts(status, syncOfficial)
+	// 统计供应商计数（全部数据，不受分页影响）
+	vendorCounts, _ := model.GetVendorModelCounts()
 
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(models)
+	pageInfo.SetItems(modelsMeta)
 	common.ApiSuccess(c, gin.H{
-		"items":         models,
+		"items":         modelsMeta,
 		"total":         total,
 		"page":          pageInfo.GetPage(),
 		"page_size":     pageInfo.GetPageSize(),
@@ -80,9 +41,29 @@ func respondWithModels(c *gin.Context, models []*model.Model, total int64, pageI
 	})
 }
 
+// SearchModelsMeta 搜索模型列表
+func SearchModelsMeta(c *gin.Context) {
+
+	keyword := c.Query("keyword")
+	vendor := c.Query("vendor")
+	pageInfo := common.GetPageQuery(c)
+
+	modelsMeta, total, err := model.SearchModels(keyword, vendor, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// 批量填充附加字段，提升列表接口性能
+	enrichModels(modelsMeta)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(modelsMeta)
+	common.ApiSuccess(c, pageInfo)
+}
+
 // GetModelMeta 根据 ID 获取单条模型信息
 func GetModelMeta(c *gin.Context) {
-	id, err := parseModelID(c)
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -103,10 +84,16 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-
-	// 验证模型名称
-	if errMsg := checkModelNameDuplicate(0, m.ModelName); errMsg != "" {
-		common.ApiErrorMsg(c, errMsg)
+	if m.ModelName == "" {
+		common.ApiErrorMsg(c, "模型名称不能为空")
+		return
+	}
+	// 名称冲突检查
+	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
+		common.ApiError(c, err)
+		return
+	} else if dup {
+		common.ApiErrorMsg(c, "模型名称已存在")
 		return
 	}
 
@@ -139,9 +126,12 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 	} else {
-		// 验证模型名称
-		if errMsg := checkModelNameDuplicate(m.Id, m.ModelName); errMsg != "" {
-			common.ApiErrorMsg(c, errMsg)
+		// 名称冲突检查
+		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
+			common.ApiError(c, err)
+			return
+		} else if dup {
+			common.ApiErrorMsg(c, "模型名称已存在")
 			return
 		}
 
@@ -156,7 +146,8 @@ func UpdateModelMeta(c *gin.Context) {
 
 // DeleteModelMeta 删除模型
 func DeleteModelMeta(c *gin.Context) {
-	id, err := parseModelID(c)
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -175,23 +166,10 @@ func enrichModels(models []*model.Model) {
 		return
 	}
 
-	exactNames, exactIdx, ruleIndices := classifyModels(models)
-
-	// 处理精确匹配模型
-	enrichExactModels(models, exactNames, exactIdx)
-
-	// 处理规则匹配模型
-	if len(ruleIndices) > 0 {
-		enrichRuleModels(models, ruleIndices)
-	}
-}
-
-// classifyModels 将模型分类为精确匹配和规则匹配
-func classifyModels(models []*model.Model) ([]string, map[string][]int, []int) {
+	// 1) 拆分精确与规则匹配
 	exactNames := make([]string, 0)
-	exactIdx := make(map[string][]int)
+	exactIdx := make(map[string][]int) // modelName -> indices in models
 	ruleIndices := make([]int, 0)
-
 	for i, m := range models {
 		if m == nil {
 			continue
@@ -204,17 +182,10 @@ func classifyModels(models []*model.Model) ([]string, map[string][]int, []int) {
 		}
 	}
 
-	return exactNames, exactIdx, ruleIndices
-}
-
-// enrichExactModels 填充精确匹配模型的信息
-func enrichExactModels(models []*model.Model, exactNames []string, exactIdx map[string][]int) {
-	if len(exactNames) == 0 {
-		return
-	}
-
+	// 2) 批量查询精确模型的绑定渠道
 	channelsByModel, _ := model.GetBoundChannelsByModelsMap(exactNames)
 
+	// 3) 精确模型：端点从缓存、渠道批量映射、分组/计费类型从缓存
 	for name, indices := range exactIdx {
 		chs := channelsByModel[name]
 		for _, idx := range indices {
@@ -230,30 +201,15 @@ func enrichExactModels(models []*model.Model, exactNames []string, exactIdx map[
 			mm.QuotaTypes = model.GetModelQuotaTypes(mm.ModelName)
 		}
 	}
-}
 
-// enrichRuleModels 填充规则匹配模型的信息
-func enrichRuleModels(models []*model.Model, ruleIndices []int) {
+	if len(ruleIndices) == 0 {
+		return
+	}
+
+	// 4) 一次性读取定价缓存，内存匹配所有规则模型
 	pricings := model.GetPricing()
 
-	// 收集匹配信息
-	matchedNamesByIdx, endpointSetByIdx, groupSetByIdx, quotaSetByIdx := collectRuleMatches(models, ruleIndices, pricings)
-
-	// 批量查询渠道信息
-	allMatched := extractAllMatchedNames(matchedNamesByIdx)
-	matchedChannelsByModel, _ := model.GetBoundChannelsByModelsMap(allMatched)
-
-	// 回填模型信息
-	fillRuleModelData(models, ruleIndices, matchedNamesByIdx, endpointSetByIdx, groupSetByIdx, quotaSetByIdx, matchedChannelsByModel)
-}
-
-// collectRuleMatches 收集规则模型的匹配信息
-func collectRuleMatches(models []*model.Model, ruleIndices []int, pricings []model.Pricing) (
-	map[int][]string,
-	map[int]map[constant.EndpointType]struct{},
-	map[int]map[string]struct{},
-	map[int]map[int]struct{},
-) {
+	// 为全部规则模型收集匹配名集合、端点并集、分组并集、配额集合
 	matchedNamesByIdx := make(map[int][]string)
 	endpointSetByIdx := make(map[int]map[constant.EndpointType]struct{})
 	groupSetByIdx := make(map[int]map[string]struct{})
@@ -262,80 +218,65 @@ func collectRuleMatches(models []*model.Model, ruleIndices []int, pricings []mod
 	for _, p := range pricings {
 		for _, idx := range ruleIndices {
 			mm := models[idx]
-			if !matchNameRule(p.ModelName, mm.ModelName, mm.NameRule) {
+			var matched bool
+			switch mm.NameRule {
+			case model.NameRulePrefix:
+				matched = strings.HasPrefix(p.ModelName, mm.ModelName)
+			case model.NameRuleSuffix:
+				matched = strings.HasSuffix(p.ModelName, mm.ModelName)
+			case model.NameRuleContains:
+				matched = strings.Contains(p.ModelName, mm.ModelName)
+			}
+			if !matched {
 				continue
 			}
-
 			matchedNamesByIdx[idx] = append(matchedNamesByIdx[idx], p.ModelName)
 
-			if endpointSetByIdx[idx] == nil {
-				endpointSetByIdx[idx] = make(map[constant.EndpointType]struct{})
+			es := endpointSetByIdx[idx]
+			if es == nil {
+				es = make(map[constant.EndpointType]struct{})
+				endpointSetByIdx[idx] = es
 			}
 			for _, et := range p.SupportedEndpointTypes {
-				endpointSetByIdx[idx][et] = struct{}{}
+				es[et] = struct{}{}
 			}
 
-			if groupSetByIdx[idx] == nil {
-				groupSetByIdx[idx] = make(map[string]struct{})
+			gs := groupSetByIdx[idx]
+			if gs == nil {
+				gs = make(map[string]struct{})
+				groupSetByIdx[idx] = gs
 			}
 			for _, g := range p.EnableGroup {
-				groupSetByIdx[idx][g] = struct{}{}
+				gs[g] = struct{}{}
 			}
 
-			if quotaSetByIdx[idx] == nil {
-				quotaSetByIdx[idx] = make(map[int]struct{})
+			qs := quotaSetByIdx[idx]
+			if qs == nil {
+				qs = make(map[int]struct{})
+				quotaSetByIdx[idx] = qs
 			}
-			quotaSetByIdx[idx][p.QuotaType] = struct{}{}
+			qs[p.QuotaType] = struct{}{}
 		}
 	}
 
-	return matchedNamesByIdx, endpointSetByIdx, groupSetByIdx, quotaSetByIdx
-}
-
-// matchNameRule 根据规则匹配模型名称
-func matchNameRule(pricingModel, modelName string, nameRule int) bool {
-	switch nameRule {
-	case model.NameRulePrefix:
-		return strings.HasPrefix(pricingModel, modelName)
-	case model.NameRuleSuffix:
-		return strings.HasSuffix(pricingModel, modelName)
-	case model.NameRuleContains:
-		return strings.Contains(pricingModel, modelName)
-	default:
-		return false
-	}
-}
-
-// extractAllMatchedNames 提取所有匹配的模型名称
-func extractAllMatchedNames(matchedNamesByIdx map[int][]string) []string {
+	// 5) 汇总所有匹配到的模型名称，批量查询一次渠道
 	allMatchedSet := make(map[string]struct{})
 	for _, names := range matchedNamesByIdx {
 		for _, n := range names {
 			allMatchedSet[n] = struct{}{}
 		}
 	}
-
 	allMatched := make([]string, 0, len(allMatchedSet))
 	for n := range allMatchedSet {
 		allMatched = append(allMatched, n)
 	}
-	return allMatched
-}
+	matchedChannelsByModel, _ := model.GetBoundChannelsByModelsMap(allMatched)
 
-// fillRuleModelData 回填规则模型的数据
-func fillRuleModelData(
-	models []*model.Model,
-	ruleIndices []int,
-	matchedNamesByIdx map[int][]string,
-	endpointSetByIdx map[int]map[constant.EndpointType]struct{},
-	groupSetByIdx map[int]map[string]struct{},
-	quotaSetByIdx map[int]map[int]struct{},
-	matchedChannelsByModel map[string][]model.BoundChannel,
-) {
+	// 6) 回填每个规则模型的并集信息
 	for _, idx := range ruleIndices {
 		mm := models[idx]
 
-		// 填充端点
+		// 端点并集 -> 序列化
 		if es, ok := endpointSetByIdx[idx]; ok && mm.Endpoints == "" {
 			eps := make([]constant.EndpointType, 0, len(es))
 			for et := range es {
@@ -346,7 +287,7 @@ func fillRuleModelData(
 			}
 		}
 
-		// 填充分组
+		// 分组并集
 		if gs, ok := groupSetByIdx[idx]; ok {
 			groups := make([]string, 0, len(gs))
 			for g := range gs {
@@ -355,7 +296,7 @@ func fillRuleModelData(
 			mm.EnableGroups = groups
 		}
 
-		// 填充配额类型
+		// 配额类型集合（保持去重并排序）
 		if qs, ok := quotaSetByIdx[idx]; ok {
 			arr := make([]int, 0, len(qs))
 			for k := range qs {
@@ -365,7 +306,7 @@ func fillRuleModelData(
 			mm.QuotaTypes = arr
 		}
 
-		// 填充渠道
+		// 渠道并集
 		names := matchedNamesByIdx[idx]
 		channelSet := make(map[string]model.BoundChannel)
 		for _, n := range names {
@@ -382,7 +323,7 @@ func fillRuleModelData(
 			mm.BoundChannels = chs
 		}
 
-		// 填充匹配信息
+		// 匹配信息
 		mm.MatchedModels = names
 		mm.MatchedCount = len(names)
 	}

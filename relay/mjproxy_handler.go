@@ -49,6 +49,13 @@ func RelayMidjourneyImage(c *gin.Context) {
 	if httpClient == nil {
 		httpClient = service.GetHttpClient()
 	}
+	fetchSetting := system_setting.GetFetchSetting()
+	if err := common.ValidateURLWithFetchSetting(midjourneyTask.ImageUrl, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": fmt.Sprintf("request blocked: %v", err),
+		})
+		return
+	}
 	resp, err := httpClient.Get(midjourneyTask.ImageUrl)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -184,9 +191,15 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	if swapFaceRequest.SourceBase64 == "" || swapFaceRequest.TargetBase64 == "" {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "sour_base64_and_target_base64_is_required")
 	}
-	modelName := service.CoverActionToModelName(constant.MjActionSwapFace)
+	modelName := service.CovertMjpActionToModelName(constant.MjActionSwapFace)
 
-	priceData := helper.ModelPriceHelperPerCall(c, info)
+	priceData, err := helper.ModelPriceHelperPerCall(c, info)
+	if err != nil {
+		return &dto.MidjourneyResponse{
+			Code:        4,
+			Description: err.Error(),
+		}
+	}
 
 	userQuota, err := model.GetUserQuota(info.UserId, false)
 	if err != nil {
@@ -485,9 +498,15 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 
 	fullRequestURL := fmt.Sprintf("%s%s", baseURL, requestURL)
 
-	modelName := service.CoverActionToModelName(midjRequest.Action)
+	modelName := service.CovertMjpActionToModelName(midjRequest.Action)
 
-	priceData := helper.ModelPriceHelperPerCall(c, relayInfo)
+	priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
+	if err != nil {
+		return &dto.MidjourneyResponse{
+			Code:        4,
+			Description: err.Error(),
+		}
+	}
 
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,6 +35,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateClaudeRequest(c)
 	case types.RelayFormatOpenAIResponses:
 		request, err = GetAndValidateResponsesRequest(c)
+	case types.RelayFormatOpenAIResponsesCompaction:
+		request, err = GetAndValidateResponsesCompactionRequest(c)
 
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
@@ -125,6 +128,17 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	return request, nil
 }
 
+func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIResponsesCompactionRequest, error) {
+	request := &dto.OpenAIResponsesCompactionRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	return request, nil
+}
+
 func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageRequest, error) {
 	imageRequest := &dto.ImageRequest{}
 
@@ -138,7 +152,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			formData := c.Request.PostForm
 			imageRequest.Prompt = formData.Get("prompt")
 			imageRequest.Model = formData.Get("model")
-			imageRequest.N = uint(common.String2Int(formData.Get("n")))
+			imageRequest.N = common.GetPointer(uint(common.String2Int(formData.Get("n"))))
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
 			if imageValue := formData.Get("image"); imageValue != "" {
@@ -150,8 +164,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 					imageRequest.Quality = "standard"
 				}
 			}
-			if imageRequest.N == 0 {
-				imageRequest.N = 1
+			if imageRequest.N == nil || *imageRequest.N == 0 {
+				imageRequest.N = common.GetPointer(uint(1))
 			}
 
 			hasWatermark := formData.Has("watermark")
@@ -205,8 +219,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		//	return nil, errors.New("prompt is required")
 		//}
 
-		if imageRequest.N == 0 {
-			imageRequest.N = 1
+		if imageRequest.N == nil || *imageRequest.N == 0 {
+			imageRequest.N = common.GetPointer(uint(1))
 		}
 	}
 
@@ -215,7 +229,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 
 func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest, err error) {
 	textRequest = &dto.ClaudeRequest{}
-	err = c.ShouldBindJSON(textRequest)
+	err = common.UnmarshalBodyReusable(c, textRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +261,7 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 		textRequest.Model = c.Param("model")
 	}
 
-	if textRequest.MaxTokens > math.MaxInt32/2 {
+	if lo.FromPtrOr(textRequest.MaxTokens, uint(0)) > math.MaxInt32/2 {
 		return nil, errors.New("max_tokens is invalid")
 	}
 	if textRequest.Model == "" {

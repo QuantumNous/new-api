@@ -88,7 +88,7 @@ const renderStatus = (text, record, t) => {
 };
 
 // Render group column
-const renderGroupColumn = (text, record, t) => {
+const renderGroupColumn = (text, record, t, groupRatios = {}) => {
   if (text === 'auto') {
     return (
       <Tooltip
@@ -104,21 +104,44 @@ const renderGroupColumn = (text, record, t) => {
       </Tooltip>
     );
   }
-  return renderGroup(text);
+  const ratio = groupRatios[text];
+  return (
+    <span className='flex items-center gap-1'>
+      {renderGroup(text)}
+      {ratio !== undefined && (
+        <Tag size='small' color='green' shape='circle'>
+          {ratio}x
+        </Tag>
+      )}
+    </span>
+  );
 };
 
 // Render token key column with show/hide and copy functionality
-const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
-  const fullKey = 'sk-' + record.key;
-  const maskedKey =
-    'sk-' + record.key.slice(0, 4) + '**********' + record.key.slice(-4);
+const renderTokenKey = (
+  text,
+  record,
+  showKeys,
+  resolvedTokenKeys,
+  loadingTokenKeys,
+  toggleTokenVisibility,
+  copyTokenKey,
+  copyTokenConnectionString,
+  t,
+) => {
   const revealed = !!showKeys[record.id];
+  const loading = !!loadingTokenKeys[record.id];
+  const keyValue =
+    revealed && resolvedTokenKeys[record.id]
+      ? resolvedTokenKeys[record.id]
+      : record.key || '';
+  const displayedKey = keyValue ? `sk-${keyValue}` : '';
 
   return (
     <div className='w-[200px]'>
       <Input
         readOnly
-        value={revealed ? fullKey : maskedKey}
+        value={displayedKey}
         size='small'
         suffix={
           <div className='flex items-center'>
@@ -127,23 +150,42 @@ const renderTokenKey = (text, record, showKeys, setShowKeys, copyText) => {
               size='small'
               type='tertiary'
               icon={revealed ? <IconEyeClosed /> : <IconEyeOpened />}
+              loading={loading}
               aria-label='toggle token visibility'
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowKeys((prev) => ({ ...prev, [record.id]: !revealed }));
-              }}
-            />
-            <Button
-              theme='borderless'
-              size='small'
-              type='tertiary'
-              icon={<IconCopy />}
-              aria-label='copy token key'
               onClick={async (e) => {
                 e.stopPropagation();
-                await copyText(fullKey);
+                await toggleTokenVisibility(record);
               }}
             />
+            <Dropdown
+              trigger='click'
+              position='bottomRight'
+              clickToHide
+              menu={[
+                {
+                  node: 'item',
+                  name: t('复制密钥'),
+                  onClick: () => copyTokenKey(record),
+                },
+                {
+                  node: 'item',
+                  name: t('复制连接信息'),
+                  onClick: () => copyTokenConnectionString(record),
+                },
+              ]}
+            >
+              <Button
+                theme='borderless'
+                size='small'
+                type='tertiary'
+                icon={<IconCopy />}
+                loading={loading}
+                aria-label='copy token key'
+                onClick={async (e) => {
+                  e.stopPropagation();
+                }}
+              />
+            </Dropdown>
           </div>
         }
       />
@@ -427,13 +469,17 @@ const renderOperations = (
 export const getTokensColumns = ({
   t,
   showKeys,
-  setShowKeys,
-  copyText,
+  resolvedTokenKeys,
+  loadingTokenKeys,
+  toggleTokenVisibility,
+  copyTokenKey,
+  copyTokenConnectionString,
   manageToken,
   onOpenLink,
   setEditingToken,
   setShowEdit,
   refresh,
+  groupRatios = {},
 }) => {
   return [
     {
@@ -455,13 +501,23 @@ export const getTokensColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       key: 'group',
-      render: (text, record) => renderGroupColumn(text, record, t),
+      render: (text, record) => renderGroupColumn(text, record, t, groupRatios),
     },
     {
       title: t('密钥'),
       key: 'token_key',
       render: (text, record) =>
-        renderTokenKey(text, record, showKeys, setShowKeys, copyText),
+        renderTokenKey(
+          text,
+          record,
+          showKeys,
+          resolvedTokenKeys,
+          loadingTokenKeys,
+          toggleTokenVisibility,
+          copyTokenKey,
+          copyTokenConnectionString,
+          t,
+        ),
     },
     {
       title: t('可用模型'),

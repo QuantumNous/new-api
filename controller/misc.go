@@ -8,8 +8,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -126,6 +128,34 @@ func GetStatus(c *gin.Context) {
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
+	}
+
+	// Add enabled custom OAuth providers
+	customProviders := oauth.GetEnabledCustomProviders()
+	if len(customProviders) > 0 {
+		type CustomOAuthInfo struct {
+			Id                    int    `json:"id"`
+			Name                  string `json:"name"`
+			Slug                  string `json:"slug"`
+			Icon                  string `json:"icon"`
+			ClientId              string `json:"client_id"`
+			AuthorizationEndpoint string `json:"authorization_endpoint"`
+			Scopes                string `json:"scopes"`
+		}
+		providersInfo := make([]CustomOAuthInfo, 0, len(customProviders))
+		for _, p := range customProviders {
+			config := p.GetConfig()
+			providersInfo = append(providersInfo, CustomOAuthInfo{
+				Id:                    config.Id,
+				Name:                  config.Name,
+				Slug:                  config.Slug,
+				Icon:                  config.Icon,
+				ClientId:              config.ClientId,
+				AuthorizationEndpoint: config.AuthorizationEndpoint,
+				Scopes:                config.Scopes,
+			})
+		}
+		data["custom_oauth_providers"] = providersInfo
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -278,31 +308,24 @@ func SendPasswordResetEmail(c *gin.Context) {
 		})
 		return
 	}
-	if !model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该邮箱地址未注册",
-		})
-		return
-	}
-	code := common.GenerateVerificationCode(0)
-	common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-	link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
-	subject := fmt.Sprintf("%s密码重置", common.SystemName)
-	content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
-		"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
-		"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
-		"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
-	err := common.SendEmail(subject, email, content)
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	if model.IsEmailAlreadyTaken(email) {
+		code := common.GenerateVerificationCode(0)
+		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
+		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
+		subject := fmt.Sprintf("%s密码重置", common.SystemName)
+		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
+			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
+			"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
+			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
+		err := common.SendEmail(subject, email, content)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 	})
-	return
 }
 
 type PasswordResetRequest struct {

@@ -366,6 +366,14 @@ const EditTokenModal = (props) => {
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
+                        filter={(input, option) => {
+                          const q = input.toLowerCase();
+                          return (
+                            option.value?.toLowerCase().includes(q) ||
+                            (typeof option.label === 'string' &&
+                              option.label.toLowerCase().includes(q))
+                          );
+                        }}
                         showClear
                         style={{ width: '100%' }}
                       />
@@ -378,7 +386,12 @@ const EditTokenModal = (props) => {
                       />
                     )}
                   </Col>
-                  <Col span={24} style={{ display: values.group === 'auto' ? 'block' : 'none' }}>
+                  <Col
+                    span={24}
+                    style={{
+                      display: values.group === 'auto' ? 'block' : 'none',
+                    }}
+                  >
                     <Form.Switch
                       field='cross_group_retry'
                       label={t('跨分组重试')}
@@ -561,7 +574,9 @@ const EditTokenModal = (props) => {
                       placeholder={t('允许的IP，一行一个，不填写则不限制')}
                       autosize
                       rows={1}
-                      extraText={t('请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用')}
+                      extraText={t(
+                        '请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用',
+                      )}
                       showClear
                       style={{ width: '100%' }}
                     />

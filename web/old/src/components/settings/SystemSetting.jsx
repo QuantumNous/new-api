@@ -42,6 +42,7 @@ import {
 } from '../../helpers';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import CustomOAuthSetting from './CustomOAuthSetting';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -90,6 +91,7 @@ const SystemSetting = () => {
     EmailDomainRestrictionEnabled: '',
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
+    SMTPForceAuthLogin: '',
     EmailDomainWhitelist: [],
     TelegramOAuthEnabled: '',
     TelegramBotToken: '',
@@ -107,7 +109,7 @@ const SystemSetting = () => {
     'fetch_setting.domain_list': [],
     'fetch_setting.ip_list': [],
     'fetch_setting.allowed_ports': [],
-    'fetch_setting.apply_ip_filter_for_domain': false,
+    'fetch_setting.apply_ip_filter_for_domain': true,
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -181,6 +183,7 @@ const SystemSetting = () => {
           case 'EmailDomainRestrictionEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
+          case 'SMTPForceAuthLogin':
           case 'LinuxDOOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
@@ -481,10 +484,14 @@ const SystemSetting = () => {
     const options = [];
 
     if (originInputs['discord.client_id'] !== inputs['discord.client_id']) {
-      options.push({ key: 'discord.client_id', value: inputs['discord.client_id'] });
+      options.push({
+        key: 'discord.client_id',
+        value: inputs['discord.client_id'],
+      });
     }
     if (
-      originInputs['discord.client_secret'] !== inputs['discord.client_secret'] &&
+      originInputs['discord.client_secret'] !==
+        inputs['discord.client_secret'] &&
       inputs['discord.client_secret'] !== ''
     ) {
       options.push({
@@ -745,8 +752,8 @@ const SystemSetting = () => {
                       rel='noreferrer'
                     >
                       new-api-worker
-                    </a>
-                    {' '}{t('或其兼容new-api-worker格式的其他版本')}
+                    </a>{' '}
+                    {t('或其兼容new-api-worker格式的其他版本')}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -842,7 +849,7 @@ const SystemSetting = () => {
                         }
                         style={{ marginBottom: 8 }}
                       >
-                        {t('对域名启用 IP 过滤（实验性）')}
+                        {t('对域名启用 IP 过滤（推荐开启）')}
                       </Form.Checkbox>
                       <Text strong>
                         {t(domainFilterMode ? '域名白名单' : '域名黑名单')}
@@ -1330,6 +1337,15 @@ const SystemSetting = () => {
                       >
                         {t('启用SMTP SSL')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field='SMTPForceAuthLogin'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('SMTPForceAuthLogin', e)
+                        }
+                      >
+                        {t('强制使用 AUTH LOGIN')}
+                      </Form.Checkbox>
                     </Col>
                   </Row>
                   <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
@@ -1529,6 +1545,8 @@ const SystemSetting = () => {
                   </Button>
                 </Form.Section>
               </Card>
+
+              <CustomOAuthSetting serverAddress={inputs.ServerAddress} />
 
               <Card>
                 <Form.Section text={t('配置 WeChat Server')}>

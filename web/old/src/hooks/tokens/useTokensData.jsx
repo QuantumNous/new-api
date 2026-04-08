@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -29,17 +29,25 @@ import {
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import {
+  fetchTokenKey as fetchTokenKeyById,
+  fetchTokenKeysBatch,
+  getServerAddress,
+  encodeChannelConnectionString,
+} from '../../helpers/token';
 
-export const useTokensData = (openFluentNotification) => {
+export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const { t } = useTranslation();
 
   // Basic state
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [groupRatios, setGroupRatios] = useState({});
   const [activePage, setActivePage] = useState(1);
   const [tokenCount, setTokenCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState(false); // 是否处于搜索结果视图
 
   // Selection state
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -53,6 +61,9 @@ export const useTokensData = (openFluentNotification) => {
   // UI state
   const [compactMode, setCompactMode] = useTableCompactMode('tokens');
   const [showKeys, setShowKeys] = useState({});
+  const [resolvedTokenKeys, setResolvedTokenKeys] = useState({});
+  const [loadingTokenKeys, setLoadingTokenKeys] = useState({});
+  const keyRequestsRef = useRef({});
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -86,11 +97,13 @@ export const useTokensData = (openFluentNotification) => {
     setTokenCount(payload.total || 0);
     setActivePage(payload.page || 1);
     setPageSize(payload.page_size || pageSize);
+    setShowKeys({});
   };
 
   // Load tokens function
   const loadTokens = async (page = 1, size = pageSize) => {
     setLoading(true);
+    setSearchMode(false);
     const res = await API.get(`/api/token/?p=${page}&size=${size}`);
     const { success, message, data } = res.data;
     if (success) {
@@ -120,10 +133,93 @@ export const useTokensData = (openFluentNotification) => {
     }
   };
 
+  const fetchTokenKey = async (tokenOrId, options = {}) => {
+    const { suppressError = false } = options;
+    const tokenId =
+      typeof tokenOrId === 'object' ? tokenOrId?.id : Number(tokenOrId);
+
+    if (!tokenId) {
+      const error = new Error(t('令牌不存在'));
+      if (!suppressError) {
+        showError(error.message);
+      }
+      throw error;
+    }
+
+    if (resolvedTokenKeys[tokenId]) {
+      return resolvedTokenKeys[tokenId];
+    }
+
+    if (keyRequestsRef.current[tokenId]) {
+      return keyRequestsRef.current[tokenId];
+    }
+
+    const request = (async () => {
+      setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
+      try {
+        const fullKey = await fetchTokenKeyById(tokenId);
+        setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
+        return fullKey;
+      } catch (error) {
+        const normalizedError = new Error(
+          error?.message || t('获取令牌密钥失败'),
+        );
+        if (!suppressError) {
+          showError(normalizedError.message);
+        }
+        throw normalizedError;
+      } finally {
+        delete keyRequestsRef.current[tokenId];
+        setLoadingTokenKeys((prev) => {
+          const next = { ...prev };
+          delete next[tokenId];
+          return next;
+        });
+      }
+    })();
+
+    keyRequestsRef.current[tokenId] = request;
+    return request;
+  };
+
+  const toggleTokenVisibility = async (record) => {
+    const tokenId = record?.id;
+    if (!tokenId) {
+      return;
+    }
+
+    if (showKeys[tokenId]) {
+      setShowKeys((prev) => ({ ...prev, [tokenId]: false }));
+      return;
+    }
+
+    const fullKey = await fetchTokenKey(record);
+    if (fullKey) {
+      setShowKeys((prev) => ({ ...prev, [tokenId]: true }));
+    }
+  };
+
+  const copyTokenKey = async (record) => {
+    const fullKey = await fetchTokenKey(record);
+    await copyText(`sk-${fullKey}`);
+  };
+
+  const copyTokenConnectionString = async (record) => {
+    const fullKey = await fetchTokenKey(record);
+    const serverUrl = getServerAddress();
+    const connStr = encodeChannelConnectionString(`sk-${fullKey}`, serverUrl);
+    await copyText(connStr);
+  };
+
   // Open link function for chat integrations
   const onOpenLink = async (type, url, record) => {
+    const fullKey = await fetchTokenKey(record);
+    if (url && url.startsWith('ccswitch')) {
+      openCCSwitchModal(fullKey);
+      return;
+    }
     if (url && url.startsWith('fluent')) {
-      openFluentNotification(record.key);
+      openFluentNotification(fullKey);
       return;
     }
     let status = localStorage.getItem('status');
@@ -139,16 +235,26 @@ export const useTokensData = (openFluentNotification) => {
       let cherryConfig = {
         id: 'new-api',
         baseUrl: serverAddress,
-        apiKey: 'sk-' + record.key,
+        apiKey: `sk-${fullKey}`,
       };
       let encodedConfig = encodeURIComponent(
         encodeToBase64(JSON.stringify(cherryConfig)),
       );
       url = url.replaceAll('{cherryConfig}', encodedConfig);
+    } else if (url.includes('{aionuiConfig}') === true) {
+      let aionuiConfig = {
+        platform: 'new-api',
+        baseUrl: serverAddress,
+        apiKey: `sk-${fullKey}`,
+      };
+      let encodedConfig = encodeURIComponent(
+        encodeToBase64(JSON.stringify(aionuiConfig)),
+      );
+      url = url.replaceAll('{aionuiConfig}', encodedConfig);
     } else {
       let encodedServerAddress = encodeURIComponent(serverAddress);
       url = url.replaceAll('{address}', encodedServerAddress);
-      url = url.replaceAll('{key}', 'sk-' + record.key);
+      url = url.replaceAll('{key}', `sk-${fullKey}`);
     }
 
     window.open(url, '_blank');
@@ -174,7 +280,7 @@ export const useTokensData = (openFluentNotification) => {
     }
     const { success, message } = res.data;
     if (success) {
-      showSuccess('操作成功完成！');
+      showSuccess(t('操作成功完成！'));
       let token = res.data.data;
       let newTokens = [...tokens];
       if (action !== 'delete') {
@@ -188,21 +294,25 @@ export const useTokensData = (openFluentNotification) => {
   };
 
   // Search tokens function
-  const searchTokens = async () => {
+  const searchTokens = async (page = 1, size = pageSize) => {
+    const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
+    const normalizedSize =
+      Number.isInteger(size) && size > 0 ? size : pageSize;
+
     const { searchKeyword, searchToken } = getFormValues();
     if (searchKeyword === '' && searchToken === '') {
+      setSearchMode(false);
       await loadTokens(1);
       return;
     }
     setSearching(true);
     const res = await API.get(
-      `/api/token/search?keyword=${searchKeyword}&token=${searchToken}`,
+      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
-      setTokens(data);
-      setTokenCount(data.length);
-      setActivePage(1);
+      setSearchMode(true);
+      syncPageData(data);
     } else {
       showError(message);
     }
@@ -226,12 +336,20 @@ export const useTokensData = (openFluentNotification) => {
 
   // Page handlers
   const handlePageChange = (page) => {
-    loadTokens(page, pageSize).then();
+    if (searchMode) {
+      searchTokens(page, pageSize).then();
+    } else {
+      loadTokens(page, pageSize).then();
+    }
   };
 
   const handlePageSizeChange = async (size) => {
     setPageSize(size);
-    await loadTokens(1, size);
+    if (searchMode) {
+      await searchTokens(1, size);
+    } else {
+      await loadTokens(1, size);
+    }
   };
 
   // Row selection handlers
@@ -286,48 +404,31 @@ export const useTokensData = (openFluentNotification) => {
   };
 
   // Batch copy tokens
-  const batchCopyTokens = (copyType) => {
+  const batchCopyTokens = async (copyType) => {
     if (selectedKeys.length === 0) {
       showError(t('请至少选择一个令牌！'));
       return;
     }
+    try {
+      const ids = selectedKeys.map((token) => token.id);
+      const keysMap = await fetchTokenKeysBatch(ids);
 
-    Modal.info({
-      title: t('复制令牌'),
-      icon: null,
-      content: t('请选择你的复制方式'),
-      footer: (
-        <div className='flex gap-2'>
-          <button
-            className='px-3 py-1 bg-gray-200 rounded'
-            onClick={async () => {
-              let content = '';
-              for (let i = 0; i < selectedKeys.length; i++) {
-                content +=
-                  selectedKeys[i].name + '    sk-' + selectedKeys[i].key + '\n';
-              }
-              await copyText(content);
-              Modal.destroyAll();
-            }}
-          >
-            {t('名称+密钥')}
-          </button>
-          <button
-            className='px-3 py-1 bg-blue-500 text-white rounded'
-            onClick={async () => {
-              let content = '';
-              for (let i = 0; i < selectedKeys.length; i++) {
-                content += 'sk-' + selectedKeys[i].key + '\n';
-              }
-              await copyText(content);
-              Modal.destroyAll();
-            }}
-          >
-            {t('仅密钥')}
-          </button>
-        </div>
-      ),
-    });
+      setResolvedTokenKeys((prev) => ({ ...prev, ...keysMap }));
+
+      let content = '';
+      for (const token of selectedKeys) {
+        const fullKey = keysMap[token.id];
+        if (!fullKey) continue;
+        if (copyType === 'name+key') {
+          content += `${token.name}    sk-${fullKey}\n`;
+        } else {
+          content += `sk-${fullKey}\n`;
+        }
+      }
+      await copyText(content);
+    } catch (error) {
+      showError(error?.message || t('复制令牌失败'));
+    }
   };
 
   // Initialize data
@@ -337,6 +438,17 @@ export const useTokensData = (openFluentNotification) => {
       .catch((reason) => {
         showError(reason);
       });
+    API.get('/api/user/self/groups')
+      .then((res) => {
+        if (res.data.success && res.data.data) {
+          const ratios = {};
+          for (const [name, info] of Object.entries(res.data.data)) {
+            ratios[name] = info.ratio;
+          }
+          setGroupRatios(ratios);
+        }
+      })
+      .catch(() => {});
   }, [pageSize]);
 
   return {
@@ -347,6 +459,7 @@ export const useTokensData = (openFluentNotification) => {
     tokenCount,
     pageSize,
     searching,
+    groupRatios,
 
     // Selection state
     selectedKeys,
@@ -364,6 +477,8 @@ export const useTokensData = (openFluentNotification) => {
     setCompactMode,
     showKeys,
     setShowKeys,
+    resolvedTokenKeys,
+    loadingTokenKeys,
 
     // Form state
     formApi,
@@ -375,6 +490,10 @@ export const useTokensData = (openFluentNotification) => {
     loadTokens,
     refresh,
     copyText,
+    fetchTokenKey,
+    toggleTokenVisibility,
+    copyTokenKey,
+    copyTokenConnectionString,
     onOpenLink,
     manageToken,
     searchTokens,

@@ -43,6 +43,7 @@ func (m *OpenAIVideo) SetMetadata(k string, v any) {
 func NewOpenAIVideo() *OpenAIVideo {
 	return &OpenAIVideo{
 		Object: "video",
+		Status: VideoStatusQueued,
 	}
 }
 

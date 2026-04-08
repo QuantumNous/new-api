@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,9 +29,9 @@ var baiduTokenStore sync.Map
 func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 	baiduRequest := BaiduChatRequest{
 		Temperature:    request.Temperature,
-		TopP:           request.TopP,
-		PenaltyScore:   request.FrequencyPenalty,
-		Stream:         request.Stream,
+		TopP:           lo.FromPtrOr(request.TopP, 0),
+		PenaltyScore:   lo.FromPtrOr(request.FrequencyPenalty, 0),
+		Stream:         lo.FromPtrOr(request.Stream, false),
 		DisableSearch:  false,
 		EnableCitation: false,
 		UserId:         request.User,
@@ -115,12 +116,12 @@ func embeddingResponseBaidu2OpenAI(response *BaiduEmbeddingResponse) *dto.OpenAI
 
 func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {
 	usage := &dto.Usage{}
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var baiduResponse BaiduChatStreamResponse
-		err := common.Unmarshal([]byte(data), &baiduResponse)
-		if err != nil {
+		if err := common.Unmarshal([]byte(data), &baiduResponse); err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
-			return true
+			sr.Error(err)
+			return
 		}
 		if baiduResponse.Usage.TotalTokens != 0 {
 			usage.TotalTokens = baiduResponse.Usage.TotalTokens
@@ -128,11 +129,10 @@ func baiduStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			usage.CompletionTokens = baiduResponse.Usage.TotalTokens - baiduResponse.Usage.PromptTokens
 		}
 		response := streamResponseBaidu2OpenAI(&baiduResponse)
-		err = helper.ObjectData(c, response)
-		if err != nil {
+		if err := helper.ObjectData(c, response); err != nil {
 			common.SysLog("error sending stream response: " + err.Error())
+			sr.Error(err)
 		}
-		return true
 	})
 	service.CloseResponseBodyGracefully(resp)
 	return nil, usage

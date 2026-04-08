@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
+
+const UserNameMaxLength = 20
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -429,6 +432,65 @@ func (user *User) Insert(inviterId int) error {
 	return nil
 }
 
+// InsertWithTx inserts a new user within an existing transaction.
+// This is used for OAuth registration where user creation and binding need to be atomic.
+// Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
+func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
+	var err error
+	if user.Password != "" {
+		user.Password, err = common.Password2Hash(user.Password)
+		if err != nil {
+			return err
+		}
+	}
+	user.Quota = common.QuotaForNewUser
+	user.AffCode = common.GetRandomString(4)
+
+	// 初始化用户设置
+	if user.Setting == "" {
+		defaultSetting := dto.UserSetting{}
+		user.SetSetting(defaultSetting)
+	}
+
+	result := tx.Create(user)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
+// This should be called after the transaction commits successfully.
+func (user *User) FinalizeOAuthUserCreation(inviterId int) {
+	// 用户创建成功后，根据角色初始化边栏配置
+	var createdUser User
+	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
+		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
+		if defaultSidebarConfig != "" {
+			currentSetting := createdUser.GetSetting()
+			currentSetting.SidebarModules = defaultSidebarConfig
+			createdUser.SetSetting(currentSetting)
+			createdUser.Update(false)
+			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+		}
+	}
+
+	if common.QuotaForNewUser > 0 {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+	}
+	if inviterId != 0 {
+		if common.QuotaForInvitee > 0 {
+			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
+			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+		}
+		if common.QuotaForInviter > 0 {
+			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			_ = inviteUser(inviterId)
+		}
+	}
+}
+
 func (user *User) Update(updatePassword bool) error {
 	var err error
 	if updatePassword {
@@ -474,6 +536,37 @@ func (user *User) Edit(updatePassword bool) error {
 	}
 
 	// Update cache
+	return updateUserCache(*user)
+}
+
+func (user *User) ClearBinding(bindingType string) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+
+	bindingColumnMap := map[string]string{
+		"email":    "email",
+		"github":   "github_id",
+		"discord":  "discord_id",
+		"oidc":     "oidc_id",
+		"wechat":   "wechat_id",
+		"telegram": "telegram_id",
+		"linuxdo":  "linux_do_id",
+	}
+
+	column, ok := bindingColumnMap[bindingType]
+	if !ok {
+		return errors.New("invalid binding type")
+	}
+
+	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {
+		return err
+	}
+
+	if err := DB.Where("id = ?", user.Id).First(user).Error; err != nil {
+		return err
+	}
+
 	return updateUserCache(*user)
 }
 
@@ -538,6 +631,14 @@ func (user *User) FillUserByGitHubId() error {
 	}
 	DB.Where(User{GitHubId: user.GitHubId}).First(user)
 	return nil
+}
+
+// UpdateGitHubId updates the user's GitHub ID (used for migration from login to numeric ID)
+func (user *User) UpdateGitHubId(newGitHubId string) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	return DB.Model(user).Update("github_id", newGitHubId).Error
 }
 
 func (user *User) FillUserByDiscordId() error {
@@ -753,9 +854,16 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Model(&User{}).Where("id = ?", id).Select("setting").Find(&setting).Error
+	// can be nil setting
+	var safeSetting sql.NullString
+	err = DB.Model(&User{}).Where("id = ?", id).Select("setting").Find(&safeSetting).Error
 	if err != nil {
 		return settingMap, err
+	}
+	if safeSetting.Valid {
+		setting = safeSetting.String
+	} else {
+		setting = ""
 	}
 	userBase := &UserBase{
 		Setting: setting,

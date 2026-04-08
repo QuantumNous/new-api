@@ -14,7 +14,7 @@ import (
 type ImageRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt" binding:"required"`
-	N                 uint            `json:"n,omitempty"`
+	N                 *uint           `json:"n,omitempty"`
 	Size              string          `json:"size,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
@@ -148,11 +148,14 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	// not support token count for dalle
+	// n is NOT included here; it is handled via OtherRatio("n") in
+	// image_handler.go (default) or channel adaptors (actual count).
+	// Including n here caused double-counting for channels that also
+	// set OtherRatio("n") (e.g. Ali/Bailian).
 	return &types.TokenCountMeta{
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
-		ImagePriceRatio: sizeRatio * qualityRatio * float64(i.N),
+		ImagePriceRatio: sizeRatio * qualityRatio,
 	}
 }
 

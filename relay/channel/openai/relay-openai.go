@@ -126,11 +126,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// 检查是否为音频模型
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
-			err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
-			if err != nil {
+			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
+				sr.Error(err)
 			}
 		}
 		if len(data) > 0 {
@@ -142,7 +142,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			lastStreamData = data
 			streamItems = append(streamItems, data)
 		}
-		return true
 	})
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
@@ -227,6 +226,13 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	for _, choice := range simpleResponse.Choices {
+		if choice.FinishReason == constant.FinishReasonContentFilter {
+			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "openai_finish_reason=content_filter")
+			break
+		}
 	}
 
 	forceFormat := false
@@ -620,6 +626,12 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 				usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 			}
 		}
+	case constant.ChannelTypeOpenAI:
+		if usage.PromptTokensDetails.CachedTokens == 0 {
+			if cachedTokens, ok := extractLlamaCachedTokensFromBody(responseBody); ok {
+				usage.PromptTokensDetails.CachedTokens = cachedTokens
+			}
+		}
 	}
 }
 
@@ -681,4 +693,26 @@ func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 	}
 
 	return 0, false
+}
+
+// extractLlamaCachedTokensFromBody 从llama.cpp的非标准位置提取cache_n
+func extractLlamaCachedTokensFromBody(body []byte) (int, bool) {
+	if len(body) == 0 {
+		return 0, false
+	}
+
+	var payload struct {
+		Timings struct {
+			CachedTokens *int `json:"cache_n"`
+		} `json:"timings"`
+	}
+
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return 0, false
+	}
+
+	if payload.Timings.CachedTokens == nil {
+		return 0, false
+	}
+	return *payload.Timings.CachedTokens, true
 }

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useContext, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   API,
   showError,
@@ -41,6 +42,7 @@ import TopupHistoryModal from './modals/TopupHistoryModal';
 
 const TopUp = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
 
@@ -69,6 +71,11 @@ const TopUp = () => {
   const [creemOpen, setCreemOpen] = useState(false);
   const [selectedCreemProduct, setSelectedCreemProduct] = useState(null);
 
+  // Waffo 相关状态
+  const [enableWaffoTopUp, setEnableWaffoTopUp] = useState(false);
+  const [waffoPayMethods, setWaffoPayMethods] = useState([]);
+  const [waffoMinTopUp, setWaffoMinTopUp] = useState(1);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [payWay, setPayWay] = useState('');
@@ -86,6 +93,14 @@ const TopUp = () => {
 
   // 账单Modal状态
   const [openHistory, setOpenHistory] = useState(false);
+
+  // 订阅相关
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [billingPreference, setBillingPreference] =
+    useState('subscription_first');
+  const [activeSubscriptions, setActiveSubscriptions] = useState([]);
+  const [allSubscriptions, setAllSubscriptions] = useState([]);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -240,13 +255,14 @@ const TopUp = () => {
             document.body.removeChild(form);
           }
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
       showError(t('支付请求失败'));
     } finally {
       setOpen(false);
@@ -284,17 +300,49 @@ const TopUp = () => {
         if (message === 'success') {
           processCreemCallback(data);
         } else {
-          showError(data);
+          const errorMsg =
+            typeof data === 'string' ? data : message || t('支付失败');
+          showError(errorMsg);
         }
       } else {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
       showError(t('支付请求失败'));
     } finally {
       setCreemOpen(false);
       setConfirmLoading(false);
+    }
+  };
+
+  const waffoTopUp = async (payMethodIndex) => {
+    try {
+        if (topUpCount < waffoMinTopUp) {
+            showError(t('充值数量不能小于') + waffoMinTopUp);
+            return;
+        }
+        setPaymentLoading(true);
+        const requestBody = {
+            amount: parseInt(topUpCount),
+        };
+        if (payMethodIndex != null) {
+            requestBody.pay_method_index = payMethodIndex;
+        }
+        const res = await API.post('/api/user/waffo/pay', requestBody);
+        if (res !== undefined) {
+            const { message, data } = res.data;
+            if (message === 'success' && data?.payment_url) {
+                window.open(data.payment_url, '_blank');
+            } else {
+                showError(data || t('支付请求失败'));
+            }
+        } else {
+            showError(res);
+        }
+    } catch (e) {
+        showError(t('支付请求失败'));
+    } finally {
+        setPaymentLoading(false);
     }
   };
 
@@ -310,6 +358,61 @@ const TopUp = () => {
       userDispatch({ type: 'login', payload: data });
     } else {
       showError(message);
+    }
+  };
+
+  const getSubscriptionPlans = async () => {
+    setSubscriptionLoading(true);
+    try {
+      const res = await API.get('/api/subscription/plans');
+      if (res.data?.success) {
+        setSubscriptionPlans(res.data.data || []);
+      }
+    } catch (e) {
+      setSubscriptionPlans([]);
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const getSubscriptionSelf = async () => {
+    try {
+      const res = await API.get('/api/subscription/self');
+      if (res.data?.success) {
+        setBillingPreference(
+          res.data.data?.billing_preference || 'subscription_first',
+        );
+        // Active subscriptions
+        const activeSubs = res.data.data?.subscriptions || [];
+        setActiveSubscriptions(activeSubs);
+        // All subscriptions (including expired)
+        const allSubs = res.data.data?.all_subscriptions || [];
+        setAllSubscriptions(allSubs);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const updateBillingPreference = async (pref) => {
+    const previousPref = billingPreference;
+    setBillingPreference(pref);
+    try {
+      const res = await API.put('/api/subscription/self/preference', {
+        billing_preference: pref,
+      });
+      if (res.data?.success) {
+        showSuccess(t('更新成功'));
+        const normalizedPref =
+          res.data?.data?.billing_preference || pref || previousPref;
+        setBillingPreference(normalizedPref);
+      } else {
+        showError(res.data?.message || t('更新失败'));
+        setBillingPreference(previousPref);
+      }
+    } catch (e) {
+      showError(t('请求失败'));
+      setBillingPreference(previousPref);
     }
   };
 
@@ -382,17 +485,21 @@ const TopUp = () => {
             ? data.min_topup
             : enableStripeTopUp
               ? data.stripe_min_topup
-              : 1;
+              : data.enable_waffo_topup
+                ? data.waffo_min_topup
+                : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
+          const enableWaffoTopUp = data.enable_waffo_topup || false;
+          setEnableWaffoTopUp(enableWaffoTopUp);
+          setWaffoPayMethods(data.waffo_pay_methods || []);
+          setWaffoMinTopUp(data.waffo_min_topup || 1);
           setMinTopUp(minTopUpValue);
           setTopUpCount(minTopUpValue);
 
           // 设置 Creem 产品
           try {
-            console.log(' data is ?', data);
-            console.log(' creem products is ?', data.creem_products);
             const products = JSON.parse(data.creem_products || '[]');
             setCreemProducts(products);
           } catch (e) {
@@ -407,7 +514,6 @@ const TopUp = () => {
           // 初始化显示实付金额
           getAmount(minTopUpValue);
         } catch (e) {
-          console.log('解析支付方式失败:', e);
           setPayMethods([]);
         }
 
@@ -420,10 +526,10 @@ const TopUp = () => {
           setPresetAmounts(customPresets);
         }
       } else {
-        console.error('获取充值配置失败:', data);
+        showError(data || t('获取充值配置失败'));
       }
     } catch (error) {
-      console.error('获取充值配置异常:', error);
+      showError(t('获取充值配置异常'));
     }
   };
 
@@ -464,10 +570,18 @@ const TopUp = () => {
     showSuccess(t('邀请链接已复制到剪切板'));
   };
 
+  // URL 参数自动打开账单弹窗（支付回跳时触发）
   useEffect(() => {
-    if (!userState?.user?.id) {
-      getUserQuota().then();
+    if (searchParams.get('show_history') === 'true') {
+      setOpenHistory(true);
+      searchParams.delete('show_history');
+      setSearchParams(searchParams, { replace: true });
     }
+  }, []);
+
+  useEffect(() => {
+    // 始终获取最新用户数据，确保余额等统计信息准确
+    getUserQuota().then();
     setTransferAmount(getQuotaPerUnit());
   }, []);
 
@@ -480,6 +594,8 @@ const TopUp = () => {
   // 在 statusState 可用时获取充值信息
   useEffect(() => {
     getTopupInfo().then();
+    getSubscriptionPlans().then();
+    getSubscriptionSelf().then();
   }, []);
 
   useEffect(() => {
@@ -519,7 +635,7 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
+      // amount fetch failed silently
     }
     setAmountLoading(false);
   };
@@ -545,7 +661,7 @@ const TopUp = () => {
         showError(res);
       }
     } catch (err) {
-      console.log(err);
+      // amount fetch failed silently
     } finally {
       setAmountLoading(false);
     }
@@ -652,7 +768,8 @@ const TopUp = () => {
               {t('产品名称')}：{selectedCreemProduct.name}
             </p>
             <p>
-              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}{selectedCreemProduct.price}
+              {t('价格')}：{selectedCreemProduct.currency === 'EUR' ? '€' : '$'}
+              {selectedCreemProduct.price}
             </p>
             <p>
               {t('充值额度')}：{selectedCreemProduct.quota}
@@ -662,61 +779,62 @@ const TopUp = () => {
         )}
       </Modal>
 
-      {/* 用户信息头部 */}
-      <div className='space-y-6'>
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
-          {/* 左侧充值区域 */}
-          <div className='lg:col-span-7 space-y-6 w-full'>
-            <RechargeCard
-              t={t}
-              enableOnlineTopUp={enableOnlineTopUp}
-              enableStripeTopUp={enableStripeTopUp}
-              enableCreemTopUp={enableCreemTopUp}
-              creemProducts={creemProducts}
-              creemPreTopUp={creemPreTopUp}
-              presetAmounts={presetAmounts}
-              selectedPreset={selectedPreset}
-              selectPresetAmount={selectPresetAmount}
-              formatLargeNumber={formatLargeNumber}
-              priceRatio={priceRatio}
-              topUpCount={topUpCount}
-              minTopUp={minTopUp}
-              renderQuotaWithAmount={renderQuotaWithAmount}
-              getAmount={getAmount}
-              setTopUpCount={setTopUpCount}
-              setSelectedPreset={setSelectedPreset}
-              renderAmount={renderAmount}
-              amountLoading={amountLoading}
-              payMethods={payMethods}
-              preTopUp={preTopUp}
-              paymentLoading={paymentLoading}
-              payWay={payWay}
-              redemptionCode={redemptionCode}
-              setRedemptionCode={setRedemptionCode}
-              topUp={topUp}
-              isSubmitting={isSubmitting}
-              topUpLink={topUpLink}
-              openTopUpLink={openTopUpLink}
-              userState={userState}
-              renderQuota={renderQuota}
-              statusLoading={statusLoading}
-              topupInfo={topupInfo}
-              onOpenHistory={handleOpenHistory}
-            />
-          </div>
-
-          {/* 右侧信息区域 */}
-          <div className='lg:col-span-5'>
-            <InvitationCard
-              t={t}
-              userState={userState}
-              renderQuota={renderQuota}
-              setOpenTransfer={setOpenTransfer}
-              affLink={affLink}
-              handleAffLinkClick={handleAffLinkClick}
-            />
-          </div>
-        </div>
+      {/* 主布局区域 */}
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+        <RechargeCard
+          t={t}
+          enableOnlineTopUp={enableOnlineTopUp}
+          enableStripeTopUp={enableStripeTopUp}
+          enableCreemTopUp={enableCreemTopUp}
+          creemProducts={creemProducts}
+          creemPreTopUp={creemPreTopUp}
+          enableWaffoTopUp={enableWaffoTopUp}
+          waffoTopUp={waffoTopUp}
+          waffoPayMethods={waffoPayMethods}
+          presetAmounts={presetAmounts}
+          selectedPreset={selectedPreset}
+          selectPresetAmount={selectPresetAmount}
+          formatLargeNumber={formatLargeNumber}
+          priceRatio={priceRatio}
+          topUpCount={topUpCount}
+          minTopUp={minTopUp}
+          renderQuotaWithAmount={renderQuotaWithAmount}
+          getAmount={getAmount}
+          setTopUpCount={setTopUpCount}
+          setSelectedPreset={setSelectedPreset}
+          renderAmount={renderAmount}
+          amountLoading={amountLoading}
+          payMethods={payMethods}
+          preTopUp={preTopUp}
+          paymentLoading={paymentLoading}
+          payWay={payWay}
+          redemptionCode={redemptionCode}
+          setRedemptionCode={setRedemptionCode}
+          topUp={topUp}
+          isSubmitting={isSubmitting}
+          topUpLink={topUpLink}
+          openTopUpLink={openTopUpLink}
+          userState={userState}
+          renderQuota={renderQuota}
+          statusLoading={statusLoading}
+          topupInfo={topupInfo}
+          onOpenHistory={handleOpenHistory}
+          subscriptionLoading={subscriptionLoading}
+          subscriptionPlans={subscriptionPlans}
+          billingPreference={billingPreference}
+          onChangeBillingPreference={updateBillingPreference}
+          activeSubscriptions={activeSubscriptions}
+          allSubscriptions={allSubscriptions}
+          reloadSubscriptionSelf={getSubscriptionSelf}
+        />
+        <InvitationCard
+          t={t}
+          userState={userState}
+          renderQuota={renderQuota}
+          setOpenTransfer={setOpenTransfer}
+          affLink={affLink}
+          handleAffLinkClick={handleAffLinkClick}
+        />
       </div>
     </div>
   );

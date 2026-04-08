@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
@@ -130,10 +131,16 @@ func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto
 	}
 
 	user := request.User
-	if user == "" {
-		user = helper.GetResponseID(c)
+	if len(user) == 0 {
+		user = json.RawMessage(helper.GetResponseID(c))
 	}
-	difyReq.User = user
+	var stringUser string
+	err := json.Unmarshal(user, &stringUser)
+	if err != nil {
+		common.SysLog("failed to unmarshal user: " + err.Error())
+		stringUser = helper.GetResponseID(c)
+	}
+	difyReq.User = stringUser
 
 	files := make([]DifyFile, 0)
 	var content strings.Builder
@@ -168,7 +175,7 @@ func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto
 	difyReq.Query = content.String()
 	difyReq.Files = files
 	mode := "blocking"
-	if request.Stream {
+	if lo.FromPtrOr(request.Stream, false) {
 		mode = "streaming"
 	}
 	difyReq.ResponseMode = mode
@@ -216,33 +223,32 @@ func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	usage := &dto.Usage{}
 	var nodeToken int
 	helper.SetEventStreamHeaders(c)
-	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var difyResponse DifyChunkChatCompletionResponse
-		err := json.Unmarshal([]byte(data), &difyResponse)
-		if err != nil {
+		if err := json.Unmarshal([]byte(data), &difyResponse); err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
-			return true
+			sr.Error(err)
+			return
 		}
-		var openaiResponse dto.ChatCompletionsStreamResponse
 		if difyResponse.Event == "message_end" {
 			usage = &difyResponse.MetaData.Usage
-			return false
+			sr.Done()
+			return
 		} else if difyResponse.Event == "error" {
-			return false
-		} else {
-			openaiResponse = *streamResponseDify2OpenAI(difyResponse)
-			if len(openaiResponse.Choices) != 0 {
-				responseText += openaiResponse.Choices[0].Delta.GetContentString()
-				if openaiResponse.Choices[0].Delta.ReasoningContent != nil {
-					nodeToken += 1
-				}
+			sr.Stop(fmt.Errorf("dify error event"))
+			return
+		}
+		openaiResponse := *streamResponseDify2OpenAI(difyResponse)
+		if len(openaiResponse.Choices) != 0 {
+			responseText += openaiResponse.Choices[0].Delta.GetContentString()
+			if openaiResponse.Choices[0].Delta.ReasoningContent != nil {
+				nodeToken += 1
 			}
 		}
-		err = helper.ObjectData(c, openaiResponse)
-		if err != nil {
+		if err := helper.ObjectData(c, openaiResponse); err != nil {
 			common.SysLog(err.Error())
+			sr.Error(err)
 		}
-		return true
 	})
 	helper.Done(c)
 	if usage.TotalTokens == 0 {

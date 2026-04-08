@@ -52,20 +52,19 @@ const PricingGroups = ({
             .length;
     let ratioDisplay = '';
     if (g === 'all') {
-      ratioDisplay = t('全部');
+      // ratioDisplay = t('全部');
     } else {
       const ratio = groupRatio[g];
       if (ratio !== undefined && ratio !== null) {
-        ratioDisplay = `x${ratio}`;
+        ratioDisplay = `${ratio}x`;
       } else {
-        ratioDisplay = 'x1';
+        ratioDisplay = '1x';
       }
     }
     return {
       value: g,
       label: g === 'all' ? t('全部分组') : g,
       tagCount: ratioDisplay,
-      disabled: modelCount === 0,
     };
   });
 
@@ -76,6 +75,7 @@ const PricingGroups = ({
       activeValue={filterGroup}
       onChange={setFilterGroup}
       loading={loading}
+      variant='teal'
       t={t}
     />
   );
