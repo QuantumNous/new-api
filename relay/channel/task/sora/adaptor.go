@@ -95,6 +95,16 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 }
 
 // EstimateBilling 根据用户请求的 seconds 和 size 计算 OtherRatios。
+//
+// Sora 官方定价（按秒计费）：
+//
+//	sora-2   720p  (720x1280 / 1280x720)              $0.10/s
+//	sora-2-pro 720p  (720x1280 / 1280x720)            $0.30/s  → size ratio = 1.0 (sora-2-pro 基准)
+//	sora-2-pro 1024p (1024x1792 / 1792x1024)          $0.50/s  → size ratio = 5/3 ≈ 1.6667
+//	sora-2-pro 1080p (1080x1920 / 1920x1080)          $0.70/s  → size ratio = 7/3 ≈ 2.3333
+//
+// 管理员应分别为 sora-2 设置 $0.10/s 的基准价，为 sora-2-pro 设置 $0.30/s 的基准价（720p）。
+// 系统会自动乘以 seconds 和 size ratio 得出最终费用。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	// remix 路径的 OtherRatios 已在 ResolveOriginTask 中设置
 	if info.Action == constant.TaskActionRemix {
@@ -119,12 +129,26 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		size = "720x1280"
 	}
 
+	model := info.OriginModelName
+
+	// size ratio 相对于各模型自身的 720p 基准价
+	// sora-2 只支持 720p → ratio = 1.0
+	// sora-2-pro 720p → ratio = 1.0, 1024p → ratio = 5/3 ≈ 1.6667, 1080p → ratio = 7/3 ≈ 2.3333
+	sizeRatio := 1.0
+	if strings.HasPrefix(model, "sora-2-pro") {
+		switch size {
+		case "1920x1080", "1080x1920":
+			sizeRatio = 7.0 / 3.0 // $0.70 / $0.30
+		case "1792x1024", "1024x1792":
+			sizeRatio = 5.0 / 3.0 // $0.50 / $0.30
+		default: // 720x1280, 1280x720
+			sizeRatio = 1.0
+		}
+	}
+
 	ratios := map[string]float64{
 		"seconds": float64(seconds),
-		"size":    1,
-	}
-	if size == "1792x1024" || size == "1024x1792" {
-		ratios["size"] = 1.666667
+		"size":    sizeRatio,
 	}
 	return ratios
 }

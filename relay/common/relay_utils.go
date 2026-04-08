@@ -168,10 +168,10 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		}
 
 		if model == "sora-2" && !lo.Contains([]string{"720x1280", "1280x720"}, size) {
-			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+			return createTaskError(fmt.Errorf("sora-2 only supports 720p (720x1280 or 1280x720)"), "invalid_size", http.StatusBadRequest, true)
 		}
-		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
-			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
+		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792", "1920x1080", "1080x1920"}, size) {
+			return createTaskError(fmt.Errorf("sora-2-pro only supports 720p (720x1280/1280x720), 1024p (1024x1792/1792x1024) or 1080p (1080x1920/1920x1080)"), "invalid_size", http.StatusBadRequest, true)
 		}
 		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
 	}
