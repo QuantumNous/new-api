@@ -749,10 +749,20 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		//上游出错
 	}
 	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
+		responseText := claudeInfo.ResponseText.String()
+		// 当输入有值但输出为空时，记录详细的上游响应信息
+		if claudeInfo.Usage.PromptTokens > 0 && claudeInfo.Usage.CompletionTokens == 0 {
+			truncatedResponse := responseText
+			if len(truncatedResponse) > 500 {
+				truncatedResponse = truncatedResponse[:500] + "...(truncated)"
+			}
+			logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空, requestId: %s, model: %s, channelId: %d, promptTokens: %d, streamDone: %t, responseText: %q",
+				info.RequestId, info.UpstreamModelName, info.ChannelId, claudeInfo.Usage.PromptTokens, claudeInfo.Done, truncatedResponse))
+		}
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
-		claudeInfo.Usage = service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
+		claudeInfo.Usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
 	}
 
 	if info.RelayFormat == types.RelayFormatClaude {
@@ -856,6 +866,15 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)
 	if handleErr != nil {
 		return nil, handleErr
+	}
+	// 非流式：当输入有值但输出为空时，记录上游原始响应
+	if claudeInfo.Usage.PromptTokens > 0 && claudeInfo.Usage.CompletionTokens == 0 {
+		truncatedBody := string(responseBody)
+		if len(truncatedBody) > 500 {
+			truncatedBody = truncatedBody[:500] + "...(truncated)"
+		}
+		logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空(非流式), requestId: %s, model: %s, channelId: %d, promptTokens: %d, responseBody: %s",
+			info.RequestId, info.UpstreamModelName, info.ChannelId, claudeInfo.Usage.PromptTokens, truncatedBody))
 	}
 	return claudeInfo.Usage, nil
 }

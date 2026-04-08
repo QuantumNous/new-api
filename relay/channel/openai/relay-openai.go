@@ -188,6 +188,16 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
 
+	// 当输入有值但输出为空时，记录上游响应信息
+	if usage.PromptTokens > 0 && usage.CompletionTokens == 0 {
+		truncatedLastData := lastStreamData
+		if len(truncatedLastData) > 500 {
+			truncatedLastData = truncatedLastData[:500] + "...(truncated)"
+		}
+		logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空(OpenAI流式), requestId: %s, model: %s, channelId: %d, promptTokens: %d, containStreamUsage: %t, responseText: %q, lastStreamData: %s",
+			info.RequestId, info.UpstreamModelName, info.ChannelId, usage.PromptTokens, containStreamUsage, responseTextBuilder.String(), truncatedLastData))
+	}
+
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
@@ -296,6 +306,16 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
+
+	// 非流式：当输入有值但输出为空时，记录上游原始响应
+	if simpleResponse.Usage.PromptTokens > 0 && simpleResponse.Usage.CompletionTokens == 0 {
+		truncatedBody := string(responseBody)
+		if len(truncatedBody) > 500 {
+			truncatedBody = truncatedBody[:500] + "...(truncated)"
+		}
+		logger.LogWarn(c, fmt.Sprintf("输入有值但输出为空(OpenAI非流式), requestId: %s, model: %s, channelId: %d, promptTokens: %d, responseBody: %s",
+			info.RequestId, info.UpstreamModelName, info.ChannelId, simpleResponse.Usage.PromptTokens, truncatedBody))
+	}
 
 	return &simpleResponse.Usage, nil
 }

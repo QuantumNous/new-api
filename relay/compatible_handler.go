@@ -410,12 +410,6 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 
 	//var logContent string
 
-	// 当输入有值但输出为空时，记录警告日志
-	if promptTokens > 0 && completionTokens == 0 {
-		logger.LogWarn(ctx, fmt.Sprintf("输入有值但输出为空, requestId: %s, model: %s, channelId: %d, promptTokens: %d, completionTokens: %d",
-			relayInfo.RequestId, modelName, relayInfo.ChannelId, promptTokens, completionTokens))
-	}
-
 	// record all the consume log even if quota is 0
 	if totalTokens == 0 {
 		// in this case, must be some error happened

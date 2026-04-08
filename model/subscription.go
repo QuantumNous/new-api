@@ -38,16 +38,19 @@ var (
 )
 
 const (
-	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
-	subscriptionPlanInfoCacheNamespace = "new-api:subscription_plan_info:v1"
+	subscriptionPlanCacheNamespace          = "new-api:subscription_plan:v1"
+	subscriptionPlanInfoCacheNamespace      = "new-api:subscription_plan_info:v1"
+	userActiveSubPlanCacheNamespace         = "new-api:user_active_sub_plan:v1"
 )
 
 var (
 	subscriptionPlanCacheOnce     sync.Once
 	subscriptionPlanInfoCacheOnce sync.Once
+	userActiveSubPlanCacheOnce    sync.Once
 
 	subscriptionPlanCache     *cachex.HybridCache[SubscriptionPlan]
 	subscriptionPlanInfoCache *cachex.HybridCache[SubscriptionPlanInfo]
+	userActiveSubPlanCache    *cachex.HybridCache[int]
 )
 
 func subscriptionPlanCacheTTL() time.Duration {
@@ -122,6 +125,43 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 		})
 	})
 	return subscriptionPlanInfoCache
+}
+
+func getUserActiveSubPlanCache() *cachex.HybridCache[int] {
+	userActiveSubPlanCacheOnce.Do(func() {
+		ttl := 60 * time.Second
+		userActiveSubPlanCache = cachex.NewHybridCache[int](cachex.HybridCacheConfig[int]{
+			Namespace: cachex.Namespace(userActiveSubPlanCacheNamespace),
+			Redis:     common.RDB,
+			RedisEnabled: func() bool {
+				return common.RedisEnabled && common.RDB != nil
+			},
+			RedisCodec: cachex.JSONCodec[int]{},
+			Memory: func() *hot.HotCache[string, int] {
+				return hot.NewHotCache[string, int](hot.LRU, 10000).
+					WithTTL(ttl).
+					WithJanitor().
+					Build()
+			},
+		})
+	})
+	return userActiveSubPlanCache
+}
+
+func userActiveSubPlanCacheKey(userId int) string {
+	if userId <= 0 {
+		return ""
+	}
+	return strconv.Itoa(userId)
+}
+
+// InvalidateUserActiveSubPlanCache clears the cached active subscription plan for a user.
+// Call this whenever a user's subscription status changes (purchase, expire, refund, etc.).
+func InvalidateUserActiveSubPlanCache(userId int) {
+	key := userActiveSubPlanCacheKey(userId)
+	if key != "" {
+		_, _ = getUserActiveSubPlanCache().DeleteMany([]string{key})
+	}
 }
 
 func subscriptionPlanCacheKey(id int) string {
@@ -575,6 +615,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string) error {
 		_ = UpdateUserGroupCache(logUserId, resolvedGroup)
 	}
 	if logUserId > 0 {
+		InvalidateUserActiveSubPlanCache(logUserId)
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
@@ -824,6 +865,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	if cacheGroup != "" && userId > 0 {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
+	InvalidateUserActiveSubPlanCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
@@ -873,6 +915,7 @@ func UserInvalidateOwnSubscription(userId, userSubscriptionId int) (string, erro
 	if cacheGroup != "" && userId > 0 {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
+	InvalidateUserActiveSubPlanCache(userId)
 	if downgradeGroup != "" {
 		return fmt.Sprintf("用户分组将回退到 %s", downgradeGroup), nil
 	}
@@ -1006,6 +1049,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		if cacheGroup != "" {
 			_ = UpdateUserGroupCache(userId, cacheGroup)
 		}
+		InvalidateUserActiveSubPlanCache(userId)
 	}
 	return expiredCount, nil
 }
@@ -1309,11 +1353,24 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	})
 }
 
-// GetUserActiveSubscriptionPlan returns the active subscription plan for a user (if any)
+// GetUserActiveSubscriptionPlan returns the active subscription plan for a user (if any).
+// Results are cached for 60 seconds to avoid hitting the database on every request.
+// planId=0 in cache means no active subscription; planId=-1 means cache miss.
 func GetUserActiveSubscriptionPlan(userId int) (*SubscriptionPlan, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
+
+	cacheKey := userActiveSubPlanCacheKey(userId)
+	if cacheKey != "" {
+		if planId, found, err := getUserActiveSubPlanCache().Get(cacheKey); err == nil && found {
+			if planId == 0 {
+				return nil, nil // cached: no active subscription
+			}
+			return GetSubscriptionPlanById(planId)
+		}
+	}
+
 	now := common.GetTimestamp()
 	var sub UserSubscription
 	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
@@ -1322,9 +1379,17 @@ func GetUserActiveSubscriptionPlan(userId int) (*SubscriptionPlan, error) {
 		First(&sub).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // No active subscription
+			// cache "no subscription" as planId=0
+			if cacheKey != "" {
+				_ = getUserActiveSubPlanCache().SetWithTTL(cacheKey, 0, 60*time.Second)
+			}
+			return nil, nil
 		}
 		return nil, err
+	}
+
+	if cacheKey != "" {
+		_ = getUserActiveSubPlanCache().SetWithTTL(cacheKey, sub.PlanId, 60*time.Second)
 	}
 	return GetSubscriptionPlanById(sub.PlanId)
 }
