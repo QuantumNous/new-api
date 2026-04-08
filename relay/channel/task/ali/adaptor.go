@@ -33,25 +33,36 @@ type AliVideoRequest struct {
 	Parameters *AliVideoParameters `json:"parameters,omitempty"`
 }
 
+// AliVideoMedia wan2.7 媒体数组元素
+type AliVideoMedia struct {
+	Type string `json:"type"` // first_frame/last_frame/driving_audio/first_clip/reference_video/reference_image/video
+	URL  string `json:"url"`
+}
+
 // AliVideoInput 视频输入参数
 type AliVideoInput struct {
-	Prompt         string `json:"prompt,omitempty"`          // 文本提示词
-	ImgURL         string `json:"img_url,omitempty"`         // 首帧图像URL或Base64（图生视频）
-	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
-	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
-	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL（wan2.5支持）
-	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
-	Template       string `json:"template,omitempty"`        // 视频特效模板
+	Prompt             string          `json:"prompt,omitempty"`               // 文本提示词
+	NegativePrompt     string          `json:"negative_prompt,omitempty"`      // 反向提示词
+	ImgURL             string          `json:"img_url,omitempty"`              // 首帧图像URL或Base64（图生视频，wan2.6及更早）
+	FirstFrameURL      string          `json:"first_frame_url,omitempty"`      // 首帧图片URL（首尾帧生视频，wan2.6及更早）
+	LastFrameURL       string          `json:"last_frame_url,omitempty"`       // 尾帧图片URL（首尾帧生视频，wan2.6及更早）
+	AudioURL           string          `json:"audio_url,omitempty"`            // 音频URL（wan2.5/2.6）
+	Template           string          `json:"template,omitempty"`             // 视频特效模板
+	ReferenceVideoURLs []string        `json:"reference_video_urls,omitempty"` // 参考视频URL数组（wan2.6-r2v）
+	Media              []AliVideoMedia `json:"media,omitempty"`                // 媒体数组（wan2.7 i2v/r2v/videoedit 新格式）
+	ReferenceVoice     string          `json:"reference_voice,omitempty"`      // 参考声音URL（wan2.7-r2v）
 }
 
 // AliVideoParameters 视频参数
 type AliVideoParameters struct {
-	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P（图生视频、首尾帧生视频）
-	Size         string `json:"size,omitempty"`          // 尺寸: 如 "832*480"（文生视频）
-	Duration     int    `json:"duration,omitempty"`      // 时长: 3-10秒
+	Resolution   string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P
+	Size         string `json:"size,omitempty"`          // 尺寸: 如 "832*480"（wan2.6及更早文生视频）
+	Ratio        string `json:"ratio,omitempty"`         // 比例: 16:9/9:16/1:1/4:3/3:4（wan2.7）
+	Duration     int    `json:"duration,omitempty"`      // 时长（秒）
 	PromptExtend bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
 	Watermark    bool   `json:"watermark,omitempty"`     // 是否添加水印
-	Audio        *bool  `json:"audio,omitempty"`         // 是否添加音频（wan2.5）
+	Audio        *bool  `json:"audio,omitempty"`         // 是否添加音频（wan2.5/2.6）
+	AudioSetting string `json:"audio_setting,omitempty"` // 音频处理方式: auto/origin（wan2.7-videoedit）
 	Seed         int    `json:"seed,omitempty"`          // 随机数种子
 }
 
@@ -80,27 +91,36 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   int `json:"duration,omitempty"`
-	VideoCount int `json:"video_count,omitempty"`
-	SR         int `json:"SR,omitempty"`
+	Duration            float64 `json:"duration,omitempty"`              // 总视频时长（秒），计费按此时长计算
+	Size                string  `json:"size,omitempty"`                  // 生成视频的分辨率，格式为"宽*高"
+	Ratio               string  `json:"ratio,omitempty"`                 // 生成视频的比例（wan2.7），如 "16:9"
+	InputVideoDuration  int     `json:"input_video_duration,omitempty"`  // 输入的参考视频的时长（秒）
+	OutputVideoDuration int     `json:"output_video_duration,omitempty"` // 输出视频的时长（秒）
+	VideoCount          int     `json:"video_count,omitempty"`           // 生成视频的数量
+	SR                  int     `json:"SR,omitempty"`                    // 生成视频的分辨率档位
 }
 
 type AliMetadata struct {
 	// Input 相关
-	AudioURL       string `json:"audio_url,omitempty"`       // 音频URL
-	ImgURL         string `json:"img_url,omitempty"`         // 图片URL（图生视频）
-	FirstFrameURL  string `json:"first_frame_url,omitempty"` // 首帧图片URL（首尾帧生视频）
-	LastFrameURL   string `json:"last_frame_url,omitempty"`  // 尾帧图片URL（首尾帧生视频）
-	NegativePrompt string `json:"negative_prompt,omitempty"` // 反向提示词
-	Template       string `json:"template,omitempty"`        // 视频特效模板
+	AudioURL           string          `json:"audio_url,omitempty"`            // 音频URL（wan2.6及更早）
+	ImgURL             string          `json:"img_url,omitempty"`              // 图片URL（图生视频，wan2.6及更早）
+	FirstFrameURL      string          `json:"first_frame_url,omitempty"`      // 首帧图片URL（wan2.6及更早）
+	LastFrameURL       string          `json:"last_frame_url,omitempty"`       // 尾帧图片URL（wan2.6及更早）
+	NegativePrompt     string          `json:"negative_prompt,omitempty"`      // 反向提示词
+	Template           string          `json:"template,omitempty"`             // 视频特效模板
+	ReferenceVideoURLs []string        `json:"reference_video_urls,omitempty"` // 参考视频URL数组（wan2.6-r2v）
+	Media              []AliVideoMedia `json:"media,omitempty"`                // 媒体数组（wan2.7）
+	ReferenceVoice     *string         `json:"reference_voice,omitempty"`      // 参考声音URL（wan2.7-r2v）
 
 	// Parameters 相关
 	Resolution   *string `json:"resolution,omitempty"`    // 分辨率: 480P/720P/1080P
 	Size         *string `json:"size,omitempty"`          // 尺寸: 如 "832*480"
+	Ratio        *string `json:"ratio,omitempty"`         // 比例: 16:9/9:16/1:1/4:3/3:4（wan2.7）
 	Duration     *int    `json:"duration,omitempty"`      // 时长
 	PromptExtend *bool   `json:"prompt_extend,omitempty"` // 是否开启prompt智能改写
 	Watermark    *bool   `json:"watermark,omitempty"`     // 是否添加水印
 	Audio        *bool   `json:"audio,omitempty"`         // 是否添加音频
+	AudioSetting *string `json:"audio_setting,omitempty"` // 音频处理方式（wan2.7-videoedit）
 	Seed         *int    `json:"seed,omitempty"`          // 随机数种子
 }
 
@@ -193,6 +213,22 @@ func sizeToResolution(size string) (string, error) {
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
 	aliRatios := map[string]map[string]float64{
+		"wan2.7-t2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"wan2.7-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"wan2.7-r2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"wan2.7-videoedit": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
 		"wan2.6-i2v": {
 			"720P":  1,
 			"1080P": 1 / 0.6,
@@ -261,7 +297,6 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		Model: upstreamModel,
 		Input: AliVideoInput{
 			Prompt: req.Prompt,
-			ImgURL: req.InputReference,
 		},
 		Parameters: &AliVideoParameters{
 			PromptExtend: true, // 默认开启智能改写
@@ -271,10 +306,6 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 
 	// 处理分辨率映射
 	if req.Size != "" {
-		// text to video size must be contained *
-		if strings.Contains(req.Model, "t2v") && !strings.Contains(req.Size, "*") {
-			return nil, fmt.Errorf("invalid size: %s, example: %s", req.Size, "1920*1080")
-		}
 		if strings.Contains(req.Size, "*") {
 			aliReq.Parameters.Size = req.Size
 		} else {
@@ -287,7 +318,9 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		}
 	} else {
 		// 根据模型设置默认分辨率
-		if strings.Contains(req.Model, "t2v") { // image to video
+		if strings.HasPrefix(req.Model, "wan2.7") {
+			// wan2.7 服务端有默认值（resolution=720P, ratio=16:9），不设则用服务端默认
+		} else if strings.Contains(req.Model, "t2v") { // image to video
 			if strings.HasPrefix(req.Model, "wan2.5") {
 				aliReq.Parameters.Size = "1920*1080"
 			} else if strings.HasPrefix(req.Model, "wan2.2") {
