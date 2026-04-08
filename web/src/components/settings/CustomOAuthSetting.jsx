@@ -45,6 +45,8 @@ import {
   showError,
   showSuccess,
   getOAuthProviderIcon,
+  getEffectiveServerAddress,
+  isUsingRuntimeServerAddress,
 } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -212,6 +214,8 @@ const standaloneCustomOAuthKinds = new Set(['oauth_code', 'cas']);
 
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
+  const effectiveServerAddress = getEffectiveServerAddress(serverAddress);
+  const usesRuntimeServerAddress = isUsingRuntimeServerAddress(serverAddress);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -1016,6 +1020,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         <Text strong style={{ display: 'block', marginBottom: 12 }}>
           {t('自定义 OAuth 提供商')}
         </Text>
+        {usesRuntimeServerAddress && (
+          <Banner
+            type='warning'
+            description={t(
+              '当前系统设置里的服务器地址仍是默认占位值，以下回调地址先按当前访问地址展示；正式接入前请在系统设置中显式更新服务器地址与 Passkey 配置。',
+            )}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <Banner
           type='info'
           description={
@@ -1024,7 +1037,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 '配置自定义外部身份提供商，当前分支支持 OAuth Code Flow 与 CAS 协议两种接入模式',
               )}
               <br />
-              {t('浏览器回调 URL')}: {serverAddress || t('网站地址')}/oauth/
+              {t('浏览器回调 URL')}: {effectiveServerAddress || t('网站地址')}
+              /oauth/
               {'{slug}'}
               <br />
               {t('说明')}:{' '}
@@ -1065,7 +1079,12 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           width='min(860px, calc(100vw - 24px))'
           centered
           className='custom-oauth-provider-modal'
-          bodyStyle={{ maxHeight: '72vh', overflowY: 'auto', paddingRight: 6 }}
+          bodyStyle={{
+            maxHeight: '72vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: 6,
+          }}
           footer={
             <div
               className='custom-oauth-provider-modal-footer'
@@ -1108,7 +1127,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             </div>
           }
         >
-          <div className='custom-oauth-provider-modal-body'>
+          <div
+            className='custom-oauth-provider-modal-body'
+            style={{ width: '100%', overflowX: 'hidden' }}
+          >
             <Form
               initValues={formValues}
               onValueChange={() => {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { API } from './api';
+import { API, getEffectiveServerAddress } from './api';
 
 /**
  * 按需获取单个令牌的真实 key
@@ -88,11 +88,7 @@ export function getServerAddress() {
     }
   }
 
-  if (!serverAddress) {
-    serverAddress = window.location.origin;
-  }
-
-  return serverAddress;
+  return getEffectiveServerAddress(serverAddress);
 }
 
 export const CHANNEL_CONN_CLIPBOARD_TYPE = 'newapi_channel_conn';
