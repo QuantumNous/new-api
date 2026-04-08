@@ -1,0 +1,623 @@
+openapi: 3.1.0
+info:
+  title: 豆包视频生成 API
+  description: |
+    基于 new-api 网关的豆包视频生成接口文档。
+
+    支持的豆包视频模型（`DoubaoVideo` 渠道类型 54）：
+    - `doubao-seedance-1-0-pro-250528`
+    - `doubao-seedance-1-0-lite-t2v`（仅文生视频）
+    - `doubao-seedance-1-0-lite-i2v`（仅图生视频）
+    - `doubao-seedance-1-5-pro-251215`
+    - `doubao-seedance-2-0-260128`
+    - `doubao-seedance-2-0-fast-260128`
+
+    **计费说明**：
+    - 计费单位为系统配额（Quota），由管理员为每个模型配置 `ModelRatio`（每次任务的基础价格）
+    - 当请求中的 `metadata.content` 包含 `video_url` 类型的内容（即图生视频/视频续拍）时，系统会自动应用视频输入折扣：
+      - `doubao-seedance-2-0-260128`：折扣比率 ≈ 0.6087（≈6折）
+      - `doubao-seedance-2-0-fast-260128`：折扣比率 ≈ 0.5946（≈6折）
+    - 视频生成为异步任务，提交时即预扣费，任务失败会自动退款
+
+    **认证**：所有接口均需在请求头中携带 API Token，格式：`Authorization: Bearer sk-xxxx`
+
+  version: "1.0.0"
+  contact:
+    name: API Support
+
+servers:
+  - url: https://api.example.com
+    description: new-api 网关地址（请替换为实际地址）
+
+tags:
+  - name: 视频生成
+    description: 豆包视频生成任务提交与查询
+  - name: 视频内容
+    description: 已完成视频的内容下载
+
+paths:
+  /v1/video/generations:
+    post:
+      tags:
+        - 视频生成
+      summary: 提交视频生成任务
+      description: |
+        向豆包视频模型提交一个视频生成任务（异步）。
+
+        提交后立即返回任务 ID，视频不会立刻生成完毕。
+        请使用返回的 `id`（即 `task_id`）轮询 `GET /v1/video/generations/{task_id}` 查询结果。
+
+        **支持的场景**：
+        - 文生视频：仅提供 `prompt`，不传 `image`
+        - 图生视频：提供 `prompt` 和 `image`（图片 URL），或在 `metadata.content` 中传入图片
+        - 视频续拍/参考：在 `metadata.content` 中传入 `video_url` 类型内容（会触发视频输入折扣）
+
+      operationId: submitVideoGeneration
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoGenerationRequest'
+            examples:
+              文生视频:
+                summary: 基础文生视频
+                value:
+                  model: doubao-seedance-2-0-260128
+                  prompt: 宇航员在月球表面慢慢行走，地球悬挂在黑色天空中
+                  seconds: "5"
+                  metadata:
+                    ratio: "16:9"
+              图生视频:
+                summary: 图生视频（含参考图片）
+                value:
+                  model: doubao-seedance-2-0-260128
+                  prompt: 让图片中的人物微笑并转身
+                  image: "https://example.com/reference.jpg"
+                  seconds: "5"
+                  metadata:
+                    ratio: "16:9"
+              视频续拍（含视频输入折扣）:
+                summary: 基于已有视频片段续拍
+                value:
+                  model: doubao-seedance-2-0-260128
+                  prompt: 继续往前走，走向远处的山丘
+                  metadata:
+                    content:
+                      - type: video_url
+                        video_url:
+                          url: "https://example.com/input.mp4"
+                  seconds: "5"
+              高级参数:
+                summary: 完整参数示例
+                value:
+                  model: doubao-seedance-2-0-260128
+                  prompt: 一朵玫瑰花在阳光下缓缓绽放，微风吹拂
+                  seconds: "8"
+                  metadata:
+                    ratio: "16:9"
+                    resolution: "720p"
+                    seed: 42
+                    watermark: false
+                    camera_fixed: false
+      responses:
+        "200":
+          description: 任务提交成功，返回任务信息（此时任务仍在生成中，status 为 queued）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoTaskResponse'
+              example:
+                id: task_abc123def456
+                task_id: task_abc123def456
+                object: video
+                model: doubao-seedance-2-0-260128
+                status: queued
+                progress: 0
+                created_at: 1712345678
+        "400":
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: 未授权（Token 无效或缺失）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "402":
+          description: 账户余额不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: 服务器内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/video/generations/{task_id}:
+    get:
+      tags:
+        - 视频生成
+      summary: 查询视频生成任务状态
+      description: |
+        根据任务 ID 查询视频生成任务的当前状态和结果。
+
+        **任务状态说明**：
+        - `queued`：任务已提交，等待处理
+        - `in_progress`：任务处理中
+        - `completed`：任务已完成，可从 `metadata.url` 获取视频地址
+        - `failed`：任务失败，查看 `error` 字段了解失败原因
+
+        **获取视频**：
+        - 任务 `completed` 后，`metadata.url` 字段包含视频的直接下载链接
+        - 也可调用 `GET /v1/videos/{task_id}/content` 通过代理下载视频文件
+
+        **轮询建议**：每 5 秒查询一次，超时时间建议设置为 10 分钟。
+
+      operationId: getVideoGenerationTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: 提交任务时返回的任务 ID（`id` 字段）
+          schema:
+            type: string
+            example: task_abc123def456
+      responses:
+        "200":
+          description: 查询成功（可能处于任意状态）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoTaskResponse'
+              examples:
+                处理中:
+                  summary: 任务进行中
+                  value:
+                    id: task_abc123def456
+                    task_id: task_abc123def456
+                    object: video
+                    model: doubao-seedance-2-0-260128
+                    status: in_progress
+                    progress: 50
+                    created_at: 1712345678
+                已完成:
+                  summary: 任务完成，视频可下载
+                  value:
+                    id: task_abc123def456
+                    task_id: task_abc123def456
+                    object: video
+                    model: doubao-seedance-2-0-260128
+                    status: completed
+                    progress: 100
+                    created_at: 1712345678
+                    completed_at: 1712345900
+                    metadata:
+                      url: "https://cdn.example.com/videos/result.mp4"
+                失败:
+                  summary: 任务失败
+                  value:
+                    id: task_abc123def456
+                    task_id: task_abc123def456
+                    object: video
+                    model: doubao-seedance-2-0-260128
+                    status: failed
+                    progress: 100
+                    created_at: 1712345678
+                    completed_at: 1712345700
+                    error:
+                      code: content_policy_violation
+                      message: 请求内容违反了内容安全策略
+        "404":
+          description: 任务不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/videos:
+    post:
+      tags:
+        - 视频生成
+      summary: 提交视频生成任务（OpenAI 兼容格式）
+      description: |
+        与 `POST /v1/video/generations` 功能完全相同，为兼容 OpenAI Video API 格式而提供。
+        请求和响应格式与 `/v1/video/generations` 一致。
+      operationId: submitVideoOpenAI
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoGenerationRequest'
+      responses:
+        "200":
+          description: 任务提交成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoTaskResponse'
+        "400":
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: 未授权
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/videos/{task_id}:
+    get:
+      tags:
+        - 视频生成
+      summary: 查询任务状态（OpenAI 兼容格式）
+      description: |
+        与 `GET /v1/video/generations/{task_id}` 功能相同，兼容 OpenAI Video API 格式。
+      operationId: getVideoTaskOpenAI
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: 任务 ID
+          schema:
+            type: string
+            example: task_abc123def456
+      responses:
+        "200":
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoTaskResponse'
+        "404":
+          description: 任务不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/videos/{task_id}/content:
+    get:
+      tags:
+        - 视频内容
+      summary: 下载视频文件内容
+      description: |
+        通过代理方式下载已完成的视频文件内容（二进制流）。
+
+        **前置条件**：任务状态必须为 `completed`，否则返回 400 错误。
+
+        此接口会：
+        1. 查询数据库获取任务关联的视频 URL
+        2. 通过服务器代理请求并转发视频内容给客户端
+        3. 响应头包含 `Cache-Control: public, max-age=86400`（24小时缓存）
+
+        **支持认证方式**：Bearer Token 或 Session Cookie（Dashboard 登录用户均可访问）
+
+      operationId: downloadVideoContent
+      security:
+        - BearerAuth: []
+        - SessionAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: 任务 ID（`completed` 状态才可下载）
+          schema:
+            type: string
+            example: task_abc123def456
+      responses:
+        "200":
+          description: 视频文件内容（二进制流）
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+            video/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: 任务未完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  message: "Task is not completed yet, current status: in_progress"
+                  type: invalid_request_error
+        "404":
+          description: 任务不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "502":
+          description: 上游视频 URL 不可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "API Token，格式：Bearer sk-xxxx"
+    SessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Dashboard 登录后的 Session Cookie
+
+  schemas:
+    VideoGenerationRequest:
+      type: object
+      required:
+        - model
+        - prompt
+      properties:
+        model:
+          type: string
+          description: |
+            视频生成模型名称。支持的模型：
+            - `doubao-seedance-1-0-pro-250528`
+            - `doubao-seedance-1-0-lite-t2v`（仅文生视频）
+            - `doubao-seedance-1-0-lite-i2v`（仅图生视频）
+            - `doubao-seedance-1-5-pro-251215`
+            - `doubao-seedance-2-0-260128`（推荐）
+            - `doubao-seedance-2-0-fast-260128`（更快速）
+          example: doubao-seedance-2-0-260128
+          enum:
+            - doubao-seedance-1-0-pro-250528
+            - doubao-seedance-1-0-lite-t2v
+            - doubao-seedance-1-0-lite-i2v
+            - doubao-seedance-1-5-pro-251215
+            - doubao-seedance-2-0-260128
+            - doubao-seedance-2-0-fast-260128
+        prompt:
+          type: string
+          description: 视频内容描述（文本提示词）。建议使用详细、具体的描述以获得更好的生成效果。
+          example: 一朵玫瑰花在阳光下缓缓绽放，微风轻抚花瓣，背景是模糊的绿色草坪
+        image:
+          type: string
+          description: |
+            参考图片（图生视频时使用）。支持 HTTP/HTTPS URL 或 Base64 编码的图片数据。
+            当同时使用 `metadata.content` 中的图片时，此字段的图片会被添加到 `content` 数组前端。
+          example: "https://example.com/reference-image.jpg"
+        seconds:
+          type: string
+          description: 视频时长（秒），以字符串形式传入。常用值为 "5" 或 "8"。
+          example: "5"
+        metadata:
+          $ref: '#/components/schemas/VideoMetadata'
+
+    VideoMetadata:
+      type: object
+      description: |
+        豆包视频特定的扩展参数，通过 `metadata` 字段传入。
+        所有字段均为可选，未传入时使用模型默认值。
+      properties:
+        ratio:
+          type: string
+          description: 视频宽高比
+          example: "16:9"
+          enum:
+            - "16:9"
+            - "9:16"
+            - "1:1"
+            - "4:3"
+            - "3:4"
+        resolution:
+          type: string
+          description: 输出视频分辨率
+          example: "720p"
+          enum:
+            - "480p"
+            - "720p"
+            - "1080p"
+        seed:
+          type: integer
+          description: 随机种子，固定相同种子可复现相似结果。范围：0 ~ 2147483647
+          example: 42
+        watermark:
+          type: boolean
+          description: 是否在视频上添加水印。默认为 false（不加水印）。
+          example: false
+        camera_fixed:
+          type: boolean
+          description: 是否固定摄像机（镜头不移动）。默认为 false（允许镜头运动）。
+          example: false
+        content:
+          type: array
+          description: |
+            多模态内容数组，支持图片或视频输入。
+            **注意**：当包含 `video_url` 类型条目时，系统会自动应用视频输入折扣计费：
+            - `doubao-seedance-2-0-260128`：约 6.1 折
+            - `doubao-seedance-2-0-fast-260128`：约 5.9 折
+          items:
+            $ref: '#/components/schemas/ContentItem'
+        return_last_frame:
+          type: boolean
+          description: 是否返回视频最后一帧图片（用于续拍场景）
+          example: false
+        generate_audio:
+          type: boolean
+          description: 是否生成配套音频
+          example: false
+        draft:
+          type: boolean
+          description: 是否生成草稿（快速预览，质量较低）
+          example: false
+        service_tier:
+          type: string
+          description: 服务等级（影响优先级和价格）
+          example: default
+        callback_url:
+          type: string
+          description: 任务完成后的回调通知 URL（需配合豆包官方回调机制使用）
+          example: "https://your-server.com/webhook/video-callback"
+
+    ContentItem:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: 内容类型
+          enum:
+            - text
+            - image_url
+            - video_url
+          example: image_url
+        text:
+          type: string
+          description: 文本内容（type 为 text 时使用）
+          example: 背景是黄昏时分的海滩
+        image_url:
+          type: object
+          description: 图片 URL（type 为 image_url 时使用）
+          properties:
+            url:
+              type: string
+              description: 图片的 HTTP/HTTPS URL 或 base64 数据
+              example: "https://example.com/photo.jpg"
+        video_url:
+          type: object
+          description: 视频 URL（type 为 video_url 时使用，**会触发视频输入折扣**）
+          properties:
+            url:
+              type: string
+              description: 视频的 HTTP/HTTPS URL
+              example: "https://example.com/input-video.mp4"
+
+    VideoTaskResponse:
+      type: object
+      description: 视频任务响应（提交后和查询时返回相同结构）
+      properties:
+        id:
+          type: string
+          description: 任务唯一标识符（由 new-api 系统生成，非豆包原始 ID）
+          example: task_abc123def456
+        task_id:
+          type: string
+          description: 与 `id` 相同，兼容旧版接口（已废弃，请使用 `id`）
+          example: task_abc123def456
+          deprecated: true
+        object:
+          type: string
+          description: 对象类型，固定为 "video"
+          example: video
+        model:
+          type: string
+          description: 使用的模型名称
+          example: doubao-seedance-2-0-260128
+        status:
+          type: string
+          description: |
+            任务当前状态：
+            - `queued`：已提交，排队等待
+            - `in_progress`：生成中
+            - `completed`：已完成，可下载视频
+            - `failed`：生成失败
+          enum:
+            - queued
+            - in_progress
+            - completed
+            - failed
+          example: completed
+        progress:
+          type: integer
+          description: 任务进度（0-100 的整数）
+          minimum: 0
+          maximum: 100
+          example: 100
+        created_at:
+          type: integer
+          format: int64
+          description: 任务创建时间（Unix 时间戳，秒）
+          example: 1712345678
+        completed_at:
+          type: integer
+          format: int64
+          description: 任务完成时间（Unix 时间戳，秒）。仅在 status 为 completed 或 failed 时返回。
+          example: 1712345900
+        expires_at:
+          type: integer
+          format: int64
+          description: 任务结果过期时间（Unix 时间戳）
+          example: 1712432300
+        metadata:
+          type: object
+          description: 任务结果元数据
+          properties:
+            url:
+              type: string
+              description: 视频文件的直接访问 URL（仅在 status 为 completed 时存在）
+              example: "https://cdn.example.com/videos/output-video.mp4"
+        error:
+          $ref: '#/components/schemas/VideoTaskError'
+        remixed_from_video_id:
+          type: string
+          description: 如果是 remix 任务，此字段为原始视频的任务 ID
+          example: task_origin789ghi012
+
+    VideoTaskError:
+      type: object
+      description: 视频任务失败时的错误详情
+      properties:
+        code:
+          type: string
+          description: 错误码
+          example: content_policy_violation
+        message:
+          type: string
+          description: 人类可读的错误描述
+          example: 请求内容违反了内容安全策略，请修改 prompt 后重试
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              description: 错误描述信息
+              example: Invalid authentication token
+            type:
+              type: string
+              description: 错误类型
+              example: invalid_request_error
+            code:
+              type: string
+              description: 错误码（部分场景下包含）
+              example: invalid_api_key
