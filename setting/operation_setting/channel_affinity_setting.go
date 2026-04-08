@@ -23,6 +23,7 @@ type ChannelAffinityRule struct {
 	SkipRetryOnFailure bool `json:"skip_retry_on_failure,omitempty"`
 
 	IncludeUsingGroup bool `json:"include_using_group"`
+	IncludeModelName  bool `json:"include_model_name"`
 	IncludeRuleName   bool `json:"include_rule_name"`
 }
 
