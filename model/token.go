@@ -481,3 +481,11 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 
 	return len(tokens), nil
 }
+
+func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
+	var tokens []Token
+	err := DB.Select("id", commonKeyCol).
+		Where("user_id = ? AND id IN (?)", userId, ids).
+		Find(&tokens).Error
+	return tokens, err
+}
