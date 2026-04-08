@@ -44,6 +44,12 @@ export const userFormSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  referral_commission_percent: z
+    .number()
+    .min(0)
+    .max(100)
+    .nullable()
+    .optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -62,6 +68,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
+  referral_commission_percent: null,
 }
 
 // ============================================================================
@@ -101,6 +108,8 @@ export function transformFormDataToPayload(
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
     payload.remark = data.remark || undefined
+    payload.referral_commission_percent =
+      data.referral_commission_percent ?? null
     payload.id = userId
   }
 
@@ -122,5 +131,6 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
+    referral_commission_percent: user.referral_commission_percent ?? null,
   }
 }
