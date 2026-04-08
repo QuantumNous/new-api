@@ -94,8 +94,6 @@ func SendEmail(subject string, receiver string, content string) error {
 		if err != nil {
 			return err
 		}
-	} else if shouldUseSMTPLoginAuth() {
-		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
 	} else {
 		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
 	}

@@ -925,6 +925,7 @@
     "启用Gemini思考后缀适配": "Enable Gemini thinking suffix adaptation",
     "启用Ping间隔": "Enable Ping interval",
     "启用SMTP SSL": "Enable SMTP SSL",
+    "强制使用 AUTH LOGIN": "Force AUTH LOGIN",
     "启用SSRF防护（推荐开启以保护服务器安全）": "Enable SSRF Protection (Recommended for server security)",
     "启用供应商": "Enable Provider",
     "启用全部": "Enable all",

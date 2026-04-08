@@ -797,6 +797,7 @@
     "启用Gemini思考后缀适配": "啟用Gemini思考後綴相容",
     "启用Ping间隔": "啟用Ping間隔",
     "启用SMTP SSL": "啟用SMTP SSL",
+    "强制使用 AUTH LOGIN": "強制使用 AUTH LOGIN",
     "启用SSRF防护（推荐开启以保护服务器安全）": "啟用SSRF防護（推薦開啟以保護伺服器安全）",
     "启用全部": "啟用全部",
     "启用后可接入 io.net GPU 资源": "啟用後可接入 io.net GPU 資源",

@@ -912,6 +912,7 @@
     "启用Gemini思考后缀适配": "Bật thích ứng hậu tố tư duy Gemini",
     "启用Ping间隔": "Bật khoảng thời gian Ping",
     "启用SMTP SSL": "Bật SMTP SSL",
+    "强制使用 AUTH LOGIN": "Buộc AUTH LOGIN",
     "启用SSRF防护（推荐开启以保护服务器安全）": "Bật bảo vệ SSRF (Khuyên dùng để bảo mật máy chủ)",
     "启用供应商": "Bật nhà cung cấp",
     "启用全部": "Bật tất cả",

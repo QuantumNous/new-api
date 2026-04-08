@@ -680,6 +680,7 @@
     "启用Gemini思考后缀适配": "启用Gemini思考后缀适配",
     "启用Ping间隔": "启用Ping间隔",
     "启用SMTP SSL": "启用SMTP SSL",
+    "强制使用 AUTH LOGIN": "强制使用 AUTH LOGIN",
     "启用SSRF防护（推荐开启以保护服务器安全）": "启用SSRF防护（推荐开启以保护服务器安全）",
     "启用全部": "启用全部",
     "启用后可接入 io.net GPU 资源": "启用后可接入 io.net GPU 资源",
