@@ -57,6 +57,7 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  referral_commission_percent: z.number().nullable().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -106,6 +107,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  referral_commission_percent?: number | null // Only used when updating user; null = use global default
 }
 
 export type ManageUserAction =
