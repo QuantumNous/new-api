@@ -65,6 +65,56 @@ function isTicketAcquireMode(mode) {
   return mode === 'ticket_exchange' || mode === 'ticket_validate';
 }
 
+const DEFAULT_LOCAL_SERVER_ADDRESSES = new Set([
+  'http://localhost:3000',
+  'https://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://127.0.0.1:3000',
+]);
+
+function normalizeServerAddress(address, fallbackOrigin = window.location.origin) {
+  if (typeof address !== 'string' || address.trim() === '') {
+    return '';
+  }
+  try {
+    return new URL(address.trim(), fallbackOrigin).toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+export function getEffectiveServerAddress(configuredAddress) {
+  const currentOrigin = normalizeServerAddress(window.location.origin);
+  const normalizedConfigured = normalizeServerAddress(configuredAddress);
+
+  if (!normalizedConfigured) {
+    return currentOrigin;
+  }
+
+  if (
+    DEFAULT_LOCAL_SERVER_ADDRESSES.has(normalizedConfigured) &&
+    normalizedConfigured !== currentOrigin
+  ) {
+    return currentOrigin;
+  }
+
+  return normalizedConfigured;
+}
+
+export function isUsingRuntimeServerAddress(configuredAddress) {
+  const currentOrigin = normalizeServerAddress(window.location.origin);
+  const normalizedConfigured = normalizeServerAddress(configuredAddress);
+
+  if (!normalizedConfigured) {
+    return true;
+  }
+
+  return (
+    DEFAULT_LOCAL_SERVER_ADDRESSES.has(normalizedConfigured) &&
+    normalizedConfigured !== currentOrigin
+  );
+}
+
 function supportsCustomProviderBrowserLogin(provider) {
   if (provider?.browser_login_supported !== undefined) {
     return Boolean(provider.browser_login_supported);

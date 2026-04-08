@@ -45,6 +45,8 @@ import {
   showError,
   showSuccess,
   getOAuthProviderIcon,
+  getEffectiveServerAddress,
+  isUsingRuntimeServerAddress,
 } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -207,6 +209,8 @@ const TICKET_VALIDATE_SUGGESTED_FIELDS = {
 
 const CustomOAuthSetting = ({ serverAddress }) => {
   const { t } = useTranslation();
+  const effectiveServerAddress = getEffectiveServerAddress(serverAddress);
+  const usesRuntimeServerAddress = isUsingRuntimeServerAddress(serverAddress);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
@@ -947,7 +951,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
   return (
     <Card>
-      <Form.Section text={t('自定义 OAuth 提供商')}>
+      <section>
+        <Text strong style={{ display: 'block', marginBottom: 12 }}>
+          {t('自定义 OAuth 提供商')}
+        </Text>
+        {usesRuntimeServerAddress && (
+          <Banner
+            type='warning'
+            description={t(
+              '当前系统设置里的服务器地址仍是默认占位值，以下回调地址先按当前访问地址展示；正式接入前请在系统设置中显式更新服务器地址与 Passkey 配置。',
+            )}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         <Banner
           type='info'
           description={
@@ -956,7 +972,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 '配置自定义外部身份提供商，支持 OAuth Code Flow、JWT Direct 和可信 Header SSO 三种接入模式',
               )}
               <br />
-              {t('浏览器回调 URL')}: {serverAddress || t('网站地址')}/oauth/
+              {t('浏览器回调 URL')}: {effectiveServerAddress || t('网站地址')}
+              /oauth/
               {'{slug}'}
               <br />
               {t('说明')}:{' '}
@@ -996,7 +1013,13 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           onCancel={closeModal}
           width={860}
           centered
-          bodyStyle={{ maxHeight: '72vh', overflowY: 'auto', paddingRight: 6 }}
+          className='custom-oauth-provider-modal'
+          bodyStyle={{
+            maxHeight: '72vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: 6,
+          }}
           footer={
             <div
               style={{
@@ -1028,20 +1051,24 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             </div>
           }
         >
-          <Form
-            initValues={formValues}
-            onValueChange={() => {
-              setFormValues((prev) => ({ ...prev, ...getLatestFormValues() }));
-            }}
-            getFormApi={(api) => (formApiRef.current = api)}
+          <div
+            className='custom-oauth-provider-modal-body'
+            style={{ width: '100%', overflowX: 'hidden' }}
           >
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>
-              {t('配置')}
-            </Text>
-            <Text
-              type='secondary'
-              style={{ display: 'block', marginBottom: 8 }}
+            <Form
+              initValues={formValues}
+              onValueChange={() => {
+                setFormValues((prev) => ({ ...prev, ...getLatestFormValues() }));
+              }}
+              getFormApi={(api) => (formApiRef.current = api)}
             >
+              <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                {t('配置')}
+              </Text>
+              <Text
+                type='secondary'
+                style={{ display: 'block', marginBottom: 8 }}
+              >
               {isJWTTicketExchange
                 ? t(
                     '浏览器回调页先接收 ticket，后端再向票据交换接口换取 JWT，并继续复用现有验签、映射、建号和绑定链路',
@@ -1065,7 +1092,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                         : t(
                             '先填写配置，再自动填充 OAuth 端点，能显著减少手工输入',
                           )}
-            </Text>
+              </Text>
             {isOAuthCode && discoveryInfo && (
               <Banner
                 type='success'
@@ -2225,8 +2252,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtest
               </Collapse>
             )}
           </Form>
+          </div>
         </Modal>
-      </Form.Section>
+      </section>
     </Card>
   );
 };

@@ -42,6 +42,7 @@ import CCSwitchModal from './modals/CCSwitchModal';
 import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
+import { getServerAddress } from '../../../helpers/token';
 
 function TokensPage() {
   // Define the function first, then pass it into the hook to avoid TDZ errors
@@ -221,15 +222,7 @@ function TokensPage() {
       return;
     }
 
-    let status = localStorage.getItem('status');
-    let serverAddress = '';
-    if (status) {
-      try {
-        status = JSON.parse(status);
-        serverAddress = status.server_address || '';
-      } catch (_) {}
-    }
-    if (!serverAddress) serverAddress = window.location.origin;
+    const serverAddress = getServerAddress();
 
     let apiKeyToUse = '';
     if (overrideKey) {
