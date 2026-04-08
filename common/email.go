@@ -26,7 +26,17 @@ func shouldUseSMTPLoginAuth() bool {
 	return isOutlookServer(SMTPAccount) || slices.Contains(EmailLoginAuthServerList, SMTPServer)
 }
 
+func shouldUseSMTPAuth() bool {
+	if SMTPForceAuthLogin {
+		return true
+	}
+	return SMTPPort != 25
+}
+
 func getSMTPAuth() smtp.Auth {
+	if !shouldUseSMTPAuth() {
+		return nil
+	}
 	if shouldUseSMTPLoginAuth() {
 		return LoginAuth(SMTPAccount, SMTPToken)
 	}
@@ -70,8 +80,10 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 		defer client.Close()
-		if err = client.Auth(auth); err != nil {
-			return err
+		if auth != nil {
+			if err = client.Auth(auth); err != nil {
+				return err
+			}
 		}
 		if err = client.Mail(SMTPFrom); err != nil {
 			return err
