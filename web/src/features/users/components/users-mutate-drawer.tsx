@@ -447,6 +447,47 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name='referral_commission_percent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Referral commission override (%)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            placeholder={t('Leave empty to use global default')}
+                            value={
+                              field.value === null || field.value === undefined
+                                ? ''
+                                : field.value
+                            }
+                            onChange={(event) => {
+                              const raw = event.target.value
+                              if (raw === '') {
+                                field.onChange(null)
+                              } else {
+                                const parsed = Number(raw)
+                                field.onChange(
+                                  Number.isFinite(parsed) ? parsed : null
+                                )
+                              }
+                            }}
+                            name={field.name}
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </SideDrawerSection>
               )}
 
