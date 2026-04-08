@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Avatar,
   Typography,
@@ -26,22 +26,152 @@ import {
   Input,
   Badge,
   Space,
+  Table,
+  Spin,
+  Tabs,
+  TabPane,
+  Tag,
 } from '@douyinfe/semi-ui';
-import { Copy, Users, BarChart2, TrendingUp, Gift, Zap } from 'lucide-react';
+import {
+  Copy,
+  Users,
+  BarChart2,
+  TrendingUp,
+  Gift,
+  Zap,
+  UserCheck,
+} from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { API } from '../../helpers';
 
 const { Text } = Typography;
 
+const PAGE_SIZE = 10;
+
 const InvitationCard = ({
-  t,
   userState,
   renderQuota,
   setOpenTransfer,
   affLink,
   handleAffLinkClick,
 }) => {
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState('invitees');
+
+  const [invitees, setInvitees] = useState([]);
+  const [inviteesTotal, setInviteesTotal] = useState(0);
+  const [inviteesPage, setInviteesPage] = useState(1);
+  const [inviteesLoading, setInviteesLoading] = useState(false);
+
+  const [commissions, setCommissions] = useState([]);
+  const [commissionsTotal, setCommissionsTotal] = useState(0);
+  const [commissionsPage, setCommissionsPage] = useState(1);
+  const [commissionsLoading, setCommissionsLoading] = useState(false);
+
+  const fetchInvitees = (page) => {
+    setInviteesLoading(true);
+    API.get(
+      `/api/user/aff/invitees?page=${page}&page_size=${PAGE_SIZE}`,
+    )
+      .then((res) => {
+        if (res.data.success) {
+          setInvitees(res.data.data?.items || []);
+          setInviteesTotal(res.data.data?.total || 0);
+        }
+      })
+      .finally(() => setInviteesLoading(false));
+  };
+
+  const fetchCommissions = (page) => {
+    setCommissionsLoading(true);
+    API.get(
+      `/api/user/aff/commissions?page=${page}&page_size=${PAGE_SIZE}`,
+    )
+      .then((res) => {
+        if (res.data.success) {
+          setCommissions(res.data.data?.items || []);
+          setCommissionsTotal(res.data.data?.total || 0);
+        }
+      })
+      .finally(() => setCommissionsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchInvitees(1);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'commissions' && commissions.length === 0 && !commissionsLoading) {
+      fetchCommissions(1);
+    }
+  }, [activeTab]);
+
+  const inviteeColumns = [
+    {
+      title: t('用户名'),
+      dataIndex: 'username',
+      width: 120,
+    },
+    {
+      title: t('显示名称'),
+      dataIndex: 'display_name',
+      width: 120,
+    },
+    {
+      title: t('状态'),
+      dataIndex: 'status',
+      render: (v) => (
+        <Tag color={v === 1 ? 'green' : 'red'} size='small'>
+          {v === 1 ? t('已启用') : t('已禁用')}
+        </Tag>
+      ),
+      width: 80,
+    },
+    {
+      title: t('返佣次数'),
+      dataIndex: 'commission_count',
+      width: 90,
+    },
+    {
+      title: t('贡献收益'),
+      dataIndex: 'total_earned',
+      render: (v) => renderQuota(v),
+    },
+  ];
+
+  const commissionColumns = [
+    {
+      title: t('时间'),
+      dataIndex: 'created_at',
+      render: (v) => new Date(v * 1000).toLocaleDateString(),
+      width: 110,
+    },
+    {
+      title: t('用户'),
+      dataIndex: 'invitee_username',
+      width: 120,
+    },
+    {
+      title: t('充值金额'),
+      dataIndex: 'recharge_amount',
+      render: (v) => `$${v.toFixed(2)}`,
+      width: 100,
+    },
+    {
+      title: t('返佣比例'),
+      dataIndex: 'commission_rate',
+      render: (v) => `${v}%`,
+      width: 90,
+    },
+    {
+      title: t('获得额度'),
+      dataIndex: 'commission_quota',
+      render: (v) => renderQuota(v),
+    },
+  ];
+
   return (
     <Card className='!rounded-2xl shadow-sm border-0'>
-      {/* 卡片头部 */}
       <div className='flex items-center mb-4'>
         <Avatar size='small' color='green' className='mr-3 shadow-md'>
           <Gift size={16} />
@@ -54,9 +184,7 @@ const InvitationCard = ({
         </div>
       </div>
 
-      {/* 收益展示区域 */}
       <Space vertical style={{ width: '100%' }}>
-        {/* 统计数据统一卡片 */}
         <Card
           className='!rounded-xl w-full'
           cover={
@@ -70,7 +198,6 @@ const InvitationCard = ({
                 backgroundRepeat: 'no-repeat',
               }}
             >
-              {/* 标题和按钮 */}
               <div className='relative z-10 h-full flex flex-col justify-between p-4'>
                 <div className='flex justify-between items-center'>
                   <Text strong style={{ color: 'white', fontSize: '16px' }}>
@@ -92,9 +219,7 @@ const InvitationCard = ({
                   </Button>
                 </div>
 
-                {/* 统计数据 */}
                 <div className='grid grid-cols-3 gap-6 mt-4'>
-                  {/* 待使用收益 */}
                   <div className='text-center'>
                     <div
                       className='text-base sm:text-2xl font-bold mb-2'
@@ -119,7 +244,6 @@ const InvitationCard = ({
                     </div>
                   </div>
 
-                  {/* 总收益 */}
                   <div className='text-center'>
                     <div
                       className='text-base sm:text-2xl font-bold mb-2'
@@ -144,7 +268,6 @@ const InvitationCard = ({
                     </div>
                   </div>
 
-                  {/* 邀请人数 */}
                   <div className='text-center'>
                     <div
                       className='text-base sm:text-2xl font-bold mb-2'
@@ -173,7 +296,6 @@ const InvitationCard = ({
             </div>
           }
         >
-          {/* 邀请链接部分 */}
           <Input
             value={affLink}
             readonly
@@ -193,7 +315,6 @@ const InvitationCard = ({
           />
         </Card>
 
-        {/* 奖励说明 */}
         <Card
           className='!rounded-xl w-full'
           title={<Text type='tertiary'>{t('奖励说明')}</Text>}
@@ -221,6 +342,81 @@ const InvitationCard = ({
             </div>
           </div>
         </Card>
+
+        <Tabs type='card' activeKey={activeTab} onChange={setActiveTab}>
+          <TabPane
+            tab={
+              <div className='flex items-center gap-2'>
+                <UserCheck size={16} />
+                {t('受邀用户')}
+              </div>
+            }
+            itemKey='invitees'
+          >
+            <div className='py-2'>
+              <Spin spinning={inviteesLoading}>
+                <Table
+                  columns={inviteeColumns}
+                  dataSource={invitees}
+                  rowKey='id'
+                  size='small'
+                  pagination={{
+                    currentPage: inviteesPage,
+                    pageSize: PAGE_SIZE,
+                    total: inviteesTotal,
+                    showTotal: true,
+                    onPageChange: (page) => {
+                      setInviteesPage(page);
+                      fetchInvitees(page);
+                    },
+                  }}
+                  scroll={{ x: 'max-content' }}
+                  empty={
+                    <Text type='tertiary' className='text-sm'>
+                      {t('暂无受邀用户')}
+                    </Text>
+                  }
+                />
+              </Spin>
+            </div>
+          </TabPane>
+          <TabPane
+            tab={
+              <div className='flex items-center gap-2'>
+                <BarChart2 size={16} />
+                {t('返佣记录')}
+              </div>
+            }
+            itemKey='commissions'
+          >
+            <div className='py-2'>
+              <Spin spinning={commissionsLoading}>
+                <Table
+                  columns={commissionColumns}
+                  dataSource={commissions}
+                  rowKey='id'
+                  size='small'
+                  pagination={{
+                    currentPage: commissionsPage,
+                    pageSize: PAGE_SIZE,
+                    total: commissionsTotal,
+                    showTotal: true,
+                    onPageChange: (page) => {
+                      setCommissionsPage(page);
+                      fetchCommissions(page);
+                    },
+                  }}
+                  scroll={{ x: 'max-content' }}
+                  empty={
+                    <Text type='tertiary' className='text-sm'>
+                      {t('暂无返佣记录')}
+                    </Text>
+                  }
+                />
+              </Spin>
+            </div>
+          </TabPane>
+        </Tabs>
       </Space>
     </Card>
   );

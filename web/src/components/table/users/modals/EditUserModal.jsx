@@ -55,6 +55,7 @@ import {
   IconLink,
   IconUserGroup,
   IconEdit,
+  IconGift,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
 
@@ -94,6 +95,7 @@ const EditUserModal = (props) => {
     quota_amount: 0,
     group: 'default',
     remark: '',
+    referral_commission_percent: null,
   });
 
   const fetchGroups = async () => {
@@ -410,6 +412,43 @@ const EditUserModal = (props) => {
                             readonly
                           />
                         </div>
+                      </Col>
+                    </Row>
+                  </Card>
+                )}
+
+                {/* 返佣设置 */}
+                {userId && (
+                  <Card className='!rounded-2xl shadow-sm border-0'>
+                    <div className='flex items-center mb-2'>
+                      <Avatar
+                        size='small'
+                        color='orange'
+                        className='mr-2 shadow-md'
+                      >
+                        <IconGift size={16} />
+                      </Avatar>
+                      <div>
+                        <Text className='text-lg font-medium'>
+                          {t('返佣设置')}
+                        </Text>
+                        <div className='text-xs text-gray-600'>
+                          {t('留空使用全局默认值')}
+                        </div>
+                      </div>
+                    </div>
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='referral_commission_percent'
+                          label={t('返佣比例覆盖')}
+                          placeholder={t('留空使用全局默认值')}
+                          step={0.1}
+                          min={0}
+                          max={100}
+                          suffix='%'
+                          style={{ width: '100%' }}
+                        />
                       </Col>
                     </Row>
                   </Card>

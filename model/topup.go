@@ -154,6 +154,12 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
+	// Credit referral commission to inviter (if enabled)
+	if err := CreditReferralCommission(topUp.UserId, topUp.Money, "stripe", topUp.Id); err != nil {
+		common.SysLog(fmt.Sprintf("返佣失败 user_id=%d topup_id=%d trade_no=%s payment_method=stripe err=%v",
+			topUp.UserId, topUp.Id, topUp.TradeNo, err))
+	}
+
 	return nil
 }
 
@@ -329,6 +335,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var topUpId int
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -376,6 +383,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		userId = topUp.UserId
 		payMoney = topUp.Money
 		paymentMethod = topUp.PaymentMethod
+		topUpId = topUp.Id
 		return nil
 	})
 
@@ -385,8 +393,14 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+
+	if err := CreditReferralCommission(userId, payMoney, "manual", topUpId); err != nil {
+		common.SysLog(fmt.Sprintf("返佣失败 user_id=%d topup_id=%d payment_method=manual err=%v", userId, topUpId, err))
+	}
+
 	return nil
 }
+
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
@@ -458,6 +472,12 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+
+	// Credit referral commission to inviter (if enabled)
+	if err := CreditReferralCommission(topUp.UserId, topUp.Money, "creem", topUp.Id); err != nil {
+		common.SysLog(fmt.Sprintf("返佣失败 user_id=%d topup_id=%d trade_no=%s payment_method=creem err=%v",
+			topUp.UserId, topUp.Id, topUp.TradeNo, err))
+	}
 
 	return nil
 }
@@ -581,6 +601,12 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+	}
+
+	// Credit referral commission to inviter (if enabled)
+	if err := CreditReferralCommission(topUp.UserId, topUp.Money, "waffo", topUp.Id); err != nil {
+		common.SysLog(fmt.Sprintf("返佣失败 user_id=%d topup_id=%d trade_no=%s payment_method=waffo err=%v",
+			topUp.UserId, topUp.Id, topUp.TradeNo, err))
 	}
 
 	return nil
