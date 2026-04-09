@@ -30,12 +30,12 @@ func TestChannelOrderedEnabledKeyIndices_PollingDoesNotAdvanceUntilCommitted(t *
 		lock.Lock()
 		ordered, err := channel.OrderedEnabledKeyIndices()
 		lock.Unlock()
-		require.NoError(t, err)
+		require.Nil(t, err)
 		require.Equal(t, []int{1, 0}, ordered)
 		require.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
 
 		lock.Lock()
-		require.NoError(t, channel.CommitSelectedKeyIndex(ordered[0]))
+		require.Nil(t, channel.CommitSelectedKeyIndex(ordered[0]))
 		lock.Unlock()
 		require.Equal(t, 2, channel.ChannelInfo.MultiKeyPollingIndex)
 
@@ -50,11 +50,11 @@ func TestChannelOrderedEnabledKeyIndices_PollingDoesNotAdvanceUntilCommitted(t *
 		staleLock.Lock()
 		staleOrdered, err := stale.OrderedEnabledKeyIndices()
 		staleLock.Unlock()
-		require.NoError(t, err)
+		require.Nil(t, err)
 		require.Equal(t, []int{0, 1}, staleOrdered)
 
 		staleLock.Lock()
-		require.NoError(t, stale.CommitSelectedKeyIndex(staleOrdered[0]))
+		require.Nil(t, stale.CommitSelectedKeyIndex(staleOrdered[0]))
 		staleLock.Unlock()
 
 		channelSyncLock.RLock()
@@ -63,7 +63,7 @@ func TestChannelOrderedEnabledKeyIndices_PollingDoesNotAdvanceUntilCommitted(t *
 		require.Equal(t, 1, stale.ChannelInfo.MultiKeyPollingIndex)
 
 		key, err := stale.KeyAt(staleOrdered[0])
-		require.NoError(t, err)
+		require.Nil(t, err)
 		require.Equal(t, "k0", key)
 	})
 }
@@ -87,13 +87,13 @@ func TestChannelGetNextEnabledKey_PollingUsesCanonicalState(t *testing.T) {
 		registerCachedChannel(channel)
 
 		key, idx, err := channel.GetNextEnabledKey()
-		require.NoError(t, err)
+		require.Nil(t, err)
 		require.Equal(t, "k0", key)
 		require.Equal(t, 0, idx)
 		require.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
 
 		key2, idx2, err := channel.GetNextEnabledKey()
-		require.NoError(t, err)
+		require.Nil(t, err)
 		require.Equal(t, "k1", key2)
 		require.Equal(t, 1, idx2)
 		require.Equal(t, 2, channel.ChannelInfo.MultiKeyPollingIndex)
@@ -117,7 +117,7 @@ func TestChannelGetNextEnabledKey_RandomUsesEnabledCandidates(t *testing.T) {
 
 	allowed := map[int]string{0: "k0", 2: "k2"}
 	key, idx, err := channel.GetNextEnabledKey()
-	require.NoError(t, err)
+	require.Nil(t, err)
 	require.Contains(t, allowed, idx)
 	require.Equal(t, allowed[idx], key)
 	require.Equal(t, 5, channel.ChannelInfo.MultiKeyPollingIndex)
@@ -129,7 +129,7 @@ func TestChannelGetNextEnabledKey_ReturnsKeyWhenNotMultiKey(t *testing.T) {
 	}
 
 	key, idx, err := channel.GetNextEnabledKey()
-	require.NoError(t, err)
+	require.Nil(t, err)
 	require.Equal(t, "single", key)
 	require.Equal(t, 0, idx)
 }
