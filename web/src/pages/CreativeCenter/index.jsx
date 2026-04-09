@@ -34,7 +34,6 @@ import {
   getUserIdFromLocalStorage,
   processGroupsData,
   processThinkTags,
-  showError,
   showWarning,
 } from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
@@ -6365,7 +6364,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       });
 
       try {
-        let hasShownImageSubmitError = false;
         const imageTasks = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const taskId = pendingRecord.images[index].id;
@@ -6506,10 +6504,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 getCreativeRequestErrorMessage(requestError);
               const isRecoverableRequestError =
                 shouldTreatCreativeRequestErrorAsRecoverable(requestError);
-              if (!isRecoverableRequestError && !hasShownImageSubmitError) {
-                hasShownImageSubmitError = true;
-                showError(requestErrorMessage);
-              }
               patchImageTask(recordId, pendingRecord.images[index].id, {
                 status: isRecoverableRequestError ? 'submitted' : 'failed',
                 progress: isRecoverableRequestError ? 0 : 100,
@@ -6529,7 +6523,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         });
       } catch (error) {
         console.error('Creative center image error:', error);
-        showError(getCreativeRequestErrorMessage(error));
         const failedRecord = {
           ...pendingRecord,
           status: 'failed',
@@ -6610,7 +6603,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       });
 
       try {
-        let hasShownVideoSubmitError = false;
         const videoRequests = Array.from({ length: generationCount }, (_, index) =>
           (async () => {
             const localTaskId = pendingRecord.tasks[index].id;
@@ -6808,10 +6800,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 getCreativeRequestErrorMessage(requestError);
               const isRecoverableRequestError =
                 shouldTreatCreativeRequestErrorAsRecoverable(requestError);
-              if (!isRecoverableRequestError && !hasShownVideoSubmitError) {
-                hasShownVideoSubmitError = true;
-                showError(requestErrorMessage);
-              }
               patchVideoTask(recordId, pendingRecord.tasks[index].id, {
                 status: isRecoverableRequestError ? 'submitted' : 'failed',
                 url: '',
@@ -6835,7 +6823,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         });
       } catch (error) {
         console.error('Creative center video error:', error);
-        showError(getCreativeRequestErrorMessage(error));
         const failedRecord = {
           ...pendingRecord,
           status: 'failed',
