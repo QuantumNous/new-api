@@ -150,14 +150,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	return usage, nil
 }
 
-// OaiResponsesStreamAggregateHandler handles the case where the upstream is forced to stream
-// (ForceUpstreamStream=true) but the client requested a non-streaming response.
-// It reads the SSE stream, collects output items from response.output_item.done events,
-// and returns the complete response from response.completed as a single JSON object.
-func OaiResponsesStreamAggregateHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
-	defer service.CloseResponseBodyGracefully(resp)
-
-	scanner := bufio.NewScanner(resp.Body)
+func aggregateResponsesFromSSE(c *gin.Context, body io.Reader) (*dto.OpenAIResponsesResponse, *types.NewAPIError) {
+	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var finalResponse *dto.OpenAIResponsesResponse
@@ -174,7 +168,7 @@ func OaiResponsesStreamAggregateHandler(c *gin.Context, info *relaycommon.RelayI
 		}
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			logger.LogError(c, "OaiResponsesStreamAggregateHandler: failed to unmarshal stream response: "+err.Error())
+			logger.LogError(c, "aggregateResponsesFromSSE: failed to unmarshal stream response: "+err.Error())
 			continue
 		}
 		switch streamResponse.Type {
@@ -193,13 +187,29 @@ func OaiResponsesStreamAggregateHandler(c *gin.Context, info *relaycommon.RelayI
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
 	if finalResponse == nil {
 		return nil, types.NewError(fmt.Errorf("upstream stream ended without response.completed event"), types.ErrorCodeBadResponse)
 	}
-
 	// If response.completed carried an empty output, fill from accumulated output items
 	if len(finalResponse.Output) == 0 && len(outputItems) > 0 {
 		finalResponse.Output = outputItems
+	}
+	return finalResponse, nil
+}
+
+// OaiResponsesStreamAggregateHandler handles the case where the upstream is forced to stream
+// (ForceUpstreamStream=true) but the client requested a non-streaming response.
+// It reads the SSE stream, collects output items from response.output_item.done events,
+// and returns the complete response from response.completed as a single JSON object.
+func OaiResponsesStreamAggregateHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	finalResponse, newAPIErr := aggregateResponsesFromSSE(c, resp.Body)
+	if newAPIErr != nil {
+		return nil, newAPIErr
 	}
 
 	if finalResponse.HasImageGenerationCall() {
