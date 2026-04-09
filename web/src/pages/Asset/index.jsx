@@ -198,6 +198,8 @@ const AssetLibrary = () => {
   const isAdminUser = isAdmin();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [activePage, setActivePage] = useState(1);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
@@ -272,8 +274,20 @@ const AssetLibrary = () => {
     });
   };
 
-  const loadAssets = async (page = 1, size = pageSize, filters = queryParams) => {
-    setLoading(true);
+  const loadAssets = async (
+    page = 1,
+    size = pageSize,
+    filters = queryParams,
+    mode = 'query',
+  ) => {
+    const isPageMode = mode === 'page' || mode === 'page_size';
+    if (isPageMode) {
+      setPageLoading(true);
+    } else if (mode === 'refresh') {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const endpoint = isAdminUser ? '/api/asset/' : '/api/asset/self';
       const params = {
@@ -291,7 +305,13 @@ const AssetLibrary = () => {
     } catch (error) {
       showError(error);
     } finally {
-      setLoading(false);
+      if (isPageMode) {
+        setPageLoading(false);
+      } else if (mode === 'refresh') {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -305,7 +325,7 @@ const AssetLibrary = () => {
     }
     const initialQueryParams = buildQueryParams(formInitValues);
     setQueryParams(initialQueryParams);
-    loadAssets(1, localPageSize, initialQueryParams).then();
+    loadAssets(1, localPageSize, initialQueryParams, 'init').then();
   }, []);
 
   useEffect(() => {
@@ -317,18 +337,18 @@ const AssetLibrary = () => {
     setQueryParams(nextQueryParams);
     setSelectedIds([]);
     setSelectedAssetMap({});
-    await loadAssets(1, pageSize, nextQueryParams);
+    await loadAssets(1, pageSize, nextQueryParams, 'refresh');
   };
 
   const handlePageChange = (page) => {
-    loadAssets(page, pageSize, queryParams).then();
+    loadAssets(page, pageSize, queryParams, 'page').then();
   };
 
   const handlePageSizeChange = async (size) => {
     localStorage.setItem('asset-library-page-size', `${size}`);
     setSelectedIds([]);
     setSelectedAssetMap({});
-    await loadAssets(1, size, queryParams);
+    await loadAssets(1, size, queryParams, 'page_size');
   };
 
   const handleToggleSelect = (asset) => {
@@ -499,7 +519,7 @@ const AssetLibrary = () => {
           size='small'
           type='tertiary'
           icon={<IconRefresh />}
-          loading={loading}
+          loading={refreshing}
           onClick={refresh}
         >
           刷新
@@ -618,7 +638,9 @@ const AssetLibrary = () => {
               />
             </div>
           ) : (
-            <div className='grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5'>
+            <div
+              className={`grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 transition-opacity ${pageLoading ? 'opacity-70' : ''}`}
+            >
               {assets.map((asset, index) => {
                 const previewUrl = getAssetPreviewUrl(asset);
                 const checked = selectedIds.includes(asset.asset_id);

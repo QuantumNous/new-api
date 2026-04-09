@@ -46,11 +46,16 @@ func listTaskAssets(taskQuery creativeCenterHistoryQuery, queryParams CreativeCe
 	}
 
 	assets := make([]*dto.CreativeCenterAsset, 0)
+	usernameCache := make(map[int]string)
 	for _, task := range tasks {
 		if task == nil {
 			continue
 		}
-		username, _ := GetUsernameById(task.UserId, false)
+		username, ok := usernameCache[task.UserId]
+		if !ok {
+			username, _ = GetUsernameById(task.UserId, false)
+			usernameCache[task.UserId] = username
+		}
 		assets = append(assets, flattenTaskAssets(task, username)...)
 	}
 
@@ -92,6 +97,7 @@ func listAssetTasks(taskQuery creativeCenterHistoryQuery, queryParams CreativeCe
 		actions = getTaskActionsForMediaType(TaskMediaTypeAll)
 	}
 	query = query.Where("action in (?)", actions)
+	query = query.Where("status = ?", TaskStatusSuccess)
 	err := query.Order("updated_at desc").Find(&tasks).Error
 	if err != nil {
 		return nil, err
