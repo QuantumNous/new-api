@@ -466,6 +466,57 @@ const createPersistedImageTaskItem = (item, index = 0) => {
   };
 };
 
+const normalizeCreativeSourceImageItem = (item, index = 0) => {
+  const rawUrl =
+    typeof item === 'string'
+      ? item
+      : typeof item?.url === 'string'
+        ? item.url
+        : '';
+  const url = rawUrl.trim();
+  if (!url) {
+    return null;
+  }
+
+  const fallbackName =
+    getCreativeCenterFilenameFromUrl(url) || `image-${index + 1}.png`;
+  const rawFileName =
+    typeof item?.fileName === 'string'
+      ? item.fileName
+      : typeof item?.file_name === 'string'
+        ? item.file_name
+        : fallbackName;
+  const fileName = rawFileName.trim() || fallbackName;
+  const rawName =
+    typeof item?.name === 'string' ? item.name : fileName || fallbackName;
+  const name = rawName.trim() || fileName || fallbackName;
+
+  return {
+    id: item?.id || createCreativeRecordId(`source-image-${index}`),
+    name,
+    url,
+    fileName,
+    previewUrl:
+      typeof item?.previewUrl === 'string' && item.previewUrl.trim()
+        ? item.previewUrl.trim()
+        : '',
+    status: item?.status === 'uploading' ? 'uploading' : 'uploaded',
+  };
+};
+
+const createPersistedSourceImageItem = (item, index = 0) => {
+  const normalizedItem = normalizeCreativeSourceImageItem(item, index);
+  if (!normalizedItem) {
+    return null;
+  }
+
+  return {
+    name: normalizedItem.name,
+    url: normalizedItem.url,
+    fileName: normalizedItem.fileName,
+  };
+};
+
 const createPersistedVideoTaskItem = (item, index = 0) => {
   const requestId = typeof item?.requestId === 'string' ? item.requestId.trim() : '';
   const taskId = String(item?.taskId || item?.task_id || '').trim();
@@ -498,6 +549,13 @@ const createPersistedImageRecord = (record, index = 0) => ({
   prompt: record?.prompt || '',
   modelName: record?.modelName || '',
   params: record?.params && typeof record.params === 'object' ? record.params : {},
+  sourceImages: Array.isArray(record?.sourceImages)
+    ? record.sourceImages
+        .map((item, sourceImageIndex) =>
+          createPersistedSourceImageItem(item, sourceImageIndex),
+        )
+        .filter(Boolean)
+    : [],
   group: record?.group || '',
   createdAt: parseTimestampValue(
     record?.createdAt || record?.created_at,
@@ -519,6 +577,13 @@ const createPersistedVideoRecord = (record, index = 0) => ({
   prompt: record?.prompt || '',
   modelName: record?.modelName || '',
   params: record?.params && typeof record.params === 'object' ? record.params : {},
+  sourceImages: Array.isArray(record?.sourceImages)
+    ? record.sourceImages
+        .map((item, sourceImageIndex) =>
+          createPersistedSourceImageItem(item, sourceImageIndex),
+        )
+        .filter(Boolean)
+    : [],
   group: record?.group || '',
   createdAt: parseTimestampValue(
     record?.createdAt || record?.created_at,
@@ -1766,6 +1831,13 @@ const normalizeImageHistoryRecords = (snapshot) => {
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      sourceImages: Array.isArray(entry?.sourceImages || entry?.source_images)
+        ? (entry?.sourceImages || entry?.source_images)
+            .map((item, sourceImageIndex) =>
+              normalizeCreativeSourceImageItem(item, sourceImageIndex),
+            )
+            .filter(Boolean)
+        : [],
       group: entry?.group || snapshot?.group || '',
       status: summary.status,
       images,
@@ -1786,6 +1858,13 @@ const normalizeImageHistoryRecords = (snapshot) => {
         prompt: snapshot?.prompt || '',
         modelName: snapshot?.model_name || '',
         params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
+        sourceImages: Array.isArray(payload?.sourceImages || payload?.source_images)
+          ? (payload?.sourceImages || payload?.source_images)
+              .map((item, sourceImageIndex) =>
+                normalizeCreativeSourceImageItem(item, sourceImageIndex),
+              )
+              .filter(Boolean)
+          : [],
         group: snapshot?.group || '',
         status: 'completed',
         images: payload.images
@@ -1819,6 +1898,13 @@ const normalizeVideoHistoryRecords = (snapshot) => {
       prompt: entry?.prompt || '',
       modelName: entry?.modelName || entry?.model_name || snapshot?.model_name || '',
       params: entry?.params && typeof entry.params === 'object' ? entry.params : {},
+      sourceImages: Array.isArray(entry?.sourceImages || entry?.source_images)
+        ? (entry?.sourceImages || entry?.source_images)
+            .map((item, sourceImageIndex) =>
+              normalizeCreativeSourceImageItem(item, sourceImageIndex),
+            )
+            .filter(Boolean)
+        : [],
       group: entry?.group || snapshot?.group || '',
       status: summary.status,
       tasks,
@@ -1839,6 +1925,13 @@ const normalizeVideoHistoryRecords = (snapshot) => {
         prompt: snapshot?.prompt || '',
         modelName: snapshot?.model_name || '',
         params: payload?.params && typeof payload.params === 'object' ? payload.params : {},
+        sourceImages: Array.isArray(payload?.sourceImages || payload?.source_images)
+          ? (payload?.sourceImages || payload?.source_images)
+              .map((item, sourceImageIndex) =>
+                normalizeCreativeSourceImageItem(item, sourceImageIndex),
+              )
+              .filter(Boolean)
+          : [],
         status: 'completed',
         tasks: payload.tasks.map((item, taskIndex) => normalizeVideoTaskItem(item, taskIndex)),
         error: '',
@@ -2464,6 +2557,7 @@ export default function App() {
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadImageNotice, setUploadImageNotice] = useState('');
+  const [isUploadDragActive, setIsUploadDragActive] = useState(false);
   const isUploadingImage = uploadedImages.some((item) => item?.status === 'uploading');
 
   useEffect(() => {
@@ -3011,6 +3105,7 @@ export default function App() {
       return;
     }
 
+    setIsUploadDragActive(false);
     setUploadedImages((prev) => {
       prev.forEach((item) => {
         revokeCreativeCenterPreviewURL(item.previewUrl);
@@ -4375,10 +4470,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     return uploadCreativeCenterImageViaBackend(file);
   };
 
-  const handleImageFileChange = async (event) => {
-    const files = Array.from(event.target.files || []);
-    event.target.value = '';
-
+  const handleCreativeCenterImageFiles = async (files) => {
+    setIsUploadDragActive(false);
     if (files.length === 0) {
       return;
     }
@@ -4488,6 +4581,55 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         }),
       );
     }
+  };
+
+  const handleImageFileChange = async (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    await handleCreativeCenterImageFiles(files);
+  };
+
+  const handleUploadDragEnter = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isCurrentModelImageUploadEnabled) {
+      return;
+    }
+    setIsUploadDragActive(true);
+  };
+
+  const handleUploadDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!isCurrentModelImageUploadEnabled) {
+      return;
+    }
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+    setIsUploadDragActive(true);
+  };
+
+  const handleUploadDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const relatedTarget = event.relatedTarget;
+    if (
+      relatedTarget instanceof Node &&
+      event.currentTarget instanceof Node &&
+      event.currentTarget.contains(relatedTarget)
+    ) {
+      return;
+    }
+    setIsUploadDragActive(false);
+  };
+
+  const handleUploadDrop = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsUploadDragActive(false);
+    const files = Array.from(event.dataTransfer?.files || []);
+    await handleCreativeCenterImageFiles(files);
   };
 
   useEffect(() => {
@@ -4673,11 +4815,32 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     scheduleVideoPollingCycle(0);
   }, [videoRecords]);
 
+  const applyReusedUploadedImages = (sourceImages = []) => {
+    const nextImages = (Array.isArray(sourceImages) ? sourceImages : [])
+      .map((item, index) => normalizeCreativeSourceImageItem(item, index))
+      .filter(Boolean)
+      .map((item, index) => ({
+        ...item,
+        id: createCreativeRecordId(`reused-image-${index + 1}`),
+        previewUrl: '',
+        status: 'uploaded',
+      }));
+
+    setUploadedImages((prev) => {
+      prev.forEach((item) => {
+        revokeCreativeCenterPreviewURL(item.previewUrl);
+      });
+      return nextImages;
+    });
+    setUploadImageNotice('');
+  };
+
   const handleReuseRecord = (record) => {
     if (!record) {
       return;
     }
 
+    applyReusedUploadedImages(record.sourceImages || []);
     if (record.prompt) {
       setPrompt(record.prompt);
     }
@@ -5964,9 +6127,16 @@ const getCreativeVideoCardObjectFitClass = (record) =>
   }, [activeHistorySnapshot, activeTab, historySnapshots.video, isLoggedIn, videoRecords]);
 
   const handleSubmit = async () => {
-    const uploadedImageUrls = uploadedImages
+    const currentUploadedImageItems = uploadedImages
       .filter((item) => item?.status === 'uploaded' && item?.url)
-      .map((item) => item.url);
+      .map((item, index) => normalizeCreativeSourceImageItem(item, index))
+      .filter(Boolean)
+      .map((item) => ({
+        ...item,
+        previewUrl: '',
+        status: 'uploaded',
+      }));
+    const uploadedImageUrls = currentUploadedImageItems.map((item) => item.url);
     if ((!prompt.trim() && uploadedImageUrls.length === 0) || (isChatTab && isGenerating)) return;
     if (!isLoggedIn) {
       showWarning('\u8bf7\u5148\u767b\u5f55\u540e\u518d\u4f7f\u7528\u521b\u4f5c\u4e2d\u5fc3');
@@ -5977,6 +6147,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     }
     const currentPrompt = prompt;
     const currentUploadedImageUrls = uploadedImageUrls;
+    const currentUploadedImageSources = currentUploadedImageItems;
     setPrompt('');
     clearUploadedImages();
     if (isChatTab) {
@@ -6084,6 +6255,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         modelName: currentModelName,
         group: activeGroup,
         params: currentParamsSnapshot,
+        sourceImages: currentUploadedImageSources,
         images: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`image-task-${index + 1}`),
           url: '',
@@ -6314,6 +6486,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         modelName: currentModelName,
         group: activeGroup,
         params: currentParamsSnapshot,
+        sourceImages: currentUploadedImageSources,
         tasks: Array.from({ length: generationCount }, (_, index) => ({
           id: createCreativeRecordId(`video-task-${index + 1}`),
           taskId: '',
@@ -7603,10 +7776,23 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               <div className='flex items-end gap-5 px-3'>
                 {isCurrentModelImageUploadEnabled ? (
                   <div className='shrink-0'>
+                    <div
+                      onDragEnter={handleUploadDragEnter}
+                      onDragOver={handleUploadDragOver}
+                      onDragLeave={handleUploadDragLeave}
+                      onDrop={handleUploadDrop}
+                      className={`relative rounded-[1.75rem] transition-all duration-300 ${
+                        isUploadDragActive ? 'scale-[1.03]' : ''
+                      }`}
+                    >
                     <button
                       type='button'
                       onClick={handleUploadButtonClick}
-                      className='flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed border-slate-300 bg-white/50 text-slate-500 transition-all duration-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 hover:shadow-sm'
+                      className={`flex h-24 w-24 items-center justify-center rounded-[1.75rem] border border-dashed bg-white/50 text-slate-500 transition-all duration-300 hover:shadow-sm ${
+                        isUploadDragActive
+                          ? 'border-blue-500 bg-blue-50 text-blue-600 shadow-[0_12px_35px_-12px_rgba(58,117,246,0.45)]'
+                          : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600'
+                      }`}
                     >
                       <div className='flex flex-col items-center gap-2'>
                         {isUploadingImage ? (
@@ -7619,6 +7805,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                         </span>
                       </div>
                     </button>
+                    </div>
                   </div>
                 ) : null}
                 <textarea
