@@ -53,13 +53,6 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState(defaultInputs);
   const formApiRef = useRef(null);
-  const isSandboxMode = !!inputs.WaffoPancakeSandbox;
-  const currentWebhookField = isSandboxMode
-    ? 'WaffoPancakeWebhookTestKey'
-    : 'WaffoPancakeWebhookPublicKey';
-  const currentWebhookLabel = isSandboxMode
-    ? t('Webhook 公钥（测试环境）')
-    : t('Webhook 公钥（生产环境）');
 
   useEffect(() => {
     if (!props.options || !formApiRef.current) return;
@@ -96,46 +89,59 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
   };
 
   const submitWaffoPancakeSetting = async () => {
+    const values = {
+      ...inputs,
+      ...(formApiRef.current?.getValues?.() || {}),
+    };
+    values.WaffoPancakeEnabled = toBoolean(values.WaffoPancakeEnabled);
+    values.WaffoPancakeSandbox = toBoolean(values.WaffoPancakeSandbox);
+    const currentWebhookField = values.WaffoPancakeSandbox
+      ? 'WaffoPancakeWebhookTestKey'
+      : 'WaffoPancakeWebhookPublicKey';
+    const currentWebhookLabel = values.WaffoPancakeSandbox
+      ? t('Webhook 公钥（测试环境）')
+      : t('Webhook 公钥（生产环境）');
+
     if (
-      inputs.WaffoPancakeEnabled &&
-      !(inputs.WaffoPancakePrivateKey || '').trim()
+      values.WaffoPancakeEnabled &&
+      !(values.WaffoPancakePrivateKey || '').trim()
     ) {
       showError(t('请输入 API 私钥'));
       return;
     }
 
-    if (inputs.WaffoPancakeEnabled && !inputs.WaffoPancakeMerchantID.trim()) {
+    if (values.WaffoPancakeEnabled && !values.WaffoPancakeMerchantID.trim()) {
       showError(t('请输入商户 ID'));
       return;
     }
 
-    if (inputs.WaffoPancakeEnabled && !inputs.WaffoPancakeStoreID.trim()) {
+    if (values.WaffoPancakeEnabled && !values.WaffoPancakeStoreID.trim()) {
       showError(t('请输入 Store ID'));
       return;
     }
 
-    if (inputs.WaffoPancakeEnabled && !inputs.WaffoPancakeProductID.trim()) {
+    if (values.WaffoPancakeEnabled && !values.WaffoPancakeProductID.trim()) {
       showError(t('请输入 Product ID'));
       return;
     }
 
     if (
-      inputs.WaffoPancakeEnabled &&
-      !String(inputs[currentWebhookField] || '').trim()
+      values.WaffoPancakeEnabled &&
+      !String(values[currentWebhookField] || '').trim()
     ) {
       showError(currentWebhookLabel);
       return;
     }
 
     if (
-      inputs.WaffoPancakeEnabled &&
-      Number(inputs.WaffoPancakeUnitPrice) <= 0
+      values.WaffoPancakeEnabled &&
+      Number(values.WaffoPancakeUnitPrice) <= 0
     ) {
       showError(t('充值价格必须大于 0'));
       return;
     }
 
-    if (inputs.WaffoPancakeEnabled && Number(inputs.WaffoPancakeMinTopUp) < 1) {
+    if (values.WaffoPancakeEnabled && Number(values.WaffoPancakeMinTopUp) < 1) {
       showError(t('最低充值数量必须大于 0'));
       return;
     }
@@ -145,60 +151,60 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
       const options = [
         {
           key: 'WaffoPancakeEnabled',
-          value: inputs.WaffoPancakeEnabled ? 'true' : 'false',
+          value: values.WaffoPancakeEnabled ? 'true' : 'false',
         },
         {
           key: 'WaffoPancakeSandbox',
-          value: inputs.WaffoPancakeSandbox ? 'true' : 'false',
+          value: values.WaffoPancakeSandbox ? 'true' : 'false',
         },
         {
           key: 'WaffoPancakeMerchantID',
-          value: inputs.WaffoPancakeMerchantID || '',
+          value: values.WaffoPancakeMerchantID || '',
         },
         {
           key: 'WaffoPancakeStoreID',
-          value: inputs.WaffoPancakeStoreID || '',
+          value: values.WaffoPancakeStoreID || '',
         },
         {
           key: 'WaffoPancakeProductID',
-          value: inputs.WaffoPancakeProductID || '',
+          value: values.WaffoPancakeProductID || '',
         },
         {
           key: 'WaffoPancakeReturnURL',
-          value: removeTrailingSlash(inputs.WaffoPancakeReturnURL || ''),
+          value: removeTrailingSlash(values.WaffoPancakeReturnURL || ''),
         },
         {
           key: 'WaffoPancakeCurrency',
-          value: inputs.WaffoPancakeCurrency || 'USD',
+          value: values.WaffoPancakeCurrency || 'USD',
         },
         {
           key: 'WaffoPancakeUnitPrice',
-          value: String(inputs.WaffoPancakeUnitPrice),
+          value: String(values.WaffoPancakeUnitPrice),
         },
         {
           key: 'WaffoPancakeMinTopUp',
-          value: String(inputs.WaffoPancakeMinTopUp),
+          value: String(values.WaffoPancakeMinTopUp),
         },
       ];
 
-      if ((inputs.WaffoPancakePrivateKey || '').trim()) {
+      if ((values.WaffoPancakePrivateKey || '').trim()) {
         options.push({
           key: 'WaffoPancakePrivateKey',
-          value: inputs.WaffoPancakePrivateKey,
+          value: values.WaffoPancakePrivateKey,
         });
       }
 
-      if ((inputs.WaffoPancakeWebhookPublicKey || '').trim()) {
+      if ((values.WaffoPancakeWebhookPublicKey || '').trim()) {
         options.push({
           key: 'WaffoPancakeWebhookPublicKey',
-          value: inputs.WaffoPancakeWebhookPublicKey,
+          value: values.WaffoPancakeWebhookPublicKey,
         });
       }
 
-      if ((inputs.WaffoPancakeWebhookTestKey || '').trim()) {
+      if ((values.WaffoPancakeWebhookTestKey || '').trim()) {
         options.push({
           key: 'WaffoPancakeWebhookTestKey',
-          value: inputs.WaffoPancakeWebhookTestKey,
+          value: values.WaffoPancakeWebhookTestKey,
         });
       }
 
