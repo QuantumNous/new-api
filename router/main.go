@@ -10,13 +10,21 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
-	SetApiRouter(router)
+	var engine *fuego.Engine
+	if os.Getenv("ENABLE_OPENAPI") == "true" {
+		engine = newOpenAPIEngine()
+	}
+
+	SetApiRouter(router, engine)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
 	SetVideoRouter(router)
+	registerOpenAPIRoutes(engine, router)
+
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""
