@@ -103,7 +103,7 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannelWithFilter(group string, model string, retry int, accept func(*Channel) bool) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
@@ -118,6 +118,42 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	if accept != nil && len(abilities) > 0 {
+		// Batch-load channels once so accept() can inspect more than just IDs without N queries.
+		seen := make(map[int]struct{}, len(abilities))
+		ids := make([]int, 0, len(abilities))
+		for _, a := range abilities {
+			if _, ok := seen[a.ChannelId]; ok {
+				continue
+			}
+			seen[a.ChannelId] = struct{}{}
+			ids = append(ids, a.ChannelId)
+		}
+		var channels []Channel
+		if err := DB.Where("id IN ?", ids).Find(&channels).Error; err != nil {
+			return nil, err
+		}
+		byID := make(map[int]*Channel, len(channels))
+		for i := range channels {
+			byID[channels[i].Id] = &channels[i]
+		}
+
+		filtered := make([]Ability, 0, len(abilities))
+		for _, a := range abilities {
+			ch, ok := byID[a.ChannelId]
+			if ok {
+				if accept(ch) {
+					filtered = append(filtered, a)
+				}
+				continue
+			}
+			// Shouldn't happen, but keep behavior tolerant in case of partial DB state.
+			if accept(&Channel{Id: a.ChannelId}) {
+				filtered = append(filtered, a)
+			}
+		}
+		abilities = filtered
 	}
 	channel := Channel{}
 	if len(abilities) > 0 {
@@ -141,6 +177,10 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+func GetChannel(group string, model string, retry int) (*Channel, error) {
+	return GetChannelWithFilter(group, model, retry, nil)
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

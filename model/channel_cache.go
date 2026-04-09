@@ -93,6 +93,114 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+func GetRandomSatisfiedChannelWithFilter(group string, model string, retry int, accept func(*Channel) bool) (*Channel, error) {
+	if accept == nil {
+		// Preserve existing semantics exactly when no filter is requested.
+		return GetRandomSatisfiedChannel(group, model, retry)
+	}
+
+	// if memory cache is disabled, get channel directly from database
+	if !common.MemoryCacheEnabled {
+		return GetChannelWithFilter(group, model, retry, accept)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	// First, try to find channels with the exact model name.
+	channels := group2model2channels[group][model]
+
+	// If no channels found, try to find channels with the normalized model name.
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		channels = group2model2channels[group][normalizedModel]
+	}
+
+	if len(channels) == 0 {
+		return nil, nil
+	}
+
+	if len(channels) == 1 {
+		if channel, ok := channelsIDM[channels[0]]; ok {
+			if accept(channel) {
+				return channel, nil
+			}
+			return nil, nil
+		}
+		return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channels[0])
+	}
+
+	uniquePriorities := make(map[int]bool)
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			uniquePriorities[int(channel.GetPriority())] = true
+		} else {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+		}
+	}
+	var sortedUniquePriorities []int
+	for priority := range uniquePriorities {
+		sortedUniquePriorities = append(sortedUniquePriorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
+
+	if retry >= len(uniquePriorities) {
+		retry = len(uniquePriorities) - 1
+	}
+	targetPriority := int64(sortedUniquePriorities[retry])
+
+	// get the priority for the given retry number
+	var sumWeight = 0
+	var targetChannels []*Channel
+	for _, channelId := range channels {
+		if channel, ok := channelsIDM[channelId]; ok {
+			if channel.GetPriority() == targetPriority {
+				if !accept(channel) {
+					continue
+				}
+				sumWeight += channel.GetWeight()
+				targetChannels = append(targetChannels, channel)
+			}
+		} else {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", channelId)
+		}
+	}
+
+	if len(targetChannels) == 0 {
+		return nil, nil
+	}
+
+	// smoothing factor and adjustment
+	smoothingFactor := 1
+	smoothingAdjustment := 0
+
+	if sumWeight == 0 {
+		// when all channels have weight 0, set sumWeight to the number of channels and set smoothing adjustment to 100
+		// each channel's effective weight = 100
+		sumWeight = len(targetChannels) * 100
+		smoothingAdjustment = 100
+	} else if sumWeight/len(targetChannels) < 10 {
+		// when the average weight is less than 10, set smoothing factor to 100
+		smoothingFactor = 100
+	}
+
+	// Calculate the total weight of all channels up to endIdx
+	totalWeight := sumWeight * smoothingFactor
+
+	// Generate a random value in the range [0, totalWeight)
+	randomWeight := rand.Intn(totalWeight)
+
+	// Find a channel based on its weight
+	for _, channel := range targetChannels {
+		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
+		if randomWeight < 0 {
+			return channel, nil
+		}
+	}
+	// return null if no channel is not found
+	return nil, errors.New("channel not found")
+}
+
 func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
