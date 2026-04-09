@@ -365,7 +365,7 @@ func extractTaskResolution(req relaycommon.TaskSubmitReq) string {
 }
 
 func calcTaskQuotaWithRatios(c *gin.Context, info *relaycommon.RelayInfo, ratios map[string]float64) (int, map[string]float64) {
-	normalizedRatios := cloneTaskRatios(ratios)
+	normalizedRatios := common.FilterOtherRatiosForBillingModel(info.OriginModelName, cloneTaskRatios(ratios))
 	baseQuota := info.PriceData.BaseQuota
 	if baseQuota <= 0 {
 		baseQuota = info.PriceData.Quota

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -315,4 +316,37 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummaryIgnoresBananaOtherRatios(t *testing.T) {
+	originalQuotaPerUnit := common.QuotaPerUnit
+	defer func() {
+		common.QuotaPerUnit = originalQuotaPerUnit
+	}()
+	common.QuotaPerUnit = 500
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "nano-banana-pro",
+		PriceData: types.PriceData{
+			ModelPrice: 2,
+			UsePrice:   true,
+			OtherRatios: map[string]float64{
+				"n":          3,
+				"resolution": 4,
+			},
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens: 1,
+	})
+
+	require.Equal(t, 1000, summary.Quota)
+	require.Empty(t, relayInfo.PriceData.OtherRatios)
 }

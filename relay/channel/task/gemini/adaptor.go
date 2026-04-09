@@ -157,7 +157,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return "gemini"
 }
 
-// EstimateBilling returns OtherRatios based on durationSeconds and resolution.
+// EstimateBilling returns OtherRatios based on durationSeconds.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	v, ok := c.Get("task_request")
 	if !ok {
@@ -169,12 +169,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	seconds := ResolveVeoDuration(req.Metadata, req.Duration, req.Seconds)
-	resolution := ResolveVeoResolution(req.Metadata, req.Size)
-	resRatio := VeoResolutionRatio(info.UpstreamModelName, resolution)
 
 	return map[string]float64{
-		"seconds":    float64(seconds),
-		"resolution": resRatio,
+		"seconds": float64(seconds),
 	}
 }
 

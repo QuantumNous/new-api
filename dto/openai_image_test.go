@@ -24,3 +24,18 @@ func TestImageRequestPreserveExplicitZeroSeed(t *testing.T) {
 
 	require.True(t, gjson.GetBytes(encoded, "seed").Exists())
 }
+
+func TestImageRequestBananaUsesNeutralImagePriceRatio(t *testing.T) {
+	n := uint(3)
+	req := ImageRequest{
+		Model:            "nano-banana-pro",
+		Prompt:           "poster",
+		N:                &n,
+		OutputResolution: "4K",
+	}
+
+	meta := req.GetTokenCountMeta()
+
+	require.NotNil(t, meta)
+	require.Equal(t, 1.0, meta.ImagePriceRatio)
+}
