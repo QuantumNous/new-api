@@ -107,7 +107,50 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 	} else {
-		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
+		client, dialErr := smtp.Dial(addr)
+		if dialErr != nil {
+			return dialErr
+		}
+		defer client.Close()
+
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			tlsConfig := &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         SMTPServer,
+			}
+			if err = client.StartTLS(tlsConfig); err != nil {
+				return err
+			}
+		}
+
+		if auth != nil {
+			if err = client.Auth(auth); err != nil {
+				return err
+			}
+		}
+		if err = client.Mail(SMTPFrom); err != nil {
+			return err
+		}
+		for _, receiver := range to {
+			receiver = strings.TrimSpace(receiver)
+			if receiver == "" {
+				continue
+			}
+			if err = client.Rcpt(receiver); err != nil {
+				return err
+			}
+		}
+		w, dataErr := client.Data()
+		if dataErr != nil {
+			return dataErr
+		}
+		if _, err = w.Write(mail); err != nil {
+			return err
+		}
+		if err = w.Close(); err != nil {
+			return err
+		}
+		err = client.Quit()
 	}
 	if err != nil {
 		SysError(fmt.Sprintf("failed to send email to %s: %v", receiver, err))
