@@ -6,6 +6,7 @@ go 1.25.1
 require (
 	github.com/Calcium-Ion/go-epay v0.0.4
 	github.com/abema/go-mp4 v1.4.1
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/andybalholm/brotli v1.1.1
 	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
 	github.com/aws/aws-sdk-go-v2 v1.41.5
