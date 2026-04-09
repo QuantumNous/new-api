@@ -3414,6 +3414,8 @@
     "选择预设模板（可选）": "Select Preset Template (optional)",
     "透传请求体": "Pass through body",
     "透传请求头": "",
+    "强制流式请求": "Force Streaming",
+    "强制对上游使用 stream=true（仅 /v1/responses 接口有效，适用于只支持流式的模型）": "Force stream=true for upstream (only for /v1/responses, for models that only support streaming)",
     "递归": "Recursive",
     "递归策略": "Recursion Strategy",
     "通义千问": "Qwen",

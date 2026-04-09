@@ -114,7 +114,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			err, usage = cfHandler(c, info, resp)
 		}
 	case constant.RelayModeResponses:
-		if info.IsStream {
+		if info.ForceUpstreamStream {
+			usage, err = openai.OaiResponsesStreamAggregateHandler(c, info, resp)
+		} else if info.IsStream {
 			usage, err = openai.OaiResponsesStreamHandler(c, info, resp)
 		} else {
 			usage, err = openai.OaiResponsesHandler(c, info, resp)

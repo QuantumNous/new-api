@@ -78,7 +78,11 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
-		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
+		if info.ForceUpstreamStream {
+		t := true
+		request.Stream = &t
+	}
+	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}

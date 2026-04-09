@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
@@ -146,5 +147,88 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
+	return usage, nil
+}
+
+// OaiResponsesStreamAggregateHandler handles the case where the upstream is forced to stream
+// (ForceUpstreamStream=true) but the client requested a non-streaming response.
+// It reads the SSE stream, collects output items from response.output_item.done events,
+// and returns the complete response from response.completed as a single JSON object.
+func OaiResponsesStreamAggregateHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	var finalResponse *dto.OpenAIResponsesResponse
+	var outputItems []dto.ResponsesOutput
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+		var streamResponse dto.ResponsesStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			logger.LogError(c, "OaiResponsesStreamAggregateHandler: failed to unmarshal stream response: "+err.Error())
+			continue
+		}
+		switch streamResponse.Type {
+		case dto.ResponsesOutputTypeItemDone:
+			if streamResponse.Item != nil {
+				item := *streamResponse.Item
+				if item.Role == "" {
+					item.Role = "assistant"
+				}
+				outputItems = append(outputItems, item)
+			}
+		case "response.completed":
+			if streamResponse.Response != nil {
+				finalResponse = streamResponse.Response
+			}
+		}
+	}
+
+	if finalResponse == nil {
+		return nil, types.NewError(fmt.Errorf("upstream stream ended without response.completed event"), types.ErrorCodeBadResponse)
+	}
+
+	// If response.completed carried an empty output, fill from accumulated output items
+	if len(finalResponse.Output) == 0 && len(outputItems) > 0 {
+		finalResponse.Output = outputItems
+	}
+
+	if finalResponse.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", finalResponse.GetQuality())
+		c.Set("image_generation_call_size", finalResponse.GetSize())
+	}
+
+	responseBytes, err := common.Marshal(finalResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", responseBytes)
+
+	usage := &dto.Usage{}
+	if finalResponse.Usage != nil {
+		usage.PromptTokens = finalResponse.Usage.InputTokens
+		usage.CompletionTokens = finalResponse.Usage.OutputTokens
+		usage.TotalTokens = finalResponse.Usage.TotalTokens
+		if finalResponse.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = finalResponse.Usage.InputTokensDetails.CachedTokens
+		}
+	}
+	if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
+		for _, tool := range finalResponse.Tools {
+			if buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])]; ok && buildToolinfo != nil {
+				buildToolinfo.CallCount++
+			}
+		}
+	}
 	return usage, nil
 }
