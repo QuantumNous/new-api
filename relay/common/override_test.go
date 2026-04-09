@@ -518,6 +518,33 @@ func TestApplyParamOverrideSetWithDescriptionKeepsCompatibility(t *testing.T) {
 	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(outWithDesc))
 }
 
+func TestCanApplyLegacyOverridesDirectly(t *testing.T) {
+	override := map[string]interface{}{
+		"model":        "gpt-4.1",
+		"service_tier": "flex",
+		"top-p":        0.9,
+	}
+
+	if !canApplyLegacyOverridesDirectly(override) {
+		t.Fatalf("expected simple top-level overrides to use direct path")
+	}
+}
+
+func TestCanApplyLegacyOverridesDirectlyRejectsPathLikeKeys(t *testing.T) {
+	testCases := []map[string]interface{}{
+		{"metadata.trace": "x"},
+		{"tools[0]": true},
+		{"tools.*.enabled": true},
+		{"x y": true},
+	}
+
+	for _, override := range testCases {
+		if canApplyLegacyOverridesDirectly(override) {
+			t.Fatalf("expected override %#v to fall back to legacy map path", override)
+		}
+	}
+}
+
 func TestApplyParamOverrideSetKeepOrigin(t *testing.T) {
 	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
 	override := map[string]interface{}{
