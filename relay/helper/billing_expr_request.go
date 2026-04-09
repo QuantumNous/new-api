@@ -4,18 +4,43 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 )
 
 func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
+	if info != nil && info.BillingRequestInput != nil {
+		input := cloneRequestInput(*info.BillingRequestInput)
+		if len(input.Headers) == 0 {
+			input.Headers = cloneStringMap(info.RequestHeaders)
+		}
+		return input, nil
+	}
+
 	input := billingexpr.RequestInput{}
 	if info != nil {
 		input.Headers = cloneStringMap(info.RequestHeaders)
 	}
 
 	bodyBytes, err := readIncomingBillingExprBody(c)
+	if err != nil {
+		return billingexpr.RequestInput{}, err
+	}
+	input.Body = bodyBytes
+	return input, nil
+}
+
+func BuildBillingExprRequestInputFromRequest(request dto.Request, headers map[string]string) (billingexpr.RequestInput, error) {
+	input := billingexpr.RequestInput{
+		Headers: cloneStringMap(headers),
+	}
+	if request == nil {
+		return input, nil
+	}
+
+	bodyBytes, err := common.Marshal(request)
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}
@@ -32,6 +57,16 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 		return nil, err
 	}
 	return storage.Bytes()
+}
+
+func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
+	input := billingexpr.RequestInput{
+		Headers: cloneStringMap(src.Headers),
+	}
+	if len(src.Body) > 0 {
+		input.Body = append([]byte(nil), src.Body...)
+	}
+	return input
 }
 
 func isJSONContentType(contentType string) bool {

@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestResolveIncomingBillingExprRequestInput(t *testing.T) {
@@ -32,4 +35,29 @@ func TestResolveIncomingBillingExprRequestInput(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, body, input.Body)
 	require.Equal(t, "application/json", input.Headers["Content-Type"])
+}
+
+func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model:  "gemini-3.1-pro-preview",
+		Stream: lo.ToPtr(true),
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hi",
+			},
+		},
+		MaxTokens: lo.ToPtr(uint(3000)),
+	}
+
+	input, err := BuildBillingExprRequestInputFromRequest(request, map[string]string{
+		"Content-Type": "application/json",
+		"X-Test":       "1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "application/json", input.Headers["Content-Type"])
+	require.Equal(t, "1", input.Headers["X-Test"])
+	require.True(t, gjson.GetBytes(input.Body, "stream").Bool())
+	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
+	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
 }
