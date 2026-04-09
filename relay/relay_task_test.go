@@ -42,9 +42,10 @@ func TestCalcTaskQuotaWithRatiosUsesMappedSecondsPrice(t *testing.T) {
 		"size":    1.666667,
 	})
 
-	assert.Equal(t, int(0.2*common.QuotaPerUnit*1.666667), quota)
+	assert.Equal(t, int(0.2*common.QuotaPerUnit), quota)
 	assert.Equal(t, 1.0, ratios["seconds"])
-	assert.Equal(t, 1.666667, ratios["size"])
+	_, hasSize := ratios["size"]
+	assert.False(t, hasSize)
 	assert.Equal(t, 0.2, info.PriceData.ModelPrice)
 }
 
@@ -69,7 +70,8 @@ func TestCalcTaskQuotaWithRatiosFallsBackToLinearSeconds(t *testing.T) {
 		"size":    1.5,
 	})
 
-	assert.Equal(t, 1800, quota)
+	assert.Equal(t, 1200, quota)
 	assert.Equal(t, 12.0, ratios["seconds"])
-	assert.Equal(t, 1.5, ratios["size"])
+	_, hasSize := ratios["size"]
+	assert.False(t, hasSize)
 }

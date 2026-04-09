@@ -238,7 +238,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
-// EstimateBilling 根据用户请求的 seconds 和 size 计算 OtherRatios。
+// EstimateBilling 根据用户请求的 seconds 计算 OtherRatios。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	// remix 路径的 OtherRatios 已在 ResolveOriginTask 中设置
 	if info.Action == constant.TaskActionRemix {
@@ -258,19 +258,9 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		seconds = 4
 	}
 
-	size := req.Size
-	if size == "" {
-		size = "720x1280"
-	}
-
-	ratios := map[string]float64{
+	return map[string]float64{
 		"seconds": float64(seconds),
-		"size":    1,
 	}
-	if size == "1792x1024" || size == "1024x1792" {
-		ratios["size"] = 1.666667
-	}
-	return ratios
 }
 
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
