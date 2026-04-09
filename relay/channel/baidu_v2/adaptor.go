@@ -56,7 +56,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case constant.RelayModeRerank:
 		return fmt.Sprintf("%s/v2/rerank", info.ChannelBaseUrl), nil
 	default:
-		if strings.HasPrefix(info.RequestURLPath, "/v1/messages") {
+		requestPath, _, _ := strings.Cut(info.RequestURLPath, "?")
+		if requestPath == "/v1/messages" {
 			return fmt.Sprintf("%s/v2/chat/completions", info.ChannelBaseUrl), nil
 		}
 	}
