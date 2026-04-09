@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -131,6 +132,15 @@ type multiKeySnapshot struct {
 	mode         constant.MultiKeyMode
 }
 
+var multiKeyShuffle = defaultMultiKeyShuffle
+
+func defaultMultiKeyShuffle(indices []int) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rnd.Shuffle(len(indices), func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+}
+
 func (snapshot *multiKeySnapshot) statusAt(idx int) int {
 	if snapshot == nil || snapshot.statusList == nil {
 		return common.ChannelStatusEnabled
@@ -203,6 +213,14 @@ func (channel *Channel) orderedEnabledKeyIndicesFromSnapshot(snapshot *multiKeyS
 				ordered = append(ordered, idx)
 			}
 		}
+		multiKeyShuffle(ordered)
+		return ordered, nil
+	}
+
+	if snapshot.mode == constant.MultiKeyModeRandom {
+		ordered := make([]int, len(enabled))
+		copy(ordered, enabled)
+		multiKeyShuffle(ordered)
 		return ordered, nil
 	}
 

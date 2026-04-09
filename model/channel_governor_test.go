@@ -126,6 +126,38 @@ func TestChannelGetNextEnabledKey_RandomUsesEnabledCandidates(t *testing.T) {
 	})
 }
 
+func TestChannelOrderedEnabledKeyIndices_RandomShufflesCandidates(t *testing.T) {
+	withMemoryCache(t, func() {
+		channel := &Channel{
+			Id: 46,
+			Key: "k0\nk1\nk2",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 3,
+				MultiKeyMode: constant.MultiKeyModeRandom,
+				MultiKeyStatusList: map[int]int{
+					1: common.ChannelStatusAutoDisabled,
+				},
+			},
+		}
+		registerCachedChannel(channel)
+
+		originalShuffle := multiKeyShuffle
+		multiKeyShuffle = func(indices []int) {
+			if len(indices) == 2 {
+				indices[0], indices[1] = indices[1], indices[0]
+			}
+		}
+		defer func() {
+			multiKeyShuffle = originalShuffle
+		}()
+
+		indices, err := channel.OrderedEnabledKeyIndices()
+		require.Nil(t, err)
+		require.Equal(t, []int{2, 0}, indices)
+	})
+}
+
 func TestChannelOrderedEnabledKeyIndices_NonMultiKeySkipsCache(t *testing.T) {
 	previousCache := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
