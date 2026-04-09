@@ -123,6 +123,31 @@ func TestChannelGetNextEnabledKey_RandomUsesEnabledCandidates(t *testing.T) {
 	require.Equal(t, 5, channel.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestChannelOrderedEnabledKeyIndices_NonMultiKeySkipsCache(t *testing.T) {
+	previousCache := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	defer func() {
+		common.MemoryCacheEnabled = previousCache
+	}()
+
+	channelSyncLock.Lock()
+	prevChannels := channelsIDM
+	channelsIDM = map[int]*Channel{}
+	channelSyncLock.Unlock()
+	defer func() {
+		channelSyncLock.Lock()
+		channelsIDM = prevChannels
+		channelSyncLock.Unlock()
+	}()
+
+	channel := &Channel{
+		Key: "solo",
+	}
+	indices, err := channel.OrderedEnabledKeyIndices()
+	require.Nil(t, err)
+	require.Equal(t, []int{0}, indices)
+}
+
 func TestChannelGetNextEnabledKey_UsesCanonicalKeys(t *testing.T) {
 	withMemoryCache(t, func() {
 		stale := &Channel{

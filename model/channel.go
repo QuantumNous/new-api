@@ -103,6 +103,13 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
+	if !channel.ChannelInfo.IsMultiKey {
+		snapshot, err := channel.snapshotFromChannelSelf()
+		if err != nil {
+			return nil, err
+		}
+		return channel.orderedEnabledKeyIndicesFromSnapshot(snapshot)
+	}
 	return channel.orderedEnabledKeyIndicesFromSnapshot(nil)
 }
 
@@ -200,6 +207,28 @@ func (channel *Channel) orderedEnabledKeyIndicesFromSnapshot(snapshot *multiKeyS
 	}
 
 	return enabled, nil
+}
+
+func (channel *Channel) snapshotFromChannelSelf() (*multiKeySnapshot, *types.NewAPIError) {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return nil, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	var statusCopy map[int]int
+	if channel.ChannelInfo.MultiKeyStatusList != nil {
+		statusCopy = make(map[int]int, len(channel.ChannelInfo.MultiKeyStatusList))
+		for idx, status := range channel.ChannelInfo.MultiKeyStatusList {
+			statusCopy[idx] = status
+		}
+	}
+
+	return &multiKeySnapshot{
+		keys:         keys,
+		statusList:   statusCopy,
+		pollingIndex: channel.ChannelInfo.MultiKeyPollingIndex,
+		mode:         channel.ChannelInfo.MultiKeyMode,
+	}, nil
 }
 
 func (channel *Channel) CommitSelectedKeyIndex(index int) *types.NewAPIError {
