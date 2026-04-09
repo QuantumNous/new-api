@@ -1695,6 +1695,77 @@ const getTaskDtoImageUrls = (task) => {
   return urls;
 };
 
+const getCreativeRequestErrorMessage = (error) => {
+  const responseData = error?.response?.data;
+
+  if (
+    typeof responseData?.error?.message === 'string' &&
+    responseData.error.message.trim()
+  ) {
+    return responseData.error.message.trim();
+  }
+
+  if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+    return responseData.message.trim();
+  }
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData.trim();
+  }
+
+  if (typeof error?.message === 'string' && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return '请稍后再试。';
+};
+
+const shouldTreatCreativeRequestErrorAsRecoverable = (error) => {
+  const statusCode = Number(error?.response?.status) || 0;
+  const responseData = error?.response?.data;
+  const errorCode = String(
+    responseData?.error?.code || responseData?.code || '',
+  )
+    .trim()
+    .toLowerCase();
+  const errorType = String(
+    responseData?.error?.type || responseData?.type || '',
+  )
+    .trim()
+    .toLowerCase();
+  const errorMessage = getCreativeRequestErrorMessage(error).toLowerCase();
+
+  if (
+    errorCode === 'insufficient_user_quota' ||
+    errorCode === 'pre_consume_token_quota_failed' ||
+    errorType === 'insufficient_quota' ||
+    errorType === 'insufficient_user_quota' ||
+    errorMessage.includes('用户额度不足') ||
+    errorMessage.includes('订阅额度不足') ||
+    errorMessage.includes('额度不足') ||
+    errorMessage.includes('subscription quota insufficient') ||
+    errorMessage.includes('user quota is not enough') ||
+    errorMessage.includes('token quota is not enough') ||
+    errorMessage.includes('insufficient quota')
+  ) {
+    return false;
+  }
+
+  if (!statusCode) {
+    return true;
+  }
+
+  if ([408, 409, 425, 429].includes(statusCode)) {
+    return true;
+  }
+
+  if (statusCode >= 500) {
+    return true;
+  }
+
+  return false;
+};
+
 const buildRecoverableVideoCandidateKey = (candidate) =>
   `${candidate.sessionId}:${candidate.recordId}:${candidate.taskId}`;
 
@@ -6428,14 +6499,18 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               requestPollable: false,
             });
           })()
-            .catch(() => {
+            .catch((requestError) => {
+              const requestErrorMessage =
+                getCreativeRequestErrorMessage(requestError);
+              const isRecoverableRequestError =
+                shouldTreatCreativeRequestErrorAsRecoverable(requestError);
               patchImageTask(recordId, pendingRecord.images[index].id, {
-                status: 'submitted',
-                progress: 0,
-                error: '请求失败，请稍后再试。',
+                status: isRecoverableRequestError ? 'submitted' : 'failed',
+                progress: isRecoverableRequestError ? 0 : 100,
                 finalizingAt: 0,
+                error: requestErrorMessage,
                 progressUnavailable: false,
-                requestPollable: true,
+                requestPollable: isRecoverableRequestError,
               });
             }),
         );
@@ -6721,15 +6796,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             });
           })()
             .catch((requestError) => {
+              const requestErrorMessage =
+                getCreativeRequestErrorMessage(requestError);
+              const isRecoverableRequestError =
+                shouldTreatCreativeRequestErrorAsRecoverable(requestError);
               patchVideoTask(recordId, pendingRecord.tasks[index].id, {
-                status: 'submitted',
+                status: isRecoverableRequestError ? 'submitted' : 'failed',
                 url: '',
-                content: `请求失败：${requestError.message || '请稍后再试。'}`,
-                progress: 0,
-                error: requestError.message || '请稍后再试。',
+                progress: isRecoverableRequestError ? 0 : 100,
                 finalizingAt: 0,
                 progressUnavailable: false,
-                requestPollable: true,
+                requestPollable: isRecoverableRequestError,
+                content: requestErrorMessage,
+                error: requestErrorMessage,
                 pollable: false,
               });
             }),
