@@ -213,7 +213,6 @@ func (channel *Channel) orderedEnabledKeyIndicesFromSnapshot(snapshot *multiKeyS
 				ordered = append(ordered, idx)
 			}
 		}
-		multiKeyShuffle(ordered)
 		return ordered, nil
 	}
 
