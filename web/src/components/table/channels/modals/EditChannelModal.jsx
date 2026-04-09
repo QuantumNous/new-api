@@ -2460,6 +2460,19 @@ const EditChannelModal = (props) => {
                       />
                     </Col>
                   </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='max_concurrency'
+                        label={t('最大并发数')}
+                        placeholder='0'
+                        min={0}
+                        onNumberChange={(value) => handleInputChange('max_concurrency', value)}
+                        style={{ width: '100%' }}
+                        extraText={t('限制该渠道的最大同时请求数，0 表示不限制')}
+                      />
+                    </Col>
+                  </Row>
 
                   {inputs.type === 1 && (
                     <>

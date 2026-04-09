@@ -186,13 +186,49 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
+	// 并发限制：跟踪已获取信号量的渠道 ID
+	acquiredChannelId := -1
+	concurrencySkips := 0
+	const maxConcurrencySkips = 5
+	defer func() {
+		if acquiredChannelId >= 0 {
+			common.ConcurrencyRelease(acquiredChannelId)
+		}
+	}()
+
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		// 释放上一轮获取的并发信号量
+		if acquiredChannelId >= 0 {
+			common.ConcurrencyRelease(acquiredChannelId)
+			acquiredChannelId = -1
+		}
+
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
+		}
+
+		// 并发限制检查
+		maxConcurrency := channel.GetMaxConcurrency()
+		if maxConcurrency > 0 {
+			if !common.ConcurrencyAcquire(channel.Id, maxConcurrency) {
+				concurrencySkips++
+				if concurrencySkips > maxConcurrencySkips {
+					newAPIError = types.NewErrorWithStatusCode(
+						fmt.Errorf("所有可用渠道并发已满"),
+						types.ErrorCodeChannelConcurrencyFull,
+						http.StatusTooManyRequests,
+					)
+					break
+				}
+				// 不消耗 retry 次数，重新选择渠道
+				retryParam.ResetRetryNextTry()
+				continue
+			}
+			acquiredChannelId = channel.Id
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -285,13 +321,19 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
+		// 优先从缓存获取完整 channel（包含 MaxConcurrency 等字段）
+		channelId := c.GetInt("channel_id")
+		if ch, err := model.CacheGetChannel(channelId); err == nil && ch != nil {
+			return ch, nil
+		}
+		// 缓存未命中时 fallback 到手动构造
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
 			autoBanInt = 0
 		}
 		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
+			Id:      channelId,
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
