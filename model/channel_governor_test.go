@@ -183,6 +183,17 @@ func TestChannelOrderedEnabledKeyIndices_NonMultiKeySkipsCache(t *testing.T) {
 	require.Equal(t, []int{0}, indices)
 }
 
+func TestChannelCommitSelectedKeyIndex_SkipsCacheWhenNotPolling(t *testing.T) {
+	channel := &Channel{
+		Id: 99,
+		ChannelInfo: ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyMode: constant.MultiKeyModeRandom,
+		},
+	}
+	require.Nil(t, channel.CommitSelectedKeyIndex(0))
+}
+
 func TestChannelGetNextEnabledKey_UsesCanonicalKeys(t *testing.T) {
 	withMemoryCache(t, func() {
 		stale := &Channel{

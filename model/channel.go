@@ -249,6 +249,10 @@ func (channel *Channel) snapshotFromChannelSelf() (*multiKeySnapshot, *types.New
 }
 
 func (channel *Channel) CommitSelectedKeyIndex(index int) *types.NewAPIError {
+	if !channel.ChannelInfo.IsMultiKey || channel.ChannelInfo.MultiKeyMode != constant.MultiKeyModePolling {
+		return nil
+	}
+
 	canonical, err := CacheGetChannel(channel.Id)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
