@@ -101,26 +101,29 @@ func TestChannelGetNextEnabledKey_PollingUsesCanonicalState(t *testing.T) {
 }
 
 func TestChannelGetNextEnabledKey_RandomUsesEnabledCandidates(t *testing.T) {
-	channel := &Channel{
-		Id: 44,
-		Key: "k0\nk1\nk2",
-		ChannelInfo: ChannelInfo{
-			IsMultiKey: true,
-			MultiKeySize: 3,
-			MultiKeyMode: constant.MultiKeyModeRandom,
-			MultiKeyPollingIndex: 5,
-			MultiKeyStatusList: map[int]int{
-				1: common.ChannelStatusAutoDisabled,
+	withMemoryCache(t, func() {
+		channel := &Channel{
+			Id: 44,
+			Key: "k0\nk1\nk2",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 3,
+				MultiKeyMode: constant.MultiKeyModeRandom,
+				MultiKeyPollingIndex: 5,
+				MultiKeyStatusList: map[int]int{
+					1: common.ChannelStatusAutoDisabled,
+				},
 			},
-		},
-	}
+		}
+		registerCachedChannel(channel)
 
-	allowed := map[int]string{0: "k0", 2: "k2"}
-	key, idx, err := channel.GetNextEnabledKey()
-	require.Nil(t, err)
-	require.Contains(t, allowed, idx)
-	require.Equal(t, allowed[idx], key)
-	require.Equal(t, 5, channel.ChannelInfo.MultiKeyPollingIndex)
+		allowed := map[int]string{0: "k0", 2: "k2"}
+		key, idx, err := channel.GetNextEnabledKey()
+		require.Nil(t, err)
+		require.Contains(t, allowed, idx)
+		require.Equal(t, allowed[idx], key)
+		require.Equal(t, 5, channel.ChannelInfo.MultiKeyPollingIndex)
+	})
 }
 
 func TestChannelOrderedEnabledKeyIndices_NonMultiKeySkipsCache(t *testing.T) {
