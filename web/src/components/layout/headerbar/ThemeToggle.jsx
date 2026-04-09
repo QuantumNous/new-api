@@ -95,13 +95,15 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
         </Dropdown.Menu>
       }
     >
-      <Button
-        icon={currentButtonIcon}
-        aria-label={t('切换主题')}
-        theme='borderless'
-        type='tertiary'
-        className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
-      />
+      <span className='inline-flex'>
+        <Button
+          icon={currentButtonIcon}
+          aria-label={t('切换主题')}
+          theme='borderless'
+          type='tertiary'
+          className='!p-1.5 !text-current focus:!bg-semi-color-fill-1 !rounded-full !bg-semi-color-fill-0 hover:!bg-semi-color-fill-1'
+        />
+      </span>
     </Dropdown>
   );
 };
