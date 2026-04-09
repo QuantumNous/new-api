@@ -123,6 +123,43 @@ func TestChannelGetNextEnabledKey_RandomUsesEnabledCandidates(t *testing.T) {
 	require.Equal(t, 5, channel.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestChannelGetNextEnabledKey_UsesCanonicalKeys(t *testing.T) {
+	withMemoryCache(t, func() {
+		stale := &Channel{
+			Id: 45,
+			Key: "old0\nold1",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 2,
+				MultiKeyMode: constant.MultiKeyModePolling,
+				MultiKeyPollingIndex: 0,
+			},
+		}
+		registerCachedChannel(stale)
+
+		canonical := &Channel{
+			Id: 45,
+			Key: "new0\nnew1",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 2,
+				MultiKeyMode: constant.MultiKeyModePolling,
+				MultiKeyPollingIndex: 0,
+				MultiKeyStatusList: map[int]int{
+					0: common.ChannelStatusAutoDisabled,
+				},
+			},
+		}
+		registerCachedChannel(canonical)
+
+		key, idx, err := stale.GetNextEnabledKey()
+		require.Nil(t, err)
+		require.Equal(t, "new1", key)
+		require.Equal(t, 1, idx)
+		require.Equal(t, 1, canonical.ChannelInfo.MultiKeyPollingIndex)
+	})
+}
+
 func TestChannelGetNextEnabledKey_ReturnsKeyWhenNotMultiKey(t *testing.T) {
 	channel := &Channel{
 		Key: "single",

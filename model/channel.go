@@ -103,19 +103,75 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
+	return channel.orderedEnabledKeyIndicesFromSnapshot(nil)
+}
+
+func (channel *Channel) KeyAt(index int) (string, *types.NewAPIError) {
 	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if index < 0 || index >= len(keys) {
+		return "", types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
+	}
+	return keys[index], nil
+}
+
+type multiKeySnapshot struct {
+	keys         []string
+	statusList   map[int]int
+	pollingIndex int
+	mode         constant.MultiKeyMode
+}
+
+func (snapshot *multiKeySnapshot) statusAt(idx int) int {
+	if snapshot == nil || snapshot.statusList == nil {
+		return common.ChannelStatusEnabled
+	}
+	if status, ok := snapshot.statusList[idx]; ok {
+		return status
+	}
+	return common.ChannelStatusEnabled
+}
+
+func (channel *Channel) multiKeySnapshotLocked() (*multiKeySnapshot, *types.NewAPIError) {
+	canonical, err := CacheGetChannel(channel.Id)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	keys := canonical.GetKeys()
 	if len(keys) == 0 {
 		return nil, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
+	var statusCopy map[int]int
+	if canonical.ChannelInfo.MultiKeyStatusList != nil {
+		statusCopy = make(map[int]int, len(canonical.ChannelInfo.MultiKeyStatusList))
+		for idx, status := range canonical.ChannelInfo.MultiKeyStatusList {
+			statusCopy[idx] = status
+		}
+	}
+
+	return &multiKeySnapshot{
+		keys:         keys,
+		statusList:   statusCopy,
+		pollingIndex: canonical.ChannelInfo.MultiKeyPollingIndex,
+		mode:         canonical.ChannelInfo.MultiKeyMode,
+	}, nil
+}
+
+func (channel *Channel) orderedEnabledKeyIndicesFromSnapshot(snapshot *multiKeySnapshot) ([]int, *types.NewAPIError) {
+	if snapshot == nil {
+		var err *types.NewAPIError
+		snapshot, err = channel.multiKeySnapshotLocked()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	keys := snapshot.keys
 	getStatus := func(idx int) int {
-		if channel.ChannelInfo.MultiKeyStatusList == nil {
-			return common.ChannelStatusEnabled
-		}
-		if status, ok := channel.ChannelInfo.MultiKeyStatusList[idx]; ok {
-			return status
-		}
-		return common.ChannelStatusEnabled
+		return snapshot.statusAt(idx)
 	}
 
 	enabled := make([]int, 0, len(keys))
@@ -128,13 +184,8 @@ func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
 		return nil, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
-	var start int
-	if channel.ChannelInfo.IsMultiKey && channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
-		channelInfo, err := CacheGetChannelInfo(channel.Id)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
-		}
-		start = channelInfo.MultiKeyPollingIndex
+	if snapshot.mode == constant.MultiKeyModePolling {
+		start := snapshot.pollingIndex
 		if start < 0 || start >= len(keys) {
 			start = 0
 		}
@@ -151,36 +202,24 @@ func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
 	return enabled, nil
 }
 
-func (channel *Channel) KeyAt(index int) (string, *types.NewAPIError) {
-	keys := channel.GetKeys()
-	if len(keys) == 0 {
-		return "", types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
-	}
-	if index < 0 || index >= len(keys) {
-		return "", types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
-	}
-	return keys[index], nil
-}
-
 func (channel *Channel) CommitSelectedKeyIndex(index int) *types.NewAPIError {
-	keys := channel.GetKeys()
+	canonical, err := CacheGetChannel(channel.Id)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if !canonical.ChannelInfo.IsMultiKey || canonical.ChannelInfo.MultiKeyMode != constant.MultiKeyModePolling {
+		return nil
+	}
+	keys := canonical.GetKeys()
 	if len(keys) == 0 {
 		return types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
 	}
 	if index < 0 || index >= len(keys) {
 		return types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
 	}
-	if !channel.ChannelInfo.IsMultiKey || channel.ChannelInfo.MultiKeyMode != constant.MultiKeyModePolling {
-		return nil
-	}
 
-	channelInfo, err := CacheGetChannelInfo(channel.Id)
-	if err != nil {
-		return types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
-	}
-
-	channelInfo.MultiKeyPollingIndex = (index + 1) % len(keys)
-	channel.ChannelInfo.MultiKeyPollingIndex = channelInfo.MultiKeyPollingIndex
+	canonical.ChannelInfo.MultiKeyPollingIndex = (index + 1) % len(keys)
+	channel.ChannelInfo.MultiKeyPollingIndex = canonical.ChannelInfo.MultiKeyPollingIndex
 	if common.DebugEnabled {
 		println(fmt.Sprintf("channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex))
 	}
@@ -195,22 +234,22 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return channel.Key, 0, nil
 	}
 
-	keys := channel.GetKeys()
-	if len(keys) == 0 {
-		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
-	}
-
 	lock := GetChannelPollingLock(channel.Id)
 	lock.Lock()
 	defer lock.Unlock()
 
-	enabledIdx, err := channel.OrderedEnabledKeyIndices()
+	snapshot, err := channel.multiKeySnapshotLocked()
+	if err != nil {
+		return "", 0, err
+	}
+
+	enabledIdx, err := channel.orderedEnabledKeyIndicesFromSnapshot(snapshot)
 	if err != nil {
 		return "", 0, err
 	}
 
 	var selectedIdx int
-	switch channel.ChannelInfo.MultiKeyMode {
+	switch snapshot.mode {
 	case constant.MultiKeyModeRandom:
 		selectedIdx = enabledIdx[rand.Intn(len(enabledIdx))]
 	case constant.MultiKeyModePolling:
@@ -222,11 +261,10 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		selectedIdx = enabledIdx[0]
 	}
 
-	selectedKey, keyErr := channel.KeyAt(selectedIdx)
-	if keyErr != nil {
-		return "", 0, keyErr
+	if selectedIdx < 0 || selectedIdx >= len(snapshot.keys) {
+		return "", 0, types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
 	}
-	return selectedKey, selectedIdx, nil
+	return snapshot.keys[selectedIdx], selectedIdx, nil
 }
 
 func (channel *Channel) SaveChannelInfo() error {
