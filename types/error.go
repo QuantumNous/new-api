@@ -85,6 +85,12 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+
+	// governor error
+	ErrorCodeGovernorSelectionRejected ErrorCode = "governor:selection_rejected"
+	ErrorCodeGovernorChannelCooling    ErrorCode = "governor:channel_cooling"
+	ErrorCodeGovernorKeyUnavailable    ErrorCode = "governor:key_unavailable"
+	ErrorCodeGovernorChannelRPMLimited ErrorCode = "governor:channel_rpm_limited"
 )
 
 type NewAPIError struct {
@@ -96,6 +102,7 @@ type NewAPIError struct {
 	errorCode      ErrorCode
 	StatusCode     int
 	Metadata       json.RawMessage
+	RetryAfter     string
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -387,6 +394,12 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.recordErrorLog = common.GetPointer(false)
+	}
+}
+
+func ErrOptionWithRetryAfter(value string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.RetryAfter = strings.TrimSpace(value)
 	}
 }
 

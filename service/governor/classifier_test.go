@@ -1,33 +1,34 @@
 package governor
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/require"
 )
 
-type fakeRelayError struct {
-	status int
-	hdr    http.Header
-}
-
-func (e *fakeRelayError) Error() string { return "relay error" }
-
-func (e *fakeRelayError) StatusCode() int { return e.status }
-
-func (e *fakeRelayError) Headers() http.Header { return e.hdr }
-
 func TestClassifyRelayError_UsesRetryAfterForKeyCooldown(t *testing.T) {
-	t.Parallel()
-
-	err := &fakeRelayError{
-		status: http.StatusTooManyRequests,
-		hdr:    http.Header{"Retry-After": []string{"120"}},
+	cfg := Config{
+		Enabled:                     true,
+		KeyCooldownSeconds:          30,
+		KeyCooldownOnStatuses:       []int{429},
+		RespectRetryAfter:           true,
+		ReservationLeaseSeconds:     90,
+		ReservationHeartbeatSeconds: 20,
 	}
 
-	classification := ClassifyRelayError(err)
-	if classification.KeyCooldown != 120*time.Second {
-		t.Fatalf("expected KeyCooldown=120s from Retry-After, got %v", classification.KeyCooldown)
-	}
+	err := types.NewOpenAIError(
+		errors.New("rate limited"),
+		types.ErrorCodeBadResponseStatusCode,
+		http.StatusTooManyRequests,
+		types.ErrOptionWithRetryAfter("17"),
+	)
+
+	decision := ClassifyRelayError(cfg, err)
+	require.True(t, decision.CoolKey)
+	require.False(t, decision.CoolChannel)
+	require.Equal(t, 17*time.Second, decision.TTL)
 }
-
