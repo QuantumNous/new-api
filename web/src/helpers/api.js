@@ -78,53 +78,6 @@ function patchAPIInstance(instance) {
   };
 }
 
-/*
-function attachResponseInterceptor(instance) {
-  instance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      // 濡傛灉璇锋眰閰嶇疆涓樉寮忚姹傝烦杩囧叏灞€閿欒澶勭悊锛屽垯涓嶅脊鍑洪粯璁ら敊璇彁绀?    if (error.config && error.config.skipErrorHandler) {
-        return Promise.reject(error);
-      }
-      const responseData = error?.response?.data;
-      const backendMessage =
-        (typeof responseData?.error?.message === 'string' &&
-          responseData.error.message.trim()) ||
-        (typeof responseData?.message === 'string' &&
-          responseData.message.trim()) ||
-        (typeof responseData === 'string' && responseData.trim()) ||
-        '';
-      showError(backendMessage || error);
-      return Promise.reject(error);
-    },
-  );
-}
-
-*/
-function attachResponseInterceptor(instance) {
-  instance.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      // Skip the global error toast when the request opts out explicitly.
-      if (error.config && error.config.skipErrorHandler) {
-        return Promise.reject(error);
-      }
-
-      const responseData = error?.response?.data;
-      const backendMessage =
-        (typeof responseData?.error?.message === 'string' &&
-          responseData.error.message.trim()) ||
-        (typeof responseData?.message === 'string' &&
-          responseData.message.trim()) ||
-        (typeof responseData === 'string' && responseData.trim()) ||
-        '';
-
-      showError(backendMessage || error);
-      return Promise.reject(error);
-    },
-  );
-}
-
 patchAPIInstance(API);
 
 export function updateAPI() {
@@ -139,7 +92,6 @@ export function updateAPI() {
   });
 
   patchAPIInstance(API);
-  attachResponseInterceptor(API);
 }
 
 API.interceptors.response.use(
