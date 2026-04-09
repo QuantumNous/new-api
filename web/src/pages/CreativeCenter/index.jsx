@@ -1696,7 +1696,6 @@ const getTaskDtoImageUrls = (task) => {
   return urls;
 };
 
-/*
 const getCreativeRequestErrorMessage = (error) => {
   const responseData = error?.response?.data;
 
@@ -1713,96 +1712,6 @@ const getCreativeRequestErrorMessage = (error) => {
 
   if (typeof responseData === 'string' && responseData.trim()) {
     return responseData.trim();
-  }
-
-  if (typeof error?.message === 'string' && error.message.trim()) {
-    return error.message.trim();
-  }
-
-  return '请稍后再试。';
-};
-
-*/
-const extractCreativeErrorMessageFromPayload = (payload) => {
-  if (!payload) {
-    return '';
-  }
-
-  if (typeof payload === 'string') {
-    const trimmedPayload = payload.trim();
-    if (!trimmedPayload) {
-      return '';
-    }
-
-    if (
-      (trimmedPayload.startsWith('{') && trimmedPayload.endsWith('}')) ||
-      (trimmedPayload.startsWith('[') && trimmedPayload.endsWith(']'))
-    ) {
-      try {
-        const parsedPayload = JSON.parse(trimmedPayload);
-        const parsedMessage = extractCreativeErrorMessageFromPayload(parsedPayload);
-        if (parsedMessage) {
-          return parsedMessage;
-        }
-      } catch {
-        // Keep the raw payload when it is not valid JSON.
-      }
-    }
-
-    return trimmedPayload;
-  }
-
-  if (typeof payload !== 'object') {
-    return '';
-  }
-
-  if (
-    typeof payload?.error?.message === 'string' &&
-    payload.error.message.trim()
-  ) {
-    return payload.error.message.trim();
-  }
-
-  if (typeof payload?.message === 'string' && payload.message.trim()) {
-    return payload.message.trim();
-  }
-
-  if (typeof payload?.data === 'string' && payload.data.trim()) {
-    return payload.data.trim();
-  }
-
-  if (payload?.data && typeof payload.data === 'object') {
-    const nestedDataMessage = extractCreativeErrorMessageFromPayload(payload.data);
-    if (nestedDataMessage) {
-      return nestedDataMessage;
-    }
-  }
-
-  if (payload?.error && typeof payload.error === 'object') {
-    const nestedErrorMessage = extractCreativeErrorMessageFromPayload(payload.error);
-    if (nestedErrorMessage) {
-      return nestedErrorMessage;
-    }
-  }
-
-  return '';
-};
-
-const getCreativeRequestErrorMessage = (error) => {
-  const responseData = error?.response?.data;
-  const requestResponseText =
-    typeof error?.request?.responseText === 'string'
-      ? error.request.responseText
-      : typeof error?.request?.response === 'string'
-        ? error.request.response
-        : '';
-
-  const extractedMessage =
-    extractCreativeErrorMessageFromPayload(responseData) ||
-    extractCreativeErrorMessageFromPayload(requestResponseText);
-
-  if (extractedMessage) {
-    return extractedMessage;
   }
 
   if (typeof error?.message === 'string' && error.message.trim()) {
