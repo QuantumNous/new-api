@@ -4043,7 +4043,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
   const postCreativeRequest = async (endpoint, payload, requestHeaders = {}) => {
     const response = await API.post(endpoint, payload, {
-      skipErrorHandler: true,
       headers: {
         'New-API-User': getUserIdFromLocalStorage(),
         ...requestHeaders,
