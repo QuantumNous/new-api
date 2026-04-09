@@ -172,9 +172,9 @@ const getAssetFileExtension = (asset) => {
 const getAssetDownloadName = (asset, index = 0) => {
   const type = sanitizeFileNameSegment(asset?.asset_type, 'asset');
   const model = sanitizeFileNameSegment(asset?.model_name, 'model');
-  const session = sanitizeFileNameSegment(asset?.session_name, 'session');
+  const task = sanitizeFileNameSegment(asset?.task_id, 'task');
   const ext = getAssetFileExtension(asset);
-  return `${type}-${model}-${session}-${index + 1}.${ext}`;
+  return `${type}-${model}-${task}-${index + 1}.${ext}`;
 };
 
 const downloadAssetByUrl = (asset, index = 0) => {
@@ -552,7 +552,7 @@ const AssetLibrary = () => {
           <Form.Input
             field='keyword'
             prefix={<IconSearch />}
-            placeholder='提示词 / 会话名'
+            placeholder='提示词 / 任务 ID'
             showClear
             pure
             size='small'
@@ -724,14 +724,6 @@ const AssetLibrary = () => {
                       <div className={`grid grid-cols-1 text-xs ${showPreview ? 'gap-2' : 'gap-1.5'}`}>
                         <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
                           <Text type='tertiary' size='small'>
-                            会话
-                          </Text>
-                          <div className='mt-1 font-medium break-all'>
-                            {asset.session_name || asset.session_id || '-'}
-                          </div>
-                        </div>
-                        <div className='rounded-xl px-3 py-2 bg-[var(--semi-color-fill-0)]'>
-                          <Text type='tertiary' size='small'>
                             创建时间
                           </Text>
                           <div className='mt-1 font-medium text-[12px]'>
@@ -796,7 +788,6 @@ const AssetLibrary = () => {
             )}
             <div className='flex flex-wrap gap-2'>
               <Tag color='white'>{previewAsset.model_name || '未命名模型'}</Tag>
-              <Tag color='grey'>{previewAsset.session_name || previewAsset.session_id}</Tag>
               {isAdminUser && previewAsset.username ? (
                 <Tag color='light-blue'>{previewAsset.username}</Tag>
               ) : null}

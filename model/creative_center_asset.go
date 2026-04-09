@@ -32,11 +32,71 @@ func GetAllCreativeCenterAssets(queryParams CreativeCenterAssetQueryParams) ([]*
 	if len(userIDs) == 0 && strings.TrimSpace(queryParams.Username) != "" {
 		return []*dto.CreativeCenterAsset{}, nil
 	}
-	return listCreativeCenterAssets(creativeCenterHistoryQuery{UserIDs: userIDs}, queryParams)
+	return listTaskAssets(creativeCenterHistoryQuery{UserIDs: userIDs}, queryParams)
 }
 
 func GetUserCreativeCenterAssets(userId int, queryParams CreativeCenterAssetQueryParams) ([]*dto.CreativeCenterAsset, error) {
-	return listCreativeCenterAssets(creativeCenterHistoryQuery{UserIDs: []int{userId}}, queryParams)
+	return listTaskAssets(creativeCenterHistoryQuery{UserIDs: []int{userId}}, queryParams)
+}
+
+func listTaskAssets(taskQuery creativeCenterHistoryQuery, queryParams CreativeCenterAssetQueryParams) ([]*dto.CreativeCenterAsset, error) {
+	tasks, err := listAssetTasks(taskQuery, queryParams)
+	if err != nil {
+		return nil, err
+	}
+
+	assets := make([]*dto.CreativeCenterAsset, 0)
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		username, _ := GetUsernameById(task.UserId, false)
+		assets = append(assets, flattenTaskAssets(task, username)...)
+	}
+
+	filtered := make([]*dto.CreativeCenterAsset, 0, len(assets))
+	for _, asset := range assets {
+		if !matchesCreativeCenterAssetFilter(asset, queryParams) {
+			continue
+		}
+		filtered = append(filtered, asset)
+	}
+
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].UpdatedAt == filtered[j].UpdatedAt {
+			if filtered[i].CreatedAt == filtered[j].CreatedAt {
+				return filtered[i].AssetID > filtered[j].AssetID
+			}
+			return filtered[i].CreatedAt > filtered[j].CreatedAt
+		}
+		return filtered[i].UpdatedAt > filtered[j].UpdatedAt
+	})
+
+	return filtered, nil
+}
+
+func listAssetTasks(taskQuery creativeCenterHistoryQuery, queryParams CreativeCenterAssetQueryParams) ([]*Task, error) {
+	tasks := make([]*Task, 0)
+	query := DB.Model(&Task{})
+	if len(taskQuery.UserIDs) > 0 {
+		query = query.Where("user_id in (?)", taskQuery.UserIDs)
+	}
+	if queryParams.StartTimestamp > 0 {
+		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
+	}
+	if queryParams.EndTimestamp > 0 {
+		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
+	}
+	actions := getTaskActionsForMediaType(queryParams.Type)
+	if len(actions) == 0 {
+		actions = getTaskActionsForMediaType(TaskMediaTypeAll)
+	}
+	query = query.Where("action in (?)", actions)
+	err := query.Order("updated_at desc").Find(&tasks).Error
+	if err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 func listCreativeCenterAssets(historyQuery creativeCenterHistoryQuery, queryParams CreativeCenterAssetQueryParams) ([]*dto.CreativeCenterAsset, error) {
@@ -70,6 +130,261 @@ func listCreativeCenterAssets(historyQuery creativeCenterHistoryQuery, queryPara
 	})
 
 	return filtered, nil
+}
+
+type taskAssetItem struct {
+	mediaURL     string
+	thumbnailURL string
+}
+
+func flattenTaskAssets(task *Task, username string) []*dto.CreativeCenterAsset {
+	if task == nil {
+		return nil
+	}
+
+	assetType := detectTaskMediaType(task.Action)
+	if assetType == "" {
+		return nil
+	}
+
+	createdAt := normalizeAssetTimestamp(firstPositiveInt64(task.SubmitTime, task.CreatedAt, task.StartTime, task.FinishTime))
+	updatedAt := normalizeAssetTimestamp(firstPositiveInt64(task.FinishTime, task.UpdatedAt, task.StartTime, task.SubmitTime, task.CreatedAt))
+	modelName := fallbackString(task.Properties.OriginModelName, task.Properties.UpstreamModelName)
+	prompt := strings.TrimSpace(task.Properties.Input)
+
+	items := extractTaskAssetItems(task, assetType)
+	assets := make([]*dto.CreativeCenterAsset, 0, len(items))
+	for index, item := range items {
+		if strings.TrimSpace(item.mediaURL) == "" {
+			continue
+		}
+		status := normalizeTaskAssetStatus(task.Status, item.mediaURL)
+		if !isCompletedAssetStatus(status) {
+			continue
+		}
+		assets = append(assets, &dto.CreativeCenterAsset{
+			AssetID:      fmt.Sprintf("task:%s:%s:%d", assetType, task.TaskID, index),
+			HistoryID:    0,
+			TaskID:       task.TaskID,
+			UserID:       task.UserId,
+			Username:     username,
+			AssetType:    assetType,
+			MediaURL:     item.mediaURL,
+			ThumbnailURL: fallbackString(item.thumbnailURL, item.mediaURL),
+			Prompt:       prompt,
+			ModelName:    modelName,
+			Group:        task.Group,
+			SessionID:    "",
+			SessionName:  "",
+			RecordID:     task.TaskID,
+			Status:       status,
+			CreatedAt:    createdAt,
+			UpdatedAt:    updatedAt,
+		})
+	}
+
+	return assets
+}
+
+func extractTaskAssetItems(task *Task, assetType string) []taskAssetItem {
+	switch assetType {
+	case TaskMediaTypeImage:
+		imageURLs := collectTaskAssetURLs(task, assetType, false)
+		items := make([]taskAssetItem, 0, len(imageURLs))
+		for _, imageURL := range imageURLs {
+			items = append(items, taskAssetItem{
+				mediaURL:     imageURL,
+				thumbnailURL: imageURL,
+			})
+		}
+		return items
+	case TaskMediaTypeVideo:
+		videoURLs := collectTaskAssetURLs(task, assetType, false)
+		thumbnailURLs := collectTaskAssetURLs(task, assetType, true)
+		items := make([]taskAssetItem, 0, len(videoURLs))
+		for index, videoURL := range videoURLs {
+			thumbnailURL := ""
+			if index < len(thumbnailURLs) {
+				thumbnailURL = thumbnailURLs[index]
+			}
+			items = append(items, taskAssetItem{
+				mediaURL:     videoURL,
+				thumbnailURL: thumbnailURL,
+			})
+		}
+		return items
+	default:
+		return nil
+	}
+}
+
+func collectTaskAssetURLs(task *Task, assetType string, thumbnailOnly bool) []string {
+	candidates := make([]string, 0)
+	if !thumbnailOnly {
+		appendUniqueTaskAssetURL(&candidates, taskAssetURLCandidate(task.GetResultURL(), assetType, false))
+	}
+
+	if len(task.Data) == 0 {
+		return candidates
+	}
+
+	var payload any
+	if err := common.Unmarshal(task.Data, &payload); err != nil {
+		return candidates
+	}
+
+	keySet := taskAssetMediaKeys(assetType, thumbnailOnly)
+	var walk func(node any)
+	walk = func(node any) {
+		switch value := node.(type) {
+		case map[string]any:
+			for key, nested := range value {
+				normalizedKey := strings.ToLower(strings.TrimSpace(key))
+				if _, ok := keySet[normalizedKey]; ok {
+					appendTaskAssetURLsByValue(&candidates, nested, assetType, thumbnailOnly)
+				}
+				walk(nested)
+			}
+		case []any:
+			for _, item := range value {
+				walk(item)
+			}
+		}
+	}
+	walk(payload)
+
+	return candidates
+}
+
+func taskAssetMediaKeys(assetType string, thumbnailOnly bool) map[string]struct{} {
+	if thumbnailOnly {
+		return map[string]struct{}{
+			"thumbnailurl":  {},
+			"thumbnail_url": {},
+			"coverurl":      {},
+			"cover_url":     {},
+			"image_url":     {},
+			"imageurl":      {},
+		}
+	}
+
+	switch assetType {
+	case TaskMediaTypeImage:
+		return map[string]struct{}{
+			"url":           {},
+			"presignedurl":  {},
+			"presigned_url": {},
+			"resulturl":     {},
+			"result_url":    {},
+			"image_url":     {},
+			"imageurl":      {},
+			"image_urls":    {},
+			"imageurls":     {},
+			"images":        {},
+			"b64_json":      {},
+			"b64json":       {},
+		}
+	case TaskMediaTypeVideo:
+		return map[string]struct{}{
+			"url":        {},
+			"resulturl":  {},
+			"result_url": {},
+			"video_url":  {},
+			"videourl":   {},
+			"video_urls": {},
+			"videourls":  {},
+		}
+	default:
+		return map[string]struct{}{}
+	}
+}
+
+func appendTaskAssetURLsByValue(target *[]string, value any, assetType string, thumbnailOnly bool) {
+	switch typedValue := value.(type) {
+	case string:
+		appendUniqueTaskAssetURL(target, taskAssetURLCandidate(typedValue, assetType, thumbnailOnly))
+	case []any:
+		for _, item := range typedValue {
+			appendTaskAssetURLsByValue(target, item, assetType, thumbnailOnly)
+		}
+	case map[string]any:
+		keys := []string{"url", "presignedUrl", "presigned_url", "resultUrl", "result_url", "image_url", "imageUrl", "video_url", "videoUrl", "thumbnailUrl", "thumbnail_url", "coverUrl", "cover_url"}
+		if thumbnailOnly {
+			keys = []string{"thumbnailUrl", "thumbnail_url", "coverUrl", "cover_url", "image_url", "imageUrl"}
+		}
+		for _, key := range keys {
+			appendUniqueTaskAssetURL(target, taskAssetURLCandidate(stringValue(typedValue, key), assetType, thumbnailOnly))
+		}
+		if assetType == TaskMediaTypeImage && !thumbnailOnly {
+			if b64 := strings.TrimSpace(stringValue(typedValue, "b64_json", "b64Json")); b64 != "" {
+				appendUniqueTaskAssetURL(target, "data:image/png;base64,"+b64)
+			}
+		}
+	}
+}
+
+func appendUniqueTaskAssetURL(target *[]string, candidate string) {
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
+		return
+	}
+	for _, existing := range *target {
+		if existing == trimmed {
+			return
+		}
+	}
+	*target = append(*target, trimmed)
+}
+
+func taskAssetURLCandidate(candidate string, assetType string, thumbnailOnly bool) string {
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "data:image/") {
+		if assetType == TaskMediaTypeVideo && !thumbnailOnly {
+			return ""
+		}
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, "data:video/") {
+		if assetType == TaskMediaTypeImage || thumbnailOnly {
+			return ""
+		}
+		return trimmed
+	}
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") || strings.HasPrefix(trimmed, "/") {
+		return trimmed
+	}
+	return ""
+}
+
+func normalizeTaskAssetStatus(status TaskStatus, mediaURL string) string {
+	switch normalizeTaskStatus(status) {
+	case TaskStatusFailure:
+		return "failed"
+	case TaskStatusSuccess:
+		return "completed"
+	case TaskStatusQueued, TaskStatusSubmitted, TaskStatusInProgress:
+		if strings.TrimSpace(mediaURL) != "" {
+			return "completed"
+		}
+		return "processing"
+	default:
+		if strings.TrimSpace(mediaURL) != "" {
+			return "completed"
+		}
+		return "processing"
+	}
+}
+
+func firstPositiveInt64(values ...int64) int64 {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func listCreativeCenterHistories(query creativeCenterHistoryQuery) ([]*CreativeCenterHistory, error) {
@@ -255,6 +570,7 @@ func matchesCreativeCenterAssetFilter(asset *dto.CreativeCenterAsset, queryParam
 			asset.Prompt,
 			asset.ModelName,
 			asset.Group,
+			asset.TaskID,
 			asset.SessionName,
 			asset.Username,
 			asset.RecordID,

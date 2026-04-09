@@ -71,46 +71,27 @@ const StatGridCard = ({ loading, title, icon, accentClass, stats }) => {
 };
 
 const TaskLogsDashboard = ({
-  mediaType,
-  handleMediaTypeChange,
   statsRangePreset,
   handleStatsRangePresetChange,
   statsData,
   statsLoading,
   taskStatsRangePresets,
-  taskMediaTypeOptions,
   t,
 }) => {
   return (
     <div className='w-full space-y-4'>
-      <div className='space-y-3'>
-        <div className='flex flex-wrap gap-2'>
-          {taskStatsRangePresets.map((preset) => (
-            <Button
-              key={preset.key}
-              theme={statsRangePreset === preset.key ? 'solid' : 'light'}
-              type={statsRangePreset === preset.key ? 'primary' : 'tertiary'}
-              size='small'
-              onClick={() => handleStatsRangePresetChange(preset.key)}
-            >
-              {t(preset.label)}
-            </Button>
-          ))}
-        </div>
-
-        <div className='flex flex-wrap gap-2'>
-          {taskMediaTypeOptions.map((option) => (
-            <Button
-              key={option.key}
-              theme={mediaType === option.key ? 'solid' : 'light'}
-              type={mediaType === option.key ? 'primary' : 'tertiary'}
-              size='small'
-              onClick={() => handleMediaTypeChange(option.key)}
-            >
-              {t(option.label)}
-            </Button>
-          ))}
-        </div>
+      <div className='flex flex-wrap gap-2'>
+        {taskStatsRangePresets.map((preset) => (
+          <Button
+            key={preset.key}
+            theme={statsRangePreset === preset.key ? 'solid' : 'light'}
+            type={statsRangePreset === preset.key ? 'primary' : 'tertiary'}
+            size='small'
+            onClick={() => handleStatsRangePresetChange(preset.key)}
+          >
+            {t(preset.label)}
+          </Button>
+        ))}
       </div>
 
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-3'>
