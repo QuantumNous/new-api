@@ -7,6 +7,21 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
 	SystemPrompt           string `json:"system_prompt,omitempty"`
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	Governor               *GovernorSettings `json:"governor,omitempty"`
+}
+
+type GovernorSettings struct {
+	Enabled                    bool  `json:"enabled"`
+	ChannelMaxRPM              int   `json:"channel_max_rpm"`
+	ChannelCooldownSeconds     int   `json:"channel_cooldown_seconds"`
+	ChannelCooldownOnStatuses  []int `json:"channel_cooldown_on_statuses"`
+	KeyMaxConcurrency          int   `json:"key_max_concurrency"`
+	KeyCooldownSeconds         int   `json:"key_cooldown_seconds"`
+	KeyCooldownOnStatuses      []int `json:"key_cooldown_on_statuses"`
+	ReservationLeaseSeconds    int   `json:"reservation_lease_seconds"`
+	ReservationHeartbeatSeconds int   `json:"reservation_heartbeat_seconds"`
+	ShortWaitMs                int   `json:"short_wait_ms"`
+	RespectRetryAfter          bool  `json:"respect_retry_after"`
 }
 
 type VertexKeyType string

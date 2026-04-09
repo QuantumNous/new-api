@@ -102,16 +102,90 @@ func (channel *Channel) GetKeys() []string {
 	return keys
 }
 
+func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return nil, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	getStatus := func(idx int) int {
+		if channel.ChannelInfo.MultiKeyStatusList == nil {
+			return common.ChannelStatusEnabled
+		}
+		if status, ok := channel.ChannelInfo.MultiKeyStatusList[idx]; ok {
+			return status
+		}
+		return common.ChannelStatusEnabled
+	}
+
+	enabled := make([]int, 0, len(keys))
+	for i := range keys {
+		if getStatus(i) == common.ChannelStatusEnabled {
+			enabled = append(enabled, i)
+		}
+	}
+	if len(enabled) == 0 {
+		return nil, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+	}
+
+	if channel.ChannelInfo.IsMultiKey && channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+		start := channel.ChannelInfo.MultiKeyPollingIndex
+		if start < 0 || start >= len(keys) {
+			start = 0
+		}
+		ordered := make([]int, 0, len(enabled))
+		for i := 0; i < len(keys); i++ {
+			idx := (start + i) % len(keys)
+			if getStatus(idx) == common.ChannelStatusEnabled {
+				ordered = append(ordered, idx)
+			}
+		}
+		return ordered, nil
+	}
+
+	return enabled, nil
+}
+
+func (channel *Channel) KeyAt(index int) (string, *types.NewAPIError) {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if index < 0 || index >= len(keys) {
+		return "", types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
+	}
+	return keys[index], nil
+}
+
+func (channel *Channel) CommitSelectedKeyIndex(index int) *types.NewAPIError {
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if index < 0 || index >= len(keys) {
+		return types.NewError(errors.New("invalid key index"), types.ErrorCodeChannelInvalidKey)
+	}
+	if !channel.ChannelInfo.IsMultiKey || channel.ChannelInfo.MultiKeyMode != constant.MultiKeyModePolling {
+		return nil
+	}
+
+	channel.ChannelInfo.MultiKeyPollingIndex = (index + 1) % len(keys)
+	if common.DebugEnabled {
+		println(fmt.Sprintf("channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex))
+	}
+	if !common.MemoryCacheEnabled {
+		_ = channel.SaveChannelInfo()
+	}
+	return nil
+}
+
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
-	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
 		return channel.Key, 0, nil
 	}
 
-	// Obtain all keys (split by \n)
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
-		// No keys available, return error, should disable the channel
 		return "", 0, types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
@@ -119,74 +193,41 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	statusList := channel.ChannelInfo.MultiKeyStatusList
-	// helper to get key status, default to enabled when missing
-	getStatus := func(idx int) int {
-		if statusList == nil {
-			return common.ChannelStatusEnabled
-		}
-		if status, ok := statusList[idx]; ok {
-			return status
-		}
-		return common.ChannelStatusEnabled
-	}
-
-	// Collect indexes of enabled keys
-	enabledIdx := make([]int, 0, len(keys))
-	for i := range keys {
-		if getStatus(i) == common.ChannelStatusEnabled {
-			enabledIdx = append(enabledIdx, i)
-		}
-	}
-	// If no specific status list or none enabled, return an explicit error so caller can
-	// properly handle a channel with no available keys (e.g. mark channel disabled).
-	// Returning the first key here caused requests to keep using an already-disabled key.
-	if len(enabledIdx) == 0 {
-		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
-	}
-
-	switch channel.ChannelInfo.MultiKeyMode {
-	case constant.MultiKeyModeRandom:
-		// Randomly pick one enabled key
-		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
-		return keys[selectedIdx], selectedIdx, nil
-	case constant.MultiKeyModePolling:
-		// Use channel-specific lock to ensure thread-safe polling
-
+	if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
 		channelInfo, err := CacheGetChannelInfo(channel.Id)
 		if err != nil {
 			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
-		//println("before polling index:", channel.ChannelInfo.MultiKeyPollingIndex)
-		defer func() {
-			if common.DebugEnabled {
-				println(fmt.Sprintf("channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex))
-			}
-			if !common.MemoryCacheEnabled {
-				_ = channel.SaveChannelInfo()
-			} else {
-				// CacheUpdateChannel(channel)
-			}
-		}()
-		// Start from the saved polling index and look for the next enabled key
 		start := channelInfo.MultiKeyPollingIndex
 		if start < 0 || start >= len(keys) {
 			start = 0
 		}
-		for i := 0; i < len(keys); i++ {
-			idx := (start + i) % len(keys)
-			if getStatus(idx) == common.ChannelStatusEnabled {
-				// update polling index for next call (point to the next position)
-				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
-				return keys[idx], idx, nil
-			}
-		}
-		// Fallback – should not happen, but return first enabled key
-		return keys[enabledIdx[0]], enabledIdx[0], nil
-	default:
-		// Unknown mode, default to first enabled key (or original key string)
-		return keys[enabledIdx[0]], enabledIdx[0], nil
+		channel.ChannelInfo.MultiKeyPollingIndex = start
 	}
+
+	enabledIdx, err := channel.OrderedEnabledKeyIndices()
+	if err != nil {
+		return "", 0, err
+	}
+
+	var selectedIdx int
+	switch channel.ChannelInfo.MultiKeyMode {
+	case constant.MultiKeyModeRandom:
+		selectedIdx = enabledIdx[rand.Intn(len(enabledIdx))]
+	case constant.MultiKeyModePolling:
+		selectedIdx = enabledIdx[0]
+		if commitErr := channel.CommitSelectedKeyIndex(selectedIdx); commitErr != nil {
+			return "", 0, commitErr
+		}
+	default:
+		selectedIdx = enabledIdx[0]
+	}
+
+	selectedKey, keyErr := channel.KeyAt(selectedIdx)
+	if keyErr != nil {
+		return "", 0, keyErr
+	}
+	return selectedKey, selectedIdx, nil
 }
 
 func (channel *Channel) SaveChannelInfo() error {
