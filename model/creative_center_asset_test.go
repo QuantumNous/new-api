@@ -1,6 +1,11 @@
 package model
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+)
 
 func TestFlattenCreativeCenterHistoryAssetsImageSessions(t *testing.T) {
 	history := &CreativeCenterHistory{
@@ -139,5 +144,108 @@ func TestFlattenCreativeCenterHistoryAssetsVideoLegacyPayload(t *testing.T) {
 	}
 	if second.Status != "completed" {
 		t.Fatalf("expected completed status, got %s", second.Status)
+	}
+}
+
+func TestFlattenTaskAssetsImageUsesTaskData(t *testing.T) {
+	task := &Task{
+		ID:         31,
+		TaskID:     "task-image-1",
+		UserId:     7,
+		Group:      "default",
+		Action:     "imageGenerate",
+		Status:     TaskStatusSuccess,
+		SubmitTime: 1730000000,
+		UpdatedAt:  1730000100,
+		Properties: Properties{
+			Input:           "draw a cat",
+			OriginModelName: "nano-banana",
+		},
+	}
+	task.SetData(map[string]any{
+		"data": []any{
+			map[string]any{"url": "https://example.com/image-a.png"},
+			map[string]any{"resultUrl": "https://example.com/image-b.png"},
+		},
+	})
+
+	assets := flattenTaskAssets(task, "alice")
+	if len(assets) != 2 {
+		t.Fatalf("expected 2 task assets, got %d", len(assets))
+	}
+
+	first := assets[0]
+	if first.TaskID != "task-image-1" {
+		t.Fatalf("unexpected task id: %s", first.TaskID)
+	}
+	if first.SessionName != "" {
+		t.Fatalf("expected empty session name, got %q", first.SessionName)
+	}
+	if first.MediaURL != "https://example.com/image-a.png" {
+		t.Fatalf("unexpected media url: %s", first.MediaURL)
+	}
+	if first.AssetType != "image" {
+		t.Fatalf("unexpected asset type: %s", first.AssetType)
+	}
+}
+
+func TestFlattenTaskAssetsVideoUsesResultAndThumbnail(t *testing.T) {
+	task := &Task{
+		ID:         32,
+		TaskID:     "task-video-1",
+		UserId:     9,
+		Group:      "video-group",
+		Action:     "textGenerate",
+		Status:     TaskStatusSuccess,
+		SubmitTime: 1740000000,
+		FinishTime: 1740000060,
+		UpdatedAt:  1740000060,
+		Properties: Properties{
+			Input:           "generate a trailer",
+			OriginModelName: "veo31",
+		},
+		PrivateData: TaskPrivateData{
+			ResultURL: "https://example.com/video-a.mp4",
+		},
+	}
+	task.SetData(map[string]any{
+		"creations": []any{
+			map[string]any{
+				"url":       "https://example.com/video-a.mp4",
+				"cover_url": "https://example.com/video-a.jpg",
+			},
+		},
+	})
+
+	assets := flattenTaskAssets(task, "bob")
+	if len(assets) != 1 {
+		t.Fatalf("expected 1 task asset, got %d", len(assets))
+	}
+
+	first := assets[0]
+	if first.MediaURL != "https://example.com/video-a.mp4" {
+		t.Fatalf("unexpected media url: %s", first.MediaURL)
+	}
+	if first.ThumbnailURL != "https://example.com/video-a.jpg" {
+		t.Fatalf("unexpected thumbnail url: %s", first.ThumbnailURL)
+	}
+	if first.Status != "completed" {
+		t.Fatalf("unexpected status: %s", first.Status)
+	}
+}
+
+func TestMatchesCreativeCenterAssetFilterMatchesTaskIDKeyword(t *testing.T) {
+	asset := &dto.CreativeCenterAsset{
+		AssetID:   "task:image:task-image-1:0",
+		TaskID:    "task-image-1",
+		AssetType: "image",
+		ModelName: "nano-banana",
+		Prompt:    "draw a cat",
+		Status:    "completed",
+		CreatedAt: common.GetTimestamp(),
+	}
+
+	if !matchesCreativeCenterAssetFilter(asset, CreativeCenterAssetQueryParams{Keyword: "task-image-1"}) {
+		t.Fatalf("expected task id keyword to match asset filter")
 	}
 }

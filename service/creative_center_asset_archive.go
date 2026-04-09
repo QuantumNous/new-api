@@ -177,7 +177,10 @@ func buildCreativeCenterAssetFileName(asset *dto.CreativeCenterAsset, index int,
 
 	sessionName := sanitizeArchiveSegment(asset.SessionName)
 	if sessionName == "" {
-		sessionName = "session"
+		sessionName = sanitizeArchiveSegment(asset.TaskID)
+	}
+	if sessionName == "" {
+		sessionName = "task"
 	}
 
 	modelName := sanitizeArchiveSegment(asset.ModelName)

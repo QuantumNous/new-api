@@ -3,6 +3,7 @@ package dto
 type CreativeCenterAsset struct {
 	AssetID      string `json:"asset_id"`
 	HistoryID    int64  `json:"history_id"`
+	TaskID       string `json:"task_id,omitempty"`
 	UserID       int    `json:"user_id"`
 	Username     string `json:"username,omitempty"`
 	AssetType    string `json:"asset_type"`
