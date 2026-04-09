@@ -9,35 +9,151 @@ import (
 )
 
 func TestChannelOrderedEnabledKeyIndices_PollingDoesNotAdvanceUntilCommitted(t *testing.T) {
+	withMemoryCache(t, func() {
+		channel := &Channel{
+			Id: 42,
+			Key: "k0\nk1\nk2",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 3,
+				MultiKeyMode: constant.MultiKeyModePolling,
+				MultiKeyPollingIndex: 1,
+				MultiKeyStatusList: map[int]int{
+					2: common.ChannelStatusAutoDisabled,
+				},
+			},
+		}
+
+		registerCachedChannel(channel)
+
+		lock := GetChannelPollingLock(channel.Id)
+		lock.Lock()
+		ordered, err := channel.OrderedEnabledKeyIndices()
+		lock.Unlock()
+		require.NoError(t, err)
+		require.Equal(t, []int{1, 0}, ordered)
+		require.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
+
+		lock.Lock()
+		require.NoError(t, channel.CommitSelectedKeyIndex(ordered[0]))
+		lock.Unlock()
+		require.Equal(t, 2, channel.ChannelInfo.MultiKeyPollingIndex)
+
+		channelSyncLock.RLock()
+		require.Equal(t, 2, channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
+		channelSyncLock.RUnlock()
+
+		stale := *channel
+		stale.ChannelInfo.MultiKeyPollingIndex = 0
+
+		staleLock := GetChannelPollingLock(stale.Id)
+		staleLock.Lock()
+		staleOrdered, err := stale.OrderedEnabledKeyIndices()
+		staleLock.Unlock()
+		require.NoError(t, err)
+		require.Equal(t, []int{0, 1}, staleOrdered)
+
+		staleLock.Lock()
+		require.NoError(t, stale.CommitSelectedKeyIndex(staleOrdered[0]))
+		staleLock.Unlock()
+
+		channelSyncLock.RLock()
+		require.Equal(t, 1, channelsIDM[channel.Id].ChannelInfo.MultiKeyPollingIndex)
+		channelSyncLock.RUnlock()
+		require.Equal(t, 1, stale.ChannelInfo.MultiKeyPollingIndex)
+
+		key, err := stale.KeyAt(staleOrdered[0])
+		require.NoError(t, err)
+		require.Equal(t, "k0", key)
+	})
+}
+
+func TestChannelGetNextEnabledKey_PollingUsesCanonicalState(t *testing.T) {
+	withMemoryCache(t, func() {
+		channel := &Channel{
+			Id: 43,
+			Key: "k0\nk1\nk2",
+			ChannelInfo: ChannelInfo{
+				IsMultiKey: true,
+				MultiKeySize: 3,
+				MultiKeyMode: constant.MultiKeyModePolling,
+				MultiKeyPollingIndex: 2,
+				MultiKeyStatusList: map[int]int{
+					2: common.ChannelStatusAutoDisabled,
+				},
+			},
+		}
+
+		registerCachedChannel(channel)
+
+		key, idx, err := channel.GetNextEnabledKey()
+		require.NoError(t, err)
+		require.Equal(t, "k0", key)
+		require.Equal(t, 0, idx)
+		require.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
+
+		key2, idx2, err := channel.GetNextEnabledKey()
+		require.NoError(t, err)
+		require.Equal(t, "k1", key2)
+		require.Equal(t, 1, idx2)
+		require.Equal(t, 2, channel.ChannelInfo.MultiKeyPollingIndex)
+	})
+}
+
+func TestChannelGetNextEnabledKey_RandomReturnsSingleKey(t *testing.T) {
 	channel := &Channel{
-		Id: 42,
-		Key: "k0\nk1\nk2",
+		Id: 44,
+		Key: "solo",
 		ChannelInfo: ChannelInfo{
 			IsMultiKey: true,
-			MultiKeySize: 3,
-			MultiKeyMode: constant.MultiKeyModePolling,
-			MultiKeyPollingIndex: 1,
-			MultiKeyStatusList: map[int]int{
-				2: common.ChannelStatusAutoDisabled,
-			},
+			MultiKeySize: 1,
+			MultiKeyMode: constant.MultiKeyModeRandom,
 		},
 	}
 
-	lock := GetChannelPollingLock(channel.Id)
-	lock.Lock()
-	ordered, err := channel.OrderedEnabledKeyIndices()
-	lock.Unlock()
+	key, idx, err := channel.GetNextEnabledKey()
 	require.NoError(t, err)
-	require.Equal(t, []int{1, 0}, ordered)
-	require.Equal(t, 1, channel.ChannelInfo.MultiKeyPollingIndex)
+	require.Equal(t, "solo", key)
+	require.Equal(t, 0, idx)
+}
 
-	key, err := channel.KeyAt(0)
-	require.NoError(t, err)
-	require.Equal(t, "k0", key)
+func TestChannelGetNextEnabledKey_ReturnsKeyWhenNotMultiKey(t *testing.T) {
+	channel := &Channel{
+		Key: "single",
+	}
 
-	lock.Lock()
-	err = channel.CommitSelectedKeyIndex(1)
-	lock.Unlock()
+	key, idx, err := channel.GetNextEnabledKey()
 	require.NoError(t, err)
-	require.Equal(t, 2, channel.ChannelInfo.MultiKeyPollingIndex)
+	require.Equal(t, "single", key)
+	require.Equal(t, 0, idx)
+}
+
+func withMemoryCache(t *testing.T, run func()) {
+	original := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	defer func() {
+		common.MemoryCacheEnabled = original
+	}()
+
+	channelSyncLock.Lock()
+	previous := channelsIDM
+	channelsIDM = map[int]*Channel{}
+	channelSyncLock.Unlock()
+
+	defer func() {
+		channelSyncLock.Lock()
+		channelsIDM = previous
+		channelSyncLock.Unlock()
+	}()
+
+	run()
+}
+
+func registerCachedChannel(channel *Channel) {
+	channelSyncLock.Lock()
+	if channelsIDM == nil {
+		channelsIDM = map[int]*Channel{}
+	}
+	channelsIDM[channel.Id] = channel
+	channelSyncLock.Unlock()
 }

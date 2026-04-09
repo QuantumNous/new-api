@@ -128,8 +128,13 @@ func (channel *Channel) OrderedEnabledKeyIndices() ([]int, *types.NewAPIError) {
 		return nil, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
 
+	var start int
 	if channel.ChannelInfo.IsMultiKey && channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
-		start := channel.ChannelInfo.MultiKeyPollingIndex
+		channelInfo, err := CacheGetChannelInfo(channel.Id)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		start = channelInfo.MultiKeyPollingIndex
 		if start < 0 || start >= len(keys) {
 			start = 0
 		}
@@ -169,7 +174,13 @@ func (channel *Channel) CommitSelectedKeyIndex(index int) *types.NewAPIError {
 		return nil
 	}
 
-	channel.ChannelInfo.MultiKeyPollingIndex = (index + 1) % len(keys)
+	channelInfo, err := CacheGetChannelInfo(channel.Id)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	channelInfo.MultiKeyPollingIndex = (index + 1) % len(keys)
+	channel.ChannelInfo.MultiKeyPollingIndex = channelInfo.MultiKeyPollingIndex
 	if common.DebugEnabled {
 		println(fmt.Sprintf("channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex))
 	}
@@ -192,18 +203,6 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	lock := GetChannelPollingLock(channel.Id)
 	lock.Lock()
 	defer lock.Unlock()
-
-	if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
-		channelInfo, err := CacheGetChannelInfo(channel.Id)
-		if err != nil {
-			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
-		}
-		start := channelInfo.MultiKeyPollingIndex
-		if start < 0 || start >= len(keys) {
-			start = 0
-		}
-		channel.ChannelInfo.MultiKeyPollingIndex = start
-	}
 
 	enabledIdx, err := channel.OrderedEnabledKeyIndices()
 	if err != nil {
