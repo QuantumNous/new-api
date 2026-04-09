@@ -73,11 +73,11 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		maxTokens = int(*r.GenerationConfig.MaxOutputTokens)
 	}
 
-	var inputTexts []string
+	var textBuilder tokenTextBuilder
 	for _, content := range r.Contents {
 		for _, part := range content.Parts {
 			if part.Text != "" {
-				inputTexts = append(inputTexts, part.Text)
+				textBuilder.Add(part.Text)
 			}
 			if source := part.InlineData.ToFileSource(); source != nil {
 				mimeType := part.InlineData.MimeType
@@ -99,9 +99,8 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	inputText := strings.Join(inputTexts, "\n")
 	return &types.TokenCountMeta{
-		CombineText: inputText,
+		CombineText: textBuilder.String(),
 		Files:       files,
 		MaxTokens:   maxTokens,
 	}

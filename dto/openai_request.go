@@ -110,27 +110,29 @@ type GeneralOpenAIRequest struct {
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var tokenCountMeta types.TokenCountMeta
-	var texts = make([]string, 0)
 	var fileMeta = make([]*types.FileMeta, 0)
+	var textBuilder tokenTextBuilder
 
 	if r.Prompt != nil {
 		switch v := r.Prompt.(type) {
 		case string:
-			texts = append(texts, v)
+			textBuilder.Add(v)
 		case []any:
 			for _, item := range v {
 				if str, ok := item.(string); ok {
-					texts = append(texts, str)
+					textBuilder.Add(str)
 				}
 			}
 		default:
-			texts = append(texts, fmt.Sprintf("%v", r.Prompt))
+			textBuilder.Add(fmt.Sprintf("%v", r.Prompt))
 		}
 	}
 
 	if r.Input != nil {
 		inputs := r.ParseInput()
-		texts = append(texts, inputs...)
+		for _, input := range inputs {
+			textBuilder.Add(input)
+		}
 	}
 
 	maxTokens := lo.FromPtrOr(r.MaxTokens, uint(0))
@@ -143,11 +145,11 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 
 	for _, message := range r.Messages {
 		tokenCountMeta.MessagesCount++
-		texts = append(texts, message.Role)
+		textBuilder.Add(message.Role)
 		if message.Content != nil {
 			if message.Name != nil {
 				tokenCountMeta.NameCount++
-				texts = append(texts, *message.Name)
+				textBuilder.Add(*message.Name)
 			}
 			arrayContent := message.ParseContent()
 			for _, m := range arrayContent {
@@ -169,7 +171,7 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					}
 					fileMeta = append(fileMeta, meta)
 				} else if m.Type == ContentTypeText {
-					texts = append(texts, m.Text)
+					textBuilder.Add(m.Text)
 				}
 			}
 		}
@@ -179,19 +181,19 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		openaiTools := r.Tools
 		for _, tool := range openaiTools {
 			tokenCountMeta.ToolsCount++
-			texts = append(texts, tool.Function.Name)
+			textBuilder.Add(tool.Function.Name)
 			if tool.Function.Description != "" {
-				texts = append(texts, tool.Function.Description)
+				textBuilder.Add(tool.Function.Description)
 			}
 			if tool.Function.Parameters != nil {
-				texts = append(texts, fmt.Sprintf("%v", tool.Function.Parameters))
+				textBuilder.Add(fmt.Sprintf("%v", tool.Function.Parameters))
 			}
 		}
 		//toolTokens := CountTokenInput(countStr, request.Model)
 		//tkm += 8
 		//tkm += toolTokens
 	}
-	tokenCountMeta.CombineText = strings.Join(texts, "\n")
+	tokenCountMeta.CombineText = textBuilder.String()
 	tokenCountMeta.Files = fileMeta
 	return &tokenCountMeta
 }
@@ -862,7 +864,7 @@ type OpenAIResponsesRequest struct {
 
 func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var fileMeta = make([]*types.FileMeta, 0)
-	var texts = make([]string, 0)
+	var textBuilder tokenTextBuilder
 
 	if r.Input != nil {
 		inputs := r.ParseInput()
@@ -883,37 +885,37 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					})
 				}
 			} else {
-				texts = append(texts, input.Text)
+				textBuilder.Add(input.Text)
 			}
 		}
 	}
 
 	if len(r.Instructions) > 0 {
-		texts = append(texts, string(r.Instructions))
+		textBuilder.Add(string(r.Instructions))
 	}
 
 	if len(r.Metadata) > 0 {
-		texts = append(texts, string(r.Metadata))
+		textBuilder.Add(string(r.Metadata))
 	}
 
 	if len(r.Text) > 0 {
-		texts = append(texts, string(r.Text))
+		textBuilder.Add(string(r.Text))
 	}
 
 	if len(r.ToolChoice) > 0 {
-		texts = append(texts, string(r.ToolChoice))
+		textBuilder.Add(string(r.ToolChoice))
 	}
 
 	if len(r.Prompt) > 0 {
-		texts = append(texts, string(r.Prompt))
+		textBuilder.Add(string(r.Prompt))
 	}
 
 	if len(r.Tools) > 0 {
-		texts = append(texts, string(r.Tools))
+		textBuilder.Add(string(r.Tools))
 	}
 
 	return &types.TokenCountMeta{
-		CombineText: strings.Join(texts, "\n"),
+		CombineText: textBuilder.String(),
 		Files:       fileMeta,
 		MaxTokens:   int(lo.FromPtrOr(r.MaxOutputTokens, uint(0))),
 	}
