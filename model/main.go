@@ -285,6 +285,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := migrateCreativeCenterHistoryPayloadToMediumText(); err != nil {
+		return err
+	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -353,6 +356,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := migrateCreativeCenterHistoryPayloadToMediumText(); err != nil {
+		return err
 	}
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
@@ -562,6 +568,50 @@ func migrateSubscriptionPlanPriceAmount() {
 			common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to decimal(10,6)", tableName, columnName))
 		}
 	}
+}
+
+func migrateCreativeCenterHistoryPayloadToMediumText() error {
+	if common.UsingSQLite {
+		return nil
+	}
+
+	tableName := "creative_center_histories"
+	columnName := "payload"
+
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	if !DB.Migrator().HasColumn(&CreativeCenterHistory{}, columnName) {
+		return nil
+	}
+
+	if common.UsingPostgreSQL {
+		return nil
+	}
+
+	if !common.UsingMySQL {
+		return nil
+	}
+
+	var columnType string
+	if err := DB.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+		tableName, columnName).Scan(&columnType).Error; err != nil {
+		return fmt.Errorf("failed to query metadata for %s.%s: %w", tableName, columnName, err)
+	}
+
+	switch strings.ToLower(columnType) {
+	case "mediumtext", "longtext":
+		return nil
+	}
+
+	alterSQL := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s mediumtext", tableName, columnName)
+	if err := DB.Exec(alterSQL).Error; err != nil {
+		return fmt.Errorf("failed to migrate %s.%s to mediumtext: %w", tableName, columnName, err)
+	}
+	common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to mediumtext", tableName, columnName))
+	return nil
 }
 
 func closeDB(db *gorm.DB) error {

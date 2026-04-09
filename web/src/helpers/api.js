@@ -101,7 +101,15 @@ API.interceptors.response.use(
     if (error.config && error.config.skipErrorHandler) {
       return Promise.reject(error);
     }
-    showError(error);
+    const responseData = error?.response?.data;
+    const backendMessage =
+      (typeof responseData?.error?.message === 'string' &&
+        responseData.error.message.trim()) ||
+      (typeof responseData?.message === 'string' &&
+        responseData.message.trim()) ||
+      (typeof responseData === 'string' && responseData.trim()) ||
+      '';
+    showError(backendMessage || error);
     return Promise.reject(error);
   },
 );

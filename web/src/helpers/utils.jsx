@@ -119,8 +119,38 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
+const extractBackendErrorMessage = (error) => {
+  const responseData = error?.response?.data;
+
+  if (typeof responseData === 'string' && responseData.trim()) {
+    return responseData.trim();
+  }
+
+  if (
+    typeof responseData?.error?.message === 'string' &&
+    responseData.error.message.trim()
+  ) {
+    return responseData.error.message.trim();
+  }
+
+  if (typeof responseData?.message === 'string' && responseData.message.trim()) {
+    return responseData.message.trim();
+  }
+
+  if (typeof responseData?.data === 'string' && responseData.data.trim()) {
+    return responseData.data.trim();
+  }
+
+  return '';
+};
+
 export function showError(error) {
   console.error(error);
+  if (typeof error === 'string') {
+    Toast.error(error);
+    return;
+  }
+  const backendMessage = extractBackendErrorMessage(error);
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
