@@ -91,7 +91,7 @@ const PageLayout = () => {
 
   const loadStatus = async () => {
     try {
-      const res = await API.get('/api/status');
+      const res = await API.get('/api/status', { skipErrorHandler: true });
       const { success, data } = res.data;
       if (success) {
         statusDispatch({ type: 'set', payload: data });
@@ -100,7 +100,9 @@ const PageLayout = () => {
         showError('Unable to connect to server');
       }
     } catch (error) {
-      showError('Failed to load status');
+      if (error?.response?.status !== 429) {
+        showError('Failed to load status');
+      }
     }
   };
 

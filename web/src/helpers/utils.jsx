@@ -101,6 +101,8 @@ let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
 let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
+let lastTooManyRequestsToastAt = 0;
+const TOO_MANY_REQUESTS_TOAST_COOLDOWN_MS = 3000;
 
 const isMobileScreen = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
@@ -161,7 +163,13 @@ export function showError(error) {
           window.location.href = '/login?expired=true';
           break;
         case 429:
-          Toast.error('错误：请求次数过多，请稍后再试！');
+          if (
+            Date.now() - lastTooManyRequestsToastAt >
+            TOO_MANY_REQUESTS_TOAST_COOLDOWN_MS
+          ) {
+            lastTooManyRequestsToastAt = Date.now();
+            Toast.error('错误：请求次数过多，请稍后再试！');
+          }
           break;
         case 500:
           Toast.error('错误：服务器内部错误，请联系管理员！');

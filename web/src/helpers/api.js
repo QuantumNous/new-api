@@ -36,6 +36,96 @@ export let API = axios.create({
   },
 });
 
+const GET_STALE_CACHE_PREFIX = 'new-api:get-stale-cache';
+const GET_STALE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function buildGetRequestKey(url, config = {}) {
+  const params = config.params ? JSON.stringify(config.params) : '{}';
+  const scopedUserId =
+    String(getUserIdFromLocalStorage() || 'guest').trim() || 'guest';
+  return `${scopedUserId}:${url}?${params}`;
+}
+
+function getGetStaleCacheStorageKey(url, config = {}) {
+  return `${GET_STALE_CACHE_PREFIX}:${buildGetRequestKey(url, config)}`;
+}
+
+function readStaleGetCache(url, config = {}) {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const rawValue = window.sessionStorage.getItem(
+      getGetStaleCacheStorageKey(url, config),
+    );
+    if (!rawValue) {
+      return null;
+    }
+    const cachedValue = JSON.parse(rawValue);
+    if (
+      !cachedValue ||
+      typeof cachedValue !== 'object' ||
+      Date.now() - Number(cachedValue.cachedAt || 0) > GET_STALE_CACHE_TTL_MS
+    ) {
+      window.sessionStorage.removeItem(getGetStaleCacheStorageKey(url, config));
+      return null;
+    }
+    return cachedValue;
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeStaleGetCache(url, config = {}, data) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      getGetStaleCacheStorageKey(url, config),
+      JSON.stringify({
+        cachedAt: Date.now(),
+        data,
+      }),
+    );
+  } catch (error) {
+    // Ignore session cache write failures.
+  }
+}
+
+function shouldCacheGetResponse(response) {
+  const method = String(response?.config?.method || 'get').toLowerCase();
+  return method === 'get' && response?.config?.disableStaleCache !== true;
+}
+
+function tryResolveStaleGetResponse(error) {
+  const method = String(error?.config?.method || 'get').toLowerCase();
+  if (
+    method !== 'get' ||
+    error?.config?.disableStaleCache === true ||
+    error?.response?.status !== 429
+  ) {
+    return null;
+  }
+
+  const cachedValue = readStaleGetCache(error.config.url, error.config);
+  if (!cachedValue) {
+    return null;
+  }
+
+  return {
+    ...error.response,
+    status: 200,
+    statusText: 'OK',
+    data: cachedValue.data,
+    config: error.config,
+    request: error.request,
+    __fromStaleCache: true,
+  };
+}
+
 
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
@@ -78,7 +168,47 @@ function patchAPIInstance(instance) {
   };
 }
 
+function attachAPIInterceptors(instance) {
+  instance.interceptors.response.use(
+    (response) => {
+      if (shouldCacheGetResponse(response)) {
+        writeStaleGetCache(response.config.url, response.config, response.data);
+      }
+      return response;
+    },
+    (error) => {
+      const staleResponse = tryResolveStaleGetResponse(error);
+      if (staleResponse) {
+        return Promise.resolve(staleResponse);
+      }
+      return Promise.reject(error);
+    },
+  );
+}
+
+function attachGlobalErrorInterceptor(instance) {
+  instance.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.config && error.config.skipErrorHandler) {
+        return Promise.reject(error);
+      }
+      const responseData = error?.response?.data;
+      const backendMessage =
+        (typeof responseData?.error?.message === 'string' &&
+          responseData.error.message.trim()) ||
+        (typeof responseData?.message === 'string' &&
+          responseData.message.trim()) ||
+        (typeof responseData === 'string' && responseData.trim()) ||
+        '';
+      showError(backendMessage || error);
+      return Promise.reject(error);
+    },
+  );
+}
+
 patchAPIInstance(API);
+attachAPIInterceptors(API);
 
 export function updateAPI() {
   API = axios.create({
@@ -92,6 +222,8 @@ export function updateAPI() {
   });
 
   patchAPIInstance(API);
+  attachAPIInterceptors(API);
+  attachGlobalErrorInterceptor(API);
 }
 
 API.interceptors.response.use(

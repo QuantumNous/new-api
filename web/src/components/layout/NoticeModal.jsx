@@ -85,7 +85,7 @@ const NoticeModal = ({
   const displayNotice = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/notice');
+      const res = await API.get('/api/notice', { skipErrorHandler: true });
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {
@@ -98,7 +98,9 @@ const NoticeModal = ({
         showError(message);
       }
     } catch (error) {
-      showError(error.message);
+      if (error?.response?.status !== 429) {
+        showError(error.message);
+      }
     } finally {
       setLoading(false);
     }

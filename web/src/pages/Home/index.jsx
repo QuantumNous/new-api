@@ -83,7 +83,9 @@ const Home = () => {
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
-    const res = await API.get('/api/home_page_content');
+    const res = await API.get('/api/home_page_content', {
+      skipErrorHandler: true,
+    });
     const { success, message, data } = res.data;
     if (success) {
       let content = data;
@@ -123,7 +125,7 @@ const Home = () => {
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
         try {
-          const res = await API.get('/api/notice');
+          const res = await API.get('/api/notice', { skipErrorHandler: true });
           const { success, data } = res.data;
           if (success && data && data.trim() !== '') {
             setNoticeVisible(true);
@@ -138,7 +140,9 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    displayHomePageContent().then();
+    displayHomePageContent().catch(() => {
+      setHomePageContentLoaded(true);
+    });
   }, []);
 
   useEffect(() => {
