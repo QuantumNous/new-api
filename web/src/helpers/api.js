@@ -40,9 +40,24 @@ const GET_STALE_CACHE_PREFIX = 'new-api:get-stale-cache';
 const GET_STALE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function buildGetRequestKey(url, config = {}) {
-  const params = config.params ? JSON.stringify(config.params) : '{}';
   const scopedUserId =
     String(getUserIdFromLocalStorage() || 'guest').trim() || 'guest';
+  const customKey =
+    typeof config?.staleCacheKey === 'string' ? config.staleCacheKey.trim() : '';
+  if (customKey) {
+    return `${scopedUserId}:${customKey}`;
+  }
+
+  const params = config.params
+    ? JSON.stringify(
+        Object.keys(config.params)
+          .sort()
+          .reduce((acc, key) => {
+            acc[key] = config.params[key];
+            return acc;
+          }, {}),
+      )
+    : '{}';
   return `${scopedUserId}:${url}?${params}`;
 }
 

@@ -1865,6 +1865,7 @@ const normalizeVideoTaskItem = (item, index = 0) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     item?.status || (resolvedVideoUrl ? 'completed' : 'submitted'),
   );
+  const recoveredTaskId = getRecoverableVideoTaskId(item);
   const progress =
     parseProgressValue(item?.progress) ??
     ((resolvedVideoUrl || normalizedStatus === 'completed') ? 100 : 0);
@@ -1896,7 +1897,10 @@ const normalizeVideoTaskItem = (item, index = 0) => {
     requestPollable:
       typeof item?.requestPollable === 'boolean'
         ? item.requestPollable
-        : false,
+        : !resolvedVideoUrl &&
+          !recoveredTaskId &&
+          Boolean(String(item?.requestId || '').trim()) &&
+          ACTIVE_VIDEO_POLL_STATUSES.has(normalizedStatus),
     pollable:
       typeof item?.pollable === 'boolean'
         ? (resolvedVideoUrl ? false : item.pollable)
@@ -4857,9 +4861,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         record.tasks
           .filter((task) => {
             const queryTaskId = getRecoverableVideoTaskId(task);
+            const requestId = String(task?.requestId || '').trim();
+            const canPollByRequestId =
+              Boolean(requestId) &&
+              !queryTaskId &&
+              task.requestPollable !== false;
             return (
-              Boolean(queryTaskId || String(task?.requestId || '').trim()) &&
-              task.pollable !== false &&
+              Boolean(queryTaskId || canPollByRequestId) &&
+              (queryTaskId ? task.pollable !== false : canPollByRequestId) &&
               ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status))
             );
           })
@@ -5601,9 +5610,8 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   normalizeVideoTaskStatus(currentTask.status) === 'failed'
                     ? 'submitted'
                     : currentTask.status,
-                pollable:
-                  currentTask.pollable !== false &&
-                  !getVideoTaskMediaUrl(currentTask),
+                requestPollable: false,
+                pollable: !getVideoTaskMediaUrl(currentTask),
               }),
             );
             if (taskIdPatch.hasChanged) {
@@ -6016,6 +6024,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   error:
                     exactTaskState.status === 'failed' ? exactTaskState.error : '',
                   finalizingAt: 0,
+                  requestPollable: false,
                   pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
                 },
               );
@@ -6040,6 +6049,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               {
                 taskId: queryTaskId,
                 status: 'submitted',
+                requestPollable: false,
                 pollable: true,
               },
             );
@@ -6065,6 +6075,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   error:
                     exactTaskState.status === 'failed' ? exactTaskState.error : '',
                   finalizingAt: 0,
+                  requestPollable: false,
                   pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
                 },
               );
@@ -6110,6 +6121,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   content: nextTaskState.content || '',
                   error: isFailed ? (nextTaskState.error || '') : '',
                   finalizingAt: 0,
+                  requestPollable: false,
                   pollable: Boolean(queryTaskId) && !(isCompleted || isFailed),
                 },
               );
@@ -6674,7 +6686,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             }
             patchVideoTask(recordId, localTaskId, {
               requestId,
-              requestPollable: false,
+              requestPollable: true,
               submittedAt,
               estimateStartAt,
               finalizingAt: 0,
@@ -6733,10 +6745,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               requestId,
               finalizingAt: 0,
               progressUnavailable: false,
-              requestPollable: false,
+              requestPollable:
+                !immediateResultUrl &&
+                !Boolean(submitPayload?.task_id || submitPayload?.id) &&
+                Boolean(requestId),
               pollable:
                 !immediateResultUrl &&
-                Boolean(submitPayload?.task_id || submitPayload?.id),
+                Boolean(
+                  submitPayload?.task_id || submitPayload?.id || requestId,
+                ),
             });
           })()
             .catch((requestError) => {
@@ -6753,7 +6770,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 requestPollable: isRecoverableRequestError,
                 content: requestErrorMessage,
                 error: requestErrorMessage,
-                pollable: false,
+                pollable: isRecoverableRequestError,
               });
             }),
         );

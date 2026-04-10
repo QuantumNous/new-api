@@ -43,6 +43,26 @@ import ParamOverrideEntry from '../../components/table/usage-logs/components/Par
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+  const normalizeStaleTimestamp = (value) => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text ? text.slice(0, 16) : '';
+  };
+
+  const buildLogsStaleKey = (scope, filters = {}) =>
+    [
+      'usage-logs',
+      scope,
+      isAdminUser ? 'admin' : 'user',
+      filters.type ?? '',
+      filters.username || '',
+      filters.token_name || '',
+      filters.model_name || '',
+      filters.channel || '',
+      filters.group || '',
+      filters.request_id || '',
+      normalizeStaleTimestamp(filters.start_timestamp),
+      normalizeStaleTimestamp(filters.end_timestamp),
+    ].join(':');
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -275,7 +295,17 @@ export const useLogsData = () => {
     let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
     url = encodeURI(url);
     try {
-      let res = await API.get(url, { skipErrorHandler: true });
+      let res = await API.get(url, {
+        skipErrorHandler: true,
+        staleCacheKey: buildLogsStaleKey('stat-self', {
+          type: currentLogType,
+          token_name,
+          model_name,
+          group,
+          start_timestamp,
+          end_timestamp,
+        }),
+      });
       const { success, message, data } = res.data;
       if (success) {
         setStat(data);
@@ -306,7 +336,19 @@ export const useLogsData = () => {
     let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
     url = encodeURI(url);
     try {
-      let res = await API.get(url, { skipErrorHandler: true });
+      let res = await API.get(url, {
+        skipErrorHandler: true,
+        staleCacheKey: buildLogsStaleKey('stat', {
+          type: currentLogType,
+          username,
+          token_name,
+          model_name,
+          channel,
+          group,
+          start_timestamp,
+          end_timestamp,
+        }),
+      });
       const { success, message, data } = res.data;
       if (success) {
         setStat(data);
@@ -738,7 +780,20 @@ export const useLogsData = () => {
     }
     url = encodeURI(url);
     try {
-      const res = await API.get(url, { skipErrorHandler: true });
+      const res = await API.get(url, {
+        skipErrorHandler: true,
+        staleCacheKey: buildLogsStaleKey('list', {
+          type: currentLogType,
+          username,
+          token_name,
+          model_name,
+          channel,
+          group,
+          request_id,
+          start_timestamp,
+          end_timestamp,
+        }),
+      });
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;

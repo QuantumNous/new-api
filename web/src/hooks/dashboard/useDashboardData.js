@@ -85,6 +85,25 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const now = new Date();
   const isAdminUser = isAdmin();
 
+  const normalizeStaleTimestamp = useCallback((value) => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text ? text.slice(0, 16) : '';
+  }, []);
+
+  const buildDashboardStaleKey = useCallback(
+    (scope, extra = {}) =>
+      [
+        'dashboard',
+        scope,
+        isAdminUser ? 'admin' : 'user',
+        extra.username || '',
+        normalizeStaleTimestamp(extra.start_timestamp),
+        normalizeStaleTimestamp(extra.end_timestamp),
+        extra.defaultTime || '',
+      ].join(':'),
+    [isAdminUser, normalizeStaleTimestamp],
+  );
+
   // ========== Panel enable flags ==========
   const apiInfoEnabled = statusState?.status?.api_info_enabled ?? true;
   const announcementsEnabled =
@@ -170,7 +189,15 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
         url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
       }
 
-      const res = await API.get(url, { skipErrorHandler: true });
+      const res = await API.get(url, {
+        skipErrorHandler: true,
+        staleCacheKey: buildDashboardStaleKey('quota', {
+          username,
+          start_timestamp,
+          end_timestamp,
+          defaultTime: dataExportDefaultTime,
+        }),
+      });
       const { success, message, data } = res.data;
       if (success) {
         setQuotaData(data);
@@ -203,6 +230,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     try {
       const res = await API.get('/api/uptime/status', {
         skipErrorHandler: true,
+        staleCacheKey: buildDashboardStaleKey('uptime'),
       });
       const { success, message, data } = res.data;
       if (success) {
@@ -224,7 +252,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   const getUserData = useCallback(async () => {
     try {
-      let res = await API.get(`/api/user/self`, { skipErrorHandler: true });
+      let res = await API.get(`/api/user/self`, {
+        skipErrorHandler: true,
+        staleCacheKey: buildDashboardStaleKey('user-self'),
+      });
       const { success, message, data } = res.data;
       if (success) {
         userDispatch({ type: 'login', payload: data });
