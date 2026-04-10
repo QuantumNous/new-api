@@ -81,3 +81,11 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+// DoubaoNativeResponseConverter is implemented by adaptors that can convert an
+// internal Task record back into the Doubao-native API response format, so that
+// a downstream new-api instance using the "doubao-video" channel type can parse
+// the polling response with its own ParseTaskResult method.
+type DoubaoNativeResponseConverter interface {
+	ConvertToDoubaoNativeResponse(originTask *model.Task) ([]byte, error)
+}

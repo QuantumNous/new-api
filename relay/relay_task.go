@@ -384,6 +384,33 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	// Doubao native route: return Doubao-native format so downstream new-api
+	// instances (using the "doubao-video" channel type) can parse the polling
+	// response with their own ParseTaskResult method.
+	if c.GetBool("doubao_native_route") {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor != nil {
+			if converter, ok := adaptor.(channel.DoubaoNativeResponseConverter); ok {
+				nativeData, convertErr := converter.ConvertToDoubaoNativeResponse(originTask)
+				if convertErr != nil {
+					taskResp = service.TaskErrorWrapper(convertErr, "convert_to_doubao_native_failed", http.StatusInternalServerError)
+					return
+				}
+				respBody = nativeData
+				return
+			}
+			// Fallback: if the platform doesn't implement DoubaoNativeResponseConverter,
+			// return OpenAI Video API format as the next best option.
+			if converter, ok := adaptor.(channel.OpenAIVideoConverter); ok {
+				openAIVideoData, convertErr := converter.ConvertToOpenAIVideo(originTask)
+				if convertErr == nil {
+					respBody = openAIVideoData
+					return
+				}
+			}
+		}
+	}
+
 	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)

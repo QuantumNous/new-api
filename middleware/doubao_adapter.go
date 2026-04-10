@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -63,10 +64,13 @@ func DoubaoRequestConvert() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, "task_id is required")
 				return
 			}
-			// Route to internal fetch endpoint
+			// Route to internal fetch endpoint.
+			// Set doubao_native_route so that videoFetchByIDRespBodyBuilder
+			// returns Doubao-native format, which downstream ParseTaskResult can parse.
 			c.Request.URL.Path = "/v1/video/generations/" + taskID
 			c.Set("task_id", taskID)
 			c.Set("relay_mode", relayconstant.RelayModeVideoFetchByID)
+			c.Set("doubao_native_route", true)
 			c.Next()
 			return
 		}
@@ -79,14 +83,14 @@ func DoubaoRequestConvert() func(c *gin.Context) {
 		}
 
 		// Extract prompt and images from the content array
-		var prompt string
+		var promptParts []string
 		var images []string
 
 		for _, item := range nativeReq.Content {
 			switch item.Type {
 			case "text":
-				if item.Text != "" {
-					prompt = item.Text
+				if t := strings.TrimSpace(item.Text); t != "" {
+					promptParts = append(promptParts, t)
 				}
 			case "image_url":
 				if item.ImageURL != nil && item.ImageURL.URL != "" {
@@ -94,6 +98,7 @@ func DoubaoRequestConvert() func(c *gin.Context) {
 				}
 			}
 		}
+		prompt := strings.Join(promptParts, "\n")
 
 		// Build metadata — carry all non-standard fields so the doubao adaptor
 		// can pick them up via taskcommon.UnmarshalMetadata.
@@ -194,9 +199,12 @@ func DoubaoRequestConvert() func(c *gin.Context) {
 			return
 		}
 
-		// Replace request body
+		// Replace request body — also clear the BodyStorage cache so that
+		// downstream handlers (e.g. ValidateBasicTaskRequest) read the new body
+		// instead of the cached original Doubao native payload.
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 		c.Set(common.KeyRequestBody, jsonData)
+		c.Set(common.KeyBodyStorage, nil)
 
 		// Redirect to the internal video generation endpoint
 		c.Request.URL.Path = "/v1/video/generations"
