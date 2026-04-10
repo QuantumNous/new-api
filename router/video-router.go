@@ -49,4 +49,16 @@ func SetVideoRouter(router *gin.Engine) {
 		// Maps to: /?Action=CVSync2AsyncSubmitTask&Version=2022-08-31 and /?Action=CVSync2AsyncGetResult&Version=2022-08-31
 		jimengOfficialGroup.POST("/", controller.RelayTask)
 	}
+
+	// Doubao video native API routes — allows downstream to call us using the
+	// official Doubao video API path format directly.
+	// POST /api/v3/contents/generations/tasks  →  create video task
+	// GET  /api/v3/contents/generations/tasks/:task_id  →  fetch task status
+	doubaoVideoGroup := router.Group("/api/v3/contents/generations")
+	doubaoVideoGroup.Use(middleware.RouteTag("relay"))
+	doubaoVideoGroup.Use(middleware.DoubaoRequestConvert(), middleware.TokenAuth(), middleware.Distribute())
+	{
+		doubaoVideoGroup.POST("/tasks", controller.RelayTask)
+		doubaoVideoGroup.GET("/tasks/:task_id", controller.RelayTaskFetch)
+	}
 }
