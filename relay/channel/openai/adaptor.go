@@ -369,7 +369,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	a.ResponseFormat = request.ResponseFormat
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
-		jsonData, err := json.Marshal(request)
+		jsonData, err := common.Marshal(request)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling object: %w", err)
 		}
