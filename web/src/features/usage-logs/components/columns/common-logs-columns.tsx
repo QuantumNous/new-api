@@ -224,17 +224,19 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
           return (
             <div className='flex items-center gap-2'>
-              <button
+              <Button
                 type='button'
+                variant='ghost'
+                size='icon-sm'
                 onClick={(e) => {
                   e.stopPropagation()
                   setSelectedUserId(log.user_id)
                   setUserInfoDialogOpen(true)
                 }}
-                className='bg-primary/10 hover:bg-primary/20 flex size-6 cursor-pointer items-center justify-center rounded-full text-xs font-medium transition-colors'
+                className='bg-primary/10 hover:bg-primary/20 size-6 cursor-pointer rounded-full text-xs font-medium'
               >
                 {username.charAt(0).toUpperCase()}
-              </button>
+              </Button>
               <span className='truncate'>{username}</span>
             </div>
           )

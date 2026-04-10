@@ -1,6 +1,7 @@
 /**
  * Time utility functions for consistent time handling across the application
  */
+import dayjs from '@/lib/dayjs'
 
 /**
  * Time granularity type
@@ -107,18 +108,17 @@ export function computeTimeRange(
 }
 
 /**
- * Format Unix timestamp (seconds) to localized date string
+ * Format Unix timestamp (seconds) to YYYY-MM-DD
  */
 export function formatDate(tsSec: number): string {
-  const d = new Date(tsSec * 1000)
-  return d.toLocaleDateString()
+  return dayjs(tsSec * 1000).format('YYYY-MM-DD')
 }
 
 /**
- * Format Date object to localized date and time string
+ * Format Date object to YYYY-MM-DD HH:mm:ss
  */
 export function formatDateTimeObject(date: Date): string {
-  return date.toLocaleString()
+  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 }
 
 /**
@@ -131,21 +131,14 @@ export function formatChartTime(
   timestamp: number,
   granularity: TimeGranularity = 'day'
 ): string {
-  const date = new Date(timestamp * 1000)
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-
-  let result = `${month}-${day}`
+  const d = dayjs(timestamp * 1000)
+  let result = d.format('MM-DD')
 
   if (granularity === 'hour') {
-    result += ` ${hour}:00`
+    result += ` ${d.format('HH')}:00`
   } else if (granularity === 'week') {
-    // Add week end date (6 days later)
-    const weekEnd = new Date(timestamp * 1000 + 6 * 24 * 60 * 60 * 1000)
-    const endMonth = String(weekEnd.getMonth() + 1).padStart(2, '0')
-    const endDay = String(weekEnd.getDate()).padStart(2, '0')
-    result += ` - ${endMonth}-${endDay}`
+    const weekEnd = d.add(6, 'day')
+    result += ` - ${weekEnd.format('MM-DD')}`
   }
 
   return result

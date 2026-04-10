@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { formatNumber } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -199,16 +200,18 @@ export function RechargeFormCard({
                       usdExchangeRate
                     )
                     return (
-                      <button
+                      <Button
                         key={index}
-                        className={`hover:border-foreground relative rounded-lg border p-4 text-left transition-all ${
+                        variant='outline'
+                        className={cn(
+                          'hover:border-foreground h-auto whitespace-normal rounded-lg p-4 text-left',
                           selectedPreset === preset.value
                             ? 'border-foreground bg-foreground/5'
                             : 'border-muted'
-                        }`}
+                        )}
                         onClick={() => onSelectPreset(preset)}
                       >
-                        <div className='flex items-center justify-between'>
+                        <div className='flex w-full items-center justify-between'>
                           <div className='text-lg font-semibold'>
                             {formatNumber(displayValue)}
                           </div>
@@ -218,7 +221,7 @@ export function RechargeFormCard({
                             </div>
                           )}
                         </div>
-                        <div className='text-muted-foreground mt-2 text-xs'>
+                        <div className='text-muted-foreground mt-2 w-full text-xs'>
                           Pay {formatCurrency(actualPrice)}
                           {hasDiscount && savedAmount > 0 && (
                             <span className='text-green-600'>
@@ -227,7 +230,7 @@ export function RechargeFormCard({
                             </span>
                           )}
                         </div>
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>

@@ -1,0 +1,10 @@
+{
+  "保留天数": "Days to Retain",
+  "保留文件数": "Files to Retain",
+  "启用性能监控后，当系统资源使用率超过设定阈值时，将拒绝新的 Relay 请求。": "When performance monitoring is enabled and system resource usage exceeds the set threshold, new Relay requests will be rejected.",
+  "将只保留最近 {{value}} 个日志文件，其余将被删除。": "Only the last {{value}} log files will be retained; the rest will be deleted.",
+  "留空使用系统临时目录": "Leave empty to use system temp directory",
+  "磁盘缓存、系统性能监控与运维统计": "Disk cache, system performance monitoring, and operation statistics",
+  "管理服务器运行日志文件。日志文件会随运行时间不断累积，建议定期清理以释放磁盘空间。": "Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.",
+  "请输入有效的数值": "Please enter a valid number"
+}

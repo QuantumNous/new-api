@@ -147,6 +147,43 @@ export const STATIC_I18N_KEYS = [
   'Enter quota in tokens',
   'Enter quota in {{currency}}',
 
+  // Setup wizard — steps
+  'Database check',
+  'Verify your database connection',
+  'Create credentials for the root user',
+  'Choose how the platform will operate',
+  'Review & initialize',
+  'Confirm settings and finish setup',
+
+  // Setup wizard — database step
+  'SQLite stores all data in a single file. Make sure that file is persisted when running in containers.',
+  'MySQL is a production-ready relational database. Keep your credentials secure.',
+  'PostgreSQL offers advanced reliability and data integrity for production workloads.',
+  'Custom database driver detected.',
+  'The setup wizard will use this database during initialization.',
+
+  // Setup wizard — usage mode step
+  'External operations',
+  'Serve multiple users or teams with billing and quota control.',
+  'Personal use',
+  'Best for single-tenant deployments. Pricing and billing options stay hidden.',
+  'Demo site',
+  'Showcase core capabilities with demo credentials and limited access.',
+
+  // Setup wizard — complete step
+  'External operations mode',
+  'Personal use mode',
+  'Demo site mode',
+  'Existing account will be reused',
+  'Not set yet',
+
+  // Models section-registry nav (dynamic titleKey)
+  'Grok',
+
+  // Channel Affinity section
+  'Channel Affinity',
+  'Configure channel affinity (sticky routing) rules',
+
   // Models constants
   'Exact Match',
   'Prefix Match',

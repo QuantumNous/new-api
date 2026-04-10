@@ -5,6 +5,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -232,14 +237,16 @@ export function ViewDetailsDialog({
                 </div>
               ) : null}
 
-              <details className='rounded-lg border p-3'>
-                <summary className='cursor-pointer text-sm font-medium'>
+              <Collapsible className='rounded-lg border p-3'>
+                <CollapsibleTrigger className='cursor-pointer text-sm font-medium'>
                   {t('Raw JSON')}
-                </summary>
-                <pre className='mt-3 max-h-[360px] overflow-auto rounded-md bg-black p-3 text-xs text-gray-200'>
-                  {payloadJson || '-'}
-                </pre>
-              </details>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <pre className='mt-3 max-h-[360px] overflow-auto rounded-md bg-black p-3 text-xs text-gray-200'>
+                    {payloadJson || '-'}
+                  </pre>
+                </CollapsibleContent>
+              </Collapsible>
             </>
           )}
         </div>

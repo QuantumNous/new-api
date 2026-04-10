@@ -56,7 +56,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
   const formattedLastUsed =
     lastUsed && !Number.isNaN(Date.parse(lastUsed))
       ? dayjs(lastUsed).fromNow()
-      : 'Not used yet'
+      : t('Not used yet')
 
   const showUnsupportedNotice = !supported && !enabled
 
@@ -82,7 +82,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                 <div className='flex flex-wrap items-center gap-2'>
                   <p className='font-medium'>{t('Passkey Authentication')}</p>
                   <StatusBadge
-                    label={enabled ? 'Enabled' : 'Disabled'}
+                    label={enabled ? t('Enabled') : t('Disabled')}
                     variant={enabled ? 'success' : 'neutral'}
                     showDot
                     copyable={false}
@@ -92,9 +92,9 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                       label={
                         status.backup_eligible
                           ? status.backup_state
-                            ? 'Backed up'
-                            : 'Not backed up'
-                          : 'No backup'
+                            ? t('Backed up')
+                            : t('Not backed up')
+                          : t('No backup')
                       }
                       variant={
                         status.backup_eligible

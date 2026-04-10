@@ -12,25 +12,25 @@ const DATABASE_META: Record<
   string,
   {
     label: string
-    description: string
+    descriptionKey: string
     variant: 'info' | 'success' | 'warning'
   }
 > = {
   sqlite: {
     label: 'SQLite',
-    description:
+    descriptionKey:
       'SQLite stores all data in a single file. Make sure that file is persisted when running in containers.',
     variant: 'warning',
   },
   mysql: {
     label: 'MySQL',
-    description:
+    descriptionKey:
       'MySQL is a production-ready relational database. Keep your credentials secure.',
     variant: 'success',
   },
   postgres: {
     label: 'PostgreSQL',
-    description:
+    descriptionKey:
       'PostgreSQL offers advanced reliability and data integrity for production workloads.',
     variant: 'success',
   },
@@ -42,7 +42,7 @@ function resolveDatabaseMeta(type?: string) {
   return (
     DATABASE_META[normalized] ?? {
       label: type,
-      description: 'Custom database driver detected.',
+      descriptionKey: 'Custom database driver detected.',
       variant: 'info' as const,
     }
   )
@@ -64,15 +64,17 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
             {t('Detected database')}
           </p>
           <p className='text-foreground text-base font-semibold'>
-            {meta?.label ?? 'Unknown'}
+            {meta?.label ?? t('Unknown')}
           </p>
           <p className='text-muted-foreground text-sm'>
-            {meta?.description ??
-              'The setup wizard will use this database during initialization.'}
+            {t(
+              meta?.descriptionKey ??
+                'The setup wizard will use this database during initialization.'
+            )}
           </p>
         </div>
         <StatusBadge
-          label={meta?.label ?? 'Unknown'}
+          label={meta?.label ?? t('Unknown')}
           variant={meta?.variant ?? 'info'}
           className='cursor-default'
           copyable={false}

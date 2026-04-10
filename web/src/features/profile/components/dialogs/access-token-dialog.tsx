@@ -96,7 +96,7 @@ export function AccessTokenDialog({
             ) : (
               <RefreshCw className='h-4 w-4' />
             )}
-            {generating ? 'Generating...' : 'Regenerate'}
+            {generating ? t('Generating...') : t('Regenerate')}
           </Button>
         </DialogFooter>
       </DialogContent>

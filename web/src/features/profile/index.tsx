@@ -1,10 +1,12 @@
 import { useStatus } from '@/hooks/use-status'
 import { AppHeader, Main } from '@/components/layout'
+import { AvailableModelsCard } from './components/available-models-card'
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
+import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
 
@@ -30,6 +32,9 @@ export function Profile() {
           {/* Header */}
           <ProfileHeader profile={profile} loading={loading} />
 
+          {/* Available Models */}
+          <AvailableModelsCard />
+
           {/* Content Grid */}
           <div className='grid gap-6 lg:grid-cols-2 lg:items-start'>
             {/* Left Column - Security & 2FA */}
@@ -53,6 +58,7 @@ export function Profile() {
                 loading={loading}
                 onProfileUpdate={refreshProfile}
               />
+              <SidebarModulesCard />
             </div>
           </div>
         </div>

@@ -1,7 +1,6 @@
 import { Shield, Key, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { UserProfile } from '../types'
@@ -81,28 +80,35 @@ export function ProfileSecurityCard({
           </p>
         </CardHeader>
 
-        <CardContent className='space-y-3'>
-          {securityActions.map((item) => (
-            <div
-              key={item.title}
-              className='hover:bg-muted/50 flex items-center justify-between rounded-lg border p-4 transition-colors'
-            >
-              <div className='flex items-center gap-4'>
-                <div className='bg-muted rounded-md p-2'>
+        <CardContent>
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+            {securityActions.map((item) => (
+              <button
+                key={item.title}
+                type='button'
+                onClick={item.action}
+                className={`hover:bg-muted/50 flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors ${
+                  item.variant === 'destructive'
+                    ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
+                    : ''
+                }`}
+              >
+                <div
+                  className={`rounded-md p-2 ${
+                    item.variant === 'destructive'
+                      ? 'bg-destructive/10 text-destructive'
+                      : 'bg-muted'
+                  }`}
+                >
                   <item.icon className='h-5 w-5' />
                 </div>
-                <div>
-                  <p className='font-medium'>{item.title}</p>
-                  <p className='text-muted-foreground text-sm'>
-                    {item.description}
-                  </p>
-                </div>
-              </div>
-              <Button variant={item.variant} size='sm' onClick={item.action}>
-                {item.variant === 'destructive' ? t('Delete') : t('Manage')}
-              </Button>
-            </div>
-          ))}
+                <p className='text-sm font-medium'>{item.title}</p>
+                <p className='text-muted-foreground text-xs'>
+                  {item.description}
+                </p>
+              </button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

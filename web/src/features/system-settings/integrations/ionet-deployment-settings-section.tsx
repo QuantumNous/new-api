@@ -229,7 +229,7 @@ export function IoNetDeploymentSettingsSection({
                   <XCircle className='size-4' />
                   <div>
                     <AlertTitle>{t('Connection failed')}</AlertTitle>
-                    <AlertDescription>{testState.error}</AlertDescription>
+                    <AlertDescription>{t(testState.error)}</AlertDescription>
                   </div>
                 </Alert>
               ) : null}

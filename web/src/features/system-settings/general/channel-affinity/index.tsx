@@ -1,0 +1,562 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import {
+  Edit,
+  Plus,
+  RefreshCw,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { SettingsSection } from '../../components/settings-section'
+import { useUpdateOption } from '../../hooks/use-update-option'
+import type { AffinityRule, CacheStats, ChannelAffinitySettings } from './types'
+import { getCacheStats, clearAllCache, clearRuleCache } from './api'
+import { RuleEditorDialog } from './rule-editor-dialog'
+
+function parseRules(jsonStr: string): AffinityRule[] {
+  try {
+    const arr = JSON.parse(jsonStr || '[]')
+    if (!Array.isArray(arr)) return []
+    return arr.map((r: any, i: number) => ({ id: i, ...r }))
+  } catch {
+    return []
+  }
+}
+
+function serializeRules(rules: AffinityRule[]): string {
+  return JSON.stringify(
+    rules.map(({ id: _, ...rest }) => rest)
+  )
+}
+
+interface Props {
+  defaultValues: ChannelAffinitySettings
+}
+
+export function ChannelAffinitySection(props: Props) {
+  const { t } = useTranslation()
+  const updateOption = useUpdateOption()
+
+  const [enabled, setEnabled] = useState(
+    props.defaultValues['channel_affinity_setting.enabled']
+  )
+  const [switchOnSuccess, setSwitchOnSuccess] = useState(
+    props.defaultValues['channel_affinity_setting.switch_on_success']
+  )
+  const [maxEntries, setMaxEntries] = useState(
+    props.defaultValues['channel_affinity_setting.max_entries']
+  )
+  const [defaultTtl, setDefaultTtl] = useState(
+    props.defaultValues['channel_affinity_setting.default_ttl_seconds']
+  )
+  const [rules, setRules] = useState<AffinityRule[]>(() =>
+    parseRules(props.defaultValues['channel_affinity_setting.rules'])
+  )
+
+  const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
+  const [jsonText, setJsonText] = useState(() =>
+    JSON.stringify(
+      parseRules(props.defaultValues['channel_affinity_setting.rules']).map(
+        ({ id: _, ...r }) => r
+      ),
+      null,
+      2
+    )
+  )
+  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null)
+  const [cacheLoading, setCacheLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const [ruleEditorOpen, setRuleEditorOpen] = useState(false)
+  const [editingRule, setEditingRule] = useState<AffinityRule | null>(null)
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false)
+  const [clearRuleName, setClearRuleName] = useState<string | null>(null)
+
+  useEffect(() => {
+    setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
+    setSwitchOnSuccess(
+      props.defaultValues['channel_affinity_setting.switch_on_success']
+    )
+    setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
+    setDefaultTtl(
+      props.defaultValues['channel_affinity_setting.default_ttl_seconds']
+    )
+    const parsed = parseRules(
+      props.defaultValues['channel_affinity_setting.rules']
+    )
+    setRules(parsed)
+    setJsonText(
+      JSON.stringify(
+        parsed.map(({ id: _, ...r }) => r),
+        null,
+        2
+      )
+    )
+  }, [props.defaultValues])
+
+  const refreshCache = useCallback(async () => {
+    setCacheLoading(true)
+    try {
+      const res = await getCacheStats()
+      if (res.success) setCacheStats(res.data || null)
+    } catch {
+      toast.error(t('Failed to refresh cache stats'))
+    } finally {
+      setCacheLoading(false)
+    }
+  }, [t])
+
+  useEffect(() => {
+    refreshCache()
+  }, [refreshCache])
+
+  const handleSave = async () => {
+    let rulesJson: string
+    if (editMode === 'json') {
+      try {
+        const parsed = JSON.parse(jsonText)
+        if (!Array.isArray(parsed)) {
+          toast.error(t('Rules JSON must be an array'))
+          return
+        }
+        rulesJson = JSON.stringify(parsed)
+      } catch {
+        toast.error(t('Invalid rules JSON format'))
+        return
+      }
+    } else {
+      rulesJson = serializeRules(rules)
+    }
+
+    setSaving(true)
+    try {
+      const updates: { key: string; value: string }[] = []
+
+      if (enabled !== props.defaultValues['channel_affinity_setting.enabled'])
+        updates.push({
+          key: 'channel_affinity_setting.enabled',
+          value: String(enabled),
+        })
+      if (
+        switchOnSuccess !==
+        props.defaultValues['channel_affinity_setting.switch_on_success']
+      )
+        updates.push({
+          key: 'channel_affinity_setting.switch_on_success',
+          value: String(switchOnSuccess),
+        })
+      if (
+        maxEntries !==
+        props.defaultValues['channel_affinity_setting.max_entries']
+      )
+        updates.push({
+          key: 'channel_affinity_setting.max_entries',
+          value: String(maxEntries),
+        })
+      if (
+        defaultTtl !==
+        props.defaultValues['channel_affinity_setting.default_ttl_seconds']
+      )
+        updates.push({
+          key: 'channel_affinity_setting.default_ttl_seconds',
+          value: String(defaultTtl),
+        })
+
+      const origRules = props.defaultValues['channel_affinity_setting.rules']
+      const origSerialized = (() => {
+        try {
+          return JSON.stringify(JSON.parse(origRules || '[]'))
+        } catch {
+          return '[]'
+        }
+      })()
+      if (rulesJson !== origSerialized) {
+        updates.push({
+          key: 'channel_affinity_setting.rules',
+          value: rulesJson,
+        })
+      }
+
+      if (updates.length === 0) {
+        toast.info(t('No changes'))
+        return
+      }
+
+      for (const u of updates) {
+        await updateOption.mutateAsync(u)
+      }
+      toast.success(t('Saved successfully'))
+    } catch {
+      toast.error(t('Failed to save'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRuleSave = (rule: AffinityRule) => {
+    setRules((prev) => {
+      const existIdx = prev.findIndex(
+        (r) => r.id === rule.id || (rule.name && r.name === editingRule?.name)
+      )
+      if (existIdx >= 0) {
+        const next = [...prev]
+        next[existIdx] = { ...rule, id: existIdx }
+        return next
+      }
+      return [...prev, { ...rule, id: prev.length }]
+    })
+    setEditingRule(null)
+  }
+
+  const handleDeleteRule = (idx: number) => {
+    setRules((prev) =>
+      prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, id: i }))
+    )
+    toast.success(t('Deleted successfully'))
+  }
+
+  const handleClearAll = async () => {
+    const res = await clearAllCache()
+    if (res.success) {
+      toast.success(t('Cleared'))
+      refreshCache()
+    }
+    setClearAllDialogOpen(false)
+  }
+
+  const handleClearRule = async () => {
+    if (!clearRuleName) return
+    const res = await clearRuleCache(clearRuleName)
+    if (res.success) {
+      toast.success(t('Cleared'))
+      refreshCache()
+    }
+    setClearRuleName(null)
+  }
+
+  const switchToJsonMode = () => {
+    setJsonText(
+      JSON.stringify(
+        rules.map(({ id: _, ...r }) => r),
+        null,
+        2
+      )
+    )
+    setEditMode('json')
+  }
+
+  const switchToVisualMode = () => {
+    try {
+      const parsed = JSON.parse(jsonText)
+      if (!Array.isArray(parsed)) {
+        toast.error(t('Rules JSON must be an array'))
+        return
+      }
+      setRules(parsed.map((r: any, i: number) => ({ id: i, ...r })))
+      setEditMode('visual')
+    } catch {
+      toast.error(t('Invalid rules JSON format'))
+    }
+  }
+
+  return (
+    <>
+      <SettingsSection
+        title={t('Channel Affinity')}
+        description={t(
+          'Prioritize reusing the last successful channel based on keys extracted from request context (sticky routing)'
+        )}
+      >
+        <Alert>
+          <AlertDescription className='text-xs'>
+            {t(
+              'Channel affinity reuses the last successful channel based on keys extracted from the request context or JSON body.'
+            )}
+          </AlertDescription>
+        </Alert>
+
+        {/* Basic Settings */}
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+          <div className='flex items-center gap-2'>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <Label>{t('Enable')}</Label>
+          </div>
+          <div className='grid gap-1.5'>
+            <Label>{t('Max Entries')}</Label>
+            <Input
+              type='number'
+              min={0}
+              value={maxEntries}
+              onChange={(e) => setMaxEntries(Number(e.target.value))}
+            />
+          </div>
+          <div className='grid gap-1.5'>
+            <Label>{t('Default TTL (seconds)')}</Label>
+            <Input
+              type='number'
+              min={0}
+              value={defaultTtl}
+              onChange={(e) => setDefaultTtl(Number(e.target.value))}
+            />
+          </div>
+        </div>
+
+        <div className='flex items-center gap-2'>
+          <Switch
+            checked={switchOnSuccess}
+            onCheckedChange={setSwitchOnSuccess}
+          />
+          <Label>{t('Switch affinity on success')}</Label>
+          <span className='text-xs text-muted-foreground'>
+            {t(
+              'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
+            )}
+          </span>
+        </div>
+
+        <Separator />
+
+        {/* Toolbar */}
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button
+            variant={editMode === 'visual' ? 'default' : 'outline'}
+            size='sm'
+            onClick={editMode === 'json' ? switchToVisualMode : undefined}
+          >
+            {t('Visual')}
+          </Button>
+          <Button
+            variant={editMode === 'json' ? 'default' : 'outline'}
+            size='sm'
+            onClick={editMode === 'visual' ? switchToJsonMode : undefined}
+          >
+            JSON
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => {
+              setEditingRule(null)
+              setRuleEditorOpen(true)
+            }}
+          >
+            <Plus className='mr-1 h-3 w-3' />
+            {t('Add Rule')}
+          </Button>
+          <Button size='sm' onClick={handleSave} disabled={saving}>
+            {saving ? t('Saving...') : t('Save')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={refreshCache}
+            disabled={cacheLoading}
+          >
+            <RefreshCw
+              className={`mr-1 h-3 w-3 ${cacheLoading ? 'animate-spin' : ''}`}
+            />
+            {t('Refresh Cache')}
+          </Button>
+          <Button
+            variant='destructive'
+            size='sm'
+            onClick={() => setClearAllDialogOpen(true)}
+          >
+            {t('Clear All Cache')}
+          </Button>
+          {cacheStats && (
+            <span className='text-xs text-muted-foreground'>
+              {t('Cache Entries')}: {cacheStats.total} / {cacheStats.cache_capacity}
+            </span>
+          )}
+        </div>
+
+        {/* Rules Table or JSON Editor */}
+        {editMode === 'visual' ? (
+          <div className='rounded-md border overflow-x-auto'>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('Name')}</TableHead>
+                  <TableHead>{t('Model Regex')}</TableHead>
+                  <TableHead>{t('Key Sources')}</TableHead>
+                  <TableHead>{t('TTL')}</TableHead>
+                  <TableHead>{t('Retry')}</TableHead>
+                  <TableHead>{t('Scope')}</TableHead>
+                  <TableHead>{t('Cache')}</TableHead>
+                  <TableHead className='text-right'>{t('Actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className='text-center py-8 text-muted-foreground'
+                    >
+                      {t('No rules yet')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rules.map((rule, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className='font-medium'>
+                        {rule.name || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex flex-wrap gap-1'>
+                          {(rule.model_regex || []).slice(0, 2).map((r, i) => (
+                            <Badge key={i} variant='outline' className='text-xs'>
+                              {r}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex flex-wrap gap-1'>
+                          {(rule.key_sources || []).slice(0, 2).map((src, i) => (
+                            <Badge key={i} variant='outline' className='text-xs'>
+                              {src.type}:
+                              {src.type === 'gjson' ? src.path : src.key}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>{rule.ttl_seconds || '-'}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            rule.skip_retry_on_failure
+                              ? 'destructive'
+                              : 'success'
+                          }
+                          className='text-xs'
+                        >
+                          {rule.skip_retry_on_failure
+                            ? t('No Retry')
+                            : t('Retry')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className='flex flex-wrap gap-1'>
+                          {rule.include_using_group && (
+                            <Badge variant='secondary' className='text-xs'>
+                              {t('Group')}
+                            </Badge>
+                          )}
+                          {rule.include_model_name && (
+                            <Badge variant='secondary' className='text-xs'>
+                              {t('Model')}
+                            </Badge>
+                          )}
+                          {rule.include_rule_name && (
+                            <Badge variant='secondary' className='text-xs'>
+                              {t('Rule')}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {rule.include_rule_name && cacheStats?.by_rule_name
+                          ? cacheStats.by_rule_name[rule.name] || 0
+                          : 'N/A'}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex justify-end gap-1'>
+                          {rule.include_rule_name && (
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-7 w-7'
+                              onClick={() => setClearRuleName(rule.name)}
+                              title={t('Clear cache for this rule')}
+                            >
+                              <X className='h-3 w-3' />
+                            </Button>
+                          )}
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-7 w-7'
+                            onClick={() => {
+                              setEditingRule(rule)
+                              setRuleEditorOpen(true)
+                            }}
+                          >
+                            <Edit className='h-3 w-3' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-7 w-7'
+                            onClick={() => handleDeleteRule(idx)}
+                          >
+                            <Trash2 className='h-3 w-3' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className='grid gap-1.5'>
+            <Label>{t('Rules JSON')}</Label>
+            <Textarea
+              className='min-h-[300px] font-mono text-xs'
+              value={jsonText}
+              onChange={(e) => setJsonText(e.target.value)}
+            />
+          </div>
+        )}
+      </SettingsSection>
+
+      <RuleEditorDialog
+        open={ruleEditorOpen}
+        onOpenChange={setRuleEditorOpen}
+        rule={editingRule}
+        onSave={handleRuleSave}
+      />
+
+      <ConfirmDialog
+        open={clearAllDialogOpen}
+        onOpenChange={setClearAllDialogOpen}
+        title={t('Confirm clearing all channel affinity cache')}
+        desc={t('This will delete all channel affinity cache entries still in memory.')}
+        handleConfirm={handleClearAll}
+        destructive
+      />
+
+      {clearRuleName !== null && (
+        <ConfirmDialog
+          open
+          onOpenChange={(v) => !v && setClearRuleName(null)}
+          title={t('Confirm clearing cache for this rule')}
+          desc={`${t('Rule')}: ${clearRuleName}`}
+          handleConfirm={handleClearRule}
+          destructive
+        />
+      )}
+    </>
+  )
+}

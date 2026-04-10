@@ -38,7 +38,7 @@ type WorkspaceSwitcherProps = {
 export function WorkspaceSwitcher({
   workspaces,
   defaultName = 'New API',
-  defaultVersion = 'Unknown version',
+  defaultVersion,
 }: WorkspaceSwitcherProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -62,7 +62,7 @@ export function WorkspaceSwitcher({
             ? {
                 ...workspace,
                 name: status?.system_name || defaultName,
-                plan: status?.version || defaultVersion,
+                plan: status?.version || defaultVersion || t('Unknown version'),
               }
             : workspace
         )

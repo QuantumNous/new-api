@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import dayjs from '@/lib/dayjs'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -253,7 +254,7 @@ export const WebPreviewConsole = ({
                 key={`${log.timestamp.getTime()}-${index}`}
               >
                 <span className='text-muted-foreground'>
-                  {log.timestamp.toLocaleTimeString()}
+                  {dayjs(log.timestamp).format('HH:mm:ss')}
                 </span>{' '}
                 {log.message}
               </div>

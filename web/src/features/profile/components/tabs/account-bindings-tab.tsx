@@ -160,26 +160,26 @@ export function AccountBindingsTab({
 
   return (
     <>
-      <div className='space-y-3'>
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
         {bindings.map((binding) => (
           <div
             key={binding.id}
-            className='flex items-center justify-between rounded-lg border p-4'
+            className='flex items-center justify-between rounded-lg border p-3'
           >
-            <div className='flex items-center gap-4'>
-              <div className='bg-muted rounded-md p-2'>
-                <binding.icon className='h-5 w-5' />
+            <div className='flex items-center gap-3'>
+              <div className='bg-muted shrink-0 rounded-md p-2'>
+                <binding.icon className='h-4 w-4' />
               </div>
-              <div>
-                <div className='flex items-center gap-2'>
-                  <p className='font-medium'>{binding.label}</p>
+              <div className='min-w-0'>
+                <div className='flex items-center gap-1.5'>
+                  <p className='text-sm font-medium'>{binding.label}</p>
                   {binding.isBound && (
-                    <Badge variant='outline' className='text-xs'>
+                    <Badge variant='outline' className='text-[10px] px-1 py-0'>
                       {t('Bound')}
                     </Badge>
                   )}
                 </div>
-                <p className='text-muted-foreground text-sm'>
+                <p className='text-muted-foreground truncate text-xs'>
                   {binding.value || t('Not bound')}
                 </p>
               </div>
@@ -187,6 +187,7 @@ export function AccountBindingsTab({
             <Button
               variant='outline'
               size='sm'
+              className='ml-2 shrink-0 h-7 px-2.5 text-xs'
               onClick={binding.onBind}
               disabled={binding.isBound && binding.id !== 'email'}
             >

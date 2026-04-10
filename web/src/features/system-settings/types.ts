@@ -57,6 +57,11 @@ export type GeneralSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'channel_affinity_setting.enabled': boolean
+  'channel_affinity_setting.switch_on_success': boolean
+  'channel_affinity_setting.max_entries': number
+  'channel_affinity_setting.default_ttl_seconds': number
+  'channel_affinity_setting.rules': string
 }
 
 export type AuthSettings = {
@@ -164,6 +169,21 @@ export type IntegrationSettings = {
   CreemWebhookSecret: string
   CreemTestMode: boolean
   CreemProducts: string
+  WaffoEnabled: boolean
+  WaffoApiKey: string
+  WaffoPrivateKey: string
+  WaffoPublicCert: string
+  WaffoSandboxPublicCert: string
+  WaffoSandboxApiKey: string
+  WaffoSandboxPrivateKey: string
+  WaffoSandbox: boolean
+  WaffoMerchantId: string
+  WaffoCurrency: string
+  WaffoUnitPrice: number
+  WaffoMinTopUp: number
+  WaffoNotifyUrl: string
+  WaffoReturnUrl: string
+  WaffoPayMethods: string
 }
 
 export type ModelSettings = {
@@ -183,6 +203,8 @@ export type ModelSettings = {
   'claude.default_max_tokens': string
   'claude.thinking_adapter_enabled': boolean
   'claude.thinking_adapter_budget_tokens_percentage': number
+  'grok.violation_deduction_enabled': boolean
+  'grok.violation_deduction_amount': number
   ModelPrice: string
   ModelRatio: string
   CacheRatio: string
@@ -204,6 +226,14 @@ export type MaintenanceSettings = {
   LogConsumeEnabled: boolean
   HeaderNavModules: string
   SidebarModulesAdmin: string
+  'performance_setting.disk_cache_enabled': boolean
+  'performance_setting.disk_cache_threshold_mb': number
+  'performance_setting.disk_cache_max_size_mb': number
+  'performance_setting.disk_cache_path': string
+  'performance_setting.monitor_enabled': boolean
+  'performance_setting.monitor_cpu_threshold': number
+  'performance_setting.monitor_memory_threshold': number
+  'performance_setting.monitor_disk_threshold': number
 }
 
 export type RequestLimitsSettings = {

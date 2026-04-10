@@ -9,6 +9,7 @@ import {
 import { HeaderNavigationSection } from './header-navigation-section'
 import { LogSettingsSection } from './log-settings-section'
 import { NoticeSection } from './notice-section'
+import { PerformanceSection } from './performance-section'
 import { SidebarModulesSection } from './sidebar-modules-section'
 import { UpdateCheckerSection } from './update-checker-section'
 
@@ -77,6 +78,33 @@ const MAINTENANCE_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'performance',
+    titleKey: 'Performance',
+    descriptionKey: 'Disk cache, system monitoring and performance stats',
+    build: (settings: MaintenanceSettings) => (
+      <PerformanceSection
+        defaultValues={{
+          'performance_setting.disk_cache_enabled':
+            settings['performance_setting.disk_cache_enabled'] ?? false,
+          'performance_setting.disk_cache_threshold_mb':
+            settings['performance_setting.disk_cache_threshold_mb'] ?? 10,
+          'performance_setting.disk_cache_max_size_mb':
+            settings['performance_setting.disk_cache_max_size_mb'] ?? 1024,
+          'performance_setting.disk_cache_path':
+            settings['performance_setting.disk_cache_path'] ?? '',
+          'performance_setting.monitor_enabled':
+            settings['performance_setting.monitor_enabled'] ?? false,
+          'performance_setting.monitor_cpu_threshold':
+            settings['performance_setting.monitor_cpu_threshold'] ?? 90,
+          'performance_setting.monitor_memory_threshold':
+            settings['performance_setting.monitor_memory_threshold'] ?? 90,
+          'performance_setting.monitor_disk_threshold':
+            settings['performance_setting.monitor_disk_threshold'] ?? 95,
+        }}
+      />
+    ),
   },
 ] as const
 

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // ----------------------------------------------------------------------------
 // Filter Button Component
@@ -18,15 +19,16 @@ export function FilterButton({
   icon,
 }: FilterButtonProps) {
   return (
-    <button
+    <Button
+      variant='ghost'
       onClick={onClick}
       className={cn(
-        'hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm transition-colors',
+        'h-auto w-full justify-start px-3 py-1.5 font-normal',
         isActive && 'bg-accent text-accent-foreground font-medium'
       )}
     >
       {icon && <span className='shrink-0'>{icon}</span>}
       <span className='truncate'>{children}</span>
-    </button>
+    </Button>
   )
 }

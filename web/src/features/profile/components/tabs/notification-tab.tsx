@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -16,10 +16,16 @@ import {
 import { parseUserSettings } from '../../lib'
 import type { UserProfile, UserSettings, NotifyType } from '../../types'
 
+const NOTIFICATION_ICONS: Record<string, typeof Mail> = {
+  email: Mail,
+  webhook: Webhook,
+  bark: Bell,
+  gotify: Server,
+}
+
 // ============================================================================
 // Settings Tab Component
 // ============================================================================
-// Combines notification settings and user preferences
 
 interface NotificationTabProps {
   profile: UserProfile | null
@@ -100,15 +106,31 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           onValueChange={(value) =>
             updateField('notify_type', value as NotifyType)
           }
+          className='grid grid-cols-2 gap-3 sm:grid-cols-4'
         >
-          {NOTIFICATION_METHODS.map((method) => (
-            <div key={method.value} className='flex items-center space-x-2'>
-              <RadioGroupItem value={method.value} id={method.value} />
-              <Label htmlFor={method.value} className='font-normal'>
-                {method.label}
+          {NOTIFICATION_METHODS.map((method) => {
+            const Icon = NOTIFICATION_ICONS[method.value]
+            const isSelected = settings.notify_type === method.value
+            return (
+              <Label
+                key={method.value}
+                htmlFor={method.value}
+                className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 p-3 transition-colors ${
+                  isSelected
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-muted hover:border-muted-foreground/25 hover:bg-muted/50'
+                }`}
+              >
+                <RadioGroupItem
+                  value={method.value}
+                  id={method.value}
+                  className='sr-only'
+                />
+                <Icon className='h-5 w-5' />
+                <span className='text-sm font-medium'>{method.label}</span>
               </Label>
-            </div>
-          ))}
+            )
+          })}
         </RadioGroup>
       </div>
 
@@ -307,7 +329,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       <div className='flex justify-end'>
         <Button onClick={handleSave} disabled={loading}>
           {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-          {loading ? 'Saving...' : 'Save Settings'}
+          {loading ? t('Saving...') : t('Save Settings')}
         </Button>
       </div>
     </div>

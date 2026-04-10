@@ -759,12 +759,12 @@ export function ModelMutateDrawer({
                               value={String(option.value)}
                               id={`rule-${option.value}`}
                             />
-                            <label
+                            <Label
                               htmlFor={`rule-${option.value}`}
-                              className='cursor-pointer text-sm font-normal'
+                              className='cursor-pointer font-normal'
                             >
                               {option.label}
-                            </label>
+                            </Label>
                           </div>
                         ))}
                       </RadioGroup>

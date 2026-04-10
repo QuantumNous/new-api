@@ -46,6 +46,21 @@ const defaultIntegrationSettings: IntegrationSettingsType = {
   CreemWebhookSecret: '',
   CreemTestMode: false,
   CreemProducts: '[]',
+  WaffoEnabled: false,
+  WaffoApiKey: '',
+  WaffoPrivateKey: '',
+  WaffoPublicCert: '',
+  WaffoSandboxPublicCert: '',
+  WaffoSandboxApiKey: '',
+  WaffoSandboxPrivateKey: '',
+  WaffoSandbox: false,
+  WaffoMerchantId: '',
+  WaffoCurrency: 'USD',
+  WaffoUnitPrice: 1,
+  WaffoMinTopUp: 1,
+  WaffoNotifyUrl: '',
+  WaffoReturnUrl: '',
+  WaffoPayMethods: '[]',
 }
 
 export function IntegrationSettings() {

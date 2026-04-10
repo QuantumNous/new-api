@@ -1,0 +1,108 @@
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  type SortingState,
+  type VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DataTablePagination,
+  TableSkeleton,
+  TableEmpty,
+} from '@/components/data-table'
+import { getAdminPlans } from '../api'
+import { useSubscriptionsColumns } from './subscriptions-columns'
+import { useSubscriptions } from './subscriptions-provider'
+
+export function SubscriptionsTable() {
+  const { t } = useTranslation()
+  const columns = useSubscriptionsColumns()
+  const { refreshTrigger } = useSubscriptions()
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-subscription-plans', refreshTrigger],
+    queryFn: async () => {
+      const result = await getAdminPlans()
+      return result.data || []
+    },
+    placeholderData: (prev) => prev,
+  })
+
+  const plans = useMemo(() => data || [], [data])
+
+  const table = useReactTable({
+    data: plans,
+    columns,
+    state: { sorting, columnVisibility },
+    onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
+  return (
+    <div className='space-y-4'>
+      <div className='overflow-hidden rounded-md border'>
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} colSpan={header.colSpan}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableSkeleton table={table} keyPrefix='subscriptions-skeleton' />
+            ) : table.getRowModel().rows.length === 0 ? (
+              <TableEmpty
+                colSpan={columns.length}
+                title={t('暂无订阅套餐')}
+                description={t('点击「新建套餐」创建您的第一个订阅套餐')}
+              />
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <DataTablePagination table={table} />
+    </div>
+  )
+}

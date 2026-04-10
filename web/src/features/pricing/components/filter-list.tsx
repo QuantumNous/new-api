@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { Button } from '@/components/ui/button'
 import { FILTER_ALL, MAX_FILTER_ITEMS } from '../constants'
 import { FilterButton } from './filter-button'
 
@@ -54,12 +55,13 @@ export function FilterList({
         )
       })}
       {items.length > MAX_FILTER_ITEMS && (
-        <button
+        <Button
+          variant='link'
           onClick={onToggleExpand}
-          className='text-muted-foreground hover:text-foreground px-3 py-1.5 text-left text-sm transition-colors'
+          className='text-muted-foreground hover:text-foreground h-auto justify-start px-3 py-1.5 no-underline'
         >
           {isExpanded ? t('Less') : t('More...')}
-        </button>
+        </Button>
       )}
     </div>
   )

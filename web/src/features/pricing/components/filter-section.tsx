@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 // ----------------------------------------------------------------------------
 // Filter Section Component
@@ -20,9 +21,10 @@ export function FilterSection({
 }: FilterSectionProps) {
   return (
     <div className='border-border/40 border-b py-4'>
-      <button
+      <Button
+        variant='ghost'
         onClick={onToggle}
-        className='hover:text-foreground text-foreground/80 mb-3 flex w-full items-center justify-between text-sm font-medium transition-colors'
+        className='hover:text-foreground text-foreground/80 mb-3 h-auto w-full justify-between px-0 py-0 font-medium hover:bg-transparent'
         aria-expanded={isOpen}
         aria-controls={`filter-section-${title}`}
       >
@@ -33,7 +35,7 @@ export function FilterSection({
             isOpen && 'rotate-180'
           )}
         />
-      </button>
+      </Button>
       {isOpen && (
         <div id={`filter-section-${title}`} className='space-y-2'>
           {children}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
@@ -59,9 +60,10 @@ export function AnnouncementsPanel() {
             const key = item.id ?? `announcement-${idx}`
             return (
               <div key={key}>
-              <button
+              <Button
+                variant='ghost'
                 onClick={() => handleAnnouncementClick(item)}
-                className='group hover:bg-accent/50 -mx-2 w-full rounded-lg px-2 py-3 text-left transition-colors'
+                className='group hover:bg-accent/50 -mx-2 h-auto w-full whitespace-normal px-2 py-3 text-left'
               >
                 <div className='flex items-start gap-2.5'>
                   <AnnouncementStatusDot type={item.type} />
@@ -81,7 +83,7 @@ export function AnnouncementsPanel() {
                     </div>
                   </div>
                 </div>
-              </button>
+              </Button>
                 {idx < list.length - 1 && <Separator className='my-0' />}
               </div>
             )

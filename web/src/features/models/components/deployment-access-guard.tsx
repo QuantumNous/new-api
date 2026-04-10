@@ -163,7 +163,7 @@ export function DeploymentAccessGuard({
           <Alert variant='destructive'>
             <AlertCircle className='h-4 w-4' />
             <AlertTitle>{t('Connection error')}</AlertTitle>
-            <AlertDescription>{connectionError}</AlertDescription>
+            <AlertDescription>{t(connectionError)}</AlertDescription>
           </Alert>
           <div className='flex gap-2'>
             <Button variant='outline' onClick={onRetry} className='flex-1'>

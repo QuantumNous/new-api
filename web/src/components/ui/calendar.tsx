@@ -11,6 +11,7 @@ import {
   type DropdownProps,
   getDefaultClassNames,
 } from 'react-day-picker'
+import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { Button, buttonVariants } from '@/components/ui/button'
 
@@ -193,7 +194,7 @@ function CalendarDayButton({
       ref={ref}
       variant='ghost'
       size='icon'
-      data-day={day.date.toLocaleDateString()}
+      data-day={dayjs(day.date).format('YYYY-MM-DD')}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

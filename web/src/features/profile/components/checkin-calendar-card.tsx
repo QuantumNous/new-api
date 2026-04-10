@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import dayjs from '@/lib/dayjs'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -132,7 +133,7 @@ export function CheckinCalendarCard({
         } else {
           if (!token && shouldTriggerTurnstile(res.message)) {
             if (!turnstileSiteKey) {
-              toast.error('Turnstile is enabled but site key is empty.')
+              toast.error(t('Turnstile is enabled but site key is empty.'))
               return
             }
             setTurnstileModalVisible(true)
@@ -259,9 +260,10 @@ export function CheckinCalendarCard({
         {/* Header */}
         <div className='border-b p-4 sm:p-6'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
-            <button
+            <Button
               type='button'
-              className='flex min-w-0 flex-1 items-start gap-3 text-left'
+              variant='ghost'
+              className='flex h-auto min-w-0 flex-1 items-start gap-3 whitespace-normal p-0 text-left hover:bg-transparent'
               onClick={() => setCollapsed((v) => !v)}
             >
               <div className='bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11'>
@@ -295,7 +297,7 @@ export function CheckinCalendarCard({
                     : t('Check in daily to receive random quota rewards')}
                 </p>
               </div>
-            </button>
+            </Button>
             <Button
               onClick={() => doCheckin()}
               disabled={checkinLoading || checkedToday}
@@ -352,10 +354,7 @@ export function CheckinCalendarCard({
                 {/* Month navigation */}
                 <div className='flex items-center justify-between'>
                   <h4 className='text-xs font-semibold sm:text-sm'>
-                    {currentMonth.toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                    })}
+                    {dayjs(currentMonth).format('YYYY-MM')}
                   </h4>
                   <div className='flex items-center gap-0.5 sm:gap-1'>
                     <Button
@@ -402,16 +401,15 @@ export function CheckinCalendarCard({
                     const dayNum = dayObj.date.getDate()
 
                     const dayButton = (
-                      <button
+                      <Button
                         key={idx}
+                        variant={isToday ? 'default' : 'ghost'}
                         disabled={!dayObj.isCurrentMonth}
                         className={cn(
-                          'relative flex h-9 w-full flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors sm:h-10 sm:text-sm',
-                          dayObj.isCurrentMonth
-                            ? 'hover:bg-muted'
-                            : 'text-muted-foreground/40 cursor-default',
-                          isToday &&
-                            'bg-primary text-primary-foreground hover:bg-primary/90',
+                          'relative flex h-9 w-full flex-col items-center justify-center rounded-lg px-0 text-xs font-medium sm:h-10 sm:text-sm',
+                          !dayObj.isCurrentMonth &&
+                            'text-muted-foreground/40 cursor-default',
+                          isToday && 'hover:bg-primary/90',
                           !isToday && isCheckedIn && 'font-semibold'
                         )}
                       >
@@ -419,7 +417,7 @@ export function CheckinCalendarCard({
                         {isCheckedIn && !isToday && (
                           <span className='absolute bottom-0.5 h-1 w-1 rounded-full bg-emerald-500 sm:bottom-1' />
                         )}
-                      </button>
+                      </Button>
                     )
 
                     if (isCheckedIn && dayObj.isCurrentMonth) {

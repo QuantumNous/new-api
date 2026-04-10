@@ -3,6 +3,7 @@ import { Command as CommandPrimitive } from 'cmdk'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Command, CommandGroup, CommandItem } from '@/components/ui/command'
 
 export type Option = {
@@ -65,8 +66,10 @@ export function MultiSelect({
             return (
               <Badge key={value} variant='secondary'>
                 {option?.label || value}
-                <button
-                  className='ring-offset-background focus:ring-ring ml-1 rounded-full outline-none focus:ring-2 focus:ring-offset-2'
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  className='ml-1 size-auto rounded-full p-0'
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleUnselect(value)
@@ -79,7 +82,7 @@ export function MultiSelect({
                   onClick={() => handleUnselect(value)}
                 >
                   <X className='text-muted-foreground hover:text-foreground h-3 w-3' />
-                </button>
+                </Button>
               </Badge>
             )
           })}

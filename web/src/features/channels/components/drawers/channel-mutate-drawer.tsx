@@ -2110,13 +2110,15 @@ export function ChannelMutateDrawer({
                         </FormLabel>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button
+                            <Button
                               type='button'
-                              className='text-muted-foreground hover:text-foreground transition'
+                              variant='ghost'
+                              size='icon-sm'
+                              className='text-muted-foreground hover:text-foreground size-auto p-0'
                               aria-label='How model mapping works'
                             >
                               <HelpCircle className='h-4 w-4' />
-                            </button>
+                            </Button>
                           </TooltipTrigger>
                           <TooltipContent
                             side='top'

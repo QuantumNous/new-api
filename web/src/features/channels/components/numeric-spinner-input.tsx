@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface NumericSpinnerInputProps {
   value: number | null | undefined
@@ -92,38 +95,42 @@ export function NumericSpinnerInput({
   return (
     <div className={cn('inline-flex', className)}>
       {label && (
-        <label className='text-muted-foreground text-xs font-medium'>
+        <Label className='text-muted-foreground text-xs'>
           {label}
-        </label>
+        </Label>
       )}
       <div className='relative inline-block'>
-        <input
+        <Input
           type='text'
           value={localValue}
           onChange={handleInputChange}
           onBlur={handleBlur}
           disabled={disabled}
-          className='bg-background border-input ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-8 w-20 rounded-md border px-3 py-1 pr-7 text-center font-mono transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+          className='h-8 w-20 pr-7 text-center font-mono'
         />
         <div className='absolute inset-y-0 right-0 flex flex-col items-center justify-center pr-1'>
-          <button
+          <Button
             type='button'
+            variant='ghost'
+            size='icon-sm'
             onClick={handleIncrement}
             disabled={
               disabled || (max !== undefined && Number(localValue) >= max)
             }
-            className='hover:bg-accent flex h-3.5 w-5 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+            className='size-auto h-3.5 w-5 rounded-sm p-0'
           >
             <ChevronUp className='h-3 w-3' />
-          </button>
-          <button
+          </Button>
+          <Button
             type='button'
+            variant='ghost'
+            size='icon-sm'
             onClick={handleDecrement}
             disabled={disabled || Number(localValue) <= min}
-            className='hover:bg-accent flex h-3.5 w-5 items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+            className='size-auto h-3.5 w-5 rounded-sm p-0'
           >
             <ChevronDown className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

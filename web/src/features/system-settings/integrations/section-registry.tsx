@@ -4,6 +4,7 @@ import { EmailSettingsSection } from './email-settings-section'
 import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'
 import { PaymentSettingsSection } from './payment-settings-section'
+import { WaffoSettingsSection } from './waffo-settings-section'
 import { WorkerSettingsSection } from './worker-settings-section'
 
 const INTEGRATIONS_SECTIONS = [
@@ -78,6 +79,32 @@ const INTEGRATIONS_SECTIONS = [
         defaultValues={{
           enabled: settings['model_deployment.ionet.enabled'],
           apiKey: settings['model_deployment.ionet.api_key'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'waffo',
+    titleKey: 'Waffo Payment',
+    descriptionKey: 'Configure Waffo payment gateway integration',
+    build: (settings: IntegrationSettings) => (
+      <WaffoSettingsSection
+        defaultValues={{
+          WaffoEnabled: settings.WaffoEnabled ?? false,
+          WaffoApiKey: settings.WaffoApiKey ?? '',
+          WaffoPrivateKey: settings.WaffoPrivateKey ?? '',
+          WaffoPublicCert: settings.WaffoPublicCert ?? '',
+          WaffoSandboxPublicCert: settings.WaffoSandboxPublicCert ?? '',
+          WaffoSandboxApiKey: settings.WaffoSandboxApiKey ?? '',
+          WaffoSandboxPrivateKey: settings.WaffoSandboxPrivateKey ?? '',
+          WaffoSandbox: settings.WaffoSandbox ?? false,
+          WaffoMerchantId: settings.WaffoMerchantId ?? '',
+          WaffoCurrency: settings.WaffoCurrency ?? 'USD',
+          WaffoUnitPrice: settings.WaffoUnitPrice ?? 1,
+          WaffoMinTopUp: settings.WaffoMinTopUp ?? 1,
+          WaffoNotifyUrl: settings.WaffoNotifyUrl ?? '',
+          WaffoReturnUrl: settings.WaffoReturnUrl ?? '',
+          WaffoPayMethods: settings.WaffoPayMethods ?? '[]',
         }}
       />
     ),

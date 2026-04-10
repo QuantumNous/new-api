@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
@@ -89,18 +90,20 @@ export function AmountOptionsVisualEditor({
                 className='gap-2 py-2 pr-2 pl-3 text-base'
               >
                 <span className='font-mono'>${amount}</span>
-                <button
+                <Button
                   type='button'
+                  variant='ghost'
+                  size='icon-sm'
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
                     handleRemove(amount)
                   }}
-                  className='hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors'
+                  className='hover:bg-muted-foreground/20 size-auto rounded-full p-0.5'
                   aria-label={t('Remove ${{amount}}', { amount })}
                 >
                   <X className='h-3.5 w-3.5' />
-                </button>
+                </Button>
               </Badge>
             ))}
           </div>
@@ -109,12 +112,12 @@ export function AmountOptionsVisualEditor({
 
       <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
         <div className='flex-1'>
-          <label
+          <Label
             htmlFor='new-amount'
-            className='mb-2 block text-sm font-medium'
+            className='mb-2 block'
           >
             {t('Add new amount')}
-          </label>
+          </Label>
           <Input
             id='new-amount'
             type='number'

@@ -22,6 +22,8 @@ const defaultModelSettings: ModelSettings = {
   'claude.default_max_tokens': '',
   'claude.thinking_adapter_enabled': true,
   'claude.thinking_adapter_budget_tokens_percentage': 0.8,
+  'grok.violation_deduction_enabled': true,
+  'grok.violation_deduction_amount': 0.05,
   ModelPrice: '',
   ModelRatio: '',
   CacheRatio: '',

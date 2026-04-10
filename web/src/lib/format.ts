@@ -1,3 +1,4 @@
+import dayjs from '@/lib/dayjs'
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
@@ -95,19 +96,17 @@ export function quotaUnitsToDollars(units: number): number {
 // ============================================================================
 
 /**
- * Format Unix timestamp to locale string
+ * Format Unix timestamp (seconds) to YYYY-MM-DD HH:mm:ss
  */
 export function formatTimestamp(timestamp: number): string {
   if (timestamp === -1) {
     return 'Never'
   }
-  const date = new Date(timestamp * 1000)
-  return date.toLocaleString()
+  return formatTimestampToDate(timestamp)
 }
 
 /**
- * Format timestamp to consistent date string (YYYY-MM-DD HH:mm:ss)
- * This format matches usage-logs display style
+ * Format timestamp to YYYY-MM-DD HH:mm:ss
  * @param timestamp - Timestamp in seconds or milliseconds
  * @param unit - Unit of the timestamp ('seconds' or 'milliseconds')
  */
@@ -118,16 +117,23 @@ export function formatTimestampToDate(
   if (!timestamp || timestamp === -1 || timestamp === 0) {
     return '-'
   }
-  const date = new Date(unit === 'seconds' ? timestamp * 1000 : timestamp)
+  const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
+  return dayjs(ms).format('YYYY-MM-DD HH:mm:ss')
+}
 
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hour = String(date.getHours()).padStart(2, '0')
-  const minute = String(date.getMinutes()).padStart(2, '0')
-  const second = String(date.getSeconds()).padStart(2, '0')
+/** Format a Date object to YYYY-MM-DD HH:mm:ss */
+export function formatDateTimeStr(date: Date): string {
+  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+}
 
-  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
+/** Format a Date object to YYYY-MM-DD */
+export function formatDateStr(date: Date): string {
+  return dayjs(date).format('YYYY-MM-DD')
+}
+
+/** Format a Date object to HH:mm:ss */
+export function formatTimeStr(date: Date): string {
+  return dayjs(date).format('HH:mm:ss')
 }
 
 /**
@@ -170,13 +176,7 @@ export function formatTimestampForInput(timestamp: number): string {
   if (timestamp === -1) {
     return ''
   }
-  const date = new Date(timestamp * 1000)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}`
+  return dayjs(timestamp * 1000).format('YYYY-MM-DDTHH:mm')
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import {
   FILTER_SECTIONS,
   QUOTA_TYPES,
@@ -78,12 +79,13 @@ export function DesktopSidebar({
             {t('Filters')}
           </h2>
           {hasActiveFilters && (
-            <button
+            <Button
+              variant='link'
               onClick={onClearFilters}
-              className='text-muted-foreground hover:text-foreground text-xs transition-colors'
+              className='text-muted-foreground hover:text-foreground h-auto p-0 text-xs no-underline'
             >
               {t('Clear all')}
-            </button>
+            </Button>
           )}
         </div>
 

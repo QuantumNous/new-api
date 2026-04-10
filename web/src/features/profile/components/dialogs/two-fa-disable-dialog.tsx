@@ -147,7 +147,7 @@ export function TwoFADisableDialog({
             disabled={loading || !code || !confirmed}
           >
             {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {loading ? 'Disabling...' : 'Disable 2FA'}
+            {loading ? t('Disabling...') : t('Disable 2FA')}
           </Button>
         </DialogFooter>
       </DialogContent>

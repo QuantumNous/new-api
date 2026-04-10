@@ -105,16 +105,17 @@ export function ProfileDropdown() {
             )}
 
             {/* Sign out */}
-            <button
+            <Button
+              variant='ghost'
               onClick={() => {
                 setSheetOpen(false)
                 setOpen(true)
               }}
-              className='text-destructive hover:text-destructive/80 flex items-center gap-2.5 p-2.5 transition-colors'
+              className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent'
             >
               <LogOut className='size-4' />
               {t('Sign out')}
-            </button>
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

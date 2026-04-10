@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Separator } from '@/components/ui/separator'
 import { getGatewayFeatures } from '../constants'
 
 interface GatewayCardProps {
@@ -16,7 +17,7 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
   return (
     <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-[32px] border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
       {/* Top gradient border effect */}
-      <hr className='absolute top-0 left-[10%] h-[2px] w-[80%] border-0 bg-gradient-to-r from-transparent via-amber-500/80 to-transparent' />
+      <Separator className='absolute top-0 left-[10%] h-[2px] w-[80%] bg-gradient-to-r from-transparent via-amber-500/80 to-transparent' />
 
       {/* Ambient glow behind card */}
       <div className='absolute -top-32 left-1/2 h-64 w-[120%] -translate-x-1/2 rounded-full bg-radial from-amber-500/30 to-amber-500/0 blur-3xl transition-all duration-500 group-hover:opacity-100 dark:opacity-80' />

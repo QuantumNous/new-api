@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -378,9 +379,9 @@ export function UsersMutateDrawer({
                   <div className='space-y-3'>
                     {BINDING_FIELDS.map(({ key, label }) => (
                       <div key={key}>
-                        <label className='text-muted-foreground text-xs font-medium'>
+                        <Label className='text-muted-foreground text-xs'>
                           {t(label)}
-                        </label>
+                        </Label>
                         <Input
                           value={
                             (currentRow?.[key as keyof User] as string) || '-'

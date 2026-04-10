@@ -8,6 +8,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -303,48 +308,51 @@ export function UpdateConfigDialog({
                   )}
                 />
 
-                <details className='rounded-md border p-3'>
-                  <summary className='cursor-pointer text-sm'>
+                <Collapsible className='rounded-md border p-3'>
+                  <CollapsibleTrigger className='cursor-pointer text-sm'>
                     {t('Registry (optional)')}
-                  </summary>
-                  <div className='mt-3 grid gap-4 md:grid-cols-2'>
-                    <FormField
-                      control={form.control}
-                      name='registry_username'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('Registry username')}</FormLabel>
-                          <FormControl>
-                            <Input autoComplete='off' {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name='registry_secret'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('Registry secret')}</FormLabel>
-                          <FormControl>
-                            <Input
-                              type='password'
-                              autoComplete='off'
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </details>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className='mt-3 grid gap-4 md:grid-cols-2'>
+                      <FormField
+                        control={form.control}
+                        name='registry_username'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Registry username')}</FormLabel>
+                            <FormControl>
+                              <Input autoComplete='off' {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='registry_secret'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Registry secret')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type='password'
+                                autoComplete='off'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
 
-                <details className='rounded-md border p-3'>
-                  <summary className='cursor-pointer text-sm'>
+                <Collapsible className='rounded-md border p-3'>
+                  <CollapsibleTrigger className='cursor-pointer text-sm'>
                     {t('Environment variables')}
-                  </summary>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
                   <div className='mt-3 grid gap-4 md:grid-cols-2'>
                     <FormField
                       control={form.control}
@@ -381,7 +389,8 @@ export function UpdateConfigDialog({
                       )}
                     />
                   </div>
-                </details>
+                  </CollapsibleContent>
+                </Collapsible>
 
                 <DialogFooter className='pt-2'>
                   <Button

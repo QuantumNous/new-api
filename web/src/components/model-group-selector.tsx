@@ -429,12 +429,13 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
               <div className='max-h-[calc(80vh-100px)] overflow-y-auto px-4 pb-6'>
                 <div className='space-y-2'>
                   {groups.map((group) => (
-                    <button
+                    <Button
                       key={group.value}
+                      variant='outline'
                       onClick={() => handleGroupChange(group.value)}
                       className={cn(
-                        'flex w-full items-center justify-between rounded-lg p-4 text-left transition-all',
-                        'border-border hover:bg-accent border',
+                        'flex h-auto w-full items-center justify-between whitespace-normal rounded-lg p-4 text-left',
+                        'border-border hover:bg-accent',
                         selectedGroup === group.value
                           ? 'bg-accent border-primary/20'
                           : 'bg-background'
@@ -468,7 +469,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                             : 'opacity-0'
                         )}
                       />
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>

@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
+import { LanguageSwitcher } from '@/components/language-switcher'
 import { SkeletonWrapper } from '@/components/skeleton-wrapper'
 import { buildSetupPayload, getSetupStatus, submitSetup } from './api'
 import { AdminStep } from './components/admin-step'
@@ -28,20 +29,20 @@ import type { SetupFormValues, SetupStatus } from './types'
 
 const STEPS = [
   {
-    title: 'Database check',
-    description: 'Verify your database connection',
+    titleKey: 'Database check',
+    descriptionKey: 'Verify your database connection',
   },
   {
-    title: 'Administrator account',
-    description: 'Create credentials for the root user',
+    titleKey: 'Administrator account',
+    descriptionKey: 'Create credentials for the root user',
   },
   {
-    title: 'Usage mode',
-    description: 'Choose how the platform will operate',
+    titleKey: 'Usage mode',
+    descriptionKey: 'Choose how the platform will operate',
   },
   {
-    title: 'Review & initialize',
-    description: 'Confirm settings and finish setup',
+    titleKey: 'Review & initialize',
+    descriptionKey: 'Confirm settings and finish setup',
   },
 ]
 
@@ -91,7 +92,8 @@ export function SetupWizard() {
         }, 1200)
       } else {
         toast.error(
-          response.message || 'Initialization failed, please try again.'
+          response.message ||
+            t('Initialization failed, please try again.')
         )
       }
     },
@@ -104,7 +106,9 @@ export function SetupWizard() {
     if (!statusResponse) return
 
     if (!statusResponse.success) {
-      toast.error(statusResponse.message || 'Failed to load setup status')
+      toast.error(
+        statusResponse.message || t('Failed to load setup status')
+      )
       return
     }
 
@@ -192,7 +196,7 @@ export function SetupWizard() {
     if (!username) {
       form.setError('username', {
         type: 'manual',
-        message: 'Please enter an administrator username',
+        message: t('Please enter an administrator username'),
       })
       toast.error(t('Please enter an administrator username'))
       return false
@@ -257,7 +261,10 @@ export function SetupWizard() {
   }
 
   return (
-    <div className='bg-muted/40 min-h-svh py-10'>
+    <div className='bg-muted/40 relative min-h-svh py-10'>
+      <div className='absolute top-4 right-4 sm:top-6 sm:right-6'>
+        <LanguageSwitcher />
+      </div>
       <div className='container mx-auto flex max-w-5xl flex-col gap-8 px-4 sm:px-6'>
         <div className='flex flex-col items-center gap-3'>
           <div className='relative h-12 w-12'>
@@ -303,7 +310,7 @@ export function SetupWizard() {
                 const isCompleted = currentStep > index
                 return (
                   <li
-                    key={step.title}
+                    key={step.titleKey}
                     className={cn(
                       'rounded-xl border p-3',
                       isActive
@@ -327,9 +334,11 @@ export function SetupWizard() {
                         {index + 1}
                       </span>
                       <div className='space-y-1'>
-                        <p className='text-sm font-semibold'>{step.title}</p>
+                        <p className='text-sm font-semibold'>
+                          {t(step.titleKey)}
+                        </p>
                         <p className='text-muted-foreground text-xs'>
-                          {step.description}
+                          {t(step.descriptionKey)}
                         </p>
                       </div>
                     </div>

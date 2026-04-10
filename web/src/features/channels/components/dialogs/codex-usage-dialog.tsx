@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import dayjs from '@/lib/dayjs'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -58,7 +59,7 @@ function formatUnixSeconds(unixSeconds: unknown): string {
   const v = Number(unixSeconds)
   if (!Number.isFinite(v) || v <= 0) return '-'
   try {
-    return new Date(v * 1000).toLocaleString()
+    return dayjs(v * 1000).format('YYYY-MM-DD HH:mm:ss')
   } catch {
     return String(unixSeconds)
   }

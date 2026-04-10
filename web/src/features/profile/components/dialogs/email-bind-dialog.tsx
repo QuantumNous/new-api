@@ -117,8 +117,8 @@ export function EmailBindDialog({
           <DialogTitle>{t('Bind Email')}</DialogTitle>
           <DialogDescription>
             {currentEmail
-              ? `Current email: ${currentEmail}. Enter a new email to change.`
-              : 'Bind an email address to your account.'}
+              ? t('Current email: {{email}}. Enter a new email to change.', { email: currentEmail })
+              : t('Bind an email address to your account.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -155,8 +155,8 @@ export function EmailBindDialog({
                 {isActive
                   ? `${secondsLeft}s`
                   : sendingCode
-                    ? 'Sending...'
-                    : 'Send'}
+                    ? t('Sending...')
+                    : t('Send')}
               </Button>
             </div>
           </div>
@@ -177,7 +177,7 @@ export function EmailBindDialog({
             disabled={loading || !email || !code}
           >
             {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {loading ? 'Binding...' : 'Bind Email'}
+            {loading ? t('Binding...') : t('Bind Email')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,6 +4,14 @@ import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { CopyButton } from '@/components/copy-button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
@@ -186,99 +194,97 @@ function GroupPricingSection({
       <h2 className='text-lg font-semibold sm:text-xl'>
         {t('Pricing by Group')}
       </h2>
-      <div className='overflow-x-auto'>
-        <table className='w-full text-xs sm:text-sm'>
-          <thead>
-            <tr className='border-b'>
-              <th className='pr-2 pb-2 text-left text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                {t('Group')}
-              </th>
-              <th className='pr-2 pb-2 text-left text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                {t('Ratio')}
-              </th>
-              {isTokenBased ? (
-                <>
-                  <th className='pr-2 pb-2 text-right text-xs font-medium sm:pr-4 sm:pb-3 sm:text-sm'>
-                    {t('Input /')} {tokenUnitLabel} {t('tokens')}
-                  </th>
-                  <th className='pb-2 text-right text-xs font-medium sm:pb-3 sm:text-sm'>
-                    {t('Output /')} {tokenUnitLabel} {t('tokens')}
-                  </th>
-                </>
-              ) : (
-                <th className='pb-2 text-right text-xs font-medium sm:pb-3 sm:text-sm'>
-                  {t('Price / request')}
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {availableGroups.map((group) => {
-              const ratio = groupRatio[group] || 1
-              return (
-                <tr key={group} className='border-b last:border-0'>
-                  <td className='py-2 pr-2 sm:py-3 sm:pr-4'>
-                    <StatusBadge
-                      label={group}
-                      autoColor={group}
-                      size='sm'
-                      copyable={false}
-                    />
-                  </td>
-                  <td className='py-2 pr-2 sm:py-3 sm:pr-4'>
-                    <StatusBadge
-                      label={`${ratio}x`}
-                      variant='neutral'
-                      size='sm'
-                      copyable={false}
-                      className='font-mono'
-                    />
-                  </td>
-                  {isTokenBased ? (
-                    <>
-                      <td className='py-2 pr-2 text-right font-mono text-xs sm:py-3 sm:pr-4 sm:text-sm'>
-                        {formatGroupPrice(
-                          model,
-                          group,
-                          'input',
-                          tokenUnit,
-                          showRechargePrice,
-                          priceRate,
-                          usdExchangeRate,
-                          groupRatio
-                        )}
-                      </td>
-                      <td className='py-2 text-right font-mono text-xs sm:py-3 sm:text-sm'>
-                        {formatGroupPrice(
-                          model,
-                          group,
-                          'output',
-                          tokenUnit,
-                          showRechargePrice,
-                          priceRate,
-                          usdExchangeRate,
-                          groupRatio
-                        )}
-                      </td>
-                    </>
-                  ) : (
-                    <td className='py-2 text-right font-mono text-xs sm:py-3 sm:text-sm'>
-                      {formatFixedPrice(
+      <Table className='text-xs sm:text-sm'>
+        <TableHeader>
+          <TableRow>
+            <TableHead className='pr-2 sm:pr-4'>
+              {t('Group')}
+            </TableHead>
+            <TableHead className='pr-2 sm:pr-4'>
+              {t('Ratio')}
+            </TableHead>
+            {isTokenBased ? (
+              <>
+                <TableHead className='pr-2 text-right sm:pr-4'>
+                  {t('Input /')} {tokenUnitLabel} {t('tokens')}
+                </TableHead>
+                <TableHead className='text-right'>
+                  {t('Output /')} {tokenUnitLabel} {t('tokens')}
+                </TableHead>
+              </>
+            ) : (
+              <TableHead className='text-right'>
+                {t('Price / request')}
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {availableGroups.map((group) => {
+            const ratio = groupRatio[group] || 1
+            return (
+              <TableRow key={group}>
+                <TableCell className='py-2 pr-2 sm:py-3 sm:pr-4'>
+                  <StatusBadge
+                    label={group}
+                    autoColor={group}
+                    size='sm'
+                    copyable={false}
+                  />
+                </TableCell>
+                <TableCell className='py-2 pr-2 sm:py-3 sm:pr-4'>
+                  <StatusBadge
+                    label={`${ratio}x`}
+                    variant='neutral'
+                    size='sm'
+                    copyable={false}
+                    className='font-mono'
+                  />
+                </TableCell>
+                {isTokenBased ? (
+                  <>
+                    <TableCell className='py-2 pr-2 text-right font-mono text-xs sm:py-3 sm:pr-4 sm:text-sm'>
+                      {formatGroupPrice(
                         model,
                         group,
+                        'input',
+                        tokenUnit,
                         showRechargePrice,
                         priceRate,
                         usdExchangeRate,
                         groupRatio
                       )}
-                    </td>
-                  )}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </TableCell>
+                    <TableCell className='py-2 text-right font-mono text-xs sm:py-3 sm:text-sm'>
+                      {formatGroupPrice(
+                        model,
+                        group,
+                        'output',
+                        tokenUnit,
+                        showRechargePrice,
+                        priceRate,
+                        usdExchangeRate,
+                        groupRatio
+                      )}
+                    </TableCell>
+                  </>
+                ) : (
+                  <TableCell className='py-2 text-right font-mono text-xs sm:py-3 sm:text-sm'>
+                    {formatFixedPrice(
+                      model,
+                      group,
+                      showRechargePrice,
+                      priceRate,
+                      usdExchangeRate,
+                      groupRatio
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { Building2, Home, Presentation } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   FormControl,
@@ -19,41 +20,43 @@ interface UsageModeStepProps {
 
 const USAGE_MODE_OPTIONS: Array<{
   value: SetupUsageMode
-  title: string
-  description: string
+  titleKey: string
+  descriptionKey: string
   icon: ComponentType<{ className?: string }>
 }> = [
   {
     value: 'external',
-    title: 'External operations',
-    description:
+    titleKey: 'External operations',
+    descriptionKey:
       'Serve multiple users or teams with billing and quota control.',
     icon: Building2,
   },
   {
     value: 'self',
-    title: 'Personal use',
-    description:
+    titleKey: 'Personal use',
+    descriptionKey:
       'Best for single-tenant deployments. Pricing and billing options stay hidden.',
     icon: Home,
   },
   {
     value: 'demo',
-    title: 'Demo site',
-    description:
+    titleKey: 'Demo site',
+    descriptionKey:
       'Showcase core capabilities with demo credentials and limited access.',
     icon: Presentation,
   },
 ]
 
 export function UsageModeStep({ form }: UsageModeStepProps) {
+  const { t } = useTranslation()
+
   return (
     <FormField
       control={form.control}
       name='usageMode'
       render={({ field }) => (
         <FormItem>
-          <FormLabel>How will you use New API?</FormLabel>
+          <FormLabel>{t('How will you use the platform?')}</FormLabel>
           <FormControl>
             <RadioGroup
               value={field.value}
@@ -64,14 +67,14 @@ export function UsageModeStep({ form }: UsageModeStepProps) {
               className='grid gap-3 sm:grid-cols-3'
             >
               {USAGE_MODE_OPTIONS.map(
-                ({ value, title, description, icon: Icon }) => {
+                ({ value, titleKey, descriptionKey, icon: Icon }) => {
                   const isSelected = field.value === value
                   return (
-                    <label
+                    <Label
                       key={value}
                       htmlFor={`usage-mode-${value}`}
                       className={cn(
-                        'hover:border-primary/40 focus-within:border-primary/50 group bg-card flex cursor-pointer flex-col gap-3 rounded-xl border p-4 transition-all',
+                        'hover:border-primary/40 focus-within:border-primary/50 group bg-card flex cursor-pointer flex-col gap-3 rounded-xl border p-4 font-normal transition-all',
                         isSelected
                           ? 'border-primary ring-primary/20 ring-2'
                           : 'border-muted'
@@ -88,15 +91,15 @@ export function UsageModeStep({ form }: UsageModeStepProps) {
                             htmlFor={`usage-mode-${value}`}
                             className='text-base leading-none font-semibold'
                           >
-                            {title}
+                            {t(titleKey)}
                           </Label>
                           <p className='text-muted-foreground mt-2 text-sm'>
-                            {description}
+                            {t(descriptionKey)}
                           </p>
                         </div>
                         <Icon className='text-muted-foreground/70 group-hover:text-primary group-focus:text-primary ml-auto size-5 shrink-0 transition' />
                       </div>
-                    </label>
+                    </Label>
                   )
                 }
               )}

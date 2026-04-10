@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 // ----------------------------------------------------------------------------
@@ -30,13 +31,15 @@ export function SearchBar({
         className='border-border/60 bg-muted/30 placeholder:text-muted-foreground/60 hover:border-border hover:bg-muted/50 focus-visible:bg-background rounded-lg pr-10 pl-10 text-sm transition-colors'
       />
       {value && (
-        <button
+        <Button
+          variant='ghost'
+          size='icon-sm'
           onClick={onClear}
-          className='text-muted-foreground/70 hover:text-foreground hover:bg-muted absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 transition-colors'
+          className='text-muted-foreground/70 hover:text-foreground absolute top-1/2 right-2 size-auto -translate-y-1/2 p-1'
           aria-label={t('Clear search')}
         >
           <X className='h-4 w-4' />
-        </button>
+        </Button>
       )}
     </div>
   )

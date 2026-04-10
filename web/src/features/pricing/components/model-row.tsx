@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { StatusBadge } from '@/components/status-badge'
 import { MAX_TAGS_DISPLAY, DEFAULT_TOKEN_UNIT } from '../constants'
@@ -38,9 +39,10 @@ export function ModelRow({
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   return (
-    <button
+    <Button
+      variant='ghost'
       onClick={onClick}
-      className='hover:bg-accent/5 group w-full px-4 py-4 text-left transition-colors sm:px-6 sm:py-6'
+      className='hover:bg-accent/5 group h-auto w-full whitespace-normal px-4 py-4 text-left sm:px-6 sm:py-6'
     >
       <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
         {/* Model Info */}
@@ -150,6 +152,6 @@ export function ModelRow({
           )}
         </div>
       </div>
-    </button>
+    </Button>
   )
 }

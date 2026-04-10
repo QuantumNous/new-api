@@ -54,6 +54,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { DateTimePicker } from '@/components/datetime-picker'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -369,7 +370,7 @@ export function AnnouncementsSection({
                           {getRelativeTime(announcement.publishDate)}
                         </span>
                         <span className='text-muted-foreground text-xs'>
-                          {dayjs(announcement.publishDate).format('MMM D, YYYY, h:mm A')}
+                          {dayjs(announcement.publishDate).format('YYYY-MM-DD HH:mm:ss')}
                         </span>
                       </div>
                     </TableCell>
@@ -460,10 +461,12 @@ export function AnnouncementsSection({
                   <FormItem>
                     <FormLabel>{t('Publish Date')}</FormLabel>
                     <FormControl>
-                      <Input
-                        type='datetime-local'
-                        {...field}
-                        value={field.value.slice(0, 16)}
+                      <DateTimePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) =>
+                          field.onChange(date ? date.toISOString() : '')
+                        }
+                        placeholder={t('Select publish date')}
                       />
                     </FormControl>
                     <FormDescription>

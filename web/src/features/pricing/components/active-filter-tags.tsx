@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '@/components/ui/button'
 import {
   FILTER_ALL,
   QUOTA_TYPES,
@@ -58,13 +59,15 @@ export function ActiveFilterTags({
           <span>
             {t('Vendor:')} {vendorFilter}
           </span>
-          <button
+          <Button
+            variant='ghost'
+            size='icon-sm'
             onClick={onRemoveVendor}
-            className='hover:bg-secondary-foreground/20 rounded-sm p-0.5 transition-colors'
+            className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0.5'
             aria-label={`Remove vendor filter: ${vendorFilter}`}
           >
             <X className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       )}
       {groupFilter !== FILTER_ALL && (
@@ -72,13 +75,15 @@ export function ActiveFilterTags({
           <span>
             {t('Group:')} {groupFilter}
           </span>
-          <button
+          <Button
+            variant='ghost'
+            size='icon-sm'
             onClick={onRemoveGroup}
-            className='hover:bg-secondary-foreground/20 rounded-sm p-0.5 transition-colors'
+            className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0.5'
             aria-label={`Remove group filter: ${groupFilter}`}
           >
             <X className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       )}
       {quotaTypeFilter !== QUOTA_TYPES.ALL && (
@@ -86,13 +91,15 @@ export function ActiveFilterTags({
           <span>
             {t('Type:')} {quotaTypeLabels[quotaTypeFilter as QuotaTypeOption]}
           </span>
-          <button
+          <Button
+            variant='ghost'
+            size='icon-sm'
             onClick={onRemoveQuotaType}
-            className='hover:bg-secondary-foreground/20 rounded-sm p-0.5 transition-colors'
+            className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0.5'
             aria-label={t('Remove pricing type filter')}
           >
             <X className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       )}
       {endpointTypeFilter !== ENDPOINT_TYPES.ALL && (
@@ -101,13 +108,15 @@ export function ActiveFilterTags({
             {t('Endpoint:')}{' '}
             {endpointTypeLabels[endpointTypeFilter as EndpointTypeOption]}
           </span>
-          <button
+          <Button
+            variant='ghost'
+            size='icon-sm'
             onClick={onRemoveEndpointType}
-            className='hover:bg-secondary-foreground/20 rounded-sm p-0.5 transition-colors'
+            className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0.5'
             aria-label={t('Remove endpoint type filter')}
           >
             <X className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       )}
       {tagFilter !== FILTER_ALL && (
@@ -115,13 +124,15 @@ export function ActiveFilterTags({
           <span>
             {t('Tag:')} {tagFilter}
           </span>
-          <button
+          <Button
+            variant='ghost'
+            size='icon-sm'
             onClick={onRemoveTag}
-            className='hover:bg-secondary-foreground/20 rounded-sm p-0.5 transition-colors'
+            className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0.5'
             aria-label={`Remove tag filter: ${tagFilter}`}
           >
             <X className='h-3 w-3' />
-          </button>
+          </Button>
         </div>
       )}
     </div>

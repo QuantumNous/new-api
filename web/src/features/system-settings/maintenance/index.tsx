@@ -38,6 +38,7 @@ export function MaintenanceSettings() {
     | 'logs'
     | 'header-navigation'
     | 'sidebar-modules'
+    | 'performance'
   const sectionContent = getMaintenanceSectionContent(
     activeSection,
     settings,

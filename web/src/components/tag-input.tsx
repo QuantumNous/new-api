@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 interface TagInputProps {
   value: string[]
@@ -63,16 +64,18 @@ export function TagInput({
         <Badge key={tag} variant='secondary' className='gap-1 pr-1'>
           {tag}
           {!disabled && (
-            <button
+            <Button
               type='button'
+              variant='ghost'
+              size='icon-sm'
               onClick={(e) => {
                 e.stopPropagation()
                 removeTag(tag)
               }}
-              className='hover:bg-secondary-foreground/20 rounded-sm'
+              className='hover:bg-secondary-foreground/20 size-auto rounded-sm p-0'
             >
               <X className='h-3 w-3' />
-            </button>
+            </Button>
           )}
         </Badge>
       ))}
@@ -85,7 +88,7 @@ export function TagInput({
         onBlur={handleBlur}
         placeholder={value.length === 0 ? placeholderText : ''}
         disabled={disabled}
-        className='placeholder:text-muted-foreground min-w-[120px] flex-1 bg-transparent outline-none'
+        className='placeholder:text-muted-foreground min-w-[120px] flex-1 border-0 bg-transparent shadow-none outline-none focus-visible:ring-0'
       />
     </div>
   )

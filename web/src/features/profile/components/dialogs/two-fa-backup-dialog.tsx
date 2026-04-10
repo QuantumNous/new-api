@@ -85,8 +85,8 @@ export function TwoFABackupDialog({
           </DialogTitle>
           <DialogDescription>
             {backupCodes.length > 0
-              ? 'Your new backup codes are ready'
-              : 'Generate new backup codes for account recovery'}
+              ? t('Your new backup codes are ready')
+              : t('Generate new backup codes for account recovery')}
           </DialogDescription>
         </DialogHeader>
 
@@ -163,7 +163,7 @@ export function TwoFABackupDialog({
               </Button>
               <Button onClick={handleRegenerate} disabled={loading || !code}>
                 {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                {loading ? 'Generating...' : 'Generate New Codes'}
+                {loading ? t('Generating...') : t('Generate New Codes')}
               </Button>
             </>
           ) : (

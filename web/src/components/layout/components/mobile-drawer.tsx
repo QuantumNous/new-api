@@ -118,13 +118,14 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
         </Link>
 
         {/* Sign out - consistent style */}
-        <button
+        <Button
+          variant='ghost'
           onClick={() => setSignOutOpen(true)}
-          className='text-destructive hover:text-destructive/80 flex items-center gap-2.5 p-2.5 transition-colors'
+          className='text-destructive hover:text-destructive/80 h-auto w-full justify-start gap-2.5 p-2.5 hover:bg-transparent'
         >
           <LogOut className='size-4' />
           {t('Sign out')}
-        </button>
+        </Button>
       </div>
 
       <SignOutDialog open={!!signOutOpen} onOpenChange={setSignOutOpen} />
@@ -219,13 +220,15 @@ export function MobileDrawer({
                   logoLoaded={logoLoaded}
                   onClick={onClose}
                 />
-                <button
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
                   onClick={onClose}
-                  className='hover:text-primary cursor-pointer rounded-md p-1'
+                  className='hover:text-primary cursor-pointer'
                   aria-label={t('Close menu')}
                 >
                   <X className='size-5' />
-                </button>
+                </Button>
               </div>
 
               {/* Navigation links */}

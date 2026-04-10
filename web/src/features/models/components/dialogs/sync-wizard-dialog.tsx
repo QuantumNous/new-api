@@ -146,11 +146,11 @@ export function SyncWizardDialog({
                 const isActive = source === option.value
                 const isDisabled = option.disabled
                 return (
-                  <label
+                  <Label
                     key={option.value}
                     htmlFor={`sync-source-${option.value}`}
                     className={cn(
-                      'rounded-lg border p-4 transition-all',
+                      'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
                       isActive && 'border-primary ring-primary ring-1',
                       isDisabled
                         ? 'cursor-not-allowed opacity-60'
@@ -177,7 +177,7 @@ export function SyncWizardDialog({
                         </p>
                       </div>
                     </div>
-                  </label>
+                  </Label>
                 )
               })}
             </RadioGroup>

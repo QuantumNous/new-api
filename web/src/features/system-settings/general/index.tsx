@@ -38,6 +38,11 @@ const defaultGeneralSettings: GeneralSettings = {
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
+  'channel_affinity_setting.enabled': false,
+  'channel_affinity_setting.switch_on_success': true,
+  'channel_affinity_setting.max_entries': 100000,
+  'channel_affinity_setting.default_ttl_seconds': 3600,
+  'channel_affinity_setting.rules': '[]',
 }
 
 export function GeneralSettings() {
@@ -65,6 +70,7 @@ export function GeneralSettings() {
     | 'pricing'
     | 'checkin'
     | 'behavior'
+    | 'channel-affinity'
   const sectionContent = getGeneralSectionContent(
     activeSection,
     settings,

@@ -193,7 +193,7 @@ export function LogSettingsSection({
                   variant='outline'
                   onClick={() => setPurgeDate(option.getValue())}
                 >
-                  {option.label}
+                  {t(option.label)}
                 </Button>
               ))}
               <Button
@@ -218,8 +218,13 @@ export function LogSettingsSection({
             <AlertDialogTitle>{t('Confirm log cleanup')}</AlertDialogTitle>
             <AlertDialogDescription>
               {formattedPurgeDate
-                ? `This will permanently remove all log entries created before ${formattedPurgeDate}.`
-                : 'This will permanently remove log entries before the selected timestamp.'}{' '}
+                ? t(
+                    'This will permanently remove all log entries created before {{date}}.',
+                    { date: formattedPurgeDate }
+                  )
+                : t(
+                    'This will permanently remove log entries before the selected timestamp.'
+                  )}{' '}
               {t('This action cannot be undone.')}
             </AlertDialogDescription>
           </AlertDialogHeader>

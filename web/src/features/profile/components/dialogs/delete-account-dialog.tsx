@@ -137,7 +137,7 @@ export function DeleteAccountDialog({
             disabled={loading || confirmation !== username}
           >
             {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {loading ? 'Deleting...' : 'Delete Account'}
+            {loading ? t('Deleting...') : t('Delete Account')}
           </Button>
         </DialogFooter>
       </DialogContent>

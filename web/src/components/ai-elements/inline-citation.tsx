@@ -12,6 +12,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Carousel,
   type CarouselApi,
@@ -201,7 +202,9 @@ export const InlineCitationCarouselPrev = ({
   }, [api])
 
   return (
-    <button
+    <Button
+      variant='ghost'
+      size='icon-sm'
       aria-label={t('Previous')}
       className={cn('shrink-0', className)}
       onClick={handleClick}
@@ -209,7 +212,7 @@ export const InlineCitationCarouselPrev = ({
       {...props}
     >
       <ArrowLeftIcon className='text-muted-foreground size-4' />
-    </button>
+    </Button>
   )
 }
 
@@ -229,7 +232,9 @@ export const InlineCitationCarouselNext = ({
   }, [api])
 
   return (
-    <button
+    <Button
+      variant='ghost'
+      size='icon-sm'
       aria-label={t('Next')}
       className={cn('shrink-0', className)}
       onClick={handleClick}
@@ -237,7 +242,7 @@ export const InlineCitationCarouselNext = ({
       {...props}
     >
       <ArrowRightIcon className='text-muted-foreground size-4' />
-    </button>
+    </Button>
   )
 }
 

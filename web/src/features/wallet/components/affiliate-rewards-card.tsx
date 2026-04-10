@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -105,9 +106,9 @@ export function AffiliateRewardsCard({
 
         {/* Affiliate Link */}
         <div className='space-y-3'>
-          <label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+          <Label className='text-muted-foreground text-xs tracking-wider uppercase'>
             {t('Your Referral Link')}
-          </label>
+          </Label>
           <div className='flex gap-2'>
             <Input
               value={affiliateLink}

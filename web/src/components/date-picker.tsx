@@ -50,7 +50,7 @@ export function DatePicker({
           className='data-[empty=true]:text-muted-foreground w-[240px] justify-start text-start font-normal'
         >
           {selected ? (
-            dayjs(selected).format('MMM D, YYYY')
+            dayjs(selected).format('YYYY-MM-DD')
           ) : (
             <span>{placeholderText}</span>
           )}

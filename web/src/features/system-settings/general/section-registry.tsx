@@ -1,5 +1,6 @@
 import type { GeneralSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ChannelAffinitySection } from './channel-affinity'
 import { CheckinSettingsSection } from './checkin-settings-section'
 import { PricingSection } from './pricing-section'
 import { QuotaSettingsSection } from './quota-settings-section'
@@ -97,6 +98,27 @@ const GENERAL_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'channel-affinity',
+    titleKey: 'Channel Affinity',
+    descriptionKey: 'Configure channel affinity (sticky routing) rules',
+    build: (settings: GeneralSettings) => (
+      <ChannelAffinitySection
+        defaultValues={{
+          'channel_affinity_setting.enabled':
+            settings['channel_affinity_setting.enabled'],
+          'channel_affinity_setting.switch_on_success':
+            settings['channel_affinity_setting.switch_on_success'],
+          'channel_affinity_setting.max_entries':
+            settings['channel_affinity_setting.max_entries'],
+          'channel_affinity_setting.default_ttl_seconds':
+            settings['channel_affinity_setting.default_ttl_seconds'],
+          'channel_affinity_setting.rules':
+            settings['channel_affinity_setting.rules'],
         }}
       />
     ),
