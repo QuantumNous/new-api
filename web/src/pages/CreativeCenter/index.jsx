@@ -4324,18 +4324,24 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     syncVideoRecordsState(nextRecords);
   };
 
-  const fetchCreativeVideoTasksByRequestIds = async (candidates) => {
+  const fetchCreativeVideoTasksByIdentifiers = async (candidates) => {
+    const safeCandidates = Array.isArray(candidates) ? candidates : [];
     const requestIds = [...new Set(
-      (Array.isArray(candidates) ? candidates : [])
+      safeCandidates
         .map((candidate) => String(candidate?.requestId || '').trim())
         .filter(Boolean),
     )];
+    const taskIds = [...new Set(
+      safeCandidates
+        .map((candidate) => String(candidate?.queryTaskId || candidate?.taskId || '').trim())
+        .filter((value) => value.startsWith('task_')),
+    )];
 
-    if (requestIds.length === 0) {
+    if (requestIds.length === 0 && taskIds.length === 0) {
       return [];
     }
 
-    const candidateTimes = candidates
+    const candidateTimes = safeCandidates
       .map((candidate) =>
         normalizeCreativeTimestampToSeconds(
           candidate?.sortTimestamp ||
@@ -4368,7 +4374,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       ? response.data.data.items
       : [];
     const requestIdSet = new Set(requestIds);
-    return items.filter((item) => requestIdSet.has(getTaskDtoRequestId(item)));
+    const taskIdSet = new Set(taskIds);
+    return items.filter((item) => {
+      const requestId = getTaskDtoRequestId(item);
+      const taskId = String(item?.task_id || item?.taskId || '').trim();
+      return requestIdSet.has(requestId) || taskIdSet.has(taskId);
+    });
   };
 
   const resolveCreativeVideoTaskIdByRequestId = async (requestId) => {
@@ -4930,17 +4941,73 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           return;
         }
 
+        let exactTaskByRequestId = new Map();
+        let exactTaskByTaskId = new Map();
+        try {
+          const exactTasks = await fetchCreativeVideoTasksByIdentifiers(
+            tasksToPoll,
+          );
+          exactTaskByRequestId = new Map();
+          exactTaskByTaskId = new Map();
+          exactTasks.forEach((task) => {
+            const requestId = getTaskDtoRequestId(task);
+            if (requestId) {
+              exactTaskByRequestId.set(requestId, task);
+            }
+            const taskId = String(task?.task_id || task?.taskId || '').trim();
+            if (taskId) {
+              exactTaskByTaskId.set(taskId, task);
+            }
+          });
+        } catch (error) {
+          console.error('Failed to fetch exact creative center video task states:', error);
+        }
+
         await Promise.all(
           tasksToPoll.map(async (task) => {
             videoPollingInFlightRef.current.add(task.localTaskId);
             try {
               let queryTaskId = task.queryTaskId;
+              const exactTaskByRequest = exactTaskByRequestId.get(task.requestId);
+              if (!queryTaskId && exactTaskByRequest) {
+                const exactTaskState = parseTaskDtoVideoState(exactTaskByRequest);
+                queryTaskId = exactTaskState.taskId;
+                if (queryTaskId) {
+                  patchVideoTask(task.recordId, task.localTaskId, {
+                    taskId: queryTaskId,
+                    status: exactTaskState.status,
+                    progress: exactTaskState.progress,
+                    url:
+                      exactTaskState.status === 'completed'
+                        ? exactTaskState.url
+                        : '',
+                    resultUrl:
+                      exactTaskState.status === 'completed'
+                        ? exactTaskState.url
+                        : '',
+                    content: exactTaskState.content,
+                    error:
+                      exactTaskState.status === 'failed'
+                        ? exactTaskState.error
+                        : '',
+                    requestPollable: false,
+                    pollable: !['completed', 'failed'].includes(
+                      exactTaskState.status,
+                    ),
+                  });
+                  if (['completed', 'failed'].includes(exactTaskState.status)) {
+                    return;
+                  }
+                }
+              }
+
               if (!queryTaskId) {
                 queryTaskId = await resolveCreativeVideoTaskIdByRequestId(task.requestId);
                 if (queryTaskId) {
                   patchVideoTask(task.recordId, task.localTaskId, {
                     taskId: queryTaskId,
                     status: 'submitted',
+                    requestPollable: false,
                     pollable: true,
                   });
                 }
@@ -4948,6 +5015,36 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
               if (!queryTaskId) {
                 return;
+              }
+
+              const exactTaskById = exactTaskByTaskId.get(queryTaskId);
+              if (exactTaskById) {
+                const exactTaskState = parseTaskDtoVideoState(exactTaskById);
+                patchVideoTask(task.recordId, task.localTaskId, {
+                  taskId: queryTaskId,
+                  status: exactTaskState.status,
+                  progress: exactTaskState.progress,
+                  url:
+                    exactTaskState.status === 'completed'
+                      ? exactTaskState.url
+                      : '',
+                  resultUrl:
+                    exactTaskState.status === 'completed'
+                      ? exactTaskState.url
+                      : '',
+                  content: exactTaskState.content,
+                  error:
+                    exactTaskState.status === 'failed'
+                      ? exactTaskState.error
+                      : '',
+                  requestPollable: false,
+                  pollable: !['completed', 'failed'].includes(
+                    exactTaskState.status,
+                  ),
+                });
+                if (['completed', 'failed'].includes(exactTaskState.status)) {
+                  return;
+                }
               }
 
               const response = await API.get(
@@ -5513,7 +5610,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       let hasRecoveredChanges = false;
 
       try {
-        const exactTasks = await fetchCreativeVideoTasksByRequestIds(
+        const exactTasks = await fetchCreativeVideoTasksByIdentifiers(
           limitedCandidates,
         );
         const exactTaskByRequestId = new Map();
@@ -5962,8 +6059,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       .filter(
         (candidate) =>
           !candidate.hasMedia &&
-          Boolean(candidate.requestId) &&
-          !candidate.queryTaskId,
+          Boolean(candidate.requestId || candidate.queryTaskId),
       );
 
     if (candidates.length === 0) {
@@ -5980,7 +6076,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       let hasRecoveredChanges = false;
 
       try {
-        const exactTasks = await fetchCreativeVideoTasksByRequestIds(candidates);
+        const exactTasks = await fetchCreativeVideoTasksByIdentifiers(candidates);
 
         if (cancelled) {
           return;
