@@ -29,7 +29,7 @@ func GetCreativeCenterHistory(c *gin.Context) {
 	for _, history := range histories {
 		var payload any
 		if history.Payload != "" {
-			if err := common.UnmarshalJsonStr(history.Payload, &payload); err != nil {
+			if err := common.UnmarshalJsonStr(string(history.Payload), &payload); err != nil {
 				payload = nil
 			}
 		}

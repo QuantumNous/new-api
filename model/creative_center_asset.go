@@ -428,7 +428,7 @@ func flattenCreativeCenterHistoryAssets(history *CreativeCenterHistory, username
 
 	rootPayload := mapStringAny{}
 	if history.Payload != "" {
-		_ = common.UnmarshalJsonStr(history.Payload, &rootPayload)
+		_ = common.UnmarshalJsonStr(string(history.Payload), &rootPayload)
 	}
 
 	tab := strings.TrimSpace(history.Tab)

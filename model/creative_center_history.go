@@ -6,18 +6,34 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
+type CreativeCenterHistoryPayload string
+
+func (CreativeCenterHistoryPayload) GormDataType() string {
+	return "text"
+}
+
+func (CreativeCenterHistoryPayload) GormDBDataType(db *gorm.DB, _ *schema.Field) string {
+	switch db.Dialector.Name() {
+	case "mysql":
+		return "MEDIUMTEXT"
+	default:
+		return "TEXT"
+	}
+}
+
 type CreativeCenterHistory struct {
-	ID        int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	CreatedAt int64  `json:"created_at" gorm:"bigint;index"`
-	UpdatedAt int64  `json:"updated_at" gorm:"bigint;index"`
-	UserId    int    `json:"user_id" gorm:"uniqueIndex:idx_creative_center_user_tab;index"`
-	Tab       string `json:"tab" gorm:"type:varchar(20);uniqueIndex:idx_creative_center_user_tab;index"`
-	ModelName string `json:"model_name" gorm:"type:varchar(191);default:''"`
-	Group     string `json:"group" gorm:"type:varchar(50);default:''"`
-	Prompt    string `json:"prompt" gorm:"type:text"`
-	Payload   string `json:"payload" gorm:"type:text"`
+	ID        int64                        `json:"id" gorm:"primaryKey;autoIncrement"`
+	CreatedAt int64                        `json:"created_at" gorm:"bigint;index"`
+	UpdatedAt int64                        `json:"updated_at" gorm:"bigint;index"`
+	UserId    int                          `json:"user_id" gorm:"uniqueIndex:idx_creative_center_user_tab;index"`
+	Tab       string                       `json:"tab" gorm:"type:varchar(20);uniqueIndex:idx_creative_center_user_tab;index"`
+	ModelName string                       `json:"model_name" gorm:"type:varchar(191);default:''"`
+	Group     string                       `json:"group" gorm:"type:varchar(50);default:''"`
+	Prompt    string                       `json:"prompt" gorm:"type:text"`
+	Payload   CreativeCenterHistoryPayload `json:"payload"`
 }
 
 var creativeCenterAllowedTabs = map[string]struct{}{
@@ -56,7 +72,7 @@ func UpsertCreativeCenterHistory(userId int, tab string, modelName string, group
 			ModelName: modelName,
 			Group:     group,
 			Prompt:    prompt,
-			Payload:   string(payloadBytes),
+			Payload:   CreativeCenterHistoryPayload(string(payloadBytes)),
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
@@ -69,7 +85,7 @@ func UpsertCreativeCenterHistory(userId int, tab string, modelName string, group
 	history.ModelName = modelName
 	history.Group = group
 	history.Prompt = prompt
-	history.Payload = string(payloadBytes)
+	history.Payload = CreativeCenterHistoryPayload(string(payloadBytes))
 	history.UpdatedAt = now
 	if err = DB.Save(history).Error; err != nil {
 		return nil, err
