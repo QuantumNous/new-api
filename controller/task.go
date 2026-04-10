@@ -68,6 +68,32 @@ func GetUserTask(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func ResolveUserTask(c *gin.Context) {
+	userId := c.GetInt("id")
+	var req dto.ResolveTaskRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	queryParams := model.SyncTaskQueryParams{
+		Action:         req.Action,
+		MediaType:      req.MediaType,
+		StartTimestamp: req.StartTimestamp,
+		EndTimestamp:   req.EndTimestamp,
+	}
+	items := model.TaskGetUserTasksByIdentifiers(
+		userId,
+		req.TaskIDs,
+		req.RequestIDs,
+		queryParams,
+		req.Limit,
+	)
+	common.ApiSuccess(c, gin.H{
+		"items": tasksToDto(items, false),
+	})
+}
+
 func GetAllTaskStats(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)

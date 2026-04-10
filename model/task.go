@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -345,6 +347,85 @@ func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {
 		return nil, err
 	}
 	return task, nil
+}
+
+func TaskGetUserTasksByIdentifiers(userId int, taskIDs []string, requestIDs []string, queryParams SyncTaskQueryParams, limit int) []*Task {
+	_ = queryParams
+	resultMap := make(map[string]*Task)
+
+	appendTask := func(task *Task) {
+		if task == nil {
+			return
+		}
+		taskID := strings.TrimSpace(task.TaskID)
+		if taskID == "" {
+			return
+		}
+		if _, exists := resultMap[taskID]; exists {
+			return
+		}
+		resultMap[taskID] = task
+	}
+
+	normalizedTaskIDs := make([]string, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		trimmed := strings.TrimSpace(taskID)
+		if trimmed != "" {
+			normalizedTaskIDs = append(normalizedTaskIDs, trimmed)
+		}
+	}
+
+	if len(normalizedTaskIDs) > 0 {
+		var exactTasks []*Task
+		if err := DB.Where("user_id = ?", userId).
+			Where("task_id IN ?", normalizedTaskIDs).
+			Find(&exactTasks).Error; err == nil {
+			for _, task := range exactTasks {
+				appendTask(task)
+			}
+		}
+	}
+
+	normalizedRequestIDs := make(map[string]struct{}, len(requestIDs))
+	for _, requestID := range requestIDs {
+		trimmed := strings.TrimSpace(requestID)
+		if trimmed != "" {
+			normalizedRequestIDs[trimmed] = struct{}{}
+		}
+	}
+
+	if len(normalizedRequestIDs) > 0 {
+		if limit <= 0 {
+			limit = 2000
+		} else if limit < 2000 {
+			limit = 2000
+		}
+		var requestTasks []*Task
+		if err := DB.Where("user_id = ?", userId).
+			Order("id desc").
+			Limit(limit).
+			Find(&requestTasks).Error; err == nil {
+			for _, task := range requestTasks {
+				requestID := strings.TrimSpace(task.PrivateData.RequestId)
+				if requestID == "" {
+					continue
+				}
+				if _, ok := normalizedRequestIDs[requestID]; !ok {
+					continue
+				}
+				appendTask(task)
+			}
+		}
+	}
+
+	result := make([]*Task, 0, len(resultMap))
+	for _, task := range resultMap {
+		result = append(result, task)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].SubmitTime > result[j].SubmitTime
+	})
+	return result
 }
 
 func (Task *Task) Insert() error {

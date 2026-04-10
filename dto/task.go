@@ -56,3 +56,13 @@ type TaskDto struct {
 type FetchReq struct {
 	IDs []string `json:"ids"`
 }
+
+type ResolveTaskRequest struct {
+	TaskIDs        []string `json:"task_ids"`
+	RequestIDs     []string `json:"request_ids"`
+	Action         string   `json:"action,omitempty"`
+	MediaType      string   `json:"media_type,omitempty"`
+	StartTimestamp int64    `json:"start_timestamp,omitempty"`
+	EndTimestamp   int64    `json:"end_timestamp,omitempty"`
+	Limit          int      `json:"limit,omitempty"`
+}

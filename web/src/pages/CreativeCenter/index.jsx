@@ -205,11 +205,10 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
-const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE = 10;
 const CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS = 6000;
 const CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY = 2;
-const CREATIVE_CENTER_VIDEO_REQUEST_LOOKUP_BACKOFF_MS = 15000;
 const CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS = 15000;
+const CREATIVE_CENTER_VIDEO_PENDING_TO_GENERATING_MS = 10000;
 const CREATIVE_CENTER_HISTORY_PERSIST_DEBOUNCE_MS = 2000;
 const CREATIVE_CENTER_VIDEO_HISTORY_PERSIST_DEBOUNCE_MS = 6000;
 const CREATIVE_CENTER_HISTORY_PERSIST_429_BACKOFF_MS = 15000;
@@ -455,22 +454,12 @@ const createPersistedImageTaskItem = (item, index = 0) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     item?.status || (mediaUrl ? 'completed' : 'submitted'),
   );
-  const hasRecoverableReference = Boolean(requestId || taskId);
-  const persistableStatus = mediaUrl
-    ? 'completed'
-    : hasRecoverableReference &&
-        ['submitted', 'queued', 'generating', 'processing', 'in_progress', 'finalizing', 'failed'].includes(
-          normalizedStatus,
-        )
-      ? 'submitted'
-      : normalizedStatus;
-
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
     requestId,
     taskId,
     submittedAt,
-    status: persistableStatus,
+    status: mediaUrl ? 'completed' : normalizedStatus,
     ...(mediaUrl ? { resultUrl: mediaUrl } : {}),
   };
 };
@@ -537,22 +526,12 @@ const createPersistedVideoTaskItem = (item, index = 0) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     item?.status || (mediaUrl ? 'completed' : 'submitted'),
   );
-  const hasRecoverableReference = Boolean(requestId || taskId);
-  const persistableStatus = mediaUrl
-    ? 'completed'
-    : hasRecoverableReference &&
-        ['submitted', 'queued', 'generating', 'processing', 'in_progress', 'finalizing', 'failed'].includes(
-          normalizedStatus,
-        )
-      ? 'submitted'
-      : normalizedStatus;
-
   return {
     id: item?.id || createCreativeRecordId(`video-task-${index}`),
     requestId,
     taskId,
     submittedAt,
-    status: persistableStatus,
+    status: mediaUrl ? 'completed' : normalizedStatus,
     ...(mediaUrl ? { resultUrl: mediaUrl } : {}),
   };
 };
@@ -1549,38 +1528,6 @@ const getRecoverableImageTaskId = (task) => {
   return '';
 };
 
-const parseCreativeLogOtherPayload = (other) => {
-  if (!other) {
-    return null;
-  }
-
-  if (typeof other === 'object') {
-    return other;
-  }
-
-  if (typeof other !== 'string' || !other.trim()) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(other);
-  } catch (error) {
-    return null;
-  }
-};
-
-const getTaskIdFromCreativeLog = (log) => {
-  const logTaskId = String(
-    parseCreativeLogOtherPayload(log?.other)?.task_id || '',
-  ).trim();
-
-  if (logTaskId.startsWith('task_')) {
-    return logTaskId;
-  }
-
-  return '';
-};
-
 const normalizeCreativeTimestampToSeconds = (value) => {
   const numericValue = Number(value) || 0;
   if (numericValue <= 0) {
@@ -1663,10 +1610,26 @@ const parseTaskDtoVideoState = (task) => {
   const isFailed = normalizedStatus === 'failed';
   const progress =
     parseProgressValue(task?.progress) ?? (isCompleted || isFailed ? 100 : 0);
+  const submitTime = normalizeCreativeTimestampToSeconds(
+    task?.submit_time || task?.submitTime || task?.created_at || task?.createdAt,
+  );
+  const shouldPromotePendingToGenerating =
+    !isCompleted &&
+    !isFailed &&
+    ['submitted', 'queued'].includes(normalizedStatus) &&
+    submitTime > 0 &&
+    Date.now() - submitTime * 1000 >= CREATIVE_CENTER_VIDEO_PENDING_TO_GENERATING_MS;
+  const resolvedStatus = isCompleted
+    ? 'completed'
+    : isFailed
+      ? 'failed'
+      : shouldPromotePendingToGenerating
+        ? 'generating'
+        : normalizedStatus;
 
   return {
     taskId,
-    status: isCompleted ? 'completed' : isFailed ? 'failed' : normalizedStatus,
+    status: resolvedStatus,
     progress,
     url,
     content: '',
@@ -2670,7 +2633,6 @@ export default function App() {
   const creativeHistoryPersistBlockedUntilRef = useRef(0);
   const lastActiveImageReconcileSignatureRef = useRef('');
   const lastActiveVideoReconcileSignatureRef = useRef('');
-  const creativeVideoTaskLookupCacheRef = useRef(new Map());
   const creativeVideoPollingBlockedUntilRef = useRef(0);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -2710,7 +2672,6 @@ export default function App() {
 
   useEffect(() => {
     creativeHistoryPersistBlockedUntilRef.current = 0;
-    creativeVideoTaskLookupCacheRef.current = new Map();
     creativeVideoPollingBlockedUntilRef.current = 0;
   }, [isLoggedIn]);
 
@@ -4357,13 +4318,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     const startTimestamp = Math.max(0, baseStartTimestamp - 120);
     const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
 
-    const response = await API.get('/api/task/self', {
-      params: {
-        p: 1,
-        page_size: 100,
-        start_timestamp: startTimestamp,
-        end_timestamp: endTimestamp,
-      },
+    const response = await API.post('/api/task/self/resolve', {
+      task_ids: taskIds,
+      request_ids: requestIds,
+      media_type: 'video',
+      start_timestamp: startTimestamp,
+      end_timestamp: endTimestamp,
+      limit: Math.max(300, safeCandidates.length * 20),
+    }, {
       skipErrorHandler: true,
       headers: {
         'New-API-User': getUserIdFromLocalStorage(),
@@ -4380,73 +4342,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       const taskId = String(item?.task_id || item?.taskId || '').trim();
       return requestIdSet.has(requestId) || taskIdSet.has(taskId);
     });
-  };
-
-  const resolveCreativeVideoTaskIdByRequestId = async (requestId) => {
-    if (!requestId) {
-      return '';
-    }
-
-    const now = Date.now();
-    const cachedLookup = creativeVideoTaskLookupCacheRef.current.get(requestId);
-    if (cachedLookup?.taskId) {
-      return cachedLookup.taskId;
-    }
-    if ((cachedLookup?.nextRetryAt || 0) > now) {
-      return '';
-    }
-
-    try {
-      const response = await API.get(
-        `/api/log/self/?p=0&page_size=${CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE}&type=0&request_id=${encodeURIComponent(requestId)}`,
-        {
-          skipErrorHandler: true,
-          headers: {
-            'New-API-User': getUserIdFromLocalStorage(),
-          },
-        },
-      );
-
-      const items = Array.isArray(response?.data?.data?.items)
-        ? response.data.data.items
-        : [];
-
-      for (const item of items) {
-        const recoveredTaskId = getTaskIdFromCreativeLog(item);
-        if (recoveredTaskId) {
-          creativeVideoTaskLookupCacheRef.current.set(requestId, {
-            taskId: recoveredTaskId,
-            nextRetryAt: 0,
-          });
-          return recoveredTaskId;
-        }
-      }
-    } catch (error) {
-      const status = error?.response?.status;
-      const retryAfterMs =
-        status === 429
-          ? CREATIVE_CENTER_VIDEO_REQUEST_LOOKUP_BACKOFF_MS
-          : 5000;
-      creativeVideoTaskLookupCacheRef.current.set(requestId, {
-        taskId: '',
-        nextRetryAt: now + retryAfterMs,
-      });
-      if (status === 429) {
-        creativeVideoPollingBlockedUntilRef.current = Math.max(
-          creativeVideoPollingBlockedUntilRef.current,
-          now + CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS,
-        );
-        return '';
-      }
-      console.error('Failed to resolve creative center video task id from usage log:', error);
-      return '';
-    }
-
-    creativeVideoTaskLookupCacheRef.current.set(requestId, {
-      taskId: '',
-      nextRetryAt: now + 5000,
-    });
-    return '';
   };
 
   const parseVideoFetchPayload = (rawResponse) => {
@@ -4998,18 +4893,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                   if (['completed', 'failed'].includes(exactTaskState.status)) {
                     return;
                   }
-                }
-              }
-
-              if (!queryTaskId) {
-                queryTaskId = await resolveCreativeVideoTaskIdByRequestId(task.requestId);
-                if (queryTaskId) {
-                  patchVideoTask(task.recordId, task.localTaskId, {
-                    taskId: queryTaskId,
-                    status: 'submitted',
-                    requestPollable: false,
-                    pollable: true,
-                  });
                 }
               }
 
@@ -5600,8 +5483,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
     let cancelled = false;
 
-    const resolveVideoTaskIdByRequestId = resolveCreativeVideoTaskIdByRequestId;
-
     const recoverStartupVideoTasks = async () => {
       let recoveredSnapshot = normalizeCreativeHistorySnapshot(
         'video',
@@ -5614,10 +5495,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           limitedCandidates,
         );
         const exactTaskByRequestId = new Map();
+        const exactTaskByTaskId = new Map();
         exactTasks.forEach((task) => {
           const requestId = getTaskDtoRequestId(task);
           if (requestId) {
             exactTaskByRequestId.set(requestId, task);
+          }
+          const taskId = String(task?.task_id || task?.taskId || '').trim();
+          if (taskId) {
+            exactTaskByTaskId.set(taskId, task);
           }
         });
 
@@ -5648,12 +5534,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 }
               }
 
-              if (!queryTaskId) {
-                queryTaskId = await resolveVideoTaskIdByRequestId(candidate.requestId);
-              }
-
               if (!queryTaskId || cancelled) {
                 return null;
+              }
+
+              const exactTaskById = exactTaskByTaskId.get(queryTaskId);
+              if (exactTaskById) {
+                return {
+                  candidate,
+                  queryTaskId,
+                  nextTaskState: parseTaskDtoVideoState(exactTaskById),
+                };
               }
 
               try {
@@ -6132,10 +6023,6 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 continue;
               }
             }
-          }
-
-          if (!queryTaskId && candidate.requestId) {
-            queryTaskId = await resolveCreativeVideoTaskIdByRequestId(candidate.requestId);
           }
 
           if (queryTaskId) {
