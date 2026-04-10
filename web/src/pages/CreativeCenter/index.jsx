@@ -1601,6 +1601,16 @@ const getTaskDtoResultUrl = (task) => {
   return '';
 };
 
+const getTaskDtoRequestId = (task) => {
+  if (typeof task?.request_id === 'string' && task.request_id.trim()) {
+    return task.request_id.trim();
+  }
+  if (typeof task?.requestId === 'string' && task.requestId.trim()) {
+    return task.requestId.trim();
+  }
+  return '';
+};
+
 const getTaskDtoModelName = (task) => {
   const properties = task?.properties;
   if (properties && typeof properties === 'object') {
@@ -1643,6 +1653,30 @@ const normalizeTaskDtoDataPayload = (task) => {
     return rawData;
   }
   return null;
+};
+
+const parseTaskDtoVideoState = (task) => {
+  const taskId = String(task?.task_id || task?.taskId || '').trim();
+  const url = getTaskDtoResultUrl(task);
+  const normalizedStatus = normalizeVideoTaskStatus(task?.status || '');
+  const isCompleted = Boolean(url) || normalizedStatus === 'completed';
+  const isFailed = normalizedStatus === 'failed';
+  const progress =
+    parseProgressValue(task?.progress) ?? (isCompleted || isFailed ? 100 : 0);
+
+  return {
+    taskId,
+    status: isCompleted ? 'completed' : isFailed ? 'failed' : normalizedStatus,
+    progress,
+    url,
+    content: '',
+    error:
+      typeof task?.fail_reason === 'string'
+        ? task.fail_reason
+        : typeof task?.failReason === 'string'
+          ? task.failReason
+          : '',
+  };
 };
 
 const getTaskDtoImageUrls = (task) => {
@@ -4286,6 +4320,53 @@ const getCreativeVideoCardObjectFitClass = (record) =>
     syncVideoRecordsState(nextRecords);
   };
 
+  const fetchCreativeVideoTasksByRequestIds = async (candidates) => {
+    const requestIds = [...new Set(
+      (Array.isArray(candidates) ? candidates : [])
+        .map((candidate) => String(candidate?.requestId || '').trim())
+        .filter(Boolean),
+    )];
+
+    if (requestIds.length === 0) {
+      return [];
+    }
+
+    const candidateTimes = candidates
+      .map((candidate) =>
+        normalizeCreativeTimestampToSeconds(
+          candidate?.sortTimestamp ||
+            candidate?.recordUpdatedAt ||
+            candidate?.recordCreatedAt,
+        ),
+      )
+      .filter((value) => value > 0);
+    const baseStartTimestamp =
+      candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
+    const baseEndTimestamp =
+      candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
+    const startTimestamp = Math.max(0, baseStartTimestamp - 120);
+    const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
+
+    const response = await API.get('/api/task/self', {
+      params: {
+        p: 1,
+        page_size: 100,
+        start_timestamp: startTimestamp,
+        end_timestamp: endTimestamp,
+      },
+      skipErrorHandler: true,
+      headers: {
+        'New-API-User': getUserIdFromLocalStorage(),
+      },
+    });
+
+    const items = Array.isArray(response?.data?.data?.items)
+      ? response.data.data.items
+      : [];
+    const requestIdSet = new Set(requestIds);
+    return items.filter((item) => requestIdSet.has(getTaskDtoRequestId(item)));
+  };
+
   const resolveCreativeVideoTaskIdByRequestId = async (requestId) => {
     if (!requestId) {
       return '';
@@ -5423,6 +5504,17 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       let hasRecoveredChanges = false;
 
       try {
+        const exactTasks = await fetchCreativeVideoTasksByRequestIds(
+          limitedCandidates,
+        );
+        const exactTaskByRequestId = new Map();
+        exactTasks.forEach((task) => {
+          const requestId = getTaskDtoRequestId(task);
+          if (requestId) {
+            exactTaskByRequestId.set(requestId, task);
+          }
+        });
+
         for (
           let startIndex = 0;
           startIndex < limitedCandidates.length && !cancelled;
@@ -5436,6 +5528,19 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           const batchResults = await Promise.allSettled(
             currentBatch.map(async (candidate) => {
               let queryTaskId = candidate.queryTaskId;
+              const exactTask = exactTaskByRequestId.get(candidate.requestId);
+
+              if (!queryTaskId && exactTask) {
+                const exactTaskState = parseTaskDtoVideoState(exactTask);
+                queryTaskId = exactTaskState.taskId;
+                if (queryTaskId) {
+                  return {
+                    candidate,
+                    queryTaskId,
+                    nextTaskState: exactTaskState,
+                  };
+                }
+              }
 
               if (!queryTaskId) {
                 queryTaskId = await resolveVideoTaskIdByRequestId(candidate.requestId);
@@ -5867,48 +5972,22 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       let hasRecoveredChanges = false;
 
       try {
-        const candidateTimes = candidates
-          .map((candidate) =>
-            normalizeCreativeTimestampToSeconds(
-              candidate.sortTimestamp ||
-                candidate.recordUpdatedAt ||
-                candidate.recordCreatedAt,
-            ),
-          )
-          .filter((value) => value > 0);
-        const baseStartTimestamp =
-          candidateTimes.length > 0 ? Math.min(...candidateTimes) : 0;
-        const baseEndTimestamp =
-          candidateTimes.length > 0 ? Math.max(...candidateTimes) : baseStartTimestamp;
-        const startTimestamp = Math.max(0, baseStartTimestamp - 120);
-        const endTimestamp = Math.max(startTimestamp + 1, baseEndTimestamp + 1800);
-
-        const completedTaskResponse = await API.get('/api/task/self', {
-          params: {
-            p: 1,
-            page_size: 100,
-            status: 'SUCCESS',
-            start_timestamp: startTimestamp,
-            end_timestamp: endTimestamp,
-          },
-          skipErrorHandler: true,
-          headers: {
-            'New-API-User': getUserIdFromLocalStorage(),
-          },
-        });
+        const exactTasks = await fetchCreativeVideoTasksByRequestIds(candidates);
 
         if (cancelled) {
           return;
         }
 
-        const completedTasks = Array.isArray(completedTaskResponse?.data?.data?.items)
-          ? completedTaskResponse.data.data.items
-          : [];
-        const completedTaskMap = new Map();
-        completedTasks.forEach((task) => {
-          const taskId = String(task?.task_id || '').trim();
+        const exactTaskByRequestId = new Map();
+        const exactTaskByTaskId = new Map();
+        exactTasks.forEach((task) => {
+          const requestId = getTaskDtoRequestId(task);
+          if (requestId) {
+            exactTaskByRequestId.set(requestId, task);
+          }
+          const taskId = String(task?.task_id || task?.taskId || '').trim();
           if (taskId) {
-            completedTaskMap.set(taskId, task);
+            exactTaskByTaskId.set(taskId, task);
           }
         });
 
@@ -5918,6 +5997,38 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           }
 
           let queryTaskId = candidate.queryTaskId;
+          const exactTask = exactTaskByRequestId.get(candidate.requestId);
+          if (!queryTaskId && exactTask) {
+            const exactTaskState = parseTaskDtoVideoState(exactTask);
+            queryTaskId = exactTaskState.taskId;
+            if (queryTaskId) {
+              const taskPatch = patchVideoTaskInHistorySnapshot(
+                recoveredSnapshot,
+                candidate,
+                {
+                  taskId: queryTaskId,
+                  status: exactTaskState.status,
+                  progress: exactTaskState.progress,
+                  url: exactTaskState.status === 'completed' ? exactTaskState.url : '',
+                  resultUrl:
+                    exactTaskState.status === 'completed' ? exactTaskState.url : '',
+                  content: exactTaskState.content,
+                  error:
+                    exactTaskState.status === 'failed' ? exactTaskState.error : '',
+                  finalizingAt: 0,
+                  pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
+                },
+              );
+              if (taskPatch.hasChanged) {
+                recoveredSnapshot = taskPatch.snapshot;
+                hasRecoveredChanges = true;
+              }
+              if (['completed', 'failed'].includes(exactTaskState.status)) {
+                continue;
+              }
+            }
+          }
+
           if (!queryTaskId && candidate.requestId) {
             queryTaskId = await resolveCreativeVideoTaskIdByRequestId(candidate.requestId);
           }
@@ -5937,29 +6048,31 @@ const getCreativeVideoCardObjectFitClass = (record) =>
               hasRecoveredChanges = true;
             }
 
-            const completedTask = completedTaskMap.get(queryTaskId);
-            if (completedTask) {
-              const resultUrl = getTaskDtoResultUrl(completedTask);
-              if (resultUrl) {
-                const taskPatch = patchVideoTaskInHistorySnapshot(
-                  recoveredSnapshot,
-                  candidate,
-                  {
-                    taskId: queryTaskId,
-                    status: 'completed',
-                    progress: 100,
-                    url: resultUrl,
-                    resultUrl,
-                    content: '',
-                    error: '',
-                    finalizingAt: 0,
-                    pollable: false,
-                  },
-                );
-                if (taskPatch.hasChanged) {
-                  recoveredSnapshot = taskPatch.snapshot;
-                  hasRecoveredChanges = true;
-                }
+            const exactTaskById = exactTaskByTaskId.get(queryTaskId);
+            if (exactTaskById) {
+              const exactTaskState = parseTaskDtoVideoState(exactTaskById);
+              const taskPatch = patchVideoTaskInHistorySnapshot(
+                recoveredSnapshot,
+                candidate,
+                {
+                  taskId: queryTaskId,
+                  status: exactTaskState.status,
+                  progress: exactTaskState.progress,
+                  url: exactTaskState.status === 'completed' ? exactTaskState.url : '',
+                  resultUrl:
+                    exactTaskState.status === 'completed' ? exactTaskState.url : '',
+                  content: exactTaskState.content,
+                  error:
+                    exactTaskState.status === 'failed' ? exactTaskState.error : '',
+                  finalizingAt: 0,
+                  pollable: Boolean(queryTaskId) && !['completed', 'failed'].includes(exactTaskState.status),
+                },
+              );
+              if (taskPatch.hasChanged) {
+                recoveredSnapshot = taskPatch.snapshot;
+                hasRecoveredChanges = true;
+              }
+              if (['completed', 'failed'].includes(exactTaskState.status)) {
                 continue;
               }
             }

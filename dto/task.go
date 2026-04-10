@@ -34,6 +34,7 @@ type TaskDto struct {
 	CreatedAt  int64           `json:"created_at"`
 	UpdatedAt  int64           `json:"updated_at"`
 	TaskID     string          `json:"task_id"`
+	RequestID  string          `json:"request_id,omitempty"`
 	Platform   string          `json:"platform"`
 	UserId     int             `json:"user_id"`
 	Group      string          `json:"group"`

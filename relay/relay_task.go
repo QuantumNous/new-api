@@ -729,6 +729,7 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		CreatedAt:  task.CreatedAt,
 		UpdatedAt:  task.UpdatedAt,
 		TaskID:     task.TaskID,
+		RequestID:  task.PrivateData.RequestId,
 		Platform:   string(task.Platform),
 		UserId:     task.UserId,
 		Group:      task.Group,
