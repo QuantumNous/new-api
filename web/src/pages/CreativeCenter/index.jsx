@@ -206,8 +206,13 @@ const CREATIVE_CENTER_IMAGE_UPLOAD_CONCURRENCY = 2;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_MAX_TASKS = 20;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_CONCURRENCY = 4;
 const CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE = 10;
-const CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS = 3000;
-const CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY = 4;
+const CREATIVE_CENTER_VIDEO_POLL_INTERVAL_MS = 6000;
+const CREATIVE_CENTER_VIDEO_POLL_CONCURRENCY = 2;
+const CREATIVE_CENTER_VIDEO_REQUEST_LOOKUP_BACKOFF_MS = 15000;
+const CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS = 15000;
+const CREATIVE_CENTER_HISTORY_PERSIST_DEBOUNCE_MS = 2000;
+const CREATIVE_CENTER_VIDEO_HISTORY_PERSIST_DEBOUNCE_MS = 6000;
+const CREATIVE_CENTER_HISTORY_PERSIST_429_BACKOFF_MS = 15000;
 const CREATIVE_BATCH_REQUEST_SPACING_MS = 300;
 const ESTIMATED_PROGRESS_TICK_MS = 500;
 const ESTIMATED_PROGRESS_FINALIZING_MS = 1400;
@@ -450,18 +455,22 @@ const createPersistedImageTaskItem = (item, index = 0) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     item?.status || (mediaUrl ? 'completed' : 'submitted'),
   );
+  const hasRecoverableReference = Boolean(requestId || taskId);
+  const persistableStatus = mediaUrl
+    ? 'completed'
+    : hasRecoverableReference &&
+        ['submitted', 'queued', 'generating', 'processing', 'in_progress', 'finalizing', 'failed'].includes(
+          normalizedStatus,
+        )
+      ? 'submitted'
+      : normalizedStatus;
 
   return {
     id: item?.id || createCreativeRecordId(`image-task-${index}`),
     requestId,
     taskId,
     submittedAt,
-    status:
-      !mediaUrl && (requestId || taskId) && normalizedStatus === 'failed'
-        ? 'submitted'
-        : mediaUrl
-          ? 'completed'
-          : normalizedStatus,
+    status: persistableStatus,
     ...(mediaUrl ? { resultUrl: mediaUrl } : {}),
   };
 };
@@ -528,18 +537,22 @@ const createPersistedVideoTaskItem = (item, index = 0) => {
   const normalizedStatus = normalizeVideoTaskStatus(
     item?.status || (mediaUrl ? 'completed' : 'submitted'),
   );
+  const hasRecoverableReference = Boolean(requestId || taskId);
+  const persistableStatus = mediaUrl
+    ? 'completed'
+    : hasRecoverableReference &&
+        ['submitted', 'queued', 'generating', 'processing', 'in_progress', 'finalizing', 'failed'].includes(
+          normalizedStatus,
+        )
+      ? 'submitted'
+      : normalizedStatus;
 
   return {
     id: item?.id || createCreativeRecordId(`video-task-${index}`),
     requestId,
     taskId,
     submittedAt,
-    status:
-      !mediaUrl && (requestId || taskId) && normalizedStatus === 'failed'
-        ? 'submitted'
-        : mediaUrl
-          ? 'completed'
-          : normalizedStatus,
+    status: persistableStatus,
     ...(mediaUrl ? { resultUrl: mediaUrl } : {}),
   };
 };
@@ -1476,25 +1489,21 @@ const buildCreativePersistSignature = (records, taskType) =>
       prompt: record?.prompt || '',
       modelName: record?.modelName || '',
       group: record?.group || '',
-      status: record?.status || '',
-      error: record?.error || '',
-      total: Number(record?.total) || 0,
       params: record?.params || {},
+      sourceImages: Array.isArray(record?.sourceImages)
+        ? record.sourceImages
+            .map((item, sourceImageIndex) =>
+              createPersistedSourceImageItem(item, sourceImageIndex),
+            )
+            .filter(Boolean)
+        : [],
       items:
         taskType === 'video'
           ? (record?.tasks || []).map((item) => ({
-              id: item?.id || '',
-              taskId: item?.taskId || item?.task_id || '',
-              status: item?.status || '',
-              url: getVideoTaskMediaUrl(item),
-              error: item?.error || '',
-              resultUrl: item?.resultUrl || '',
+              ...createPersistedVideoTaskItem(item),
             }))
           : (record?.images || []).map((item) => ({
-              id: item?.id || '',
-              status: item?.status || '',
-              url: item?.url || item?.resultUrl || '',
-              error: item?.error || '',
+              ...createPersistedImageTaskItem(item),
             })),
     })),
   );
@@ -2623,8 +2632,11 @@ export default function App() {
   const startupImageRecoveryRunRef = useRef(false);
   const startupVideoRecoveryRunRef = useRef(false);
   const creativeHistoryPersistWarningAtRef = useRef(0);
+  const creativeHistoryPersistBlockedUntilRef = useRef(0);
   const lastActiveImageReconcileSignatureRef = useRef('');
   const lastActiveVideoReconcileSignatureRef = useRef('');
+  const creativeVideoTaskLookupCacheRef = useRef(new Map());
+  const creativeVideoPollingBlockedUntilRef = useRef(0);
   const isLoggedIn = Boolean(userState?.user);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [uploadImageNotice, setUploadImageNotice] = useState('');
@@ -2659,6 +2671,12 @@ export default function App() {
 
   useEffect(() => {
     creativeCenterUploadConfigRef.current = null;
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    creativeHistoryPersistBlockedUntilRef.current = 0;
+    creativeVideoTaskLookupCacheRef.current = new Map();
+    creativeVideoPollingBlockedUntilRef.current = 0;
   }, [isLoggedIn]);
 
   const notifyCreativeHistoryPersistFailure = (tabKey) => {
@@ -3633,6 +3651,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return normalizedSnapshot;
     }
 
+    if (Date.now() < creativeHistoryPersistBlockedUntilRef.current) {
+      return normalizedSnapshot;
+    }
+
     try {
       const persistedPayload = buildPersistableCreativeSessionPayload(
         tabKey,
@@ -3651,9 +3673,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
           headers: {
             'New-API-User': getUserIdFromLocalStorage(),
           },
+          skipErrorHandler: true,
         },
       );
     } catch (error) {
+      if (error?.response?.status === 429) {
+        creativeHistoryPersistBlockedUntilRef.current =
+          Date.now() + CREATIVE_CENTER_HISTORY_PERSIST_429_BACKOFF_MS;
+      }
       console.error('Failed to save creative center history:', error);
       notifyCreativeHistoryPersistFailure(tabKey);
     }
@@ -3883,11 +3910,16 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       payload: buildPersistableCreativeSessionPayload(tabKey, payload),
     };
 
+    if (Date.now() < creativeHistoryPersistBlockedUntilRef.current) {
+      return;
+    }
+
     try {
       await API.put(API_ENDPOINTS.CREATIVE_CENTER_HISTORY, requestBody, {
         headers: {
           'New-API-User': getUserIdFromLocalStorage(),
         },
+        skipErrorHandler: true,
       });
 
       const nextSnapshot = normalizeCreativeHistorySnapshot(tabKey, {
@@ -3903,6 +3935,10 @@ const getCreativeVideoCardObjectFitClass = (record) =>
         [tabKey]: nextSnapshot,
       }));
     } catch (error) {
+      if (error?.response?.status === 429) {
+        creativeHistoryPersistBlockedUntilRef.current =
+          Date.now() + CREATIVE_CENTER_HISTORY_PERSIST_429_BACKOFF_MS;
+      }
       console.error('Failed to save creative center history:', error);
       notifyCreativeHistoryPersistFailure(tabKey);
     }
@@ -4258,6 +4294,15 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       return '';
     }
 
+    const now = Date.now();
+    const cachedLookup = creativeVideoTaskLookupCacheRef.current.get(requestId);
+    if (cachedLookup?.taskId) {
+      return cachedLookup.taskId;
+    }
+    if ((cachedLookup?.nextRetryAt || 0) > now) {
+      return '';
+    }
+
     try {
       const response = await API.get(
         `/api/log/self/?p=0&page_size=${CREATIVE_CENTER_STARTUP_VIDEO_RECOVERY_LOG_PAGE_SIZE}&type=0&request_id=${encodeURIComponent(requestId)}`,
@@ -4276,13 +4321,38 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       for (const item of items) {
         const recoveredTaskId = getTaskIdFromCreativeLog(item);
         if (recoveredTaskId) {
+          creativeVideoTaskLookupCacheRef.current.set(requestId, {
+            taskId: recoveredTaskId,
+            nextRetryAt: 0,
+          });
           return recoveredTaskId;
         }
       }
     } catch (error) {
+      const status = error?.response?.status;
+      const retryAfterMs =
+        status === 429
+          ? CREATIVE_CENTER_VIDEO_REQUEST_LOOKUP_BACKOFF_MS
+          : 5000;
+      creativeVideoTaskLookupCacheRef.current.set(requestId, {
+        taskId: '',
+        nextRetryAt: now + retryAfterMs,
+      });
+      if (status === 429) {
+        creativeVideoPollingBlockedUntilRef.current = Math.max(
+          creativeVideoPollingBlockedUntilRef.current,
+          now + CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS,
+        );
+        return '';
+      }
       console.error('Failed to resolve creative center video task id from usage log:', error);
+      return '';
     }
 
+    creativeVideoTaskLookupCacheRef.current.set(requestId, {
+      taskId: '',
+      nextRetryAt: now + 5000,
+    });
     return '';
   };
 
@@ -4708,9 +4778,9 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       videoRecordsRef.current.flatMap((record) =>
         record.tasks
           .filter((task) => {
-            const queryTaskId = task.taskId || task.id;
+            const queryTaskId = getRecoverableVideoTaskId(task);
             return (
-              Boolean(queryTaskId) &&
+              Boolean(queryTaskId || String(task?.requestId || '').trim()) &&
               task.pollable !== false &&
               ACTIVE_VIDEO_POLL_STATUSES.has(normalizeVideoTaskStatus(task.status))
             );
@@ -4719,7 +4789,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             recordId: record.id,
             modelName: record.modelName,
             localTaskId: task.id,
-            queryTaskId: task.taskId || task.id,
+            queryTaskId: getRecoverableVideoTaskId(task),
             requestId: typeof task?.requestId === 'string' ? task.requestId.trim() : '',
           })),
       );
@@ -4738,6 +4808,14 @@ const getCreativeVideoCardObjectFitClass = (record) =>
 
       videoPollingTimerRef.current = window.setTimeout(async () => {
         videoPollingTimerRef.current = null;
+
+        const now = Date.now();
+        if (creativeVideoPollingBlockedUntilRef.current > now) {
+          scheduleVideoPollingCycle(
+            creativeVideoPollingBlockedUntilRef.current - now,
+          );
+          return;
+        }
 
         const pendingTasks = collectPendingVideoTasks();
         if (pendingTasks.length === 0) {
@@ -4770,7 +4848,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             videoPollingInFlightRef.current.add(task.localTaskId);
             try {
               let queryTaskId = task.queryTaskId;
-              if (!queryTaskId || queryTaskId === task.localTaskId) {
+              if (!queryTaskId) {
                 queryTaskId = await resolveCreativeVideoTaskIdByRequestId(task.requestId);
                 if (queryTaskId) {
                   patchVideoTask(task.recordId, task.localTaskId, {
@@ -4857,6 +4935,13 @@ const getCreativeVideoCardObjectFitClass = (record) =>
                 }));
               }
             } catch (error) {
+              if (error?.response?.status === 429) {
+                creativeVideoPollingBlockedUntilRef.current = Math.max(
+                  creativeVideoPollingBlockedUntilRef.current,
+                  Date.now() + CREATIVE_CENTER_VIDEO_POLL_429_BACKOFF_MS,
+                );
+                return;
+              }
               console.error('Failed to poll creative center video task:', error);
             } finally {
               videoPollingInFlightRef.current.delete(task.localTaskId);
@@ -5072,7 +5157,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       persistImageRecords(imageRecordsRef.current).catch((error) => {
         console.error('Failed to persist creative center image records:', error);
       });
-    }, 800);
+    }, CREATIVE_CENTER_HISTORY_PERSIST_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
   }, [imagePersistSignature, isLoggedIn]);
@@ -5089,7 +5174,7 @@ const getCreativeVideoCardObjectFitClass = (record) =>
       persistVideoRecords(videoRecordsRef.current).catch((error) => {
         console.error('Failed to persist creative center video records:', error);
       });
-    }, 800);
+    }, CREATIVE_CENTER_VIDEO_HISTORY_PERSIST_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
   }, [videoPersistSignature, isLoggedIn]);
@@ -5911,7 +5996,12 @@ const getCreativeVideoCardObjectFitClass = (record) =>
             0,
         })),
       )
-      .filter((candidate) => !candidate.hasMedia && Boolean(candidate.queryTaskId || candidate.requestId));
+      .filter(
+        (candidate) =>
+          !candidate.hasMedia &&
+          Boolean(candidate.requestId) &&
+          !candidate.queryTaskId,
+      );
 
     if (candidates.length === 0) {
       return undefined;

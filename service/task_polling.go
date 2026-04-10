@@ -412,10 +412,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 				// 其他错误认为是任务失败，记录错误信息并更新任务状态
 				taskResult = relaycommon.FailTaskInfo("upstream returned error")
 			} else {
-				// Keep polling when the upstream response is temporarily unrecognized instead of
-				// flipping the task to failed and later correcting it back to success.
-				logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, keep polling, response: %s", taskId, string(responseBody)))
-				return nil
+				bodyLower := strings.ToLower(string(responseBody))
+				if resp.StatusCode == http.StatusNotFound || strings.Contains(bodyLower, "not found") {
+					taskResult = relaycommon.FailTaskInfo("upstream task not found")
+					taskResult.Reason = strings.TrimSpace(string(responseBody))
+				} else {
+					// Keep polling when the upstream response is temporarily unrecognized instead of
+					// flipping the task to failed and later correcting it back to success.
+					logger.LogError(ctx, fmt.Sprintf("Task %s returned empty status with unrecognized error format, keep polling, response: %s", taskId, string(responseBody)))
+					return nil
+				}
 			}
 		}
 	}
