@@ -1,7 +1,6 @@
 'use client'
 
-import type { ComponentProps } from 'react'
-import { createContext, useContext } from 'react'
+import { type ComponentProps, createContext, useContext } from 'react'
 import { ChevronsUpDownIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'

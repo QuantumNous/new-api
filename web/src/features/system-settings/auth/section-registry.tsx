@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { AuthSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { BasicAuthSection } from './basic-auth-section'
@@ -41,7 +42,8 @@ const AUTH_SECTIONS = [
           'oidc.client_id': settings['oidc.client_id'],
           'oidc.client_secret': settings['oidc.client_secret'],
           'oidc.well_known': settings['oidc.well_known'],
-          'oidc.authorization_endpoint': settings['oidc.authorization_endpoint'],
+          'oidc.authorization_endpoint':
+            settings['oidc.authorization_endpoint'],
           'oidc.token_endpoint': settings['oidc.token_endpoint'],
           'oidc.user_info_endpoint': settings['oidc.user_info_endpoint'],
           TelegramOAuthEnabled: settings.TelegramOAuthEnabled,
@@ -70,10 +72,12 @@ const AUTH_SECTIONS = [
           'passkey.rp_display_name': settings['passkey.rp_display_name'],
           'passkey.rp_id': settings['passkey.rp_id'],
           'passkey.origins': settings['passkey.origins'],
-          'passkey.allow_insecure_origin': settings['passkey.allow_insecure_origin'],
-          'passkey.user_verification': settings[
-            'passkey.user_verification'
-          ] as 'required' | 'preferred' | 'discouraged',
+          'passkey.allow_insecure_origin':
+            settings['passkey.allow_insecure_origin'],
+          'passkey.user_verification': settings['passkey.user_verification'] as
+            | 'required'
+            | 'preferred'
+            | 'discouraged',
           'passkey.attachment_preference': (settings[
             'passkey.attachment_preference'
           ] === ''

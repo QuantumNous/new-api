@@ -7,10 +7,11 @@ import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
 import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
+import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
-  const { open, setOpen, currentRow } = useChannels()
+  const { open, setOpen, currentRow, upstream } = useChannels()
 
   return (
     <>
@@ -67,6 +68,17 @@ export function ChannelsDialogs() {
       <EditTagDialog
         open={open === 'edit-tag'}
         onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* Upstream Model Update Dialog */}
+      <UpstreamUpdateDialog
+        open={upstream.showModal}
+        addModels={upstream.addModels}
+        removeModels={upstream.removeModels}
+        preferredTab={upstream.preferredTab}
+        confirmLoading={upstream.applyLoading}
+        onConfirm={upstream.applyUpdates}
+        onCancel={upstream.closeModal}
       />
     </>
   )

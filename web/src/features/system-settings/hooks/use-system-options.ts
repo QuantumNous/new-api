@@ -105,6 +105,7 @@ export function getOptionValue<
   })
 
   if (errors.length > 0 && import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
     console.warn('[System Options] Parsing errors detected:', errors)
   }
 

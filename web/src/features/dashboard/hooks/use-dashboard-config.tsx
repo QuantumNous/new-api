@@ -17,7 +17,7 @@ interface StatCardConfig {
   title: string
   description: string
   icon: LucideIcon
-  getValue: (stat: any, days?: number) => number
+  getValue: (stat: Record<string, number>, days?: number) => number
 }
 
 export function useModelStatCardsConfig(): StatCardConfig[] {

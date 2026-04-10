@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
+import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
@@ -36,8 +37,17 @@ export function useAuthRedirect() {
         if (user.id) {
           saveUserId(user.id)
         }
+
+        // Restore saved language preference
+        const savedLang = (user as Record<string, unknown>).language as
+          | string
+          | undefined
+        if (savedLang && savedLang !== i18n.language) {
+          i18n.changeLanguage(savedLang)
+        }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch user data:', error)
     }
 

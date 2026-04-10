@@ -149,8 +149,8 @@ export function PrefillGroupFormDrawer({
       } else {
         toast.error(response.message || 'Operation failed')
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'Operation failed')
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Operation failed')
     } finally {
       setIsSaving(false)
     }
@@ -351,7 +351,11 @@ export function PrefillGroupFormDrawer({
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
             {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            {isSaving ? t('Saving...') : isEdit ? t('Save changes') : t('Create')}
+            {isSaving
+              ? t('Saving...')
+              : isEdit
+                ? t('Save changes')
+                : t('Create')}
           </Button>
         </SheetFooter>
       </SheetContent>

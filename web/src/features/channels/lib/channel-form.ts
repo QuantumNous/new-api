@@ -136,6 +136,7 @@ export function transformChannelToFormDefaults(
         system_prompt_override: parsed.system_prompt_override || false,
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to parse channel setting:', error)
     }
   }
@@ -160,6 +161,7 @@ export function transformChannelToFormDefaults(
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
     }
   }
@@ -222,13 +224,14 @@ function buildSettingJSON(formData: ChannelFormValues): string {
  * Build the settings JSON string (for type-specific config like vertex_key_type)
  */
 function buildSettingsJSON(formData: ChannelFormValues): string {
-  let settingsObj: Record<string, any> = {}
+  let settingsObj: Record<string, unknown> = {}
 
   // Try to parse existing settings first
   if (formData.settings && formData.settings !== '{}') {
     try {
       settingsObj = JSON.parse(formData.settings)
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to parse existing settings:', error)
     }
   }
@@ -321,7 +324,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
   // Clean up empty strings to null for optional fields
   Object.keys(channel).forEach((key) => {
     if (channel[key as keyof typeof channel] === '') {
-      channel[key as keyof typeof channel] = null as any
+      ;(channel as Record<string, unknown>)[key] = null
     }
   })
 
@@ -374,7 +377,7 @@ export function transformFormDataToUpdatePayload(
   // Clean up empty strings to null for optional fields
   Object.keys(payload).forEach((key) => {
     if (payload[key as keyof typeof payload] === '') {
-      payload[key as keyof typeof payload] = null as any
+      ;(payload as Record<string, unknown>)[key] = null
     }
   })
 

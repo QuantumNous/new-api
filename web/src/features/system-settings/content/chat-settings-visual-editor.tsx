@@ -135,7 +135,9 @@ export function ChatSettingsVisualEditor({
         <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
           {searchText
             ? t('No chat presets match your search')
-            : t('No chat presets configured. Click "Add chat preset" to get started.')}
+            : t(
+                'No chat presets configured. Click "Add chat preset" to get started.'
+              )}
         </div>
       ) : (
         <div className='rounded-md border'>

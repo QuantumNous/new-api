@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -15,11 +17,9 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -118,7 +118,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
 
   const form = useForm<
     GlobalModelSettingsFormInput,
-    any,
+    unknown,
     GlobalModelSettingsFormValues
   >({
     resolver: zodResolver(schema),
@@ -225,7 +225,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                     type='button'
                     variant='outline'
                     size='sm'
-                    onClick={() => formatJsonField('global.thinking_model_blacklist')}
+                    onClick={() =>
+                      formatJsonField('global.thinking_model_blacklist')
+                    }
                   >
                     {t('Format JSON')}
                   </Button>
@@ -239,7 +241,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
 
           <div className='space-y-4'>
             <div className='flex items-center gap-2'>
-                <h3 className='text-base font-semibold'>
+              <h3 className='text-base font-semibold'>
                 {t('ChatCompletions -> Responses Compatibility')}
               </h3>
               <Badge variant='secondary'>{t('Preview')}</Badge>
@@ -305,7 +307,9 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                       variant='outline'
                       size='sm'
                       onClick={() =>
-                        formatJsonField('global.chat_completions_to_responses_policy')
+                        formatJsonField(
+                          'global.chat_completions_to_responses_policy'
+                        )
                       }
                     >
                       {t('Format JSON')}

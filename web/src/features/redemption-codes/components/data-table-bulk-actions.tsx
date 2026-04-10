@@ -61,10 +61,7 @@ export function DataTableBulkActions<TData>({
 
   return (
     <>
-      <BulkActionsToolbar
-        table={table}
-        entityName={t('redemption code')}
-      >
+      <BulkActionsToolbar table={table} entityName={t('redemption code')}>
         <CopyButton
           value={contentToCopy}
           variant='outline'

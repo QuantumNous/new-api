@@ -24,6 +24,7 @@ export function saveUserId(userId: number | string): void {
   try {
     window.localStorage.setItem(STORAGE_KEYS.USER_ID, String(userId))
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save user ID:', error)
   }
 }
@@ -36,6 +37,7 @@ export function getUserId(): string | null {
   try {
     return window.localStorage.getItem(STORAGE_KEYS.USER_ID)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get user ID:', error)
     return null
   }
@@ -49,6 +51,7 @@ export function removeUserId(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEYS.USER_ID)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to remove user ID:', error)
   }
 }
@@ -65,6 +68,7 @@ export function getAffiliateCode(): string {
   try {
     return window.localStorage.getItem(STORAGE_KEYS.AFFILIATE) ?? ''
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get affiliate code:', error)
     return ''
   }
@@ -78,6 +82,7 @@ export function saveAffiliateCode(code: string): void {
   try {
     window.localStorage.setItem(STORAGE_KEYS.AFFILIATE, code)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save affiliate code:', error)
   }
 }

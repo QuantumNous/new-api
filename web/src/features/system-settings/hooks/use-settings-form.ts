@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 
 type SettingsFormOptions<T extends FieldValues> = UseFormProps<T> & {
   onSubmit: (data: T, changedFields: Record<string, unknown>) => Promise<void>
-  compareValues?: (a: any, b: any) => boolean
+  compareValues?: (a: unknown, b: unknown) => boolean
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -181,9 +181,12 @@ export function useSettingsForm<T extends FieldValues>({
   const baselineRef = useRef<Record<string, unknown>>(
     flattenValues((expandedDefaults ?? ({} as T)) as T)
   )
+
+  /* eslint-disable react-hooks/refs */
   const serializedDefaultsRef = useRef<string>(
     JSON.stringify(baselineRef.current)
   )
+  /* eslint-enable react-hooks/refs */
 
   useEffect(() => {
     if (!expandedDefaults) return
@@ -256,6 +259,7 @@ export function useSettingsForm<T extends FieldValues>({
 
   return {
     form,
+    // eslint-disable-next-line react-hooks/refs
     handleSubmit: form.handleSubmit(handleSubmit),
     handleReset,
     isDirty: form.formState.isDirty,

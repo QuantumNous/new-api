@@ -25,8 +25,10 @@ export async function handleEnableModel(
     } else {
       toast.error(response.message || i18next.t('Failed to enable model'))
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Failed to enable model'))
+  } catch (error: unknown) {
+    toast.error(
+      (error as Error)?.message || i18next.t('Failed to enable model')
+    )
   }
 }
 
@@ -47,8 +49,10 @@ export async function handleDisableModel(
     } else {
       toast.error(response.message || i18next.t('Failed to disable model'))
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Failed to disable model'))
+  } catch (error: unknown) {
+    toast.error(
+      (error as Error)?.message || i18next.t('Failed to disable model')
+    )
   }
 }
 
@@ -89,8 +93,10 @@ export async function handleDeleteModel(
     } else {
       toast.error(response.message || i18next.t('Failed to delete model'))
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Failed to delete model'))
+  } catch (error: unknown) {
+    toast.error(
+      (error as Error)?.message || i18next.t('Failed to delete model')
+    )
   }
 }
 
@@ -119,6 +125,7 @@ export async function handleBatchDeleteModels(
         successCount++
       } else {
         failedCount++
+        // eslint-disable-next-line no-console
         console.error(`Failed to delete model ${ids[index]}:`, res.message)
       }
     })
@@ -138,8 +145,8 @@ export async function handleBatchDeleteModels(
         i18next.t('Failed to delete {{count}} model(s)', { count: failedCount })
       )
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Batch delete failed'))
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t('Batch delete failed'))
   }
 }
 
@@ -190,8 +197,8 @@ export async function handleBatchEnableModels(
         i18next.t('Failed to enable {{count}} model(s)', { count: failedCount })
       )
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Batch enable failed'))
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t('Batch enable failed'))
   }
 }
 
@@ -240,7 +247,7 @@ export async function handleBatchDisableModels(
         })
       )
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Batch disable failed'))
+  } catch (error: unknown) {
+    toast.error((error as Error)?.message || i18next.t('Batch disable failed'))
   }
 }

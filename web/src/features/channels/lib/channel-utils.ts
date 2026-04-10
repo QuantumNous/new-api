@@ -1,5 +1,5 @@
-import dayjs from '@/lib/dayjs'
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
+import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 import {
   CHANNEL_STATUS_CONFIG,
@@ -309,12 +309,10 @@ type TFunction = (key: string, options?: { value?: number | string }) => string
  * Format response time in milliseconds to human-readable.
  * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s").
  */
-export function formatResponseTime(
-  timeMs: number,
-  t?: TFunction
-): string {
+export function formatResponseTime(timeMs: number, t?: TFunction): string {
   if (timeMs === 0) return t ? t('Not tested') : 'Not tested'
-  if (timeMs < 1000) return t ? t('{{value}}ms', { value: timeMs }) : `${timeMs}ms`
+  if (timeMs < 1000)
+    return t ? t('{{value}}ms', { value: timeMs }) : `${timeMs}ms`
   return t
     ? t('{{value}}s', { value: (timeMs / 1000).toFixed(2) })
     : `${(timeMs / 1000).toFixed(2)}s`
@@ -504,26 +502,26 @@ export function aggregateChannelsByTag(
 
     if (!tagMap.has(tag)) {
       // Create tag aggregate row
-      const tagRow: TagRow = {
+      const tagRow = {
         ...channel,
         key: tag,
-        id: tag as any,
+        id: tag as unknown as number,
         tag: tag,
-        name: tag, // Will be prefixed in UI
+        name: tag,
         type: 0,
-        status: undefined as any,
+        status: undefined as unknown as number,
         group: '',
         used_quota: 0,
         response_time: 0,
-        priority: -1 as any,
-        weight: -1 as any,
+        priority: -1 as unknown as number | null,
+        weight: -1 as unknown as number | null,
         balance: 0,
         test_time: 0,
         created_time: 0,
         balance_updated_time: 0,
         models: '',
         children: [],
-      }
+      } as TagRow
       tagMap.set(tag, tagRow)
       result.push(tagRow)
     }
@@ -546,14 +544,14 @@ export function aggregateChannelsByTag(
     if (tagRow.priority === -1) {
       tagRow.priority = channel.priority
     } else if (tagRow.priority !== channel.priority) {
-      tagRow.priority = null as any
+      tagRow.priority = null
     }
 
     // Aggregate weight (same value or null if different)
     if (tagRow.weight === -1) {
       tagRow.weight = channel.weight
     } else if (tagRow.weight !== channel.weight) {
-      tagRow.weight = null as any
+      tagRow.weight = null
     }
 
     // Aggregate group (concatenate and deduplicate)

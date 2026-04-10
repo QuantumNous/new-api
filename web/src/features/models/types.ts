@@ -141,7 +141,7 @@ export interface SyncDiffData {
   missing?: Array<{
     model_name: string
     vendor?: string
-    [key: string]: any
+    [key: string]: unknown
   }>
   conflicts?: Array<{
     model_name: string
@@ -152,7 +152,7 @@ export interface SyncDiffData {
       local?: unknown
       upstream?: unknown
     }>
-    [key: string]: any
+    [key: string]: unknown
   }>
 }
 

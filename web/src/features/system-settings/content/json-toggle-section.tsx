@@ -87,10 +87,12 @@ export function JsonToggleSection({
                 })
               }
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: error?.message || 'Invalid JSON data',
+              message:
+                (error instanceof Error ? error.message : null) ||
+                'Invalid JSON data',
             })
           }
         }),
@@ -139,6 +141,7 @@ export function JsonToggleSection({
   return (
     <SettingsAccordion value={value} title={title} description={description}>
       <Form {...form}>
+        {/* eslint-disable-next-line react-hooks/refs */}
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <FormField
             control={form.control}

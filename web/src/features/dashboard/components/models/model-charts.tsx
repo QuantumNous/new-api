@@ -15,7 +15,9 @@ import type {
 } from '@/features/dashboard/types'
 
 // Cache ThemeManager import to avoid repeated dynamic imports
-let themeManagerPromise: Promise<typeof import('@visactor/vchart')['ThemeManager']> | null = null
+let themeManagerPromise: Promise<
+  (typeof import('@visactor/vchart'))['ThemeManager']
+> | null = null
 
 type ChartTab = '1' | '2' | '3' | '4'
 
@@ -45,23 +47,27 @@ export function ModelCharts({
   const { resolvedTheme } = useTheme()
   const [activeTab, setActiveTab] = useState<ChartTab>('1')
   const [themeReady, setThemeReady] = useState(false)
-  const themeManagerRef = useRef<typeof import('@visactor/vchart')['ThemeManager'] | null>(null)
+  const themeManagerRef = useRef<
+    (typeof import('@visactor/vchart'))['ThemeManager'] | null
+  >(null)
 
   useEffect(() => {
     const updateTheme = async () => {
       setThemeReady(false)
-      
+
       // Use cached promise or create new one
       if (!themeManagerPromise) {
-        themeManagerPromise = import('@visactor/vchart').then((m) => m.ThemeManager)
+        themeManagerPromise = import('@visactor/vchart').then(
+          (m) => m.ThemeManager
+        )
       }
-      
+
       const ThemeManager = await themeManagerPromise
       themeManagerRef.current = ThemeManager
       ThemeManager.setCurrentTheme(resolvedTheme === 'dark' ? 'dark' : 'light')
       setThemeReady(true)
     }
-    
+
     updateTheme()
   }, [resolvedTheme])
 

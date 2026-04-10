@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { ContentSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AnnouncementsSection } from './announcements-section'
@@ -11,9 +12,7 @@ import { UptimeKumaSection } from './uptime-kuma-section'
 /**
  * Validate and coerce DataExportDefaultTime to a safe value
  */
-function validateDataExportDefaultTime(
-  value: string
-): 'week' | 'hour' | 'day' {
+function validateDataExportDefaultTime(value: string): 'week' | 'hour' | 'day' {
   if (value === 'week' || value === 'hour' || value === 'day') {
     return value
   }

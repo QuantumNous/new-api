@@ -28,12 +28,6 @@ export function ModelMappingEditor({
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
 
-  // Parse JSON to rows when value changes externally
-  useEffect(() => {
-    setJsonValue(value)
-    parseJsonToRows(value)
-  }, [value])
-
   const parseJsonToRows = (json: string) => {
     try {
       if (!json.trim()) {
@@ -49,10 +43,17 @@ export function ModelMappingEditor({
         })
       )
       setRows(newRows)
-    } catch (error) {
+    } catch (_error) {
       // Invalid JSON, keep current rows
     }
   }
+
+  // Parse JSON to rows when value changes externally
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setJsonValue(value)
+    parseJsonToRows(value)
+  }, [value])
 
   const convertRowsToJson = (updatedRows: MappingRow[]): string => {
     if (updatedRows.length === 0) {

@@ -72,6 +72,7 @@ export async function getOAuthState(): Promise<string | null> {
     }
     return null
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get OAuth state:', error)
     return null
   }

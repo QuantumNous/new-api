@@ -2,7 +2,7 @@ import '@tanstack/react-table'
 
 declare module '@tanstack/react-table' {
   // Extended column metadata for enhanced table functionality
-  interface ColumnMeta<TData, TValue> {
+  interface ColumnMeta<_TData, _TValue> {
     // Human-readable label for the column
     label?: string
     // Optional description shown in tooltips or help text

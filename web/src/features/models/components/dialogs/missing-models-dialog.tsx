@@ -46,17 +46,19 @@ export function MissingModelsDialog({
     enabled: open,
   })
 
-  const missingModels = data?.data || []
+  const missingModels = useMemo(() => data?.data || [], [data?.data])
   const pageSize = DEFAULT_PAGE_SIZE
 
   const handleConfigureModel = (modelName: string) => {
-    setCurrentRow({ model_name: modelName } as any)
+    setCurrentRow({ model_name: modelName } as Record<string, unknown>)
     setOpen('create-model')
   }
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearchTerm('')
+
       setCurrentPage(1)
     }
   }, [open])
@@ -77,6 +79,7 @@ export function MissingModelsDialog({
 
   useEffect(() => {
     if (currentPage > totalPages) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentPage(Math.max(1, totalPages))
     }
   }, [currentPage, totalPages])
@@ -183,7 +186,10 @@ export function MissingModelsDialog({
 
                 <div className='bg-muted/40 flex items-center justify-between border-t px-3 py-2 text-sm'>
                   <div className='text-muted-foreground text-sm'>
-                    {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
+                    {t('Page {{current}} of {{total}}', {
+                      current: currentPage,
+                      total: totalPages,
+                    })}
                   </div>
                   {showPagination && (
                     <div className='flex items-center gap-2'>

@@ -418,8 +418,8 @@ export function UpstreamConflictDialog({
       } else {
         toast.error(response.message || t('Failed to apply overwrite.'))
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to apply overwrite.'))
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || t('Failed to apply overwrite.'))
     } finally {
       setIsSubmitting(false)
     }

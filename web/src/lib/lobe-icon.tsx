@@ -14,7 +14,7 @@ import * as LobeIcons from '@lobehub/icons'
  * @param raw - Raw string value
  * @returns Parsed value (boolean, number, or string)
  */
-function parseValue(raw: string | undefined | null): any {
+function parseValue(raw: string | undefined | null): string | number | boolean {
   if (raw == null) return true
 
   let v = String(raw).trim()
@@ -84,17 +84,24 @@ export function getLobeIcon(
   // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
-  const BaseIcon = (LobeIcons as any)[baseKey]
+  const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
+    | Record<string, unknown>
+    | undefined
 
-  let IconComponent: any = undefined
+  let IconComponent: React.ComponentType<Record<string, unknown>> | undefined =
+    undefined
   let propStartIndex = 1
 
   // Check if it's a nested component like "OpenAI.Color"
   if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
-    IconComponent = BaseIcon[segments[1]]
+    IconComponent = BaseIcon[segments[1]] as React.ComponentType<
+      Record<string, unknown>
+    >
     propStartIndex = 2
   } else {
-    IconComponent = (LobeIcons as any)[baseKey]
+    IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
+      | React.ComponentType<Record<string, unknown>>
+      | undefined
     propStartIndex = 1
     // Skip failed nested component names (e.g., "Color", "Avatar") to avoid treating them as props
     // Check if segments[1] looks like a component name (starts with uppercase)
@@ -120,7 +127,7 @@ export function getLobeIcon(
   }
 
   // Parse chained properties (e.g., "type={'platform'}", "shape='square'")
-  const props: Record<string, any> = {}
+  const props: Record<string, string | number | boolean> = {}
 
   for (let i = propStartIndex; i < segments.length; i++) {
     const seg = segments[i]

@@ -69,7 +69,9 @@ export function PlaygroundChat({
     if (!editingKey) return
     const message = messages.find((m) => m.key === editingKey)
     const content = message?.versions?.[0]?.content || ''
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditText(content)
+
     setOriginalText(content)
   }, [editingKey, messages])
 

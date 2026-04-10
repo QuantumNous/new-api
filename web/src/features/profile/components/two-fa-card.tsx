@@ -88,7 +88,9 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   </div>
                   <p className='text-muted-foreground text-sm'>
                     {status.enabled
-                      ? t('Backup codes remaining: {{count}}', { count: status.backup_codes_remaining })
+                      ? t('Backup codes remaining: {{count}}', {
+                          count: status.backup_codes_remaining,
+                        })
                       : t('Add an extra layer of security to your account')}
                   </p>
                 </div>

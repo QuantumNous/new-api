@@ -42,7 +42,7 @@ export function ModelRow({
     <Button
       variant='ghost'
       onClick={onClick}
-      className='hover:bg-accent/5 group h-auto w-full whitespace-normal px-4 py-4 text-left sm:px-6 sm:py-6'
+      className='hover:bg-accent/5 group h-auto w-full px-4 py-4 text-left whitespace-normal sm:px-6 sm:py-6'
     >
       <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-8'>
         {/* Model Info */}

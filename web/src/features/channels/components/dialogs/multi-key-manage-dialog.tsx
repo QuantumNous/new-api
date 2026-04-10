@@ -89,6 +89,7 @@ export function MultiKeyManageDialog({
       setStatusFilter(null)
       loadKeyStatus(1, pageSize, null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentRow?.id])
 
   const loadKeyStatus = async (
@@ -117,8 +118,10 @@ export function MultiKeyManageDialog({
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to load key status')
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to load key status'
+      )
     } finally {
       setIsLoading(false)
     }
@@ -174,8 +177,8 @@ export function MultiKeyManageDialog({
       } else {
         toast.error(response?.message || 'Operation failed')
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Operation failed')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Operation failed')
     } finally {
       setIsPerformingAction(false)
       setConfirmAction(null)
@@ -369,7 +372,10 @@ export function MultiKeyManageDialog({
             {totalPages > 1 && (
               <div className='flex shrink-0 items-center justify-between'>
                 <div className='text-muted-foreground text-sm'>
-                  {t('Page {{current}} of {{total}}', { current: currentPage, total: totalPages })}
+                  {t('Page {{current}} of {{total}}', {
+                    current: currentPage,
+                    total: totalPages,
+                  })}
                 </div>
                 <div className='flex gap-2'>
                   <Button

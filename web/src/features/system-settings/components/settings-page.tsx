@@ -4,7 +4,7 @@ import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 
 type SettingsPageProps<
   TSettings extends Record<string, string | number | boolean | unknown[]>,
-  TSectionId extends string
+  TSectionId extends string,
 > = {
   routePath: string
   defaultSettings: TSettings
@@ -12,9 +12,9 @@ type SettingsPageProps<
   getSectionContent: (
     sectionId: TSectionId,
     settings: TSettings,
-    ...extraArgs: any[]
+    ...extraArgs: unknown[]
   ) => React.ReactNode
-  extraArgs?: any[]
+  extraArgs?: unknown[]
 }
 
 /**
@@ -23,7 +23,7 @@ type SettingsPageProps<
  */
 export function SettingsPage<
   TSettings extends Record<string, string | number | boolean | unknown[]>,
-  TSectionId extends string
+  TSectionId extends string,
 >({
   routePath,
   defaultSettings,
@@ -33,6 +33,7 @@ export function SettingsPage<
 }: SettingsPageProps<TSettings, TSectionId>) {
   const { t } = useTranslation()
   const { data, isLoading } = useSystemOptions()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params = useParams({ from: routePath as any })
 
   if (isLoading) {
@@ -43,12 +44,13 @@ export function SettingsPage<
     )
   }
 
-  const settings = getOptionValue(
-    data?.data,
-    defaultSettings
-  ) as TSettings
+  const settings = getOptionValue(data?.data, defaultSettings) as TSettings
   const activeSection = (params?.section ?? defaultSection) as TSectionId
-  const sectionContent = getSectionContent(activeSection, settings, ...extraArgs)
+  const sectionContent = getSectionContent(
+    activeSection,
+    settings,
+    ...extraArgs
+  )
 
   return (
     <div className='flex h-full w-full flex-1 flex-col'>

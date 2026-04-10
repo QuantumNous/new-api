@@ -82,8 +82,10 @@ export function SubscriptionsTable() {
             ) : table.getRowModel().rows.length === 0 ? (
               <TableEmpty
                 colSpan={columns.length}
-                title={t('暂无订阅套餐')}
-                description={t('点击「新建套餐」创建您的第一个订阅套餐')}
+                title={t('No subscription plans yet')}
+                description={t(
+                  'Click "Create Plan" to create your first subscription plan'
+                )}
               />
             ) : (
               table.getRowModel().rows.map((row) => (

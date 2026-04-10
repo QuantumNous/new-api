@@ -1,5 +1,5 @@
-import type { NavItem, NavCollapsible } from '../types'
 import type { LinkProps } from '@tanstack/react-router'
+import type { NavItem, NavCollapsible } from '../types'
 
 /**
  * Convert LinkProps['to'] to string
@@ -45,8 +45,7 @@ export function checkIsActive(
     const collapsibleItem = item as NavCollapsible
     const items = collapsibleItem.items
     const hrefWithoutQuery = href.split('?')[0]
-    const hrefHasQuery = href.includes('?')
-    
+
     // Check if any sub-item matches
     if (
       items.some((i) => {
@@ -79,7 +78,6 @@ export function checkIsActive(
 
   const hrefWithoutQuery = href.split('?')[0]
   const itemUrlWithoutQuery = itemUrl.split('?')[0]
-  const hrefHasQuery = href.includes('?')
   const itemUrlHasQuery = itemUrl.includes('?')
 
   // If both URLs have the same base path

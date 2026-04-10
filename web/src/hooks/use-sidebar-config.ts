@@ -86,6 +86,7 @@ function parseSidebarConfig(
     }
     return parsed
   } catch {
+    // eslint-disable-next-line no-console
     console.error('Failed to parse sidebar modules configuration')
     return DEFAULT_SIDEBAR_MODULES
   }

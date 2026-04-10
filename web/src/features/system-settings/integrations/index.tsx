@@ -1,5 +1,5 @@
-import type { IntegrationSettings as IntegrationSettingsType } from '../types'
 import { SettingsPage } from '../components/settings-page'
+import type { IntegrationSettings as IntegrationSettingsType } from '../types'
 import {
   INTEGRATIONS_DEFAULT_SECTION,
   getIntegrationsSectionContent,

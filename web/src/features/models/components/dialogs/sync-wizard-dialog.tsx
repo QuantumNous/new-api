@@ -99,8 +99,8 @@ export function SyncWizardDialog({
       } else {
         toast.error(response.message || 'Sync failed')
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Sync failed')
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || 'Sync failed')
     } finally {
       setIsSyncing(false)
     }

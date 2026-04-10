@@ -385,7 +385,7 @@ export const ModelRatioVisualEditor = memo(
           enableHiding: false,
         },
       ],
-      [handleEdit, handleDelete]
+      [handleEdit, handleDelete, t]
     )
 
     const table = useReactTable({

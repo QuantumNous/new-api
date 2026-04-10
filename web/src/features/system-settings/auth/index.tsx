@@ -1,5 +1,5 @@
-import type { AuthSettings } from '../types'
 import { SettingsPage } from '../components/settings-page'
+import type { AuthSettings } from '../types'
 import {
   AUTH_DEFAULT_SECTION,
   getAuthSectionContent,

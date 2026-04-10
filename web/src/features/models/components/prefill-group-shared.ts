@@ -76,7 +76,7 @@ export function parseEndpointKeys(items: PrefillGroup['items']): string[] {
   if (!items) return []
   try {
     const parsed =
-      typeof items === 'string' ? JSON.parse(items || '{}') : (items as any)
+      typeof items === 'string' ? JSON.parse(items || '{}') : (items as unknown)
     if (Array.isArray(parsed)) {
       return parsed
         .map((item) =>

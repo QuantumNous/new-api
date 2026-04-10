@@ -1,16 +1,22 @@
-import type { TFunction } from 'i18next'
 import { z } from 'zod'
+import type { TFunction } from 'i18next'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 export function getPlanFormSchema(t: TFunction) {
   return z.object({
-    title: z.string().min(1, t('请输入套餐标题')),
+    title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
-    price_amount: z.coerce.number().min(0, t('请输入金额')),
+    price_amount: z.coerce.number().min(0, t('Please enter amount')),
     duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),
     duration_value: z.coerce.number().min(1),
     custom_seconds: z.coerce.number().min(0).optional(),
-    quota_reset_period: z.enum(['never', 'daily', 'weekly', 'monthly', 'custom']),
+    quota_reset_period: z.enum([
+      'never',
+      'daily',
+      'weekly',
+      'monthly',
+      'custom',
+    ]),
     quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
     enabled: z.boolean(),
     sort_order: z.coerce.number(),

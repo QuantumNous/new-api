@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Separator } from '@/components/ui/separator'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -150,11 +150,14 @@ export function WaffoSettingsSection(props: Props) {
   }
 
   const saveMethod = () => {
-    if (!methodForm.name.trim()) return toast.error(t('Payment method name is required'))
+    if (!methodForm.name.trim())
+      return toast.error(t('Payment method name is required'))
     if (editingIdx === -1) {
       setPayMethods((prev) => [...prev, methodForm])
     } else {
-      setPayMethods((prev) => prev.map((m, i) => (i === editingIdx ? methodForm : m)))
+      setPayMethods((prev) =>
+        prev.map((m, i) => (i === editingIdx ? methodForm : m))
+      )
     }
     setMethodDialogOpen(false)
   }
@@ -163,11 +166,15 @@ export function WaffoSettingsSection(props: Props) {
     <>
       <SettingsSection
         title={t('Waffo Payment Gateway')}
-        description={t('Configure Waffo payment aggregation platform integration')}
+        description={t(
+          'Configure Waffo payment aggregation platform integration'
+        )}
       >
         <Alert>
           <AlertDescription className='text-xs'>
-            {t('Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.')}
+            {t(
+              'Obtain the API key, merchant ID, and RSA key pair from the Waffo dashboard, and configure the callback URL.'
+            )}
           </AlertDescription>
         </Alert>
 
@@ -207,22 +214,38 @@ export function WaffoSettingsSection(props: Props) {
         <div className='grid grid-cols-2 gap-4'>
           <div className='grid gap-1.5'>
             <Label>{t('RSA Private Key (Production)')}</Label>
-            <Textarea rows={3} {...form.register('WaffoPrivateKey')} className='font-mono text-xs' />
+            <Textarea
+              rows={3}
+              {...form.register('WaffoPrivateKey')}
+              className='font-mono text-xs'
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('RSA Private Key (Sandbox)')}</Label>
-            <Textarea rows={3} {...form.register('WaffoSandboxPrivateKey')} className='font-mono text-xs' />
+            <Textarea
+              rows={3}
+              {...form.register('WaffoSandboxPrivateKey')}
+              className='font-mono text-xs'
+            />
           </div>
         </div>
 
         <div className='grid grid-cols-2 gap-4'>
           <div className='grid gap-1.5'>
             <Label>{t('Waffo Public Key (Production)')}</Label>
-            <Textarea rows={3} {...form.register('WaffoPublicCert')} className='font-mono text-xs' />
+            <Textarea
+              rows={3}
+              {...form.register('WaffoPublicCert')}
+              className='font-mono text-xs'
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Waffo Public Key (Sandbox)')}</Label>
-            <Textarea rows={3} {...form.register('WaffoSandboxPublicCert')} className='font-mono text-xs' />
+            <Textarea
+              rows={3}
+              {...form.register('WaffoSandboxPublicCert')}
+              className='font-mono text-xs'
+            />
           </div>
         </div>
 
@@ -233,7 +256,12 @@ export function WaffoSettingsSection(props: Props) {
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Unit price (USD)')}</Label>
-            <Input type='number' step={0.1} min={0} {...form.register('WaffoUnitPrice')} />
+            <Input
+              type='number'
+              step={0.1}
+              min={0}
+              {...form.register('WaffoUnitPrice')}
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Minimum top-up quantity')}</Label>
@@ -244,11 +272,17 @@ export function WaffoSettingsSection(props: Props) {
         <div className='grid grid-cols-2 gap-4'>
           <div className='grid gap-1.5'>
             <Label>{t('Callback notification URL')}</Label>
-            <Input placeholder='https://example.com/api/waffo/webhook' {...form.register('WaffoNotifyUrl')} />
+            <Input
+              placeholder='https://example.com/api/waffo/webhook'
+              {...form.register('WaffoNotifyUrl')}
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label>{t('Payment return URL')}</Label>
-            <Input placeholder='https://example.com/console/topup' {...form.register('WaffoReturnUrl')} />
+            <Input
+              placeholder='https://example.com/console/topup'
+              {...form.register('WaffoReturnUrl')}
+            />
           </div>
         </div>
 
@@ -275,7 +309,10 @@ export function WaffoSettingsSection(props: Props) {
             <TableBody>
               {payMethods.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className='text-center py-8 text-muted-foreground'>
+                  <TableCell
+                    colSpan={4}
+                    className='text-muted-foreground py-8 text-center'
+                  >
                     {t('No payment methods configured')}
                   </TableCell>
                 </TableRow>
@@ -287,14 +324,23 @@ export function WaffoSettingsSection(props: Props) {
                     <TableCell>{m.payMethodName || '-'}</TableCell>
                     <TableCell className='text-right'>
                       <div className='flex justify-end gap-1'>
-                        <Button variant='ghost' size='icon' className='h-7 w-7' onClick={() => openEdit(idx)}>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='h-7 w-7'
+                          onClick={() => openEdit(idx)}
+                        >
                           <Pencil className='h-3 w-3' />
                         </Button>
                         <Button
                           variant='ghost'
                           size='icon'
                           className='h-7 w-7'
-                          onClick={() => setPayMethods((prev) => prev.filter((_, i) => i !== idx))}
+                          onClick={() =>
+                            setPayMethods((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            )
+                          }
                         >
                           <Trash2 className='h-3 w-3' />
                         </Button>
@@ -316,7 +362,9 @@ export function WaffoSettingsSection(props: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingIdx === -1 ? t('Add payment method') : t('Edit payment method')}
+              {editingIdx === -1
+                ? t('Add payment method')
+                : t('Edit payment method')}
             </DialogTitle>
           </DialogHeader>
           <div className='space-y-3'>
@@ -324,14 +372,21 @@ export function WaffoSettingsSection(props: Props) {
               <Label>{t('Display name')} *</Label>
               <Input
                 value={methodForm.name}
-                onChange={(e) => setMethodForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setMethodForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
             </div>
             <div className='grid gap-1.5'>
               <Label>{t('Payment method type')}</Label>
               <Input
                 value={methodForm.payMethodType}
-                onChange={(e) => setMethodForm((p) => ({ ...p, payMethodType: e.target.value }))}
+                onChange={(e) =>
+                  setMethodForm((p) => ({
+                    ...p,
+                    payMethodType: e.target.value,
+                  }))
+                }
                 placeholder='CREDITCARD,DEBITCARD'
               />
             </div>
@@ -339,12 +394,20 @@ export function WaffoSettingsSection(props: Props) {
               <Label>{t('Payment method name')}</Label>
               <Input
                 value={methodForm.payMethodName}
-                onChange={(e) => setMethodForm((p) => ({ ...p, payMethodName: e.target.value }))}
+                onChange={(e) =>
+                  setMethodForm((p) => ({
+                    ...p,
+                    payMethodName: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setMethodDialogOpen(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setMethodDialogOpen(false)}
+            >
               {t('Cancel')}
             </Button>
             <Button onClick={saveMethod}>{t('Confirm')}</Button>

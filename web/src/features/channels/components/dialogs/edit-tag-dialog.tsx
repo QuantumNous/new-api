@@ -156,7 +156,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
     setIsSubmitting(true)
     try {
-      const params: any = { tag: currentTag }
+      const params: Record<string, string | null> = { tag: currentTag }
 
       if (newTag && newTag !== currentTag) {
         params.new_tag = newTag || null
@@ -183,8 +183,10 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       } else {
         toast.error(response.message || t('Failed to update tag'))
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to update tag'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to update tag')
+      )
     } finally {
       setIsSubmitting(false)
     }

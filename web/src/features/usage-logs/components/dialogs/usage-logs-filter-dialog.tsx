@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { Search, RotateCcw, Calendar } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getNormalizedDateRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,6 @@ import {
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DateTimePicker } from '@/components/datetime-picker'
-import { ComboboxInput } from '@/components/ui/combobox-input'
 import { getApiKeys } from '@/features/keys/api'
 import { TIME_RANGE_PRESETS } from '../../constants'
 import { buildSearchParams, getLogCategoryLabel } from '../../lib/filter'
@@ -81,6 +81,7 @@ export function UsageLogsFilterDialog({
   }, [tokensData?.data?.items])
 
   // Sync filters from URL
+
   useEffect(() => {
     const urlFilters: Partial<LogFilters> = {}
 
@@ -91,7 +92,9 @@ export function UsageLogsFilterDialog({
     if (searchParams.channel) urlFilters.channel = String(searchParams.channel)
 
     if (Object.keys(urlFilters).length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFilters((prev: LogFilters) => ({ ...prev, ...urlFilters }))
+
       setSelectedRange(null)
     }
   }, [searchParams.startTime, searchParams.endTime, searchParams.channel])
@@ -118,7 +121,7 @@ export function UsageLogsFilterDialog({
 
   // Common navigation helper
   const navigateWithFilters = useCallback(
-    (searchParamsUpdate: Record<string, any>) => {
+    (searchParamsUpdate: Record<string, unknown>) => {
       navigate({
         to: '/usage-logs/$section',
         params: { section: logCategory },

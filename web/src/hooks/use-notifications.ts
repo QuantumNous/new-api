@@ -21,7 +21,7 @@ function hashString(input: string): string {
  * Generate a unique key for an announcement
  * Prefer backend id, fall back to a content hash so edits register
  */
-function getAnnouncementKey(item: any): string {
+function getAnnouncementKey(item: Record<string, unknown>): string {
   if (!item) return ''
 
   if (item.id !== undefined && item.id !== null) {
@@ -63,8 +63,9 @@ export function useNotifications() {
   // Fetch Announcements from status
   const { status, loading: statusLoading } = useStatus()
   const announcementsEnabled = status?.announcements_enabled ?? false
-  const announcements = announcementsEnabled
-    ? (status?.announcements || []).slice(0, 20)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const announcements: Record<string, unknown>[] = announcementsEnabled
+    ? ((status?.announcements || []) as Record<string, unknown>[]).slice(0, 20)
     : []
 
   // Notification store
@@ -95,10 +96,12 @@ export function useNotifications() {
     }
 
     // Check unread announcements
-    announcementsUnread = announcements.filter((item: any) => {
-      const key = getAnnouncementKey(item)
-      return !isAnnouncementRead(key)
-    }).length
+    announcementsUnread = announcements.filter(
+      (item: Record<string, unknown>) => {
+        const key = getAnnouncementKey(item)
+        return !isAnnouncementRead(key)
+      }
+    ).length
 
     return {
       notice: noticeUnread,
@@ -123,7 +126,9 @@ export function useNotifications() {
     setActiveTab(tab)
 
     if (tab === 'announcements' && announcements.length > 0) {
-      const allKeys = announcements.map((item: any) => getAnnouncementKey(item))
+      const allKeys = announcements.map((item: Record<string, unknown>) =>
+        getAnnouncementKey(item)
+      )
       markAnnouncementsRead(allKeys)
     }
   }

@@ -26,7 +26,9 @@ export async function handleDeleteVendor(
     } else {
       toast.error(response.message || i18next.t('Failed to delete vendor'))
     }
-  } catch (error: any) {
-    toast.error(error?.message || i18next.t('Failed to delete vendor'))
+  } catch (error: unknown) {
+    toast.error(
+      (error as Error)?.message || i18next.t('Failed to delete vendor')
+    )
   }
 }

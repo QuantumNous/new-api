@@ -1,5 +1,5 @@
-import type { RequestLimitsSettings } from '../types'
 import { SettingsPage } from '../components/settings-page'
+import type { RequestLimitsSettings } from '../types'
 import {
   REQUEST_LIMITS_DEFAULT_SECTION,
   getRequestLimitsSectionContent,

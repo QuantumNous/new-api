@@ -113,6 +113,7 @@ export function useTableUrlState(
   // URL 为单一数据源：仅当 search（URL）变化时同步，避免依赖 initialColumnFilters 造成死循环（config 常为内联引用）
   useEffect(() => {
     setColumnFilters(initialColumnFilters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
   const pagination: PaginationState = useMemo(() => {

@@ -54,6 +54,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
         setTotal(0)
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch billing history:', error)
       toast.error(i18next.t('Failed to load billing history'))
       setRecords([])
@@ -86,6 +87,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
           return false
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to complete order:', error)
         toast.error(i18next.t('Failed to complete order'))
         return false

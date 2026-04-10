@@ -39,7 +39,7 @@ export function useStreamRequest() {
         }
       }
 
-      source.addEventListener('message', (e: any) => {
+      source.addEventListener('message', (e: MessageEvent) => {
         if (e.data === '[DONE]') {
           isStreamCompleteRef.current = true
           closeSource()
@@ -60,30 +60,35 @@ export function useStreamRequest() {
             }
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Failed to parse SSE message:', error)
           handleError(ERROR_MESSAGES.PARSE_ERROR)
         }
       })
 
-      source.addEventListener('error', (e: any) => {
+      source.addEventListener('error', (e: Event & { data?: string }) => {
         // Only handle errors if stream didn't complete normally
         if (source.readyState !== 2) {
+          // eslint-disable-next-line no-console
           console.error('SSE Error:', e)
           handleError(e.data || ERROR_MESSAGES.API_REQUEST_ERROR)
         }
       })
 
-      source.addEventListener('readystatechange', (e: any) => {
-        // Check for HTTP status errors
-        const status = (source as any).status
-        if (e.readyState >= 2 && status !== undefined && status !== 200) {
-          handleError(`HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`)
+      source.addEventListener(
+        'readystatechange',
+        (e: Event & { readyState?: number }) => {
+          const status = (source as unknown as { status?: number }).status
+          if (e.readyState >= 2 && status !== undefined && status !== 200) {
+            handleError(`HTTP ${status}: ${ERROR_MESSAGES.CONNECTION_CLOSED}`)
+          }
         }
-      })
+      )
 
       try {
         source.stream()
-      } catch (error: any) {
+      } catch (error: unknown) {
+        // eslint-disable-next-line no-console
         console.error('Failed to start SSE stream:', error)
         onError(ERROR_MESSAGES.STREAM_START_ERROR)
         sseSourceRef.current = null
@@ -99,11 +104,13 @@ export function useStreamRequest() {
     }
   }, [])
 
+  // eslint-disable-next-line react-hooks/refs
   const isStreaming = sseSourceRef.current !== null
 
   return {
     sendStreamRequest,
     stopStream,
+    // eslint-disable-next-line react-hooks/refs
     isStreaming,
   }
 }

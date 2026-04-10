@@ -52,7 +52,11 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
   const { t } = useTranslation()
   const meta = resolveDatabaseMeta(status?.database_type)
   const electronApi =
-    typeof window !== 'undefined' ? (window as any)?.electron : undefined
+    typeof window !== 'undefined'
+      ? ((window as Record<string, unknown>)?.electron as
+          | Record<string, unknown>
+          | undefined)
+      : undefined
   const isElectron = Boolean(electronApi?.isElectron)
   const electronDataDir = electronApi?.dataDir as string | undefined
 

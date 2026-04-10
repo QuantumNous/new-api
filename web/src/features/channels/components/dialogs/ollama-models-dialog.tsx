@@ -39,8 +39,9 @@ import {
   formatBytes,
   normalizeOllamaModels,
   resolveOllamaBaseUrl,
+  type OllamaModel,
+  type PullProgress,
 } from '../../lib/ollama-utils'
-import type { OllamaModel, PullProgress } from '../../lib/ollama-utils'
 import { useChannels } from '../channels-provider'
 
 const CHANNEL_TYPE_OLLAMA = 4
@@ -100,6 +101,7 @@ export function OllamaModelsDialog({
     if (open && isOllamaChannel && channelId) {
       void fetchOllamaModels()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isOllamaChannel, channelId])
 
   const fetchOllamaModels = useCallback(async () => {

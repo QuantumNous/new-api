@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -11,7 +12,6 @@ import {
 } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { truncateText } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -23,6 +23,7 @@ import {
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table/column-header'
 import { StatusBadge } from '@/components/status-badge'
+import { getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG } from '../constants'
 import {
   formatBalance,
@@ -38,16 +39,17 @@ import {
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
+  isTagAggregateRow,
+  type TagRow,
 } from '../lib'
-import { getCodexUsage } from '../api'
 import type { Channel } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
-import { NumericSpinnerInput } from './numeric-spinner-input'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
+import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
@@ -100,7 +102,7 @@ function renderLimitedItems(
 function PriorityCell({ channel }: { channel: Channel }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isTagRow = (channel as any).children !== undefined
+  const isTagRow = isTagAggregateRow(channel)
   const priority = channel.priority
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingValue, setPendingValue] = useState<number | null>(null)
@@ -108,7 +110,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
   // Tag row - editable with confirmation for all tag channels
   if (isTagRow) {
     const tag = channel.tag || ''
-    const channelCount = (channel as any).children?.length || 0
+    const channelCount = channel.children?.length || 0
 
     return (
       <>
@@ -155,7 +157,7 @@ function PriorityCell({ channel }: { channel: Channel }) {
 function WeightCell({ channel }: { channel: Channel }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isTagRow = (channel as any).children !== undefined
+  const isTagRow = isTagAggregateRow(channel)
   const weight = channel.weight
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingValue, setPendingValue] = useState<number | null>(null)
@@ -163,7 +165,7 @@ function WeightCell({ channel }: { channel: Channel }) {
   // Tag row - editable with confirmation for all tag channels
   if (isTagRow) {
     const tag = channel.tag || ''
-    const channelCount = (channel as any).children?.length || 0
+    const channelCount = channel.children?.length || 0
 
     return (
       <>
@@ -210,7 +212,7 @@ function WeightCell({ channel }: { channel: Channel }) {
 function BalanceCell({ channel }: { channel: Channel }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const isTagRow = (channel as any).children !== undefined
+  const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
@@ -328,7 +330,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
             setCodexUsageResponse(res)
           } catch (error) {
             toast.error(
-              error instanceof Error ? error.message : t('Failed to fetch usage')
+              error instanceof Error
+                ? error.message
+                : t('Failed to fetch usage')
             )
           } finally {
             setIsUpdating(false)
@@ -360,7 +364,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         />
       ),
       cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
+        const isTagRow = isTagAggregateRow(row.original)
 
         // Don't show checkbox for tag rows
         if (isTagRow) {
@@ -410,15 +414,15 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         <DataTableColumnHeader column={column} title={t('Name')} />
       ),
       cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
+        const isTagRow = isTagAggregateRow(row.original)
         const name = row.getValue('name') as string
         const channel = row.original
         const isMultiKey = isMultiKeyChannel(channel)
 
         // Tag row with expand/collapse
         if (isTagRow) {
-          const tag = (row.original as any).tag || name
-          const childrenCount = (row.original as any).children?.length || 0
+          const tag = (row.original as TagRow).tag || name
+          const childrenCount = (row.original as TagRow).children?.length || 0
 
           return (
             <div className='flex items-center gap-2'>
@@ -480,7 +484,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       meta: { label: t('Type') },
       header: t('Type'),
       cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
+        const isTagRow = isTagAggregateRow(row.original)
 
         if (isTagRow) {
           return (
@@ -596,13 +600,13 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       meta: { label: t('Status') },
       header: t('Status'),
       cell: ({ row }) => {
-        const isTagRow = (row.original as any).children !== undefined
+        const isTagRow = isTagAggregateRow(row.original)
         const status = row.getValue('status') as number
         const channel = row.original as Channel
 
         // Tag row: show aggregated status
         if (isTagRow) {
-          const childrenCount = (row.original as any).children?.length || 0
+          const childrenCount = (row.original as TagRow).children?.length || 0
           const hasEnabled = status === 1
 
           if (hasEnabled) {
@@ -864,10 +868,16 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       id: 'actions',
       cell: ({ row }) => {
         // Check if this is a tag row (has children)
-        const isTagRow = (row.original as any).children !== undefined
+        const isTagRow = isTagAggregateRow(row.original)
 
         if (isTagRow) {
-          return <DataTableTagRowActions row={row as any} />
+          return (
+            <DataTableTagRowActions
+              row={
+                row as unknown as import('@tanstack/react-table').Row<TagRow>
+              }
+            />
+          )
         }
 
         return <DataTableRowActions row={row} />

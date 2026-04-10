@@ -3,8 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
+import { SectionPageLayout } from '@/components/layout'
 import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
 import { DeploymentsTable } from './components/deployments-table'
@@ -15,8 +15,10 @@ import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
-import type { ModelsSectionId } from './section-registry'
-import { MODELS_DEFAULT_SECTION } from './section-registry'
+import {
+  type ModelsSectionId,
+  MODELS_DEFAULT_SECTION,
+} from './section-registry'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -25,7 +27,8 @@ function ModelsContent() {
   const queryClient = useQueryClient()
   const { tabCategory, setTabCategory } = useModels()
   const params = route.useParams()
-  const activeSection = (params.section ?? MODELS_DEFAULT_SECTION) as ModelsSectionId
+  const activeSection = (params.section ??
+    MODELS_DEFAULT_SECTION) as ModelsSectionId
 
   // Deployment create dialog state
   const [createDeploymentOpen, setCreateDeploymentOpen] = useState(false)
@@ -58,7 +61,11 @@ function ModelsContent() {
   // Prefetch deployments list while connection check is in progress
   // This allows the data to be ready as soon as the guard passes
   useEffect(() => {
-    if (activeSection === 'deployments' && isIoNetEnabled && loadingPhase === 'connection') {
+    if (
+      activeSection === 'deployments' &&
+      isIoNetEnabled &&
+      loadingPhase === 'connection'
+    ) {
       const defaultParams = { p: 1, page_size: 10 }
       queryClient.prefetchQuery({
         queryKey: deploymentsQueryKeys.list(defaultParams),

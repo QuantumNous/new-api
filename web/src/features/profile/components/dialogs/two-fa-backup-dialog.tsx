@@ -53,7 +53,7 @@ export function TwoFABackupDialog({
       } else {
         toast.error(response.message || t('Failed to regenerate backup codes'))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t('Failed to regenerate backup codes'))
     } finally {
       setLoading(false)

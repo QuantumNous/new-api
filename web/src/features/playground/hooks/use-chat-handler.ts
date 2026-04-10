@@ -136,10 +136,14 @@ export function useChatHandler({
             status: MESSAGE_STATUS.COMPLETE,
           }))
         )
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as {
+          response?: { data?: { message?: string } }
+          message?: string
+        }
         handleStreamError(
-          error?.response?.data?.message ||
-            error?.message ||
+          err?.response?.data?.message ||
+            err?.message ||
             ERROR_MESSAGES.API_REQUEST_ERROR
         )
       }
@@ -150,9 +154,11 @@ export function useChatHandler({
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
     (messages: Message[]) => {
-      config.stream
-        ? sendStreamingChat(messages)
-        : sendNonStreamingChat(messages)
+      if (config.stream) {
+        sendStreamingChat(messages)
+      } else {
+        sendNonStreamingChat(messages)
+      }
     },
     [config.stream, sendStreamingChat, sendNonStreamingChat]
   )

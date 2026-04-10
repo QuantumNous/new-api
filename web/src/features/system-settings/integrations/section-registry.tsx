@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { IntegrationSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { EmailSettingsSection } from './email-settings-section'
@@ -120,8 +121,7 @@ const INTEGRATIONS_SECTIONS = [
           QuotaRemindThreshold: settings.QuotaRemindThreshold,
           AutomaticDisableChannelEnabled:
             settings.AutomaticDisableChannelEnabled,
-          AutomaticEnableChannelEnabled:
-            settings.AutomaticEnableChannelEnabled,
+          AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
           AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
           AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
           AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
@@ -135,8 +135,7 @@ const INTEGRATIONS_SECTIONS = [
   },
 ] as const
 
-export type IntegrationSectionId =
-  (typeof INTEGRATIONS_SECTIONS)[number]['id']
+export type IntegrationSectionId = (typeof INTEGRATIONS_SECTIONS)[number]['id']
 
 const integrationsRegistry = createSectionRegistry<
   IntegrationSectionId,

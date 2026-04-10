@@ -34,6 +34,7 @@ function OAuthCallback() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMode(window.opener ? 'bind' : 'login')
   }, [])
 

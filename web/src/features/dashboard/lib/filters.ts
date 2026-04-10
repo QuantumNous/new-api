@@ -5,7 +5,7 @@ import {
   TIME_RANGE_BY_GRANULARITY,
 } from '@/features/dashboard/constants'
 
-export function cleanFilters<T extends Record<string, any>>(
+export function cleanFilters<T extends Record<string, unknown>>(
   filters: T
 ): Partial<T> {
   const cleaned: Partial<T> = {}
@@ -13,7 +13,7 @@ export function cleanFilters<T extends Record<string, any>>(
     if (value === undefined || value === null) continue
     if (typeof value === 'string') {
       const trimmed = value.trim()
-      if (trimmed) cleaned[key as keyof T] = trimmed as any
+      if (trimmed) cleaned[key as keyof T] = trimmed as T[keyof T]
       continue
     }
     cleaned[key as keyof T] = value

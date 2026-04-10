@@ -9,7 +9,7 @@ export function SubscriptionsPrimaryButtons() {
   return (
     <div className='flex gap-2'>
       <Button className='space-x-1' onClick={() => setOpen('create')}>
-        <span>{t('新建套餐')}</span> <Plus size={18} />
+        <span>{t('Create Plan')}</span> <Plus size={18} />
       </Button>
     </div>
   )

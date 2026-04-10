@@ -107,3 +107,48 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group/')
   return res.data
 }
+
+// ============================================================================
+// Admin Binding Management APIs
+// ============================================================================
+
+export interface OAuthBinding {
+  provider_id: string
+  provider_name: string
+  user_id?: number
+  external_id?: string
+}
+
+/**
+ * Get user's custom OAuth bindings (admin)
+ */
+export async function getUserOAuthBindings(
+  userId: number
+): Promise<ApiResponse<OAuthBinding[]>> {
+  const res = await api.get(`/api/user/${userId}/oauth/bindings`)
+  return res.data
+}
+
+/**
+ * Clear a user's built-in binding (admin)
+ */
+export async function adminClearUserBinding(
+  userId: number,
+  bindingType: string
+): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/${userId}/bindings/${bindingType}`)
+  return res.data
+}
+
+/**
+ * Unbind custom OAuth for a user (admin)
+ */
+export async function adminUnbindCustomOAuth(
+  userId: number,
+  providerId: string
+): Promise<ApiResponse> {
+  const res = await api.delete(
+    `/api/user/${userId}/oauth/bindings/${providerId}`
+  )
+  return res.data
+}

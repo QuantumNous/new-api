@@ -327,9 +327,10 @@ export function RatioSettingsCard({
     setConfirmOpen(true)
   }, [])
 
+  const { mutate: resetMutate } = resetMutation
   const handleConfirmReset = useCallback(() => {
-    resetMutation.mutate()
-  }, [resetMutation.mutate])
+    resetMutate()
+  }, [resetMutate])
 
   return (
     <SettingsSection

@@ -1,5 +1,7 @@
-import { useState } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
+import { Music } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/status-badge'
@@ -10,6 +12,10 @@ import {
   taskPlatformMapper,
 } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
+import {
+  AudioPreviewDialog,
+  type AudioClip,
+} from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
 import {
   createTimestampColumn,
@@ -17,6 +23,51 @@ import {
   createChannelColumn,
   createProgressColumn,
 } from './column-helpers'
+
+function parseTaskData(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function AudioPreviewCell({ log }: { log: TaskLog }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const clips = useMemo(() => {
+    const data = parseTaskData(log.data)
+    return data.filter(
+      (c) =>
+        c && typeof c === 'object' && (c as Record<string, unknown>).audio_url
+    )
+  }, [log.data])
+
+  if (clips.length === 0) return null
+
+  return (
+    <>
+      <Button
+        variant='link'
+        className='h-auto p-0 text-sm'
+        onClick={() => setOpen(true)}
+      >
+        <Music className='mr-1 h-3 w-3' />
+        {t('Click to preview audio')}
+      </Button>
+      <AudioPreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        clips={clips as AudioClip[]}
+      />
+    </>
+  )
+}
 
 export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   const { t } = useTranslation()
@@ -124,11 +175,28 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
     {
       accessorKey: 'fail_reason',
       header: t('Details'),
-      cell: ({ row }) => {
+      cell: function DetailsCell({ row }) {
         const log = row.original
         const failReason = row.getValue('fail_reason') as string
         const status = log.status
         const [dialogOpen, setDialogOpen] = useState(false)
+
+        // Suno audio preview
+        const isSunoSuccess =
+          log.platform === 'suno' && status === TASK_STATUS.SUCCESS
+        if (isSunoSuccess) {
+          const data = parseTaskData(log.data)
+          if (
+            data.some(
+              (c) =>
+                c &&
+                typeof c === 'object' &&
+                (c as Record<string, unknown>).audio_url
+            )
+          ) {
+            return <AudioPreviewCell log={log} />
+          }
+        }
 
         // For video generation tasks that succeeded, fail_reason contains the result URL
         const isVideoTask =

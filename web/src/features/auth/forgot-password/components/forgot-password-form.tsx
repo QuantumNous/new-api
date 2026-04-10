@@ -61,7 +61,7 @@ export function ForgotPasswordForm({
         startCountdown()
         toast.success(t('Reset email sent, please check your inbox'))
       }
-    } catch (error) {
+    } catch (_error) {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)

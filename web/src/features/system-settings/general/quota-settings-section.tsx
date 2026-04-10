@@ -46,7 +46,7 @@ export function QuotaSettingsSection({
     useSettingsForm<QuotaFormValues>({
       resolver: zodResolver(quotaSchema) as Resolver<
         QuotaFormValues,
-        any,
+        unknown,
         QuotaFormValues
       >,
       defaultValues,

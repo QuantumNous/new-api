@@ -71,7 +71,9 @@ const createUptimeKumaSchema = (t: (key: string) => string) =>
       .min(1, { error: t('Slug is required') })
       .max(100, { error: t('Slug must be less than 100 characters') })
       .regex(/^[a-zA-Z0-9_-]+$/, {
-        error: t('Slug can only contain letters, numbers, hyphens, and underscores'),
+        error: t(
+          'Slug can only contain letters, numbers, hyphens, and underscores'
+        ),
       }),
   })
 
@@ -427,7 +429,9 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 >
                   {t('Cancel')}
                 </Button>
-                <Button type='submit'>{editingGroup ? t('Update') : t('Add')}</Button>
+                <Button type='submit'>
+                  {editingGroup ? t('Update') : t('Add')}
+                </Button>
               </DialogFooter>
             </form>
           </Form>

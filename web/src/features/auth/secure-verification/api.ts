@@ -35,6 +35,7 @@ export async function checkVerificationMethods(): Promise<VerificationMethods> {
       passkeySupported,
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('[Secure Verification] Failed to check methods', error)
     return {
       has2FA: false,
@@ -125,11 +126,11 @@ async function verifyPasskey(): Promise<void> {
         verifyResponse.data?.message || 'Failed to complete verification'
       )
     }
-  } catch (error: any) {
-    if (error?.name === 'NotAllowedError') {
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError') {
       throw new Error('Passkey verification was cancelled or timed out')
     }
-    if (error?.name === 'InvalidStateError') {
+    if (error instanceof DOMException && error.name === 'InvalidStateError') {
       throw new Error(
         'Passkey verification is not available in the current state'
       )

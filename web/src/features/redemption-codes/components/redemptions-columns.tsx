@@ -8,8 +8,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
@@ -178,9 +178,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       cell: ({ row }) => {
         const expiredTime = row.getValue('expired_time') as number
         if (expiredTime === 0) {
-          return (
-            <Badge variant='outline'>{t('Never')}</Badge>
-          )
+          return <Badge variant='outline'>{t('Never')}</Badge>
         }
         const isExpired = isTimestampExpired(expiredTime)
         return (

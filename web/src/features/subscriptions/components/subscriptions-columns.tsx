@@ -3,8 +3,8 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
-import type { PlanRecord } from '../types'
 import { formatDuration, formatResetPeriod } from '../lib'
+import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
@@ -19,9 +19,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           <DataTableColumnHeader column={column} title='ID' />
         ),
         cell: ({ row }) => (
-          <span className='text-muted-foreground'>
-            #{row.original.plan.id}
-          </span>
+          <span className='text-muted-foreground'>#{row.original.plan.id}</span>
         ),
         size: 60,
       },
@@ -29,7 +27,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.title,
         id: 'title',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('套餐')} />
+          <DataTableColumnHeader column={column} title={t('Plan')} />
         ),
         cell: ({ row }) => {
           const plan = row.original.plan
@@ -37,7 +35,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
             <div className='max-w-[200px]'>
               <div className='truncate font-medium'>{plan.title}</div>
               {plan.subtitle && (
-                <div className='truncate text-xs text-muted-foreground'>
+                <div className='text-muted-foreground truncate text-xs'>
                   {plan.subtitle}
                 </div>
               )}
@@ -50,7 +48,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.price_amount,
         id: 'price',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('价格')} />
+          <DataTableColumnHeader column={column} title={t('Price')} />
         ),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
@@ -62,7 +60,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'duration',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('有效期')} />
+          <DataTableColumnHeader column={column} title={t('Validity')} />
         ),
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
@@ -74,7 +72,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'reset',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('重置')} />
+          <DataTableColumnHeader column={column} title={t('Quota Reset')} />
         ),
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
@@ -87,7 +85,7 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.sort_order,
         id: 'sort_order',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('优先级')} />
+          <DataTableColumnHeader column={column} title={t('Priority')} />
         ),
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
@@ -100,31 +98,27 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         accessorFn: (row) => row.plan.enabled,
         id: 'enabled',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('状态')} />
+          <DataTableColumnHeader column={column} title={t('Status')} />
         ),
         cell: ({ row }) =>
           row.original.plan.enabled ? (
-            <Badge variant='success'>{t('启用')}</Badge>
+            <Badge variant='default'>{t('Enable')}</Badge>
           ) : (
-            <Badge variant='secondary'>{t('禁用')}</Badge>
+            <Badge variant='secondary'>{t('Disable')}</Badge>
           ),
         size: 80,
       },
       {
         id: 'payment',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('支付渠道')} />
+          <DataTableColumnHeader column={column} title={t('Payment Channel')} />
         ),
         cell: ({ row }) => {
           const plan = row.original.plan
           return (
             <div className='flex gap-1'>
-              {plan.stripe_price_id && (
-                <Badge variant='outline'>Stripe</Badge>
-              )}
-              {plan.creem_product_id && (
-                <Badge variant='outline'>Creem</Badge>
-              )}
+              {plan.stripe_price_id && <Badge variant='outline'>Stripe</Badge>}
+              {plan.creem_product_id && <Badge variant='outline'>Creem</Badge>}
             </div>
           )
         },
@@ -133,13 +127,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'total_amount',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('总额度')} />
+          <DataTableColumnHeader column={column} title={t('Total Quota')} />
         ),
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? total : t('不限')}
+              {total > 0 ? total : t('Unlimited')}
             </span>
           )
         },
@@ -148,13 +142,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
       {
         id: 'upgrade_group',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('升级分组')} />
+          <DataTableColumnHeader column={column} title={t('Upgrade Group')} />
         ),
         cell: ({ row }) => {
           const group = row.original.plan.upgrade_group
           return (
             <span className='text-muted-foreground'>
-              {group || t('不升级')}
+              {group || t('No Upgrade')}
             </span>
           )
         },

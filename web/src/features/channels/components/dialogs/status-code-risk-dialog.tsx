@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 interface StatusCodeRiskDialogProps {
   open: boolean
@@ -22,10 +22,10 @@ interface StatusCodeRiskDialogProps {
 }
 
 const CHECKLIST_KEYS = [
-  '高危状态码重试风险确认项1',
-  '高危状态码重试风险确认项2',
-  '高危状态码重试风险确认项3',
-  '高危状态码重试风险确认项4',
+  'High-risk status code retry risk check 1',
+  'High-risk status code retry risk check 2',
+  'High-risk status code retry risk check 3',
+  'High-risk status code retry risk check 4',
 ] as const
 
 export function StatusCodeRiskDialog({
@@ -38,7 +38,7 @@ export function StatusCodeRiskDialog({
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
   const [confirmText, setConfirmText] = useState('')
 
-  const requiredText = t('高危状态码重试风险确认输入文本')
+  const requiredText = t('High-risk status code retry confirmation text')
   const allChecked = checkedItems.size === CHECKLIST_KEYS.length
   const textMatches = confirmText.trim() === requiredText.trim()
   const canConfirm = allChecked && textMatches
@@ -69,20 +69,20 @@ export function StatusCodeRiskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-w-lg'>
         <DialogHeader>
-          <DialogTitle className='flex items-center gap-2 text-destructive'>
+          <DialogTitle className='text-destructive flex items-center gap-2'>
             <AlertTriangle className='h-5 w-5' />
-            {t('高危操作确认')}
+            {t('High-risk operation confirmation')}
           </DialogTitle>
           <DialogDescription>
-            {t('高危状态码重试风险告知与免责声明Markdown')}
+            {t('High-risk status code retry risk disclaimer')}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-4'>
           {detailItems.length > 0 && (
-            <div className='rounded-lg border border-destructive/30 bg-destructive/5 p-3'>
+            <div className='border-destructive/30 bg-destructive/5 rounded-lg border p-3'>
               <p className='mb-2 text-sm font-medium'>
-                {t('检测到以下高危状态码重定向规则')}
+                {t('Detected high-risk status code redirect rules')}
               </p>
               <ul className='list-inside list-disc text-sm'>
                 {detailItems.map((item) => (
@@ -114,19 +114,19 @@ export function StatusCodeRiskDialog({
 
           <div className='space-y-1.5'>
             <Label className='text-sm'>
-              {t('操作确认')}:{' '}
-              <code className='rounded bg-muted px-1 text-xs'>
+              {t('Action confirmation')}:{' '}
+              <code className='bg-muted rounded px-1 text-xs'>
                 {requiredText}
               </code>
             </Label>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              placeholder={t('高危状态码重试风险输入框占位文案')}
+              placeholder={t('High-risk status code retry input placeholder')}
             />
             {confirmText && !textMatches && (
-              <p className='text-xs text-destructive'>
-                {t('高危状态码重试风险输入不匹配提示')}
+              <p className='text-destructive text-xs'>
+                {t('High-risk status code retry input mismatch')}
               </p>
             )}
           </div>
@@ -134,14 +134,14 @@ export function StatusCodeRiskDialog({
 
         <DialogFooter>
           <Button variant='outline' onClick={handleCancel}>
-            {t('取消')}
+            {t('Cancel')}
           </Button>
           <Button
             variant='destructive'
             disabled={!canConfirm}
             onClick={handleConfirm}
           >
-            {t('我确认开启高危重试')}
+            {t('I confirm enabling high-risk retry')}
           </Button>
         </DialogFooter>
       </DialogContent>

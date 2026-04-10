@@ -39,8 +39,7 @@ export function usePayment() {
         // Don't show error for calculation, just set to 0
         setAmount(0)
         return 0
-      } catch (error) {
-        // Don't show error for calculation, just set to 0
+      } catch (_error) {
         setAmount(0)
         return 0
       } finally {
@@ -83,7 +82,7 @@ export function usePayment() {
 
         // Handle non-Stripe payment
         if (!isStripe && response.data) {
-          const url = (response as any).url
+          const url = (response as unknown as { url?: string }).url
           if (url) {
             submitPaymentForm(url, response.data)
             toast.success(i18next.t('Redirecting to payment page...'))
@@ -92,7 +91,7 @@ export function usePayment() {
         }
 
         return false
-      } catch (error) {
+      } catch (_error) {
         toast.error(i18next.t('Payment request failed'))
         return false
       } finally {

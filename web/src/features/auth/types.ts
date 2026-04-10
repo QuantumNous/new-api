@@ -60,7 +60,7 @@ export interface Login2FAResponse {
 export interface ApiResponse {
   success: boolean
   message: string
-  data?: any
+  data?: unknown
 }
 
 // ============================================================================
@@ -109,7 +109,7 @@ export interface SystemStatus {
     oauth_register_enabled?: boolean
     register_enabled?: boolean
     password_register_enabled?: boolean
-    [key: string]: any
+    [key: string]: unknown
   }
   // Allow direct access to common properties
   version?: string
@@ -150,7 +150,7 @@ export interface SystemStatus {
   oauth_register_enabled?: boolean
   register_enabled?: boolean
   password_register_enabled?: boolean
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // ============================================================================

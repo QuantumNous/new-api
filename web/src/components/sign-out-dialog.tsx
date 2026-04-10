@@ -16,13 +16,17 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const handleSignOut = async () => {
     try {
       await logout()
-    } catch {}
+    } catch {
+      /* empty */
+    }
     auth.reset()
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('uid')
       }
-    } catch {}
+    } catch {
+      /* empty */
+    }
     toast.success(t('Signed out'))
     // Refresh the page to clear all state and update UI
     if (typeof window !== 'undefined') {

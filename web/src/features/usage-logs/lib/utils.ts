@@ -24,14 +24,14 @@ import type { GetLogsParams, GetLogsResponse, FetchLogsConfig } from '../types'
  * Check if log type is displayable (has detailed info)
  */
 export function isDisplayableLogType(type: number): boolean {
-  return DISPLAYABLE_LOG_TYPES.includes(type as any)
+  return (DISPLAYABLE_LOG_TYPES as readonly number[]).includes(type)
 }
 
 /**
  * Check if log type shows timing info
  */
 export function isTimingLogType(type: number): boolean {
-  return TIMING_LOG_TYPES.includes(type as any)
+  return (TIMING_LOG_TYPES as readonly number[]).includes(type)
 }
 
 /**
@@ -70,7 +70,9 @@ function timestampToSeconds(ms: number): number {
 /**
  * Build query parameters from filters
  */
-export function buildQueryParams(params: Record<string, any>): URLSearchParams {
+export function buildQueryParams(
+  params: Record<string, unknown>
+): URLSearchParams {
   const queryParams = new URLSearchParams()
 
   Object.entries(params).forEach(([key, value]) => {
@@ -88,17 +90,17 @@ export function buildQueryParams(params: Record<string, any>): URLSearchParams {
  * Shared logic for all log types
  */
 function buildTimeRangeParams(
-  searchParams: Record<string, any>,
+  searchParams: Record<string, unknown>,
   useMilliseconds: boolean
 ): { start_timestamp?: number; end_timestamp?: number } {
-  const hasTimeParams = searchParams.startTime || searchParams.endTime
+  const hasTimeParams = searchParams.startTime ?? searchParams.endTime
   const defaultTimeRange = !hasTimeParams ? getDefaultTimeRange() : null
 
   const convertTimestamp = (timestamp: number) =>
     useMilliseconds ? timestamp : timestampToSeconds(timestamp)
 
-  const getTimestamp = (paramTime?: number, defaultTime?: Date) => {
-    const time = paramTime || defaultTime?.getTime()
+  const getTimestamp = (paramTime?: unknown, defaultTime?: Date) => {
+    const time = (paramTime as number) || defaultTime?.getTime()
     return time ? convertTimestamp(time) : undefined
   }
 
@@ -118,7 +120,7 @@ function buildTimeRangeParams(
 export function buildBaseParams(config: {
   page: number
   pageSize: number
-  searchParams: Record<string, any>
+  searchParams: Record<string, unknown>
   useMilliseconds?: boolean
 }): {
   p: number
@@ -145,14 +147,14 @@ export function buildBaseParams(config: {
 export function buildApiParams(config: {
   page: number
   pageSize: number
-  searchParams: Record<string, any>
-  columnFilters?: Array<{ id: string; value: any }>
+  searchParams: Record<string, unknown>
+  columnFilters?: Array<{ id: string; value: unknown }>
   isAdmin: boolean
 }): GetLogsParams {
   const { page, pageSize, searchParams, columnFilters = [], isAdmin } = config
 
   // Helper to process type parameter (single value from array)
-  const processType = (value: any) => {
+  const processType = (value: unknown) => {
     if (Array.isArray(value) && value.length === 1) {
       return Number(value[0])
     }

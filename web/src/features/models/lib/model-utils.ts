@@ -67,7 +67,7 @@ export function formatTagsString(tags: string[]): string {
  */
 export function parseEndpoints(
   endpoints: string | undefined
-): Record<string, any> | any[] | null {
+): Record<string, unknown> | unknown[] | null {
   if (!endpoints || endpoints.trim() === '') return null
 
   try {

@@ -31,6 +31,7 @@ export function NumericSpinnerInput({
 
   // Sync local value when prop changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalValue(String(value ?? 0))
   }, [value])
 
@@ -95,9 +96,7 @@ export function NumericSpinnerInput({
   return (
     <div className={cn('inline-flex', className)}>
       {label && (
-        <Label className='text-muted-foreground text-xs'>
-          {label}
-        </Label>
+        <Label className='text-muted-foreground text-xs'>{label}</Label>
       )}
       <div className='relative inline-block'>
         <Input

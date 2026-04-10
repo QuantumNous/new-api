@@ -10,9 +10,8 @@ import {
   type ExpandedState,
   type Row,
 } from '@tanstack/react-table'
-import { useDebounce } from '@/hooks'
+import { useDebounce, useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
-import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { Input } from '@/components/ui/input'
 import {
@@ -136,6 +135,7 @@ export function ChannelsTable() {
   )
 
   // Fetch channels data
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading } = useQuery({
     queryKey: channelsQueryKeys.list({
       keyword: globalFilter,
@@ -244,7 +244,7 @@ export function ChannelsTable() {
     onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
-    getSubRows: (row: any) => row.children,
+    getSubRows: (row: Channel & { children?: Channel[] }) => row.children,
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
@@ -378,13 +378,13 @@ export function ChannelsTable() {
       )}
 
       {/* Pagination */}
-      <DataTablePagination table={table as any} />
+      <DataTablePagination table={table} />
     </div>
   )
 }
 
 // Helper to render cell content
-function flexRender(content: any, context: any) {
+function flexRender(content: unknown, context: Record<string, unknown>) {
   if (typeof content === 'function') {
     return content(context)
   }

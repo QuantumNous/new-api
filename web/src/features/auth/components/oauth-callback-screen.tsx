@@ -1,6 +1,12 @@
 import { useMemo } from 'react'
-import { Github, Loader2, Send, Shield, UserRound } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import {
+  Github,
+  Loader2,
+  Send,
+  Shield,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { SiLinux, SiWechat } from 'react-icons/si'
 import { AuthLayout } from '../auth-layout'

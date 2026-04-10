@@ -143,7 +143,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
     [defaultValues]
   )
 
-  const form = useForm<SSRFFormInput, any, SSRFFormValues>({
+  const form = useForm<SSRFFormInput, unknown, SSRFFormValues>({
     resolver: zodResolver(ssrfSchema),
     defaultValues: formDefaults,
   })

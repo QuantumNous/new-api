@@ -12,11 +12,10 @@ import { SummaryCards } from './components/overview/summary-cards'
 import { UptimePanel } from './components/overview/uptime-panel'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
-  type DashboardFilters,
-  type QuotaDataItem,
-} from './types'
-import type { DashboardSectionId } from './section-registry'
-import { DASHBOARD_DEFAULT_SECTION } from './section-registry'
+  type DashboardSectionId,
+  DASHBOARD_DEFAULT_SECTION,
+} from './section-registry'
+import { type DashboardFilters, type QuotaDataItem } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
 
@@ -61,7 +60,8 @@ function ModelChartsFallback() {
 export function Dashboard() {
   const { t } = useTranslation()
   const params = route.useParams()
-  const activeSection = (params.section ?? DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
+  const activeSection = (params.section ??
+    DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
   const [modelFilters, setModelFilters] = useState<DashboardFilters>({})
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
@@ -75,10 +75,13 @@ export function Dashboard() {
     setModelFilters({})
   }, [])
 
-  const handleDataUpdate = useCallback((data: QuotaDataItem[], loading: boolean) => {
-    setModelData(data)
-    setDataLoading(loading)
-  }, [])
+  const handleDataUpdate = useCallback(
+    (data: QuotaDataItem[], loading: boolean) => {
+      setModelData(data)
+      setDataLoading(loading)
+    },
+    []
+  )
 
   return (
     <SectionPageLayout>

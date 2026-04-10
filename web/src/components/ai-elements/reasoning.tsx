@@ -1,7 +1,13 @@
 'use client'
 
-import type { ComponentProps } from 'react'
-import { createContext, memo, useContext, useEffect, useState } from 'react'
+import {
+  type ComponentProps,
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useState,
+} from 'react'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -69,6 +75,7 @@ export const Reasoning = memo(
     useEffect(() => {
       if (isStreaming) {
         if (startTime === null) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setStartTime(Date.now())
         }
       } else if (startTime !== null) {

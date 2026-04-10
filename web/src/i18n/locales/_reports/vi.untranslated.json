@@ -1,10 +1,10 @@
 {
-  "保留天数": "Days to Retain",
-  "保留文件数": "Files to Retain",
-  "启用性能监控后，当系统资源使用率超过设定阈值时，将拒绝新的 Relay 请求。": "When performance monitoring is enabled and system resource usage exceeds the set threshold, new Relay requests will be rejected.",
-  "将只保留最近 {{value}} 个日志文件，其余将被删除。": "Only the last {{value}} log files will be retained; the rest will be deleted.",
-  "留空使用系统临时目录": "Leave empty to use system temp directory",
-  "磁盘缓存、系统性能监控与运维统计": "Disk cache, system performance monitoring, and operation statistics",
-  "管理服务器运行日志文件。日志文件会随运行时间不断累积，建议定期清理以释放磁盘空间。": "Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.",
-  "请输入有效的数值": "Please enter a valid number"
+  "High-risk status code retry risk check 1": "I understand that retrying on these status codes may cause the upstream provider to charge normally, and the charges cannot be recovered.",
+  "High-risk status code retry risk check 2": "I understand that these status codes typically indicate that the request has been processed successfully by the upstream provider, and retrying may result in duplicate billing.",
+  "High-risk status code retry risk check 3": "I acknowledge that these configurations may cause significant financial losses and accept all related risks.",
+  "High-risk status code retry risk check 4": "I have carefully reviewed the above status code redirect rules and confirm they are correct.",
+  "High-risk status code retry risk disclaimer": "The following status code redirect rules contain high-risk configurations. Retrying on these status codes may cause normal upstream charges that cannot be recovered. Please carefully verify these configurations.",
+  "Detected high-risk status code redirect rules": "The following high-risk status code redirect rules were detected:",
+  "High-risk status code retry input placeholder": "Please type the confirmation text above",
+  "High-risk status code retry input mismatch": "The entered text does not match, please try again."
 }

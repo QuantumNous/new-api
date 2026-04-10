@@ -107,6 +107,7 @@ export interface LogOtherData {
   image_generation_call?: boolean
   image_generation_call_price?: number
   is_system_prompt_overwritten?: boolean
+  po?: string[]
 }
 
 /**
@@ -256,8 +257,8 @@ export interface FetchLogsConfig {
   isAdmin: boolean
   page: number
   pageSize: number
-  searchParams: Record<string, any>
-  columnFilters: Array<{ id: string; value: any }>
+  searchParams: Record<string, unknown>
+  columnFilters: Array<{ id: string; value: unknown }>
 }
 
 // ============================================================================

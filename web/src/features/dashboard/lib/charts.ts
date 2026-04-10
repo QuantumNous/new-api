@@ -2,8 +2,10 @@ import { getChartColor } from '@/lib/colors'
 import { formatQuotaWithCurrency, getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
-import type { QuotaDataItem } from '@/features/dashboard/types'
-import type { ProcessedChartData } from '@/features/dashboard/types'
+import type {
+  QuotaDataItem,
+  ProcessedChartData,
+} from '@/features/dashboard/types'
 
 type TFunction = (key: string) => string
 
@@ -275,8 +277,9 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: any) => datum?.type,
-              value: (datum: any) => formatInt(Number(datum?.value) || 0),
+              key: (datum: Record<string, unknown>) => datum?.type,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.value) || 0),
             },
           ],
         },
@@ -311,8 +314,8 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: any) => datum?.Model,
-              value: (datum: any) =>
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
                 formatQuotaWithCurrency(Number(datum?.rawQuota) || 0, {
                   digitsLarge: 4,
                   digitsSmall: 4,
@@ -324,11 +327,18 @@ export function processChartData(
         dimension: {
           content: [
             {
-              key: (datum: any) => datum?.Model,
-              value: (datum: any) => Number(datum?.rawQuota) || 0,
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                Number(datum?.rawQuota) || 0,
             },
           ],
-          updateContent: (array: any[]) => {
+          updateContent: (
+            array: Array<{
+              key: string
+              value: string | number
+              datum?: Record<string, unknown>
+            }>
+          ) => {
             array.sort(
               (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)
             )
@@ -377,8 +387,9 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: any) => datum?.Model,
-              value: (datum: any) => formatInt(Number(datum?.Count) || 0),
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Count) || 0),
             },
           ],
         },
@@ -409,8 +420,9 @@ export function processChartData(
         mark: {
           content: [
             {
-              key: (datum: any) => datum?.Model,
-              value: (datum: any) => formatInt(Number(datum?.Count) || 0),
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatInt(Number(datum?.Count) || 0),
             },
           ],
         },

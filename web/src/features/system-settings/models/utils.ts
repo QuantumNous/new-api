@@ -114,7 +114,7 @@ export function validateJsonString(
     }
 
     return { valid: true }
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       valid: false,
       message: formatErrorMessage(error, trimmed),

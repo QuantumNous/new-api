@@ -39,7 +39,7 @@ export function ApiKeysMultiDeleteDialog<TData>({
       } else {
         toast.error(result.message || t(ERROR_MESSAGES.BATCH_DELETE_FAILED))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsDeleting(false)

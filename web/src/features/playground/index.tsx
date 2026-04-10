@@ -91,6 +91,7 @@ export function Playground() {
 
   const handleCopyMessage = (message: MessageType) => {
     // Copy is handled in MessageActions component
+    // eslint-disable-next-line no-console
     console.log('Message copied:', message.key)
   }
 

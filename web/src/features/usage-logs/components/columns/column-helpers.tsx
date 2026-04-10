@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Clock, Zap } from 'lucide-react'
@@ -105,14 +106,20 @@ export function createTimestampColumn<T>(config: {
 /**
  * Create a duration column
  */
-export function createDurationColumn<T extends Record<string, any>>(config: {
+export function createDurationColumn<
+  T extends Record<string, unknown>,
+>(config: {
   submitTimeKey: string
   finishTimeKey: string
   unit?: 'seconds' | 'milliseconds'
   headerLabel: string
 }): ColumnDef<T> {
-  const { submitTimeKey, finishTimeKey, unit = 'milliseconds', headerLabel } =
-    config
+  const {
+    submitTimeKey,
+    finishTimeKey,
+    unit = 'milliseconds',
+    headerLabel,
+  } = config
 
   return {
     id: 'duration',
@@ -181,18 +188,14 @@ export function createFailReasonColumn<T>(config: {
   headerLabel: string
   cellTitle: string
 }): ColumnDef<T> {
-  const {
-    accessorKey = 'fail_reason',
-    headerLabel,
-    cellTitle,
-  } = config
+  const { accessorKey = 'fail_reason', headerLabel, cellTitle } = config
 
   return {
     accessorKey,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={headerLabel} />
     ),
-    cell: ({ row }) => {
+    cell: function FailReasonCell({ row }) {
       const failReason = row.getValue(accessorKey) as string
       const [dialogOpen, setDialogOpen] = useState(false)
 

@@ -1,9 +1,9 @@
+import { Button } from '@/components/ui/button'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/copy-button'
 
 interface MaskedValueDisplayProps {
@@ -31,11 +31,14 @@ export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
             {props.maskedValue}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-auto max-w-[min(90vw,28rem)]' align='start'>
+        <PopoverContent
+          className='w-auto max-w-[min(90vw,28rem)]'
+          align='start'
+        >
           <div className='space-y-2'>
             <p className='text-muted-foreground text-xs'>{props.label}</p>
             <pre
-              className='max-h-[50vh] overflow-auto rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap'
+              className='bg-muted/50 max-h-[50vh] overflow-auto rounded-md border px-3 py-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap'
               style={{ wordBreak: 'break-all' }}
             >
               {props.fullValue}

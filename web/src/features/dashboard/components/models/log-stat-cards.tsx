@@ -34,7 +34,9 @@ export function LogStatCards({ filters, onDataUpdate }: LogStatCardsProps) {
 
   useEffect(() => {
     const abortController = new AbortController()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
+
     setError(false)
     onDataUpdate?.([], true)
 

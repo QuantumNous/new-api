@@ -9,6 +9,8 @@ import {
   TestTube,
   DollarSign,
   SortAsc,
+  RefreshCw,
+  ArrowUpFromLine,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -33,8 +35,14 @@ import { useChannels } from './channels-provider'
 
 export function ChannelsPrimaryButtons() {
   const { t } = useTranslation()
-  const { setOpen, enableTagMode, setEnableTagMode, idSort, setIdSort } =
-    useChannels()
+  const {
+    setOpen,
+    enableTagMode,
+    setEnableTagMode,
+    idSort,
+    setIdSort,
+    upstream,
+  } = useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
@@ -123,9 +131,32 @@ export function ChannelsPrimaryButtons() {
             <DropdownMenuSeparator />
 
             <DropdownMenuItem
+              onClick={() => upstream.detectAllUpdates()}
+              disabled={upstream.detectAllLoading}
+            >
+              {t('Detect All Upstream Updates')}
+              <DropdownMenuShortcut>
+                <RefreshCw className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => upstream.applyAllUpdates()}
+              disabled={upstream.applyAllLoading}
+            >
+              {t('Apply All Upstream Updates')}
+              <DropdownMenuShortcut>
+                <ArrowUpFromLine className='h-4 w-4' />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem
               onClick={() => {
-                handleFixAbilities(queryClient, (result) => {
-                  console.log('Fix abilities result:', result)
+                handleFixAbilities(queryClient, (_result) => {
+                  // eslint-disable-next-line no-console
+                  console.log('Fix abilities result:', _result)
                 })
               }}
             >
@@ -160,8 +191,9 @@ export function ChannelsPrimaryButtons() {
         desc='This will permanently delete all manually and automatically disabled channels. This action cannot be undone.'
         destructive
         handleConfirm={() => {
-          handleDeleteAllDisabled(queryClient, (count) => {
-            console.log(`Deleted ${count} channels`)
+          handleDeleteAllDisabled(queryClient, (_count) => {
+            // eslint-disable-next-line no-console
+            console.log(`Deleted ${_count} channels`)
           })
           setShowDeleteDialog(false)
         }}

@@ -1,5 +1,5 @@
 import React from 'react'
-import { cva, VariantProps } from 'class-variance-authority'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const glowVariants = cva('absolute w-full', {

@@ -3,9 +3,9 @@ import { Link } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
-import { ROLE } from '@/lib/roles'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,25 +37,32 @@ export function ProfileDropdown() {
             </Avatar>
           </Button>
         </SheetTrigger>
-        <SheetContent side='right' className='flex w-full flex-col sm:max-w-sm p-0'>
+        <SheetContent
+          side='right'
+          className='flex w-full flex-col p-0 sm:max-w-sm'
+        >
           <SheetHeader className='border-b p-4'>
             <SheetTitle className='text-left'>{t('User Menu')}</SheetTitle>
           </SheetHeader>
-          
+
           <div className='flex flex-1 flex-col overflow-y-auto'>
             {/* User info section */}
             <div className='border-b p-2.5 pb-6.5'>
               <div className='flex items-center gap-2.5'>
                 <Avatar className='size-9'>
                   <AvatarImage src='/avatars/01.png' alt={`@${displayName}`} />
-                  <AvatarFallback className='text-xs'>{initials}</AvatarFallback>
+                  <AvatarFallback className='text-xs'>
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
-                  <p className='text-foreground truncate font-medium text-sm'>
+                  <p className='text-foreground truncate text-sm font-medium'>
                     {displayName}
                   </p>
                   <div className='flex items-center gap-1.5'>
-                    <span className='text-muted-foreground text-xs'>{roleLabel}</span>
+                    <span className='text-muted-foreground text-xs'>
+                      {roleLabel}
+                    </span>
                     {user?.group && (
                       <>
                         <span className='text-muted-foreground text-xs'>·</span>
@@ -73,7 +80,7 @@ export function ProfileDropdown() {
             <SheetClose asChild>
               <Link
                 to='/profile'
-                className='text-primary/60 hover:text-primary/80 border-b flex items-center gap-2.5 p-2.5 transition-colors'
+                className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
               >
                 <User className='size-4' />
                 {t('Profile')}
@@ -83,7 +90,7 @@ export function ProfileDropdown() {
             <SheetClose asChild>
               <Link
                 to='/wallet'
-                className='text-primary/60 hover:text-primary/80 border-b flex items-center gap-2.5 p-2.5 transition-colors'
+                className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
               >
                 <Wallet className='size-4' />
                 {t('Wallet')}
@@ -96,7 +103,7 @@ export function ProfileDropdown() {
                 <Link
                   to='/system-settings/general'
                   search={{ section: 'system-info' }}
-                  className='text-primary/60 hover:text-primary/80 border-b flex items-center gap-2.5 p-2.5 transition-colors'
+                  className='text-primary/60 hover:text-primary/80 flex items-center gap-2.5 border-b p-2.5 transition-colors'
                 >
                   <Settings className='size-4' />
                   {t('System Settings')}

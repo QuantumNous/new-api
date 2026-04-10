@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
@@ -139,17 +140,7 @@ export function PricingTable({
       </div>
 
       {/* Pagination */}
-      {!isLoading && models.length > 0 && (
-        <DataTablePagination table={table as any} />
-      )}
+      {!isLoading && models.length > 0 && <DataTablePagination table={table} />}
     </div>
   )
-}
-
-// Helper to render cell content
-function flexRender(content: any, context: any) {
-  if (typeof content === 'function') {
-    return content(context)
-  }
-  return content
 }

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Copy, Check, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { tryPrettyJson } from '@/lib/utils'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -12,9 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { tryPrettyJson } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 import { completeCodexOAuth, startCodexOAuth } from '../../api'
 
 type CodexOAuthDialogProps = {
@@ -73,11 +73,14 @@ export function CodexOAuthDialog({
         window.open(url, '_blank', 'noopener,noreferrer')
         toast.success(t('Opened authorization page'))
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Failed to open authorization page:', error)
         toast.warning(t('Please manually copy and open the authorization link'))
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('OAuth start failed'))
+      toast.error(
+        error instanceof Error ? error.message : t('OAuth start failed')
+      )
     } finally {
       setState((prev) => ({ ...prev, isStarting: false }))
     }
@@ -165,7 +168,9 @@ export function CodexOAuthDialog({
               onChange={(e) =>
                 setState((prev) => ({ ...prev, callbackUrl: e.target.value }))
               }
-              placeholder={t('Paste the full callback URL (includes code & state)')}
+              placeholder={t(
+                'Paste the full callback URL (includes code & state)'
+              )}
               autoComplete='off'
               spellCheck={false}
             />
@@ -187,7 +192,9 @@ export function CodexOAuthDialog({
             {t('Cancel')}
           </Button>
           <Button onClick={handleComplete} disabled={!canComplete}>
-            {state.isCompleting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {state.isCompleting && (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            )}
             {state.isCompleting ? t('Generating...') : t('Generate credential')}
           </Button>
         </DialogFooter>
@@ -195,4 +202,3 @@ export function CodexOAuthDialog({
     </Dialog>
   )
 }
-

@@ -90,7 +90,7 @@ export function PrefillGroupManagementDialog({
     enabled: open,
   })
 
-  const groups = data?.data ?? []
+  const groups = useMemo(() => data?.data ?? [], [data?.data])
 
   const sortedGroups = useMemo(
     () =>
@@ -144,8 +144,8 @@ export function PrefillGroupManagementDialog({
       } else {
         toast.error(response.message || 'Failed to delete group')
       }
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to delete group')
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to delete group')
     } finally {
       setIsDeleting(false)
     }

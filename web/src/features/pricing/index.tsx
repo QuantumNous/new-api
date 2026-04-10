@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useEffect, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
+import { useMediaQuery } from '@/hooks'
 import { Filter } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useMediaQuery } from '@/hooks'
 import { Button } from '@/components/ui/button'
 import { PublicLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
@@ -68,17 +68,20 @@ export function Pricing() {
   useEffect(() => {
     const nextUnit =
       search.tokenUnit === 'K' ? ('K' as TokenUnit) : DEFAULT_TOKEN_UNIT
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTokenUnit((prev) => (prev === nextUnit ? prev : nextUnit))
   }, [search.tokenUnit])
 
   useEffect(() => {
     const nextView =
       search.view === 'table' ? VIEW_MODES.TABLE : VIEW_MODES.LIST
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setViewMode((prev) => (prev === nextView ? prev : nextView))
   }, [search.view])
 
   useEffect(() => {
     const nextShowRecharge = search.rechargePrice === true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowRechargePrice((prev) =>
       prev === nextShowRecharge ? prev : nextShowRecharge
     )
@@ -118,7 +121,7 @@ export function Pricing() {
 
   // Sync filters to URL
   useEffect(() => {
-    const params: Record<string, any> = {}
+    const params: Record<string, unknown> = {}
 
     if (searchInput) params.search = searchInput
     if (sortBy !== SORT_OPTIONS.NAME) params.sort = sortBy

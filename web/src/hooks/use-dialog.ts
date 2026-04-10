@@ -1,4 +1,10 @@
-import { useState, useCallback, useMemo, Dispatch, SetStateAction } from 'react'
+import {
+  useState,
+  useCallback,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from 'react'
 
 // ============================================================================
 // Types

@@ -43,6 +43,7 @@ export function DataTableBulkActions<TData>({
   useEffect(() => {
     if (selectedCount > 0) {
       const message = `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected. Bulk actions toolbar is available.`
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(message)
 
       // Clear announcement after a delay

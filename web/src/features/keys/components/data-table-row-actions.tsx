@@ -1,7 +1,14 @@
 import { useCallback } from 'react'
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, Edit, Power, PowerOff, ExternalLink } from 'lucide-react'
+import {
+  Trash2,
+  Edit,
+  Power,
+  PowerOff,
+  ExternalLink,
+  ArrowRightLeft,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -74,7 +81,7 @@ export function DataTableRowActions<TData>({
         window.location.href = resolvedUrl
       }
     },
-    [apiKey.key, serverAddress]
+    [apiKey.key, serverAddress, t]
   )
 
   const handleToggleStatus = async () => {
@@ -137,6 +144,17 @@ export function DataTableRowActions<TData>({
               </DropdownMenuShortcut>
             </>
           )}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setCurrentRow(apiKey)
+            setOpen('cc-switch')
+          }}
+        >
+          CC Switch
+          <DropdownMenuShortcut>
+            <ArrowRightLeft size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
         {hasChatPresets && (
           <DropdownMenuSub>

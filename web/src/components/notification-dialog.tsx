@@ -17,13 +17,20 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+interface AnnouncementItem {
+  type?: string
+  content?: string
+  extra?: string
+  publishDate?: string | Date
+}
+
 interface NotificationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   activeTab: 'notice' | 'announcements'
   onTabChange: (tab: 'notice' | 'announcements') => void
   notice: string
-  announcements: any[]
+  announcements: AnnouncementItem[]
   loading: boolean
   onCloseToday: () => void
 }
@@ -141,7 +148,7 @@ function AnnouncementsContent({
   loading,
   t,
 }: {
-  announcements: any[]
+  announcements: AnnouncementItem[]
   loading: boolean
   t: TFunction
 }) {
@@ -156,7 +163,7 @@ function AnnouncementsContent({
   return (
     <ScrollArea className='h-[50vh] pr-4'>
       <div className='space-y-0'>
-        {announcements.map((item: any, idx: number) => {
+        {announcements.map((item, idx) => {
           const publishDate = item.publishDate
             ? new Date(item.publishDate)
             : null
@@ -225,7 +232,10 @@ export function NotificationDialog({
           <DialogTitle>{t('System Announcements')}</DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={onTabChange as any}>
+        <Tabs
+          value={activeTab}
+          onValueChange={onTabChange as (value: string) => void}
+        >
           <TabsList className='grid w-full grid-cols-2'>
             <TabsTrigger value='notice' className='gap-1.5'>
               <Bell className='h-3.5 w-3.5' />

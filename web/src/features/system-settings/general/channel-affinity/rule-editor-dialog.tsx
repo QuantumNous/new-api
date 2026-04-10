@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -21,19 +24,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import type { AffinityRule, KeySource } from './types'
 
 const KEY_SOURCE_TYPES = ['context_int', 'context_string', 'gjson'] as const
 
 const CONTEXT_KEY_PRESETS = [
-  'id', 'token_id', 'token_key', 'token_group',
-  'group', 'username', 'user_group', 'user_email', 'specific_channel_id',
+  'id',
+  'token_id',
+  'token_key',
+  'token_group',
+  'group',
+  'username',
+  'user_group',
+  'user_email',
+  'specific_channel_id',
 ]
 
 interface RuleFormValues {
@@ -175,17 +182,12 @@ export function RuleEditorDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='max-w-2xl max-h-[85vh] overflow-y-auto'>
+      <DialogContent className='max-h-[85vh] max-w-2xl overflow-y-auto'>
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? t('Edit Rule') : t('Add Rule')}
-          </DialogTitle>
+          <DialogTitle>{isEdit ? t('Edit Rule') : t('Add Rule')}</DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={form.handleSubmit(handleSave)}
-          className='space-y-4'
-        >
+        <form onSubmit={form.handleSubmit(handleSave)} className='space-y-4'>
           <div className='grid gap-1.5'>
             <Label>{t('Name')} *</Label>
             <Input
@@ -216,9 +218,7 @@ export function RuleEditorDialog(props: Props) {
           <div className='flex items-center gap-2'>
             <Switch
               checked={form.watch('skip_retry_on_failure')}
-              onCheckedChange={(v) =>
-                form.setValue('skip_retry_on_failure', v)
-              }
+              onCheckedChange={(v) => form.setValue('skip_retry_on_failure', v)}
             />
             <Label>{t('Skip retry on failure')}</Label>
           </div>
@@ -227,7 +227,7 @@ export function RuleEditorDialog(props: Props) {
 
           {/* Key Sources */}
           <div>
-            <div className='flex items-center justify-between mb-2'>
+            <div className='mb-2 flex items-center justify-between'>
               <Label>{t('Key Sources')}</Label>
               <Button
                 type='button'
@@ -244,7 +244,7 @@ export function RuleEditorDialog(props: Props) {
                 {t('Add')}
               </Button>
             </div>
-            <p className='text-xs text-muted-foreground mb-2'>
+            <p className='text-muted-foreground mb-2 text-xs'>
               {t('Common Keys')}: {CONTEXT_KEY_PRESETS.join(', ')}
             </p>
             <div className='space-y-2'>
@@ -276,7 +276,9 @@ export function RuleEditorDialog(props: Props) {
                         ? 'metadata.conversation_id'
                         : 'user_id'
                     }
-                    value={src.type === 'gjson' ? src.path || '' : src.key || ''}
+                    value={
+                      src.type === 'gjson' ? src.path || '' : src.key || ''
+                    }
                     onChange={(e) => {
                       const next = [...keySources]
                       if (src.type === 'gjson') {
@@ -307,7 +309,11 @@ export function RuleEditorDialog(props: Props) {
           {/* Advanced */}
           <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
             <CollapsibleTrigger asChild>
-              <Button type='button' variant='ghost' className='w-full justify-start'>
+              <Button
+                type='button'
+                variant='ghost'
+                className='w-full justify-start'
+              >
                 {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
               </Button>
             </CollapsibleTrigger>

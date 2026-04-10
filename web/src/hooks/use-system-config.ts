@@ -139,6 +139,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
       const newConfig = await fetchSystemConfig()
       setConfig(newConfig)
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load system config:', error)
     } finally {
       setLoading(false)
@@ -162,12 +163,14 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
       () => setLoadedLogoUrl(logo),
       () => {
         if (logo !== DEFAULT_LOGO) {
+          // eslint-disable-next-line no-console
           console.error('Failed to load logo:', logo)
         }
         // Mark as loaded even on error to prevent infinite retry
         setLoadedLogoUrl(logo)
       }
     )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.logo, loadedLogoUrl, setLoadedLogoUrl])
 
   return {

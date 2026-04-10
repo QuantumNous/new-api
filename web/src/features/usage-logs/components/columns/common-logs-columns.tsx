@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Route, Info } from 'lucide-react'
@@ -21,7 +22,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DataTableColumnHeader } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import type { UsageLog } from '../../data/schema'
 import { getTimeColor, formatModelName, parseLogOther } from '../../lib/format'
 import {
@@ -34,13 +35,7 @@ import { DetailsDialog } from '../dialogs/details-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import { renderBadge, CacheTooltip } from './column-helpers'
 
-function DetailsCell({
-  log,
-  isAdmin,
-}: {
-  log: UsageLog
-  isAdmin: boolean
-}) {
+function DetailsCell({ log, isAdmin }: { log: UsageLog; isAdmin: boolean }) {
   const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -141,7 +136,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         return (
           <StatusBadge
             label={t(config.label)}
-            variant={config.color as any}
+            variant={config.color as StatusBadgeProps['variant']}
             size='sm'
             copyable={false}
           />
@@ -316,11 +311,15 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             <PopoverContent className='w-80'>
               <div className='space-y-2'>
                 <div className='flex items-start justify-between gap-4'>
-                  <span className='text-sm font-medium'>{t('Request Model:')}</span>
+                  <span className='text-sm font-medium'>
+                    {t('Request Model:')}
+                  </span>
                   {renderBadge(modelInfo.name, { mono: true })}
                 </div>
                 <div className='flex items-start justify-between gap-4'>
-                  <span className='text-sm font-medium'>{t('Actual Model:')}</span>
+                  <span className='text-sm font-medium'>
+                    {t('Actual Model:')}
+                  </span>
                   {renderBadge(modelInfo.actualModel || '', { mono: true })}
                 </div>
               </div>
@@ -546,6 +545,49 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       meta: { label: t('Details') },
     }
   )
+
+  // Admin-only param override column
+  if (isAdmin) {
+    columns.push({
+      id: 'param_override',
+      header: t('Param Override'),
+      cell: ({ row }) => {
+        const log = row.original
+        const other = parseLogOther(log.other)
+        const po = other?.po
+        if (!po || !Array.isArray(po) || po.length === 0) return null
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant='ghost' size='sm' className='h-auto p-0'>
+                <StatusBadge
+                  label={`${po.length}`}
+                  variant='neutral'
+                  size='sm'
+                  copyable={false}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className='w-80'>
+              <div className='space-y-2'>
+                <p className='text-sm font-medium'>
+                  {t('Param Override')} ({po.length})
+                </p>
+                <div className='max-h-48 space-y-1 overflow-y-auto'>
+                  {po.filter(Boolean).map((line, idx) => (
+                    <p key={idx} className='font-mono text-xs break-words'>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )
+      },
+      meta: { label: t('Param Override') },
+    })
+  }
 
   // Admin-only retry column
   if (isAdmin) {

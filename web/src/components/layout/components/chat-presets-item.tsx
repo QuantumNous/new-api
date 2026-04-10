@@ -172,7 +172,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
       window.open(url, '_blank', 'noopener')
       setOpenMobile(false)
     },
-    [activeKey, isKeyPending, keyError, serverAddress, setOpenMobile]
+    [activeKey, isKeyPending, keyError, serverAddress, setOpenMobile, t]
   )
 
   const normalizedHref = normalizeHref(href)

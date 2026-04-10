@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { UsageLogsFilterDialog } from './dialogs/usage-logs-filter-dialog'
 import type { LogCategory } from '../types'
+import { UsageLogsFilterDialog } from './dialogs/usage-logs-filter-dialog'
 
 interface UsageLogsPrimaryButtonsProps {
   logCategory: LogCategory

@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { getUptimeStatus } from '@/features/dashboard/api'
-import type { UptimeGroupResult, UptimeMonitor } from '@/features/dashboard/types'
+import type {
+  UptimeGroupResult,
+  UptimeMonitor,
+} from '@/features/dashboard/types'
 import { PanelWrapper } from '../ui/panel-wrapper'
 
 const STATUS_COLOR_MAP: Record<number, string> = {
@@ -110,27 +113,31 @@ export function UptimePanel() {
                 </Badge>
               </div>
               <div className='space-y-0'>
-                {group.monitors?.map((monitor: UptimeMonitor, monitorIdx: number) => (
-                  <div key={monitor.name}>
-                    <div className='group hover:bg-accent/50 -mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 transition-colors'>
-                      <div className='flex min-w-0 items-center gap-2.5'>
-                        <StatusDot status={monitor.status} />
-                        <span className='truncate text-sm'>{monitor.name}</span>
-                        {monitor.group && (
-                          <span className='text-muted-foreground shrink-0 text-xs'>
-                            ({monitor.group})
+                {group.monitors?.map(
+                  (monitor: UptimeMonitor, monitorIdx: number) => (
+                    <div key={monitor.name}>
+                      <div className='group hover:bg-accent/50 -mx-2 flex items-center justify-between rounded-lg px-2 py-2.5 transition-colors'>
+                        <div className='flex min-w-0 items-center gap-2.5'>
+                          <StatusDot status={monitor.status} />
+                          <span className='truncate text-sm'>
+                            {monitor.name}
                           </span>
-                        )}
+                          {monitor.group && (
+                            <span className='text-muted-foreground shrink-0 text-xs'>
+                              ({monitor.group})
+                            </span>
+                          )}
+                        </div>
+                        <span className='text-muted-foreground shrink-0 text-sm font-medium tabular-nums'>
+                          {((monitor.uptime ?? 0) * 100).toFixed(2)}%
+                        </span>
                       </div>
-                      <span className='text-muted-foreground shrink-0 text-sm font-medium tabular-nums'>
-                        {((monitor.uptime ?? 0) * 100).toFixed(2)}%
-                      </span>
+                      {monitorIdx < (group.monitors?.length || 0) - 1 && (
+                        <Separator className='my-0' />
+                      )}
                     </div>
-                    {monitorIdx < (group.monitors?.length || 0) - 1 && (
-                      <Separator className='my-0' />
-                    )}
-                  </div>
-                ))}
+                  )
+                )}
               </div>
               {groupIdx < groups.length - 1 && <Separator className='my-4' />}
             </div>

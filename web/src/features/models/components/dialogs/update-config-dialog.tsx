@@ -353,42 +353,44 @@ export function UpdateConfigDialog({
                     {t('Environment variables')}
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                  <div className='mt-3 grid gap-4 md:grid-cols-2'>
-                    <FormField
-                      control={form.control}
-                      name='env_json'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('Env (JSON object)')}</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              className='min-h-40 font-mono text-xs'
-                              placeholder='{"KEY":"VALUE"}'
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name='secret_env_json'
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>{t('Secret env (JSON object)')}</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              className='min-h-40 font-mono text-xs'
-                              placeholder='{"SECRET":"VALUE"}'
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                    <div className='mt-3 grid gap-4 md:grid-cols-2'>
+                      <FormField
+                        control={form.control}
+                        name='env_json'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Env (JSON object)')}</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                className='min-h-40 font-mono text-xs'
+                                placeholder='{"KEY":"VALUE"}'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name='secret_env_json'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Secret env (JSON object)')}
+                            </FormLabel>
+                            <FormControl>
+                              <Textarea
+                                className='min-h-40 font-mono text-xs'
+                                placeholder='{"SECRET":"VALUE"}'
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </CollapsibleContent>
                 </Collapsible>
 

@@ -1,14 +1,7 @@
-import dayjs from '@/lib/dayjs'
 import { Calendar as CalendarIcon } from 'lucide-react'
+import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
-import {
-  enUS,
-  fr,
-  ja,
-  ru,
-  vi,
-  zhCN,
-} from 'react-day-picker/locale'
+import dayjs from '@/lib/dayjs'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import {

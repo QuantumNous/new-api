@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { useTranslation } from 'react-i18next'
 import { Check, ChevronsUpDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 
@@ -141,7 +141,7 @@ export function ComboboxInput({
         onKeyDown={handleKeyDown}
         className={cn('pr-9', className)}
       />
-      <ChevronsUpDown className='pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 shrink-0 opacity-50' />
+      <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
 
       {showDropdown && (
         <div className='bg-popover text-popover-foreground absolute top-full z-100 mt-1 w-full rounded-md border shadow-md'>
@@ -159,7 +159,8 @@ export function ComboboxInput({
                   data-highlighted={index === highlightedIndex}
                   className={cn(
                     'relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none',
-                    index === highlightedIndex && 'bg-accent text-accent-foreground',
+                    index === highlightedIndex &&
+                      'bg-accent text-accent-foreground',
                     value === option.value && 'font-medium'
                   )}
                   onMouseEnter={() => setHighlightedIndex(index)}

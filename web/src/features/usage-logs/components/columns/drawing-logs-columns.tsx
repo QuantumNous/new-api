@@ -37,7 +37,9 @@ export function useDrawingLogsColumns(
 
   // Channel (admin only)
   if (isAdmin) {
-    columns.push(createChannelColumn<MidjourneyLog>({ headerLabel: t('Channel') }))
+    columns.push(
+      createChannelColumn<MidjourneyLog>({ headerLabel: t('Channel') })
+    )
   }
 
   columns.push(
@@ -131,7 +133,7 @@ export function useDrawingLogsColumns(
     {
       accessorKey: 'image_url',
       header: t('Image'),
-      cell: ({ row }) => {
+      cell: function ImageCell({ row }) {
         const log = row.original
         const imageUrl = row.getValue('image_url') as string
         const [dialogOpen, setDialogOpen] = useState(false)
@@ -165,7 +167,7 @@ export function useDrawingLogsColumns(
     {
       accessorKey: 'prompt',
       header: t('Prompt'),
-      cell: ({ row }) => {
+      cell: function PromptCell({ row }) {
         const log = row.original
         const prompt = row.getValue('prompt') as string
         const [dialogOpen, setDialogOpen] = useState(false)

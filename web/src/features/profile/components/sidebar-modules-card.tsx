@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
+import { LayoutDashboard } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { LayoutDashboard } from 'lucide-react'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import {
   Card,
   CardContent,
@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { api } from '@/lib/api'
+import { Switch } from '@/components/ui/switch'
 
 type SidebarModuleConfig = {
   enabled: boolean
@@ -35,32 +35,68 @@ export function SidebarModulesCard() {
   const sectionDefs: SectionDef[] = [
     {
       key: 'chat',
-      title: t('聊天区域'),
-      description: t('操练场和聊天功能'),
+      title: t('Chat Area'),
+      description: t('Playground and chat functions'),
       modules: [
-        { key: 'playground', title: t('操练场'), description: t('AI模型测试环境') },
-        { key: 'chat', title: t('聊天'), description: t('聊天会话管理') },
+        {
+          key: 'playground',
+          title: t('Playground'),
+          description: t('AI model testing environment'),
+        },
+        {
+          key: 'chat',
+          title: t('Chat'),
+          description: t('Chat session management'),
+        },
       ],
     },
     {
       key: 'console',
-      title: t('控制台区域'),
-      description: t('数据管理和日志查看'),
+      title: t('Console Area'),
+      description: t('Data management and log viewing'),
       modules: [
-        { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
-        { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
-        { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        { key: 'midjourney', title: t('绘图日志'), description: t('绘图任务记录') },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
+        {
+          key: 'detail',
+          title: t('Dashboard'),
+          description: t('System data statistics'),
+        },
+        {
+          key: 'token',
+          title: t('Token Management'),
+          description: t('API token management'),
+        },
+        {
+          key: 'log',
+          title: t('Usage Logs'),
+          description: t('API usage records'),
+        },
+        {
+          key: 'midjourney',
+          title: t('Drawing Logs'),
+          description: t('Drawing task records'),
+        },
+        {
+          key: 'task',
+          title: t('Task Logs'),
+          description: t('System task records'),
+        },
       ],
     },
     {
       key: 'personal',
-      title: t('个人中心区域'),
-      description: t('用户个人功能'),
+      title: t('Personal Center Area'),
+      description: t('User personal functions'),
       modules: [
-        { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
-        { key: 'personal', title: t('个人设置'), description: t('个人信息设置') },
+        {
+          key: 'topup',
+          title: t('Wallet Management'),
+          description: t('Balance and top-up management'),
+        },
+        {
+          key: 'personal',
+          title: t('Personal Settings'),
+          description: t('Personal info settings'),
+        },
       ],
     },
   ]
@@ -83,6 +119,7 @@ export function SidebarModulesCard() {
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -96,7 +133,11 @@ export function SidebarModulesCard() {
     }))
   }
 
-  const toggleModule = (sectionKey: string, moduleKey: string, val: boolean) => {
+  const toggleModule = (
+    sectionKey: string,
+    moduleKey: string,
+    val: boolean
+  ) => {
     setConfig((prev) => ({
       ...prev,
       [sectionKey]: { ...prev[sectionKey], [moduleKey]: val },
@@ -110,12 +151,12 @@ export function SidebarModulesCard() {
         sidebar_modules: JSON.stringify(config),
       })
       if (res.data.success) {
-        toast.success(t('保存成功'))
+        toast.success(t('Saved successfully'))
       } else {
-        toast.error(res.data.message || t('保存失败'))
+        toast.error(res.data.message || t('Save failed'))
       }
     } catch {
-      toast.error(t('保存失败，请重试'))
+      toast.error(t('Save failed, please retry'))
     } finally {
       setLoading(false)
     }
@@ -128,7 +169,7 @@ export function SidebarModulesCard() {
       for (const mod of sec.modules) defaults[sec.key][mod.key] = true
     }
     setConfig(defaults)
-    toast.success(t('已重置为默认配置'))
+    toast.success(t('Reset to default configuration'))
   }
 
   return (
@@ -136,10 +177,10 @@ export function SidebarModulesCard() {
       <CardHeader>
         <CardTitle className='flex items-center gap-2'>
           <LayoutDashboard className='h-4 w-4' />
-          {t('左侧边栏个人设置')}
+          {t('Sidebar Personal Settings')}
         </CardTitle>
         <CardDescription>
-          {t('个性化设置左侧边栏的显示内容')}
+          {t('Customize sidebar display content')}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-6'>
@@ -147,10 +188,10 @@ export function SidebarModulesCard() {
           const sectionEnabled = config[section.key]?.enabled !== false
           return (
             <div key={section.key} className='space-y-3'>
-              <div className='flex items-center justify-between rounded-lg border bg-muted/50 p-3'>
+              <div className='bg-muted/50 flex items-center justify-between rounded-lg border p-3'>
                 <div>
                   <p className='text-sm font-medium'>{section.title}</p>
-                  <p className='text-xs text-muted-foreground'>
+                  <p className='text-muted-foreground text-xs'>
                     {section.description}
                   </p>
                 </div>
@@ -171,7 +212,7 @@ export function SidebarModulesCard() {
                       <p className='truncate text-sm font-medium'>
                         {mod.title}
                       </p>
-                      <p className='truncate text-xs text-muted-foreground'>
+                      <p className='text-muted-foreground truncate text-xs'>
                         {mod.description}
                       </p>
                     </div>
@@ -191,7 +232,7 @@ export function SidebarModulesCard() {
 
         <div className='flex justify-end gap-2 border-t pt-4'>
           <Button variant='outline' onClick={handleReset}>
-            {t('重置为默认')}
+            {t('Reset to Default')}
           </Button>
           <Button onClick={handleSave} disabled={loading}>
             {loading ? t('Saving...') : t('Save Changes')}

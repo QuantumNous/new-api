@@ -17,8 +17,10 @@ import {
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
-import { CodexUsageDialog } from './codex-usage-dialog'
-import type { CodexUsageDialogData } from './codex-usage-dialog'
+import {
+  CodexUsageDialog,
+  type CodexUsageDialogData,
+} from './codex-usage-dialog'
 
 type BalanceQueryDialogProps = {
   open: boolean
@@ -52,8 +54,10 @@ export function BalanceQueryDialog({
         throw new Error(res.message || t('Failed to fetch usage'))
       }
       setCodexUsageResponse(res)
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to fetch usage'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to fetch usage')
+      )
     } finally {
       setIsQuerying(false)
     }
@@ -88,12 +92,16 @@ export function BalanceQueryDialog({
         })
 
         // Invalidate queries to refresh the table
-        await queryClient.invalidateQueries({queryKey: channelsQueryKeys.lists()})
+        await queryClient.invalidateQueries({
+          queryKey: channelsQueryKeys.lists(),
+        })
       } else {
         toast.error(response.message || t('Failed to query balance'))
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to query balance'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to query balance')
+      )
     } finally {
       setIsQuerying(false)
     }

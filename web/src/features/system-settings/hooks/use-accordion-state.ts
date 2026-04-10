@@ -33,12 +33,14 @@ export function useAccordionState(pageId: string) {
     try {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setOpenItems(JSON.parse(stored))
       }
-    } catch (error) {
+    } catch (_error) {
+      // eslint-disable-next-line no-console
       console.error(
         `Failed to load accordion state from localStorage: ${storageKey}`,
-        error
+        _error
       )
     }
   }, [storageKey])
@@ -49,10 +51,11 @@ export function useAccordionState(pageId: string) {
       debounce((value: string[]) => {
         try {
           localStorage.setItem(storageKey, JSON.stringify(value))
-        } catch (error) {
+        } catch (_error) {
+          // eslint-disable-next-line no-console
           console.error(
             `Failed to save accordion state to localStorage: ${storageKey}`,
-            error
+            _error
           )
         }
       }, 500),

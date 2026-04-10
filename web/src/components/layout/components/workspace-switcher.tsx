@@ -77,6 +77,7 @@ export function WorkspaceSwitcher({
       defaultName,
       defaultVersion,
       isSuperAdmin,
+      t,
     ]
   )
 

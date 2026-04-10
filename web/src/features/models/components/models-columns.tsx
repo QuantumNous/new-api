@@ -174,7 +174,18 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         }
 
         const badge = (
-          <StatusBadge label={label} variant={config.color as any} size='sm' />
+          <StatusBadge
+            label={label}
+            variant={
+              config.color as
+                | 'neutral'
+                | 'success'
+                | 'warning'
+                | 'error'
+                | 'info'
+            }
+            size='sm'
+          />
         )
 
         // Show tooltip with matched models for non-exact rules
@@ -376,7 +387,11 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
       meta: { label: t('Bound Channels') },
       header: t('Bound Channels'),
       cell: ({ row }) => {
-        const channels = row.getValue('bound_channels') as any[]
+        const channels = row.getValue('bound_channels') as Array<{
+          id: number
+          name: string
+          status?: number
+        }>
 
         if (!channels || channels.length === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
@@ -471,7 +486,14 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
             <StatusBadge
               key={idx}
               label={config?.label || String(qt)}
-              variant={config?.color as any}
+              variant={
+                config?.color as
+                  | 'neutral'
+                  | 'success'
+                  | 'warning'
+                  | 'error'
+                  | 'info'
+              }
               size='sm'
             />
           )

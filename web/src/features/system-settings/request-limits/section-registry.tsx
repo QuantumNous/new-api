@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { RequestLimitsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { RateLimitSection } from './rate-limit-section'
@@ -12,8 +13,7 @@ const REQUEST_LIMITS_SECTIONS = [
     build: (settings: RequestLimitsSettings) => (
       <RateLimitSection
         defaultValues={{
-          ModelRequestRateLimitEnabled:
-            settings.ModelRequestRateLimitEnabled,
+          ModelRequestRateLimitEnabled: settings.ModelRequestRateLimitEnabled,
           ModelRequestRateLimitCount: settings.ModelRequestRateLimitCount,
           ModelRequestRateLimitSuccessCount:
             settings.ModelRequestRateLimitSuccessCount,
@@ -32,8 +32,7 @@ const REQUEST_LIMITS_SECTIONS = [
       <SensitiveWordsSection
         defaultValues={{
           CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
-          CheckSensitiveOnPromptEnabled:
-            settings.CheckSensitiveOnPromptEnabled,
+          CheckSensitiveOnPromptEnabled: settings.CheckSensitiveOnPromptEnabled,
           SensitiveWords: settings.SensitiveWords,
         }}
       />
@@ -54,8 +53,7 @@ const REQUEST_LIMITS_SECTIONS = [
             settings['fetch_setting.domain_filter_mode'],
           'fetch_setting.ip_filter_mode':
             settings['fetch_setting.ip_filter_mode'],
-          'fetch_setting.domain_list':
-            settings['fetch_setting.domain_list'],
+          'fetch_setting.domain_list': settings['fetch_setting.domain_list'],
           'fetch_setting.ip_list': settings['fetch_setting.ip_list'],
           'fetch_setting.allowed_ports':
             settings['fetch_setting.allowed_ports'],
@@ -81,7 +79,8 @@ const requestLimitsRegistry = createSectionRegistry<
 })
 
 export const REQUEST_LIMITS_SECTION_IDS = requestLimitsRegistry.sectionIds
-export const REQUEST_LIMITS_DEFAULT_SECTION = requestLimitsRegistry.defaultSection
+export const REQUEST_LIMITS_DEFAULT_SECTION =
+  requestLimitsRegistry.defaultSection
 export const getRequestLimitsSectionNavItems =
   requestLimitsRegistry.getSectionNavItems
 export const getRequestLimitsSectionContent =

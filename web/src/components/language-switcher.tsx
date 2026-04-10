@@ -1,5 +1,8 @@
+import { useCallback } from 'react'
 import { Languages, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +23,21 @@ const languages = [
 
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation()
+  const user = useAuthStore((s) => s.auth.user)
+
+  const handleChangeLanguage = useCallback(
+    async (code: string) => {
+      await i18n.changeLanguage(code)
+      if (user) {
+        try {
+          await api.put('/api/user/self', { language: code })
+        } catch {
+          // Best-effort persistence; don't block the UI on failure
+        }
+      }
+    },
+    [i18n, user]
+  )
 
   return (
     <DropdownMenu modal={false}>
@@ -33,7 +51,7 @@ export function LanguageSwitcher() {
         {languages.map((lang) => (
           <DropdownMenuItem
             key={lang.code}
-            onClick={() => i18n.changeLanguage(lang.code)}
+            onClick={() => handleChangeLanguage(lang.code)}
           >
             {lang.label}
             <Check

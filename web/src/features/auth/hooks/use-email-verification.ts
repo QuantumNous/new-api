@@ -44,7 +44,7 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
         return true
       }
       return false
-    } catch (error) {
+    } catch (_error) {
       // Errors are handled by global interceptor
       return false
     } finally {

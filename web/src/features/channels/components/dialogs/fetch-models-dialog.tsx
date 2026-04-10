@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search, Info } from 'lucide-react'
-import { ChevronDown } from 'lucide-react'
+import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -76,6 +75,7 @@ export function FetchModelsDialog({
     if (open && currentRow) {
       handleFetchModels()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentRow?.id])
 
   const handleFetchModels = async () => {
@@ -95,8 +95,10 @@ export function FetchModelsDialog({
         toast.error(response.message || t('Failed to fetch models'))
         setFetchedModels([])
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to fetch models'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to fetch models')
+      )
       setFetchedModels([])
     } finally {
       setIsFetching(false)
@@ -128,8 +130,10 @@ export function FetchModelsDialog({
       } else {
         toast.error(response.message || t('Failed to update models'))
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to update models'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to update models')
+      )
     } finally {
       setIsSaving(false)
     }

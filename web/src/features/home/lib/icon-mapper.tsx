@@ -7,7 +7,7 @@ import {
   DollarSign,
   Users,
   HeartHandshake,
-  LucideIcon,
+  type LucideIcon,
 } from 'lucide-react'
 
 /**
@@ -33,6 +33,7 @@ export function getFeatureIcon(
 ): React.ReactNode {
   const Icon = ICON_MAP[iconName]
   if (!Icon) {
+    // eslint-disable-next-line no-console
     console.warn(`Icon "${iconName}" not found in icon map`)
     return null
   }

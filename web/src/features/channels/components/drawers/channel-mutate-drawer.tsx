@@ -104,8 +104,8 @@ import {
 } from '../../lib'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
-import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
+import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -447,6 +447,7 @@ export function ChannelMutateDrawer({
     }, 500)
 
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentBaseUrl])
 
   // Handle secret click to unlock Doubao custom API edit
@@ -510,7 +511,7 @@ export function ChannelMutateDrawer({
     } finally {
       setIsChannelKeyLoading(false)
     }
-  }, [channelId])
+  }, [channelId, t])
 
   const handleRevealKey = useCallback(async () => {
     if (!channelId) return
@@ -538,7 +539,9 @@ export function ChannelMutateDrawer({
         throw new Error(res.message || 'Failed to refresh credential')
       }
       toast.success(t('Credential refreshed'))
-      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.detail(channelId) })
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('Refresh failed'))
     } finally {
@@ -603,7 +606,7 @@ export function ChannelMutateDrawer({
     } finally {
       setIsFetchingModels(false)
     }
-  }, [isEditing, currentRow, form, updateModels])
+  }, [isEditing, currentRow, form, t, updateModels])
 
   // Handle adding custom models
   const handleAddCustomModels = useCallback(() => {
@@ -613,7 +616,7 @@ export function ChannelMutateDrawer({
     const count = updateModels(modelArray, true)
     setCustomModel('')
     toast.success(t('Added {{count}} custom model(s)', { count }))
-  }, [customModel, updateModels])
+  }, [customModel, t, updateModels])
 
   // Handle model operations
   const handleFillRelatedModels = useCallback(() => {
@@ -812,7 +815,15 @@ export function ChannelMutateDrawer({
         setIsSubmitting(false)
       }
     },
-    [isEditing, currentRow, isMultiKeyChannel, form, handleSuccess]
+    [
+      isEditing,
+      currentRow,
+      isMultiKeyChannel,
+      form,
+      handleSuccess,
+      confirmMissingModelMappings,
+      t,
+    ]
   )
 
   // Handle drawer close
@@ -1697,12 +1708,18 @@ export function ChannelMutateDrawer({
                       if (currentType === 33) {
                         if (awsKeyType === 'api_key') {
                           return isBatchMode
-                            ? t('Enter API Key, one per line, format: APIKey|Region')
+                            ? t(
+                                'Enter API Key, one per line, format: APIKey|Region'
+                              )
                             : t('Enter API Key, format: APIKey|Region')
                         }
                         return isBatchMode
-                          ? t('Enter key, one per line, format: AccessKey|SecretAccessKey|Region')
-                          : t('Enter key, format: AccessKey|SecretAccessKey|Region')
+                          ? t(
+                              'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
+                            )
+                          : t(
+                              'Enter key, format: AccessKey|SecretAccessKey|Region'
+                            )
                       }
                       if (isBatchMode) {
                         return t('Enter one key per line for batch creation')
@@ -1716,104 +1733,106 @@ export function ChannelMutateDrawer({
                           <Textarea
                             placeholder={keyPlaceholder}
                             rows={isBatchMode ? 8 : 4}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        <div className='flex flex-col gap-2'>
-                          <span>
-                            {isEditing ? (
-                              <>
-                                {t(
-                                  'Enter new key to update, or leave empty to keep current key'
-                                )}
-                                {isMultiKeyChannel && (
-                                  <span className='text-warning mt-1 block'>
-                                    {t('Multi-key channel: Keys will be')}{' '}
-                                    {keyMode === 'replace'
-                                      ? t('replaced')
-                                      : t('appended')}
-                                  </span>
-                                )}
-                              </>
-                            ) : isBatchMode ? (
-                              t('Enter one API key per line for batch creation')
-                            ) : (
-                              t(FIELD_DESCRIPTIONS.KEY)
-                            )}
-                          </span>
-                          {isBatchMode && (
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              onClick={handleDeduplicateKeys}
-                              className='w-fit'
-                            >
-                              <Trash2 className='mr-2 h-4 w-4' />
-                              {t('Remove Duplicates')}
-                            </Button>
-                          )}
-                        </div>
-                      </FormDescription>
-                      {isEditing && (
-                        <div className='mt-4 space-y-3 rounded-lg border border-dashed p-4'>
-                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                            <div>
-                              <p className='text-sm font-medium'>
-                                {t('Current key')}
-                              </p>
-                              <p className='text-muted-foreground text-xs'>
-                                {t(
-                                  'Verification required to reveal the saved key.'
-                                )}
-                              </p>
-                            </div>
-                            <div className='flex items-center gap-2'>
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          <div className='flex flex-col gap-2'>
+                            <span>
+                              {isEditing ? (
+                                <>
+                                  {t(
+                                    'Enter new key to update, or leave empty to keep current key'
+                                  )}
+                                  {isMultiKeyChannel && (
+                                    <span className='text-warning mt-1 block'>
+                                      {t('Multi-key channel: Keys will be')}{' '}
+                                      {keyMode === 'replace'
+                                        ? t('replaced')
+                                        : t('appended')}
+                                    </span>
+                                  )}
+                                </>
+                              ) : isBatchMode ? (
+                                t(
+                                  'Enter one API key per line for batch creation'
+                                )
+                              ) : (
+                                t(FIELD_DESCRIPTIONS.KEY)
+                              )}
+                            </span>
+                            {isBatchMode && (
                               <Button
                                 type='button'
                                 variant='outline'
                                 size='sm'
-                                onClick={handleRevealKey}
-                                disabled={
-                                  isChannelKeyLoading ||
-                                  verificationState.loading
-                                }
+                                onClick={handleDeduplicateKeys}
+                                className='w-fit'
                               >
-                                {isChannelKeyLoading ||
-                                verificationState.loading ? (
-                                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                                ) : (
-                                  <Eye className='mr-2 h-4 w-4' />
-                                )}
-                                {t('Reveal key')}
+                                <Trash2 className='mr-2 h-4 w-4' />
+                                {t('Remove Duplicates')}
                               </Button>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                size='sm'
-                                onClick={async () => {
-                                  if (channelKey) {
-                                    await copyToClipboard(channelKey)
-                                  }
-                                }}
-                                disabled={!channelKey}
-                              >
-                                <Copy className='mr-2 h-4 w-4' />
-                                {t('Copy')}
-                              </Button>
-                            </div>
+                            )}
                           </div>
-                          <Input
-                            readOnly
-                            value={channelKey ?? ''}
-                            placeholder={t('Hidden — verify to reveal')}
-                            className='font-mono'
-                          />
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
+                        </FormDescription>
+                        {isEditing && (
+                          <div className='mt-4 space-y-3 rounded-lg border border-dashed p-4'>
+                            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                              <div>
+                                <p className='text-sm font-medium'>
+                                  {t('Current key')}
+                                </p>
+                                <p className='text-muted-foreground text-xs'>
+                                  {t(
+                                    'Verification required to reveal the saved key.'
+                                  )}
+                                </p>
+                              </div>
+                              <div className='flex items-center gap-2'>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={handleRevealKey}
+                                  disabled={
+                                    isChannelKeyLoading ||
+                                    verificationState.loading
+                                  }
+                                >
+                                  {isChannelKeyLoading ||
+                                  verificationState.loading ? (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <Eye className='mr-2 h-4 w-4' />
+                                  )}
+                                  {t('Reveal key')}
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={async () => {
+                                    if (channelKey) {
+                                      await copyToClipboard(channelKey)
+                                    }
+                                  }}
+                                  disabled={!channelKey}
+                                >
+                                  <Copy className='mr-2 h-4 w-4' />
+                                  {t('Copy')}
+                                </Button>
+                              </div>
+                            </div>
+                            <Input
+                              readOnly
+                              value={channelKey ?? ''}
+                              placeholder={t('Hidden — verify to reveal')}
+                              className='font-mono'
+                            />
+                          </div>
+                        )}
+                        <FormMessage />
+                      </FormItem>
                     )
                   }}
                 />

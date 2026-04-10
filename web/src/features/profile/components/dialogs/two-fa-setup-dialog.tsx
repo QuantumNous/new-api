@@ -59,6 +59,7 @@ export function TwoFASetupDialog({
         onOpenChange(false)
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Setup 2FA error:', error)
       toast.error(t('Failed to setup 2FA'))
       onOpenChange(false)
@@ -88,7 +89,7 @@ export function TwoFASetupDialog({
       } else {
         toast.error(response.message || t('Failed to enable 2FA'))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t('Failed to enable 2FA'))
     } finally {
       setLoading(false)

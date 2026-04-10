@@ -142,7 +142,7 @@ export function UserAuthForm({
         await handleLoginSuccess(res.data, redirectTo)
         toast.success(t('Welcome back!'))
       }
-    } catch (error) {
+    } catch (_error) {
       // Errors are handled by global interceptor
     } finally {
       setIsLoading(false)
@@ -182,7 +182,7 @@ export function UserAuthForm({
       } else {
         toast.error(res?.message || loginFailedMessage)
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(loginFailedMessage)
     } finally {
       setIsWeChatSubmitting(false)
@@ -244,8 +244,8 @@ export function UserAuthForm({
         redirectTo
       )
       toast.success(t('Signed in with Passkey'))
-    } catch (error: any) {
-      if (error?.name === 'NotAllowedError') {
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {
         toast.error(error.message)

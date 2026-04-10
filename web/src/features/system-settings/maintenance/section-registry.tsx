@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { MaintenanceSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import {
@@ -19,7 +20,7 @@ const MAINTENANCE_SECTIONS = [
     titleKey: 'System maintenance',
     descriptionKey: 'Check for system updates',
     build: (
-      settings: MaintenanceSettings,
+      _settings: MaintenanceSettings,
       currentVersion?: string | null,
       startTime?: number | null
     ) => (
@@ -108,8 +109,7 @@ const MAINTENANCE_SECTIONS = [
   },
 ] as const
 
-export type MaintenanceSectionId =
-  (typeof MAINTENANCE_SECTIONS)[number]['id']
+export type MaintenanceSectionId = (typeof MAINTENANCE_SECTIONS)[number]['id']
 
 const maintenanceRegistry = createSectionRegistry<
   MaintenanceSectionId,

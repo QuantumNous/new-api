@@ -40,6 +40,7 @@ function fallbackCopyToClipboard(text: string): boolean {
 
     return successful
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('Fallback copy failed:', err)
     document.body.removeChild(textArea)
     return false
@@ -72,6 +73,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text)
       return true
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Clipboard API failed, trying fallback method:', error)
       // Try fallback method
       return fallbackCopyToClipboard(text)

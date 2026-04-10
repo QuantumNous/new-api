@@ -21,7 +21,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const systemInfoSchema = z.object({
+const _systemInfoSchema = z.object({
   Notice: z.string().optional(),
   SystemName: z.string().min(1),
   Logo: z.string().url().optional().or(z.literal('')),
@@ -81,7 +81,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     useSettingsForm<SystemInfoFormValues>({
       resolver: zodResolver(systemInfoSchemaWithI18n) as Resolver<
         SystemInfoFormValues,
-        any,
+        unknown,
         SystemInfoFormValues
       >,
       defaultValues: normalizedDefaults,

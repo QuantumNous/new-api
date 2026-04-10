@@ -247,7 +247,9 @@ function CalendarDropdown(props: DropdownProps) {
   }, [open])
 
   const handleSelect = (optValue: number) => {
-    onChange?.({ target: { value: String(optValue) } } as React.ChangeEvent<HTMLSelectElement>)
+    onChange?.({
+      target: { value: String(optValue) },
+    } as React.ChangeEvent<HTMLSelectElement>)
     setOpen(false)
   }
 
@@ -263,7 +265,10 @@ function CalendarDropdown(props: DropdownProps) {
       >
         {selectedOption?.label}
         <ChevronDownIcon
-          className={cn('size-3.5 opacity-50 transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-3.5 opacity-50 transition-transform',
+            open && 'rotate-180'
+          )}
         />
       </Button>
 
@@ -282,7 +287,7 @@ function CalendarDropdown(props: DropdownProps) {
                 data-selected={opt.value === value}
                 onClick={() => handleSelect(opt.value)}
                 className={cn(
-                  'hover:bg-accent hover:text-accent-foreground relative flex w-full cursor-default items-center whitespace-nowrap rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none',
+                  'hover:bg-accent hover:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm py-1.5 pr-8 pl-2 text-sm whitespace-nowrap outline-hidden select-none',
                   opt.disabled && 'pointer-events-none opacity-50',
                   opt.value === value && 'bg-accent text-accent-foreground'
                 )}

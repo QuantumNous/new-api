@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -17,7 +18,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { parseHttpStatusCodeRules } from '@/lib/http-status-code-rules'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -28,47 +28,50 @@ const numericString = z.string().refine((value) => {
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
 
-const monitoringSchema = z.object({
-  ChannelDisableThreshold: numericString,
-  QuotaRemindThreshold: numericString,
-  AutomaticDisableChannelEnabled: z.boolean(),
-  AutomaticEnableChannelEnabled: z.boolean(),
-  AutomaticDisableKeywords: z.string(),
-  AutomaticDisableStatusCodes: z.string(),
-  AutomaticRetryStatusCodes: z.string(),
-  monitor_setting: z.object({
-    auto_test_channel_enabled: z.boolean(),
-    auto_test_channel_minutes: z.coerce
-      .number()
-      .int()
-      .min(1, 'Interval must be at least 1 minute'),
-  }),
-})
-.superRefine((values, ctx) => {
-  const disableParsed = parseHttpStatusCodeRules(
-    values.AutomaticDisableStatusCodes
-  )
-  if (!disableParsed.ok) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['AutomaticDisableStatusCodes'],
-      message: `Invalid status code rules: ${disableParsed.invalidTokens.join(
-        ', '
-      )}`,
-    })
-  }
+const monitoringSchema = z
+  .object({
+    ChannelDisableThreshold: numericString,
+    QuotaRemindThreshold: numericString,
+    AutomaticDisableChannelEnabled: z.boolean(),
+    AutomaticEnableChannelEnabled: z.boolean(),
+    AutomaticDisableKeywords: z.string(),
+    AutomaticDisableStatusCodes: z.string(),
+    AutomaticRetryStatusCodes: z.string(),
+    monitor_setting: z.object({
+      auto_test_channel_enabled: z.boolean(),
+      auto_test_channel_minutes: z.coerce
+        .number()
+        .int()
+        .min(1, 'Interval must be at least 1 minute'),
+    }),
+  })
+  .superRefine((values, ctx) => {
+    const disableParsed = parseHttpStatusCodeRules(
+      values.AutomaticDisableStatusCodes
+    )
+    if (!disableParsed.ok) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AutomaticDisableStatusCodes'],
+        message: `Invalid status code rules: ${disableParsed.invalidTokens.join(
+          ', '
+        )}`,
+      })
+    }
 
-  const retryParsed = parseHttpStatusCodeRules(values.AutomaticRetryStatusCodes)
-  if (!retryParsed.ok) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['AutomaticRetryStatusCodes'],
-      message: `Invalid status code rules: ${retryParsed.invalidTokens.join(
-        ', '
-      )}`,
-    })
-  }
-})
+    const retryParsed = parseHttpStatusCodeRules(
+      values.AutomaticRetryStatusCodes
+    )
+    if (!retryParsed.ok) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AutomaticRetryStatusCodes'],
+        message: `Invalid status code rules: ${retryParsed.invalidTokens.join(
+          ', '
+        )}`,
+      })
+    }
+  })
 
 type MonitoringFormValues = z.output<typeof monitoringSchema>
 type MonitoringFormInput = z.input<typeof monitoringSchema>
@@ -181,7 +184,7 @@ export function MonitoringSettingsSection({
     [defaultValues]
   )
 
-  const form = useForm<MonitoringFormInput, any, MonitoringFormValues>({
+  const form = useForm<MonitoringFormInput, unknown, MonitoringFormValues>({
     resolver: zodResolver(monitoringSchema),
     defaultValues: formDefaults,
   })

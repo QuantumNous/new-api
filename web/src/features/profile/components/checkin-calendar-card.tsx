@@ -10,8 +10,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import dayjs from '@/lib/dayjs'
 import { formatQuotaWithCurrency } from '@/lib/currency'
+import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +60,7 @@ export function CheckinCalendarCard({
   }, [currentMonth])
 
   // Fetch checkin status
+  /* eslint-disable @tanstack/query/exhaustive-deps */
   const {
     data: checkinData,
     isLoading,
@@ -76,6 +77,7 @@ export function CheckinCalendarCard({
     enabled: checkinEnabled,
     staleTime: 30000,
   })
+  /* eslint-enable @tanstack/query/exhaustive-deps */
 
   const checkinRecordsMap = useMemo(() => {
     const map: Record<string, number> = {}
@@ -144,7 +146,7 @@ export function CheckinCalendarCard({
           }
           toast.error(res.message || t('Check-in failed'))
         }
-      } catch (error) {
+      } catch (_error) {
         toast.error(t('Check-in failed'))
       } finally {
         setCheckinLoading(false)
@@ -263,7 +265,7 @@ export function CheckinCalendarCard({
             <Button
               type='button'
               variant='ghost'
-              className='flex h-auto min-w-0 flex-1 items-start gap-3 whitespace-normal p-0 text-left hover:bg-transparent'
+              className='flex h-auto min-w-0 flex-1 items-start gap-3 p-0 text-left whitespace-normal hover:bg-transparent'
               onClick={() => setCollapsed((v) => !v)}
             >
               <div className='bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11'>

@@ -29,6 +29,7 @@ export function useAccessToken() {
       toast.error(response.message || i18next.t('Failed to generate token'))
       return false
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to generate token:', error)
       toast.error(i18next.t('Failed to generate token'))
       return false

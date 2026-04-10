@@ -1,9 +1,8 @@
-import type { TFunction } from 'i18next'
 import { z } from 'zod'
+import type { TFunction } from 'i18next'
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import {
   REDEMPTION_VALIDATION,
-  ERROR_MESSAGES,
   getRedemptionFormErrorMessages,
 } from '../constants'
 import { type RedemptionFormData, type Redemption } from '../types'

@@ -71,6 +71,7 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
     enabled: channelDialogOpen,
   })
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const channels = channelsData?.data || []
 
   useEffect(() => {

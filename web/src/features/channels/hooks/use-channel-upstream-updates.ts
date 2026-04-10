@@ -6,9 +6,14 @@ import { normalizeModelList } from '../lib/upstream-update-utils'
 
 function getManualIgnoredModelCount(settings: unknown): number {
   let parsed: Record<string, unknown> | null = null
-  if (settings && typeof settings === 'object') parsed = settings as Record<string, unknown>
+  if (settings && typeof settings === 'object')
+    parsed = settings as Record<string, unknown>
   else if (typeof settings === 'string') {
-    try { parsed = JSON.parse(settings) } catch { parsed = null }
+    try {
+      parsed = JSON.parse(settings)
+    } catch {
+      parsed = null
+    }
   }
   if (!parsed) return 0
   return normalizeModelList(
@@ -20,7 +25,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
   const { t } = useTranslation()
 
   const [showModal, setShowModal] = useState(false)
-  const [channel, setChannel] = useState<any>(null)
+  const [channel, setChannel] = useState<{
+    id: number
+    [key: string]: unknown
+  } | null>(null)
   const [addModels, setAddModels] = useState<string[]>([])
   const [removeModels, setRemoveModels] = useState<string[]>([])
   const [preferredTab, setPreferredTab] = useState<'add' | 'remove'>('add')
@@ -35,7 +43,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
 
   const openModal = useCallback(
     (
-      record: any,
+      record: { id: number; [key: string]: unknown } | null,
       pendingAdd: string[] = [],
       pendingRemove: string[] = [],
       tab: 'add' | 'remove' = 'add'
@@ -43,7 +51,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const normAdd = normalizeModelList(pendingAdd)
       const normRemove = normalizeModelList(pendingRemove)
       if (!record?.id || (normAdd.length === 0 && normRemove.length === 0)) {
-        toast.info(t('该渠道暂无可处理的上游模型更新'))
+        toast.info(t('No processable upstream model updates for this channel'))
         return
       }
       setChannel(record)
@@ -72,7 +80,10 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       removeModels?: string[]
     } = {}) => {
       if (applyRef.current) return
-      if (!channel?.id) { closeModal(); return }
+      if (!channel?.id) {
+        closeModal()
+        return
+      }
       applyRef.current = true
       setApplyLoading(true)
       try {
@@ -88,14 +99,17 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
             ignore_models: ignoreModels,
             remove_models: normalizeModelList(selectedRemove),
           },
-          { skipErrorHandler: true } as any
+          { skipErrorHandler: true } as Record<string, unknown>
         )
         const { success, message, data } = res.data || {}
-        if (!success) { toast.error(message || t('操作失败')); return }
+        if (!success) {
+          toast.error(message || t('Operation failed'))
+          return
+        }
 
         toast.success(
           t(
-            '已处理上游模型更新：加入 {{added}} 个，删除 {{removed}} 个，本次忽略 {{ignored}} 个，当前已忽略模型 {{totalIgnored}} 个',
+            'Upstream model updates applied: {{added}} added, {{removed}} removed, {{ignored}} ignored this time, {{totalIgnored}} total ignored models',
             {
               added: data?.added_models?.length || 0,
               removed: data?.removed_models?.length || 0,
@@ -106,8 +120,14 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         )
         closeModal()
         await refresh()
-      } catch (e: any) {
-        toast.error(e?.response?.data?.message || e?.message || t('操作失败'))
+      } catch (e: unknown) {
+        const err = e as {
+          response?: { data?: { message?: string } }
+          message?: string
+        }
+        toast.error(
+          err?.response?.data?.message || err?.message || t('Operation failed')
+        )
       } finally {
         applyRef.current = false
         setApplyLoading(false)
@@ -124,14 +144,17 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/apply_all',
         {},
-        { skipErrorHandler: true } as any
+        { skipErrorHandler: true } as Record<string, unknown>
       )
       const { success, message, data } = res.data || {}
-      if (!success) { toast.error(message || t('批量处理失败')); return }
+      if (!success) {
+        toast.error(message || t('Batch processing failed'))
+        return
+      }
 
       toast.success(
         t(
-          '已批量处理上游模型更新：渠道 {{channels}} 个，加入 {{added}} 个，删除 {{removed}} 个，失败 {{fails}} 个',
+          'Batch upstream model updates applied: {{channels}} channels, {{added}} added, {{removed}} removed, {{fails}} failed',
           {
             channels: data?.processed_channels || 0,
             added: data?.added_models || 0,
@@ -141,8 +164,16 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         )
       )
       await refresh()
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || t('批量处理失败'))
+    } catch (e: unknown) {
+      const err = e as {
+        response?: { data?: { message?: string } }
+        message?: string
+      }
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          t('Batch processing failed')
+      )
     } finally {
       applyAllRef.current = false
       setApplyAllLoading(false)
@@ -150,27 +181,36 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
   }, [refresh, t])
 
   const detectChannelUpdates = useCallback(
-    async (ch: any) => {
+    async (ch: { id: number; [key: string]: unknown } | null) => {
       if (detectRef.current || !ch?.id) return
       detectRef.current = true
       try {
         const res = await api.post(
           '/api/channel/upstream_updates/detect',
           { id: ch.id },
-          { skipErrorHandler: true } as any
+          { skipErrorHandler: true } as Record<string, unknown>
         )
         const { success, message, data } = res.data || {}
-        if (!success) { toast.error(message || t('检测失败')); return }
+        if (!success) {
+          toast.error(message || t('Detection failed'))
+          return
+        }
 
         toast.success(
-          t('检测完成：新增 {{add}} 个，删除 {{remove}} 个', {
+          t('Detection complete: {{add}} to add, {{remove}} to remove', {
             add: data?.add_models?.length || 0,
             remove: data?.remove_models?.length || 0,
           })
         )
         await refresh()
-      } catch (e: any) {
-        toast.error(e?.response?.data?.message || e?.message || t('检测失败'))
+      } catch (e: unknown) {
+        const err = e as {
+          response?: { data?: { message?: string } }
+          message?: string
+        }
+        toast.error(
+          err?.response?.data?.message || err?.message || t('Detection failed')
+        )
       } finally {
         detectRef.current = false
       }
@@ -186,14 +226,17 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       const res = await api.post(
         '/api/channel/upstream_updates/detect_all',
         {},
-        { skipErrorHandler: true } as any
+        { skipErrorHandler: true } as Record<string, unknown>
       )
       const { success, message, data } = res.data || {}
-      if (!success) { toast.error(message || t('批量检测失败')); return }
+      if (!success) {
+        toast.error(message || t('Batch detection failed'))
+        return
+      }
 
       toast.success(
         t(
-          '批量检测完成：渠道 {{channels}} 个，新增 {{add}} 个，删除 {{remove}} 个，失败 {{fails}} 个',
+          'Batch detection complete: {{channels}} channels, {{add}} to add, {{remove}} to remove, {{fails}} failed',
           {
             channels: data?.processed_channels || 0,
             add: data?.detected_add_models || 0,
@@ -203,8 +246,16 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
         )
       )
       await refresh()
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || e?.message || t('批量检测失败'))
+    } catch (e: unknown) {
+      const err = e as {
+        response?: { data?: { message?: string } }
+        message?: string
+      }
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          t('Batch detection failed')
+      )
     } finally {
       detectAllRef.current = false
       setDetectAllLoading(false)

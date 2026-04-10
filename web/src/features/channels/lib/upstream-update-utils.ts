@@ -1,9 +1,7 @@
 export function normalizeModelList(models: unknown[] = []): string[] {
   return Array.from(
     new Set(
-      (models || [])
-        .map((model) => String(model || '').trim())
-        .filter(Boolean)
+      (models || []).map((model) => String(model || '').trim()).filter(Boolean)
     )
   )
 }

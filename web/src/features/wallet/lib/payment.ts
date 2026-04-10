@@ -25,7 +25,7 @@ function isSafariBrowser(): boolean {
  */
 export function submitPaymentForm(
   url: string,
-  params: Record<string, any>
+  params: Record<string, unknown>
 ): void {
   const form = document.createElement('form')
   form.action = url

@@ -1,16 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -18,6 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -44,15 +44,18 @@ interface Props {
   onSuccess?: () => void
 }
 
-function StatusBadge(props: { sub: UserSubscriptionRecord['subscription']; t: any }) {
+function StatusBadge(props: {
+  sub: UserSubscriptionRecord['subscription']
+  t: (key: string) => string
+}) {
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now() / 1000
-  const isExpired =
-    (props.sub.end_time || 0) > 0 && props.sub.end_time < now
+  const isExpired = (props.sub.end_time || 0) > 0 && props.sub.end_time < now
   const isActive = props.sub.status === 'active' && !isExpired
-  if (isActive) return <Badge variant='success'>{props.t('生效')}</Badge>
+  if (isActive) return <Badge variant='default'>{props.t('Active')}</Badge>
   if (props.sub.status === 'cancelled')
-    return <Badge variant='secondary'>{props.t('已作废')}</Badge>
-  return <Badge variant='secondary'>{props.t('已过期')}</Badge>
+    return <Badge variant='secondary'>{props.t('Invalidated')}</Badge>
+  return <Badge variant='secondary'>{props.t('Expired')}</Badge>
 }
 
 export function UserSubscriptionsDialog(props: Props) {
@@ -75,7 +78,7 @@ export function UserSubscriptionsDialog(props: Props) {
     return map
   }, [plans])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!props.user?.id) return
     setLoading(true)
     try {
@@ -86,22 +89,22 @@ export function UserSubscriptionsDialog(props: Props) {
       if (plansRes.success) setPlans(plansRes.data || [])
       if (subsRes.success) setSubs(subsRes.data || [])
     } catch {
-      toast.error(t('加载失败'))
+      toast.error(t('Loading failed'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [props.user?.id, t])
 
   useEffect(() => {
     if (props.open && props.user?.id) {
       setSelectedPlanId('')
       loadData()
     }
-  }, [props.open, props.user?.id])
+  }, [props.open, props.user?.id, loadData])
 
   const handleCreate = async () => {
     if (!props.user?.id || !selectedPlanId) {
-      toast.error(t('请选择订阅套餐'))
+      toast.error(t('Please select a subscription plan'))
       return
     }
     setCreating(true)
@@ -110,13 +113,13 @@ export function UserSubscriptionsDialog(props: Props) {
         plan_id: Number(selectedPlanId),
       })
       if (res.success) {
-        toast.success(res.data?.message || t('新增成功'))
+        toast.success(res.data?.message || t('Added successfully'))
         setSelectedPlanId('')
         await loadData()
         props.onSuccess?.()
       }
     } catch {
-      toast.error(t('请求失败'))
+      toast.error(t('Request failed'))
     } finally {
       setCreating(false)
     }
@@ -128,20 +131,20 @@ export function UserSubscriptionsDialog(props: Props) {
       if (confirmAction.type === 'invalidate') {
         const res = await invalidateUserSubscription(confirmAction.subId)
         if (res.success) {
-          toast.success(res.data?.message || t('已作废'))
+          toast.success(res.data?.message || t('Has been invalidated'))
           await loadData()
           props.onSuccess?.()
         }
       } else {
         const res = await deleteUserSubscription(confirmAction.subId)
         if (res.success) {
-          toast.success(t('已删除'))
+          toast.success(t('Deleted'))
           await loadData()
           props.onSuccess?.()
         }
       }
     } catch {
-      toast.error(t('操作失败'))
+      toast.error(t('Operation failed'))
     } finally {
       setConfirmAction(null)
     }
@@ -150,9 +153,9 @@ export function UserSubscriptionsDialog(props: Props) {
   return (
     <>
       <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-        <SheetContent className='sm:max-w-2xl overflow-y-auto'>
+        <SheetContent className='overflow-y-auto sm:max-w-2xl'>
           <SheetHeader>
-            <SheetTitle>{t('用户订阅管理')}</SheetTitle>
+            <SheetTitle>{t('User Subscription Management')}</SheetTitle>
             <SheetDescription>
               {props.user?.username || '-'} (ID: {props.user?.id || '-'})
             </SheetDescription>
@@ -162,23 +165,23 @@ export function UserSubscriptionsDialog(props: Props) {
             <div className='flex gap-2'>
               <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
                 <SelectTrigger className='flex-1'>
-                  <SelectValue placeholder={t('选择订阅套餐')} />
+                  <SelectValue placeholder={t('Select subscription plan')} />
                 </SelectTrigger>
                 <SelectContent>
                   {plans.map((p) => (
-                    <SelectItem
-                      key={p.plan.id}
-                      value={String(p.plan.id)}
-                    >
+                    <SelectItem key={p.plan.id} value={String(p.plan.id)}>
                       {p.plan.title} ($
                       {Number(p.plan.price_amount || 0).toFixed(2)})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button onClick={handleCreate} disabled={creating || !selectedPlanId}>
+              <Button
+                onClick={handleCreate}
+                disabled={creating || !selectedPlanId}
+              >
                 <Plus className='mr-1 h-4 w-4' />
-                {t('新增订阅')}
+                {t('Add subscription')}
               </Button>
             </div>
 
@@ -187,27 +190,27 @@ export function UserSubscriptionsDialog(props: Props) {
                 <TableHeader>
                   <TableRow>
                     <TableHead>ID</TableHead>
-                    <TableHead>{t('套餐')}</TableHead>
-                    <TableHead>{t('状态')}</TableHead>
-                    <TableHead>{t('有效期')}</TableHead>
-                    <TableHead>{t('总额度')}</TableHead>
-                    <TableHead className='text-right'>{t('操作')}</TableHead>
+                    <TableHead>{t('Plan')}</TableHead>
+                    <TableHead>{t('Status')}</TableHead>
+                    <TableHead>{t('Validity')}</TableHead>
+                    <TableHead>{t('Total Quota')}</TableHead>
+                    <TableHead className='text-right'>{t('Actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className='text-center py-8'>
-                        {t('加载中...')}
+                      <TableCell colSpan={6} className='py-8 text-center'>
+                        {t('Loading...')}
                       </TableCell>
                     </TableRow>
                   ) : subs.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={6}
-                        className='text-center py-8 text-muted-foreground'
+                        className='text-muted-foreground py-8 text-center'
                       >
-                        {t('暂无订阅记录')}
+                        {t('No subscription records')}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -216,8 +219,7 @@ export function UserSubscriptionsDialog(props: Props) {
                       const now = Date.now() / 1000
                       const isExpired =
                         (sub.end_time || 0) > 0 && sub.end_time < now
-                      const isActive =
-                        sub.status === 'active' && !isExpired
+                      const isActive = sub.status === 'active' && !isExpired
                       const total = Number(sub.amount_total || 0)
                       const used = Number(sub.amount_used || 0)
 
@@ -230,8 +232,8 @@ export function UserSubscriptionsDialog(props: Props) {
                                 {planTitleMap.get(sub.plan_id) ||
                                   `#${sub.plan_id}`}
                               </div>
-                              <div className='text-xs text-muted-foreground'>
-                                {t('来源')}: {sub.source || '-'}
+                              <div className='text-muted-foreground text-xs'>
+                                {t('Source')}: {sub.source || '-'}
                               </div>
                             </div>
                           </TableCell>
@@ -241,15 +243,15 @@ export function UserSubscriptionsDialog(props: Props) {
                           <TableCell>
                             <div className='text-xs'>
                               <div>
-                                {t('开始')}: {formatTimestamp(sub.start_time)}
+                                {t('Start')}: {formatTimestamp(sub.start_time)}
                               </div>
                               <div>
-                                {t('结束')}: {formatTimestamp(sub.end_time)}
+                                {t('End')}: {formatTimestamp(sub.end_time)}
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            {total > 0 ? `${used}/${total}` : t('不限')}
+                            {total > 0 ? `${used}/${total}` : t('Unlimited')}
                           </TableCell>
                           <TableCell className='text-right'>
                             <div className='flex justify-end gap-1'>
@@ -264,7 +266,7 @@ export function UserSubscriptionsDialog(props: Props) {
                                   })
                                 }
                               >
-                                {t('作废')}
+                                {t('Invalidate')}
                               </Button>
                               <Button
                                 size='sm'
@@ -276,7 +278,7 @@ export function UserSubscriptionsDialog(props: Props) {
                                   })
                                 }
                               >
-                                {t('删除')}
+                                {t('Delete')}
                               </Button>
                             </div>
                           </TableCell>
@@ -297,13 +299,17 @@ export function UserSubscriptionsDialog(props: Props) {
           onOpenChange={(v) => !v && setConfirmAction(null)}
           title={
             confirmAction.type === 'invalidate'
-              ? t('确认作废')
-              : t('确认删除')
+              ? t('Confirm invalidate')
+              : t('Confirm delete')
           }
           desc={
             confirmAction.type === 'invalidate'
-              ? t('作废后该订阅将立即失效，历史记录不受影响。是否继续？')
-              : t('删除会彻底移除该订阅记录（含权益明细）。是否继续？')
+              ? t(
+                  'After invalidating, this subscription will be immediately deactivated. Historical records are not affected. Continue?'
+                )
+              : t(
+                  'Deleting will permanently remove this subscription record (including benefit details). Continue?'
+                )
           }
           handleConfirm={handleConfirmAction}
           destructive={confirmAction.type === 'delete'}

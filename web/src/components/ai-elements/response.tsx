@@ -22,7 +22,7 @@ export const Response = memo(
       )
     }
 
-    const safeChildren = stripCustomTags(children) as any
+    const safeChildren = stripCustomTags(children) as string
 
     return (
       <Streamdown

@@ -4,10 +4,10 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-
-type SlotProps = { children?: ReactNode }
 import { AppHeader } from './app-header'
 import { Main } from './main'
+
+type SlotProps = { children?: ReactNode }
 
 function SectionPageLayoutTitle(_props: SlotProps) {
   return null

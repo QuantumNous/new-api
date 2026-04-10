@@ -6,9 +6,7 @@ function parseStatusCodeKey(rawKey: string): number | null {
   return Number.parseInt(normalized, 10)
 }
 
-function parseStatusCodeMappingTarget(
-  rawValue: unknown
-): number | null {
+function parseStatusCodeMappingTarget(rawValue: unknown): number | null {
   if (typeof rawValue === 'number' && Number.isInteger(rawValue)) {
     return rawValue >= 100 && rawValue <= 599 ? rawValue : null
   }

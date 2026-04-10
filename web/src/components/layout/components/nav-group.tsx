@@ -135,6 +135,7 @@ function SidebarMenuCollapsible({
   // 当路径变化时，如果匹配子菜单项，自动展开父级菜单
   useEffect(() => {
     if (isSubItemActive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsOpen(true)
     }
   }, [isSubItemActive])

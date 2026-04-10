@@ -29,6 +29,7 @@ export function useAffiliate() {
         setAffiliateLink(link)
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch affiliate code:', error)
     } finally {
       setLoading(false)
@@ -54,7 +55,7 @@ export function useAffiliate() {
 
       toast.error(response.message || i18next.t('Transfer failed'))
       return false
-    } catch (error) {
+    } catch (_error) {
       toast.error(i18next.t('Transfer failed'))
       return false
     } finally {

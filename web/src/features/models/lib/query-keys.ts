@@ -18,7 +18,8 @@ export const modelsQueryKeys = {
 export const vendorsQueryKeys = {
   all: ['vendors'] as const,
   lists: () => [...vendorsQueryKeys.all, 'list'] as const,
-  list: (filters?: any) => [...vendorsQueryKeys.lists(), filters] as const,
+  list: (filters?: Record<string, unknown>) =>
+    [...vendorsQueryKeys.lists(), filters] as const,
   detail: (id: number) => [...vendorsQueryKeys.all, 'detail', id] as const,
 }
 

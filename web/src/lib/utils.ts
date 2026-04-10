@@ -18,7 +18,7 @@ export function sleep(ms: number = 1000) {
 export function sanitizeCssVariableName(name: string): string {
   // 将点号、空格、斜杠替换为连字符
   // 移除其他不允许在 CSS 变量名中的特殊字符
-  return name.replace(/[.\s\/]/g, '-').replace(/[^\w-]/g, '')
+  return name.replace(/[.\s/]/g, '-').replace(/[^\w-]/g, '')
 }
 
 /**

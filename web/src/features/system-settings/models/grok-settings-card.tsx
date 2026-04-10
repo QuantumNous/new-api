@@ -3,8 +3,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import {
   Form,
   FormControl,
@@ -13,6 +11,8 @@ import {
   FormItem,
   FormLabel,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
@@ -57,8 +57,8 @@ export function GrokSettingsCard(props: Props) {
 
   return (
     <SettingsSection
-      title={t('Grok 设置')}
-      description={t('配置 xAI Grok 模型特定设置')}
+      title={t('Grok Settings')}
+      description={t('Configure xAI Grok model specific settings')}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
@@ -74,16 +74,18 @@ export function GrokSettingsCard(props: Props) {
                   />
                 </FormControl>
                 <div>
-                  <FormLabel>{t('启用违规扣费')}</FormLabel>
+                  <FormLabel>{t('Enable violation deduction')}</FormLabel>
                   <FormDescription>
-                    {t('开启后，违规请求将额外扣费。')}{' '}
+                    {t(
+                      'When enabled, violation requests will incur additional charges.'
+                    )}{' '}
                     <a
                       href={XAI_VIOLATION_FEE_DOC_URL}
                       target='_blank'
                       rel='noreferrer'
                       className='underline'
                     >
-                      {t('官方说明')}
+                      {t('Official documentation')}
                     </a>
                   </FormDescription>
                 </div>
@@ -96,7 +98,7 @@ export function GrokSettingsCard(props: Props) {
             name='grok.violation_deduction_amount'
             render={({ field }) => (
               <FormItem className='max-w-xs'>
-                <FormLabel>{t('违规扣费金额')}</FormLabel>
+                <FormLabel>{t('Violation deduction amount')}</FormLabel>
                 <FormControl>
                   <Input
                     type='number'
@@ -107,7 +109,9 @@ export function GrokSettingsCard(props: Props) {
                   />
                 </FormControl>
                 <FormDescription>
-                  {t('基础金额，实际扣费 = 基础金额 × 系统分组倍率。')}
+                  {t(
+                    'Base amount. Actual deduction = base amount × system group rate.'
+                  )}
                 </FormDescription>
               </FormItem>
             )}

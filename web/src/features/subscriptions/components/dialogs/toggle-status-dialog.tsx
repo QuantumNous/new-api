@@ -13,22 +13,26 @@ export function ToggleStatusDialog() {
   if (open !== 'toggle-status' || !currentRow) return null
 
   const isEnabled = currentRow.plan.enabled
-  const title = isEnabled ? t('确认禁用') : t('确认启用')
+  const title = isEnabled ? t('Confirm disable') : t('Confirm enable')
   const description = isEnabled
-    ? t('禁用后用户端不再展示，但历史订单不受影响。是否继续？')
-    : t('启用后套餐将在用户端展示。是否继续？')
+    ? t(
+        'After disabling, it will no longer be shown to users, but historical orders are not affected. Continue?'
+      )
+    : t('After enabling, the plan will be shown to users. Continue?')
 
   const handleConfirm = async () => {
     setLoading(true)
     try {
       const res = await patchPlanStatus(currentRow.plan.id, !isEnabled)
       if (res.success) {
-        toast.success(isEnabled ? t('已禁用') : t('已启用'))
+        toast.success(
+          isEnabled ? t('Has been disabled') : t('Has been enabled')
+        )
         triggerRefresh()
         setOpen(null)
       }
     } catch {
-      toast.error(t('操作失败'))
+      toast.error(t('Operation failed'))
     } finally {
       setLoading(false)
     }
@@ -42,7 +46,7 @@ export function ToggleStatusDialog() {
       desc={description}
       handleConfirm={handleConfirm}
       isLoading={loading}
-      confirmText={isEnabled ? t('禁用') : t('启用')}
+      confirmText={isEnabled ? t('Disable') : t('Enable')}
       destructive={isEnabled}
     />
   )

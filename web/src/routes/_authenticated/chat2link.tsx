@@ -40,7 +40,7 @@ function Chat2LinkPage() {
   useEffect(() => {
     if (!firstWebPreset) {
       if (chatPresets.length > 0) {
-        toast.error(t('没有可用的 Web 聊天链接'))
+        toast.error(t('No available Web chat links'))
       }
       return
     }
@@ -48,7 +48,7 @@ function Chat2LinkPage() {
     if (activeKey === undefined) return
 
     if (!activeKey) {
-      toast.error(t('当前没有可用的启用令牌'))
+      toast.error(t('No enabled tokens available'))
       navigate({ to: '/keys' })
       return
     }
@@ -62,13 +62,20 @@ function Chat2LinkPage() {
     if (url) {
       window.location.href = url
     }
-  }, [firstWebPreset, activeKey, serverAddress, chatPresets.length, navigate, t])
+  }, [
+    firstWebPreset,
+    activeKey,
+    serverAddress,
+    chatPresets.length,
+    navigate,
+    t,
+  ])
 
   return (
     <div className='flex h-full flex-col items-center justify-center gap-3'>
       <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
       <p className='text-muted-foreground text-sm'>
-        {t('正在跳转到聊天页面...')}
+        {t('Redirecting to chat page...')}
       </p>
     </div>
   )

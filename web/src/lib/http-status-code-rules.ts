@@ -26,7 +26,10 @@ export function parseHttpStatusCodeRules(
   }
 
   const sanitized = raw.replace(/[，]/g, ',')
-  const segments = sanitized.split(',').map((s) => s.trim()).filter(Boolean)
+  const segments = sanitized
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
 
   const ranges: StatusCodeRange[] = []
   const invalidTokens: string[] = []

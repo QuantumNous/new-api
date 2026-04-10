@@ -1,10 +1,10 @@
-import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
+import type { TFunction } from 'i18next'
 
 /**
  * Section definition for settings pages
  */
-export type SectionDefinition<TSettings, TExtraArgs extends any[] = []> = {
+export type SectionDefinition<TSettings, TExtraArgs extends unknown[] = []> = {
   id: string
   titleKey: string
   descriptionKey: string
@@ -17,7 +17,7 @@ export type SectionDefinition<TSettings, TExtraArgs extends any[] = []> = {
 export type SectionRegistryConfig<
   TSectionId extends string,
   TSettings,
-  TExtraArgs extends any[] = []
+  TExtraArgs extends unknown[] = [],
 > = {
   sections: readonly SectionDefinition<TSettings, TExtraArgs>[]
   defaultSection: TSectionId
@@ -32,7 +32,7 @@ export type SectionRegistryConfig<
 export function createSectionRegistry<
   TSectionId extends string,
   TSettings,
-  TExtraArgs extends any[] = []
+  TExtraArgs extends unknown[] = [],
 >(config: SectionRegistryConfig<TSectionId, TSettings, TExtraArgs>) {
   const { sections, defaultSection, basePath, urlStyle = 'query' } = config
 
@@ -40,7 +40,7 @@ export function createSectionRegistry<
 
   const sectionIds = sections.map((section) => section.id) as [
     SectionId,
-    ...SectionId[]
+    ...SectionId[],
   ]
 
   /**

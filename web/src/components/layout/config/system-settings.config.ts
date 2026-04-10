@@ -8,14 +8,14 @@ import {
   Box,
   Wrench,
 } from 'lucide-react'
-import { type NavGroup } from '../types'
-import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
-import { getRequestLimitsSectionNavItems } from '@/features/system-settings/request-limits/section-registry.tsx'
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
+import { getGeneralSectionNavItems } from '@/features/system-settings/general/section-registry.tsx'
 import { getIntegrationsSectionNavItems } from '@/features/system-settings/integrations/section-registry.tsx'
-import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getMaintenanceSectionNavItems } from '@/features/system-settings/maintenance/section-registry.tsx'
+import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
+import { getRequestLimitsSectionNavItems } from '@/features/system-settings/request-limits/section-registry.tsx'
+import { type NavGroup } from '../types'
 
 /**
  * System settings sidebar configuration

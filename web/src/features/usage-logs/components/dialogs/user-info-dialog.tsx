@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -29,28 +29,32 @@ export function UserInfoDialog({
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
+  const fetchUserInfo = useCallback(
+    async (id: number) => {
+      setIsLoading(true)
+      try {
+        const result = await getUserInfo(id)
+        if (result.success) {
+          setUserInfo(result.data || null)
+        } else {
+          toast.error(result.message || t('Failed to fetch user information'))
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch user info:', error)
+        toast.error(t('Failed to fetch user information'))
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [t]
+  )
+
   useEffect(() => {
     if (open && userId) {
       fetchUserInfo(userId)
     }
-  }, [open, userId])
-
-  const fetchUserInfo = async (id: number) => {
-    setIsLoading(true)
-    try {
-      const result = await getUserInfo(id)
-      if (result.success) {
-        setUserInfo(result.data || null)
-      } else {
-        toast.error(result.message || t('Failed to fetch user information'))
-      }
-    } catch (error) {
-      console.error('Failed to fetch user info:', error)
-      toast.error(t('Failed to fetch user information'))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [open, userId, fetchUserInfo])
 
   const InfoItem = ({
     label,

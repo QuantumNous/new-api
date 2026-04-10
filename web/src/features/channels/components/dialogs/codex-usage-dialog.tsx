@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import dayjs from '@/lib/dayjs'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,10 +13,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
-import { StatusBadge } from '@/components/status-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import type { StatusBadgeProps } from '@/components/status-badge'
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -37,7 +36,7 @@ export type CodexUsageDialogData = {
   success: boolean
   message?: string
   upstream_status?: number
-  data?: any
+  data?: Record<string, unknown>
 }
 
 type CodexUsageDialogProps = {
@@ -145,9 +144,13 @@ export function CodexUsageDialog({
     const allowed = Boolean(rateLimit?.allowed)
     const limitReached = Boolean(rateLimit?.limit_reached)
     if (allowed && !limitReached) {
-      return <StatusBadge label={t('Allowed')} variant='success' copyable={false} />
+      return (
+        <StatusBadge label={t('Allowed')} variant='success' copyable={false} />
+      )
     }
-    return <StatusBadge label={t('Limited')} variant='danger' copyable={false} />
+    return (
+      <StatusBadge label={t('Limited')} variant='danger' copyable={false} />
+    )
   })()
 
   const rawJsonText = useMemo(() => {
@@ -226,7 +229,7 @@ export function CodexUsageDialog({
               </div>
             </div>
             <ScrollArea className='max-h-[50vh]'>
-              <pre className='bg-muted/30 m-0 whitespace-pre-wrap break-words p-3 text-xs'>
+              <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
                 {rawJsonText || '-'}
               </pre>
             </ScrollArea>
@@ -234,7 +237,11 @@ export function CodexUsageDialog({
         </div>
 
         <DialogFooter>
-          <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+          >
             {t('Close')}
           </Button>
         </DialogFooter>

@@ -29,6 +29,7 @@ export function useProfile() {
         setProfile(response.data)
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch profile:', error)
       if (!silent) {
         toast.error(i18next.t('Failed to load profile'))
@@ -61,6 +62,7 @@ export function useProfile() {
         toast.error(response.message || i18next.t('Failed to update profile'))
         return false
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to update profile:', error)
         toast.error(i18next.t('Failed to update profile'))
         return false
@@ -87,6 +89,7 @@ export function useProfile() {
         toast.error(response.message || i18next.t('Failed to update settings'))
         return false
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to update settings:', error)
         toast.error(i18next.t('Failed to update settings'))
         return false

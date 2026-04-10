@@ -37,16 +37,16 @@ export function FAQPanel() {
             const value = `item-${key}`
             return (
               <AccordionItem key={key} value={value}>
-              <AccordionTrigger className='text-start hover:no-underline'>
-                <Markdown className='text-sm leading-relaxed font-semibold'>
-                  {item.question}
-                </Markdown>
-              </AccordionTrigger>
-              <AccordionContent>
-                <Markdown className='text-muted-foreground'>
-                  {item.answer}
-                </Markdown>
-              </AccordionContent>
+                <AccordionTrigger className='text-start hover:no-underline'>
+                  <Markdown className='text-sm leading-relaxed font-semibold'>
+                    {item.question}
+                  </Markdown>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Markdown className='text-muted-foreground'>
+                    {item.answer}
+                  </Markdown>
+                </AccordionContent>
               </AccordionItem>
             )
           })}

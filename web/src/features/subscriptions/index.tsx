@@ -1,7 +1,7 @@
-import { useTranslation } from 'react-i18next'
-import { SectionPageLayout } from '@/components/layout'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Info } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SectionPageLayout } from '@/components/layout'
 import { SubscriptionsDialogs } from './components/subscriptions-dialogs'
 import { SubscriptionsPrimaryButtons } from './components/subscriptions-primary-buttons'
 import { SubscriptionsProvider } from './components/subscriptions-provider'
@@ -13,17 +13,19 @@ export function Subscriptions() {
     <SubscriptionsProvider>
       <SectionPageLayout>
         <SectionPageLayout.Title>
-          {t('订阅管理')}
+          {t('Subscription Management')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Description>
-          {t('管理订阅套餐的创建、定价和启停')}
+          {t('Manage subscription plan creation, pricing and status')}
         </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <div className='flex items-center gap-3'>
-            <Alert variant='default' className='py-2 px-3'>
+            <Alert variant='default' className='px-3 py-2'>
               <Info className='h-4 w-4' />
               <AlertDescription className='text-xs'>
-                {t('Stripe/Creem 需在第三方平台创建商品并填入 ID')}
+                {t(
+                  'Stripe/Creem requires creating products on the third-party platform and entering the ID'
+                )}
               </AlertDescription>
             </Alert>
             <SubscriptionsPrimaryButtons />

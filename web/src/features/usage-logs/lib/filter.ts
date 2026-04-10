@@ -20,8 +20,8 @@ import type {
 export function buildSearchParams(
   filters: LogFilters,
   logCategory: LogCategory
-): Record<string, any> {
-  const baseParams: Record<string, any> = {
+): Record<string, unknown> {
+  const baseParams: Record<string, unknown> = {
     ...(filters.startTime && { startTime: filters.startTime.getTime() }),
     ...(filters.endTime && { endTime: filters.endTime.getTime() }),
     ...(filters.channel && { channel: filters.channel }),

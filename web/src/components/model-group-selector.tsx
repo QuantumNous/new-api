@@ -56,6 +56,78 @@ interface GroupSelectorProps {
   disabled?: boolean
 }
 
+const ModelTriggerButton = React.forwardRef<
+  React.ComponentRef<typeof Button>,
+  React.ComponentPropsWithoutRef<typeof Button> & {
+    currentLabel: string
+    triggerClassName?: string
+    isDisabled?: boolean
+  }
+>(({ currentLabel, triggerClassName, isDisabled, ...props }, ref) => (
+  <Button
+    ref={ref}
+    variant='outline'
+    role='combobox'
+    size='sm'
+    disabled={isDisabled}
+    className={cn(
+      'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
+      'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
+      'w-8',
+      'bg-background text-foreground',
+      'hover:bg-accent transition-colors',
+      'focus:!ring-0 focus:!outline-none',
+      'shadow-none',
+      triggerClassName
+    )}
+    {...props}
+  >
+    <CpuIcon className='text-muted-foreground block size-4 sm:hidden' />
+    <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
+      {currentLabel}
+    </span>
+    <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
+  </Button>
+))
+
+ModelTriggerButton.displayName = 'ModelTriggerButton'
+
+const GroupTriggerButton = React.forwardRef<
+  React.ComponentRef<typeof Button>,
+  React.ComponentPropsWithoutRef<typeof Button> & {
+    currentLabel: string
+    triggerClassName?: string
+    isDisabled?: boolean
+  }
+>(({ currentLabel, triggerClassName, isDisabled, ...props }, ref) => (
+  <Button
+    ref={ref}
+    variant='outline'
+    role='combobox'
+    size='sm'
+    disabled={isDisabled}
+    className={cn(
+      'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
+      'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
+      'w-8',
+      'bg-background text-foreground',
+      'hover:bg-accent transition-colors',
+      'focus:!ring-0 focus:!outline-none',
+      'shadow-none',
+      triggerClassName
+    )}
+    {...props}
+  >
+    <LayersIcon className='text-muted-foreground block size-4 sm:hidden' />
+    <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
+      {currentLabel}
+    </span>
+    <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
+  </Button>
+))
+
+GroupTriggerButton.displayName = 'GroupTriggerButton'
+
 /**
  * Model Selector Component
  * Styled following Scira's form-component design patterns
@@ -202,48 +274,17 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
       </Command>
     )
 
-    // Common trigger button
-    const TriggerButton = React.forwardRef<
-      React.ComponentRef<typeof Button>,
-      React.ComponentPropsWithoutRef<typeof Button>
-    >((props, ref) => (
-      <Button
-        ref={ref}
-        variant='outline'
-        role='combobox'
-        aria-expanded={open}
-        size='sm'
-        disabled={disabled}
-        className={cn(
-          'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
-          'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-          'w-8',
-          'bg-background text-foreground',
-          'hover:bg-accent transition-colors',
-          'focus:!ring-0 focus:!outline-none',
-          'shadow-none',
-          className
-        )}
-        {...props}
-      >
-        {/* Mobile: icon-only */}
-        <CpuIcon className='text-muted-foreground block size-4 sm:hidden' />
-        {/* Desktop: show label */}
-        <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
-          {currentModel?.label || t('Model')}
-        </span>
-        <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
-      </Button>
-    ))
-
-    TriggerButton.displayName = 'ModelTriggerButton'
-
     return (
       <>
         {isMobile ? (
           <Drawer open={open} onOpenChange={setOpen}>
             <DrawerTrigger asChild>
-              <TriggerButton />
+              <ModelTriggerButton
+                currentLabel={currentModel?.label || t('Model')}
+                triggerClassName={className}
+                isDisabled={disabled}
+                aria-expanded={open}
+              />
             </DrawerTrigger>
             <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
               <DrawerHeader className='flex-shrink-0 pb-4'>
@@ -259,7 +300,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <TriggerButton />
+              <ModelTriggerButton
+                currentLabel={currentModel?.label || t('Model')}
+                triggerClassName={className}
+                isDisabled={disabled}
+                aria-expanded={open}
+              />
             </PopoverTrigger>
             <PopoverContent
               className='bg-popover z-40 w-[90vw] max-w-[20em] rounded-lg border p-0 !shadow-none sm:w-[20em]'
@@ -379,48 +425,17 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
       </Command>
     )
 
-    // Common trigger button
-    const TriggerButton = React.forwardRef<
-      React.ComponentRef<typeof Button>,
-      React.ComponentPropsWithoutRef<typeof Button>
-    >((props, ref) => (
-      <Button
-        ref={ref}
-        variant='outline'
-        role='combobox'
-        aria-expanded={open}
-        size='sm'
-        disabled={disabled}
-        className={cn(
-          'flex h-8 items-center gap-2 rounded-full border px-3 font-medium',
-          'justify-center p-0 sm:w-auto sm:justify-start sm:px-3',
-          'w-8',
-          'bg-background text-foreground',
-          'hover:bg-accent transition-colors',
-          'focus:!ring-0 focus:!outline-none',
-          'shadow-none',
-          className
-        )}
-        {...props}
-      >
-        {/* Mobile: icon-only */}
-        <LayersIcon className='text-muted-foreground block size-4 sm:hidden' />
-        {/* Desktop: show label */}
-        <span className='text-muted-foreground sm:text-foreground hidden truncate text-xs sm:block'>
-          {currentGroup?.label || t('Group')}
-        </span>
-        <ChevronsUpDown className='text-muted-foreground hidden h-4 w-4 opacity-50 sm:block' />
-      </Button>
-    ))
-
-    TriggerButton.displayName = 'GroupTriggerButton'
-
     return (
       <>
         {isMobile ? (
           <Drawer open={open} onOpenChange={setOpen}>
             <DrawerTrigger asChild>
-              <TriggerButton />
+              <GroupTriggerButton
+                currentLabel={currentGroup?.label || t('Group')}
+                triggerClassName={className}
+                isDisabled={disabled}
+                aria-expanded={open}
+              />
             </DrawerTrigger>
             <DrawerContent className='max-h-[80vh]'>
               <DrawerHeader className='pb-4 text-left'>
@@ -434,7 +449,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       variant='outline'
                       onClick={() => handleGroupChange(group.value)}
                       className={cn(
-                        'flex h-auto w-full items-center justify-between whitespace-normal rounded-lg p-4 text-left',
+                        'flex h-auto w-full items-center justify-between rounded-lg p-4 text-left whitespace-normal',
                         'border-border hover:bg-accent',
                         selectedGroup === group.value
                           ? 'bg-accent border-primary/20'
@@ -478,7 +493,12 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
         ) : (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <TriggerButton />
+              <GroupTriggerButton
+                currentLabel={currentGroup?.label || t('Group')}
+                triggerClassName={className}
+                isDisabled={disabled}
+                aria-expanded={open}
+              />
             </PopoverTrigger>
             <PopoverContent
               className='bg-popover z-50 w-[90vw] max-w-[14em] rounded-lg border p-0 !shadow-none sm:w-[14em]'

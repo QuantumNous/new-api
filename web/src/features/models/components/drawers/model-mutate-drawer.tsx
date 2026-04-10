@@ -566,8 +566,8 @@ export function ModelMutateDrawer({
         } else {
           toast.error(response.message || 'Operation failed')
         }
-      } catch (error: any) {
-        toast.error(error?.message || 'Operation failed')
+      } catch (error: unknown) {
+        toast.error((error as Error)?.message || 'Operation failed')
       } finally {
         setIsSubmitting(false)
       }
@@ -611,7 +611,9 @@ export function ModelMutateDrawer({
         <Form {...form}>
           <form
             id='model-form'
-            onSubmit={form.handleSubmit(onSubmit as any)}
+            onSubmit={form.handleSubmit(
+              onSubmit as Parameters<typeof form.handleSubmit>[0]
+            )}
             className='flex-1 space-y-6 overflow-y-auto px-4'
           >
             {/* Basic Information */}

@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 
 declare global {
   interface Window {
-    turnstile?: any
+    turnstile?: {
+      render: (element: HTMLElement, options: Record<string, unknown>) => void
+    }
   }
 }
 
@@ -31,7 +33,9 @@ export function Turnstile({
           'error-callback': () => onExpire?.(),
           'expired-callback': () => onExpire?.(),
         })
-      } catch {}
+      } catch {
+        /* empty */
+      }
     }
 
     if (window.turnstile) {

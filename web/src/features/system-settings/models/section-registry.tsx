@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { ModelSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ClaudeSettingsCard } from './claude-settings-card'
@@ -79,8 +80,7 @@ const MODELS_SECTIONS = [
       <ClaudeSettingsCard
         defaultValues={{
           claude: {
-            model_headers_settings:
-              settings['claude.model_headers_settings'],
+            model_headers_settings: settings['claude.model_headers_settings'],
             default_max_tokens: settings['claude.default_max_tokens'],
             thinking_adapter_enabled:
               settings['claude.thinking_adapter_enabled'],
@@ -137,10 +137,7 @@ const MODELS_SECTIONS = [
 
 export type ModelSectionId = (typeof MODELS_SECTIONS)[number]['id']
 
-const modelsRegistry = createSectionRegistry<
-  ModelSectionId,
-  ModelSettings
->({
+const modelsRegistry = createSectionRegistry<ModelSectionId, ModelSettings>({
   sections: MODELS_SECTIONS,
   defaultSection: 'global',
   basePath: '/system-settings/models',

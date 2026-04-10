@@ -25,20 +25,20 @@ export const api = axios.create({
 
 // Deduplicate concurrent GET requests to the same URL
 // Prevents multiple identical requests from being sent simultaneously
-const inFlightGet = new Map<string, Promise<any>>()
+const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
 
 api.get = (url, config = {}) => {
-  const disableDuplicate = (config as any)?.disableDuplicate
+  const disableDuplicate = (config as Record<string, unknown>)?.disableDuplicate
   if (disableDuplicate) return originalGet(url, config)
 
-  const params = (config as any)?.params
-    ? JSON.stringify((config as any).params)
+  const params = (config as Record<string, unknown>)?.params
+    ? JSON.stringify((config as Record<string, unknown>).params)
     : '{}'
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
-  if (inFlightGet.has(key)) return inFlightGet.get(key) as Promise<any>
+  if (inFlightGet.has(key)) return inFlightGet.get(key)!
 
   // Create new request and clean up after completion
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
@@ -53,7 +53,8 @@ api.get = (url, config = {}) => {
 // Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
   (response) => {
-    const skipBusiness = (response.config as any)?.skipBusinessError
+    const skipBusiness = (response.config as Record<string, unknown>)
+      ?.skipBusinessError
 
     // Unified business response format: { success, message, data }
     if (
@@ -80,7 +81,9 @@ api.interceptors.response.use(
         toast.error(i18next.t('Session expired!'))
         try {
           useAuthStore.getState().auth.reset()
-        } catch {}
+        } catch {
+          /* empty */
+        }
       } else {
         // Other errors: show error message from response or default
         const msg =
@@ -104,7 +107,9 @@ function getUserId(): string | null {
     if (typeof window !== 'undefined') {
       return window.localStorage.getItem('uid')
     }
-  } catch {}
+  } catch {
+    /* empty */
+  }
   return null
 }
 
@@ -133,7 +138,7 @@ api.interceptors.request.use((config) => {
   const uid = getUserId()
   if (uid) {
     // Custom header for user identification
-    ;(config.headers as any)['New-Api-User'] = uid
+    ;(config.headers as Record<string, string>)['New-Api-User'] = uid
   }
   return config
 })
@@ -150,8 +155,8 @@ api.interceptors.request.use((config) => {
 export async function getSelf() {
   const res = await api.get('/api/user/self', {
     // Avoid global 401 toast during guards/preloads
-    skipErrorHandler: true as any,
-  } as any)
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -182,7 +187,7 @@ export async function getUserGroups(): Promise<{
 // Get system status
 export async function getStatus() {
   const res = await api.get('/api/status')
-  return res.data?.data as any
+  return res.data?.data as Record<string, unknown>
 }
 
 // Get system notice

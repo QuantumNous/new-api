@@ -2,10 +2,8 @@ import { useMemo } from 'react'
 import {
   safeJsonParse,
   safeJsonParseWithValidation,
-} from '../utils/json-parser'
-import type {
-  SafeJsonParseOptions,
-  SafeJsonParseWithValidationOptions,
+  type SafeJsonParseOptions,
+  type SafeJsonParseWithValidationOptions,
 } from '../utils/json-parser'
 
 export function useSafeJsonParse<T>(
@@ -30,6 +28,7 @@ export function useSafeJsonParseWithValidation<T>(
 ): T {
   return useMemo(
     () => safeJsonParseWithValidation(value, options),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       value,
       options.fallback,

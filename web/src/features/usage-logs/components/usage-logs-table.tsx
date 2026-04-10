@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import {
+  type ColumnDef,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -13,10 +14,10 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
-import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -36,8 +37,8 @@ import {
 import { LOG_TYPE_FILTERS, DEFAULT_LOGS_DATA } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
-import { useUsageLogsContext } from './usage-logs-provider'
 import type { LogCategory } from '../types'
+import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -91,6 +92,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   // Fetch data with React Query
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'logs',
@@ -139,8 +141,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const isLoadingData = isLoading || (isFetching && !data)
 
   const table = useReactTable({
-    data: logs as any, // Different log types have different schemas
-    columns: columns as any,
+    data: logs as Record<string, unknown>[],
+    columns: columns as ColumnDef<Record<string, unknown>>[],
     state: {
       sorting,
       columnVisibility,
@@ -187,11 +189,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
 
   return (
     <div className='space-y-4 max-sm:has-[div[role="toolbar"]]:mb-16'>
-      <DataTableToolbar
-        table={table}
-        filters={filters}
-        customSearch={null}
-      />
+      <DataTableToolbar table={table} filters={filters} customSearch={null} />
       {isMobile ? (
         <MobileCardList
           table={table}

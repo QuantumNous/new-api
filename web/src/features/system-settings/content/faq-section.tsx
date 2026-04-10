@@ -338,7 +338,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className='max-w-2xl'>
           <DialogHeader>
-            <DialogTitle>{editingFaq ? t('Edit FAQ') : t('Add FAQ')}</DialogTitle>
+            <DialogTitle>
+              {editingFaq ? t('Edit FAQ') : t('Add FAQ')}
+            </DialogTitle>
             <DialogDescription>
               {t('Create or update frequently asked questions for users')}
             </DialogDescription>
@@ -399,7 +401,9 @@ export function FAQSection({ enabled, data }: FAQSectionProps) {
                 >
                   {t('Cancel')}
                 </Button>
-                <Button type='submit'>{editingFaq ? t('Update') : t('Add')}</Button>
+                <Button type='submit'>
+                  {editingFaq ? t('Update') : t('Add')}
+                </Button>
               </DialogFooter>
             </form>
           </Form>

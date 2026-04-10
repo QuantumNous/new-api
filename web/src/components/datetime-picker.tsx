@@ -1,15 +1,8 @@
 import * as React from 'react'
-import dayjs from '@/lib/dayjs'
 import { ChevronDownIcon } from 'lucide-react'
+import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
-import {
-  enUS,
-  fr,
-  ja,
-  ru,
-  vi,
-  zhCN,
-} from 'react-day-picker/locale'
+import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'

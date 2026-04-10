@@ -1,7 +1,6 @@
 'use client'
 
-import type { ComponentProps, ReactNode } from 'react'
-import { isValidElement } from 'react'
+import { type ComponentProps, isValidElement, type ReactNode } from 'react'
 import type { ToolUIPart } from 'ai'
 import {
   CheckCircleIcon,

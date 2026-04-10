@@ -9,6 +9,7 @@ export function useMinimumLoadingTime(
   minimumTime = 1000
 ): boolean {
   const [showSkeleton, setShowSkeleton] = useState(loading)
+  // eslint-disable-next-line react-hooks/purity
   const loadingStartRef = useRef(Date.now())
 
   useEffect(() => {

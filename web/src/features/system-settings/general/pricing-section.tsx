@@ -84,7 +84,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
     useSettingsForm<PricingFormValues>({
       resolver: zodResolver(pricingSchema) as Resolver<
         PricingFormValues,
-        any,
+        unknown,
         PricingFormValues
       >,
       defaultValues,
@@ -93,7 +93,7 @@ export function PricingSection({ defaultValues }: PricingSectionProps) {
           if (value === undefined || value === null) continue
           if (typeof value === 'object') continue
 
-          let serialized: string | boolean = value as any
+          let serialized: string | boolean = value as string | boolean
 
           if (typeof value === 'boolean') {
             serialized = String(value)

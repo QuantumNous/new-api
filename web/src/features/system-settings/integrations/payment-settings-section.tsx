@@ -532,6 +532,7 @@ export function PaymentSettingsSection({
         'Configure recharge pricing and payment gateway integrations'
       )}
     >
+      {/* eslint-disable react-hooks/refs */}
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
@@ -775,7 +776,9 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? t('Saving...') : t('Save general settings')}
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save general settings')}
             </Button>
           </div>
 
@@ -888,7 +891,9 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? t('Saving...') : t('Save Epay settings')}
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save Epay settings')}
             </Button>
           </div>
 
@@ -1092,7 +1097,9 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? t('Saving...') : t('Save Stripe settings')}
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save Stripe settings')}
             </Button>
           </div>
 
@@ -1253,7 +1260,9 @@ export function PaymentSettingsSection({
               }}
               disabled={updateOption.isPending}
             >
-              {updateOption.isPending ? t('Saving...') : t('Save Creem settings')}
+              {updateOption.isPending
+                ? t('Saving...')
+                : t('Save Creem settings')}
             </Button>
           </div>
 
@@ -1262,6 +1271,7 @@ export function PaymentSettingsSection({
           </Button>
         </form>
       </Form>
+      {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )
 }

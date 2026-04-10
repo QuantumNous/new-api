@@ -10,6 +10,7 @@ import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE } from './constants'
 import {
@@ -79,6 +80,7 @@ export function Wallet() {
         setUser(response.data as UserWalletData)
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch user data:', error)
     } finally {
       setUserLoading(false)
@@ -235,8 +237,8 @@ export function Wallet() {
               />
             </div>
 
-            {/* Right Column - Affiliate */}
-            <div className='lg:col-span-1'>
+            {/* Right Column - Affiliate & Subscriptions */}
+            <div className='space-y-6 lg:col-span-1'>
               <AffiliateRewardsCard
                 user={user}
                 affiliateLink={affiliateLink}
@@ -245,6 +247,9 @@ export function Wallet() {
               />
             </div>
           </div>
+
+          {/* Subscription Plans */}
+          <SubscriptionPlansCard topupInfo={topupInfo} />
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

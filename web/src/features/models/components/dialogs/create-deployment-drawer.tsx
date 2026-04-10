@@ -171,7 +171,7 @@ export function CreateDeploymentDrawer({
     return Array.from(map.values())
   }, [replicasData])
 
-  const { data: priceData, isLoading: isLoadingPrice } = useQuery({
+  const { data: priceData, isLoading: _isLoadingPrice } = useQuery({
     queryKey: [
       'deployment-price',
       hardwareId,
@@ -333,7 +333,7 @@ export function CreateDeploymentDrawer({
     })
   }, [open, form])
 
-  const priceSummary = useMemo(() => {
+  const _priceSummary = useMemo(() => {
     const est = priceData?.data
     if (!est || typeof est !== 'object') return ''
     const total =
@@ -605,7 +605,6 @@ export function CreateDeploymentDrawer({
                         <SelectItem value='iocoin'>IOCOIN</SelectItem>
                       </SelectContent>
                     </Select>
-
                   </FormItem>
                 )}
               />

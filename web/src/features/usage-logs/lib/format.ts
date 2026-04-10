@@ -10,6 +10,7 @@ export function parseLogOther(other: string): LogOtherData | null {
   try {
     return JSON.parse(other) as LogOtherData
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to parse log other field:', error)
     return null
   }

@@ -63,7 +63,7 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to send verification code'))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t('Failed to send verification code'))
     } finally {
       setSendingCode(false)
@@ -91,7 +91,7 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to bind email'))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t('Failed to bind email'))
     } finally {
       setLoading(false)
@@ -117,7 +117,9 @@ export function EmailBindDialog({
           <DialogTitle>{t('Bind Email')}</DialogTitle>
           <DialogDescription>
             {currentEmail
-              ? t('Current email: {{email}}. Enter a new email to change.', { email: currentEmail })
+              ? t('Current email: {{email}}. Enter a new email to change.', {
+                  email: currentEmail,
+                })
               : t('Bind an email address to your account.')}
           </DialogDescription>
         </DialogHeader>

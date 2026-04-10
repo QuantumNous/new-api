@@ -115,6 +115,7 @@ export function ChannelTestDialog({
     if (open && currentRow) {
       resetState()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentRow?.id, resetState])
 
   const modelsValue = currentRow?.models ?? ''
@@ -184,10 +185,10 @@ export function ChannelTestDialog({
             })
           }
         )
-      } catch (error: any) {
+      } catch (error: unknown) {
         updateTestResult(model, {
           status: 'error',
-          error: error?.message || 'Test failed',
+          error: error instanceof Error ? error.message : 'Test failed',
         })
       } finally {
         markModelTesting(model, false)
@@ -352,6 +353,7 @@ export function ChannelTestDialog({
     [
       defaultTestModel,
       isBatchTesting,
+      t,
       testResults,
       testingModels,
       testSingleModel,

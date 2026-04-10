@@ -75,7 +75,7 @@ export function VendorMutateDialog({
     }
   }, [open, isEdit, currentVendor, form])
 
-  const onSubmit = async (values: any) => {
+  const onSubmit = async (values: Record<string, unknown>) => {
     setIsSaving(true)
     try {
       const response = isEdit
@@ -92,8 +92,8 @@ export function VendorMutateDialog({
       } else {
         toast.error(response.message || 'Operation failed')
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Operation failed')
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || 'Operation failed')
     } finally {
       setIsSaving(false)
     }

@@ -60,30 +60,30 @@ export function AnnouncementsPanel() {
             const key = item.id ?? `announcement-${idx}`
             return (
               <div key={key}>
-              <Button
-                variant='ghost'
-                onClick={() => handleAnnouncementClick(item)}
-                className='group hover:bg-accent/50 -mx-2 h-auto w-full whitespace-normal px-2 py-3 text-left'
-              >
-                <div className='flex items-start gap-2.5'>
-                  <AnnouncementStatusDot type={item.type} />
-                  <div className='min-w-0 flex-1 space-y-1.5'>
-                    <p className='line-clamp-1 text-sm font-medium'>
-                      {getPreviewText(item.content)}
-                    </p>
-                    <div className='flex items-center justify-between'>
-                      {item.publishDate && (
-                        <time className='text-muted-foreground text-xs'>
-                          {formatDateTimeObject(new Date(item.publishDate))}
-                        </time>
-                      )}
-                      <span className='text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100'>
-                        Click for details
-                      </span>
+                <Button
+                  variant='ghost'
+                  onClick={() => handleAnnouncementClick(item)}
+                  className='group hover:bg-accent/50 -mx-2 h-auto w-full px-2 py-3 text-left whitespace-normal'
+                >
+                  <div className='flex items-start gap-2.5'>
+                    <AnnouncementStatusDot type={item.type} />
+                    <div className='min-w-0 flex-1 space-y-1.5'>
+                      <p className='line-clamp-1 text-sm font-medium'>
+                        {getPreviewText(item.content)}
+                      </p>
+                      <div className='flex items-center justify-between'>
+                        {item.publishDate && (
+                          <time className='text-muted-foreground text-xs'>
+                            {formatDateTimeObject(new Date(item.publishDate))}
+                          </time>
+                        )}
+                        <span className='text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100'>
+                          Click for details
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Button>
+                </Button>
                 {idx < list.length - 1 && <Separator className='my-0' />}
               </div>
             )

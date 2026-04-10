@@ -7,9 +7,9 @@ import {
   useReactTable,
   type VisibilityState,
 } from '@tanstack/react-table'
+import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   AlertDialog,
@@ -302,7 +302,7 @@ export function DeploymentsTable() {
         </div>
       )}
 
-      <DataTablePagination table={table as any} />
+      <DataTablePagination table={table as ReturnType<typeof useReactTable>} />
 
       <ViewLogsDialog
         open={logsOpen}

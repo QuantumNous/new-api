@@ -19,7 +19,10 @@ export function createSectionSearchSchema<TSectionId extends string>(
 /**
  * Configuration for creating a settings route config
  */
-export type SettingsRouteConfigOptions<TSectionId extends string, TComponent = any> = {
+export type SettingsRouteConfigOptions<
+  TSectionId extends string,
+  TComponent = unknown,
+> = {
   /** Section IDs array from section-registry */
   sectionIds: readonly [TSectionId, ...TSectionId[]]
   /** Default section ID */
@@ -54,7 +57,7 @@ export type SettingsRouteConfigOptions<TSectionId extends string, TComponent = a
  */
 export function createSettingsRouteConfig<
   TSectionId extends string,
-  TComponent = any
+  TComponent = unknown,
 >(options: SettingsRouteConfigOptions<TSectionId, TComponent>) {
   const {
     sectionIds,
@@ -70,7 +73,11 @@ export function createSettingsRouteConfig<
     validateSearch: searchSchema,
     component,
     ...(redirectToDefault && {
-      beforeLoad: ({ search }: { search?: { section?: TSectionId | string } }) => {
+      beforeLoad: ({
+        search,
+      }: {
+        search?: { section?: TSectionId | string }
+      }) => {
         if (!search?.section) {
           throw redirect({
             to: routePath,

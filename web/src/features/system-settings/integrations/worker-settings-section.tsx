@@ -171,7 +171,9 @@ export function WorkerSettingsSection({
           />
 
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Worker settings')}
+            {updateOption.isPending
+              ? t('Saving...')
+              : t('Save Worker settings')}
           </Button>
         </form>
       </Form>

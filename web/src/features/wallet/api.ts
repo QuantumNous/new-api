@@ -55,7 +55,7 @@ export async function calculateAmount(
 ): Promise<AmountResponse> {
   const res = await api.post('/api/user/amount', request, {
     skipBusinessError: true,
-  } as any)
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -67,7 +67,7 @@ export async function calculateStripeAmount(
 ): Promise<AmountResponse> {
   const res = await api.post('/api/user/stripe/amount', request, {
     skipBusinessError: true,
-  } as any)
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -79,11 +79,10 @@ export async function requestPayment(
 ): Promise<PaymentResponse> {
   const res = await api.post('/api/user/pay', request, {
     skipBusinessError: true,
-  } as any)
-  // The response might have url at root level or in data
+  } as Record<string, unknown>)
   return {
     ...res.data,
-    url: res.data.url || (res as any).url,
+    url: res.data.url || (res as unknown as { url?: string }).url,
   }
 }
 
@@ -95,7 +94,7 @@ export async function requestStripePayment(
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
     skipBusinessError: true,
-  } as any)
+  } as Record<string, unknown>)
   return res.data
 }
 
@@ -107,7 +106,7 @@ export async function requestCreemPayment(
 ): Promise<CreemPaymentResponse> {
   const res = await api.post('/api/user/creem/pay', request, {
     skipBusinessError: true,
-  } as any)
+  } as Record<string, unknown>)
   return res.data
 }
 

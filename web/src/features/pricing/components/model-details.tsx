@@ -197,12 +197,8 @@ function GroupPricingSection({
       <Table className='text-xs sm:text-sm'>
         <TableHeader>
           <TableRow>
-            <TableHead className='pr-2 sm:pr-4'>
-              {t('Group')}
-            </TableHead>
-            <TableHead className='pr-2 sm:pr-4'>
-              {t('Ratio')}
-            </TableHead>
+            <TableHead className='pr-2 sm:pr-4'>{t('Group')}</TableHead>
+            <TableHead className='pr-2 sm:pr-4'>{t('Ratio')}</TableHead>
             {isTokenBased ? (
               <>
                 <TableHead className='pr-2 text-right sm:pr-4'>
@@ -376,7 +372,12 @@ export function ModelDetails() {
 
         <EndpointsSection
           model={model}
-          endpointMap={(endpointMap as any) || {}}
+          endpointMap={
+            (endpointMap as Record<
+              string,
+              { path?: string; method?: string }
+            >) || {}
+          }
         />
 
         <GroupPricingSection

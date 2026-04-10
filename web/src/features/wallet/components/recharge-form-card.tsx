@@ -204,7 +204,7 @@ export function RechargeFormCard({
                         key={index}
                         variant='outline'
                         className={cn(
-                          'hover:border-foreground h-auto whitespace-normal rounded-lg p-4 text-left',
+                          'hover:border-foreground h-auto rounded-lg p-4 text-left whitespace-normal',
                           selectedPreset === preset.value
                             ? 'border-foreground bg-foreground/5'
                             : 'border-muted'

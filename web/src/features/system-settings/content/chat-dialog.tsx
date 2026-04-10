@@ -140,7 +140,9 @@ export function ChatDialog({
               >
                 {t('Cancel')}
               </Button>
-              <Button type='submit'>{isEditMode ? t('Update') : t('Add')}</Button>
+              <Button type='submit'>
+                {isEditMode ? t('Update') : t('Add')}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

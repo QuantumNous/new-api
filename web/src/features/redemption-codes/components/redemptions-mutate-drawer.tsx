@@ -144,8 +144,9 @@ export function RedemptionsMutateDrawer({
           <SheetDescription>
             {isUpdate
               ? t('Update the redemption code by providing necessary info.')
-              : t('Add new redemption code(s) by providing necessary info.')}
-            {' '}
+              : t(
+                  'Add new redemption code(s) by providing necessary info.'
+                )}{' '}
             {t('Click save when you&apos;re done.')}
           </SheetDescription>
         </SheetHeader>

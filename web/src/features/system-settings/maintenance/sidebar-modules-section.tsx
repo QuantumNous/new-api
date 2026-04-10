@@ -174,6 +174,7 @@ export function SidebarModulesSection({
               <div key={sectionKey} className='rounded-lg border p-4'>
                 <FormField
                   control={form.control}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   name={`${sectionKey}.enabled` as any}
                   render={({ field }) => (
                     <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
@@ -205,6 +206,7 @@ export function SidebarModulesSection({
                       <FormField
                         key={`${sectionKey}.${moduleKey}`}
                         control={form.control}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         name={`${sectionKey}.${moduleKey}` as any}
                         render={({ field }) => (
                           <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
@@ -221,6 +223,7 @@ export function SidebarModulesSection({
                                 checked={Boolean(field.value)}
                                 onCheckedChange={field.onChange}
                                 disabled={
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                   !form.watch(`${sectionKey}.enabled` as any)
                                 }
                               />

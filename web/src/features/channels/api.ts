@@ -1,6 +1,6 @@
+import type { AxiosRequestConfig } from 'axios'
 import { api } from '@/lib/api'
 import { getGroups as getUserGroups } from '@/features/users/api'
-import type { AxiosRequestConfig } from 'axios'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -51,7 +51,7 @@ export type CodexUsageResponse = {
   success: boolean
   message?: string
   upstream_status?: number
-  data?: any
+  data?: Record<string, unknown>
 }
 
 export type CodexCredentialRefreshResponse = {
@@ -248,7 +248,11 @@ export async function completeCodexOAuth(
   input: string
 ): Promise<CodexOAuthCompleteResponse> {
   const config: ExtendedApiConfig = { skipBusinessError: true }
-  const res = await api.post('/api/channel/codex/oauth/complete', { input }, config)
+  const res = await api.post(
+    '/api/channel/codex/oauth/complete',
+    { input },
+    config
+  )
   return res.data
 }
 
@@ -256,7 +260,11 @@ export async function refreshCodexCredential(
   channelId: number
 ): Promise<CodexCredentialRefreshResponse> {
   const config: ExtendedApiConfig = { skipBusinessError: true }
-  const res = await api.post(`/api/channel/${channelId}/codex/refresh`, {}, config)
+  const res = await api.post(
+    `/api/channel/${channelId}/codex/refresh`,
+    {},
+    config
+  )
   return res.data
 }
 
@@ -480,7 +488,7 @@ export async function updateAllChannelsBalance(): Promise<{
 export async function getAllModels(): Promise<{
   success: boolean
   message?: string
-  data?: Array<{ id: string; [key: string]: any }>
+  data?: Array<{ id: string; [key: string]: unknown }>
 }> {
   const res = await api.get('/api/channel/models')
   return res.data

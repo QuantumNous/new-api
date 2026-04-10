@@ -7,6 +7,7 @@ import type {
   CreateUserSubscriptionRequest,
   SubscriptionPayResponse,
   SubscriptionPayRequest,
+  SelfSubscriptionData,
 } from './types'
 
 // ============================================================================
@@ -107,7 +108,10 @@ export async function paySubscriptionEpay(
   data: SubscriptionPayRequest & { payment_method: string }
 ): Promise<SubscriptionPayResponse & { url?: string }> {
   const res = await api.post('/api/subscription/epay/pay', data)
-  return { ...res.data, url: res.data.url || (res as any).url }
+  return {
+    ...res.data,
+    url: res.data.url || (res as unknown as { url?: string }).url,
+  }
 }
 
 // ============================================================================
@@ -118,6 +122,27 @@ export async function getSelfSubscriptions(): Promise<
   ApiResponse<UserSubscriptionRecord[]>
 > {
   const res = await api.get('/api/subscription/self')
+  return res.data
+}
+
+export async function getSelfSubscriptionFull(): Promise<
+  ApiResponse<SelfSubscriptionData>
+> {
+  const res = await api.get('/api/subscription/self')
+  return res.data
+}
+
+export async function getPublicPlans(): Promise<ApiResponse<PlanRecord[]>> {
+  const res = await api.get('/api/subscription/plans')
+  return res.data
+}
+
+export async function updateBillingPreference(
+  preference: string
+): Promise<ApiResponse<{ billing_preference?: string }>> {
+  const res = await api.put('/api/subscription/self/preference', {
+    billing_preference: preference,
+  })
   return res.data
 }
 

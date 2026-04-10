@@ -59,7 +59,7 @@ export function CreemProductsVisualEditor({
         typeof item.quota === 'number' &&
         (item.currency === 'USD' || item.currency === 'EUR')
     )
-  }, [value])
+  }, [value, t])
 
   const filteredProducts = useMemo(() => {
     if (!searchText) return products

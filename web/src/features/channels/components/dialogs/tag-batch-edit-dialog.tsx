@@ -69,6 +69,7 @@ export function TagBatchEditDialog({
     if (open && currentTag) {
       loadTagData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, currentTag])
 
   const loadTagData = async () => {
@@ -90,8 +91,10 @@ export function TagBatchEditDialog({
 
       // Initialize new tag with current tag name
       setNewTag(currentTag)
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to load tag data'))
+    } catch (_error: unknown) {
+      toast.error(
+        _error instanceof Error ? _error.message : t('Failed to load tag data')
+      )
     } finally {
       setIsLoading(false)
     }
@@ -104,7 +107,7 @@ export function TagBatchEditDialog({
     if (modelMapping.trim()) {
       try {
         JSON.parse(modelMapping)
-      } catch (error) {
+      } catch (_error) {
         toast.error(t('Model mapping must be valid JSON'))
         return
       }
@@ -112,7 +115,7 @@ export function TagBatchEditDialog({
 
     setIsSaving(true)
     try {
-      const params: any = {
+      const params: Record<string, string | undefined> = {
         tag: currentTag,
       }
 
@@ -146,8 +149,10 @@ export function TagBatchEditDialog({
       } else {
         toast.error(response.message || t('Failed to update tag'))
       }
-    } catch (error: any) {
-      toast.error(error?.message || t('Failed to update tag'))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to update tag')
+      )
     } finally {
       setIsSaving(false)
     }

@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
-import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +18,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -38,11 +28,21 @@ import {
   FormItem,
   FormLabel,
 } from '@/components/ui/form'
-import { api } from '@/lib/api'
-import dayjs from '@/lib/dayjs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { SettingsSection } from '../components/settings-section'
-import { useUpdateOption } from '../hooks/use-update-option'
 import { useResetForm } from '../hooks/use-reset-form'
+import { useUpdateOption } from '../hooks/use-update-option'
 
 const perfSchema = z.object({
   'performance_setting.disk_cache_enabled': z.boolean(),
@@ -51,8 +51,14 @@ const perfSchema = z.object({
   'performance_setting.disk_cache_path': z.string().optional(),
   'performance_setting.monitor_enabled': z.boolean(),
   'performance_setting.monitor_cpu_threshold': z.coerce.number().min(0),
-  'performance_setting.monitor_memory_threshold': z.coerce.number().min(0).max(100),
-  'performance_setting.monitor_disk_threshold': z.coerce.number().min(0).max(100),
+  'performance_setting.monitor_memory_threshold': z.coerce
+    .number()
+    .min(0)
+    .max(100),
+  'performance_setting.monitor_disk_threshold': z.coerce
+    .number()
+    .min(0)
+    .max(100),
 })
 
 type PerfFormValues = z.infer<typeof perfSchema>
@@ -236,7 +242,8 @@ export function PerformanceSection(props: Props) {
   const monitorEnabled = form.watch('performance_setting.monitor_enabled')
 
   const diskCachePercent =
-    stats?.cache_stats?.disk_cache_max_bytes && stats.cache_stats.disk_cache_max_bytes > 0
+    stats?.cache_stats?.disk_cache_max_bytes &&
+    stats.cache_stats.disk_cache_max_bytes > 0
       ? Math.round(
           (stats.cache_stats.current_disk_usage_bytes /
             stats.cache_stats.disk_cache_max_bytes) *
@@ -247,14 +254,16 @@ export function PerformanceSection(props: Props) {
   return (
     <SettingsSection
       title={t('Performance Settings')}
-      description={t('Disk cache, system performance monitoring, and operation statistics')}
+      description={t(
+        'Disk cache, system performance monitoring, and operation statistics'
+      )}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           {/* Disk Cache Settings */}
           <div>
             <h4 className='font-medium'>{t('Disk Cache Settings')}</h4>
-            <p className='mt-1 text-xs text-muted-foreground'>
+            <p className='text-muted-foreground mt-1 text-xs'>
               {t(
                 'When enabled, large request bodies are temporarily stored on disk instead of memory, significantly reducing memory usage. SSD recommended.'
               )}
@@ -301,14 +310,15 @@ export function PerformanceSection(props: Props) {
                   <FormControl>
                     <Input type='number' {...field} disabled={!diskEnabled} />
                   </FormControl>
-                  {stats?.disk_space_info && stats.disk_space_info.total > 0 && (
-                    <FormDescription>
-                      {t('Free: {{free}} / Total: {{total}}', {
-                        free: formatBytes(stats.disk_space_info.free),
-                        total: formatBytes(stats.disk_space_info.total),
-                      })}
-                    </FormDescription>
-                  )}
+                  {stats?.disk_space_info &&
+                    stats.disk_space_info.total > 0 && (
+                      <FormDescription>
+                        {t('Free: {{free}} / Total: {{total}}', {
+                          free: formatBytes(stats.disk_space_info.free),
+                          total: formatBytes(stats.disk_space_info.total),
+                        })}
+                      </FormDescription>
+                    )}
                 </FormItem>
               )}
             />
@@ -323,7 +333,9 @@ export function PerformanceSection(props: Props) {
                   <FormLabel>{t('Cache Directory')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('Leave empty to use system temp directory')}
+                      placeholder={t(
+                        'Leave empty to use system temp directory'
+                      )}
                       {...field}
                       value={field.value ?? ''}
                       disabled={!diskEnabled}
@@ -338,8 +350,10 @@ export function PerformanceSection(props: Props) {
 
           {/* System Performance Monitor */}
           <div>
-            <h4 className='font-medium'>{t('System Performance Monitoring')}</h4>
-            <p className='mt-1 text-xs text-muted-foreground'>
+            <h4 className='font-medium'>
+              {t('System Performance Monitoring')}
+            </h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
               {t(
                 'When performance monitoring is enabled and system resource usage exceeds the set threshold, new Relay requests will be rejected.'
               )}
@@ -369,7 +383,11 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('CPU Threshold (%)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!monitorEnabled} />
+                    <Input
+                      type='number'
+                      {...field}
+                      disabled={!monitorEnabled}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -381,7 +399,11 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Memory Threshold (%)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!monitorEnabled} />
+                    <Input
+                      type='number'
+                      {...field}
+                      disabled={!monitorEnabled}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -393,7 +415,11 @@ export function PerformanceSection(props: Props) {
                 <FormItem>
                   <FormLabel>{t('Disk Threshold (%)')}</FormLabel>
                   <FormControl>
-                    <Input type='number' {...field} disabled={!monitorEnabled} />
+                    <Input
+                      type='number'
+                      {...field}
+                      disabled={!monitorEnabled}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -412,8 +438,10 @@ export function PerformanceSection(props: Props) {
       <div className='space-y-4'>
         <div>
           <h4 className='font-medium'>{t('Server Log Management')}</h4>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            {t('Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.')}
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t(
+              'Manage server log files. Log files accumulate over time; regular cleanup is recommended to free disk space.'
+            )}
           </p>
         </div>
 
@@ -422,20 +450,28 @@ export function PerformanceSection(props: Props) {
             <div className='rounded-lg border p-4'>
               <div className='grid grid-cols-2 gap-2 text-sm md:grid-cols-4'>
                 <div>
-                  <span className='text-muted-foreground'>{t('Log Directory')}:</span>{' '}
+                  <span className='text-muted-foreground'>
+                    {t('Log Directory')}:
+                  </span>{' '}
                   <span className='font-mono text-xs'>{logInfo.log_dir}</span>
                 </div>
                 <div>
-                  <span className='text-muted-foreground'>{t('Log File Count')}:</span>{' '}
+                  <span className='text-muted-foreground'>
+                    {t('Log File Count')}:
+                  </span>{' '}
                   {logInfo.file_count}
                 </div>
                 <div>
-                  <span className='text-muted-foreground'>{t('Total Log Size')}:</span>{' '}
+                  <span className='text-muted-foreground'>
+                    {t('Total Log Size')}:
+                  </span>{' '}
                   {formatBytes(logInfo.total_size)}
                 </div>
                 {logInfo.oldest_time && logInfo.newest_time && (
                   <div>
-                    <span className='text-muted-foreground'>{t('Date Range')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('Date Range')}:
+                    </span>{' '}
                     {dayjs(logInfo.oldest_time).format('YYYY-MM-DD')} ~{' '}
                     {dayjs(logInfo.newest_time).format('YYYY-MM-DD')}
                   </div>
@@ -446,19 +482,28 @@ export function PerformanceSection(props: Props) {
             <div className='flex flex-wrap items-end gap-3'>
               <div className='grid gap-1.5'>
                 <Label className='text-xs'>{t('Cleanup Mode')}</Label>
-                <Select value={logCleanupMode} onValueChange={setLogCleanupMode}>
+                <Select
+                  value={logCleanupMode}
+                  onValueChange={setLogCleanupMode}
+                >
                   <SelectTrigger className='w-[160px]'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='by_count'>{t('Retain last N files')}</SelectItem>
-                    <SelectItem value='by_days'>{t('Retain last N days')}</SelectItem>
+                    <SelectItem value='by_count'>
+                      {t('Retain last N files')}
+                    </SelectItem>
+                    <SelectItem value='by_days'>
+                      {t('Retain last N days')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className='grid gap-1.5'>
                 <Label className='text-xs'>
-                  {logCleanupMode === 'by_count' ? t('Files to Retain') : t('Days to Retain')}
+                  {logCleanupMode === 'by_count'
+                    ? t('Files to Retain')
+                    : t('Days to Retain')}
                 </Label>
                 <Input
                   type='number'
@@ -471,21 +516,35 @@ export function PerformanceSection(props: Props) {
               </div>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant='destructive' size='sm' disabled={logCleanupLoading}>
-                    {logCleanupLoading ? t('Cleaning...') : t('Clean Up Log Files')}
+                  <Button
+                    variant='destructive'
+                    size='sm'
+                    disabled={logCleanupLoading}
+                  >
+                    {logCleanupLoading
+                      ? t('Cleaning...')
+                      : t('Clean Up Log Files')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>{t('Confirm log file cleanup?')}</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {t('Confirm log file cleanup?')}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
                       {logCleanupMode === 'by_count'
-                        ? t('Only the last {{value}} log files will be retained; the rest will be deleted.', {
-                            value: logCleanupValue,
-                          })
-                        : t('Log files older than {{value}} days will be deleted.', {
-                            value: logCleanupValue,
-                          })}
+                        ? t(
+                            'Only the last {{value}} log files will be retained; the rest will be deleted.',
+                            {
+                              value: logCleanupValue,
+                            }
+                          )
+                        : t(
+                            'Log files older than {{value}} days will be deleted.',
+                            {
+                              value: logCleanupValue,
+                            }
+                          )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -501,7 +560,9 @@ export function PerformanceSection(props: Props) {
         ) : (
           <Alert>
             <AlertDescription>
-              {t('Server logging is not enabled (log directory not configured)')}
+              {t(
+                'Server logging is not enabled (log directory not configured)'
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -518,18 +579,26 @@ export function PerformanceSection(props: Props) {
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant='outline' size='sm'>{t('Clean up inactive cache')}</Button>
+              <Button variant='outline' size='sm'>
+                {t('Clean up inactive cache')}
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('Confirm cleanup of inactive disk cache?')}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t('Confirm cleanup of inactive disk cache?')}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t('This will delete temporary cache files that have not been used for more than 10 minutes')}
+                  {t(
+                    'This will delete temporary cache files that have not been used for more than 10 minutes'
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-                <AlertDialogAction onClick={clearDiskCache}>{t('Confirm')}</AlertDialogAction>
+                <AlertDialogAction onClick={clearDiskCache}>
+                  {t('Confirm')}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -545,15 +614,21 @@ export function PerformanceSection(props: Props) {
           <>
             <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
               <div className='space-y-2 rounded-lg border p-4'>
-                <p className='text-sm font-medium'>{t('Request Body Disk Cache')}</p>
+                <p className='text-sm font-medium'>
+                  {t('Request Body Disk Cache')}
+                </p>
                 <Progress value={diskCachePercent} />
-                <div className='flex justify-between text-xs text-muted-foreground'>
+                <div className='text-muted-foreground flex justify-between text-xs'>
                   <span>
-                    {formatBytes(stats.cache_stats?.current_disk_usage_bytes ?? 0)} /{' '}
+                    {formatBytes(
+                      stats.cache_stats?.current_disk_usage_bytes ?? 0
+                    )}{' '}
+                    /{' '}
                     {formatBytes(stats.cache_stats?.disk_cache_max_bytes ?? 0)}
                   </span>
                   <span>
-                    {t('Active Files')}: {stats.cache_stats?.active_disk_files ?? 0}
+                    {t('Active Files')}:{' '}
+                    {stats.cache_stats?.active_disk_files ?? 0}
                   </span>
                 </div>
                 <Badge variant='outline'>
@@ -561,50 +636,72 @@ export function PerformanceSection(props: Props) {
                 </Badge>
               </div>
               <div className='space-y-2 rounded-lg border p-4'>
-                <p className='text-sm font-medium'>{t('Request Body Memory Cache')}</p>
-                <div className='flex justify-between text-xs text-muted-foreground'>
+                <p className='text-sm font-medium'>
+                  {t('Request Body Memory Cache')}
+                </p>
+                <div className='text-muted-foreground flex justify-between text-xs'>
                   <span>
                     {t('Current Cache Size')}:{' '}
-                    {formatBytes(stats.cache_stats?.current_memory_usage_bytes ?? 0)}
+                    {formatBytes(
+                      stats.cache_stats?.current_memory_usage_bytes ?? 0
+                    )}
                   </span>
                   <span>
-                    {t('Active Cache Count')}: {stats.cache_stats?.active_memory_buffers ?? 0}
+                    {t('Active Cache Count')}:{' '}
+                    {stats.cache_stats?.active_memory_buffers ?? 0}
                   </span>
                 </div>
                 <Badge variant='outline'>
-                  {t('Memory Hits')}: {stats.cache_stats?.memory_cache_hits ?? 0}
+                  {t('Memory Hits')}:{' '}
+                  {stats.cache_stats?.memory_cache_hits ?? 0}
                 </Badge>
               </div>
             </div>
 
             {stats.disk_space_info && stats.disk_space_info.total > 0 && (
               <div className='rounded-lg border p-4'>
-                <p className='mb-2 text-sm font-medium'>{t('Cache Directory Disk Space')}</p>
+                <p className='mb-2 text-sm font-medium'>
+                  {t('Cache Directory Disk Space')}
+                </p>
                 <Progress
                   value={Math.round(stats.disk_space_info.used_percent)}
                 />
-                <div className='mt-2 flex justify-between text-xs text-muted-foreground'>
-                  <span>{t('Used')}: {formatBytes(stats.disk_space_info.used)}</span>
-                  <span>{t('Available')}: {formatBytes(stats.disk_space_info.free)}</span>
-                  <span>{t('Total')}: {formatBytes(stats.disk_space_info.total)}</span>
+                <div className='text-muted-foreground mt-2 flex justify-between text-xs'>
+                  <span>
+                    {t('Used')}: {formatBytes(stats.disk_space_info.used)}
+                  </span>
+                  <span>
+                    {t('Available')}: {formatBytes(stats.disk_space_info.free)}
+                  </span>
+                  <span>
+                    {t('Total')}: {formatBytes(stats.disk_space_info.total)}
+                  </span>
                 </div>
               </div>
             )}
 
             {stats.memory_stats && (
               <div className='rounded-lg border p-4'>
-                <p className='mb-2 text-sm font-medium'>{t('System Memory Stats')}</p>
+                <p className='mb-2 text-sm font-medium'>
+                  {t('System Memory Stats')}
+                </p>
                 <div className='grid grid-cols-2 gap-2 text-xs md:grid-cols-4'>
                   <div>
-                    <span className='text-muted-foreground'>{t('Allocated Memory')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('Allocated Memory')}:
+                    </span>{' '}
                     {formatBytes(stats.memory_stats.alloc)}
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>{t('System Memory')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('System Memory')}:
+                    </span>{' '}
                     {formatBytes(stats.memory_stats.sys)}
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>{t('GC Count')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('GC Count')}:
+                    </span>{' '}
                     {stats.memory_stats.num_gc}
                   </div>
                   <div>
@@ -617,18 +714,28 @@ export function PerformanceSection(props: Props) {
 
             {stats.disk_cache_info && (
               <div className='rounded-lg border p-4'>
-                <p className='mb-2 text-sm font-medium'>{t('Cache Directory Info')}</p>
+                <p className='mb-2 text-sm font-medium'>
+                  {t('Cache Directory Info')}
+                </p>
                 <div className='grid grid-cols-3 gap-2 text-xs'>
                   <div>
-                    <span className='text-muted-foreground'>{t('Cache Directory')}:</span>{' '}
-                    <span className='font-mono'>{stats.disk_cache_info.path}</span>
+                    <span className='text-muted-foreground'>
+                      {t('Cache Directory')}:
+                    </span>{' '}
+                    <span className='font-mono'>
+                      {stats.disk_cache_info.path}
+                    </span>
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>{t('Directory File Count')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('Directory File Count')}:
+                    </span>{' '}
                     {stats.disk_cache_info.file_count}
                   </div>
                   <div>
-                    <span className='text-muted-foreground'>{t('Directory Total Size')}:</span>{' '}
+                    <span className='text-muted-foreground'>
+                      {t('Directory Total Size')}:
+                    </span>{' '}
                     {formatBytes(stats.disk_cache_info.total_size)}
                   </div>
                 </div>

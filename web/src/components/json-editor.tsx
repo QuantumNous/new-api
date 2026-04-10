@@ -15,7 +15,7 @@ type JsonEditorProps = {
   keyLabel?: string
   valueLabel?: string
   emptyMessage?: string
-  template?: Record<string, any>
+  template?: Record<string, unknown>
   valueType?: 'string' | 'number' | 'any'
 }
 
@@ -48,14 +48,6 @@ export function JsonEditor({
   const [rows, setRows] = useState<EditorRow[]>([])
   const [jsonValue, setJsonValue] = useState(value)
 
-  // Parse JSON to rows when value changes externally
-  useEffect(() => {
-    if (value !== jsonValue) {
-      setJsonValue(value)
-      parseJsonToRows(value)
-    }
-  }, [value])
-
   const parseJsonToRows = (json: string) => {
     try {
       if (!json.trim()) {
@@ -71,19 +63,28 @@ export function JsonEditor({
         })
       )
       setRows(newRows)
-    } catch (error) {
+    } catch (_error) {
       // Invalid JSON, keep current rows
     }
   }
+
+  // Parse JSON to rows when value changes externally
+  useEffect(() => {
+    if (value !== jsonValue) {
+      setJsonValue(value)
+      parseJsonToRows(value)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
 
   const convertRowsToJson = (updatedRows: EditorRow[]): string => {
     if (updatedRows.length === 0) {
       return ''
     }
-    const obj: Record<string, any> = {}
+    const obj: Record<string, unknown> = {}
     updatedRows.forEach((row) => {
       if (row.key.trim()) {
-        let parsedValue: any = row.value.trim()
+        let parsedValue: unknown = row.value.trim()
 
         // Try to parse value based on type
         if (valueType === 'number') {

@@ -61,6 +61,7 @@ export function useCopyToClipboard(options?: UseCopyToClipboardOptions) {
 
         return true
       } else {
+        // eslint-disable-next-line no-console
         console.warn('All copy methods failed')
         if (notify) {
           toast.error(resolvedErrorMessage)

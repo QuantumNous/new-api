@@ -34,7 +34,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           }}
         >
           <Pencil className='mr-2 h-4 w-4' />
-          {t('编辑')}
+          {t('Edit')}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
@@ -45,12 +45,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           {row.original.plan.enabled ? (
             <>
               <PowerOff className='mr-2 h-4 w-4' />
-              {t('禁用')}
+              {t('Disable')}
             </>
           ) : (
             <>
               <Power className='mr-2 h-4 w-4' />
-              {t('启用')}
+              {t('Enable')}
             </>
           )}
         </DropdownMenuItem>

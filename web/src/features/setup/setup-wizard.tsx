@@ -92,8 +92,7 @@ export function SetupWizard() {
         }, 1200)
       } else {
         toast.error(
-          response.message ||
-            t('Initialization failed, please try again.')
+          response.message || t('Initialization failed, please try again.')
         )
       }
     },
@@ -106,9 +105,7 @@ export function SetupWizard() {
     if (!statusResponse) return
 
     if (!statusResponse.success) {
-      toast.error(
-        statusResponse.message || t('Failed to load setup status')
-      )
+      toast.error(statusResponse.message || t('Failed to load setup status'))
       return
     }
 
@@ -143,6 +140,7 @@ export function SetupWizard() {
         shouldValidate: false,
       })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusResponse, navigate, form])
 
   useEffect(() => {

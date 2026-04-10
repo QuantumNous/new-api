@@ -95,10 +95,10 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
   const onSubmit = async () => {
     // Get raw form values directly
     // React Hook Form treats "oidc.xxx" as nested paths, so we need to flatten
-    const rawData = form.getValues() as any
+    const rawData = form.getValues() as Record<string, unknown>
 
     // Flatten nested oidc object back to dot notation keys
-    const flattenedData: Record<string, any> = {}
+    const flattenedData: Record<string, unknown> = {}
 
     Object.entries(rawData).forEach(([key, value]) => {
       if (
@@ -107,7 +107,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
         value !== null
       ) {
         // React Hook Form auto-nested these fields, flatten them back
-        Object.entries(value as Record<string, any>).forEach(
+        Object.entries(value as Record<string, unknown>).forEach(
           ([nestedKey, nestedValue]) => {
             flattenedData[`${key}.${nestedKey}`] = nestedValue
           }
@@ -138,12 +138,16 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
         finalData['oidc.token_endpoint'] = tokenEndpoint
         finalData['oidc.user_info_endpoint'] = userInfoEndpoint
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         form.setValue('oidc.authorization_endpoint' as any, authEndpoint)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         form.setValue('oidc.token_endpoint' as any, tokenEndpoint)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         form.setValue('oidc.user_info_endpoint' as any, userInfoEndpoint)
 
         toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error(err)
         toast.error(
           t(
@@ -177,7 +181,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
   const handleReset = () => {
     // React Hook Form auto-nests 'oidc.xxx' fields into { oidc: { xxx: value } }
     // So we need to pass the same structure when resetting
-    const currentValues = form.getValues() as any
+    const currentValues = form.getValues() as Record<string, unknown>
 
     // Create reset values matching RHF's internal structure
     const resetValues = { ...currentValues }
@@ -328,6 +332,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
                 <FormField
                   control={form.control}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   name={'discord.client_id' as any}
                   render={({ field }) => (
                     <FormItem>
@@ -390,6 +395,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
 
                 <FormField
                   control={form.control}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   name={'oidc.client_id' as any}
                   render={({ field }) => (
                     <FormItem>

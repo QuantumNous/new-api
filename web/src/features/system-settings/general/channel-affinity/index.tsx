@@ -1,21 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Edit, Plus, RefreshCw, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import {
-  Edit,
-  Plus,
-  RefreshCw,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -24,27 +17,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SettingsSection } from '../../components/settings-section'
 import { useUpdateOption } from '../../hooks/use-update-option'
-import type { AffinityRule, CacheStats, ChannelAffinitySettings } from './types'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
 import { RuleEditorDialog } from './rule-editor-dialog'
+import type { AffinityRule, CacheStats, ChannelAffinitySettings } from './types'
 
 function parseRules(jsonStr: string): AffinityRule[] {
   try {
     const arr = JSON.parse(jsonStr || '[]')
     if (!Array.isArray(arr)) return []
-    return arr.map((r: any, i: number) => ({ id: i, ...r }))
+    return arr.map(
+      (r: Record<string, unknown>, i: number) =>
+        ({ id: i, ...r }) as AffinityRule
+    )
   } catch {
     return []
   }
 }
 
 function serializeRules(rules: AffinityRule[]): string {
-  return JSON.stringify(
-    rules.map(({ id: _, ...rest }) => rest)
-  )
+  return JSON.stringify(rules.map(({ id: _, ...rest }) => rest))
 }
 
 interface Props {
@@ -270,7 +265,12 @@ export function ChannelAffinitySection(props: Props) {
         toast.error(t('Rules JSON must be an array'))
         return
       }
-      setRules(parsed.map((r: any, i: number) => ({ id: i, ...r })))
+      setRules(
+        parsed.map(
+          (r: Record<string, unknown>, i: number) =>
+            ({ id: i, ...r }) as AffinityRule
+        )
+      )
       setEditMode('visual')
     } catch {
       toast.error(t('Invalid rules JSON format'))
@@ -294,7 +294,7 @@ export function ChannelAffinitySection(props: Props) {
         </Alert>
 
         {/* Basic Settings */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
           <div className='flex items-center gap-2'>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
             <Label>{t('Enable')}</Label>
@@ -325,7 +325,7 @@ export function ChannelAffinitySection(props: Props) {
             onCheckedChange={setSwitchOnSuccess}
           />
           <Label>{t('Switch affinity on success')}</Label>
-          <span className='text-xs text-muted-foreground'>
+          <span className='text-muted-foreground text-xs'>
             {t(
               'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
             )}
@@ -383,15 +383,16 @@ export function ChannelAffinitySection(props: Props) {
             {t('Clear All Cache')}
           </Button>
           {cacheStats && (
-            <span className='text-xs text-muted-foreground'>
-              {t('Cache Entries')}: {cacheStats.total} / {cacheStats.cache_capacity}
+            <span className='text-muted-foreground text-xs'>
+              {t('Cache Entries')}: {cacheStats.total} /{' '}
+              {cacheStats.cache_capacity}
             </span>
           )}
         </div>
 
         {/* Rules Table or JSON Editor */}
         {editMode === 'visual' ? (
-          <div className='rounded-md border overflow-x-auto'>
+          <div className='overflow-x-auto rounded-md border'>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -410,7 +411,7 @@ export function ChannelAffinitySection(props: Props) {
                   <TableRow>
                     <TableCell
                       colSpan={8}
-                      className='text-center py-8 text-muted-foreground'
+                      className='text-muted-foreground py-8 text-center'
                     >
                       {t('No rules yet')}
                     </TableCell>
@@ -424,7 +425,11 @@ export function ChannelAffinitySection(props: Props) {
                       <TableCell>
                         <div className='flex flex-wrap gap-1'>
                           {(rule.model_regex || []).slice(0, 2).map((r, i) => (
-                            <Badge key={i} variant='outline' className='text-xs'>
+                            <Badge
+                              key={i}
+                              variant='outline'
+                              className='text-xs'
+                            >
                               {r}
                             </Badge>
                           ))}
@@ -432,12 +437,18 @@ export function ChannelAffinitySection(props: Props) {
                       </TableCell>
                       <TableCell>
                         <div className='flex flex-wrap gap-1'>
-                          {(rule.key_sources || []).slice(0, 2).map((src, i) => (
-                            <Badge key={i} variant='outline' className='text-xs'>
-                              {src.type}:
-                              {src.type === 'gjson' ? src.path : src.key}
-                            </Badge>
-                          ))}
+                          {(rule.key_sources || [])
+                            .slice(0, 2)
+                            .map((src, i) => (
+                              <Badge
+                                key={i}
+                                variant='outline'
+                                className='text-xs'
+                              >
+                                {src.type}:
+                                {src.type === 'gjson' ? src.path : src.key}
+                              </Badge>
+                            ))}
                         </div>
                       </TableCell>
                       <TableCell>{rule.ttl_seconds || '-'}</TableCell>
@@ -542,7 +553,9 @@ export function ChannelAffinitySection(props: Props) {
         open={clearAllDialogOpen}
         onOpenChange={setClearAllDialogOpen}
         title={t('Confirm clearing all channel affinity cache')}
-        desc={t('This will delete all channel affinity cache entries still in memory.')}
+        desc={t(
+          'This will delete all channel affinity cache entries still in memory.'
+        )}
         handleConfirm={handleClearAll}
         destructive
       />

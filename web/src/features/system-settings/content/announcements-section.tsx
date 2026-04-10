@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
-import dayjs from '@/lib/dayjs'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import dayjs from '@/lib/dayjs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -370,7 +370,9 @@ export function AnnouncementsSection({
                           {getRelativeTime(announcement.publishDate)}
                         </span>
                         <span className='text-muted-foreground text-xs'>
-                          {dayjs(announcement.publishDate).format('YYYY-MM-DD HH:mm:ss')}
+                          {dayjs(announcement.publishDate).format(
+                            'YYYY-MM-DD HH:mm:ss'
+                          )}
                         </span>
                       </div>
                     </TableCell>
@@ -421,7 +423,9 @@ export function AnnouncementsSection({
         <DialogContent className='max-w-2xl'>
           <DialogHeader>
             <DialogTitle>
-              {editingAnnouncement ? t('Edit Announcement') : t('Add Announcement')}
+              {editingAnnouncement
+                ? t('Edit Announcement')
+                : t('Add Announcement')}
             </DialogTitle>
             <DialogDescription>
               {t('Create or update system announcements for the dashboard')}

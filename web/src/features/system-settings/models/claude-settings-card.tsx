@@ -100,7 +100,11 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
     },
   })
 
-  const form = useForm<ClaudeSettingsFormInput, any, ClaudeSettingsFormValues>({
+  const form = useForm<
+    ClaudeSettingsFormInput,
+    unknown,
+    ClaudeSettingsFormValues
+  >({
     resolver: zodResolver(schema),
     defaultValues: buildFormDefaults(defaultValues),
   })
@@ -158,6 +162,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
       )}
     >
       <Form {...form}>
+        {/* eslint-disable-next-line react-hooks/refs */}
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <FormField
             control={form.control}

@@ -1,6 +1,7 @@
-import { Copy, Check, Route } from 'lucide-react'
+import { Copy, Check, Route, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,6 +14,67 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { UsageLog } from '../../data/schema'
 import { parseLogOther } from '../../lib/format'
+
+function getActionLabel(action: string, t: (key: string) => string): string {
+  switch ((action || '').toLowerCase()) {
+    case 'set':
+      return t('Set')
+    case 'delete':
+      return t('Delete')
+    case 'copy':
+      return t('Copy')
+    case 'move':
+      return t('Move')
+    case 'append':
+      return t('Append')
+    case 'prepend':
+      return t('Prepend')
+    case 'trim_prefix':
+      return t('Trim Prefix')
+    case 'trim_suffix':
+      return t('Trim Suffix')
+    case 'ensure_prefix':
+      return t('Ensure Prefix')
+    case 'ensure_suffix':
+      return t('Ensure Suffix')
+    case 'trim_space':
+      return t('Trim Space')
+    case 'to_lower':
+      return t('To Lower')
+    case 'to_upper':
+      return t('To Upper')
+    case 'replace':
+      return t('Replace')
+    case 'regex_replace':
+      return t('Regex Replace')
+    case 'set_header':
+      return t('Set Header')
+    case 'delete_header':
+      return t('Delete Header')
+    case 'copy_header':
+      return t('Copy Header')
+    case 'move_header':
+      return t('Move Header')
+    case 'pass_headers':
+      return t('Pass Headers')
+    case 'sync_fields':
+      return t('Sync Fields')
+    case 'return_error':
+      return t('Return Error')
+    default:
+      return action
+  }
+}
+
+function parseAuditLine(line: string) {
+  if (typeof line !== 'string') return null
+  const firstSpace = line.indexOf(' ')
+  if (firstSpace <= 0) return { action: line, content: line }
+  return {
+    action: line.slice(0, firstSpace),
+    content: line.slice(firstSpace + 1),
+  }
+}
 
 interface DetailsDialogProps {
   log: UsageLog
@@ -39,9 +101,9 @@ export function DetailsDialog({
     conversionChain.length <= 1
       ? t('Native format')
       : conversionChain.join(' -> ')
-  const showConversion = isAdmin && (other?.request_path || conversionChain.length > 0)
+  const showConversion =
+    isAdmin && (other?.request_path || conversionChain.length > 0)
 
-  // Get log type label
   const getLogTypeLabel = (type: number): string => {
     switch (type) {
       case 1:
@@ -66,8 +128,7 @@ export function DetailsDialog({
           <DialogTitle>{t('Log Details')}</DialogTitle>
           <DialogDescription>
             {t('View the complete details for this')}{' '}
-            {getLogTypeLabel(log.type)}{' '}
-            {t('log')}
+            {getLogTypeLabel(log.type)} {t('log')}
           </DialogDescription>
         </DialogHeader>
 
@@ -105,13 +166,53 @@ export function DetailsDialog({
                       </div>
                     ) : null}
                     <div className='flex items-center gap-2 text-sm'>
-                      <Route className='text-muted-foreground size-4' aria-hidden='true' />
+                      <Route
+                        className='text-muted-foreground size-4'
+                        aria-hidden='true'
+                      />
                       <span className='break-words'>{conversionLabel}</span>
                     </div>
                   </div>
                 </div>
               </div>
             )}
+
+            {isAdmin &&
+              other?.po &&
+              Array.isArray(other.po) &&
+              other.po.length > 0 && (
+                <div className='space-y-2'>
+                  <Label className='flex items-center gap-1.5 text-sm font-semibold'>
+                    <Settings2 className='size-4' aria-hidden='true' />
+                    {t('Param Override')}
+                    <Badge variant='secondary' className='h-5 text-[10px]'>
+                      {other.po.length}
+                    </Badge>
+                  </Label>
+                  <div className='space-y-1.5'>
+                    {other.po.filter(Boolean).map((line, idx) => {
+                      const parsed = parseAuditLine(line)
+                      if (!parsed) return null
+                      return (
+                        <div
+                          key={idx}
+                          className='bg-muted/50 flex items-start gap-2.5 rounded-md border p-2.5'
+                        >
+                          <Badge
+                            variant='outline'
+                            className='shrink-0 text-[10px] font-bold'
+                          >
+                            {getActionLabel(parsed.action, t)}
+                          </Badge>
+                          <span className='min-w-0 font-mono text-xs leading-relaxed break-words'>
+                            {parsed.content}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
             <div className='space-y-2'>
               <Label className='text-sm font-semibold'>{t('Content')}</Label>

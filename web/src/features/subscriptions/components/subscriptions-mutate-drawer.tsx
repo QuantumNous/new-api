@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
 import { createPlan, updatePlan, getGroups } from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
@@ -55,7 +55,7 @@ export function SubscriptionsMutateDrawer({
 
   const schema = getPlanFormSchema(t)
   const form = useForm<PlanFormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as unknown as Resolver<PlanFormValues>,
     defaultValues: PLAN_FORM_DEFAULTS,
   })
 
@@ -84,20 +84,20 @@ export function SubscriptionsMutateDrawer({
       if (isEdit && currentRow?.plan?.id) {
         const res = await updatePlan(currentRow.plan.id, payload)
         if (res.success) {
-          toast.success(t('更新成功'))
+          toast.success(t('Update succeeded'))
           onOpenChange(false)
           triggerRefresh()
         }
       } else {
         const res = await createPlan(payload)
         if (res.success) {
-          toast.success(t('创建成功'))
+          toast.success(t('Create succeeded'))
           onOpenChange(false)
           triggerRefresh()
         }
       }
     } catch {
-      toast.error(t('请求失败'))
+      toast.error(t('Request failed'))
     } finally {
       setLoading(false)
     }
@@ -108,15 +108,17 @@ export function SubscriptionsMutateDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className='flex flex-col sm:max-w-lg overflow-y-auto'>
+      <SheetContent className='flex flex-col overflow-y-auto sm:max-w-lg'>
         <SheetHeader>
           <SheetTitle>
-            {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
+            {isEdit ? t('Update plan info') : t('Create new subscription plan')}
           </SheetTitle>
           <SheetDescription>
             {isEdit
-              ? t('修改现有订阅套餐的配置')
-              : t('填写以下信息创建新的订阅套餐')}
+              ? t('Modify existing subscription plan configuration')
+              : t(
+                  'Fill in the following info to create a new subscription plan'
+                )}
           </SheetDescription>
         </SheetHeader>
 
@@ -127,34 +129,34 @@ export function SubscriptionsMutateDrawer({
           {/* Basic Info Section */}
           <div className='flex items-center gap-2 text-sm font-medium'>
             <Settings2 className='h-4 w-4' />
-            {t('基本信息')}
+            {t('Basic Info')}
           </div>
 
           <div className='grid gap-3'>
             <div className='grid gap-1.5'>
-              <Label>{t('套餐标题')} *</Label>
+              <Label>{t('Plan Title')} *</Label>
               <Input
-                placeholder={t('例如：基础套餐')}
+                placeholder={t('e.g. Basic Plan')}
                 {...form.register('title')}
               />
               {form.formState.errors.title && (
-                <p className='text-xs text-destructive'>
+                <p className='text-destructive text-xs'>
                   {form.formState.errors.title.message}
                 </p>
               )}
             </div>
 
             <div className='grid gap-1.5'>
-              <Label>{t('套餐副标题')}</Label>
+              <Label>{t('Plan Subtitle')}</Label>
               <Input
-                placeholder={t('例如：适合轻度使用')}
+                placeholder={t('e.g. Suitable for light usage')}
                 {...form.register('subtitle')}
               />
             </div>
 
             <div className='grid grid-cols-2 gap-3'>
               <div className='grid gap-1.5'>
-                <Label>{t('实付金额')} *</Label>
+                <Label>{t('Actual Amount')} *</Label>
                 <Input
                   type='number'
                   step='0.01'
@@ -163,21 +165,21 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
               <div className='grid gap-1.5'>
-                <Label>{t('总额度')}</Label>
+                <Label>{t('Total Quota')}</Label>
                 <Input
                   type='number'
                   min={0}
                   {...form.register('total_amount')}
                 />
-                <p className='text-xs text-muted-foreground'>
-                  {t('0 表示不限')}
+                <p className='text-muted-foreground text-xs'>
+                  {t('0 means unlimited')}
                 </p>
               </div>
             </div>
 
             <div className='grid grid-cols-2 gap-3'>
               <div className='grid gap-1.5'>
-                <Label>{t('升级分组')}</Label>
+                <Label>{t('Upgrade Group')}</Label>
                 <Select
                   value={form.watch('upgrade_group') || ''}
                   onValueChange={(v) =>
@@ -185,10 +187,10 @@ export function SubscriptionsMutateDrawer({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={t('不升级')} />
+                    <SelectValue placeholder={t('No Upgrade')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='__none__'>{t('不升级')}</SelectItem>
+                    <SelectItem value='__none__'>{t('No Upgrade')}</SelectItem>
                     {groupOptions.map((g) => (
                       <SelectItem key={g} value={g}>
                         {g}
@@ -198,32 +200,29 @@ export function SubscriptionsMutateDrawer({
                 </Select>
               </div>
               <div className='grid gap-1.5'>
-                <Label>{t('购买上限')}</Label>
+                <Label>{t('Purchase Limit')}</Label>
                 <Input
                   type='number'
                   min={0}
                   {...form.register('max_purchase_per_user')}
                 />
-                <p className='text-xs text-muted-foreground'>
-                  {t('0 表示不限')}
+                <p className='text-muted-foreground text-xs'>
+                  {t('0 means unlimited')}
                 </p>
               </div>
             </div>
 
             <div className='grid grid-cols-2 gap-3'>
               <div className='grid gap-1.5'>
-                <Label>{t('排序')}</Label>
-                <Input
-                  type='number'
-                  {...form.register('sort_order')}
-                />
+                <Label>{t('Sort Order')}</Label>
+                <Input type='number' {...form.register('sort_order')} />
               </div>
               <div className='flex items-center gap-2 pt-6'>
                 <Switch
                   checked={form.watch('enabled')}
                   onCheckedChange={(v) => form.setValue('enabled', v)}
                 />
-                <Label>{t('启用状态')}</Label>
+                <Label>{t('Enabled Status')}</Label>
               </div>
             </div>
           </div>
@@ -233,15 +232,20 @@ export function SubscriptionsMutateDrawer({
           {/* Duration Section */}
           <div className='flex items-center gap-2 text-sm font-medium'>
             <CalendarClock className='h-4 w-4' />
-            {t('有效期设置')}
+            {t('Duration Settings')}
           </div>
 
           <div className='grid grid-cols-2 gap-3'>
             <div className='grid gap-1.5'>
-              <Label>{t('有效期单位')}</Label>
+              <Label>{t('Duration Unit')}</Label>
               <Select
                 value={form.watch('duration_unit')}
-                onValueChange={(v: any) => form.setValue('duration_unit', v)}
+                onValueChange={(v) =>
+                  form.setValue(
+                    'duration_unit',
+                    v as PlanFormValues['duration_unit']
+                  )
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -258,8 +262,8 @@ export function SubscriptionsMutateDrawer({
             <div className='grid gap-1.5'>
               <Label>
                 {durationUnit === 'custom'
-                  ? t('自定义秒数')
-                  : t('有效期数值')}
+                  ? t('Custom Seconds')
+                  : t('Duration Value')}
               </Label>
               <Input
                 type='number'
@@ -278,16 +282,19 @@ export function SubscriptionsMutateDrawer({
           {/* Reset Section */}
           <div className='flex items-center gap-2 text-sm font-medium'>
             <RefreshCw className='h-4 w-4' />
-            {t('额度重置')}
+            {t('Quota Reset')}
           </div>
 
           <div className='grid grid-cols-2 gap-3'>
             <div className='grid gap-1.5'>
-              <Label>{t('重置周期')}</Label>
+              <Label>{t('Reset Cycle')}</Label>
               <Select
                 value={form.watch('quota_reset_period')}
-                onValueChange={(v: any) =>
-                  form.setValue('quota_reset_period', v)
+                onValueChange={(v) =>
+                  form.setValue(
+                    'quota_reset_period',
+                    v as PlanFormValues['quota_reset_period']
+                  )
                 }
               >
                 <SelectTrigger>
@@ -303,7 +310,7 @@ export function SubscriptionsMutateDrawer({
               </Select>
             </div>
             <div className='grid gap-1.5'>
-              <Label>{t('自定义秒数')}</Label>
+              <Label>{t('Custom Seconds')}</Label>
               <Input
                 type='number'
                 min={0}
@@ -318,7 +325,7 @@ export function SubscriptionsMutateDrawer({
           {/* Payment Section */}
           <div className='flex items-center gap-2 text-sm font-medium'>
             <CreditCard className='h-4 w-4' />
-            {t('第三方支付配置')}
+            {t('Third-party Payment Config')}
           </div>
 
           <div className='grid gap-3'>
@@ -344,10 +351,10 @@ export function SubscriptionsMutateDrawer({
               variant='outline'
               onClick={() => onOpenChange(false)}
             >
-              {t('取消')}
+              {t('Cancel')}
             </Button>
             <Button type='submit' disabled={loading}>
-              {loading ? t('提交中...') : t('提交')}
+              {loading ? t('Submitting...') : t('Submit')}
             </Button>
           </SheetFooter>
         </form>

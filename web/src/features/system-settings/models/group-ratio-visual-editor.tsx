@@ -535,7 +535,9 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
                             {userGroupData.userGroup}
                           </span>
                           <span className='text-muted-foreground text-sm'>
-                            {t('{{count}} override', { count: userGroupData.overrides.length })}
+                            {t('{{count}} override', {
+                              count: userGroupData.overrides.length,
+                            })}
                           </span>
                         </div>
                         <div className='flex gap-2'>
@@ -879,7 +881,9 @@ function SimpleGroupDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {editData ? t('Edit {{title}}', { title }) : t('Add {{title}}', { title })}
+            {editData
+              ? t('Edit {{title}}', { title })
+              : t('Add {{title}}', { title })}
           </DialogTitle>
           <DialogDescription>
             {t('Configure the ratio for this group.')}
@@ -913,7 +917,9 @@ function SimpleGroupDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
+          <Button onClick={handleSave}>
+            {editData ? t('Update') : t('Add')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -993,7 +999,9 @@ function UsableGroupDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
+          <Button onClick={handleSave}>
+            {editData ? t('Update') : t('Add')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1051,8 +1059,13 @@ function GroupOverrideDialog({
           </DialogTitle>
           <DialogDescription>
             {userGroup
-              ? t('Configure a custom ratio for "{{userGroup}}" users when using a specific token group.', { userGroup })
-              : t('Configure a custom ratio for when users use a specific token group.')}
+              ? t(
+                  'Configure a custom ratio for "{{userGroup}}" users when using a specific token group.',
+                  { userGroup }
+                )
+              : t(
+                  'Configure a custom ratio for when users use a specific token group.'
+                )}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-4 py-4'>
@@ -1081,9 +1094,9 @@ function GroupOverrideDialog({
               placeholder='0.9'
             />
             <p className='text-muted-foreground text-xs'>
-              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', { 
+              {t('Multiplier applied when {{userGroup}} uses {{targetGroup}}', {
                 userGroup: userGroup || t('this user group'),
-                targetGroup: targetGroup || t('this token group')
+                targetGroup: targetGroup || t('this token group'),
               })}
             </p>
           </div>
@@ -1092,7 +1105,9 @@ function GroupOverrideDialog({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={handleSave}>{editData ? t('Update') : t('Add')}</Button>
+          <Button onClick={handleSave}>
+            {editData ? t('Update') : t('Add')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

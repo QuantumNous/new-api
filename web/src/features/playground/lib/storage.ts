@@ -12,6 +12,7 @@ export function loadConfig(): Partial<PlaygroundConfig> {
       return JSON.parse(saved)
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load config:', error)
   }
   return {}
@@ -24,6 +25,7 @@ export function saveConfig(config: Partial<PlaygroundConfig>): void {
   try {
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config))
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save config:', error)
   }
 }
@@ -38,6 +40,7 @@ export function loadParameterEnabled(): Partial<ParameterEnabled> {
       return JSON.parse(saved)
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load parameter enabled:', error)
   }
   return {}
@@ -55,6 +58,7 @@ export function saveParameterEnabled(
       JSON.stringify(parameterEnabled)
     )
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save parameter enabled:', error)
   }
 }
@@ -75,6 +79,7 @@ export function loadMessages(): Message[] | null {
       return sanitized
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load messages:', error)
   }
   return null
@@ -87,6 +92,7 @@ export function saveMessages(messages: Message[]): void {
   try {
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages))
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save messages:', error)
   }
 }
@@ -100,6 +106,7 @@ export function clearPlaygroundData(): void {
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to clear playground data:', error)
   }
 }

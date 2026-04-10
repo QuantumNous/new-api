@@ -13,6 +13,7 @@ import {
   PowerOff,
   Key,
   Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,7 @@ import {
   isChannelEnabled,
   isMultiKeyChannel,
 } from '../lib'
+import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
 import { useChannels } from './channels-provider'
 
@@ -41,7 +43,7 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const channel = row.original
-  const { setOpen, setCurrentRow } = useChannels()
+  const { setOpen, setCurrentRow, upstream } = useChannels()
   const queryClient = useQueryClient()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
@@ -128,6 +130,31 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           {t('Fetch Models')}
           <DropdownMenuShortcut>
             <Download size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+
+        {/* Detect Upstream Updates */}
+        <DropdownMenuItem
+          onClick={() => {
+            const meta = parseUpstreamUpdateMeta(channel.settings)
+            if (
+              meta.pendingAddModels.length > 0 ||
+              meta.pendingRemoveModels.length > 0
+            ) {
+              upstream.openModal(
+                channel,
+                meta.pendingAddModels,
+                meta.pendingRemoveModels,
+                meta.pendingAddModels.length > 0 ? 'add' : 'remove'
+              )
+            } else {
+              upstream.detectChannelUpdates(channel)
+            }
+          }}
+        >
+          {t('Upstream Updates')}
+          <DropdownMenuShortcut>
+            <RefreshCw size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
 

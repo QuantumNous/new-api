@@ -11,7 +11,9 @@ function getInitialStatus(): SystemStatus | undefined {
       const saved = window.localStorage.getItem('status')
       return saved ? (JSON.parse(saved) as SystemStatus) : undefined
     }
-  } catch {}
+  } catch {
+    /* empty */
+  }
   return undefined
 }
 
@@ -27,6 +29,7 @@ export function useStatus() {
         }
       } catch (err) {
         if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
           console.warn(
             '[useStatus] Failed to sync status to system config',
             err
@@ -38,7 +41,9 @@ export function useStatus() {
         if (typeof window !== 'undefined' && status) {
           window.localStorage.setItem('status', JSON.stringify(status))
         }
-      } catch {}
+      } catch {
+        /* empty */
+      }
       return status as SystemStatus | null
     },
     // Use localStorage data as initial data

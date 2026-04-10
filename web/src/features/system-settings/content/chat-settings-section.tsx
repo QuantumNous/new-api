@@ -33,10 +33,16 @@ const createChatSchema = (t: (key: string) => string) =>
           return
         }
         for (const item of parsed) {
-          if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+          if (
+            item === null ||
+            typeof item !== 'object' ||
+            Array.isArray(item)
+          ) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: t('Each item must be an object with a single key-value pair.'),
+              message: t(
+                'Each item must be an object with a single key-value pair.'
+              ),
             })
             return
           }
@@ -106,6 +112,7 @@ export function ChatSettingsSection({
       description={t('Configure predefined chat links surfaced to end users.')}
     >
       <Form {...form}>
+        {/* eslint-disable-next-line react-hooks/refs */}
         <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <Tabs
             value={editMode}

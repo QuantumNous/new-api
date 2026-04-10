@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 'use client'
 
 import {
@@ -533,39 +534,55 @@ export const PromptInput = ({
         return prev.concat(next)
       })
     },
-    [matchesAccept, maxFiles, maxFileSize, onError]
+    [matchesAccept, maxFiles, maxFileSize, onError, t]
   )
 
-  const add = usingProvider
-    ? (files: File[] | FileList) => controller.attachments.add(files)
-    : addLocal
+  const add = useMemo(
+    () =>
+      controller
+        ? (files: File[] | FileList) => controller.attachments.add(files)
+        : addLocal,
+    [controller, addLocal]
+  )
 
-  const remove = usingProvider
-    ? (id: string) => controller.attachments.remove(id)
-    : (id: string) =>
-        setItems((prev) => {
-          const found = prev.find((file) => file.id === id)
-          if (found?.url) {
-            URL.revokeObjectURL(found.url)
-          }
-          return prev.filter((file) => file.id !== id)
-        })
+  const remove = useMemo(
+    () =>
+      controller
+        ? (id: string) => controller.attachments.remove(id)
+        : (id: string) =>
+            setItems((prev) => {
+              const found = prev.find((file) => file.id === id)
+              if (found?.url) {
+                URL.revokeObjectURL(found.url)
+              }
+              return prev.filter((file) => file.id !== id)
+            }),
+    [controller]
+  )
 
-  const clear = usingProvider
-    ? () => controller.attachments.clear()
-    : () =>
-        setItems((prev) => {
-          for (const file of prev) {
-            if (file.url) {
-              URL.revokeObjectURL(file.url)
-            }
-          }
-          return []
-        })
+  const clear = useMemo(
+    () =>
+      controller
+        ? () => controller.attachments.clear()
+        : () =>
+            setItems((prev) => {
+              for (const file of prev) {
+                if (file.url) {
+                  URL.revokeObjectURL(file.url)
+                }
+              }
+              return []
+            }),
+    [controller]
+  )
 
-  const openFileDialog = usingProvider
-    ? () => controller.attachments.openFileDialog()
-    : openFileDialogLocal
+  const openFileDialog = useMemo(
+    () =>
+      controller
+        ? () => controller.attachments.openFileDialog()
+        : openFileDialogLocal,
+    [controller, openFileDialogLocal]
+  )
 
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
@@ -722,7 +739,7 @@ export const PromptInput = ({
             controller.textInput.clear()
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Don't clear on error - user may want to retry
       }
     })
@@ -1012,13 +1029,13 @@ interface SpeechRecognition extends EventTarget {
   lang: string
   start(): void
   stop(): void
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null
+  onstart: ((this: SpeechRecognition, ev: Event) => void) | null
+  onend: ((this: SpeechRecognition, ev: Event) => void) | null
   onresult:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
+    | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void)
     | null
   onerror:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any)
+    | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => void)
     | null
 }
 
@@ -1121,11 +1138,13 @@ export const PromptInputSpeechButton = ({
       }
 
       speechRecognition.onerror = (event) => {
+        // eslint-disable-next-line no-console
         console.error('Speech recognition error:', event.error)
         setIsListening(false)
       }
 
       recognitionRef.current = speechRecognition
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecognition(speechRecognition)
     }
 

@@ -37,7 +37,9 @@ export const colorToBgClass: Record<SemanticColor, string> = {
 
 export function getBgColorClass(color?: string): string {
   if (!color) return colorToBgClass.blue
-  return (colorToBgClass as any)[color] || colorToBgClass.blue
+  return (
+    (colorToBgClass as Record<string, string>)[color] || colorToBgClass.blue
+  )
 }
 
 /**

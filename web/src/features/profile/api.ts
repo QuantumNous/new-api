@@ -98,6 +98,36 @@ export async function bindWeChat(code: string): Promise<ApiResponse> {
 }
 
 // ============================================================================
+// Custom OAuth Binding APIs
+// ============================================================================
+
+export interface CustomOAuthBinding {
+  provider_id: string
+  provider_name: string
+  external_id?: string
+}
+
+/**
+ * Get current user's custom OAuth bindings
+ */
+export async function getSelfOAuthBindings(): Promise<
+  ApiResponse<CustomOAuthBinding[]>
+> {
+  const res = await api.get('/api/user/oauth/bindings')
+  return res.data
+}
+
+/**
+ * Unbind a custom OAuth provider for current user
+ */
+export async function unbindCustomOAuth(
+  providerId: string
+): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/oauth/bindings/${providerId}`)
+  return res.data
+}
+
+// ============================================================================
 // Checkin APIs
 // ============================================================================
 

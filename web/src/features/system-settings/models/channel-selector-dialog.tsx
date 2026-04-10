@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -99,12 +99,15 @@ export function ChannelSelectorDialog({
     setRowSelection(newSelection)
   }, [selectedChannelIds, channels])
 
-  const updateEndpoint = (channelId: number, endpoint: string) => {
-    onChannelEndpointsChange({
-      ...channelEndpoints,
-      [channelId]: endpoint,
-    })
-  }
+  const updateEndpoint = useCallback(
+    (channelId: number, endpoint: string) => {
+      onChannelEndpointsChange({
+        ...channelEndpoints,
+        [channelId]: endpoint,
+      })
+    },
+    [channelEndpoints, onChannelEndpointsChange]
+  )
 
   const getEndpointType = (endpoint: string) => {
     const option = ENDPOINT_OPTIONS.find((opt) => opt.value === endpoint)
@@ -248,7 +251,7 @@ export function ChannelSelectorDialog({
         },
       },
     ],
-    [channelEndpoints]
+    [channelEndpoints, t, updateEndpoint]
   )
 
   const filteredChannels = useMemo(() => {

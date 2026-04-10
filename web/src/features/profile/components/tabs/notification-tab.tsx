@@ -89,7 +89,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       } else {
         toast.error(response.message || t('Failed to update settings'))
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(t('Failed to update settings'))
     } finally {
       setLoading(false)

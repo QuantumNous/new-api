@@ -11,12 +11,12 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { getStatus } from '@/lib/api'
+import '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
 import './i18n/config'
-import '@/lib/dayjs'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
 // Styles
@@ -111,7 +111,9 @@ const rootElement = document.getElementById('root')!
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
       }
-    } catch {}
+    } catch {
+      /* empty */
+    }
     // Background refresh
     getStatus()
       .then((s) => {
@@ -119,11 +121,17 @@ const rootElement = document.getElementById('root')!
           apply(s.system_name)
           try {
             localStorage.setItem('status', JSON.stringify(s))
-          } catch {}
+          } catch {
+            /* empty */
+          }
         }
       })
-      .catch(() => {})
-  } catch {}
+      .catch(() => {
+        /* empty */
+      })
+  } catch {
+    /* empty */
+  }
 })()
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)

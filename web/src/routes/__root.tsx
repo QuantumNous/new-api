@@ -41,7 +41,9 @@ function getSetupStatusFromCache(): boolean {
     if (typeof window !== 'undefined') {
       return window.localStorage.getItem(SETUP_CHECKED_KEY) === 'true'
     }
-  } catch {}
+  } catch {
+    /* empty */
+  }
   return false
 }
 
@@ -54,7 +56,9 @@ function setSetupStatusCache(value: boolean): void {
         window.localStorage.removeItem(SETUP_CHECKED_KEY)
       }
     }
-  } catch {}
+  } catch {
+    /* empty */
+  }
 }
 
 // 内存中的标记，避免同一会话中重复检查
@@ -66,7 +70,8 @@ export const Route = createRootRouteWithContext<{
   // 应用初始化与路由解析前统一校验会话
   beforeLoad: async ({ location }) => {
     const pathname = location?.pathname || ''
-    const needsSetupCheck = !setupStatusChecked && !pathname.startsWith('/setup')
+    const needsSetupCheck =
+      !setupStatusChecked && !pathname.startsWith('/setup')
 
     // 用户信息已通过 auth-store 从 localStorage 恢复
     // 如果 auth.user 存在，说明用户已登录（有缓存的用户数据）
@@ -77,6 +82,7 @@ export const Route = createRootRouteWithContext<{
     if (needsSetupCheck) {
       const status = await getSetupStatus().catch((error) => {
         if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
           console.warn('[root.beforeLoad] setup status check failed', error)
         }
         return null

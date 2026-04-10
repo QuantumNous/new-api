@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { GeneralSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ChannelAffinitySection } from './channel-affinity'

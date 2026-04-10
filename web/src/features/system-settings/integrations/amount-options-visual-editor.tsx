@@ -3,8 +3,8 @@ import { Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isArray } from '../utils/json-validators'
 
@@ -32,7 +32,7 @@ export function AmountOptionsVisualEditor({
       .filter((item) => typeof item === 'number' || !isNaN(Number(item)))
       .map(Number)
       .sort((a, b) => a - b)
-  }, [value])
+  }, [value, t])
 
   const handleAdd = () => {
     const amount = parseFloat(newAmount)
@@ -47,8 +47,9 @@ export function AmountOptionsVisualEditor({
 
       onChange(JSON.stringify(updatedAmounts, null, 2))
       setNewAmount('')
-    } catch (error) {
-      console.error('Failed to add amount:', error)
+    } catch (_error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to add amount:', _error)
     }
   }
 
@@ -56,8 +57,9 @@ export function AmountOptionsVisualEditor({
     try {
       const updatedAmounts = amounts.filter((a) => a !== amount)
       onChange(JSON.stringify(updatedAmounts, null, 2))
-    } catch (error) {
-      console.error('Failed to remove amount:', error)
+    } catch (_error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to remove amount:', _error)
     }
   }
 
@@ -112,10 +114,7 @@ export function AmountOptionsVisualEditor({
 
       <div className='flex flex-col gap-2 sm:flex-row sm:items-end'>
         <div className='flex-1'>
-          <Label
-            htmlFor='new-amount'
-            className='mb-2 block'
-          >
+          <Label htmlFor='new-amount' className='mb-2 block'>
             {t('Add new amount')}
           </Label>
           <Input

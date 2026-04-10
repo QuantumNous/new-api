@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { X, User, Wallet, LogOut } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
 import type { AuthUser } from '@/stores/auth-store'
 import { SKELETON_DEFAULTS } from '@/lib/constants'
@@ -194,7 +194,7 @@ export function MobileDrawer({
             initial='hidden'
             animate='visible'
             exit='exit'
-            variants={MOBILE_DRAWER_ANIMATION.overlay as any}
+            variants={MOBILE_DRAWER_ANIMATION.overlay as Variants}
             transition={{
               duration: MOBILE_DRAWER_CONFIG.overlayTransitionDuration,
             }}
@@ -207,7 +207,7 @@ export function MobileDrawer({
             initial='hidden'
             animate='visible'
             exit='exit'
-            variants={MOBILE_DRAWER_ANIMATION.drawer as any}
+            variants={MOBILE_DRAWER_ANIMATION.drawer as Variants}
           >
             <div className='flex flex-col gap-4'>
               {/* Header with logo and close button */}
@@ -250,7 +250,7 @@ export function MobileDrawer({
                       <motion.div
                         key={`${link.href}-${index}`}
                         className='border-border border-b p-2.5 last:border-b-0'
-                        variants={MOBILE_DRAWER_ANIMATION.menuItem as any}
+                        variants={MOBILE_DRAWER_ANIMATION.menuItem as Variants}
                       >
                         <Link
                           to={link.href}

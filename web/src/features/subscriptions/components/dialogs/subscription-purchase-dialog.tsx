@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
+import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Crown, CalendarClock, Package } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -17,8 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import {
   paySubscriptionStripe,
   paySubscriptionCreem,
@@ -69,11 +68,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
-        toast.success(t('已打开支付页面'))
+        toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       }
     } catch {
-      toast.error(t('支付请求失败'))
+      toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
     }
@@ -85,11 +84,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
-        toast.success(t('已打开支付页面'))
+        toast.success(t('Payment page opened'))
         props.onOpenChange(false)
       }
     } catch {
-      toast.error(t('支付请求失败'))
+      toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
     }
@@ -97,7 +96,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
-      toast.error(t('请选择支付方式'))
+      toast.error(t('Please select a payment method'))
       return
     }
     setPaying(true)
@@ -121,11 +120,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
         document.body.appendChild(form)
         form.submit()
         document.body.removeChild(form)
-        toast.success(t('已发起支付'))
+        toast.success(t('Payment initiated'))
         props.onOpenChange(false)
       }
     } catch {
-      toast.error(t('支付请求失败'))
+      toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
     }
@@ -137,65 +136,65 @@ export function SubscriptionPurchaseDialog(props: Props) {
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'>
             <Crown className='h-5 w-5' />
-            {t('购买订阅套餐')}
+            {t('Purchase Subscription')}
           </DialogTitle>
         </DialogHeader>
 
         <div className='space-y-4'>
-          <div className='rounded-lg border bg-muted/50 p-4 space-y-3'>
+          <div className='bg-muted/50 space-y-3 rounded-lg border p-4'>
             <div className='flex justify-between'>
-              <span className='text-sm text-muted-foreground'>
-                {t('套餐名称')}
+              <span className='text-muted-foreground text-sm'>
+                {t('Plan Name')}
               </span>
-              <span className='text-sm font-medium truncate max-w-[200px]'>
+              <span className='max-w-[200px] truncate text-sm font-medium'>
                 {plan.title}
               </span>
             </div>
-            <div className='flex justify-between items-center'>
-              <span className='text-sm text-muted-foreground'>
-                {t('有效期')}
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Validity Period')}
               </span>
-              <span className='text-sm flex items-center gap-1'>
+              <span className='flex items-center gap-1 text-sm'>
                 <CalendarClock className='h-3.5 w-3.5' />
                 {formatDuration(plan, t)}
               </span>
             </div>
-            {formatResetPeriod(plan, t) !== t('不重置') && (
+            {formatResetPeriod(plan, t) !== t('No Reset') && (
               <div className='flex justify-between'>
-                <span className='text-sm text-muted-foreground'>
-                  {t('重置周期')}
+                <span className='text-muted-foreground text-sm'>
+                  {t('Reset Period')}
                 </span>
                 <span className='text-sm'>{formatResetPeriod(plan, t)}</span>
               </div>
             )}
-            <div className='flex justify-between items-center'>
-              <span className='text-sm text-muted-foreground'>
-                {t('总额度')}
+            <div className='flex items-center justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Total Quota')}
               </span>
-              <span className='text-sm flex items-center gap-1'>
+              <span className='flex items-center gap-1 text-sm'>
                 <Package className='h-3.5 w-3.5' />
-                {totalAmount > 0 ? totalAmount : t('不限')}
+                {totalAmount > 0 ? totalAmount : t('Unlimited')}
               </span>
             </div>
             {plan.upgrade_group && (
               <div className='flex justify-between'>
-                <span className='text-sm text-muted-foreground'>
-                  {t('升级分组')}
+                <span className='text-muted-foreground text-sm'>
+                  {t('Upgrade Group')}
                 </span>
                 <span className='text-sm'>{plan.upgrade_group}</span>
               </div>
             )}
             <Separator />
-            <div className='flex justify-between items-center'>
-              <span className='text-sm font-medium'>{t('应付金额')}</span>
-              <span className='text-lg font-bold text-primary'>${price}</span>
+            <div className='flex items-center justify-between'>
+              <span className='text-sm font-medium'>{t('Amount Due')}</span>
+              <span className='text-primary text-lg font-bold'>${price}</span>
             </div>
           </div>
 
           {limitReached && (
             <Alert variant='destructive'>
               <AlertDescription>
-                {t('已达到购买上限')} ({props.purchaseCount}/
+                {t('Purchase limit reached')} ({props.purchaseCount}/
                 {props.purchaseLimit})
               </AlertDescription>
             </Alert>
@@ -203,8 +202,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
           {hasAnyPayment ? (
             <div className='space-y-3'>
-              <p className='text-xs text-muted-foreground'>
-                {t('选择支付方式')}
+              <p className='text-muted-foreground text-xs'>
+                {t('Select payment method')}
               </p>
               {(hasStripe || hasCreem) && (
                 <div className='flex gap-2'>
@@ -238,7 +237,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     disabled={limitReached}
                   >
                     <SelectTrigger className='flex-1'>
-                      <SelectValue placeholder={t('选择支付方式')} />
+                      <SelectValue placeholder={t('Select payment method')} />
                     </SelectTrigger>
                     <SelectContent>
                       {(props.epayMethods || []).map((m) => (
@@ -252,7 +251,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     onClick={handlePayEpay}
                     disabled={paying || !selectedEpayMethod || limitReached}
                   >
-                    {t('支付')}
+                    {t('Pay')}
                   </Button>
                 </div>
               )}
@@ -260,7 +259,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
           ) : (
             <Alert>
               <AlertDescription>
-                {t('管理员未开启在线支付功能，请联系管理员配置。')}
+                {t(
+                  'Online payment is not enabled. Please contact the administrator.'
+                )}
               </AlertDescription>
             </Alert>
           )}

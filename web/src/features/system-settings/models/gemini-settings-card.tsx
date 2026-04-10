@@ -129,7 +129,11 @@ export function GeminiSettingsCard({ defaultValues }: GeminiSettingsCardProps) {
     },
   })
 
-  const form = useForm<GeminiSettingsFormInput, any, GeminiSettingsFormValues>({
+  const form = useForm<
+    GeminiSettingsFormInput,
+    unknown,
+    GeminiSettingsFormValues
+  >({
     resolver: zodResolver(schema),
     defaultValues: buildFormDefaults(defaultValues),
   })

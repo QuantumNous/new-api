@@ -7,8 +7,8 @@ import {
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
-import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '@/hooks'
+import { useTranslation } from 'react-i18next'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   Table,
@@ -88,7 +88,10 @@ export function ModelsTable() {
     queryFn: () => getVendors({ page_size: 1000 }),
   })
 
-  const vendors = vendorsData?.data?.items || []
+  const vendors = useMemo(
+    () => vendorsData?.data?.items || [],
+    [vendorsData?.data?.items]
+  )
 
   const vendorOptions = useMemo(() => {
     return vendors.map((v) => ({
@@ -108,6 +111,7 @@ export function ModelsTable() {
       : undefined)
 
   // Fetch models data
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   const { data, isLoading } = useQuery({
     queryKey: modelsQueryKeys.list({
       keyword: globalFilter,
@@ -307,13 +311,13 @@ export function ModelsTable() {
       )}
 
       {/* Pagination */}
-      <DataTablePagination table={table as any} />
+      <DataTablePagination table={table as ReturnType<typeof useReactTable>} />
     </div>
   )
 }
 
 // Helper to render cell content
-function flexRender(content: any, context: any) {
+function flexRender(content: unknown, context: unknown) {
   if (typeof content === 'function') {
     return content(context)
   }
