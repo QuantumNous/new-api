@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-interface WaffoValues {
+export interface WaffoSettingsValues {
   WaffoEnabled: boolean
   WaffoApiKey: string
   WaffoPrivateKey: string
@@ -54,15 +54,16 @@ interface PayMethod {
 }
 
 interface Props {
-  defaultValues: WaffoValues
+  defaultValues: WaffoSettingsValues
 }
 
 export function WaffoSettingsSection(props: Props) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [loading, setLoading] = useState(false)
+  const iconFileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const form = useForm<Omit<WaffoValues, 'WaffoPayMethods'>>({
+  const form = useForm<Omit<WaffoSettingsValues, 'WaffoPayMethods'>>({
     defaultValues: props.defaultValues,
   })
 
@@ -160,6 +161,35 @@ export function WaffoSettingsSection(props: Props) {
       )
     }
     setMethodDialogOpen(false)
+  }
+
+  const handleIconFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    const maxIconSize = 100 * 1024
+
+    if (file.size > maxIconSize) {
+      toast.error(t('Icon file must be 100 KB or smaller'))
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (loadEvent) => {
+      setMethodForm((previous) => ({
+        ...previous,
+        icon:
+          typeof loadEvent.target?.result === 'string'
+            ? loadEvent.target.result
+            : '',
+      }))
+    }
+    reader.readAsDataURL(file)
+    event.target.value = ''
   }
 
   return (
@@ -301,6 +331,7 @@ export function WaffoSettingsSection(props: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Display name')}</TableHead>
+                <TableHead>{t('Icon')}</TableHead>
                 <TableHead>{t('Payment method type')}</TableHead>
                 <TableHead>{t('Payment method name')}</TableHead>
                 <TableHead className='text-right'>{t('Actions')}</TableHead>
@@ -310,7 +341,7 @@ export function WaffoSettingsSection(props: Props) {
               {payMethods.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className='text-muted-foreground py-8 text-center'
                   >
                     {t('No payment methods configured')}
@@ -320,6 +351,17 @@ export function WaffoSettingsSection(props: Props) {
                 payMethods.map((m, idx) => (
                   <TableRow key={idx}>
                     <TableCell>{m.name}</TableCell>
+                    <TableCell>
+                      {m.icon ? (
+                        <img
+                          src={m.icon}
+                          alt={m.name}
+                          className='h-6 w-6 rounded object-contain'
+                        />
+                      ) : (
+                        <span className='text-muted-foreground'>-</span>
+                      )}
+                    </TableCell>
                     <TableCell>{m.payMethodType || '-'}</TableCell>
                     <TableCell>{m.payMethodName || '-'}</TableCell>
                     <TableCell className='text-right'>
@@ -376,6 +418,55 @@ export function WaffoSettingsSection(props: Props) {
                   setMethodForm((p) => ({ ...p, name: e.target.value }))
                 }
               />
+            </div>
+            <div className='grid gap-2'>
+              <Label>{t('Icon')}</Label>
+              <div className='flex items-center gap-3'>
+                {methodForm.icon ? (
+                  <img
+                    src={methodForm.icon}
+                    alt={methodForm.name || t('Icon')}
+                    className='h-10 w-10 rounded border object-contain p-1'
+                  />
+                ) : (
+                  <div className='bg-muted text-muted-foreground flex h-10 w-10 items-center justify-center rounded border text-xs'>
+                    {t('Icon')}
+                  </div>
+                )}
+                <input
+                  ref={iconFileInputRef}
+                  type='file'
+                  accept='image/png,image/jpeg,image/svg+xml,image/webp'
+                  className='hidden'
+                  onChange={handleIconFileChange}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => iconFileInputRef.current?.click()}
+                >
+                  {t('Upload')}
+                </Button>
+                {methodForm.icon ? (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() =>
+                      setMethodForm((previous) => ({
+                        ...previous,
+                        icon: '',
+                      }))
+                    }
+                  >
+                    {t('Clear')}
+                  </Button>
+                ) : null}
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.'
+                )}
+              </p>
             </div>
             <div className='grid gap-1.5'>
               <Label>{t('Payment method type')}</Label>

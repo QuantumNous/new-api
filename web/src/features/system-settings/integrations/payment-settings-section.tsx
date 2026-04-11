@@ -30,6 +30,10 @@ import {
   normalizeJsonForComparison,
   removeTrailingSlash,
 } from './utils'
+import {
+  WaffoSettingsSection,
+  type WaffoSettingsValues,
+} from './waffo-settings-section'
 
 const paymentSchema = z.object({
   PayAddress: z.string().refine((value) => {
@@ -101,10 +105,12 @@ type PaymentFormValues = z.infer<typeof paymentSchema>
 
 type PaymentSettingsSectionProps = {
   defaultValues: PaymentFormValues
+  waffoDefaultValues: WaffoSettingsValues
 }
 
 export function PaymentSettingsSection({
   defaultValues,
+  waffoDefaultValues,
 }: PaymentSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -1271,6 +1277,10 @@ export function PaymentSettingsSection({
           </Button>
         </form>
       </Form>
+
+      <Separator />
+
+      <WaffoSettingsSection defaultValues={waffoDefaultValues} />
       {/* eslint-enable react-hooks/refs */}
     </SettingsSection>
   )
