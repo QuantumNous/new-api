@@ -438,6 +438,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	if request != nil {
 		isStream = request.IsStream(c)
 	}
+	c.Set(string(constant.ContextKeyIsStream), isStream)
 
 	// firstResponseTime = time.Now() - 1 second
 
